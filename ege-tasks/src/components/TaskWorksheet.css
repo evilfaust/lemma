@@ -285,27 +285,32 @@
 /* Информация о студенте */
 .student-info {
   display: flex;
-  gap: 25px;
-  margin-top: 10px;
+  gap: 40px;
+  margin-top: 16px;
   flex-wrap: wrap;
-}
-
-.student-field {
-  display: flex;
   align-items: center;
-  gap: 8px;
 }
 
-.student-field span {
+.student-info-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 250px;
+  max-width: 400px;
+}
+
+.student-info-label {
   font-weight: 600;
-  color: #555;
-  white-space: nowrap;
-  font-size: 0.95em;
+  color: #333;
+  font-size: 14px;
+  letter-spacing: 0.3px;
 }
 
-.student-line {
-  border-bottom: 1.5px solid #333;
-  min-width: 200px;
+.student-info-line {
+  border-bottom: 2px solid #333;
+  min-height: 32px;
+  width: 100%;
 }
 
 @media print {

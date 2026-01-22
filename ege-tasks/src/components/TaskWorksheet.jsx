@@ -51,8 +51,8 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
   const [fontSize, setFontSize] = useState(12);
   const [showAnswersInline, setShowAnswersInline] = useState(false);
   const [showAnswersPage, setShowAnswersPage] = useState(true);
-  const [showTitlePage, setShowTitlePage] = useState(true);
   const [showStudentInfo, setShowStudentInfo] = useState(true);
+  const [variantLabel, setVariantLabel] = useState('Вариант');
   const [solutionSpace, setSolutionSpace] = useState('medium');
   const printRef = useRef();
 
@@ -216,7 +216,6 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
       // Создаем работу
       const workData = {
         title: values.workTitle || 'Контрольная работа',
-        class: values.workClass ? parseInt(values.workClass) : null,
         topic: form.getFieldValue('topic') || null,
         time_limit: values.timeLimit ? parseInt(values.timeLimit) : null,
       };
@@ -304,7 +303,6 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
       // Заполняем форму данными работы
       form.setFieldsValue({
         workTitle: work.title,
-        workClass: work.class?.toString(),
         topic: work.topic,
       });
 
@@ -339,36 +337,22 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
     }
   };
 
-  const renderTitlePage = (workTitle, workDate, workClass) => {
-    if (!showTitlePage) return null;
-
-    return (
-      <div className="title-page">
-        <div className="title-page-content">
-          <h1>{workTitle || 'Контрольная работа'}</h1>
-          {workDate && <p className="work-date">{workDate}</p>}
-          {workClass && <p className="work-class">Класс: {workClass}</p>}
-        </div>
-        <div className="page-break"></div>
-      </div>
-    );
-  };
 
   const renderVariant = (variant, workTitle, variantIndex) => {
     return (
       <div key={variant.number} className="variant-container">
         {/* Заголовок варианта */}
         <div className="variant-header">
-          <h2>Вариант {variant.number}</h2>
+          <h2>{variantLabel} {variant.number}</h2>
           {showStudentInfo && (
             <div className="student-info">
-              <div className="student-field">
-                <span>Фамилия, Имя:</span>
-                <div className="student-line">_______________________________</div>
+              <div className="student-info-field">
+                <span className="student-info-label">Фамилия:</span>
+                <div className="student-info-line"></div>
               </div>
-              <div className="student-field">
-                <span>Класс:</span>
-                <div className="student-line">________</div>
+              <div className="student-info-field">
+                <span className="student-info-label">Имя:</span>
+                <div className="student-info-line"></div>
               </div>
             </div>
           )}
@@ -444,7 +428,7 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
 
         {variants.map((variant) => (
           <div key={variant.number} className="variant-answers">
-            <h3>Вариант {variant.number}</h3>
+            <h3>{variantLabel} {variant.number}</h3>
             <div className="answers-grid">
               {variant.tasks.map((task, index) => (
                 <div key={task.id} className="answer-item">
@@ -702,16 +686,7 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
               </Row>
 
               <Row gutter={16}>
-                <Col xs={24} md={6}>
-                  <Form.Item label="Титульный лист">
-                    <Switch
-                      checked={showTitlePage}
-                      onChange={setShowTitlePage}
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
+                <Col xs={24} md={8}>
                   <Form.Item label="Поля для ФИО">
                     <Switch
                       checked={showStudentInfo}
@@ -720,7 +695,7 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={6}>
+                <Col xs={24} md={8}>
                   <Form.Item label="Ответы в тексте">
                     <Switch
                       checked={showAnswersInline}
@@ -729,7 +704,7 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
                   </Form.Item>
                 </Col>
 
-                <Col xs={24} md={6}>
+                <Col xs={24} md={8}>
                   <Form.Item label="Лист с ответами">
                     <Switch
                       checked={showAnswersPage}
@@ -739,30 +714,17 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
                 </Col>
               </Row>
 
-              {showTitlePage && (
-                <>
-                  <Divider>Титульный лист</Divider>
-                  <Row gutter={16}>
-                    <Col xs={24} md={8}>
-                      <Form.Item name="workTitle" label="Название работы">
-                        <Input placeholder="Контрольная работа" />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={8}>
-                      <Form.Item name="workDate" label="Дата">
-                        <Input placeholder="12 января 2026" />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={8}>
-                      <Form.Item name="workClass" label="Класс">
-                        <Input placeholder="10 класс" />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                </>
-              )}
+              <Row gutter={16}>
+                <Col xs={24} md={12}>
+                  <Form.Item label="Название варианта">
+                    <Input
+                      value={variantLabel}
+                      onChange={(e) => setVariantLabel(e.target.value)}
+                      placeholder="Вариант"
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
             </Panel>
           </Collapse>
 
@@ -856,12 +818,6 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
       {/* Печатный лист */}
       {variants.length > 0 && (
         <div ref={printRef} className="printable-worksheet">
-          {renderTitlePage(
-            form.getFieldValue('workTitle'),
-            form.getFieldValue('workDate'),
-            form.getFieldValue('workClass')
-          )}
-
           {variants.map((variant, index) => renderVariant(variant, form.getFieldValue('workTitle'), index))}
 
           {renderAnswersPage()}
@@ -904,7 +860,6 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
           onFinish={handleSaveWork}
           initialValues={{
             workTitle: form.getFieldValue('workTitle') || 'Контрольная работа',
-            workClass: form.getFieldValue('workClass'),
             timeLimit: null,
           }}
         >
@@ -922,13 +877,6 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
             rules={[{ required: true, message: 'Введите название работы' }]}
           >
             <Input placeholder="Например: Контрольная работа №1" />
-          </Form.Item>
-
-          <Form.Item
-            name="workClass"
-            label="Класс"
-          >
-            <Input placeholder="Например: 10" />
           </Form.Item>
 
           <Form.Item
@@ -1016,7 +964,6 @@ const TaskWorksheet = ({ topics, tags, years = [], sources = [], subtopics = [] 
                   title={
                     <Space>
                       <span style={{ fontWeight: 600, fontSize: 16 }}>{work.title}</span>
-                      {work.class && <Tag color="blue">Класс: {work.class}</Tag>}
                       {work.time_limit && <Tag color="green">{work.time_limit} мин</Tag>}
                       {work.expand?.topic && (
                         <Tag color="purple">№{work.expand.topic.ege_number} - {work.expand.topic.title}</Tag>
