@@ -141,6 +141,23 @@
   padding-top: 6px;
 }
 
+/* Прямоугольник для выписывания ответа (только для печати) */
+.answer-box {
+  display: none;
+}
+
+@media print {
+  .answer-box {
+    display: inline-block;
+    margin-left: auto;
+    padding: 4px 12px;
+    border: 1.5px solid #333;
+    border-radius: 3px;
+    min-width: 60px;
+    height: 24px;
+  }
+}
+
 /* Стили для математических формул */
 .task-content .katex {
   font-size: 1em;
@@ -265,14 +282,23 @@
   margin-bottom: 25px;
 }
 
+@media print {
+  .variant-container {
+    padding-top: 15mm;
+  }
+
+  /* Первый вариант не нуждается в дополнительном отступе сверху */
+  .variant-container:first-child {
+    padding-top: 0;
+  }
+}
+
 /* Заголовок варианта */
 .variant-header {
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 2.5px solid #1890ff;
-  background: linear-gradient(to right, #f0f9ff 0%, transparent 100%);
   padding: 10px 12px;
-  border-radius: 4px 4px 0 0;
 }
 
 .variant-header h2 {
@@ -423,3 +449,325 @@
     background: #f5f5f5 !important;
   }
 }
+
+/* Стили для Markdown таблиц */
+.task-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0;
+  border: 1px solid #ddd;
+  font-size: 0.95em;
+}
+
+.task-content thead {
+  background-color: #f5f5f5;
+}
+
+.task-content th,
+.task-content td {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.task-content th {
+  font-weight: 600;
+  color: #333;
+}
+
+.task-content tr:nth-child(even) {
+  background-color: #fafafa;
+}
+
+.task-content tr:hover {
+  background-color: #f0f9ff;
+}
+
+/* Стили для списков в Markdown */
+.task-content ul,
+.task-content ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.task-content li {
+  margin: 4px 0;
+  line-height: 1.5;
+}
+
+/* Стили для заголовков в Markdown */
+.task-content h1,
+.task-content h2,
+.task-content h3 {
+  margin: 12px 0 8px 0;
+  color: #333;
+}
+
+.task-content h1 {
+  font-size: 1.4em;
+  font-weight: 700;
+}
+
+.task-content h2 {
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.task-content h3 {
+  font-size: 1.1em;
+  font-weight: 600;
+}
+
+/* Стили для жирного и курсивного текста */
+.task-content strong {
+  font-weight: 700;
+  color: #1890ff;
+}
+
+.task-content em {
+  font-style: italic;
+  color: #666;
+}
+
+/* Стили для кода в Markdown */
+.task-content code {
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+  color: #d63384;
+}
+
+.task-content pre {
+  background: #f5f5f5;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 10px 0;
+}
+
+.task-content pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* Оптимизация таблиц для печати */
+@media print {
+  .task-content table {
+    page-break-inside: avoid;
+    border: 1px solid #333 !important;
+  }
+
+  .task-content th,
+  .task-content td {
+    border: 1px solid #333 !important;
+  }
+
+  .task-content thead {
+    background-color: #f5f5f5 !important;
+  }
+
+  .task-content tr:nth-child(even) {
+    background-color: #fafafa !important;
+  }
+}
+
+/* Компактный режим для устного счета */
+.compact-mode {
+  padding-top: 0 !important;
+  page-break-inside: avoid;
+}
+
+.variant-header-compact {
+  text-align: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #1890ff;
+}
+
+.variant-header-compact h2 {
+  margin: 0;
+  font-size: 16pt;
+  color: #1890ff;
+}
+
+.tasks-content-compact {
+  display: block;
+}
+
+.task-item-compact {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 0px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  position: relative;
+}
+
+.compact-answer-box {
+  flex-shrink: 0;
+  width: 26px;
+  height: 17px;
+  border: 1.5px solid #333;
+  border-radius: 2px;
+}
+
+.compact-task-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.1;
+}
+
+.compact-task-number {
+  font-weight: 500;
+  color: #1890ff;
+  flex-shrink: 0;
+  font-size: 0.9em;
+}
+
+.compact-controls {
+  position: absolute;
+  right: 0;
+  top: 0;
+  display: flex;
+  gap: 4px;
+  opacity: 0.7;
+}
+
+.compact-controls:hover {
+  opacity: 1;
+}
+
+/* Grid для нескольких вариантов на одной странице */
+.compact-variants-grid {
+  page-break-inside: avoid;
+}
+
+.compact-variants-grid .compact-mode {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.compact-variants-grid .page-break {
+  display: none;
+}
+
+/* Обёртка для страниц с вариантами */
+.variants-page {
+  page-break-after: always;
+  break-after: always;
+}
+
+.variants-page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+
+@media print {
+  .variants-page {
+    padding-top: 0;
+  }
+
+  /* Вторая и последующие страницы с вариантами */
+  .variants-page ~ .variants-page {
+    padding-top: 10mm;
+  }
+}
+
+/* Стили для печати компактного режима */
+@media print {
+  .compact-mode {
+    padding-top: 15mm !important;
+    page-break-inside: avoid;
+  }
+
+  /* Первый вариант без отступа сверху */
+  .compact-mode:first-of-type {
+    padding-top: 0 !important;
+  }
+
+  /* Варианты внутри grid тоже нуждаются в отступах */
+  .compact-variants-grid .compact-mode {
+    padding-top: 0 !important;
+  }
+
+  .variant-header-compact {
+    margin-bottom: 4px;
+    padding-bottom: 3px;
+  }
+
+  .variant-header-compact h2 {
+    font-size: 13pt;
+  }
+
+  .task-item-compact {
+    margin-bottom: 0.5mm;
+  }
+
+  .compact-answer-box {
+    width: 24px;
+    height: 15px;
+  }
+
+  .compact-task-content {
+    line-height: 1.05;
+    gap: 2px;
+  }
+
+  .compact-task-number {
+    font-size: 0.85em;
+  }
+
+  .compact-variants-grid {
+    column-gap: 6mm !important;
+    page-break-inside: avoid;
+  }
+}
+
+/* Drag and Drop стили */
+.task-item.dragging,
+.task-item-compact.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.task-item.drag-over,
+.task-item-compact.drag-over {
+  border-top: 3px solid #1890ff;
+  padding-top: 3px;
+}
+
+.task-item[draggable="true"],
+.task-item-compact[draggable="true"] {
+  cursor: grab;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.task-item[draggable="true"]:hover,
+.task-item-compact[draggable="true"]:hover {
+  background-color: #f0f9ff;
+}
+
+/* Скрываем drag and drop стили при печати */
+@media print {
+  .task-item[draggable="true"],
+  .task-item-compact[draggable="true"] {
+    cursor: default;
+  }
+
+  .task-item.dragging,
+  .task-item-compact.dragging,
+  .task-item.drag-over,
+  .task-item-compact.drag-over {
+    opacity: 1;
+    border: none;
+    padding: 0;
+    background-color: transparent;
+  }
+}
+

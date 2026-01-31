@@ -7,6 +7,7 @@ const { Option } = Select;
 const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], onFilterChange, totalCount }) => {
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({});
+  const [selectedTopic, setSelectedTopic] = useState(null);
 
   const getDifficultyColor = (difficulty) => {
     const colors = {
@@ -39,14 +40,22 @@ const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], o
   }, [onFilterChange]);
 
   // Обработчик изменения любого поля
-  const handleFieldChange = () => {
-    const values = form.getFieldsValue();
-    applyFilters(values);
+  const handleFieldChange = (changedValues, allValues) => {
+    // Если изменилась тема, сбрасываем подтему
+    if (changedValues.topic !== undefined) {
+      setSelectedTopic(changedValues.topic);
+      if (changedValues.topic !== allValues.topic) {
+        form.setFieldValue('subtopic', undefined);
+        allValues.subtopic = undefined;
+      }
+    }
+    applyFilters(allValues);
   };
 
   const handleResetFilters = () => {
     form.resetFields();
     setFilters({});
+    setSelectedTopic(null);
     onFilterChange({});
   };
 
@@ -54,6 +63,14 @@ const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], o
     form.setFieldValue(filterKey, undefined);
     const values = form.getFieldsValue();
     values[filterKey] = undefined;
+
+    // Если удаляем тему, также сбрасываем подтему и selectedTopic
+    if (filterKey === 'topic') {
+      form.setFieldValue('subtopic', undefined);
+      values.subtopic = undefined;
+      setSelectedTopic(null);
+    }
+
     applyFilters(values);
   };
 
@@ -138,16 +155,19 @@ const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], o
           <Col xs={24} sm={12} md={6}>
             <Form.Item name="subtopic" label="Подтема">
               <Select
-                placeholder="Выберите подтему"
+                placeholder={selectedTopic ? "Выберите подтему" : "Сначала выберите тему"}
                 allowClear
                 showSearch
                 optionFilterProp="children"
+                disabled={!selectedTopic}
               >
-                {subtopics.map(subtopic => (
-                  <Option key={subtopic.id} value={subtopic.id}>
-                    {subtopic.name}
-                  </Option>
-                ))}
+                {subtopics
+                  .filter(subtopic => !selectedTopic || subtopic.topic === selectedTopic)
+                  .map(subtopic => (
+                    <Option key={subtopic.id} value={subtopic.id}>
+                      {subtopic.name}
+                    </Option>
+                  ))}
               </Select>
             </Form.Item>
           </Col>

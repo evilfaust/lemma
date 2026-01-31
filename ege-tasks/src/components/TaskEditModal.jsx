@@ -35,6 +35,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, allTags = [], allSource
         source: task.source || '',
         year: task.year || undefined,
         tags: task.tags || [],
+        image_url: task.image_url || '',
       });
       setPreviewStatement(task.statement_md || '');
       setPreviewAnswer(task.answer || '');
@@ -69,6 +70,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, allTags = [], allSource
         source: values.source || '',
         year: values.year || null,
         tags: values.tags || [],
+        image_url: values.image_url || '',
+        has_image: !!values.image_url,
       };
 
       await onSave(task.id, taskData);
@@ -228,12 +231,22 @@ const TaskEditModal = ({ task, visible, onClose, onSave, allTags = [], allSource
           </Select>
         </Form.Item>
 
+        {/* URL изображения */}
+        <Form.Item
+          name="image_url"
+          label="URL изображения (опционально)"
+        >
+          <Input
+            placeholder="https://example.com/image.png"
+          />
+        </Form.Item>
+
         {/* Текст задания */}
         <Form.Item
           name="statement_md"
           label="Текст задания (поддерживает LaTeX: $x^2$)"
         >
-          <TextArea 
+          <TextArea
             rows={4}
             placeholder="Введите текст задания..."
             onChange={handleStatementChange}

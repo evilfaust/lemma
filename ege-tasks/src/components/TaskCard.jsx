@@ -147,10 +147,10 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
         </Paragraph>
 
         {/* Изображение если есть */}
-        {task.has_image && task.image && (
+        {task.has_image && task.image_url && (
           <div style={{ marginBottom: 12 }}>
             <Image
-              src={api.getImageUrl(task, task.image)}
+              src={task.image_url}
               alt="Task image"
               style={{ maxWidth: '100%' }}
             />

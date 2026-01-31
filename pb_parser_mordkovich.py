@@ -3,7 +3,6 @@ import os
 import sys
 import yaml
 import requests
-from collections import OrderedDict
 
 # --------------------------
 # Настройки
@@ -14,15 +13,26 @@ ADMIN_PASSWORD = "Zasadazxasqw12#"
 COLLECTION_NAME = "tasks"
 SOURCE_FOLDER = "source/mordkovich"
 
-# Получаем номер параграфа из аргументов
+# Получаем имя файла из аргументов (например: M43)
 if len(sys.argv) < 2:
-    print("❌ Использование: python3 pb_parser_mordkovich.py <номер_параграфа>")
-    print("   Пример: python3 pb_parser_mordkovich.py 14")
+    print("❌ Использование: python3 pb_parser_mordkovich.py <имя_файла>")
+    print("   Пример: python3 pb_parser_mordkovich.py M43")
     sys.exit(1)
 
-paragraph_num = sys.argv[1]
-filename = f"{paragraph_num}.md"
+file_arg = sys.argv[1]
+# Убираем .md если пользователь его добавил
+if file_arg.endswith('.md'):
+    file_arg = file_arg[:-3]
+
+filename = f"{file_arg}.md"
 MD_FILE = os.path.join(SOURCE_FOLDER, filename)
+
+# Извлекаем номер параграфа из имени файла (M43 -> 43)
+paragraph_match = re.match(r'M?(\d+)', file_arg)
+if not paragraph_match:
+    print(f"❌ Не удалось извлечь номер параграфа из: {file_arg}")
+    sys.exit(1)
+paragraph_num = paragraph_match.group(1)
 
 # Проверяем существование файла
 if not os.path.exists(MD_FILE):
@@ -30,7 +40,7 @@ if not os.path.exists(MD_FILE):
     print(f"\n📁 Доступные файлы в папке {SOURCE_FOLDER}:")
     if os.path.exists(SOURCE_FOLDER):
         for f in sorted(os.listdir(SOURCE_FOLDER)):
-            if f.endswith('.md') and f[:-3].replace('.', '').isdigit():
+            if f.endswith('.md'):
                 print(f"   - {f}")
     sys.exit(1)
 
@@ -57,7 +67,7 @@ def get_or_create_tag(tag_title: str):
     tag_title = tag_title.strip()
     if not tag_title:
         return None
-    
+
     try:
         resp = requests.get(
             f"{PB_URL}/api/collections/tags/records",
@@ -66,77 +76,121 @@ def get_or_create_tag(tag_title: str):
         )
         resp.raise_for_status()
         items = resp.json().get("items", [])
-        
+
         if items:
             return items[0]["id"]
-        
+
         import random
-        colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8", 
+        colors = ["#FF6B6B", "#4ECDC4", "#45B7D1", "#FFA07A", "#98D8C8",
                   "#F7DC6F", "#BB8FCE", "#85C1E2", "#F8B500", "#52BE80"]
-        
+
         create_resp = requests.post(
             f"{PB_URL}/api/collections/tags/records",
             headers=HEADERS,
             json={"title": tag_title, "color": random.choice(colors)}
         )
-        
+
         if create_resp.status_code == 200:
             tag_id = create_resp.json()["id"]
             print(f"   ✓ Создан новый тег: {tag_title}")
             return tag_id
-            
+
     except Exception as e:
         print(f"   ⚠️ Ошибка при работе с тегом '{tag_title}': {e}")
         return None
 
-def get_or_create_tags(tags_str: str):
-    """Получает или создает теги по строке с разделителями"""
-    if not tags_str or not tags_str.strip():
+def get_or_create_tags(tags_list):
+    """Получает или создает теги по списку"""
+    if not tags_list:
         return []
-    
-    tag_list = [t.strip() for t in tags_str.split(",") if t.strip()]
+
+    # Если передана строка, разбиваем по запятой
+    if isinstance(tags_list, str):
+        tags_list = [t.strip() for t in tags_list.split(",") if t.strip()]
+
     tag_ids = []
-    
-    for tag_title in tag_list:
+    for tag_title in tags_list:
         tag_id = get_or_create_tag(tag_title)
         if tag_id:
             tag_ids.append(tag_id)
-    
+
     return tag_ids
 
 # --------------------------
-# Получение/создание топика (ИСПРАВЛЕНО: НЕ СОЗДАЕТ ДУБЛИКАТ)
+# Работа с подтемами (subtopics)
+# --------------------------
+def get_or_create_subtopic(subtopic_name: str, topic_id: str):
+    """Получает или создает подтему по названию"""
+    if not subtopic_name or not subtopic_name.strip():
+        return None
+
+    subtopic_name = subtopic_name.strip()
+
+    try:
+        # Ищем существующую подтему для данного топика
+        resp = requests.get(
+            f"{PB_URL}/api/collections/subtopics/records",
+            headers=HEADERS,
+            params={"filter": f'name = "{subtopic_name}" && topic = "{topic_id}"', "perPage": 1}
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+
+        if items:
+            print(f"✓ Подтема уже существует: {subtopic_name}")
+            return items[0]["id"]
+
+        # Создаём новую подтему
+        create_resp = requests.post(
+            f"{PB_URL}/api/collections/subtopics/records",
+            headers=HEADERS,
+            json={"name": subtopic_name, "topic": topic_id, "order": 0}
+        )
+
+        if create_resp.status_code == 200:
+            subtopic_id = create_resp.json()["id"]
+            print(f"   ✓ Создана новая подтема: {subtopic_name}")
+            return subtopic_id
+        else:
+            print(f"   ⚠️ Ошибка создания подтемы: {create_resp.text}")
+            return None
+
+    except Exception as e:
+        print(f"   ⚠️ Ошибка при работе с подтемой '{subtopic_name}': {e}")
+        return None
+
+# --------------------------
+# Получение/создание топика
 # --------------------------
 def get_or_create_topic(paragraph_num: str, title: str, description: str = ""):
     """Получает или создает топик для параграфа Мордковича"""
     topic_code = f"M{paragraph_num}"
-    
-    # Ищем существующий топик
+
+    # Ищем существующий топик по slug
     resp = requests.get(
         f"{PB_URL}/api/collections/topics/records",
         headers=HEADERS,
-        params={"filter": f'ege_number = "{topic_code}"', "perPage": 1}
+        params={"filter": f'slug = "{topic_code}"', "perPage": 1}
     )
     resp.raise_for_status()
     items = resp.json().get("items", [])
-    
+
     if items:
-        # Если топик найден, просто возвращаем его ID
         print(f"✓ Топик уже существует: {items[0]['title']} (ID: {items[0]['id']})")
         return items[0]["id"]
-    
-    # Создаем новый топик только если не нашли
+
+    # Создаем новый топик
     print(f"🆕 Создаю новый топик для §{paragraph_num}...")
     create_resp = requests.post(
         f"{PB_URL}/api/collections/topics/records",
         headers=HEADERS,
         json={
-            "title": title,
-            "ege_number": topic_code,
+            "title": f"{title} §{paragraph_num}",
+            "slug": topic_code,
             "description": description or f"Задачник Мордкович, §{paragraph_num}"
         }
     )
-    
+
     if create_resp.status_code == 200:
         topic_id = create_resp.json()["id"]
         print(f"✓ Создан новый топик: {title}")
@@ -155,10 +209,10 @@ def generate_code(topic_id: str, paragraph_num: str):
         params={"filter": f'topic = "{topic_id}"', "fields": "code", "perPage": 500}
     )
     tasks_resp.raise_for_status()
-    
+
     counters = []
     prefix = f"M{paragraph_num}-"
-    
+
     for t in tasks_resp.json().get("items", []):
         code = t.get("code", "")
         if code.startswith(prefix):
@@ -167,7 +221,7 @@ def generate_code(topic_id: str, paragraph_num: str):
                 counters.append(int(num))
             except:
                 continue
-    
+
     next_num = max(counters, default=0) + 1
     return f"{prefix}{str(next_num).zfill(3)}"
 
@@ -192,101 +246,74 @@ print("\n📊 Метаданные из YAML:")
 for key, value in metadata.items():
     print(f"   {key}: {value}")
 
-topic_name = metadata.get("topic")
-paragraph = str(metadata.get("paragraph", paragraph_num))
-# Сложность по умолчанию из YAML
+topic_name = metadata.get("topic", "Мордкович")
+subtopic_name = metadata.get("subtopic", "")
 default_difficulty = str(metadata.get("difficulty", "1"))
-source = metadata.get("source", "Мордкович А.Г. Задачник")
-year = metadata.get("year", 2024)
-tags_str = metadata.get("tags", "")
-
-if not topic_name:
-    print("❌ Поле 'topic' обязательно!")
-    sys.exit(1)
-
-print("\n🏷️  Обработка тегов...")
-tag_ids = get_or_create_tags(tags_str)
-
-TOPIC_ID = get_or_create_topic(paragraph, topic_name)
+source_prefix = metadata.get("source", "Мордкович")
+year = metadata.get("year")
+yaml_tags = metadata.get("tags", [])
 
 # --------------------------
-# Парсинг заданий (ИСПРАВЛЕНО: СКЛЕЙКА УСЛОВИЯ + сложность из квадратных скобок)
+# Получаем/создаём топик и подтему
+# --------------------------
+TOPIC_ID = get_or_create_topic(paragraph_num, topic_name)
+SUBTOPIC_ID = get_or_create_subtopic(subtopic_name, TOPIC_ID) if subtopic_name else None
+
+# --------------------------
+# Парсинг заданий в новом формате
 # --------------------------
 print(f"\n📝 Парсинг заданий...")
 
-tasks_section = re.search(r'## Задания\s*\n(.*?)\n## Ответы', md_text, re.DOTALL)
-if not tasks_section:
-    tasks_section = re.search(r'## Задания\s*\n(.*)', md_text, re.DOTALL)
+# Убираем YAML блок из текста
+content_text = re.sub(r'^---\s*\n.*?\n---\s*\n', '', md_text, flags=re.DOTALL)
 
-if not tasks_section:
-    print("❌ Не найдена секция '## Задания'")
-    sys.exit(1)
-
-tasks_text = tasks_section.group(1)
-
-# Обновленный паттерн для извлечения сложности из квадратных скобок
+# Паттерн для парсинга заданий:
+# **043.9a** [2]
+# Условие задачи
+# Ответ: ответ
+# tags: [тег1, тег2, ...]
 task_pattern = re.compile(
-    r'(?:\*\*)?(\d+\.\d+)\.(?:\*\*)?\s*\[(\d+)\]\s*(.+?)(?=\n(?:\*\*)?\d+\.\d+\.(?:\*\*)?|\n##|\Z)',
-    re.MULTILINE | re.DOTALL
+    r'\*\*(\d+)\.(\d+)([a-z]?)\*\*\s*(?:\[(\d+)\])?\s*\n'  # **043.9a** [2]
+    r'(.*?)\n'                                              # Условие
+    r'Ответ:\s*(.*?)\n'                                     # Ответ
+    r'tags:\s*\[(.*?)\]',                                   # tags: [...]
+    re.DOTALL
 )
 
-tasks = OrderedDict()
-task_difficulties = {}  # Словарь для хранения сложности каждого задания
+tasks = []
+for match in task_pattern.finditer(content_text):
+    paragraph_from_task = match.group(1)  # 043
+    task_number = match.group(2)          # 9
+    letter = match.group(3) or ''         # a, b, c, d или пусто
+    difficulty = match.group(4)           # сложность из [2] или None
+    statement = match.group(5).strip()    # условие
+    answer = match.group(6).strip()       # ответ
+    tags_str = match.group(7).strip()     # теги
 
-for match in task_pattern.finditer(tasks_text):
-    task_num = match.group(1)
-    difficulty = match.group(2)  # Сложность из квадратных скобок
-    task_content = match.group(3).strip()
-    
-    # Сохраняем сложность задания
-    task_difficulties[task_num] = difficulty
-    
-    # --- НОВЫЙ БЛОК: ИЗВЛЕЧЕНИЕ ИНСТРУКЦИИ (например, "Вычислите:") ---
-    # Инструкция - это текст до первого подпункта "а)"
-    instruction_parts = re.split(r'^\s*[а-гa-d]\)', task_content, flags=re.MULTILINE)
-    instruction = instruction_parts[0].strip() if len(instruction_parts) > 1 else ""
-    # ----------------------------------------------------------------
-    
-    subtask_pattern = re.compile(r'^\s*([а-г]|[a-d])\)\s*(.+)$', re.MULTILINE)
-    subtasks = {}
-    
-    for subtask_match in subtask_pattern.finditer(task_content):
-        letter = subtask_match.group(1)
-        statement = subtask_match.group(2).strip()
-        
-        # --- СКЛЕЙКА: "Инструкция + само задание" ---
-        full_statement = f"{instruction} {statement}".strip()
-        
-        letter_map = {'а': 'a', 'б': 'b', 'в': 'c', 'г': 'd'}
-        letter_norm = letter_map.get(letter, letter)
-        subtasks[letter_norm] = full_statement
-    
-    if subtasks:
-        tasks[task_num] = subtasks
+    # Парсим теги
+    task_tags = [t.strip() for t in tags_str.split(',') if t.strip()]
+
+    # Формируем номер для source: 43.9 (без буквы, без ведущего нуля)
+    clean_paragraph = paragraph_from_task.lstrip('0') or '0'
+    source_task_num = f"{clean_paragraph}.{task_number}"
+
+    # Полный номер задания для отображения
+    full_task_name = f"{paragraph_from_task}.{task_number}{letter}"
+
+    tasks.append({
+        'full_name': full_task_name,
+        'source_num': source_task_num,
+        'statement': statement,
+        'answer': answer,
+        'difficulty': difficulty or default_difficulty,
+        'tags': task_tags
+    })
 
 print(f"✓ Найдено заданий: {len(tasks)}")
-total_subtasks = sum(len(subtasks) for subtasks in tasks.values())
 
-# --------------------------
-# Парсинг ответов
-# --------------------------
-print(f"\n📝 Парсинг ответов...")
-
-answers = {}
-answer_section = re.search(r'## Ответы\s*\n(.*)', md_text, re.DOTALL)
-if answer_section:
-    answer_text = answer_section.group(1)
-    row_pattern = re.compile(r'\|\s*\*\*(\d+\.\d+)\*\*\s*\|\s*(.*?)\s*\|', re.DOTALL)
-    subanswer_pattern = re.compile(r'\*\*([а-г])\)\*\*\s*([^;|]+)', re.DOTALL)
-    letter_map = {'а': 'a', 'б': 'b', 'в': 'c', 'г': 'd'}
-
-    for t_num, cell in row_pattern.findall(answer_text):
-        subtask_answers = {}
-        for letter, value in subanswer_pattern.findall(cell):
-            letter_norm = letter_map[letter]
-            subtask_answers[letter_norm] = value.strip()
-        if subtask_answers:
-            answers[t_num] = subtask_answers
+if not tasks:
+    print("❌ Задания не найдены! Проверьте формат файла.")
+    sys.exit(1)
 
 # --------------------------
 # Проверка дубликатов
@@ -313,53 +340,56 @@ added_count = 0
 skipped_count = 0
 error_count = 0
 
-for task_num, subtasks in tasks.items():
-    for letter, statement in subtasks.items():
-        full_task_name = f"{task_num}{letter}"
-        
-        if statement in existing_statements:
-            print(f"⚠️  {full_task_name}: пропущено (дубликат)")
-            skipped_count += 1
-            continue
-        
-        answer = answers.get(task_num, {}).get(letter, "")
-        code = generate_code(TOPIC_ID, paragraph)
-        
-        # Определяем сложность: из квадратных скобок или из YAML по умолчанию
-        difficulty = task_difficulties.get(task_num, default_difficulty)
-        
-        record_data = {
-            "code": code,
-            "topic": TOPIC_ID,
-            "difficulty": difficulty,
-            "statement_md": statement,
-            "answer": answer,
-            "source": f"{source}, §{paragraph}, №{full_task_name}",
-            "year": year,
-        }
-        
-        if tag_ids:
-            record_data["tags"] = tag_ids
-        
-        try:
-            r = requests.post(
-                f"{PB_URL}/api/collections/{COLLECTION_NAME}/records",
-                headers=HEADERS,
-                json=record_data
-            )
-            if r.status_code == 200:
-                print(f"✅ {full_task_name}: добавлено ({code}), сложность: {difficulty}")
-                added_count += 1
-            else:
-                print(f"❌ {full_task_name}: ошибка {r.status_code}")
-                error_count += 1
-        except Exception as e:
-            print(f"❌ {full_task_name}: исключение - {e}")
+for task in tasks:
+    if task['statement'] in existing_statements:
+        print(f"⚠️  {task['full_name']}: пропущено (дубликат)")
+        skipped_count += 1
+        continue
+
+    code = generate_code(TOPIC_ID, paragraph_num)
+
+    # Формируем source: Мордкович+43.9
+    task_source = f"{source_prefix}+{task['source_num']}"
+
+    # Получаем ID тегов
+    tag_ids = get_or_create_tags(task['tags'])
+
+    record_data = {
+        "code": code,
+        "topic": TOPIC_ID,
+        "difficulty": task['difficulty'],
+        "statement_md": task['statement'],
+        "answer": task['answer'],
+        "source": task_source,
+    }
+
+    if SUBTOPIC_ID:
+        record_data["subtopic"] = [SUBTOPIC_ID]
+
+    if year:
+        record_data["year"] = year
+
+    if tag_ids:
+        record_data["tags"] = tag_ids
+
+    try:
+        r = requests.post(
+            f"{PB_URL}/api/collections/{COLLECTION_NAME}/records",
+            headers=HEADERS,
+            json=record_data
+        )
+        if r.status_code == 200:
+            print(f"✅ {task['full_name']}: добавлено ({code}), сложность: {task['difficulty']}, source: {task_source}")
+            added_count += 1
+        else:
+            print(f"❌ {task['full_name']}: ошибка {r.status_code} - {r.text}")
             error_count += 1
+    except Exception as e:
+        print(f"❌ {task['full_name']}: исключение - {e}")
+        error_count += 1
 
 print("\n" + "="*60)
 print(f"📊 ИТОГОВАЯ СТАТИСТИКА:")
 print(f"   ✅ Добавлено: {added_count}")
 print(f"   ⚠️  Пропущено: {skipped_count}")
 print(f"   ❌ Ошибки: {error_count}")
-

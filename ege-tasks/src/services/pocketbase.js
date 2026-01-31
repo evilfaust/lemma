@@ -67,6 +67,18 @@ export const api = {
         filterArr.push(`subtopic ~ "${filters.subtopic}"`);
       }
 
+      // Фильтрация по массиву подтем (несколько подтем)
+      if (filters.subtopics && filters.subtopics.length > 0) {
+        const subtopicFilters = filters.subtopics.map(stId => `subtopic ~ "${stId}"`);
+        filterArr.push(`(${subtopicFilters.join(' || ')})`);
+      }
+
+      // Фильтрация по тегам (несколько тегов)
+      if (filters.tags && filters.tags.length > 0) {
+        const tagFilters = filters.tags.map(tagId => `tags ~ "${tagId}"`);
+        filterArr.push(`(${tagFilters.join(' || ')})`);
+      }
+
       if (filters.difficulty) {
         filterArr.push(`difficulty = "${filters.difficulty}"`);
       }
@@ -106,16 +118,112 @@ export const api = {
   async getRandomTasks(count, filters = {}) {
     try {
       const allTasks = await this.getTasks(filters);
-      
+
       // Перемешиваем массив
       const shuffled = [...allTasks].sort(() => Math.random() - 0.5);
-      
+
       // Берем первые count элементов
       return shuffled.slice(0, count);
     } catch (error) {
       console.error('Error fetching random tasks:', error);
       return [];
     }
+  },
+
+  // Получить задачи БЕЗ ПОВТОРЕНИЙ (исключая уже использованные)
+  async getRandomTasksWithoutRepetition(count, filters = {}, excludeTaskIds = []) {
+    try {
+      const allTasks = await this.getTasks(filters);
+
+      // Фильтруем, исключая уже использованные задачи
+      const availableTasks = allTasks.filter(task => !excludeTaskIds.includes(task.id));
+
+      if (availableTasks.length < count) {
+        console.warn(`Доступно только ${availableTasks.length} неиспользованных задач из ${count} запрошенных`);
+      }
+
+      // Перемешиваем массив
+      const shuffled = [...availableTasks].sort(() => Math.random() - 0.5);
+
+      // Берем первые count элементов
+      return shuffled.slice(0, count);
+    } catch (error) {
+      console.error('Error fetching tasks without repetition:', error);
+      return [];
+    }
+  },
+
+  // Получить задачи с ПРОГРЕССИВНОЙ СЛОЖНОСТЬЮ
+  async getTasksWithProgressiveDifficulty(count, filters = {}, excludeTaskIds = []) {
+    try {
+      const allTasks = await this.getTasks(filters);
+
+      // Фильтруем, исключая уже использованные задачи
+      const availableTasks = allTasks.filter(task => !excludeTaskIds.includes(task.id));
+
+      // Группируем задачи по сложности
+      const tasksByDifficulty = {
+        '1': [],
+        '2': [],
+        '3': [],
+        '4': [],
+        '5': []
+      };
+
+      availableTasks.forEach(task => {
+        const difficulty = task.difficulty || '1';
+        if (tasksByDifficulty[difficulty]) {
+          tasksByDifficulty[difficulty].push(task);
+        }
+      });
+
+      // Перемешиваем задачи в каждой группе сложности
+      Object.keys(tasksByDifficulty).forEach(diff => {
+        tasksByDifficulty[diff].sort(() => Math.random() - 0.5);
+      });
+
+      // Рассчитываем распределение по сложности (прогрессивное)
+      // Например, для 10 задач: 4 легких, 3 средних, 2 сложных, 1 очень сложная
+      const distribution = this._calculateProgressiveDistribution(count);
+
+      // Собираем задачи согласно распределению
+      const result = [];
+      distribution.forEach(({ difficulty, taskCount }) => {
+        const tasks = tasksByDifficulty[difficulty].slice(0, taskCount);
+        result.push(...tasks);
+      });
+
+      return result;
+    } catch (error) {
+      console.error('Error fetching tasks with progressive difficulty:', error);
+      return [];
+    }
+  },
+
+  // Вспомогательный метод для расчета прогрессивного распределения
+  _calculateProgressiveDistribution(totalCount) {
+    // Распределение: 40% сложность 1, 30% сложность 2, 20% сложность 3, 10% сложность 4+5
+    const dist = [
+      { difficulty: '1', taskCount: Math.ceil(totalCount * 0.4) },
+      { difficulty: '2', taskCount: Math.ceil(totalCount * 0.3) },
+      { difficulty: '3', taskCount: Math.ceil(totalCount * 0.2) },
+      { difficulty: '4', taskCount: Math.ceil(totalCount * 0.07) },
+      { difficulty: '5', taskCount: Math.ceil(totalCount * 0.03) }
+    ];
+
+    // Корректируем, чтобы сумма была ровно totalCount
+    let currentSum = dist.reduce((sum, d) => sum + d.taskCount, 0);
+    while (currentSum > totalCount) {
+      // Уменьшаем с конца
+      for (let i = dist.length - 1; i >= 0 && currentSum > totalCount; i--) {
+        if (dist[i].taskCount > 0) {
+          dist[i].taskCount--;
+          currentSum--;
+        }
+      }
+    }
+
+    return dist.filter(d => d.taskCount > 0);
   },
 
   // Получить задачу по ID

@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Form, 
-  Select, 
-  InputNumber, 
-  Button, 
-  Space, 
-  Row, 
+import {
+  Card,
+  Form,
+  Select,
+  InputNumber,
+  Button,
+  Space,
+  Row,
   Col,
   Switch,
+  Radio,
   message,
   Spin,
   Alert,
@@ -31,12 +32,15 @@ import { api } from '../services/pocketbase';
 const { Option } = Select;
 const { TextArea } = Input;
 
-const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
+const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sources = [] }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [worksheet, setWorksheet] = useState(null);
   const [savedCards, setSavedCards] = useState([]);
   const [loadingCards, setLoadingCards] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [hideTaskPrefixes, setHideTaskPrefixes] = useState(false);
+  const [fontSize, setFontSize] = useState(13);
 
   useEffect(() => {
     loadSavedCards();
@@ -60,11 +64,42 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
       const filters = {
         topic: values.topic,
         difficulty: values.difficulty,
+        subtopics: values.subtopics,
+        tags: values.tags,
+        source: values.source,
+        year: values.year,
       };
 
       // Вычисляем общее количество заданий
       const totalTasks = values.cardsCount * values.tasksPerCard;
-      const tasks = await api.getRandomTasks(totalTasks, filters);
+
+      // Выбираем стратегию генерации
+      let allTasksForAllCards = [];
+      const strategy = values.generationStrategy || 'random';
+
+      if (strategy === 'no-repetition') {
+        // Генерируем карточки последовательно без повторений
+        let usedTaskIds = [];
+        for (let i = 0; i < values.cardsCount; i++) {
+          const tasks = await api.getRandomTasksWithoutRepetition(
+            values.tasksPerCard,
+            filters,
+            usedTaskIds
+          );
+          allTasksForAllCards.push(...tasks);
+          usedTaskIds = [...usedTaskIds, ...tasks.map(t => t.id)];
+        }
+      } else if (strategy === 'progressive') {
+        // Генерируем с прогрессивной сложностью
+        const tasks = await api.getTasksWithProgressiveDifficulty(totalTasks, filters);
+        allTasksForAllCards = tasks;
+      } else {
+        // Случайная генерация (по умолчанию)
+        const tasks = await api.getRandomTasks(totalTasks, filters);
+        allTasksForAllCards = tasks;
+      }
+
+      const tasks = allTasksForAllCards;
 
       if (tasks.length === 0) {
         message.warning('Задачи с выбранными фильтрами не найдены');
@@ -274,12 +309,14 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
   return (
     <div>
       <Alert
-        message="Формат карточек"
+        message="Генератор карточек"
         description={
           <div>
             <div>📄 Настраиваемое количество карточек и заданий</div>
             <div>💾 Сохранение карточек в базу данных</div>
             <div>📝 Отдельные листы с ответами для каждой карточки</div>
+            <div>🎯 Фильтрация по теме, подтемам, тегам и сложности</div>
+            <div>🎲 Выбор стратегии подбора задач (случайно, без повторений, прогрессивная сложность)</div>
           </div>
         }
         type="info"
@@ -300,9 +337,23 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
             showSolutions: false,
             title: 'Проверочная работа',
             format: 'А6',
+            generationStrategy: 'random',
           }}
         >
           <Row gutter={16}>
+            <Col xs={24} md={12}>
+              <Form.Item
+                name="generationStrategy"
+                label="Стратегия подбора задач"
+              >
+                <Select>
+                  <Option value="random">🎲 Случайный выбор</Option>
+                  <Option value="no-repetition">🚫 Без повторений между карточками</Option>
+                  <Option value="progressive">📈 Прогрессивная сложность (легкие → сложные)</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+
             <Col xs={24} md={12}>
               <Form.Item
                 name="title"
@@ -376,6 +427,11 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
                   allowClear
                   showSearch
                   optionFilterProp="children"
+                  onChange={(value) => {
+                    setSelectedTopic(value);
+                    // Сбрасываем подтемы при смене темы
+                    form.setFieldValue('subtopics', undefined);
+                  }}
                 >
                   {topics.map(topic => (
                     <Option key={topic.id} value={topic.id}>
@@ -401,14 +457,100 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
 
           <Row gutter={16}>
             <Col xs={24} md={12}>
+              <Form.Item name="subtopics" label="Подтемы (опционально)">
+                <Select
+                  mode="multiple"
+                  placeholder="Все подтемы"
+                  allowClear
+                  showSearch
+                  optionFilterProp="children"
+                  disabled={!selectedTopic}
+                >
+                  {subtopics
+                    .filter(st => !selectedTopic || st.topic === selectedTopic)
+                    .map(subtopic => (
+                      <Option key={subtopic.id} value={subtopic.id}>
+                        {subtopic.name}
+                      </Option>
+                    ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={12}>
+              <Form.Item name="tags" label="Теги (опционально)">
+                <Select
+                  mode="multiple"
+                  placeholder="Все теги"
+                  allowClear
+                  showSearch
+                  optionFilterProp="children"
+                >
+                  {tags.map(tag => (
+                    <Option key={tag.id} value={tag.id}>
+                      {tag.title}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} md={8}>
+              <Form.Item name="source" label="Источник (опционально)">
+                <Select placeholder="Любой" allowClear showSearch>
+                  {sources.map(s => (
+                    <Option key={s} value={s}>{s}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="year" label="Год (опционально)">
+                <Select placeholder="Любой" allowClear showSearch>
+                  {years.map(y => (
+                    <Option key={y} value={y}>{y}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item label="Размер шрифта">
+                <Radio.Group
+                  value={fontSize}
+                  onChange={(e) => setFontSize(e.target.value)}
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value={11}>11px</Radio.Button>
+                  <Radio.Button value={13}>13px</Radio.Button>
+                  <Radio.Button value={15}>15px</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} md={8}>
               <Form.Item name="showAnswers" label="Показать ответы в карточках" valuePropName="checked">
                 <Switch />
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={12}>
+            <Col xs={24} md={8}>
               <Form.Item name="showSolutions" label="Показать решения" valuePropName="checked">
                 <Switch />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item
+                label="Скрыть «Вычислите:» и т.п."
+                tooltip="Убирает типовые фразы из начала условия задач"
+              >
+                <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
               </Form.Item>
             </Col>
           </Row>
@@ -543,7 +685,7 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [] }) => {
             </div>
           </Card>
 
-          <PrintableWorksheet {...worksheet} topics={topics} tags={tags} subtopics={subtopics} />
+          <PrintableWorksheet {...worksheet} topics={topics} tags={tags} subtopics={subtopics} hideTaskPrefixes={hideTaskPrefixes} fontSize={fontSize} />
         </>
       )}
     </div>
