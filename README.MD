@@ -476,6 +476,69 @@ const difficultyStats = {
 };
 ```
 
+## 💾 Резервное копирование базы данных
+
+> **Платформа:** macOS (LaunchAgent). Для Linux потребуется адаптация под cron/systemd.
+
+Проект включает автоматическое ежедневное резервное копирование базы данных PocketBase.
+
+### Что бэкапится
+- `pb_data/data.db` — основная база (задачи, темы, теги, карточки)
+- `pb_data/auxiliary.db` — служебная база PocketBase
+- `pb_data/storage/` — файловое хранилище (если есть файлы)
+
+### Как это работает
+- Скрипт `backup.sh` использует `sqlite3 .backup` для безопасного копирования (работает даже при запущенном PocketBase)
+- Бэкапы сжимаются в `.tar.gz` и сохраняются в папку `backups/`
+- Автоматическая ротация: хранятся **последние 10 бэкапов**, старые удаляются
+- LaunchAgent запускает бэкап **каждый день в 02:00**
+- Если Mac был в режиме сна — бэкап выполнится при пробуждении
+- Логи записываются в `backups/backup.log`
+
+### Настройка автобэкапа (macOS)
+
+```bash
+# 1. LaunchAgent уже создан при установке:
+# ~/Library/LaunchAgents/com.egetasks.backup.plist
+
+# 2. Активировать (если ещё не активирован):
+launchctl load ~/Library/LaunchAgents/com.egetasks.backup.plist
+
+# 3. Деактивировать:
+launchctl unload ~/Library/LaunchAgents/com.egetasks.backup.plist
+
+# 4. Проверить статус:
+launchctl list | grep egetasks
+```
+
+### Ручной запуск
+
+```bash
+./backup.sh
+```
+
+### Восстановление из бэкапа
+
+```bash
+# 1. Остановите PocketBase
+# 2. Распакуйте нужный бэкап:
+tar -xzf backups/backup_2026-02-01_02-00-00.tar.gz
+
+# 3. Замените файлы БД:
+cp backup_2026-02-01_02-00-00/*.db pocketbase/pb_data/
+
+# 4. Запустите PocketBase заново
+cd pocketbase && ./pocketbase serve
+```
+
+### Изменение параметров
+
+В файле `backup.sh`:
+- `MAX_BACKUPS=10` — количество хранимых бэкапов
+- Время запуска — в файле `~/Library/LaunchAgents/com.egetasks.backup.plist` (поле `Hour`/`Minute`)
+
+---
+
 ## 🐛 Частые проблемы и решения
 
 ### Проблема: Ошибка CORS при работе с API

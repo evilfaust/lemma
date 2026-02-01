@@ -1,0 +1,9 @@
+# Backups
+backups/
+
+# OS
+.DS_Store
+
+# PocketBase WAL files
+pocketbase/pb_data/*.db-shm
+pocketbase/pb_data/*.db-wal
