@@ -1,0 +1,20 @@
+{
+  "name": "ege-tasks-manager",
+  "version": "1.0.0",
+  "description": "EGE Tasks Manager - Full Stack Application",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n \"BACKEND,PDF,FRONTEND\" -c \"bgBlue.bold,bgMagenta.bold,bgGreen.bold\" \"npm run dev:backend\" \"npm run dev:pdf\" \"npm run dev:frontend\"",
+    "dev:backend": "cd pocketbase && ./pocketbase serve --hooksDir=pb_hooks",
+    "dev:pdf": "cd pocketbase && node pdf-service.js",
+    "dev:frontend": "cd ege-tasks && npm run dev",
+    "install:all": "cd pocketbase && npm install && cd ../ege-tasks && npm install",
+    "start": "npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

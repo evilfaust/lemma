@@ -1,34 +1,38 @@
 # 🚀 Быстрый старт EGE Tasks
 
-## Запуск приложения
+## Запуск приложения (одной командой!)
 
-### 1. Backend (PocketBase + PDF Service)
+### Самый простой способ:
 
 ```bash
-cd pocketbase
-npm install        # Первый раз
-npm run dev        # Запуск обоих сервисов
+./start.sh
 ```
 
-Или вручную:
+Или через NPM:
+
 ```bash
-cd pocketbase
-./start-all.sh
+npm run dev
 ```
 
-**Проверка:**
+**Всё! Три сервиса запустятся автоматически:**
 - PocketBase: http://127.0.0.1:8090
-- PDF Service: http://localhost:3001/health
+- PDF Service: http://localhost:3001
+- Frontend: http://localhost:5173
 
-### 2. Frontend (React)
+### Первый запуск (с установкой зависимостей):
 
 ```bash
-cd ege-tasks
-npm install        # Первый раз
-npm run dev        # Запуск
+npm run install:all  # Установить все зависимости
+npm run dev          # Запустить всё
 ```
 
-**Откроется:** http://localhost:5173
+### Остановка:
+
+```bash
+Ctrl+C              # в терминале
+# или
+./stop.sh           # скрипт остановки
+```
 
 ---
 

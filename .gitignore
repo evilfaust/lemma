@@ -1,9 +1,38 @@
+# Node modules
+node_modules/
+pocketbase/node_modules/
+ege-tasks/node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+pocketbase/pb_data/*.db
+pocketbase/pb_data/*.db-shm
+pocketbase/pb_data/*.db-wal
+
 # Backups
 backups/
 
 # OS
 .DS_Store
+Thumbs.db
 
-# PocketBase WAL files
-pocketbase/pb_data/*.db-shm
-pocketbase/pb_data/*.db-wal
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build
+ege-tasks/dist/
+ege-tasks/.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
