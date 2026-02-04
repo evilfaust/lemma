@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Test PDF Frontend</title>
+</head>
+<body>
+  <h1>Тест PDF сервиса из браузера</h1>
+
+  <div id="content" style="padding: 20px; border: 1px solid #ccc;">
+    <h2>Тестовый контент</h2>
+    <p>Это тестовый документ</p>
+  </div>
+
+  <button onclick="testPDF()">Сгенерировать PDF</button>
+  <div id="status"></div>
+
+  <script>
+    async function testPDF() {
+      const status = document.getElementById('status');
+      status.textContent = 'Генерация...';
+
+      try {
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head><meta charset="utf-8"></head>
+            <body>${document.getElementById('content').outerHTML}</body>
+          </html>
+        `;
+
+        const response = await fetch('http://localhost:3001/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            html: html,
+            filename: 'test.pdf',
+            options: {}
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('HTTP ' + response.status);
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'test.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        status.textContent = '✅ PDF скачан!';
+      } catch (error) {
+        status.textContent = '❌ Ошибка: ' + error.message;
+        console.error(error);
+      }
+    }
+  </script>
+</body>
+</html>

@@ -18,6 +18,8 @@ import {
   Timeline,
   Tag,
   Tooltip,
+  Badge,
+  Segmented,
   message,
 } from 'antd';
 import {
@@ -30,6 +32,8 @@ import {
   InfoCircleOutlined,
   EditOutlined,
   SwapOutlined,
+  ThunderboltOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import { v4 as uuid } from 'uuid';
 import FilterBlock from './worksheet/FilterBlock';
@@ -71,6 +75,9 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
     handleLoadWorks,
     handleLoadWork,
     handleDeleteWork,
+    pdfMethod,
+    setPdfMethod,
+    puppeteerAvailable,
   } = useWorksheetActions();
 
   // Настройки вариантов
@@ -666,15 +673,54 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
                   >
                     Печать
                   </Button>
-                  <Button
-                    type="button"
-                    icon={<FilePdfOutlined />}
-                    onClick={() => handleExportPDF(printRef, form.getFieldValue('workTitle'))}
-                    loading={exporting}
-                    size="large"
+                  <Tooltip
+                    title={
+                      pdfMethod === 'puppeteer'
+                        ? 'Высокое качество PDF с идеальным рендерингом формул'
+                        : 'Стандартный экспорт PDF'
+                    }
                   >
-                    Сохранить PDF
-                  </Button>
+                    <Badge
+                      count={pdfMethod === 'puppeteer' ? <RocketOutlined style={{ color: '#52c41a' }} /> : 0}
+                      offset={[-5, 5]}
+                    >
+                      <Button
+                        type="button"
+                        icon={<FilePdfOutlined />}
+                        onClick={() => handleExportPDF(printRef, form.getFieldValue('workTitle'))}
+                        loading={exporting}
+                        size="large"
+                      >
+                        Сохранить PDF
+                      </Button>
+                    </Badge>
+                  </Tooltip>
+                  <Segmented
+                    options={[
+                      {
+                        label: (
+                          <Tooltip title="Новая технология: высокое качество, быстрая генерация">
+                            <span>
+                              <RocketOutlined /> Новый
+                            </span>
+                          </Tooltip>
+                        ),
+                        value: 'puppeteer',
+                        disabled: !puppeteerAvailable,
+                      },
+                      {
+                        label: (
+                          <Tooltip title="Классический метод экспорта">
+                            <span>Обычный</span>
+                          </Tooltip>
+                        ),
+                        value: 'legacy',
+                      },
+                    ]}
+                    value={pdfMethod}
+                    onChange={setPdfMethod}
+                    size="large"
+                  />
                   <Button type="button" onClick={handleReset} size="large">
                     Сбросить
                   </Button>

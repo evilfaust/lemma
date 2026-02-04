@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { message } from 'antd';
 import html2pdf from 'html2pdf.js';
 import { api } from '../services/pocketbase';
+import { usePuppeteerPDF } from './usePuppeteerPDF';
 
 /**
  * Хук для действий с листами работ (сохранение, печать, экспорт)
@@ -9,6 +10,9 @@ import { api } from '../services/pocketbase';
 export const useWorksheetActions = () => {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [pdfMethod, setPdfMethod] = useState('puppeteer'); // 'puppeteer' | 'legacy'
+
+  const puppeteerPDF = usePuppeteerPDF();
 
   /**
    * Печать листа
@@ -18,16 +22,35 @@ export const useWorksheetActions = () => {
   };
 
   /**
-   * Экспорт в PDF
+   * Экспорт в PDF (основной метод с выбором)
    */
-  const handleExportPDF = async (printRef, filename = 'Лист задач') => {
+  const handleExportPDF = async (printRef, filename = 'Лист задач', options = {}) => {
+    if (pdfMethod === 'puppeteer') {
+      const success = await puppeteerPDF.exportToPDF(printRef, filename, options);
+
+      // Fallback на старый метод если Puppeteer недоступен
+      if (!success && !puppeteerPDF.serverAvailable) {
+        message.warning('Переключаемся на резервный метод экспорта...');
+        return handleExportPDFLegacy(printRef, filename);
+      }
+
+      return success;
+    } else {
+      return handleExportPDFLegacy(printRef, filename);
+    }
+  };
+
+  /**
+   * Экспорт в PDF (старый метод через html2pdf.js)
+   */
+  const handleExportPDFLegacy = async (printRef, filename = 'Лист задач') => {
     if (!printRef?.current) {
       message.error('Не найден элемент для экспорта');
-      return;
+      return false;
     }
 
     setExporting(true);
-    message.loading({ content: 'Генерируем PDF...', key: 'pdf', duration: 0 });
+    message.loading({ content: 'Генерируем PDF (Legacy)...', key: 'pdf', duration: 0 });
 
     try {
       const opt = {
@@ -53,9 +76,11 @@ export const useWorksheetActions = () => {
 
       await html2pdf().set(opt).from(printRef.current).save();
       message.success({ content: 'PDF успешно сохранён', key: 'pdf', duration: 2 });
+      return true;
     } catch (error) {
       console.error('Error generating PDF:', error);
       message.error({ content: 'Ошибка при генерации PDF', key: 'pdf', duration: 2 });
+      return false;
     } finally {
       setExporting(false);
     }
@@ -175,12 +200,17 @@ export const useWorksheetActions = () => {
 
   return {
     saving,
-    exporting,
+    exporting: exporting || puppeteerPDF.exporting,
     handlePrint,
     handleExportPDF,
+    handleExportPDFLegacy,
     handleSaveWork,
     handleLoadWorks,
     handleLoadWork,
     handleDeleteWork,
+    // Настройки PDF
+    pdfMethod,
+    setPdfMethod,
+    puppeteerAvailable: puppeteerPDF.serverAvailable,
   };
 };

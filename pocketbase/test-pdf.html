@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Тест PDF Service</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <style>
+    body {
+      font-family: 'Times New Roman', serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    button {
+      background: #1890ff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 4px;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #40a9ff;
+    }
+    .status {
+      padding: 10px;
+      margin: 10px 0;
+      border-radius: 4px;
+      background: #f0f0f0;
+    }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    .info { background: #d1ecf1; color: #0c5460; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Тест PDF Service</h1>
+
+  <div id="status" class="status">Готов к тестированию</div>
+
+  <div>
+    <button onclick="checkHealth()">Проверить здоровье</button>
+    <button onclick="generatePDF()">Сгенерировать PDF</button>
+  </div>
+
+  <hr>
+
+  <div id="content" style="border: 1px solid #ddd; padding: 20px; margin-top: 20px;">
+    <h2>Тестовый документ</h2>
+    <p>Это тестовый документ для проверки PDF экспорта.</p>
+
+    <h3>Формулы LaTeX:</h3>
+    <p>Квадратное уравнение: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>a</mi><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><mi>b</mi><mi>x</mi><mo>+</mo><mi>c</mi><mo>=</mo><mn>0</mn></mrow><annotation encoding="application/x-tex">ax^2 + bx + c = 0</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:0.8974em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">a</span><span class="mord"><span class="mord mathnormal">x</span><span class="msupsub"><span class="vlist-t"><span class="vlist-r"><span class="vlist" style="height:0.8141em;"><span style="top:-3.063em;margin-right:0.05em;"><span class="pstrut" style="height:2.7em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight">2</span></span></span></span></span></span></span></span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.7778em;vertical-align:-0.0833em;"></span><span class="mord mathnormal">b</span><span class="mord mathnormal">x</span><span class="mspace" style="margin-right:0.2222em;"></span><span class="mbin">+</span><span class="mspace" style="margin-right:0.2222em;"></span></span><span class="base"><span class="strut" style="height:0.4306em;"></span><span class="mord mathnormal">c</span><span class="mspace" style="margin-right:0.2778em;"></span><span class="mrel">=</span><span class="mspace" style="margin-right:0.2778em;"></span></span><span class="base"><span class="strut" style="height:0.6444em;"></span><span class="mord">0</span></span></span></span></p>
+
+    <p>Дробь: <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mfrac><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><mi>c</mi></mfrac></mrow><annotation encoding="application/x-tex">\frac{a+b}{c}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base"><span class="strut" style="height:1.1901em;vertical-align:-0.345em;"></span><span class="mord"><span class="mopen nulldelimiter"></span><span class="mfrac"><span class="vlist-t vlist-t2"><span class="vlist-r"><span class="vlist" style="height:0.8451em;"><span style="top:-2.655em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">c</span></span></span></span><span style="top:-3.23em;"><span class="pstrut" style="height:3em;"></span><span class="frac-line" style="border-bottom-width:0.04em;"></span></span><span style="top:-3.394em;"><span class="pstrut" style="height:3em;"></span><span class="sizing reset-size6 size3 mtight"><span class="mord mtight"><span class="mord mathnormal mtight">a</span><span class="mbin mtight">+</span><span class="mord mathnormal mtight">b</span></span></span></span></span><span class="vlist-s">​</span></span><span class="vlist-r"><span class="vlist" style="height:0.345em;"><span></span></span></span></span></span><span class="mclose nulldelimiter"></span></span></span></span></span></p>
+  </div>
+
+  <script>
+    const PDF_SERVICE = 'http://localhost:3001';
+
+    function setStatus(message, type = 'info') {
+      const statusEl = document.getElementById('status');
+      statusEl.textContent = message;
+      statusEl.className = 'status ' + type;
+    }
+
+    async function checkHealth() {
+      try {
+        setStatus('Проверяем сервис...', 'info');
+        const response = await fetch(PDF_SERVICE + '/health');
+        const data = await response.json();
+
+        if (data.status === 'ok') {
+          setStatus('✅ Сервис работает! Puppeteer: ' + data.puppeteer + ', Browser: ' + data.browser, 'success');
+        } else {
+          setStatus('❌ Сервис недоступен', 'error');
+        }
+      } catch (error) {
+        setStatus('❌ Ошибка: ' + error.message, 'error');
+      }
+    }
+
+    async function generatePDF() {
+      try {
+        setStatus('Генерируем PDF...', 'info');
+
+        const content = document.getElementById('content');
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+              <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+            </head>
+            <body>
+              ${content.outerHTML}
+            </body>
+          </html>
+        `;
+
+        const response = await fetch(PDF_SERVICE + '/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            html: html,
+            filename: 'test.pdf',
+            options: {}
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Ошибка генерации: ' + response.status);
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'test.pdf';
+        a.click();
+        URL.revokeObjectURL(url);
+
+        setStatus('✅ PDF успешно сгенерирован и скачан!', 'success');
+      } catch (error) {
+        setStatus('❌ Ошибка: ' + error.message, 'error');
+      }
+    }
+
+    // Автоматическая проверка при загрузке
+    window.onload = () => {
+      setTimeout(checkHealth, 500);
+    };
+  </script>
+</body>
+</html>

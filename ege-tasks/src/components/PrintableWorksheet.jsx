@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, forwardRef } from 'react';
 import { Card, Typography, Image, Tooltip, message, Button } from 'antd';
 import { SwapOutlined, EditOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
@@ -8,7 +8,7 @@ import { filterTaskText as filterTaskTextUtil } from '../utils/filterTaskText';
 
 const { Text, Title } = Typography;
 
-const PrintableWorksheet = ({
+const PrintableWorksheet = forwardRef(({
   cards: initialCards,
   title,
   showAnswers,
@@ -28,7 +28,7 @@ const PrintableWorksheet = ({
   onTaskDrop,
   onEditTask,
   onCardsChange,
-}) => {
+}, ref) => {
   const [cards, setCards] = useState(initialCards || []);
 
   const filterTaskText = (text) => {
@@ -153,7 +153,7 @@ const PrintableWorksheet = ({
   };
 
   return (
-    <div className="printable-worksheet">
+    <div ref={ref} className="printable-worksheet">
       <style>{`
         @media print {
           body * {
@@ -647,6 +647,8 @@ const PrintableWorksheet = ({
       />
     </div>
   );
-};
+});
+
+PrintableWorksheet.displayName = 'PrintableWorksheet';
 
 export default PrintableWorksheet;

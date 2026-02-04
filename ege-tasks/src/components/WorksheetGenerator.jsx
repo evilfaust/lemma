@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Card,
   Form,
@@ -17,17 +17,23 @@ import {
   Table,
   Popconfirm,
   Tag,
+  Tooltip,
+  Badge,
+  Segmented,
 } from 'antd';
-import { 
-  PrinterOutlined, 
-  ReloadOutlined, 
+import {
+  PrinterOutlined,
+  ReloadOutlined,
   InfoCircleOutlined,
   SaveOutlined,
   DeleteOutlined,
   EyeOutlined,
+  FilePdfOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import PrintableWorksheet from './PrintableWorksheet';
 import { api } from '../services/pocketbase';
+import { usePuppeteerPDF } from '../hooks';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -41,6 +47,11 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [hideTaskPrefixes, setHideTaskPrefixes] = useState(false);
   const [fontSize, setFontSize] = useState(13);
+  const printRef = useRef();
+
+  // PDF экспорт
+  const [pdfMethod, setPdfMethod] = useState('puppeteer');
+  const puppeteerPDF = usePuppeteerPDF();
 
   useEffect(() => {
     loadSavedCards();
@@ -240,6 +251,19 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleExportPDF = async () => {
+    if (!printRef?.current) {
+      message.error('Элемент для экспорта не найден');
+      return;
+    }
+
+    const cardTitle = form.getFieldValue('cardTitle') || 'Карточки';
+
+    if (pdfMethod === 'puppeteer') {
+      await puppeteerPDF.exportToPDF(printRef, cardTitle);
+    }
   };
 
   const handleReset = () => {
@@ -582,8 +606,54 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
                   >
                     Сохранить в базу
                   </Button>
-                  <Button 
-                    type="default" 
+                  <Tooltip
+                    title={
+                      pdfMethod === 'puppeteer'
+                        ? 'Высокое качество PDF с идеальным рендерингом формул'
+                        : 'Стандартный экспорт PDF'
+                    }
+                  >
+                    <Badge
+                      count={pdfMethod === 'puppeteer' ? <RocketOutlined style={{ color: '#52c41a' }} /> : 0}
+                      offset={[-5, 5]}
+                    >
+                      <Button
+                        type="default"
+                        icon={<FilePdfOutlined />}
+                        onClick={handleExportPDF}
+                        loading={puppeteerPDF.exporting}
+                      >
+                        Сохранить PDF
+                      </Button>
+                    </Badge>
+                  </Tooltip>
+                  <Segmented
+                    options={[
+                      {
+                        label: (
+                          <Tooltip title="Новая технология: высокое качество, быстрая генерация">
+                            <span>
+                              <RocketOutlined /> Новый
+                            </span>
+                          </Tooltip>
+                        ),
+                        value: 'puppeteer',
+                        disabled: !puppeteerPDF.serverAvailable,
+                      },
+                      {
+                        label: (
+                          <Tooltip title="Классический метод экспорта">
+                            <span>Обычный</span>
+                          </Tooltip>
+                        ),
+                        value: 'legacy',
+                      },
+                    ]}
+                    value={pdfMethod}
+                    onChange={setPdfMethod}
+                  />
+                  <Button
+                    type="default"
                     icon={<PrinterOutlined />}
                     onClick={handlePrint}
                   >
@@ -688,7 +758,7 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
             </div>
           </Card>
 
-          <PrintableWorksheet {...worksheet} topics={topics} tags={tags} subtopics={subtopics} hideTaskPrefixes={hideTaskPrefixes} fontSize={fontSize} />
+          <PrintableWorksheet ref={printRef} {...worksheet} topics={topics} tags={tags} subtopics={subtopics} hideTaskPrefixes={hideTaskPrefixes} fontSize={fontSize} />
         </>
       )}
     </div>

@@ -22,6 +22,7 @@ import {
   Tooltip,
   Alert,
   Empty,
+  Segmented,
 } from 'antd';
 import {
   PrinterOutlined,
@@ -35,6 +36,7 @@ import {
   PlusOutlined,
   MinusCircleOutlined,
   FilePdfOutlined,
+  RocketOutlined,
 } from '@ant-design/icons';
 import html2pdf from 'html2pdf.js';
 import MathRenderer from './MathRenderer';
@@ -43,6 +45,7 @@ import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
 import { api } from '../services/pocketbase';
 import { filterTaskText } from '../utils/filterTaskText';
+import { usePuppeteerPDF } from '../hooks';
 import './TaskWorksheet.css';
 
 const { Option } = Select;
@@ -70,6 +73,10 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const [showCardSolutions, setShowCardSolutions] = useState(false);
   const [showCardStudentInfo, setShowCardStudentInfo] = useState(true);
   const printRef = useRef();
+
+  // PDF экспорт
+  const [pdfMethod, setPdfMethod] = useState('puppeteer');
+  const puppeteerPDF = usePuppeteerPDF();
 
   // Состояния для тегов
   const [availableTags, setAvailableTags] = useState([]);
@@ -572,7 +579,24 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
 
     const workTitle = form.getFieldValue('workTitle') || 'Лист задач';
 
-    message.loading({ content: 'Генерируем PDF...', key: 'pdf', duration: 0 });
+    // Используем новый метод если доступен
+    if (pdfMethod === 'puppeteer') {
+      const success = await puppeteerPDF.exportToPDF(printRef, workTitle);
+
+      // Fallback на старый метод если Puppeteer недоступен
+      if (!success && !puppeteerPDF.serverAvailable) {
+        message.warning('Переключаемся на резервный метод экспорта...');
+        await handleExportPDFLegacy(workTitle);
+      }
+      return;
+    }
+
+    // Используем старый метод
+    await handleExportPDFLegacy(workTitle);
+  };
+
+  const handleExportPDFLegacy = async (workTitle) => {
+    message.loading({ content: 'Генерируем PDF (Legacy)...', key: 'pdf', duration: 0 });
 
     try {
       const opt = {
@@ -1677,14 +1701,54 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                   >
                     Печать
                   </Button>
-                  <Button
-                    type="default"
-                    icon={<FilePdfOutlined />}
-                    onClick={handleExportPDF}
-                    size="large"
+                  <Tooltip
+                    title={
+                      pdfMethod === 'puppeteer'
+                        ? 'Высокое качество PDF с идеальным рендерингом формул'
+                        : 'Стандартный экспорт PDF'
+                    }
                   >
-                    Сохранить PDF
-                  </Button>
+                    <Badge
+                      count={pdfMethod === 'puppeteer' ? <RocketOutlined style={{ color: '#52c41a' }} /> : 0}
+                      offset={[-5, 5]}
+                    >
+                      <Button
+                        type="default"
+                        icon={<FilePdfOutlined />}
+                        onClick={handleExportPDF}
+                        loading={puppeteerPDF.exporting}
+                        size="large"
+                      >
+                        Сохранить PDF
+                      </Button>
+                    </Badge>
+                  </Tooltip>
+                  <Segmented
+                    options={[
+                      {
+                        label: (
+                          <Tooltip title="Новая технология: высокое качество, быстрая генерация">
+                            <span>
+                              <RocketOutlined /> Новый
+                            </span>
+                          </Tooltip>
+                        ),
+                        value: 'puppeteer',
+                        disabled: !puppeteerPDF.serverAvailable,
+                      },
+                      {
+                        label: (
+                          <Tooltip title="Классический метод экспорта">
+                            <span>Обычный</span>
+                          </Tooltip>
+                        ),
+                        value: 'legacy',
+                      },
+                    ]}
+                    value={pdfMethod}
+                    onChange={setPdfMethod}
+                    size="large"
+                  />
                   <Button onClick={handleReset} size="large">
                     Сбросить
                   </Button>

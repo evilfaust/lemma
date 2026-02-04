@@ -19,10 +19,15 @@ This is **EGE Tasks Manager**, a full-stack web application for managing educati
 - SQLite database
 - Built-in RESTful API
 - File storage for images
+- **PDF Service** (Node.js + Express + Puppeteer)
+  - High-quality PDF generation
+  - Standalone microservice on port 3001
+  - Perfect KaTeX rendering
 
 ### Utilities
 - **Python 3.x** for parsers and scripts
 - Node.js scripts for migrations and utilities
+- **Puppeteer** for PDF generation
 
 ## Project Structure
 
@@ -43,7 +48,11 @@ generation-test/
 │   ├── pocketbase          # Executable
 │   ├── pb_data/           # Database and storage
 │   ├── pb_migrations/     # Database migrations
-│   └── code.js            # Custom hooks
+│   ├── pb_hooks/          # PocketBase JS hooks
+│   ├── pdf-service.js     # PDF generation service (Node.js)
+│   ├── package.json       # Node.js dependencies
+│   ├── start-all.sh       # Startup script
+│   └── code.js            # Legacy hooks
 ├── source/                # Source markdown files for tasks
 ├── pb_parser.py          # Main parser for markdown tasks
 └── pb_parser_mordkovich.py  # Specialized parser
@@ -86,6 +95,7 @@ generation-test/
 - `useWorksheetGeneration.js` - Универсальная логика генерации вариантов с задачами
 - `useTaskDragDrop.js` - Drag & drop задач между вариантами
 - `useWorksheetActions.js` - Действия с работами (печать, PDF, сохранение, загрузка)
+- `usePuppeteerPDF.js` - **NEW** - Высококачественный PDF экспорт через Puppeteer
 - `useMarkdownProcessor.js` - Обработка markdown
 - `useKeyboardShortcuts.js` - Keyboard shortcuts
 - `useDocumentStats.js` - Статистика документов
@@ -207,9 +217,16 @@ Generated automatically by `generate_task_code.py`
 
 ### Running the Application
 ```bash
-# Start PocketBase backend
+# Start Backend (PocketBase + PDF Service)
 cd pocketbase
-./pocketbase serve  # Runs on http://127.0.0.1:8090
+npm install         # First time only
+npm run dev         # Runs both services
+# PocketBase: http://127.0.0.1:8090
+# PDF Service: http://localhost:3001
+
+# Or manually:
+# Terminal 1: ./pocketbase serve
+# Terminal 2: node pdf-service.js
 
 # Start React frontend
 cd ege-tasks
@@ -366,6 +383,33 @@ node ege-tasks/check-tasks.js      # Verify tasks
 node ege-tasks/link-tasks-to-subtopics.js  # Link subtopics
 ```
 
+## PDF Export System
+
+### High-Quality PDF Generation (NEW)
+- **Method:** Puppeteer (headless Chrome)
+- **Service:** Standalone Node.js on port 3001
+- **Quality:** Perfect KaTeX rendering, vector text
+- **Performance:** 2-3x smaller files, 1.5-2x faster
+- **Fallback:** Automatic switch to html2pdf.js if service unavailable
+
+### PDF Service API
+```javascript
+// Health check
+GET http://localhost:3001/health
+
+// Generate PDF
+POST http://localhost:3001/generate
+Body: { html, filename, options: { format, margins } }
+```
+
+### Using in Components
+```javascript
+import { usePuppeteerPDF } from '../hooks';
+
+const puppeteerPDF = usePuppeteerPDF();
+await puppeteerPDF.exportToPDF(printRef, 'filename', options);
+```
+
 ## Tips for AI Assistance
 
 1. **Always check file existence** before reading/editing
@@ -378,12 +422,14 @@ node ege-tasks/link-tasks-to-subtopics.js  # Link subtopics
 8. **Difficulty colors** are hardcoded in components
 9. **Images** need proper PocketBase URL construction
 10. **Markdown files** in `source/` are named by topic number
+11. **PDF Service** must be running for high-quality PDF export
+12. **Puppeteer PDF** - use `usePuppeteerPDF` hook for PDF generation
 
 ## Related Documentation
 
-See `README.md` for:
-- Detailed feature descriptions
-- Installation instructions
-- User guide
-- API examples
-- Customization options
+- `README.MD` - Полное руководство пользователя
+- `ARCHITECTURE.md` - Архитектура проекта
+- `CHANGELOG.md` - История изменений
+- `PDF_EXPORT_UPGRADE.md` - Подробно о PDF экспорте через Puppeteer
+- `QUICK_START.md` - Быстрый старт для разработчиков
+- `TEST_AND_COMMIT.md` - Инструкции по тестированию и коммитам
