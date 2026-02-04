@@ -1,0 +1,249 @@
+/* Theory Editor Layout */
+.theory-editor-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.theory-editor-toolbar {
+    padding: 6px 12px;
+    background: #fafafa;
+    border-bottom: 1px solid #e8e8e8;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.theory-editor-toolbar .toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.theory-editor-toolbar .toolbar-divider {
+    width: 1px;
+    height: 24px;
+    background: #d9d9d9;
+    margin: 0 4px;
+}
+
+.theory-editor-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.theory-editor-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.theory-editor-panel .panel-header {
+    padding: 8px 16px;
+    background: #ecf0f1;
+    border-bottom: 1px solid #ddd;
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 13px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.theory-editor-panel .panel-header .hint {
+    font-size: 11px;
+    color: #7f8c8d;
+    font-weight: normal;
+}
+
+.theory-editor-panel .panel-header .stats {
+    font-size: 11px;
+    color: #7f8c8d;
+    font-weight: normal;
+}
+
+.theory-preview-wrapper {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    background: #e0e0e0;
+}
+
+.theory-editor-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #7f8c8d;
+    font-size: 14px;
+}
+
+/* Theme selector modal adapted for Ant Design */
+.theory-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+}
+
+.theory-theme-card {
+    border: 2px solid #d9d9d9;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    overflow: hidden;
+}
+
+.theory-theme-card:hover {
+    border-color: #1890ff;
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(24, 144, 255, 0.3);
+}
+
+.theory-theme-card.active {
+    border-color: #52c41a;
+    box-shadow: 0 4px 12px rgba(82, 196, 26, 0.3);
+}
+
+.theory-theme-card .theme-preview {
+    height: 120px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.theory-theme-card .theme-preview[data-theme="classic"] {
+    background: white;
+    font-family: Georgia, serif;
+}
+
+.theory-theme-card .theme-preview[data-theme="classic"] .preview-title {
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 4px;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.theory-theme-card .theme-preview[data-theme="minimal"] {
+    background: #f9f9f9;
+    font-family: 'Helvetica Neue', sans-serif;
+}
+
+.theory-theme-card .theme-preview[data-theme="minimal"] .preview-title {
+    color: #333;
+    font-size: 16px;
+    font-weight: 300;
+}
+
+.theory-theme-card .theme-preview[data-theme="academic"] {
+    background: #fefefe;
+    font-family: 'Times New Roman', serif;
+}
+
+.theory-theme-card .theme-preview[data-theme="academic"] .preview-title {
+    color: #000;
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.theory-theme-card .theme-preview[data-theme="notebook"] {
+    background: linear-gradient(white 20px, #e8f4f8 20px);
+    background-size: 100% 21px;
+    border-left: 3px solid #ff6b6b;
+    font-family: 'Comic Sans MS', cursive;
+}
+
+.theory-theme-card .theme-preview[data-theme="notebook"] .preview-title {
+    color: #2c3e50;
+    font-size: 16px;
+}
+
+.theory-theme-card .theme-preview[data-theme="compact"] {
+    background: white;
+    font-family: Arial, sans-serif;
+}
+
+.theory-theme-card .theme-preview[data-theme="compact"] .preview-title {
+    color: #2c3e50;
+    font-size: 14px;
+    font-weight: bold;
+    border-bottom: 1px solid #3498db;
+    padding-bottom: 3px;
+}
+
+.theory-theme-card .theme-info {
+    padding: 12px;
+    background: #f8f9fa;
+    border-top: 1px solid #ddd;
+}
+
+.theory-theme-card .theme-info h4 {
+    margin: 0 0 4px 0;
+    font-size: 14px;
+}
+
+.theory-theme-card .theme-info p {
+    margin: 0;
+    font-size: 12px;
+    color: #7f8c8d;
+}
+
+.preview-text {
+    font-size: 13px;
+    color: #555;
+}
+
+.preview-formula {
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    color: #34495e;
+    font-size: 14px;
+}
+
+/* Print builder styles */
+.theory-print-builder {
+    display: flex;
+    gap: 16px;
+    height: calc(100vh - 200px);
+}
+
+.theory-print-selector {
+    width: 350px;
+    overflow-y: auto;
+    border-right: 1px solid #e8e8e8;
+    padding-right: 16px;
+}
+
+.theory-print-preview {
+    flex: 1;
+    overflow: auto;
+    padding: 20px;
+    background: #e0e0e0;
+    border-radius: 8px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .theory-editor-body {
+        flex-direction: column;
+    }
+
+    .theory-print-builder {
+        flex-direction: column;
+        height: auto;
+    }
+
+    .theory-print-selector {
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #e8e8e8;
+        padding-bottom: 16px;
+        padding-right: 0;
+    }
+}

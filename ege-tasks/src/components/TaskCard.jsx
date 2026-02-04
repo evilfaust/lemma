@@ -68,6 +68,13 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
     }
   };
 
+  const handleDelete = async (taskId) => {
+    await api.deleteTask(taskId);
+    if (onUpdate) {
+      onUpdate();
+    }
+  };
+
   return (
     <>
       <Card
@@ -232,6 +239,7 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
         visible={editModalVisible}
         onClose={() => setEditModalVisible(false)}
         onSave={handleSave}
+        onDelete={handleDelete}
         allTags={allTags || []}
         allSources={allSources || []}
         allYears={allYears || []}

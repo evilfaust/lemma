@@ -1,8 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Layout, Menu, ConfigProvider, theme, message } from 'antd';
-import { FileTextOutlined, FileSearchOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
+import TestWorkGenerator from './components/TestWorkGenerator';
+import TheoryBrowser from './components/TheoryBrowser';
+import TheoryEditor from './components/TheoryEditor';
+import TheoryArticleView from './components/TheoryArticleView';
+import TheoryCategoryManager from './components/TheoryCategoryManager';
+import TheoryPrintBuilder from './components/TheoryPrintBuilder';
 import { api } from './services/pocketbase';
 import 'katex/dist/katex.min.css';
 import './App.css';
@@ -16,7 +22,12 @@ function App() {
   const [years, setYears] = useState([]);
   const [sources, setSources] = useState([]);
   const [subtopics, setSubtopics] = useState([]);
+  const [theoryCategories, setTheoryCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // State for theory navigation
+  const [editingArticleId, setEditingArticleId] = useState(null);
+  const [viewingArticleId, setViewingArticleId] = useState(null);
 
   useEffect(() => {
     loadData();
@@ -25,18 +36,20 @@ function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [topicsData, tagsData, yearsData, sourcesData, subtopicsData] = await Promise.all([
+      const [topicsData, tagsData, yearsData, sourcesData, subtopicsData, theoryCatsData] = await Promise.all([
         api.getTopics(),
         api.getTags(),
         api.getUniqueYears(),
         api.getUniqueSources(),
         api.getSubtopics(),
+        api.getTheoryCategories(),
       ]);
       setTopics(topicsData);
       setTags(tagsData);
       setYears(yearsData);
       setSources(sourcesData);
       setSubtopics(subtopicsData);
+      setTheoryCategories(theoryCatsData);
     } catch (error) {
       console.error('Error loading data:', error);
       message.error('Ошибка при загрузке данных');
@@ -56,7 +69,47 @@ function App() {
       icon: <FileSearchOutlined />,
       label: 'Генератор',
     },
+    {
+      key: 'test-generator',
+      icon: <FileAddOutlined />,
+      label: 'Контрольные работы',
+    },
+    {
+      key: 'theory',
+      icon: <BookOutlined />,
+      label: 'Теория',
+      children: [
+        { key: 'theory-browser', label: 'Библиотека' },
+        { key: 'theory-editor', label: 'Редактор' },
+        { key: 'theory-print', label: 'Конспекты' },
+        { key: 'theory-categories', label: 'Категории' },
+      ],
+    },
   ];
+
+  // Navigation helpers for theory
+  const navigateToEditor = (articleId = null) => {
+    setEditingArticleId(articleId);
+    setCurrentView('theory-editor');
+  };
+
+  const navigateToView = (articleId) => {
+    setViewingArticleId(articleId);
+    setCurrentView('theory-view');
+  };
+
+  const navigateToBrowser = () => {
+    setEditingArticleId(null);
+    setViewingArticleId(null);
+    setCurrentView('theory-browser');
+  };
+
+  const handleArticleSaved = (newId) => {
+    if (!editingArticleId && newId) {
+      setEditingArticleId(newId);
+    }
+    api.getTheoryCategories().then(setTheoryCategories);
+  };
 
   const renderContent = () => {
     switch (currentView) {
@@ -81,6 +134,52 @@ function App() {
             subtopics={subtopics}
           />
         );
+      case 'test-generator':
+        return (
+          <TestWorkGenerator
+            topics={topics}
+            tags={tags}
+            years={years}
+            sources={sources}
+            subtopics={subtopics}
+          />
+        );
+      case 'theory-browser':
+        return (
+          <TheoryBrowser
+            categories={theoryCategories}
+            onEditArticle={navigateToEditor}
+            onViewArticle={navigateToView}
+            onCreateArticle={() => navigateToEditor(null)}
+          />
+        );
+      case 'theory-editor':
+        return (
+          <TheoryEditor
+            articleId={editingArticleId}
+            categories={theoryCategories}
+            onBack={navigateToBrowser}
+            onSaved={handleArticleSaved}
+          />
+        );
+      case 'theory-view':
+        return (
+          <TheoryArticleView
+            articleId={viewingArticleId}
+            categories={theoryCategories}
+            onBack={navigateToBrowser}
+            onEdit={navigateToEditor}
+          />
+        );
+      case 'theory-print':
+        return (
+          <TheoryPrintBuilder
+            categories={theoryCategories}
+            onBack={navigateToBrowser}
+          />
+        );
+      case 'theory-categories':
+        return <TheoryCategoryManager />;
       default:
         return null;
     }
@@ -88,13 +187,21 @@ function App() {
 
   const getHeaderTitle = () => {
     switch (currentView) {
-      case 'tasks':
-        return 'Все задачи';
-      case 'generator':
-        return 'Генератор';
-      default:
-        return '';
+      case 'tasks': return 'Все задачи';
+      case 'generator': return 'Генератор';
+      case 'test-generator': return 'Контрольные работы';
+      case 'theory-browser': return 'Теория — Библиотека';
+      case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
+      case 'theory-view': return 'Теория — Просмотр';
+      case 'theory-print': return 'Теория — Конспекты';
+      case 'theory-categories': return 'Теория — Категории';
+      default: return '';
     }
+  };
+
+  const getSelectedKeys = () => {
+    if (currentView === 'theory-view') return ['theory-browser'];
+    return [currentView];
   };
 
   return (
@@ -110,6 +217,7 @@ function App() {
         <Sider
           breakpoint="lg"
           collapsedWidth="0"
+          width={220}
           style={{
             background: '#fff',
             boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
@@ -128,9 +236,16 @@ function App() {
           </div>
           <Menu
             mode="inline"
-            selectedKeys={[currentView]}
+            selectedKeys={getSelectedKeys()}
+            defaultOpenKeys={['theory']}
             items={menuItems}
-            onClick={({ key }) => setCurrentView(key)}
+            onClick={({ key }) => {
+              setCurrentView(key);
+              if (key === 'theory-browser') {
+                setEditingArticleId(null);
+                setViewingArticleId(null);
+              }
+            }}
             style={{ borderRight: 0 }}
           />
         </Sider>
@@ -148,12 +263,16 @@ function App() {
             {getHeaderTitle()}
           </Header>
 
-          <Content style={{ margin: '24px 16px 0' }}>
+          <Content style={{
+            margin: currentView === 'theory-editor' ? 0 : '24px 16px 0',
+            overflow: 'hidden',
+          }}>
             <div style={{
-              padding: 24,
-              minHeight: 360,
+              padding: currentView === 'theory-editor' ? 0 : 24,
+              minHeight: currentView === 'theory-editor' ? undefined : 360,
+              height: currentView === 'theory-editor' ? '100%' : undefined,
               background: '#fff',
-              borderRadius: 8,
+              borderRadius: currentView === 'theory-editor' ? 0 : 8,
             }}>
               {renderContent()}
             </div>

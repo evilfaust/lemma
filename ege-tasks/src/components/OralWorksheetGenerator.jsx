@@ -61,6 +61,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const [variantLabel, setVariantLabel] = useState('Вариант');
   const [solutionSpace, setSolutionSpace] = useState('medium');
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [selectedSubtopic, setSelectedSubtopic] = useState(null);
   const [compactMode, setCompactMode] = useState(false);
   const [hideTaskPrefixes, setHideTaskPrefixes] = useState(false);
   const [outputMode, setOutputMode] = useState('sheet'); // 'sheet' | 'cards'
@@ -99,26 +100,33 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragOverTask, setDragOverTask] = useState(null);
 
-  // Загружаем доступные теги при изменении темы/подтем
+  // Счётчик доступных задач
+  const [availableTasksCount, setAvailableTasksCount] = useState(0);
+  const [loadingTasksCount, setLoadingTasksCount] = useState(false);
+
+  // Загружаем доступные теги и счётчик задач при изменении темы/подтем
   useEffect(() => {
     loadAvailableTags();
-  }, [selectedTopic, form.getFieldValue('subtopic')]);
+  }, [selectedTopic, selectedSubtopic]);
 
   const loadAvailableTags = async () => {
     setLoadingTags(true);
+    setLoadingTasksCount(true);
     try {
       const filters = {};
       if (selectedTopic) {
         filters.topic = selectedTopic;
       }
 
-      const subtopicValue = form.getFieldValue('subtopic');
-      if (subtopicValue) {
-        filters.subtopic = subtopicValue;
+      if (selectedSubtopic) {
+        filters.subtopic = selectedSubtopic;
       }
 
       // Получаем задачи для текущих фильтров (или все если фильтров нет)
       const tasks = await api.getTasks(Object.keys(filters).length > 0 ? filters : {});
+
+      // Сохраняем количество доступных задач
+      setAvailableTasksCount(tasks.length);
 
       // Собираем уникальные теги
       const tagSet = new Set();
@@ -142,6 +150,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       console.error('Error loading available tags:', error);
     } finally {
       setLoadingTags(false);
+      setLoadingTasksCount(false);
     }
   };
 
@@ -595,6 +604,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     setAllTasks([]);
     setVariants([]);
     setSelectedTopic(null);
+    setSelectedSubtopic(null);
     setTagCounts([]);
     setDifficultyCounts([]);
     form.resetFields();
@@ -603,6 +613,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const handleFormValuesChange = (changedValues) => {
     if ('topic' in changedValues) {
       setSelectedTopic(changedValues.topic || null);
+      setSelectedSubtopic(null);
       form.setFieldValue('subtopic', undefined);
       form.setFieldValue('filterTags', []);
       setTagCounts([]);
@@ -645,12 +656,22 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       }));
       setVariants(newVariants);
       setEditModalVisible(false);
-      message.success('Задача успешно обновлена');
+      setTaskToEdit(null);
     } catch (error) {
-      console.error('Error updating task:', error);
-      message.error('Ошибка при обновлении задачи');
       throw error;
     }
+  };
+
+  const handleDeleteEdit = async (taskId) => {
+    await api.deleteTask(taskId);
+    // Удаляем задачу из всех вариантов
+    const newVariants = variants.map(variant => ({
+      ...variant,
+      tasks: variant.tasks.filter(t => t.id !== taskId)
+    }));
+    setVariants(newVariants);
+    setEditModalVisible(false);
+    setTaskToEdit(null);
   };
 
   const handleSaveWork = async (values) => {
@@ -1037,7 +1058,20 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
         >
           <Collapse defaultActiveKey={['filters', 'tags', 'variants', 'format']}>
             {/* Фильтры */}
-            <Panel header="📋 Фильтры задач" key="filters">
+            <Panel
+              header={
+                <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span>📋 Фильтры задач</span>
+                  <Badge
+                    count={loadingTasksCount ? '...' : availableTasksCount}
+                    overflowCount={9999}
+                    style={{ backgroundColor: availableTasksCount > 0 ? '#52c41a' : '#ff4d4f' }}
+                    showZero
+                  />
+                </span>
+              }
+              key="filters"
+            >
               <Row gutter={16}>
                 <Col xs={24}>
                   <Form.Item name="search" label="Поиск по коду или тексту">
@@ -1079,6 +1113,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                       optionFilterProp="children"
                       allowClear
                       disabled={!selectedTopic}
+                      onChange={(value) => setSelectedSubtopic(value || null)}
                     >
                       {subtopics
                         .filter(subtopic => !selectedTopic || subtopic.topic === selectedTopic)
@@ -1441,7 +1476,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                       </Form.Item>
                     </Col>
 
-                    <Col xs={24} md={6}>
+                    <Col xs={24} md={8}>
                       <Form.Item label="Размер шрифта">
                         <Radio.Group
                           value={fontSize}
@@ -1451,6 +1486,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                           <Radio.Button value={10}>10pt</Radio.Button>
                           <Radio.Button value={12}>12pt</Radio.Button>
                           <Radio.Button value={14}>14pt</Radio.Button>
+                          <Radio.Button value={16}>16pt</Radio.Button>
+                          <Radio.Button value={20}>20pt</Radio.Button>
                         </Radio.Group>
                       </Form.Item>
                     </Col>
@@ -1541,7 +1578,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                       </Form.Item>
                     </Col>
 
-                    <Col xs={24} md={6}>
+                    <Col xs={24} md={8}>
                       <Form.Item label="Размер шрифта">
                         <Radio.Group
                           value={fontSize}
@@ -1551,6 +1588,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                           <Radio.Button value={10}>10pt</Radio.Button>
                           <Radio.Button value={12}>12pt</Radio.Button>
                           <Radio.Button value={14}>14pt</Radio.Button>
+                          <Radio.Button value={16}>16pt</Radio.Button>
+                          <Radio.Button value={20}>20pt</Radio.Button>
                         </Radio.Group>
                       </Form.Item>
                     </Col>
@@ -1785,6 +1824,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
           visible={editModalVisible}
           onClose={() => setEditModalVisible(false)}
           onSave={handleSaveEdit}
+          onDelete={handleDeleteEdit}
           allTags={tags || []}
           allSources={sources || []}
           allYears={years || []}

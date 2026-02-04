@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, message, Button, Space, Alert } from 'antd';
-import { EditOutlined, SaveOutlined, InfoCircleOutlined } from '@ant-design/icons';
+import { Modal, Form, Select, Input, message, Button, Space, Popconfirm } from 'antd';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 
 const { Option } = Select;
 const { TextArea } = Input;
 
-const TaskEditModal = ({ task, visible, onClose, onSave, allTags = [], allSources = [], allYears = [], allSubtopics = [], allTopics = [] }) => {
+const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [], allSources = [], allYears = [], allSubtopics = [], allTopics = [] }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [previewStatement, setPreviewStatement] = useState('');
   const [previewAnswer, setPreviewAnswer] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -86,6 +87,22 @@ const TaskEditModal = ({ task, visible, onClose, onSave, allTags = [], allSource
     }
   };
 
+  const handleDelete = async () => {
+    if (!onDelete) return;
+
+    try {
+      setDeleting(true);
+      await onDelete(task.id);
+      message.success('Задача удалена');
+      onClose();
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      message.error('Ошибка при удалении задачи');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleStatementChange = (e) => {
     setPreviewStatement(e.target.value);
   };
@@ -105,20 +122,40 @@ const TaskEditModal = ({ task, visible, onClose, onSave, allTags = [], allSource
       open={visible}
       onCancel={onClose}
       width={800}
-      footer={[
-        <Button key="cancel" onClick={onClose}>
-          Отмена
-        </Button>,
-        <Button 
-          key="save" 
-          type="primary" 
-          icon={<SaveOutlined />}
-          loading={loading}
-          onClick={handleSave}
-        >
-          Сохранить
-        </Button>,
-      ]}
+      footer={
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Popconfirm
+            title="Удаление задачи"
+            description={`Вы уверены, что хотите удалить задачу ${task?.code}?`}
+            onConfirm={handleDelete}
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+            icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
+          >
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              loading={deleting}
+            >
+              Удалить
+            </Button>
+          </Popconfirm>
+          <Space>
+            <Button onClick={onClose}>
+              Отмена
+            </Button>
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={loading}
+              onClick={handleSave}
+            >
+              Сохранить
+            </Button>
+          </Space>
+        </div>
+      }
     >
       <Form
         form={form}

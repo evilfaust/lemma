@@ -17,7 +17,8 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
     loadTasks();
   }, []);
 
-  // Применяем клиентский поиск, фильтрацию и сортировку
+  // Применяем клиентский поиск и сортировку
+  // (фильтрация по остальным параметрам происходит на сервере)
   useEffect(() => {
     let result = [...tasks];
 
@@ -29,15 +30,6 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
           task.code?.toLowerCase().includes(searchLower) ||
           task.statement_md?.toLowerCase().includes(searchLower)
         );
-      });
-    }
-
-    // Применяем фильтрацию по тегам
-    if (filters.tags && filters.tags.length > 0) {
-      result = result.filter(task => {
-        // Проверяем есть ли у задачи хотя бы один из выбранных тегов
-        if (!task.tags || task.tags.length === 0) return false;
-        return filters.tags.some(tagId => task.tags.includes(tagId));
       });
     }
 
@@ -70,11 +62,11 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
 
     setFilteredTasks(result);
 
-    // Сбрасываем на первую страницу при изменении поиска или фильтров
-    if (filters.search || (filters.tags && filters.tags.length > 0)) {
+    // Сбрасываем на первую страницу при изменении поиска
+    if (filters.search) {
       setCurrentPage(1);
     }
-  }, [filters.search, filters.tags, filters.sortBy, tasks]);
+  }, [filters.search, filters.sortBy, tasks]);
 
   const loadTasks = async (newFilters = {}, resetPage = false) => {
     setLoading(true);

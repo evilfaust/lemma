@@ -31,7 +31,10 @@ generation-test/
 ├── ege-tasks/              # Frontend React application
 │   ├── src/
 │   │   ├── components/     # React components
+│   │   │   └── worksheet/  # Reusable worksheet components
+│   │   ├── hooks/          # Custom React hooks
 │   │   ├── services/       # API services (pocketbase.js)
+│   │   ├── utils/          # Utility functions
 │   │   ├── App.jsx         # Main app component
 │   │   └── main.jsx        # Entry point
 │   ├── package.json
@@ -49,14 +52,44 @@ generation-test/
 ## Key Components
 
 ### Frontend Components (ege-tasks/src/components/)
+
+**Main Components:**
 - `TaskList.jsx` - Main task list with filtering
 - `TaskCard.jsx` - Individual task card display
 - `TaskEditModal.jsx` - Task editing modal
-- `WorksheetGenerator.jsx` - Worksheet/card generator
+- `WorksheetGenerator.jsx` - Worksheet/card generator (A5/A6 cards) with font sizes 10-21px
 - `PrintableWorksheet.jsx` - Print-optimized worksheet view
-- `TaskWorksheet.jsx` - Worksheet display (A4 format) with PDF export
-- `OralWorksheetGenerator.jsx` - Oral exam worksheet generator with tag-based task distribution and PDF export
-- `MathRenderer.jsx` - LaTeX and Markdown rendering (supports tables, lists, formulas)
+- `OralWorksheetGenerator.jsx` - "Устный счет" (Oral exam) worksheet generator with:
+  - Tag-based task distribution
+  - Compact mode for maximum tasks per page
+  - Drag & drop task reordering within and between variants
+  - Font sizes: 10pt, 12pt, 14pt, 16pt, 20pt
+  - Grid layout (1-3 columns) for multiple variants per page
+  - PDF export with html2pdf.js
+  - Filter to hide common task prefixes ("Вычислите:", "Найдите значение выражения" etc.)
+- `TestWorkGenerator.jsx` - **NEW** - Генератор контрольных работ:
+  - Конструктор структуры работы с блоками задач из разных тем
+  - Гибкие фильтры для каждого блока (тема, подтемы, сложность, теги)
+  - 3 режима генерации: разные задачи / перемешанные / одинаковые
+  - Drag & drop задач между вариантами
+  - Сохранение/загрузка работ в БД
+  - Экспорт в PDF
+  - Все возможности форматирования (компактный режим, шрифты, колонки)
+- `MathRenderer.jsx` - LaTeX (KaTeX) and Markdown (react-markdown + remark-gfm) rendering (supports tables, lists, formulas)
+
+**Reusable Worksheet Components (ege-tasks/src/components/worksheet/):**
+- `FilterBlock.jsx` - Переиспользуемый блок фильтров для подбора задач
+- `VariantSettings.jsx` - Настройки генерации вариантов
+- `FormatSettings.jsx` - Настройки форматирования для печати
+
+### Custom Hooks (ege-tasks/src/hooks/)
+- `useWorksheetGeneration.js` - Универсальная логика генерации вариантов с задачами
+- `useTaskDragDrop.js` - Drag & drop задач между вариантами
+- `useWorksheetActions.js` - Действия с работами (печать, PDF, сохранение, загрузка)
+- `useMarkdownProcessor.js` - Обработка markdown
+- `useKeyboardShortcuts.js` - Keyboard shortcuts
+- `useDocumentStats.js` - Статистика документов
+- `useAutosave.js` - Автосохранение
 
 ### Database Collections (PocketBase)
 
@@ -222,11 +255,17 @@ Key functions:
 ## Recent Changes (from git log)
 
 Latest commits:
-1. Fix: Added Button import to PrintableWorksheet
-2. Feat: Improved printable worksheet form
-3. Fix: Excluded duplicate tasks within variants when replacing
-4. Feat: Added filters to task replacement modal
-5. Fix: Fixed subtopic filtering for Multiple relation
+1. **Feat: Добавлен генератор контрольных работ (TestWorkGenerator)**
+   - Создан новый компонент для составления контрольных работ с задачами из разных тем
+   - Выделены переиспользуемые хуки: useWorksheetGeneration, useTaskDragDrop, useWorksheetActions
+   - Созданы переиспользуемые UI компоненты: FilterBlock, VariantSettings, FormatSettings
+   - Добавлена возможность создавать блоки задач с индивидуальными фильтрами для каждой темы
+   - Интегрирован в главное меню приложения
+2. Fix: Added Button import to PrintableWorksheet
+3. Feat: Improved printable worksheet form
+4. Fix: Excluded duplicate tasks within variants when replacing
+5. Feat: Added filters to task replacement modal
+6. Fix: Fixed subtopic filtering for Multiple relation
 
 ## Known Issues & Patterns
 
@@ -249,6 +288,8 @@ Latest commits:
 
 ### Key Files to Modify
 - Frontend components: `ege-tasks/src/components/*.jsx`
+- Reusable components: `ege-tasks/src/components/worksheet/*.jsx`
+- Custom hooks: `ege-tasks/src/hooks/*.js`
 - API service: `ege-tasks/src/services/pocketbase.js`
 - Main app: `ege-tasks/src/App.jsx`
 - Styles: `ege-tasks/src/App.css`

@@ -524,9 +524,12 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
                   onChange={(e) => setFontSize(e.target.value)}
                   buttonStyle="solid"
                 >
+                  <Radio.Button value={10}>10px</Radio.Button>
                   <Radio.Button value={11}>11px</Radio.Button>
                   <Radio.Button value={13}>13px</Radio.Button>
                   <Radio.Button value={15}>15px</Radio.Button>
+                  <Radio.Button value={17}>17px</Radio.Button>
+                  <Radio.Button value={21}>21px</Radio.Button>
                 </Radio.Group>
               </Form.Item>
             </Col>

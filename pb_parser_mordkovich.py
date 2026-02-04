@@ -163,31 +163,52 @@ def get_or_create_subtopic(subtopic_name: str, topic_id: str):
 # Получение/создание топика
 # --------------------------
 def get_or_create_topic(paragraph_num: str, title: str, description: str = ""):
-    """Получает или создает топик для параграфа Мордковича"""
-    topic_code = f"M{paragraph_num}"
+    """Получает или создает топик для параграфа Мордковича.
 
-    # Ищем существующий топик по slug
+    Все задачи Мордковича загружаются в ЕДИНЫЙ топик «Мордкович».
+    Разделение по параграфам — через подтемы (subtopics).
+
+    Поиск по приоритету:
+    1. По названию из YAML (title) — например, «Мордкович»
+    2. По slug M{paragraph} — для обратной совместимости
+    3. Создание нового топика, если ничего не найдено
+    """
+    # 1. Ищем существующий топик по названию из YAML
     resp = requests.get(
         f"{PB_URL}/api/collections/topics/records",
         headers=HEADERS,
-        params={"filter": f'slug = "{topic_code}"', "perPage": 1}
+        params={"filter": f'title = "{title}"', "perPage": 1}
     )
     resp.raise_for_status()
     items = resp.json().get("items", [])
 
     if items:
-        print(f"✓ Топик уже существует: {items[0]['title']} (ID: {items[0]['id']})")
+        print(f"✓ Топик найден по названию: {items[0]['title']} (ID: {items[0]['id']})")
         return items[0]["id"]
 
-    # Создаем новый топик
-    print(f"🆕 Создаю новый топик для §{paragraph_num}...")
+    # 2. Ищем по slug «mordkovich» или «M{paragraph}» (обратная совместимость)
+    for slug_candidate in ["mordkovich", f"M{paragraph_num}"]:
+        resp = requests.get(
+            f"{PB_URL}/api/collections/topics/records",
+            headers=HEADERS,
+            params={"filter": f'slug = "{slug_candidate}"', "perPage": 1}
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+
+        if items:
+            print(f"✓ Топик найден по slug «{slug_candidate}»: {items[0]['title']} (ID: {items[0]['id']})")
+            return items[0]["id"]
+
+    # 3. Создаем новый топик
+    print(f"🆕 Создаю новый топик «{title}»...")
     create_resp = requests.post(
         f"{PB_URL}/api/collections/topics/records",
         headers=HEADERS,
         json={
-            "title": f"{title} §{paragraph_num}",
-            "slug": topic_code,
-            "description": description or f"Задачник Мордкович, §{paragraph_num}"
+            "title": title,
+            "slug": "mordkovich",
+            "description": description or f"Задачник Мордкович"
         }
     )
 

@@ -1,0 +1,255 @@
+/* Базовые стили для всех тем */
+.theory-preview-content {
+    margin: 0 auto;
+    background: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    line-height: 1.8;
+    transition: all 0.3s ease;
+    overflow: hidden;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+/* Тема: Классическая */
+.theory-preview-content[data-theme="classic"] {
+    font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.theory-preview-content[data-theme="classic"] h1 {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: #2c3e50;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 5px;
+}
+
+.theory-preview-content[data-theme="classic"] h2 {
+    font-size: 26px;
+    font-weight: bold;
+    margin-top: 30px;
+    margin-bottom: 15px;
+    color: #34495e;
+}
+
+/* Тема: Минимализм */
+.theory-preview-content[data-theme="minimal"] {
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    background: #fafafa;
+}
+
+.theory-preview-content[data-theme="minimal"] h1 {
+    font-size: 28px;
+    font-weight: 300;
+    margin-bottom: 30px;
+    color: #333;
+    border-bottom: 1px solid #ddd;
+    padding-bottom: 15px;
+}
+
+.theory-preview-content[data-theme="minimal"] h2 {
+    font-size: 22px;
+    font-weight: 400;
+    margin-top: 40px;
+    margin-bottom: 20px;
+    color: #555;
+}
+
+.theory-preview-content[data-theme="minimal"] p {
+    line-height: 2;
+    color: #666;
+}
+
+/* Тема: Академическая */
+.theory-preview-content[data-theme="academic"] {
+    font-family: 'Times New Roman', 'Times', serif;
+}
+
+.theory-preview-content[data-theme="academic"] h1 {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 30px;
+    color: #000;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    border: none;
+}
+
+.theory-preview-content[data-theme="academic"] h2 {
+    font-size: 20px;
+    font-weight: bold;
+    margin-top: 35px;
+    margin-bottom: 15px;
+    color: #000;
+    text-align: left;
+}
+
+.theory-preview-content[data-theme="academic"] p {
+    text-align: justify;
+    text-indent: 30px;
+    line-height: 2;
+}
+
+/* Тема: Тетрадь */
+.theory-preview-content[data-theme="notebook"] {
+    font-family: 'Comic Sans MS', 'Marker Felt', cursive;
+    background: linear-gradient(white 20px, #e8f4f8 20px);
+    background-size: 100% 21px;
+    border-left: 3px solid #ff6b6b;
+}
+
+.theory-preview-content[data-theme="notebook"] h1 {
+    font-size: 30px;
+    font-weight: bold;
+    margin-bottom: 21px;
+    color: #2c3e50;
+    border: none;
+}
+
+.theory-preview-content[data-theme="notebook"] h2 {
+    font-size: 24px;
+    font-weight: bold;
+    margin-top: 42px;
+    margin-bottom: 21px;
+    color: #34495e;
+}
+
+.theory-preview-content[data-theme="notebook"] p {
+    line-height: 21px;
+    margin-bottom: 21px;
+}
+
+/* Компактная тема */
+.theory-preview-content[data-theme="compact"] {
+    font-family: 'Arial', 'Helvetica', sans-serif;
+}
+
+/* Общие стили для элементов во всех темах */
+.theory-preview-content h3 {
+    font-size: 22px;
+    font-weight: bold;
+    margin-top: 25px;
+    margin-bottom: 12px;
+    color: #34495e;
+}
+
+.theory-preview-content p {
+    margin-bottom: 15px;
+}
+
+.theory-preview-content strong {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.theory-preview-content em {
+    font-style: italic;
+}
+
+.theory-preview-content ul, .theory-preview-content ol {
+    margin-left: 30px;
+    margin-bottom: 15px;
+}
+
+.theory-preview-content li {
+    margin-bottom: 8px;
+}
+
+.theory-preview-content blockquote {
+    border-left: 4px solid #000000;
+    padding: 5px 5px;
+    margin: 20px 0;
+    color: #000000;
+    font-style: italic;
+    background: #f9f9f9;
+}
+
+/* Таблицы */
+.theory-preview-content table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+    font-size: 0.95em;
+    overflow-x: auto;
+    display: table;
+}
+
+.theory-preview-content thead {
+    background: #f0f4f8;
+}
+
+.theory-preview-content th {
+    font-weight: 600;
+    text-align: left;
+    padding: 8px 12px;
+    border: 1px solid #d9d9d9;
+    color: #2c3e50;
+    white-space: nowrap;
+}
+
+.theory-preview-content td {
+    padding: 6px 12px;
+    border: 1px solid #d9d9d9;
+    vertical-align: top;
+}
+
+.theory-preview-content tbody tr:nth-child(even) {
+    background: #fafafa;
+}
+
+.theory-preview-content tbody tr:hover {
+    background: #f0f7ff;
+}
+
+.theory-preview-content hr {
+    border: none;
+    border-top: 2px solid #ddd;
+    margin: 30px 0;
+}
+
+.theory-preview-content img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 20px auto;
+}
+
+.theory-preview-content .katex {
+    font-size: 1.1em;
+}
+
+.theory-preview-content .katex-display {
+    margin: 25px 0;
+    text-align: center;
+}
+
+/* Vertical spaces */
+.theory-preview-content .vspace {
+    display: block;
+    height: 1em;
+    margin: 0;
+    padding: 0;
+}
+
+.theory-preview-content .vspace-sm {
+    height: 0.5em;
+}
+
+.theory-preview-content .vspace-lg {
+    height: 2em;
+}
+
+/* Column sections */
+.theory-preview-content .col-section {
+    min-width: 0;
+}
+
+.theory-preview-content .col-section + .col-section {
+    border-left: 1px solid #ccc;
+    padding-left: 15px;
+}
+
+.theory-preview-content > :not(.col-section) {
+    grid-column: 1 / -1;
+}

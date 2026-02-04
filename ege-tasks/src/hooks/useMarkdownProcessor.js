@@ -1,0 +1,129 @@
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { unified } from 'unified'
+import remarkParse from 'remark-parse'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import remarkRehype from 'remark-rehype'
+import rehypeKatex from 'rehype-katex'
+import rehypeStringify from 'rehype-stringify'
+import DOMPurify from 'dompurify'
+
+// Debounce delay in ms
+const DEBOUNCE_DELAY = 150
+
+/**
+ * Custom syntax (each on its own line):
+ *
+ *   :::    → column break (jump to next column)
+ *   ~      → empty line (1em)
+ *   ~~     → small space (0.5em)
+ *   ~~~    → large space (2em)
+ *
+ * Strategy: replace custom syntax with unique text markers BEFORE markdown
+ * parsing. Remark will wrap them in <p>. Then postprocess replaces
+ * those <p> with proper divs.
+ */
+
+const MARKERS = {
+    colBreak:  'COLBREAK_7f3a9b',
+    vspace:    'VSPACE_7f3a9b',
+    vspaceSm:  'VSPACESM_7f3a9b',
+    vspaceLg:  'VSPACELG_7f3a9b',
+}
+
+function preprocess(md) {
+    return md.replace(/\r\n/g, '\n')
+        .replace(/^:::\s*$/gm, MARKERS.colBreak)
+        .replace(/^~~~\s*$/gm, MARKERS.vspaceLg)
+        .replace(/^~~\s*$/gm, MARKERS.vspaceSm)
+        .replace(/^~\s*$/gm, MARKERS.vspace)
+}
+
+function postprocess(html, columns) {
+    let result = html
+        .replace(new RegExp(`<p>\\s*${MARKERS.vspaceLg}\\s*</p>`, 'g'),
+            '<div class="vspace vspace-lg"></div>')
+        .replace(new RegExp(`<p>\\s*${MARKERS.vspaceSm}\\s*</p>`, 'g'),
+            '<div class="vspace vspace-sm"></div>')
+        .replace(new RegExp(`<p>\\s*${MARKERS.vspace}\\s*</p>`, 'g'),
+            '<div class="vspace"></div>')
+        .replace(new RegExp(MARKERS.vspaceLg, 'g'),
+            '<div class="vspace vspace-lg"></div>')
+        .replace(new RegExp(MARKERS.vspaceSm, 'g'),
+            '<div class="vspace vspace-sm"></div>')
+        .replace(new RegExp(MARKERS.vspace, 'g'),
+            '<div class="vspace"></div>')
+
+    const colBreakPattern = `<p>\\s*${MARKERS.colBreak}\\s*</p>|${MARKERS.colBreak}`
+    const hasColBreak = new RegExp(colBreakPattern).test(result)
+
+    if (columns > 1 && hasColBreak) {
+        const splitRegex = new RegExp(colBreakPattern, 'g')
+        const parts = result.split(splitRegex).filter(p => p.trim())
+        result = parts.map((part) =>
+            `<div class="col-section">${part}</div>`
+        ).join('')
+    } else {
+        result = result.replace(new RegExp(colBreakPattern, 'g'), '')
+    }
+
+    return result
+}
+
+export function useMarkdownProcessor(markdown, columns = 1) {
+    const [html, setHtml] = useState('')
+    const timeoutRef = useRef(null)
+    const processorRef = useRef(null)
+    const columnsRef = useRef(columns)
+    columnsRef.current = columns
+
+    // Create processor once
+    if (!processorRef.current) {
+        processorRef.current = unified()
+            .use(remarkParse)
+            .use(remarkGfm)
+            .use(remarkMath)
+            .use(remarkRehype)
+            .use(rehypeKatex)
+            .use(rehypeStringify)
+    }
+
+    const processMarkdown = useCallback(async (text) => {
+        try {
+            const preprocessed = preprocess(text)
+            const result = await processorRef.current.process(preprocessed)
+            const withCustom = postprocess(String(result), columnsRef.current)
+
+            const cleanHtml = DOMPurify.sanitize(withCustom, {
+                ADD_TAGS: ['math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub',
+                           'mfrac', 'mroot', 'msqrt', 'munder', 'mover', 'mtable', 'mtr',
+                           'mtd', 'annotation', 'div', 'table', 'thead', 'tbody', 'tr',
+                           'th', 'td', 'caption', 'colgroup', 'col'],
+                ADD_ATTR: ['class', 'style', 'encoding', 'xmlns', 'aria-hidden'],
+                ALLOW_DATA_ATTR: true
+            })
+            setHtml(cleanHtml)
+        } catch (error) {
+            console.error('Markdown processing error:', error)
+            setHtml('<p style="color: red;">Ошибка рендеринга</p>')
+        }
+    }, [])
+
+    useEffect(() => {
+        if (timeoutRef.current) {
+            clearTimeout(timeoutRef.current)
+        }
+
+        timeoutRef.current = setTimeout(() => {
+            processMarkdown(markdown)
+        }, DEBOUNCE_DELAY)
+
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current)
+            }
+        }
+    }, [markdown, columns, processMarkdown])
+
+    return html
+}

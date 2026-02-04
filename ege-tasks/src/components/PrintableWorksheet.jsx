@@ -171,6 +171,7 @@ const PrintableWorksheet = ({
           }
           .card-print-page {
             page-break-after: always;
+            margin: 0;
           }
           .card-print-page:last-child {
             page-break-after: auto;
@@ -179,7 +180,7 @@ const PrintableWorksheet = ({
             display: none !important;
           }
           @page {
-            margin: 0;
+            margin: 7mm 0 0 0;
             size: A4 portrait;
           }
         }
