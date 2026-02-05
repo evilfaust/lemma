@@ -1,0 +1,206 @@
+import { Button, Tooltip } from 'antd';
+import { EditOutlined, SwapOutlined } from '@ant-design/icons';
+import MathRenderer from '../MathRenderer';
+import { filterTaskText } from '../../utils/filterTaskText';
+
+/**
+ * Компонент рендеринга одного варианта (компактный и обычный режимы).
+ *
+ * @param {Object} variant - данные варианта { number, tasks }
+ * @param {number} variantIndex - индекс варианта
+ * @param {boolean} compactMode - компактный режим
+ * @param {number} fontSize - размер шрифта (pt)
+ * @param {number} columns - количество колонок
+ * @param {boolean} showStudentInfo - показывать ФИО
+ * @param {boolean} showAnswersInline - показывать ответы в тексте
+ * @param {string} solutionSpace - место для решения (none/small/medium/large)
+ * @param {string} variantLabel - название варианта
+ * @param {boolean} hideTaskPrefixes - скрывать типовые фразы
+ * @param {Object} dragDropHandlers - обработчики drag & drop из useTaskDragDrop
+ * @param {Function} onEditTask - (task) => void
+ * @param {Function} onReplaceTask - (variantIndex, taskIndex, task) => void
+ */
+const VariantRenderer = ({
+  variant,
+  variantIndex,
+  compactMode = false,
+  fontSize = 12,
+  columns = 1,
+  showStudentInfo = true,
+  showAnswersInline = false,
+  solutionSpace = 'medium',
+  variantLabel = 'Вариант',
+  hideTaskPrefixes = false,
+  dragDropHandlers,
+  onEditTask,
+  onReplaceTask,
+}) => {
+  const applyTextFilter = (text) => {
+    if (!hideTaskPrefixes) return text;
+    return filterTaskText(text);
+  };
+
+  if (compactMode) {
+    return (
+      <div key={variant.number} className="variant-container compact-mode">
+        <div className="variant-header-compact">
+          <h2>
+            {variantLabel} {variant.number}
+          </h2>
+        </div>
+
+        <div className="tasks-content-compact" style={{ fontSize: `${fontSize}pt` }}>
+          {variant.tasks.map((task, taskIndex) => {
+            const isDragging = dragDropHandlers?.isDragging(variantIndex, taskIndex);
+            const isDragOver = dragDropHandlers?.isDragOver(variantIndex, taskIndex);
+
+            return (
+              <div
+                key={task.id}
+                className={`task-item-compact ${isDragging ? 'dragging' : ''} ${
+                  isDragOver ? 'drag-over' : ''
+                }`}
+                draggable
+                onDragStart={e => dragDropHandlers?.handleDragStart(e, variantIndex, taskIndex)}
+                onDragOver={e => dragDropHandlers?.handleDragOver(e, variantIndex, taskIndex)}
+                onDragLeave={dragDropHandlers?.handleDragLeave}
+                onDrop={e => dragDropHandlers?.handleDrop(e, variantIndex, taskIndex)}
+                onDragEnd={dragDropHandlers?.handleDragEnd}
+              >
+                <div className="compact-answer-box"></div>
+                <div className="compact-task-content">
+                  <span className="compact-task-number">{taskIndex + 1}.</span>
+                  <MathRenderer text={applyTextFilter(task.statement_md)} />
+                </div>
+                {/* Кнопки управления (только на экране) */}
+                <div className="no-print compact-controls">
+                  <Tooltip title="Редактировать задачу">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => onEditTask?.(task)}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Заменить задачу">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<SwapOutlined />}
+                      onClick={() => onReplaceTask?.(variantIndex, taskIndex, task)}
+                    />
+                  </Tooltip>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="page-break"></div>
+      </div>
+    );
+  }
+
+  // Обычный режим
+  return (
+    <div key={variant.number} className="variant-container">
+      <div className="variant-header">
+        <h2>
+          {variantLabel} {variant.number}
+        </h2>
+        {showStudentInfo && (
+          <div className="student-info">
+            <div className="student-info-field">
+              <span className="student-info-label">Фамилия:</span>
+              <div className="student-info-line"></div>
+            </div>
+            <div className="student-info-field">
+              <span className="student-info-label">Имя:</span>
+              <div className="student-info-line"></div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div
+        className="tasks-content"
+        style={{
+          fontSize: `${fontSize}pt`,
+          columnCount: columns,
+          columnGap: '20px',
+          columnRule: columns > 1 ? '1px solid #ddd' : 'none',
+        }}
+      >
+        {variant.tasks.map((task, taskIndex) => {
+          const isDragging = dragDropHandlers?.isDragging(variantIndex, taskIndex);
+          const isDragOver = dragDropHandlers?.isDragOver(variantIndex, taskIndex);
+
+          return (
+            <div
+              key={task.id}
+              className={`task-item ${isDragging ? 'dragging' : ''} ${
+                isDragOver ? 'drag-over' : ''
+              }`}
+              draggable
+              onDragStart={e => dragDropHandlers?.handleDragStart(e, variantIndex, taskIndex)}
+              onDragOver={e => dragDropHandlers?.handleDragOver(e, variantIndex, taskIndex)}
+              onDragLeave={dragDropHandlers?.handleDragLeave}
+              onDrop={e => dragDropHandlers?.handleDrop(e, variantIndex, taskIndex)}
+              onDragEnd={dragDropHandlers?.handleDragEnd}
+            >
+              <div className="task-header">
+                <span className="task-number">{taskIndex + 1}.</span>
+                <span className="task-code">{task.code}</span>
+                <div className="no-print" style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+                  <Tooltip title="Редактировать задачу">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => onEditTask?.(task)}
+                    />
+                  </Tooltip>
+                  <Tooltip title="Заменить задачу">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<SwapOutlined />}
+                      onClick={() => onReplaceTask?.(variantIndex, taskIndex, task)}
+                    />
+                  </Tooltip>
+                </div>
+                <div className="answer-box"></div>
+              </div>
+
+              <div className="task-content">
+                <MathRenderer text={applyTextFilter(task.statement_md)} />
+
+                {task.has_image && task.image_url && (
+                  <div className="task-image">
+                    <img src={task.image_url} alt="" />
+                  </div>
+                )}
+              </div>
+
+              {showAnswersInline && task.answer && (
+                <div className="task-answer">
+                  <strong>Ответ:</strong> <MathRenderer text={task.answer} />
+                </div>
+              )}
+
+              {!showAnswersInline && (
+                <div className={`answer-space answer-space-${solutionSpace}`}>
+                  {solutionSpace !== 'none' && 'Решение:'}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="page-break"></div>
+    </div>
+  );
+};
+
+export default VariantRenderer;
