@@ -7,23 +7,36 @@
 ```bash
 ./start.sh
 ```
+Без PDF сервиса:
+```bash
+./start.sh --no-pdf
+```
 
 Или через NPM:
 
 ```bash
 npm run dev
 ```
+Без PDF сервиса:
+```bash
+npm run dev:no-pdf
+```
 
 **Всё! Три сервиса запустятся автоматически:**
 - PocketBase: http://127.0.0.1:8090
 - PDF Service: http://localhost:3001
 - Frontend: http://localhost:5173
+**Без PDF** запускаются только PocketBase и Frontend.
 
 ### Первый запуск (с установкой зависимостей):
 
 ```bash
 npm run install:all  # Установить все зависимости
 npm run dev          # Запустить всё
+```
+Без PDF:
+```bash
+npm run dev:no-pdf
 ```
 
 ### Остановка:
@@ -75,6 +88,12 @@ generation-test/
 
 ## Полезные команды
 
+### Корень проекта
+```bash
+npm run dev        # Все сервисы
+npm run dev:no-pdf # Без PDF сервиса
+```
+
 ### Backend
 ```bash
 npm run start     # Только PocketBase
@@ -100,6 +119,7 @@ python pb_parser_theory.py       # Загрузить теорию
 
 - **Архитектура:** [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Изменения:** [CHANGELOG.md](CHANGELOG.md)
+- **Запуск без PDF:** [README.MD](README.MD#быстрый-запуск-из-корня-проекта)
 - **PDF Экспорт:** [PDF_EXPORT_UPGRADE.md](PDF_EXPORT_UPGRADE.md)
 - **Подробно:** [README.MD](README.MD)
 - **AI Контекст:** [CLAUDE.MD](CLAUDE.MD)

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Row, Col, Spin, Empty, Pagination, message, Skeleton, Card } from 'antd';
 import TaskFilters from './TaskFilters';
 import TaskCard from './TaskCard';
+import TaskEditModal from './TaskEditModal';
 import { api } from '../services/pocketbase';
 
 const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoading }) => {
@@ -11,6 +12,7 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [filters, setFilters] = useState({});
+  const [createModalVisible, setCreateModalVisible] = useState(false);
   const filtersRef = useRef({}); // Сохраняем фильтры в ref, чтобы они не терялись
 
   useEffect(() => {
@@ -108,6 +110,31 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
     loadTasksWithoutReset(filtersRef.current);
   };
 
+  const handleCreateTask = () => {
+    setCreateModalVisible(true);
+  };
+
+  const handleTaskSave = async (taskId, taskData) => {
+    try {
+      if (taskId === null) {
+        // Создание новой задачи
+        await api.createTask(taskData);
+        message.success('Задача успешно создана');
+      } else {
+        // Обновление существующей задачи
+        await api.updateTask(taskId, taskData);
+        message.success('Задача успешно обновлена');
+      }
+
+      // Перезагружаем список
+      handleTaskUpdate();
+    } catch (error) {
+      console.error('Error saving task:', error);
+      message.error('Ошибка при сохранении задачи');
+      throw error;
+    }
+  };
+
   const loadTasksWithoutReset = async (currentFilters = {}) => {
     setLoading(true);
     try {
@@ -147,6 +174,7 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
         subtopics={subtopics}
         onFilterChange={handleFilterChange}
         totalCount={filteredTasks.length}
+        onCreateTask={handleCreateTask}
       />
 
       {loading ? (
@@ -195,6 +223,20 @@ const TaskList = ({ topics, tags, years, sources, subtopics, loading: initialLoa
           </div>
         </>
       )}
+
+      {/* Модальное окно создания задачи */}
+      <TaskEditModal
+        task={null}
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSave={handleTaskSave}
+        onDelete={null}
+        allTags={tags || []}
+        allSources={sources || []}
+        allYears={years || []}
+        allSubtopics={subtopics || []}
+        allTopics={topics || []}
+      />
     </div>
   );
 };

@@ -67,7 +67,7 @@ const PrintableWorksheet = forwardRef(({
           gridColumns: '1fr',
           gridRows: '1fr',
           cardPadding: '10mm',
-          pagePadding: '7mm',
+          pagePadding: '5mm',
         };
       default:
         return {
@@ -180,19 +180,18 @@ const PrintableWorksheet = forwardRef(({
             display: none !important;
           }
           @page {
-            margin: 7mm 0 0 0;
+            margin: 5mm 0 0 0;
             size: A4 portrait;
           }
         }
 
         .card-print-page {
-          display: grid;
-          grid-template-columns: ${cardStyle.gridColumns};
-          grid-template-rows: ${cardStyle.gridRows};
-          gap: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
           width: 210mm;
           height: 297mm;
-          padding: ${cardStyle.pagePadding};
+          padding: 0;
           box-sizing: border-box;
           background: white;
           page-break-after: always;
@@ -201,6 +200,17 @@ const PrintableWorksheet = forwardRef(({
 
         .card-print-page:last-child {
           page-break-after: auto;
+        }
+
+        .card-grid-container {
+          display: grid;
+          grid-template-columns: ${cardStyle.gridColumns};
+          grid-template-rows: ${cardStyle.gridRows};
+          gap: 2mm;
+          width: 210mm;
+          height: 297mm;
+          padding: 5mm;
+          box-sizing: border-box;
         }
 
         .worksheet-card {
@@ -420,7 +430,8 @@ const PrintableWorksheet = forwardRef(({
 
         return (
           <div key={`tasks-${pageIndex}`} className="card-print-page">
-            {pageCards.map((cardTasks, cardIndex) => {
+            <div className="card-grid-container">
+              {pageCards.map((cardTasks, cardIndex) => {
               const globalCardIndex = pageIndex * cardStyle.cardsPerPage + cardIndex;
 
               let cardCode;
@@ -535,6 +546,7 @@ const PrintableWorksheet = forwardRef(({
                 </div>
               );
             })}
+            </div>
           </div>
         );
       })}

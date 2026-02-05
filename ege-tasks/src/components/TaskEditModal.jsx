@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, message, Button, Space, Popconfirm } from 'antd';
-import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { Modal, Form, Select, Input, message, Button, Space, Popconfirm, Spin } from 'antd';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
+import { generateTaskCode } from '../utils/taskCodeGenerator';
+import { api } from '../services/pocketbase';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -14,32 +16,124 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [previewAnswer, setPreviewAnswer] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [filteredSubtopics, setFilteredSubtopics] = useState([]);
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [generatingCode, setGeneratingCode] = useState(false);
+  const [tags, setTags] = useState([]);
+  const [creatingTag, setCreatingTag] = useState(false);
 
-  useEffect(() => {
-    if (task && visible) {
-      const topicData = allTopics.find(t => t.id === task.topic);
-      setSelectedTopic(topicData);
+  // Определяем режим работы: создание или редактирование
+  const isCreateMode = !task;
 
-      // Фильтруем подтемы по выбранной теме
-      if (task.topic) {
-        const subtopicsForTopic = allSubtopics.filter(st => st.topic === task.topic);
-        setFilteredSubtopics(subtopicsForTopic);
+  // Функция генерации кода задачи
+  const handleGenerateCode = async (topicId) => {
+    if (!topicId) {
+      console.warn('[TaskEditModal] topicId не указан');
+      return;
+    }
+
+    setGeneratingCode(true);
+    try {
+      // Ищем тему в allTopics (может быть undefined если темы не загружены)
+      const topic = Array.isArray(allTopics) ? allTopics.find(t => t.id === topicId) : null;
+
+      if (!topic) {
+        console.warn('[TaskEditModal] Тема не найдена в allTopics, будет загружена из API');
       }
 
-      form.setFieldsValue({
-        topic: task.topic || undefined,
-        subtopic: task.subtopic || undefined,
-        difficulty: task.difficulty,
-        answer: task.answer || '',
-        statement_md: task.statement_md || '',
-        solution_md: task.solution_md || '',
-        source: task.source || '',
-        year: task.year || undefined,
-        tags: task.tags || [],
-        image_url: task.image_url || '',
+      // generateTaskCode автоматически загрузит тему если она не передана
+      const code = await generateTaskCode(topicId, topic);
+      setGeneratedCode(code);
+
+      console.log('[TaskEditModal] Код успешно сгенерирован:', code);
+    } catch (error) {
+      console.error('[TaskEditModal] Error generating code:', error);
+      message.error(`Ошибка при генерации кода: ${error.message}`);
+    } finally {
+      setGeneratingCode(false);
+    }
+  };
+
+  // Синхронизация списка тегов с props
+  useEffect(() => {
+    setTags(allTags);
+  }, [allTags]);
+
+  // Функция создания нового тега
+  const handleCreateTag = async (newTagTitle) => {
+    if (!newTagTitle || !newTagTitle.trim()) {
+      return;
+    }
+
+    const trimmedTitle = newTagTitle.trim();
+
+    // Проверяем, не существует ли уже такой тег
+    const existingTag = tags.find(t => t.title.toLowerCase() === trimmedTitle.toLowerCase());
+    if (existingTag) {
+      message.warning(`Тег "${trimmedTitle}" уже существует`);
+      return existingTag.id;
+    }
+
+    setCreatingTag(true);
+    try {
+      // Создаём тег с случайным цветом
+      const colors = ['#f50', '#2db7f5', '#87d068', '#108ee9', '#faad14', '#722ed1', '#eb2f96', '#52c41a'];
+      const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+      const newTag = await api.createTag({
+        title: trimmedTitle,
+        color: randomColor
       });
-      setPreviewStatement(task.statement_md || '');
-      setPreviewAnswer(task.answer || '');
+
+      // Добавляем новый тег в локальный список
+      setTags([...tags, newTag]);
+      message.success(`Тег "${trimmedTitle}" создан`);
+
+      return newTag.id;
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      message.error('Ошибка при создании тега');
+      return null;
+    } finally {
+      setCreatingTag(false);
+    }
+  };
+
+  useEffect(() => {
+    if (visible) {
+      if (task) {
+        // Режим редактирования - заполняем форму данными задачи
+        const topicData = allTopics.find(t => t.id === task.topic);
+        setSelectedTopic(topicData);
+
+        // Фильтруем подтемы по выбранной теме
+        if (task.topic) {
+          const subtopicsForTopic = allSubtopics.filter(st => st.topic === task.topic);
+          setFilteredSubtopics(subtopicsForTopic);
+        }
+
+        form.setFieldsValue({
+          topic: task.topic || undefined,
+          subtopic: task.subtopic || undefined,
+          difficulty: task.difficulty,
+          answer: task.answer || '',
+          statement_md: task.statement_md || '',
+          solution_md: task.solution_md || '',
+          source: task.source || '',
+          year: task.year || undefined,
+          tags: task.tags || [],
+          image_url: task.image_url || '',
+        });
+        setPreviewStatement(task.statement_md || '');
+        setPreviewAnswer(task.answer || '');
+      } else {
+        // Режим создания - пустая форма
+        form.resetFields();
+        setGeneratedCode('');
+        setPreviewStatement('');
+        setPreviewAnswer('');
+        setSelectedTopic(null);
+        setFilteredSubtopics([]);
+      }
     }
   }, [task, visible, form, allTopics, allSubtopics]);
 
@@ -53,6 +147,11 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
     // Сбрасываем подтему при смене темы
     form.setFieldValue('subtopic', undefined);
+
+    // Генерируем код для новой задачи
+    if (isCreateMode) {
+      handleGenerateCode(topicId);
+    }
   };
 
   const handleSave = async () => {
@@ -60,7 +159,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       const values = await form.validateFields();
       setLoading(true);
 
-      // Данные для обновления задачи
+      // Данные для сохранения задачи
       const taskData = {
         topic: values.topic,
         subtopic: values.subtopic || null,
@@ -75,13 +174,22 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         has_image: !!values.image_url,
       };
 
-      await onSave(task.id, taskData);
+      // В режиме создания добавляем код
+      if (isCreateMode) {
+        if (!generatedCode) {
+          message.error('Код задачи не сгенерирован. Выберите тему.');
+          setLoading(false);
+          return;
+        }
+        taskData.code = generatedCode;
+      }
 
-      message.success('Задача успешно обновлена');
+      // Вызываем onSave с taskId (null для создания)
+      await onSave(isCreateMode ? null : task.id, taskData);
+
       onClose();
     } catch (error) {
       console.error('Error saving task:', error);
-      message.error('Ошибка при сохранении задачи');
     } finally {
       setLoading(false);
     }
@@ -115,8 +223,14 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     <Modal
       title={
         <Space>
-          <EditOutlined />
-          <span>Редактирование задачи {task?.code}</span>
+          {isCreateMode ? <PlusOutlined /> : <EditOutlined />}
+          <span>
+            {isCreateMode
+              ? `Создание новой задачи${generatedCode ? ` - ${generatedCode}` : ''}`
+              : `Редактирование задачи ${task?.code}`
+            }
+          </span>
+          {isCreateMode && generatingCode && <Spin size="small" />}
         </Space>
       }
       open={visible}
@@ -124,34 +238,36 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       width={800}
       footer={
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Popconfirm
-            title="Удаление задачи"
-            description={`Вы уверены, что хотите удалить задачу ${task?.code}?`}
-            onConfirm={handleDelete}
-            okText="Удалить"
-            cancelText="Отмена"
-            okButtonProps={{ danger: true }}
-            icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
-          >
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              loading={deleting}
+          {!isCreateMode ? (
+            <Popconfirm
+              title="Удаление задачи"
+              description={`Вы уверены, что хотите удалить задачу ${task?.code}?`}
+              onConfirm={handleDelete}
+              okText="Удалить"
+              cancelText="Отмена"
+              okButtonProps={{ danger: true }}
+              icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
             >
-              Удалить
-            </Button>
-          </Popconfirm>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                loading={deleting}
+              >
+                Удалить
+              </Button>
+            </Popconfirm>
+          ) : <div />}
           <Space>
             <Button onClick={onClose}>
               Отмена
             </Button>
             <Button
               type="primary"
-              icon={<SaveOutlined />}
+              icon={isCreateMode ? <PlusOutlined /> : <SaveOutlined />}
               loading={loading}
               onClick={handleSave}
             >
-              Сохранить
+              {isCreateMode ? 'Создать' : 'Сохранить'}
             </Button>
           </Space>
         </div>
@@ -252,15 +368,35 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         <Form.Item
           name="tags"
           label="Теги"
+          help="Введите название нового тега и нажмите Enter для создания"
         >
           <Select
-            mode="multiple"
-            placeholder="Выберите теги"
+            mode="tags"
+            placeholder="Выберите или создайте теги"
             allowClear
             showSearch
+            loading={creatingTag}
             optionFilterProp="children"
+            onSelect={async (value) => {
+              // Если выбрано значение, которого нет в списке ID - это новый тег
+              const isExistingTag = tags.some(t => t.id === value);
+              if (!isExistingTag) {
+                // Создаём новый тег
+                const newTagId = await handleCreateTag(value);
+                if (newTagId) {
+                  // Заменяем временное значение на ID
+                  const currentTags = form.getFieldValue('tags') || [];
+                  const updatedTags = currentTags.map(t => t === value ? newTagId : t);
+                  form.setFieldValue('tags', updatedTags);
+                } else {
+                  // Если создание не удалось - убираем временное значение
+                  const currentTags = form.getFieldValue('tags') || [];
+                  form.setFieldValue('tags', currentTags.filter(t => t !== value));
+                }
+              }
+            }}
           >
-            {allTags.map(tag => (
+            {tags.map(tag => (
               <Option key={tag.id} value={tag.id}>
                 {tag.title}
               </Option>
@@ -282,6 +418,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         <Form.Item
           name="statement_md"
           label="Текст задания (поддерживает LaTeX: $x^2$)"
+          rules={[{
+            required: isCreateMode,
+            message: 'Введите текст задания'
+          }]}
         >
           <TextArea
             rows={4}

@@ -1835,6 +1835,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       {/* Режим карточек */}
       {variants.length > 0 && outputMode === 'cards' && (
         <PrintableWorksheet
+          ref={printRef}
           key={variants.map(v => v.tasks.map(t => t.id).join(',')).join('|')}
           cards={variants.map(v => v.tasks)}
           title={variantLabel || 'Проверочная работа'}

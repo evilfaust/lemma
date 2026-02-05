@@ -40,16 +40,32 @@ if [ ! -d "ege-tasks/node_modules" ]; then
 fi
 
 echo ""
-echo -e "${GREEN}🚀 Запуск всех сервисов...${NC}"
+
+# Режим запуска
+NO_PDF=false
+if [[ "$1" == "--no-pdf" || "$1" == "-n" ]]; then
+    NO_PDF=true
+fi
+
+echo -e "${GREEN}🚀 Запуск сервисов...${NC}"
 echo ""
 echo -e "${BLUE}┌─────────────────────────────────────────┐${NC}"
 echo -e "${BLUE}│ PocketBase:    http://127.0.0.1:8090    │${NC}"
-echo -e "${BLUE}│ PDF Service:   http://localhost:3001    │${NC}"
+if [ "$NO_PDF" = false ]; then
+    echo -e "${BLUE}│ PDF Service:   http://localhost:3001    │${NC}"
+fi
 echo -e "${BLUE}│ Frontend:      http://localhost:5173    │${NC}"
 echo -e "${BLUE}└─────────────────────────────────────────┘${NC}"
 echo ""
 echo -e "${YELLOW}Нажмите Ctrl+C для остановки всех сервисов${NC}"
+echo -e "${YELLOW}Запуск без PDF: ./start.sh --no-pdf${NC}"
 echo ""
 
 # Запуск через npm
-npm run dev
+if [ "$NO_PDF" = true ]; then
+    npx concurrently -n "BACKEND,FRONTEND" -c "bgBlue.bold,bgGreen.bold" \
+        "npm run dev:backend" \
+        "npm run dev:frontend"
+else
+    npm run dev
+fi

@@ -52,6 +52,16 @@ export const api = {
     }
   },
 
+  // Создать тег
+  async createTag(data) {
+    try {
+      return await pb.collection('tags').create(data);
+    } catch (error) {
+      console.error('Error creating tag:', error);
+      throw error;
+    }
+  },
+
   // Получить задачи с фильтрами
   async getTasks(filters = {}) {
     try {
@@ -235,6 +245,16 @@ export const api = {
     } catch (error) {
       console.error('Error fetching task:', error);
       return null;
+    }
+  },
+
+  // Создать задачу
+  async createTask(data) {
+    try {
+      return await pb.collection('tasks').create(data);
+    } catch (error) {
+      console.error('Error creating task:', error);
+      throw error;
     }
   },
 

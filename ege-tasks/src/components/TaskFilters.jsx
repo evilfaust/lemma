@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Form, Select, Button, Space, Row, Col, Radio, Statistic, Badge, Input, Tag } from 'antd';
-import { FilterOutlined, ClearOutlined, SearchOutlined, CloseCircleOutlined, SortAscendingOutlined } from '@ant-design/icons';
+import { FilterOutlined, ClearOutlined, SearchOutlined, CloseCircleOutlined, SortAscendingOutlined, PlusOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
 
-const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], onFilterChange, totalCount }) => {
+const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], onFilterChange, totalCount, onCreateTask }) => {
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({});
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -96,11 +96,20 @@ const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], o
         </Space>
       }
       extra={
-        <Statistic 
-          value={totalCount} 
-          suffix="задач" 
-          valueStyle={{ fontSize: 18 }}
-        />
+        <Space>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={onCreateTask}
+          >
+            Создать задачу
+          </Button>
+          <Statistic
+            value={totalCount}
+            suffix="задач"
+            valueStyle={{ fontSize: 18 }}
+          />
+        </Space>
       }
     >
       <Form

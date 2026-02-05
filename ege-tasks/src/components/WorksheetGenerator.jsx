@@ -259,10 +259,23 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
       return;
     }
 
-    const cardTitle = form.getFieldValue('cardTitle') || 'Карточки';
+    // Получаем правильное название из формы
+    const values = form.getFieldsValue();
+    let cardTitle = values.title || 'Карточки';
+
+    // Добавляем название темы если есть
+    if (values.topic) {
+      const selectedTopic = topics.find(t => t.id === values.topic);
+      if (selectedTopic) {
+        cardTitle = selectedTopic.title;
+      }
+    }
 
     if (pdfMethod === 'puppeteer') {
       await puppeteerPDF.exportToPDF(printRef, cardTitle);
+    } else {
+      // Legacy метод через html2pdf.js (если понадобится)
+      message.warning('Режим "Обычный" пока не реализован. Используйте "Новый" метод.');
     }
   };
 

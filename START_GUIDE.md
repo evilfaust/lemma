@@ -6,10 +6,18 @@
 ```bash
 ./start.sh
 ```
+Без PDF сервиса:
+```bash
+./start.sh --no-pdf
+```
 
 ### Вариант 2: NPM команда
 ```bash
 npm run dev
+```
+Без PDF сервиса:
+```bash
+npm run dev:no-pdf
 ```
 
 ### Вариант 3: С установкой зависимостей
@@ -22,7 +30,7 @@ npm run dev          # Запустить все сервисы
 
 ## Что запускается
 
-Одна команда запускает **3 сервиса одновременно**:
+Одна команда запускает **3 сервиса одновременно** (без PDF — только 2):
 
 | Сервис | URL | Описание |
 |--------|-----|----------|
@@ -70,6 +78,7 @@ http://localhost:5173
 ### Корневые команды (из корня проекта):
 ```bash
 npm run dev              # Запустить все сервисы
+npm run dev:no-pdf       # Без PDF сервиса
 npm run install:all      # Установить зависимости везде
 npm start                # Alias для npm run dev
 ```
@@ -173,6 +182,7 @@ Concurrently показывает логи всех сервисов с цвет
 ## Дополнительная информация
 
 - [README.MD](README.MD) - Полная документация
+- [README.MD](README.MD#быстрый-запуск-из-корня-проекта) - Запуск с/без PDF
 - [QUICK_START.md](QUICK_START.md) - Быстрый старт
 - [PDF_EXPORT_UPGRADE.md](PDF_EXPORT_UPGRADE.md) - PDF экспорт
 - [CLAUDE.MD](CLAUDE.MD) - Контекст для AI

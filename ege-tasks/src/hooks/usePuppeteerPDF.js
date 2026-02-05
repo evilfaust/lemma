@@ -148,10 +148,10 @@ export const usePuppeteerPDF = () => {
           filename: `${filename}.pdf`,
           options: {
             format: options.format || 'A4',
-            marginTop: options.marginTop || '7mm',
-            marginBottom: options.marginBottom || '7mm',
-            marginLeft: options.marginLeft || '7mm',
-            marginRight: options.marginRight || '7mm',
+            marginTop: options.marginTop || '5mm',
+            marginBottom: options.marginBottom || '5mm',
+            marginLeft: options.marginLeft || '5mm',
+            marginRight: options.marginRight || '5mm',
           },
         }),
       });
