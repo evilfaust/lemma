@@ -17,23 +17,18 @@ import {
   Table,
   Popconfirm,
   Tag,
-  Tooltip,
-  Badge,
-  Segmented,
 } from 'antd';
 import {
-  PrinterOutlined,
   ReloadOutlined,
   InfoCircleOutlined,
   SaveOutlined,
   DeleteOutlined,
   EyeOutlined,
-  FilePdfOutlined,
-  RocketOutlined,
 } from '@ant-design/icons';
 import PrintableWorksheet from './PrintableWorksheet';
+import ActionButtons from './worksheet/ActionButtons';
 import { api } from '../services/pocketbase';
-import { usePuppeteerPDF } from '../hooks';
+import { useWorksheetActions } from '../hooks';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -48,10 +43,7 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
   const [hideTaskPrefixes, setHideTaskPrefixes] = useState(false);
   const [fontSize, setFontSize] = useState(13);
   const printRef = useRef();
-
-  // PDF экспорт
-  const [pdfMethod, setPdfMethod] = useState('puppeteer');
-  const puppeteerPDF = usePuppeteerPDF();
+  const worksheetActions = useWorksheetActions();
 
   useEffect(() => {
     loadSavedCards();
@@ -249,34 +241,13 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleExportPDF = async () => {
-    if (!printRef?.current) {
-      message.error('Элемент для экспорта не найден');
-      return;
-    }
-
-    // Получаем правильное название из формы
+  const getCardTitle = () => {
     const values = form.getFieldsValue();
-    let cardTitle = values.title || 'Карточки';
-
-    // Добавляем название темы если есть
     if (values.topic) {
-      const selectedTopic = topics.find(t => t.id === values.topic);
-      if (selectedTopic) {
-        cardTitle = selectedTopic.title;
-      }
+      const t = topics.find(t => t.id === values.topic);
+      if (t) return t.title;
     }
-
-    if (pdfMethod === 'puppeteer') {
-      await puppeteerPDF.exportToPDF(printRef, cardTitle);
-    } else {
-      // Legacy метод через html2pdf.js (если понадобится)
-      message.warning('Режим "Обычный" пока не реализован. Используйте "Новый" метод.');
-    }
+    return values.title || 'Карточки';
   };
 
   const handleReset = () => {
@@ -600,81 +571,36 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
           </Form.Item>
 
           <Form.Item>
-            <Space>
-              <Button 
-                type="primary" 
-                htmlType="submit" 
+            <Space wrap>
+              <Button
+                type="primary"
+                htmlType="submit"
                 icon={<ReloadOutlined />}
                 loading={loading}
+                size="large"
               >
                 Сгенерировать карточки
               </Button>
               {worksheet && (
                 <>
-                  <Button 
-                    type="default" 
+                  <Button
                     icon={<SaveOutlined />}
                     onClick={handleSaveCards}
                     loading={loading}
+                    size="large"
                   >
                     Сохранить в базу
                   </Button>
-                  <Tooltip
-                    title={
-                      pdfMethod === 'puppeteer'
-                        ? 'Высокое качество PDF с идеальным рендерингом формул'
-                        : 'Стандартный экспорт PDF'
-                    }
-                  >
-                    <Badge
-                      count={pdfMethod === 'puppeteer' ? <RocketOutlined style={{ color: '#52c41a' }} /> : 0}
-                      offset={[-5, 5]}
-                    >
-                      <Button
-                        type="default"
-                        icon={<FilePdfOutlined />}
-                        onClick={handleExportPDF}
-                        loading={puppeteerPDF.exporting}
-                      >
-                        Сохранить PDF
-                      </Button>
-                    </Badge>
-                  </Tooltip>
-                  <Segmented
-                    options={[
-                      {
-                        label: (
-                          <Tooltip title="Новая технология: высокое качество, быстрая генерация">
-                            <span>
-                              <RocketOutlined /> Новый
-                            </span>
-                          </Tooltip>
-                        ),
-                        value: 'puppeteer',
-                        disabled: !puppeteerPDF.serverAvailable,
-                      },
-                      {
-                        label: (
-                          <Tooltip title="Классический метод экспорта">
-                            <span>Обычный</span>
-                          </Tooltip>
-                        ),
-                        value: 'legacy',
-                      },
-                    ]}
-                    value={pdfMethod}
-                    onChange={setPdfMethod}
+                  <ActionButtons
+                    hasVariants={true}
+                    onPrint={worksheetActions.handlePrint}
+                    onExportPDF={() => worksheetActions.handleExportPDF(printRef, getCardTitle())}
+                    onReset={handleReset}
+                    pdfMethod={worksheetActions.pdfMethod}
+                    setPdfMethod={worksheetActions.setPdfMethod}
+                    puppeteerAvailable={worksheetActions.puppeteerAvailable}
+                    exporting={worksheetActions.exporting}
                   />
-                  <Button
-                    type="default"
-                    icon={<PrinterOutlined />}
-                    onClick={handlePrint}
-                  >
-                    Печать
-                  </Button>
-                  <Button onClick={handleReset}>
-                    Сбросить
-                  </Button>
                 </>
               )}
             </Space>
