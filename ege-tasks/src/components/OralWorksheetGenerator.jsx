@@ -34,6 +34,7 @@ import ActionButtons from './worksheet/ActionButtons';
 import DistributionPanel from './worksheet/DistributionPanel';
 import { api } from '../services/pocketbase';
 import {
+  useWorksheetGeneration,
   useTaskDragDrop,
   useTaskEditing,
   useWorksheetActions,
@@ -46,9 +47,8 @@ const { Panel } = Collapse;
 
 const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics = [] }) => {
   const [form] = Form.useForm();
-  const [loading, setLoading] = useState(false);
-  const [allTasks, setAllTasks] = useState([]);
-  const [variants, setVariants] = useState([]);
+  const worksheetGen = useWorksheetGeneration();
+  const { variants, setVariants, loading, generateFromFilters } = worksheetGen;
   const [columns, setColumns] = useState(1);
   const [fontSize, setFontSize] = useState(12);
   const [showAnswersInline, setShowAnswersInline] = useState(false);
@@ -156,302 +156,42 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   ];
 
   const handleGenerate = async (values) => {
-    setLoading(true);
-    try {
-      const variantsCount = values.variantsCount || 1;
-      const tasksPerVariant = values.tasksPerVariant || 20;
-      const variantsMode = values.variantsMode || 'different';
+    const tasksPerVariant = values.tasksPerVariant || 20;
 
-      const generatedVariants = [];
-
-      // Базовые фильтры из формы (включая теги-фильтры)
-      const baseFilterTags = values.filterTags && values.filterTags.length > 0 ? values.filterTags : null;
-
-      // Вспомогательная функция для добавления общих фильтров
-      const applyCommonFilters = (filters) => {
-        if (values.topic) filters.topic = values.topic;
-        if (values.subtopic) filters.subtopic = values.subtopic;
-        if (values.difficulty) filters.difficulty = values.difficulty;
-        if (values.source) filters.source = values.source;
-        if (values.year) filters.year = values.year;
-        if (baseFilterTags) filters.tags = baseFilterTags;
-        if (values.hasAnswer !== undefined) filters.hasAnswer = values.hasAnswer === 'yes';
-        if (values.hasSolution !== undefined) filters.hasSolution = values.hasSolution === 'yes';
-        return filters;
-      };
-
-      // Если теги настроены, используем их
-      if (tagDistribution.items.length > 0) {
-        // Валидация
-        if (!tagDistribution.validate(tasksPerVariant)) {
-          setLoading(false);
-          return;
-        }
-
-        // Вспомогательная: фильтры для конкретного тега распределения
-        const makeTagFilters = (tagId) => {
-          const combinedTags = baseFilterTags
-            ? [...new Set([tagId, ...baseFilterTags])]
-            : [tagId];
-          return applyCommonFilters({ tags: combinedTags });
-        };
-
-        // Собираем все доступные задачи по тегам для проверки
-        const allAvailableTasks = {};
-        for (const tagCount of tagDistribution.items) {
-          const tasks = await api.getTasks(makeTagFilters(tagCount.tag));
-          allAvailableTasks[tagCount.tag] = tasks;
-        }
-
-        // Для режима "Разные задачи" генерируем каждый вариант отдельно
-        if (variantsMode === 'different') {
-          // Отслеживаем использованные задачи, чтобы не повторяться между вариантами
-          const usedTaskIds = new Set();
-
-          for (let i = 0; i < variantsCount; i++) {
-            const variantTasks = [];
-
-            for (const tagCount of tagDistribution.items) {
-              // Получаем задачи для этого тега, исключая уже использованные
-              const availableTasks = allAvailableTasks[tagCount.tag].filter(
-                t => !usedTaskIds.has(t.id)
-              );
-
-              // Перемешиваем и берём нужное количество
-              const shuffled = [...availableTasks].sort(() => Math.random() - 0.5);
-              const selected = shuffled.slice(0, tagCount.count);
-
-              if (selected.length < tagCount.count) {
-                const tagName = availableTags.find(t => t.id === tagCount.tag)?.title || 'неизвестный';
-                message.warning(`Вариант ${i + 1}: для тега "${tagName}" найдено только ${selected.length} задач из ${tagCount.count} (не хватает уникальных задач)`);
-              }
-
-              // Добавляем в использованные
-              selected.forEach(t => usedTaskIds.add(t.id));
-              variantTasks.push(...selected);
-            }
-
-            // Перемешиваем задачи внутри варианта если нужно
-            if (values.sortType === 'random') {
-              variantTasks.sort(() => Math.random() - 0.5);
-            }
-
-            generatedVariants.push({
-              number: i + 1,
-              tasks: variantTasks,
-            });
-          }
-        } else {
-          // Для режимов "shuffled" и "same" - собираем один набор задач
-          const baseTasks = [];
-          for (const tagCount of tagDistribution.items) {
-            const tasks = await api.getRandomTasks(tagCount.count, makeTagFilters(tagCount.tag));
-
-            if (tasks.length < tagCount.count) {
-              const tagName = availableTags.find(t => t.id === tagCount.tag)?.title || 'неизвестный';
-              message.warning(`Для тега "${tagName}" найдено только ${tasks.length} задач из ${tagCount.count} запрошенных`);
-            }
-
-            baseTasks.push(...tasks);
-          }
-
-          // Перемешиваем базовый набор если нужно
-          if (values.sortType === 'random') {
-            baseTasks.sort(() => Math.random() - 0.5);
-          }
-
-          if (variantsMode === 'shuffled') {
-            // Одинаковые задачи, разный порядок
-            for (let i = 0; i < variantsCount; i++) {
-              const shuffled = [...baseTasks].sort(() => Math.random() - 0.5);
-              generatedVariants.push({
-                number: i + 1,
-                tasks: shuffled,
-              });
-            }
-          } else {
-            // Одинаковые задачи, одинаковый порядок
-            for (let i = 0; i < variantsCount; i++) {
-              generatedVariants.push({
-                number: i + 1,
-                tasks: [...baseTasks],
-              });
-            }
-          }
-        }
-
-        setAllTasks(generatedVariants.flatMap(v => v.tasks));
-
-      } else if (difficultyDistribution.items.length > 0) {
-        // Генерация с распределением по сложности
-        if (!difficultyDistribution.validate()) {
-          setLoading(false);
-          return;
-        }
-
-        // Сортируем по возрастанию сложности — лёгкие задачи вначале
-        const sortedDifficultyCounts = [...difficultyDistribution.items].sort(
-          (a, b) => (a.difficulty || '0').localeCompare(b.difficulty || '0')
-        );
-
-        // Собираем задачи по уровням сложности
-        const allAvailableTasks = {};
-        for (const dc of sortedDifficultyCounts) {
-          const filters = applyCommonFilters({ difficulty: dc.difficulty });
-          const tasks = await api.getTasks(filters);
-          allAvailableTasks[dc.difficulty] = tasks;
-        }
-
-        if (variantsMode === 'different') {
-          const usedTaskIds = new Set();
-
-          for (let i = 0; i < variantsCount; i++) {
-            const variantTasks = [];
-
-            // Добавляем задачи группами по возрастанию сложности
-            for (const dc of sortedDifficultyCounts) {
-              const availableTasks = allAvailableTasks[dc.difficulty].filter(
-                t => !usedTaskIds.has(t.id)
-              );
-
-              const shuffled = [...availableTasks].sort(() => Math.random() - 0.5);
-              const selected = shuffled.slice(0, dc.count);
-
-              if (selected.length < dc.count) {
-                const label = difficultyOptions.find(o => o.value === dc.difficulty)?.label || dc.difficulty;
-                message.warning(`Вариант ${i + 1}: для сложности "${label}" найдено только ${selected.length} задач из ${dc.count}`);
-              }
-
-              selected.forEach(t => usedTaskIds.add(t.id));
-              variantTasks.push(...selected);
-            }
-
-            // Не перемешиваем — порядок по возрастанию сложности сохраняется
-
-            generatedVariants.push({
-              number: i + 1,
-              tasks: variantTasks,
-            });
-          }
-        } else {
-          const baseTasks = [];
-          // Добавляем задачи группами по возрастанию сложности
-          for (const dc of sortedDifficultyCounts) {
-            const filters = applyCommonFilters({ difficulty: dc.difficulty });
-            const tasks = await api.getRandomTasks(dc.count, filters);
-
-            if (tasks.length < dc.count) {
-              const label = difficultyOptions.find(o => o.value === dc.difficulty)?.label || dc.difficulty;
-              message.warning(`Для сложности "${label}" найдено только ${tasks.length} задач из ${dc.count}`);
-            }
-
-            baseTasks.push(...tasks);
-          }
-
-          // Не перемешиваем — порядок по возрастанию сложности сохраняется
-
-          if (variantsMode === 'shuffled') {
-            // В режиме "перемешанные" — перемешиваем только внутри каждого уровня сложности,
-            // но общий порядок (от лёгких к сложным) сохраняется
-            for (let i = 0; i < variantsCount; i++) {
-              generatedVariants.push({ number: i + 1, tasks: [...baseTasks] });
-            }
-          } else {
-            for (let i = 0; i < variantsCount; i++) {
-              generatedVariants.push({ number: i + 1, tasks: [...baseTasks] });
-            }
-          }
-        }
-
-        setAllTasks(generatedVariants.flatMap(v => v.tasks));
-
-      } else {
-        // Стандартная генерация без тегов и без распределения по сложности
-        const filters = applyCommonFilters({});
-
-        const hasServerFilters = Object.keys(filters).length > 0;
-        const tasksData = await api.getTasks(hasServerFilters ? filters : {});
-
-        let filteredTasks = tasksData;
-
-        // Клиентский поиск
-        if (values.search) {
-          const searchLower = values.search.toLowerCase();
-          filteredTasks = filteredTasks.filter(task =>
-            task.code?.toLowerCase().includes(searchLower) ||
-            task.statement_md?.toLowerCase().includes(searchLower)
-          );
-        }
-
-        if (filteredTasks.length === 0) {
-          message.warning('Задачи не найдены по заданным фильтрам');
-          setAllTasks([]);
-          setVariants([]);
-          setLoading(false);
-          return;
-        }
-
-        // Сортировка
-        let sortedTasks = [...filteredTasks];
-        const sortType = values.sortType || 'code';
-
-        if (sortType === 'code') {
-          sortedTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-        } else if (sortType === 'difficulty') {
-          sortedTasks.sort((a, b) => (a.difficulty || '1').localeCompare(b.difficulty || '1'));
-        } else if (sortType === 'random') {
-          sortedTasks = sortedTasks.sort(() => Math.random() - 0.5);
-        }
-
-        setAllTasks(sortedTasks);
-
-        if (variantsMode === 'different') {
-          // Разные задачи в каждом варианте
-          for (let i = 0; i < variantsCount; i++) {
-            const startIdx = i * tasksPerVariant;
-            const endIdx = Math.min(startIdx + tasksPerVariant, sortedTasks.length);
-            generatedVariants.push({
-              number: i + 1,
-              tasks: sortedTasks.slice(startIdx, endIdx),
-            });
-          }
-        } else if (variantsMode === 'shuffled') {
-          // Одинаковые задачи, разный порядок
-          const baseTasks = sortedTasks.slice(0, tasksPerVariant);
-          for (let i = 0; i < variantsCount; i++) {
-            const shuffled = [...baseTasks].sort(() => Math.random() - 0.5);
-            generatedVariants.push({
-              number: i + 1,
-              tasks: shuffled,
-            });
-          }
-        } else {
-          // Одинаковые задачи, одинаковый порядок
-          const baseTasks = sortedTasks.slice(0, tasksPerVariant);
-          for (let i = 0; i < variantsCount; i++) {
-            generatedVariants.push({
-              number: i + 1,
-              tasks: [...baseTasks],
-            });
-          }
-        }
-      }
-
-      setVariants(generatedVariants);
-
-      const totalTasks = generatedVariants.reduce((sum, v) => sum + v.tasks.length, 0);
-      message.success(`Сгенерировано ${variantsCount} вариант(ов), всего ${totalTasks} задач`);
-    } catch (error) {
-      console.error('Error loading tasks:', error);
-      message.error('Ошибка при загрузке задач');
-    } finally {
-      setLoading(false);
+    // Валидация распределений
+    if (tagDistribution.items.length > 0) {
+      if (!tagDistribution.validate(tasksPerVariant)) return;
     }
+    if (difficultyDistribution.items.length > 0) {
+      if (!difficultyDistribution.validate()) return;
+    }
+
+    // Базовые фильтры
+    const filters = {};
+    if (values.topic) filters.topic = values.topic;
+    if (values.subtopic) filters.subtopic = values.subtopic;
+    if (values.difficulty) filters.difficulty = values.difficulty;
+    if (values.source) filters.source = values.source;
+    if (values.year) filters.year = values.year;
+    if (values.filterTags && values.filterTags.length > 0) filters.tags = values.filterTags;
+    if (values.hasAnswer !== undefined) filters.hasAnswer = values.hasAnswer === 'yes';
+    if (values.hasSolution !== undefined) filters.hasSolution = values.hasSolution === 'yes';
+    if (values.search) filters.search = values.search;
+
+    await generateFromFilters(filters, {
+      variantsMode: values.variantsMode || 'different',
+      variantsCount: values.variantsCount || 1,
+      tasksPerVariant,
+      sortType: values.sortType || 'random',
+      tagDistribution: tagDistribution.items.length > 0 ? tagDistribution.items : undefined,
+      difficultyDistribution: difficultyDistribution.items.length > 0 ? difficultyDistribution.items : undefined,
+      getLabelForTag: (tagId) => availableTags.find(t => t.id === tagId)?.title || tagId,
+      getLabelForDifficulty: (val) => difficultyOptions.find(o => o.value === val)?.label || val,
+    });
   };
 
   const handleReset = () => {
-    setAllTasks([]);
-    setVariants([]);
+    worksheetGen.reset();
     setSelectedTopic(null);
     setSelectedSubtopic(null);
     tagDistribution.reset();
