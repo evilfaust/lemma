@@ -3,7 +3,6 @@ import {
   Card,
   Form,
   Select,
-  Button,
   Space,
   Row,
   Col,
@@ -22,8 +21,6 @@ import {
 import {
   FilterOutlined,
   SearchOutlined,
-  PlusOutlined,
-  MinusCircleOutlined,
 } from '@ant-design/icons';
 import PrintableWorksheet from './PrintableWorksheet';
 import TaskReplaceModal from './TaskReplaceModal';
@@ -34,11 +31,13 @@ import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
 import VariantStats from './worksheet/VariantStats';
 import ActionButtons from './worksheet/ActionButtons';
+import DistributionPanel from './worksheet/DistributionPanel';
 import { api } from '../services/pocketbase';
 import {
   useTaskDragDrop,
   useTaskEditing,
   useWorksheetActions,
+  useDistribution,
 } from '../hooks';
 import './TaskWorksheet.css';
 
@@ -73,13 +72,19 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const dragDropHandlers = useTaskDragDrop(variants, setVariants);
   const taskEditing = useTaskEditing(variants, setVariants);
 
+  const syncTotal = (total) => form.setFieldValue('tasksPerVariant', total);
+  const tagDistribution = useDistribution('tag', {
+    onTotalChange: syncTotal,
+    itemLabel: 'тег',
+  });
+  const difficultyDistribution = useDistribution('difficulty', {
+    onTotalChange: syncTotal,
+    itemLabel: 'уровень сложности',
+  });
+
   // Состояния для тегов
   const [availableTags, setAvailableTags] = useState([]);
-  const [tagCounts, setTagCounts] = useState([]);
   const [loadingTags, setLoadingTags] = useState(false);
-
-  // Состояния для распределения по сложности
-  const [difficultyCounts, setDifficultyCounts] = useState([]);
 
   // Модальные окна сохранения/загрузки
   const [saveModalVisible, setSaveModalVisible] = useState(false);
@@ -141,41 +146,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     }
   };
 
-  const addTagCount = () => {
-    const newTagCounts = [...tagCounts, { tag: null, count: 1 }];
-    setTagCounts(newTagCounts);
-
-    // Обновляем общее количество
-    const totalFromTags = newTagCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-    form.setFieldValue('tasksPerVariant', totalFromTags);
-  };
-
-  const removeTagCount = (index) => {
-    const newTagCounts = tagCounts.filter((_, i) => i !== index);
-    setTagCounts(newTagCounts);
-
-    // Обновляем общее количество
-    const totalFromTags = newTagCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-    form.setFieldValue('tasksPerVariant', totalFromTags);
-  };
-
-  const updateTagCount = (index, field, value) => {
-    const newTagCounts = [...tagCounts];
-    newTagCounts[index][field] = value;
-    setTagCounts(newTagCounts);
-
-    // Автоматически обновляем общее количество задач
-    if (field === 'count') {
-      const totalFromTags = newTagCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-      form.setFieldValue('tasksPerVariant', totalFromTags);
-    }
-  };
-
-  const getTotalTasksFromTags = () => {
-    return tagCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-  };
-
-  // Функции для распределения по сложности
+  // Опции сложности для DistributionPanel
   const difficultyOptions = [
     { value: '1', label: '1 - Базовый', color: '#52c41a' },
     { value: '2', label: '2 - Средний', color: '#faad14' },
@@ -183,78 +154,6 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     { value: '4', label: '4 - Высокий', color: '#722ed1' },
     { value: '5', label: '5 - Олимпиадный', color: '#13c2c2' },
   ];
-
-  const addDifficultyCount = () => {
-    const newCounts = [...difficultyCounts, { difficulty: null, count: 1 }];
-    setDifficultyCounts(newCounts);
-    const total = newCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-    form.setFieldValue('tasksPerVariant', total);
-  };
-
-  const removeDifficultyCount = (index) => {
-    const newCounts = difficultyCounts.filter((_, i) => i !== index);
-    setDifficultyCounts(newCounts);
-    const total = newCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-    form.setFieldValue('tasksPerVariant', total);
-  };
-
-  const updateDifficultyCount = (index, field, value) => {
-    const newCounts = [...difficultyCounts];
-    newCounts[index][field] = value;
-    setDifficultyCounts(newCounts);
-    if (field === 'count') {
-      const total = newCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-      form.setFieldValue('tasksPerVariant', total);
-    }
-  };
-
-  const getTotalTasksFromDifficulty = () => {
-    return difficultyCounts.reduce((sum, item) => sum + (item.count || 0), 0);
-  };
-
-  const validateDifficultyCounts = () => {
-    for (let i = 0; i < difficultyCounts.length; i++) {
-      if (!difficultyCounts[i].difficulty) {
-        message.error(`Выберите уровень сложности для строки ${i + 1}`);
-        return false;
-      }
-    }
-    const selected = difficultyCounts.map(item => item.difficulty);
-    const unique = new Set(selected);
-    if (selected.length !== unique.size) {
-      message.error('Каждый уровень сложности можно выбрать только один раз');
-      return false;
-    }
-    return true;
-  };
-
-  const validateTagCounts = () => {
-    const totalTasks = form.getFieldValue('tasksPerVariant') || 0;
-    const totalFromTags = getTotalTasksFromTags();
-
-    if (totalFromTags !== totalTasks) {
-      message.error(`Сумма задач по тегам (${totalFromTags}) должна равняться общему количеству (${totalTasks})`);
-      return false;
-    }
-
-    // Проверяем, что все теги выбраны
-    for (let i = 0; i < tagCounts.length; i++) {
-      if (!tagCounts[i].tag) {
-        message.error(`Выберите тег для строки ${i + 1}`);
-        return false;
-      }
-    }
-
-    // Проверяем на дубликаты тегов
-    const selectedTags = tagCounts.map(item => item.tag);
-    const uniqueTags = new Set(selectedTags);
-    if (selectedTags.length !== uniqueTags.size) {
-      message.error('Каждый тег можно выбрать только один раз');
-      return false;
-    }
-
-    return true;
-  };
 
   const handleGenerate = async (values) => {
     setLoading(true);
@@ -282,9 +181,9 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       };
 
       // Если теги настроены, используем их
-      if (tagCounts.length > 0) {
+      if (tagDistribution.items.length > 0) {
         // Валидация
-        if (!validateTagCounts()) {
+        if (!tagDistribution.validate(tasksPerVariant)) {
           setLoading(false);
           return;
         }
@@ -299,7 +198,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
 
         // Собираем все доступные задачи по тегам для проверки
         const allAvailableTasks = {};
-        for (const tagCount of tagCounts) {
+        for (const tagCount of tagDistribution.items) {
           const tasks = await api.getTasks(makeTagFilters(tagCount.tag));
           allAvailableTasks[tagCount.tag] = tasks;
         }
@@ -312,7 +211,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
           for (let i = 0; i < variantsCount; i++) {
             const variantTasks = [];
 
-            for (const tagCount of tagCounts) {
+            for (const tagCount of tagDistribution.items) {
               // Получаем задачи для этого тега, исключая уже использованные
               const availableTasks = allAvailableTasks[tagCount.tag].filter(
                 t => !usedTaskIds.has(t.id)
@@ -345,7 +244,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
         } else {
           // Для режимов "shuffled" и "same" - собираем один набор задач
           const baseTasks = [];
-          for (const tagCount of tagCounts) {
+          for (const tagCount of tagDistribution.items) {
             const tasks = await api.getRandomTasks(tagCount.count, makeTagFilters(tagCount.tag));
 
             if (tasks.length < tagCount.count) {
@@ -383,15 +282,15 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
 
         setAllTasks(generatedVariants.flatMap(v => v.tasks));
 
-      } else if (difficultyCounts.length > 0) {
+      } else if (difficultyDistribution.items.length > 0) {
         // Генерация с распределением по сложности
-        if (!validateDifficultyCounts()) {
+        if (!difficultyDistribution.validate()) {
           setLoading(false);
           return;
         }
 
         // Сортируем по возрастанию сложности — лёгкие задачи вначале
-        const sortedDifficultyCounts = [...difficultyCounts].sort(
+        const sortedDifficultyCounts = [...difficultyDistribution.items].sort(
           (a, b) => (a.difficulty || '0').localeCompare(b.difficulty || '0')
         );
 
@@ -555,8 +454,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     setVariants([]);
     setSelectedTopic(null);
     setSelectedSubtopic(null);
-    setTagCounts([]);
-    setDifficultyCounts([]);
+    tagDistribution.reset();
+    difficultyDistribution.reset();
     form.resetFields();
   };
 
@@ -566,8 +465,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       setSelectedSubtopic(null);
       form.setFieldValue('subtopic', undefined);
       form.setFieldValue('filterTags', []);
-      setTagCounts([]);
-      setDifficultyCounts([]);
+      tagDistribution.reset();
+      difficultyDistribution.reset();
     }
   };
 
@@ -842,69 +741,18 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                     style={{ marginBottom: 16 }}
                   />
 
-                  {tagCounts.map((item, index) => (
-                    <Row key={index} gutter={16} style={{ marginBottom: 8 }}>
-                      <Col xs={24} md={12}>
-                        <Select
-                          placeholder="Выберите тег"
-                          value={item.tag}
-                          onChange={(value) => updateTagCount(index, 'tag', value)}
-                          style={{ width: '100%' }}
-                        >
-                          {availableTags.map(tag => (
-                            <Option key={tag.id} value={tag.id}>
-                              {tag.title}
-                            </Option>
-                          ))}
-                        </Select>
-                      </Col>
-                      <Col xs={18} md={10}>
-                        <InputNumber
-                          min={1}
-                          max={100}
-                          value={item.count}
-                          onChange={(value) => updateTagCount(index, 'count', value)}
-                          style={{ width: '100%' }}
-                          placeholder="Количество задач"
-                        />
-                      </Col>
-                      <Col xs={6} md={2}>
-                        <Button
-                          type="text"
-                          danger
-                          icon={<MinusCircleOutlined />}
-                          onClick={() => removeTagCount(index)}
-                        />
-                      </Col>
-                    </Row>
-                  ))}
-
-                  <Button
-                    type="dashed"
-                    onClick={addTagCount}
-                    icon={<PlusOutlined />}
-                    style={{ width: '100%', marginBottom: 16 }}
-                  >
-                    Добавить тег
-                  </Button>
-
-                  {tagCounts.length > 0 && (
-                    <Alert
-                      message={
-                        <div>
-                          <div>Задач по тегам: <strong>{getTotalTasksFromTags()}</strong></div>
-                          <div>Общее количество: <strong>{form.getFieldValue('tasksPerVariant') || 0}</strong></div>
-                          {getTotalTasksFromTags() !== (form.getFieldValue('tasksPerVariant') || 0) && (
-                            <div style={{ color: '#ff4d4f', marginTop: 4 }}>
-                              ⚠️ Суммы не совпадают!
-                            </div>
-                          )}
-                        </div>
-                      }
-                      type={getTotalTasksFromTags() === (form.getFieldValue('tasksPerVariant') || 0) ? 'success' : 'error'}
-                      style={{ marginBottom: 16 }}
-                    />
-                  )}
+                  <DistributionPanel
+                    items={tagDistribution.items}
+                    options={availableTags.map(tag => ({ value: tag.id, label: tag.title }))}
+                    keyField="tag"
+                    onAdd={tagDistribution.addItem}
+                    onRemove={tagDistribution.removeItem}
+                    onChange={tagDistribution.updateItem}
+                    total={tagDistribution.getTotal()}
+                    expectedTotal={form.getFieldValue('tasksPerVariant') || 0}
+                    addButtonText="Добавить тег"
+                    selectPlaceholder="Выберите тег"
+                  />
                 </>
               )}
             </Panel>
@@ -919,7 +767,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                 />
               )}
 
-              {selectedTopic && tagCounts.length > 0 && (
+              {selectedTopic && tagDistribution.items.length > 0 && (
                 <Alert
                   message="Распределение по сложности нельзя использовать одновременно с распределением по тегам"
                   type="warning"
@@ -927,73 +775,20 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                 />
               )}
 
-              {selectedTopic && tagCounts.length === 0 && (
-                <>
-                  {difficultyCounts.map((item, index) => (
-                    <Row key={index} gutter={16} style={{ marginBottom: 8 }}>
-                      <Col xs={24} md={12}>
-                        <Select
-                          placeholder="Выберите уровень сложности"
-                          value={item.difficulty}
-                          onChange={(value) => updateDifficultyCount(index, 'difficulty', value)}
-                          style={{ width: '100%' }}
-                        >
-                          {difficultyOptions.map(opt => (
-                            <Option key={opt.value} value={opt.value}>
-                              <Tag color={opt.color} style={{ marginRight: 4 }}>{opt.value}</Tag>
-                              {opt.label}
-                            </Option>
-                          ))}
-                        </Select>
-                      </Col>
-                      <Col xs={18} md={10}>
-                        <InputNumber
-                          min={1}
-                          max={100}
-                          value={item.count}
-                          onChange={(value) => updateDifficultyCount(index, 'count', value)}
-                          style={{ width: '100%' }}
-                          placeholder="Количество задач"
-                        />
-                      </Col>
-                      <Col xs={6} md={2}>
-                        <Button
-                          type="text"
-                          danger
-                          icon={<MinusCircleOutlined />}
-                          onClick={() => removeDifficultyCount(index)}
-                        />
-                      </Col>
-                    </Row>
-                  ))}
-
-                  <Button
-                    type="dashed"
-                    onClick={addDifficultyCount}
-                    icon={<PlusOutlined />}
-                    style={{ width: '100%', marginBottom: 16 }}
-                  >
-                    Добавить уровень сложности
-                  </Button>
-
-                  {difficultyCounts.length > 0 && (
-                    <Alert
-                      message={
-                        <div>
-                          <div>Задач по сложности: <strong>{getTotalTasksFromDifficulty()}</strong></div>
-                          <div>Общее количество: <strong>{form.getFieldValue('tasksPerVariant') || 0}</strong></div>
-                          {getTotalTasksFromDifficulty() !== (form.getFieldValue('tasksPerVariant') || 0) && (
-                            <div style={{ color: '#ff4d4f', marginTop: 4 }}>
-                              ⚠️ Суммы не совпадают!
-                            </div>
-                          )}
-                        </div>
-                      }
-                      type={getTotalTasksFromDifficulty() === (form.getFieldValue('tasksPerVariant') || 0) ? 'success' : 'error'}
-                      style={{ marginBottom: 16 }}
-                    />
-                  )}
-                </>
+              {selectedTopic && tagDistribution.items.length === 0 && (
+                <DistributionPanel
+                  items={difficultyDistribution.items}
+                  options={difficultyOptions}
+                  keyField="difficulty"
+                  onAdd={difficultyDistribution.addItem}
+                  onRemove={difficultyDistribution.removeItem}
+                  onChange={difficultyDistribution.updateItem}
+                  total={difficultyDistribution.getTotal()}
+                  expectedTotal={form.getFieldValue('tasksPerVariant') || 0}
+                  addButtonText="Добавить уровень сложности"
+                  selectPlaceholder="Выберите уровень сложности"
+                  showColorTags
+                />
               )}
             </Panel>
 
@@ -1010,13 +805,13 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                   <Form.Item
                     name="tasksPerVariant"
                     label="Задач в варианте"
-                    tooltip={tagCounts.length > 0 || difficultyCounts.length > 0 ? "Автоматически рассчитывается из распределения" : ""}
+                    tooltip={tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0 ? "Автоматически рассчитывается из распределения" : ""}
                   >
                     <InputNumber
                       min={1}
                       max={100}
                       style={{ width: '100%' }}
-                      disabled={tagCounts.length > 0 || difficultyCounts.length > 0}
+                      disabled={tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0}
                     />
                   </Form.Item>
                 </Col>
