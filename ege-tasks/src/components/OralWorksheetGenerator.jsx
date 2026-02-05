@@ -16,36 +16,30 @@ import {
   Tag,
   Divider,
   Collapse,
-  Modal,
-  List,
   Badge,
-  Tooltip,
   Alert,
-  Empty,
-  Segmented,
 } from 'antd';
 import {
-  PrinterOutlined,
-  ReloadOutlined,
   FilterOutlined,
-  SaveOutlined,
   SearchOutlined,
-  SwapOutlined,
-  FolderOpenOutlined,
-  EditOutlined,
   PlusOutlined,
   MinusCircleOutlined,
-  FilePdfOutlined,
-  RocketOutlined,
 } from '@ant-design/icons';
-import html2pdf from 'html2pdf.js';
-import MathRenderer from './MathRenderer';
 import PrintableWorksheet from './PrintableWorksheet';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
+import SaveWorkModal from './worksheet/SaveWorkModal';
+import LoadWorkModal from './worksheet/LoadWorkModal';
+import VariantRenderer from './worksheet/VariantRenderer';
+import AnswersPage from './worksheet/AnswersPage';
+import VariantStats from './worksheet/VariantStats';
+import ActionButtons from './worksheet/ActionButtons';
 import { api } from '../services/pocketbase';
-import { filterTaskText } from '../utils/filterTaskText';
-import { usePuppeteerPDF } from '../hooks';
+import {
+  useTaskDragDrop,
+  useTaskEditing,
+  useWorksheetActions,
+} from '../hooks';
 import './TaskWorksheet.css';
 
 const { Option } = Select;
@@ -74,9 +68,10 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const [showCardStudentInfo, setShowCardStudentInfo] = useState(true);
   const printRef = useRef();
 
-  // PDF экспорт
-  const [pdfMethod, setPdfMethod] = useState('puppeteer');
-  const puppeteerPDF = usePuppeteerPDF();
+  // Хуки
+  const worksheetActions = useWorksheetActions();
+  const dragDropHandlers = useTaskDragDrop(variants, setVariants);
+  const taskEditing = useTaskEditing(variants, setVariants);
 
   // Состояния для тегов
   const [availableTags, setAvailableTags] = useState([]);
@@ -86,26 +81,11 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   // Состояния для распределения по сложности
   const [difficultyCounts, setDifficultyCounts] = useState([]);
 
-  // Состояния для замены задачи
-  const [replaceModalVisible, setReplaceModalVisible] = useState(false);
-  const [taskToReplace, setTaskToReplace] = useState(null);
-
-  // Состояния для редактирования задачи
-  const [editModalVisible, setEditModalVisible] = useState(false);
-  const [taskToEdit, setTaskToEdit] = useState(null);
-
-  // Состояния для сохранения работы
+  // Модальные окна сохранения/загрузки
   const [saveModalVisible, setSaveModalVisible] = useState(false);
-  const [savingWork, setSavingWork] = useState(false);
-
-  // Состояния для загрузки работы
   const [loadModalVisible, setLoadModalVisible] = useState(false);
   const [savedWorks, setSavedWorks] = useState([]);
   const [loadingWorks, setLoadingWorks] = useState(false);
-
-  // Состояния для drag and drop
-  const [draggedTask, setDraggedTask] = useState(null);
-  const [dragOverTask, setDragOverTask] = useState(null);
 
   // Счётчик доступных задач
   const [availableTasksCount, setAvailableTasksCount] = useState(0);
@@ -570,60 +550,6 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
-  const handleExportPDF = async () => {
-    if (!printRef.current) return;
-
-    const workTitle = form.getFieldValue('workTitle') || 'Лист задач';
-
-    // Используем новый метод если доступен
-    if (pdfMethod === 'puppeteer') {
-      const success = await puppeteerPDF.exportToPDF(printRef, workTitle);
-
-      // Fallback на старый метод если Puppeteer недоступен
-      if (!success && !puppeteerPDF.serverAvailable) {
-        message.warning('Переключаемся на резервный метод экспорта...');
-        await handleExportPDFLegacy(workTitle);
-      }
-      return;
-    }
-
-    // Используем старый метод
-    await handleExportPDFLegacy(workTitle);
-  };
-
-  const handleExportPDFLegacy = async (workTitle) => {
-    message.loading({ content: 'Генерируем PDF (Legacy)...', key: 'pdf', duration: 0 });
-
-    try {
-      const opt = {
-        margin: [7, 7, 7, 7], // мм
-        filename: `${workTitle}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait'
-        },
-        pagebreak: { mode: 'css', before: '.page-break', avoid: ['.task-item', '.variant-header'] }
-      };
-
-      await html2pdf().set(opt).from(printRef.current).save();
-      message.success({ content: 'PDF успешно сохранён', key: 'pdf', duration: 2 });
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      message.error({ content: 'Ошибка при генерации PDF', key: 'pdf', duration: 2 });
-    }
-  };
-
   const handleReset = () => {
     setAllTasks([]);
     setVariants([]);
@@ -645,101 +571,18 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     }
   };
 
-  const handleReplaceTask = (variantIndex, taskIndex, task) => {
-    setTaskToReplace({ variantIndex, taskIndex, task });
-    setReplaceModalVisible(true);
-  };
-
-  const handleConfirmReplace = (newTask) => {
-    const { variantIndex, taskIndex } = taskToReplace;
-    const newVariants = [...variants];
-    newVariants[variantIndex].tasks[taskIndex] = newTask;
-    setVariants(newVariants);
-    setReplaceModalVisible(false);
-    message.success('Задача успешно заменена');
-  };
-
-  const handleCancelReplace = () => {
-    setReplaceModalVisible(false);
-    setTaskToReplace(null);
-  };
-
-  const handleEditTask = (task) => {
-    setTaskToEdit(task);
-    setEditModalVisible(true);
-  };
-
-  const handleSaveEdit = async (taskId, values) => {
-    try {
-      await api.updateTask(taskId, values);
-      const newVariants = variants.map(variant => ({
-        ...variant,
-        tasks: variant.tasks.map(t =>
-          t.id === taskId ? { ...t, ...values } : t
-        )
-      }));
-      setVariants(newVariants);
-      setEditModalVisible(false);
-      setTaskToEdit(null);
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  const handleDeleteEdit = async (taskId) => {
-    await api.deleteTask(taskId);
-    // Удаляем задачу из всех вариантов
-    const newVariants = variants.map(variant => ({
-      ...variant,
-      tasks: variant.tasks.filter(t => t.id !== taskId)
-    }));
-    setVariants(newVariants);
-    setEditModalVisible(false);
-    setTaskToEdit(null);
-  };
-
+  // Обработчики сохранения/загрузки через useWorksheetActions
   const handleSaveWork = async (values) => {
-    setSavingWork(true);
-    try {
-      const workData = {
-        title: values.workTitle || 'Лист задач',
-        topic: form.getFieldValue('topic') || null,
-        time_limit: values.timeLimit ? parseInt(values.timeLimit) : null,
-      };
-
-      const work = await api.createWork(workData);
-
-      for (const variant of variants) {
-        const taskIds = variant.tasks.map(t => t.id);
-        const order = variant.tasks.map((t, idx) => ({ taskId: t.id, position: idx }));
-
-        await api.createVariant({
-          work: work.id,
-          number: variant.number,
-          tasks: taskIds,
-          order: order,
-        });
-      }
-
-      message.success(`Работа "${workData.title}" успешно сохранена с ${variants.length} вариантами`);
-      setSaveModalVisible(false);
-    } catch (error) {
-      console.error('Error saving work:', error);
-      message.error('Ошибка при сохранении работы');
-    } finally {
-      setSavingWork(false);
-    }
+    await worksheetActions.handleSaveWork(values, variants);
+    setSaveModalVisible(false);
   };
 
   const handleOpenLoadModal = async () => {
     setLoadModalVisible(true);
     setLoadingWorks(true);
     try {
-      const works = await api.getWorks();
+      const works = await worksheetActions.handleLoadWorks();
       setSavedWorks(works);
-    } catch (error) {
-      console.error('Error loading works:', error);
-      message.error('Ошибка при загрузке работ');
     } finally {
       setLoadingWorks(false);
     }
@@ -748,312 +591,42 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const handleLoadWork = async (workId) => {
     setLoadingWorks(true);
     try {
-      const work = await api.getWork(workId);
-      const variantsData = await api.getVariantsByWork(workId);
-
-      const loadedVariants = [];
-      for (const variantData of variantsData) {
-        const tasksIds = variantData.tasks || [];
-        const order = variantData.order || [];
-
-        const tasks = [];
-        for (const taskId of tasksIds) {
-          const task = await api.getTask(taskId);
-          if (task) {
-            tasks.push(task);
-          }
-        }
-
-        if (order.length > 0) {
-          tasks.sort((a, b) => {
-            const posA = order.find(o => o.taskId === a.id)?.position ?? 999;
-            const posB = order.find(o => o.taskId === b.id)?.position ?? 999;
-            return posA - posB;
-          });
-        }
-
-        loadedVariants.push({
-          number: variantData.number,
-          tasks: tasks,
-        });
-      }
-
+      const { work, variants: loadedVariants } = await worksheetActions.handleLoadWork(workId);
       setVariants(loadedVariants);
-
-      form.setFieldsValue({
-        workTitle: work.title,
-        topic: work.topic,
-      });
-
+      form.setFieldsValue({ workTitle: work.title, topic: work.topic });
       setLoadModalVisible(false);
       message.success(`Работа "${work.title}" успешно загружена`);
-    } catch (error) {
-      console.error('Error loading work:', error);
-      message.error('Ошибка при загрузке работы');
     } finally {
       setLoadingWorks(false);
     }
   };
 
   const handleDeleteWork = async (workId, workTitle) => {
-    try {
-      const variantsData = await api.getVariantsByWork(workId);
-      for (const variant of variantsData) {
-        await api.deleteVariant(variant.id);
-      }
-
-      await api.deleteWork(workId);
-      setSavedWorks(savedWorks.filter(w => w.id !== workId));
-      message.success(`Работа "${workTitle}" удалена`);
-    } catch (error) {
-      console.error('Error deleting work:', error);
-      message.error('Ошибка при удалении работы');
-    }
+    await worksheetActions.handleDeleteWork(workId);
+    setSavedWorks(savedWorks.filter(w => w.id !== workId));
   };
 
-  // Обработчики drag and drop
-  const handleDragStart = (e, variantIndex, taskIndex) => {
-    setDraggedTask({ variantIndex, taskIndex });
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e, variantIndex, taskIndex) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverTask({ variantIndex, taskIndex });
-  };
-
-  const handleDragLeave = () => {
-    setDragOverTask(null);
-  };
-
-  const handleDrop = (e, targetVariantIndex, targetTaskIndex) => {
-    e.preventDefault();
-
-    if (!draggedTask) return;
-
-    const { variantIndex: sourceVariantIndex, taskIndex: sourceTaskIndex } = draggedTask;
-
-    // Если перетащили на то же место
-    if (sourceVariantIndex === targetVariantIndex && sourceTaskIndex === targetTaskIndex) {
-      setDraggedTask(null);
-      setDragOverTask(null);
-      return;
-    }
-
-    const newVariants = [...variants];
-    const sourceTask = newVariants[sourceVariantIndex].tasks[sourceTaskIndex];
-
-    // Удаляем задачу из исходного варианта
-    newVariants[sourceVariantIndex].tasks.splice(sourceTaskIndex, 1);
-
-    // Вставляем задачу в целевой вариант
-    newVariants[targetVariantIndex].tasks.splice(targetTaskIndex, 0, sourceTask);
-
-    setVariants(newVariants);
-    setDraggedTask(null);
-    setDragOverTask(null);
-    message.success('Задача перемещена');
-  };
-
-  const handleDragEnd = () => {
-    setDraggedTask(null);
-    setDragOverTask(null);
-  };
-
-  const applyTaskTextFilter = (text) => {
-    if (!hideTaskPrefixes) return text;
-    return filterTaskText(text);
-  };
-
-  const renderVariant = (variant, workTitle, variantIndex) => {
-    // Компактный режим для устного счета
-    if (compactMode) {
-      return (
-        <div key={variant.number} className="variant-container compact-mode">
-          <div className="variant-header-compact">
-            <h2>{variantLabel} {variant.number}</h2>
-          </div>
-
-          <div
-            className="tasks-content-compact"
-            style={{
-              fontSize: `${fontSize}pt`,
-            }}
-          >
-            {variant.tasks.map((task, taskIndex) => {
-              const isDragging = draggedTask?.variantIndex === variantIndex && draggedTask?.taskIndex === taskIndex;
-              const isDragOver = dragOverTask?.variantIndex === variantIndex && dragOverTask?.taskIndex === taskIndex;
-
-              return (
-              <div
-                key={task.id}
-                className={`task-item-compact ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, variantIndex, taskIndex)}
-                onDragOver={(e) => handleDragOver(e, variantIndex, taskIndex)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, variantIndex, taskIndex)}
-                onDragEnd={handleDragEnd}
-              >
-                <div className="compact-answer-box"></div>
-                <div className="compact-task-content">
-                  <span className="compact-task-number">{taskIndex + 1}.</span>
-                  <MathRenderer text={applyTaskTextFilter(task.statement_md)} />
-                </div>
-                {/* Кнопки управления (только на экране) */}
-                <div className="no-print compact-controls">
-                  <Tooltip title="Редактировать задачу">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEditTask(task)}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Заменить задачу">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<SwapOutlined />}
-                      onClick={() => handleReplaceTask(variantIndex, taskIndex, task)}
-                    />
-                  </Tooltip>
-                </div>
-              </div>
-              );
-            })}
-          </div>
-
-          <div className="page-break"></div>
-        </div>
-      );
-    }
-
-    // Обычный режим
-    return (
-      <div key={variant.number} className="variant-container">
-        <div className="variant-header">
-          <h2>{variantLabel} {variant.number}</h2>
-          {showStudentInfo && (
-            <div className="student-info">
-              <div className="student-info-field">
-                <span className="student-info-label">Фамилия:</span>
-                <div className="student-info-line"></div>
-              </div>
-              <div className="student-info-field">
-                <span className="student-info-label">Имя:</span>
-                <div className="student-info-line"></div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div
-          className="tasks-content"
-          style={{
-            fontSize: `${fontSize}pt`,
-            columnCount: columns,
-            columnGap: '20px',
-            columnRule: columns > 1 ? '1px solid #ddd' : 'none',
-          }}
-        >
-          {variant.tasks.map((task, taskIndex) => {
-            const isDragging = draggedTask?.variantIndex === variantIndex && draggedTask?.taskIndex === taskIndex;
-            const isDragOver = dragOverTask?.variantIndex === variantIndex && dragOverTask?.taskIndex === taskIndex;
-
-            return (
-            <div
-              key={task.id}
-              className={`task-item ${isDragging ? 'dragging' : ''} ${isDragOver ? 'drag-over' : ''}`}
-              draggable
-              onDragStart={(e) => handleDragStart(e, variantIndex, taskIndex)}
-              onDragOver={(e) => handleDragOver(e, variantIndex, taskIndex)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, variantIndex, taskIndex)}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="task-header">
-                <span className="task-number">{taskIndex + 1}.</span>
-                <span className="task-code">{task.code}</span>
-                <div className="no-print" style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
-                  <Tooltip title="Редактировать задачу">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EditOutlined />}
-                      onClick={() => handleEditTask(task)}
-                    />
-                  </Tooltip>
-                  <Tooltip title="Заменить задачу">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<SwapOutlined />}
-                      onClick={() => handleReplaceTask(variantIndex, taskIndex, task)}
-                    />
-                  </Tooltip>
-                </div>
-                {/* Прямоугольник для ответа (только для печати) */}
-                <div className="answer-box"></div>
-              </div>
-
-              <div className="task-content">
-                <MathRenderer text={applyTaskTextFilter(task.statement_md)} />
-
-                {task.has_image && task.image_url && (
-                  <div className="task-image">
-                    <img src={task.image_url} alt="" />
-                  </div>
-                )}
-              </div>
-
-              {showAnswersInline && task.answer && (
-                <div className="task-answer">
-                  <strong>Ответ:</strong>{' '}
-                  <MathRenderer text={task.answer} />
-                </div>
-              )}
-
-              {!showAnswersInline && (
-                <div className={`answer-space answer-space-${solutionSpace}`}>
-                  {solutionSpace !== 'none' && 'Решение:'}
-                </div>
-              )}
-            </div>
-            );
-          })}
-        </div>
-
-        <div className="page-break"></div>
-      </div>
-    );
-  };
-
-  const renderAnswersPage = () => {
-    if (!showAnswersPage || variants.length === 0) return null;
-
-    return (
-      <div className="answers-page">
-        <h2>Ответы</h2>
-        {variants.map((variant) => (
-          <div key={variant.number} className="variant-answers">
-            <h3>{variantLabel} {variant.number}</h3>
-            <div className="answers-grid">
-              {variant.tasks.map((task, index) => (
-                <div key={task.id} className="answer-item">
-                  <span className="answer-number">{index + 1}.</span>
-                  <span className="answer-value">
-                    {task.answer ? <MathRenderer text={task.answer} /> : '—'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
+  /**
+   * Рендеринг варианта через переиспользуемый компонент
+   */
+  const renderVariant = (variant, workTitle, variantIndex) => (
+    <VariantRenderer
+      key={variant.number}
+      variant={variant}
+      variantIndex={variantIndex}
+      compactMode={compactMode}
+      fontSize={fontSize}
+      columns={columns}
+      showStudentInfo={showStudentInfo}
+      showAnswersInline={showAnswersInline}
+      solutionSpace={solutionSpace}
+      variantLabel={variantLabel}
+      hideTaskPrefixes={hideTaskPrefixes}
+      dragDropHandlers={dragDropHandlers}
+      onEditTask={taskEditing.handleEditTask}
+      onReplaceTask={taskEditing.handleReplaceTask}
+    />
+  );
 
   return (
     <div className="task-worksheet-container">
@@ -1665,138 +1238,27 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
           </Collapse>
 
           <Form.Item style={{ marginTop: 16 }}>
-            <Space>
-              <Button
-                type="primary"
-                htmlType="submit"
-                icon={<ReloadOutlined />}
-                loading={loading}
-                size="large"
-              >
-                Сформировать лист
-              </Button>
-              <Button
-                type="default"
-                icon={<FolderOpenOutlined />}
-                onClick={handleOpenLoadModal}
-                size="large"
-              >
-                Открыть сохраненную
-              </Button>
-              {variants.length > 0 && (
-                <>
-                  <Button
-                    type="default"
-                    icon={<SaveOutlined />}
-                    onClick={() => setSaveModalVisible(true)}
-                    size="large"
-                  >
-                    Сохранить работу
-                  </Button>
-                  <Button
-                    type="default"
-                    icon={<PrinterOutlined />}
-                    onClick={handlePrint}
-                    size="large"
-                  >
-                    Печать
-                  </Button>
-                  <Tooltip
-                    title={
-                      pdfMethod === 'puppeteer'
-                        ? 'Высокое качество PDF с идеальным рендерингом формул'
-                        : 'Стандартный экспорт PDF'
-                    }
-                  >
-                    <Badge
-                      count={pdfMethod === 'puppeteer' ? <RocketOutlined style={{ color: '#52c41a' }} /> : 0}
-                      offset={[-5, 5]}
-                    >
-                      <Button
-                        type="default"
-                        icon={<FilePdfOutlined />}
-                        onClick={handleExportPDF}
-                        loading={puppeteerPDF.exporting}
-                        size="large"
-                      >
-                        Сохранить PDF
-                      </Button>
-                    </Badge>
-                  </Tooltip>
-                  <Segmented
-                    options={[
-                      {
-                        label: (
-                          <Tooltip title="Новая технология: высокое качество, быстрая генерация">
-                            <span>
-                              <RocketOutlined /> Новый
-                            </span>
-                          </Tooltip>
-                        ),
-                        value: 'puppeteer',
-                        disabled: !puppeteerPDF.serverAvailable,
-                      },
-                      {
-                        label: (
-                          <Tooltip title="Классический метод экспорта">
-                            <span>Обычный</span>
-                          </Tooltip>
-                        ),
-                        value: 'legacy',
-                      },
-                    ]}
-                    value={pdfMethod}
-                    onChange={setPdfMethod}
-                    size="large"
-                  />
-                  <Button onClick={handleReset} size="large">
-                    Сбросить
-                  </Button>
-                </>
-              )}
-            </Space>
+            <ActionButtons
+              hasVariants={variants.length > 0}
+              loading={loading}
+              onGenerate
+              onOpenLoad={handleOpenLoadModal}
+              onSave={() => setSaveModalVisible(true)}
+              onPrint={worksheetActions.handlePrint}
+              onExportPDF={() => worksheetActions.handleExportPDF(printRef, form.getFieldValue('workTitle') || 'Лист задач')}
+              onReset={handleReset}
+              pdfMethod={worksheetActions.pdfMethod}
+              setPdfMethod={worksheetActions.setPdfMethod}
+              puppeteerAvailable={worksheetActions.puppeteerAvailable}
+              exporting={worksheetActions.exporting}
+              saving={worksheetActions.saving}
+              generateLabel="Сформировать лист"
+            />
           </Form.Item>
         </Form>
 
         {/* Превью информация */}
-        {variants.length > 0 && (
-          <div style={{ marginTop: 16, padding: 16, background: '#f5f5f5', borderRadius: 8 }}>
-            <Row gutter={16}>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 'bold', color: '#1890ff' }}>
-                    {variants.length}
-                  </div>
-                  <div style={{ color: '#666' }}>Вариант(ов)</div>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 'bold', color: '#52c41a' }}>
-                    {variants[0]?.tasks.length || 0}
-                  </div>
-                  <div style={{ color: '#666' }}>Задач в варианте</div>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 'bold', color: '#fa8c16' }}>
-                    {variants.reduce((sum, v) => sum + v.tasks.length, 0)}
-                  </div>
-                  <div style={{ color: '#666' }}>Всего задач</div>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 'bold', color: showAnswersPage ? '#52c41a' : '#ff4d4f' }}>
-                    {showAnswersPage ? '✓' : '✗'}
-                  </div>
-                  <div style={{ color: '#666' }}>Лист ответов</div>
-                </div>
-              </Col>
-            </Row>
-          </div>
-        )}
+        <VariantStats variants={variants} showAnswersPage={showAnswersPage} />
       </Card>
 
       {/* Печатный лист */}
@@ -1828,7 +1290,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
           ) : (
             variants.map((variant, index) => renderVariant(variant, form.getFieldValue('workTitle'), index))
           )}
-          {renderAnswersPage()}
+          {<AnswersPage variants={variants} variantLabel={variantLabel} show={showAnswersPage} />}
         </div>
       )}
 
@@ -1852,7 +1314,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
           hideTaskPrefixes={hideTaskPrefixes}
           fontSize={fontSize}
           showStudentInfo={showCardStudentInfo}
-          onEditTask={handleEditTask}
+          onEditTask={taskEditing.handleEditTask}
           onCardsChange={(newCards) => {
             // Синхронизируем обратно в variants
             const newVariants = variants.map((v, i) => ({
@@ -1870,26 +1332,25 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
         </div>
       )}
 
-      {/* Модальное окно для замены задачи */}
+      {/* Модальные окна */}
       <TaskReplaceModal
-        visible={replaceModalVisible}
-        taskToReplace={taskToReplace}
-        onConfirm={handleConfirmReplace}
-        onCancel={handleCancelReplace}
+        visible={taskEditing.replaceModalVisible}
+        taskToReplace={taskEditing.taskToReplace}
+        onConfirm={taskEditing.handleConfirmReplace}
+        onCancel={taskEditing.handleCancelReplace}
         topics={topics}
         subtopics={subtopics}
         tags={tags}
-        currentVariantTasks={taskToReplace ? variants[taskToReplace.variantIndex]?.tasks || [] : []}
+        currentVariantTasks={taskEditing.taskToReplace ? variants[taskEditing.taskToReplace.variantIndex]?.tasks || [] : []}
       />
 
-      {/* Модальное окно для редактирования задачи */}
-      {taskToEdit && (
+      {taskEditing.taskToEdit && (
         <TaskEditModal
-          task={taskToEdit}
-          visible={editModalVisible}
-          onClose={() => setEditModalVisible(false)}
-          onSave={handleSaveEdit}
-          onDelete={handleDeleteEdit}
+          task={taskEditing.taskToEdit}
+          visible={taskEditing.editModalVisible}
+          onClose={taskEditing.handleCancelEdit}
+          onSave={taskEditing.handleSaveEdit}
+          onDelete={taskEditing.handleDeleteEdit}
           allTags={tags || []}
           allSources={sources || []}
           allYears={years || []}
@@ -1898,137 +1359,24 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
         />
       )}
 
-      {/* Модальное окно для сохранения работы */}
-      <Modal
-        title={
-          <Space>
-            <SaveOutlined />
-            <span>Сохранить работу</span>
-          </Space>
-        }
-        open={saveModalVisible}
+      <SaveWorkModal
+        visible={saveModalVisible}
         onCancel={() => setSaveModalVisible(false)}
-        footer={null}
-        width={500}
-      >
-        <Form
-          layout="vertical"
-          onFinish={handleSaveWork}
-          initialValues={{
-            workTitle: 'Лист задач',
-            timeLimit: null,
-          }}
-        >
-          <Alert
-            message="Информация"
-            description={`Будет сохранено ${variants.length} вариант(ов) с общим количеством ${variants.reduce((sum, v) => sum + v.tasks.length, 0)} задач.`}
-            type="info"
-            showIcon
-            style={{ marginBottom: 16 }}
-          />
+        onSave={handleSaveWork}
+        saving={worksheetActions.saving}
+        variantsCount={variants.length}
+        tasksCount={variants.reduce((sum, v) => sum + v.tasks.length, 0)}
+        initialTitle="Лист задач"
+      />
 
-          <Form.Item
-            name="workTitle"
-            label="Название работы"
-            rules={[{ required: true, message: 'Введите название работы' }]}
-          >
-            <Input placeholder="Например: Контрольная - логарифмы" />
-          </Form.Item>
-
-          <Form.Item name="timeLimit" label="Время на выполнение (минут)">
-            <InputNumber
-              min={1}
-              max={300}
-              style={{ width: '100%' }}
-              placeholder="Например: 15"
-            />
-          </Form.Item>
-
-          <Form.Item style={{ marginBottom: 0, marginTop: 24 }}>
-            <Space>
-              <Button type="primary" htmlType="submit" icon={<SaveOutlined />} loading={savingWork}>
-                Сохранить
-              </Button>
-              <Button onClick={() => setSaveModalVisible(false)}>
-                Отмена
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Модальное окно для загрузки сохраненной работы */}
-      <Modal
-        title={
-          <Space>
-            <FolderOpenOutlined />
-            <span>Сохраненные работы</span>
-          </Space>
-        }
-        open={loadModalVisible}
+      <LoadWorkModal
+        visible={loadModalVisible}
         onCancel={() => setLoadModalVisible(false)}
-        footer={null}
-        width={800}
-      >
-        {loadingWorks ? (
-          <div style={{ textAlign: 'center', padding: 30 }}>
-            <Spin tip="Загружаем работы..." />
-          </div>
-        ) : savedWorks.length === 0 ? (
-          <Empty description="Нет сохраненных работ" style={{ padding: 30 }} />
-        ) : (
-          <List
-            dataSource={savedWorks}
-            renderItem={(work) => (
-              <List.Item
-                actions={[
-                  <Button
-                    type="primary"
-                    size="small"
-                    icon={<FolderOpenOutlined />}
-                    onClick={() => handleLoadWork(work.id)}
-                  >
-                    Открыть
-                  </Button>,
-                  <Button
-                    danger
-                    size="small"
-                    onClick={() => {
-                      Modal.confirm({
-                        title: 'Удалить работу?',
-                        content: `Вы уверены, что хотите удалить работу "${work.title}"? Это действие нельзя отменить.`,
-                        okText: 'Удалить',
-                        okType: 'danger',
-                        cancelText: 'Отмена',
-                        onOk: () => handleDeleteWork(work.id, work.title),
-                      });
-                    }}
-                  >
-                    Удалить
-                  </Button>
-                ]}
-              >
-                <List.Item.Meta
-                  title={
-                    <Space>
-                      <span style={{ fontWeight: 600, fontSize: 16 }}>{work.title}</span>
-                      {work.time_limit && <Tag color="green">{work.time_limit} мин</Tag>}
-                      {work.expand?.topic && (
-                        <Tag color="purple">№{work.expand.topic.ege_number} - {work.expand.topic.title}</Tag>
-                      )}
-                    </Space>
-                  }
-                  description={
-                    <Space style={{ color: '#666', fontSize: 12 }}>
-                      <span>Создана: {new Date(work.created).toLocaleDateString('ru-RU')}</span>
-                    </Space>
-                  }
-                />
-              </List.Item>
-            )}
-          />
-        )}
-      </Modal>
+        works={savedWorks}
+        loading={loadingWorks}
+        onLoad={handleLoadWork}
+        onDelete={handleDeleteWork}
+      />
     </div>
   );
 };
