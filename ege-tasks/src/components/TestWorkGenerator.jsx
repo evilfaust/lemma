@@ -277,7 +277,7 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
       />
 
       <Card title="Настройки контрольной работы" className="no-print">
-        <Form form={form} layout="vertical" onFinish={handleGenerate}>
+        <Form form={form} layout="vertical" onFinish={handleGenerate} initialValues={{ workTitle: 'Контрольная работа' }}>
           <Collapse defaultActiveKey={['structure', 'variants', 'format']}>
             {/* Структура работы */}
             <Panel header="📚 Структура контрольной работы" key="structure">

@@ -239,7 +239,10 @@ export const useWorksheetGeneration = () => {
               selected.forEach(t => usedTaskIds.add(t.id));
               variantTasks.push(...selected);
             }
-            sortTasks(variantTasks, sortType);
+            // Перемешиваем только при random, чтобы сохранить группировку по тегам
+            if (sortType === 'random') {
+              sortTasks(variantTasks, sortType);
+            }
             generatedVariants.push({ number: i + 1, tasks: variantTasks });
           }
         } else {
@@ -253,7 +256,10 @@ export const useWorksheetGeneration = () => {
             }
             baseTasks.push(...tasks);
           }
-          sortTasks(baseTasks, sortType);
+          // Перемешиваем только при random, чтобы сохранить группировку по тегам
+          if (sortType === 'random') {
+            sortTasks(baseTasks, sortType);
+          }
           createVariantsFromBase(baseTasks, variantsCount, variantsMode, generatedVariants);
         }
 
@@ -300,7 +306,8 @@ export const useWorksheetGeneration = () => {
             baseTasks.push(...tasks);
           }
           // Не перемешиваем — порядок по возрастанию сложности сохраняется
-          createVariantsFromBase(baseTasks, variantsCount, variantsMode, generatedVariants);
+          // Принудительно 'same' чтобы shuffled не сломал порядок сложности
+          createVariantsFromBase(baseTasks, variantsCount, 'same', generatedVariants);
         }
 
       } else {

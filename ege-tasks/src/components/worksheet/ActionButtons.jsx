@@ -26,6 +26,8 @@ import {
  * @param {boolean} saving - идёт сохранение
  * @param {string} generateLabel - текст кнопки генерации
  * @param {boolean} generateDisabled - кнопка генерации отключена
+ * @param {string} saveLabel - текст кнопки сохранения
+ * @param {string} loadLabel - текст кнопки загрузки
  */
 const ActionButtons = ({
   hasVariants = false,
@@ -43,6 +45,8 @@ const ActionButtons = ({
   saving = false,
   generateLabel = 'Сформировать работу',
   generateDisabled = false,
+  saveLabel = 'Сохранить работу',
+  loadLabel = 'Открыть сохранённую',
 }) => {
   return (
     <Space wrap>
@@ -65,7 +69,7 @@ const ActionButtons = ({
           onClick={onOpenLoad}
           size="large"
         >
-          Открыть сохранённую
+          {loadLabel}
         </Button>
       )}
 
@@ -78,7 +82,7 @@ const ActionButtons = ({
               loading={saving}
               size="large"
             >
-              Сохранить работу
+              {saveLabel}
             </Button>
           )}
 

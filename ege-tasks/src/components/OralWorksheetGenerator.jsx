@@ -212,7 +212,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
 
   // Обработчики сохранения/загрузки через useWorksheetActions
   const handleSaveWork = async (values) => {
-    await worksheetActions.handleSaveWork(values, variants);
+    const topic = form.getFieldValue('topic') || null;
+    await worksheetActions.handleSaveWork({ ...values, topic }, variants);
     setSaveModalVisible(false);
   };
 
@@ -290,6 +291,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
             variantsCount: 1,
             variantsMode: 'different',
             tasksPerVariant: 20,
+            workTitle: 'Лист задач',
           }}
         >
           <Collapse defaultActiveKey={['filters', 'tags', 'variants', 'format']}>
