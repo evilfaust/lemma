@@ -39,6 +39,16 @@ export const api = {
     }
   },
 
+  // Создать тему
+  async createTopic(data) {
+    try {
+      return await pb.collection('topics').create(data);
+    } catch (error) {
+      console.error('Error creating topic:', error);
+      throw error;
+    }
+  },
+
   // Получить все теги
   async getTags() {
     try {
@@ -668,4 +678,3 @@ export const api = {
 };
 
 export default pb;
-

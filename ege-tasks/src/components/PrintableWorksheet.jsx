@@ -58,7 +58,7 @@ const PrintableWorksheet = forwardRef(({
           cardsPerPage: 2,
           gridColumns: '1fr',
           gridRows: '1fr 1fr',
-          cardPadding: '7mm',
+          cardPadding: '5mm',
           pagePadding: '5mm',
         };
       case 'А4':
@@ -66,7 +66,23 @@ const PrintableWorksheet = forwardRef(({
           cardsPerPage: 1,
           gridColumns: '1fr',
           gridRows: '1fr',
-          cardPadding: '10mm',
+          cardPadding: '5mm',
+          pagePadding: '5mm',
+        };
+      case 'А4-2V':
+        return {
+          cardsPerPage: 2,
+          gridColumns: '1fr 1fr',
+          gridRows: '1fr',
+          cardPadding: '5mm',
+          pagePadding: '5mm',
+        };
+      case 'А4-3V':
+        return {
+          cardsPerPage: 3,
+          gridColumns: '1fr 1fr 1fr',
+          gridRows: '1fr',
+          cardPadding: '5mm',
           pagePadding: '5mm',
         };
       default:
@@ -330,22 +346,7 @@ const PrintableWorksheet = forwardRef(({
           font-weight: 500;
         }
 
-        /* Страница с ответами */
-        .card-answers-page {
-          width: 210mm;
-          min-height: 297mm;
-          background: white;
-          padding: 15mm;
-          margin: 7mm;
-          page-break-after: always;
-          box-sizing: border-box;
-        }
-
         @media print {
-          .card-answers-page {
-            margin: 0;
-            padding: calc(15mm + 7mm) 15mm 15mm 15mm;
-          }
           .worksheet-card {
             border: 1px solid #bbb !important;
           }
@@ -364,48 +365,6 @@ const PrintableWorksheet = forwardRef(({
           }
         }
 
-        .card-answers-page:last-child {
-          page-break-after: auto;
-        }
-
-        .answers-header {
-          text-align: center;
-          margin-bottom: 25px;
-          padding-bottom: 12px;
-          border-bottom: 2px solid #000;
-        }
-
-        .answers-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 25px;
-        }
-
-        .answer-card {
-          border: 1px solid #000;
-          padding: 18px;
-          background: white;
-        }
-
-        .answer-card-title {
-          font-size: 15px;
-          font-weight: 600;
-          margin-bottom: 12px;
-          padding-bottom: 10px;
-          border-bottom: 1px solid #000;
-        }
-
-        .answer-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 6px 0;
-        }
-
-        .answer-item:not(:last-child) {
-          border-bottom: 1px dashed #ddd;
-        }
-
         .katex {
           font-size: 0.95em !important;
         }
@@ -417,12 +376,6 @@ const PrintableWorksheet = forwardRef(({
 
         @media screen {
           .card-print-page {
-            margin-bottom: 30px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.15);
-            border-radius: 4px;
-          }
-
-          .card-answers-page {
             margin-bottom: 30px;
             box-shadow: 0 2px 12px rgba(0,0,0,0.15);
             border-radius: 4px;
@@ -564,100 +517,67 @@ const PrintableWorksheet = forwardRef(({
         );
       })}
 
-      {/* Отдельные страницы с ответами для каждой карточки */}
-      {!showAnswers && cards.map((cardTasks, cardIndex) => {
-        let cardFullName;
-        if (cards.length === 1 && title.match(/\d{3}$/)) {
-          cardFullName = title;
-        } else {
-          const cardNumber = String(cardIndex + 1).padStart(3, '0');
-          const baseTitle = topicName || variantLabel || title;
-          cardFullName = `${baseTitle} ${cardNumber}`;
-        }
+      {/* Листы ответов в стиле "лист задач" */}
+      {!showAnswers && (
+        <div className="answers-page">
+          <h2>Ответы</h2>
+          {cards.map((cardTasks, cardIndex) => {
+            let cardFullName;
+            if (cards.length === 1 && title.match(/\d{3}$/)) {
+              cardFullName = title;
+            } else {
+              const cardNumber = String(cardIndex + 1).padStart(3, '0');
+              const baseTitle = topicName || variantLabel || title;
+              cardFullName = `${baseTitle} ${cardNumber}`;
+            }
 
-        return (
-          <div key={`answers-${cardIndex}`} className="card-answers-page">
-            <div className="answers-header">
-              <Title level={3} style={{ margin: 0 }}>
-                Ответы: {cardFullName}
-              </Title>
-            </div>
-
-            <div className="answers-grid">
-              <div className="answer-card">
-                <div className="answer-card-title">
-                  {cardFullName} (Задания 1-{Math.ceil(cardTasks.length / 2)})
-                </div>
-              {cardTasks.slice(0, Math.ceil(cardTasks.length / 2)).map((task, taskIndex) => (
-                <div key={task.id} className="answer-item">
-                  <span><strong>{taskIndex + 1}.</strong></span>
-                  <span style={{
-                    borderBottom: '1px solid #000',
-                    minWidth: '80px',
-                    textAlign: 'center',
-                    display: 'inline-block',
-                    paddingBottom: '3px',
-                    fontWeight: 500,
-                  }}>
-                    {task.answer ? <MathRenderer text={task.answer} /> : '—'}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="answer-card">
-              <div className="answer-card-title">
-                {cardFullName} (Задания {Math.ceil(cardTasks.length / 2) + 1}-{cardTasks.length})
-              </div>
-              {cardTasks.slice(Math.ceil(cardTasks.length / 2)).map((task, taskIndex) => (
-                <div key={task.id} className="answer-item">
-                  <span><strong>{Math.ceil(cardTasks.length / 2) + taskIndex + 1}.</strong></span>
-                  <span style={{
-                    borderBottom: '1px solid #000',
-                    minWidth: '80px',
-                    textAlign: 'center',
-                    display: 'inline-block',
-                    paddingBottom: '3px',
-                    fontWeight: 500,
-                  }}>
-                    {task.answer ? <MathRenderer text={task.answer} /> : '—'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Решения если включены */}
-          {showSolutions && cardTasks.some(t => t.solution_md) && (
-            <div style={{ marginTop: 30 }}>
-              <Title level={4}>Решения:</Title>
-              {cardTasks.map((task, taskIndex) => (
-                task.solution_md && (
-                  <div key={task.id} style={{
-                    marginBottom: 15,
-                    padding: 10,
-                    background: '#f5f5f5',
-                    borderRadius: 4,
-                    border: '1px solid #d9d9d9',
-                  }}>
-                    <div style={{ fontWeight: 'bold', marginBottom: 5 }}>
-                      Задание {taskIndex + 1}:
+            return (
+              <div key={`answers-${cardIndex}`} className="variant-answers">
+                <h3>{cardFullName}</h3>
+                <div className="answers-grid">
+                  {cardTasks.map((task, taskIndex) => (
+                    <div key={task.id} className="answer-item">
+                      <span className="answer-number">{taskIndex + 1}.</span>
+                      <span className="answer-value">
+                        {task.answer ? <MathRenderer text={task.answer} /> : '—'}
+                      </span>
                     </div>
-                    <div style={{ fontSize: 13 }}>
-                      <MathRenderer text={task.solution_md} />
-                    </div>
-                    {task.answer && (
-                      <div style={{ marginTop: 5, fontWeight: 'bold', color: '#52c41a' }}>
-                        Ответ: <MathRenderer text={task.answer} />
-                      </div>
-                    )}
+                  ))}
+                </div>
+
+                {showSolutions && cardTasks.some(t => t.solution_md) && (
+                  <div style={{ marginTop: 20 }}>
+                    <Title level={4}>Решения:</Title>
+                    {cardTasks.map((task, taskIndex) => (
+                      task.solution_md && (
+                        <div key={task.id} style={{
+                          marginBottom: 15,
+                          padding: 10,
+                          background: '#f5f5f5',
+                          borderRadius: 4,
+                          border: '1px solid #d9d9d9',
+                        }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: 5 }}>
+                            Задание {taskIndex + 1}:
+                          </div>
+                          <div style={{ fontSize: 13 }}>
+                            <MathRenderer text={task.solution_md} />
+                          </div>
+                          {task.answer && (
+                            <div style={{ marginTop: 5, fontWeight: 'bold', color: '#52c41a' }}>
+                              Ответ: <MathRenderer text={task.answer} />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    ))}
                   </div>
-                )
-              ))}
-            </div>
-          )}
+                )}
+              </div>
+            );
+          })}
         </div>
-      );})}
+      )}
 
       {/* Модальное окно для замены задачи */}
       <TaskReplaceModal

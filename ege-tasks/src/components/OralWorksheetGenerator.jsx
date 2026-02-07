@@ -708,6 +708,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                           <Option value="А6">А6 (4 на листе A4)</Option>
                           <Option value="А5">А5 (2 на листе A4)</Option>
                           <Option value="А4">А4 (1 на листе)</Option>
+                          <Option value="А4-2V">А4 (2 вертикальные карточки)</Option>
+                          <Option value="А4-3V">А4 (3 вертикальные карточки)</Option>
                         </Select>
                       </Form.Item>
                     </Col>

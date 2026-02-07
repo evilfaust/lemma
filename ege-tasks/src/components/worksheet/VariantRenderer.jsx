@@ -105,21 +105,23 @@ const VariantRenderer = ({
   return (
     <div key={variant.number} className="variant-container">
       <div className="variant-header">
-        <h2>
-          {variantLabel} {variant.number}
-        </h2>
-        {showStudentInfo && (
-          <div className="student-info">
-            <div className="student-info-field">
-              <span className="student-info-label">Фамилия:</span>
-              <div className="student-info-line"></div>
+        <div className="variant-header-row">
+          <h2>
+            {variantLabel} {variant.number}
+          </h2>
+          {showStudentInfo && (
+            <div className="student-info student-info-inline">
+              <div className="student-info-block">
+                <span className="student-info-label">ФИО</span>
+                <div className="student-info-box student-info-box-fio"></div>
+              </div>
+              <div className="student-info-block">
+                <span className="student-info-label">Дата</span>
+                <div className="student-info-box student-info-box-date"></div>
+              </div>
             </div>
-            <div className="student-info-field">
-              <span className="student-info-label">Имя:</span>
-              <div className="student-info-line"></div>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <div

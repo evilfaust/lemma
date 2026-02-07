@@ -40,9 +40,11 @@ const LoadWorkModal = ({
         <Empty description="Нет сохранённых работ" style={{ padding: 30 }} />
       ) : (
         <List
+          size="small"
           dataSource={works}
           renderItem={work => (
             <List.Item
+              style={{ padding: '10px 0' }}
               actions={[
                 <Button
                   type="primary"
@@ -70,26 +72,22 @@ const LoadWorkModal = ({
                 </Button>,
               ]}
             >
-              <List.Item.Meta
-                title={
-                  <Space>
-                    <span style={{ fontWeight: 600, fontSize: 16 }}>{work.title}</span>
-                    {work.time_limit && <Tag color="green">{work.time_limit} мин</Tag>}
-                    {work.expand?.topic && (
-                      <Tag color="purple">
-                        №{work.expand.topic.ege_number} - {work.expand.topic.title}
-                      </Tag>
-                    )}
-                  </Space>
-                }
-                description={
-                  <Space style={{ color: '#666', fontSize: 12 }}>
-                    <span>
-                      Создана: {new Date(work.created).toLocaleDateString('ru-RU')}
-                    </span>
-                  </Space>
-                }
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontWeight: 600, fontSize: 16, lineHeight: 1.2 }}>
+                  {work.title}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, color: '#666', fontSize: 12 }}>
+                  <span>
+                    Создана: {new Date(work.created).toLocaleDateString('ru-RU')}
+                  </span>
+                  {work.time_limit && <span>• {work.time_limit} мин</span>}
+                  {work.expand?.topic && (
+                    <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                      №{work.expand.topic.ege_number} - {work.expand.topic.title}
+                    </Tag>
+                  )}
+                </div>
+              </div>
             </List.Item>
           )}
         />

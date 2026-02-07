@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, message, Button, Space, Popconfirm, Spin } from 'antd';
+import { Modal, Form, Select, Input, InputNumber, message, Button, Space, Popconfirm, Spin, Divider } from 'antd';
 import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
@@ -20,6 +20,13 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [generatingCode, setGeneratingCode] = useState(false);
   const [tags, setTags] = useState([]);
   const [creatingTag, setCreatingTag] = useState(false);
+  const [topics, setTopics] = useState([]);
+  const [subtopics, setSubtopics] = useState([]);
+  const [creatingTopic, setCreatingTopic] = useState(false);
+  const [creatingSubtopic, setCreatingSubtopic] = useState(false);
+  const [newTopicNumber, setNewTopicNumber] = useState(null);
+  const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [newSubtopicName, setNewSubtopicName] = useState('');
 
   // Определяем режим работы: создание или редактирование
   const isCreateMode = !task;
@@ -57,6 +64,17 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   useEffect(() => {
     setTags(allTags);
   }, [allTags]);
+
+  // Синхронизация списка тем и подтем с props
+  useEffect(() => {
+    setTopics(allTopics);
+  }, [allTopics]);
+
+  useEffect(() => {
+    setSubtopics(allSubtopics);
+  }, [allSubtopics]);
+
+  const normalizeTitle = (value) => (value || '').trim().toLowerCase();
 
   // Функция создания нового тега
   const handleCreateTag = async (newTagTitle) => {
@@ -138,11 +156,11 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   }, [task, visible, form, allTopics, allSubtopics]);
 
   const handleTopicChange = (topicId) => {
-    const topicData = allTopics.find(t => t.id === topicId);
+    const topicData = topics.find(t => t.id === topicId);
     setSelectedTopic(topicData);
 
     // Фильтруем подтемы по выбранной теме
-    const subtopicsForTopic = allSubtopics.filter(st => st.topic === topicId);
+    const subtopicsForTopic = subtopics.filter(st => st.topic === topicId);
     setFilteredSubtopics(subtopicsForTopic);
 
     // Сбрасываем подтему при смене темы
@@ -151,6 +169,95 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     // Генерируем код для новой задачи
     if (isCreateMode) {
       handleGenerateCode(topicId);
+    }
+  };
+
+  const handleCreateTopic = async () => {
+    const trimmedTitle = (newTopicTitle || '').trim();
+    if (!trimmedTitle) {
+      message.warning('Введите название темы');
+      return;
+    }
+    if (newTopicNumber === null || newTopicNumber === undefined || newTopicNumber === '') {
+      message.warning('Укажите номер ЕГЭ');
+      return;
+    }
+
+    const existingByNumber = topics.find(t => String(t.ege_number) === String(newTopicNumber));
+    if (existingByNumber) {
+      message.warning(`Тема с номером ${newTopicNumber} уже существует`);
+      form.setFieldValue('topic', existingByNumber.id);
+      handleTopicChange(existingByNumber.id);
+      return;
+    }
+
+    const existingByTitle = topics.find(t => normalizeTitle(t.title) === normalizeTitle(trimmedTitle));
+    if (existingByTitle) {
+      message.warning(`Тема "${trimmedTitle}" уже существует`);
+      form.setFieldValue('topic', existingByTitle.id);
+      handleTopicChange(existingByTitle.id);
+      return;
+    }
+
+    setCreatingTopic(true);
+    try {
+      const newTopic = await api.createTopic({
+        title: trimmedTitle,
+        ege_number: Number(newTopicNumber),
+        order: Number(newTopicNumber),
+      });
+      const updated = [...topics, newTopic];
+      setTopics(updated);
+      message.success(`Тема "${trimmedTitle}" создана`);
+      setNewTopicTitle('');
+      setNewTopicNumber(null);
+      form.setFieldValue('topic', newTopic.id);
+      handleTopicChange(newTopic.id);
+    } catch (error) {
+      console.error('Error creating topic:', error);
+      message.error('Ошибка при создании темы');
+    } finally {
+      setCreatingTopic(false);
+    }
+  };
+
+  const handleCreateSubtopic = async () => {
+    const topicId = form.getFieldValue('topic');
+    if (!topicId) {
+      message.warning('Сначала выберите тему');
+      return;
+    }
+    const trimmedName = (newSubtopicName || '').trim();
+    if (!trimmedName) {
+      message.warning('Введите название подтемы');
+      return;
+    }
+
+    const existing = subtopics.find(st => st.topic === topicId && normalizeTitle(st.name) === normalizeTitle(trimmedName));
+    if (existing) {
+      message.warning(`Подтема "${trimmedName}" уже существует`);
+      form.setFieldValue('subtopic', existing.id);
+      return;
+    }
+
+    setCreatingSubtopic(true);
+    try {
+      const newSubtopic = await api.createSubtopic({
+        name: trimmedName,
+        topic: topicId,
+      });
+      const updated = [...subtopics, newSubtopic];
+      setSubtopics(updated);
+      const subtopicsForTopic = updated.filter(st => st.topic === topicId);
+      setFilteredSubtopics(subtopicsForTopic);
+      message.success(`Подтема "${trimmedName}" создана`);
+      setNewSubtopicName('');
+      form.setFieldValue('subtopic', newSubtopic.id);
+    } catch (error) {
+      console.error('Error creating subtopic:', error);
+      message.error('Ошибка при создании подтемы');
+    } finally {
+      setCreatingSubtopic(false);
     }
   };
 
@@ -303,8 +410,38 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             showSearch
             optionFilterProp="children"
             onChange={handleTopicChange}
+            dropdownRender={(menu) => (
+              <>
+                {menu}
+                <Divider style={{ margin: '8px 0' }} />
+                <div style={{ padding: '0 8px 8px' }}>
+                  <Space style={{ display: 'flex' }}>
+                    <InputNumber
+                      placeholder="№ ЕГЭ"
+                      min={0}
+                      style={{ width: 100 }}
+                      value={newTopicNumber}
+                      onChange={setNewTopicNumber}
+                    />
+                    <Input
+                      placeholder="Новая тема"
+                      value={newTopicTitle}
+                      onChange={(e) => setNewTopicTitle(e.target.value)}
+                    />
+                    <Button
+                      type="text"
+                      icon={<PlusOutlined />}
+                      loading={creatingTopic}
+                      onClick={handleCreateTopic}
+                    >
+                      Добавить
+                    </Button>
+                  </Space>
+                </div>
+              </>
+            )}
           >
-            {allTopics.map(topic => (
+            {topics.map(topic => (
               <Option key={topic.id} value={topic.id}>
                 №{topic.ege_number} - {topic.title}
               </Option>
@@ -323,6 +460,30 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             showSearch
             optionFilterProp="children"
             disabled={!form.getFieldValue('topic')}
+            dropdownRender={(menu) => (
+              <>
+                {menu}
+                <Divider style={{ margin: '8px 0' }} />
+                <div style={{ padding: '0 8px 8px' }}>
+                  <Space style={{ display: 'flex' }}>
+                    <Input
+                      placeholder="Новая подтема"
+                      value={newSubtopicName}
+                      onChange={(e) => setNewSubtopicName(e.target.value)}
+                    />
+                    <Button
+                      type="text"
+                      icon={<PlusOutlined />}
+                      loading={creatingSubtopic}
+                      onClick={handleCreateSubtopic}
+                      disabled={!form.getFieldValue('topic')}
+                    >
+                      Добавить
+                    </Button>
+                  </Space>
+                </div>
+              </>
+            )}
           >
             {filteredSubtopics.map(st => (
               <Option key={st.id} value={st.id}>{st.name}</Option>

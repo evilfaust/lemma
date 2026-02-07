@@ -378,6 +378,8 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
                   <Option value="А6">А6 (1/4 листа A4)</Option>
                   <Option value="А5">А5 (1/2 листа A4)</Option>
                   <Option value="А4">А4 (полный лист)</Option>
+                  <Option value="А4-2V">A4 (2 вертикальные карточки)</Option>
+                  <Option value="А4-3V">A4 (3 вертикальные карточки)</Option>
                 </Select>
               </Form.Item>
             </Col>

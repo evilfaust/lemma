@@ -301,20 +301,53 @@
   padding: 10px 12px;
 }
 
+.variant-header-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: nowrap;
+}
+
 .variant-header h2 {
   font-size: 1.6em;
   color: #1890ff;
-  margin: 0 0 12px 0;
+  margin: 0;
   font-weight: 700;
 }
 
 /* Информация о студенте */
 .student-info {
   display: flex;
-  gap: 40px;
-  margin-top: 16px;
-  flex-wrap: wrap;
+  gap: 24px;
+  flex-wrap: nowrap;
   align-items: center;
+}
+
+.student-info-inline {
+  margin-left: 8px;
+}
+
+.student-info-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.student-info-box {
+  border: 2px solid #111;
+  border-radius: 8px;
+  height: 32px;
+  background: #fff;
+}
+
+.student-info-box-fio {
+  width: 288px;
+  min-width: 234px;
+}
+
+.student-info-box-date {
+  width: 144px;
+  min-width: 126px;
 }
 
 .student-info-field {
@@ -329,7 +362,7 @@
 .student-info-label {
   font-weight: 600;
   color: #333;
-  font-size: 14px;
+  font-size: 16px;
   letter-spacing: 0.3px;
 }
 
@@ -770,4 +803,3 @@
     background-color: transparent;
   }
 }
-
