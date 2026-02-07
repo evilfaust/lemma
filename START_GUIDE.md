@@ -186,6 +186,7 @@ Concurrently показывает логи всех сервисов с цвет
 - [QUICK_START.md](QUICK_START.md) - Быстрый старт
 - [PDF_EXPORT_UPGRADE.md](PDF_EXPORT_UPGRADE.md) - PDF экспорт
 - [CLAUDE.MD](CLAUDE.MD) - Контекст для AI
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Архитектура компонентов (Каталог/Дубли)
 
 ---
 

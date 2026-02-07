@@ -72,6 +72,26 @@ export const api = {
     }
   },
 
+  // Обновить тег
+  async updateTag(id, data) {
+    try {
+      return await pb.collection('tags').update(id, data);
+    } catch (error) {
+      console.error('Error updating tag:', error);
+      throw error;
+    }
+  },
+
+  // Удалить тег
+  async deleteTag(id) {
+    try {
+      return await pb.collection('tags').delete(id);
+    } catch (error) {
+      console.error('Error deleting tag:', error);
+      throw error;
+    }
+  },
+
   // Получить задачи с фильтрами
   async getTasks(filters = {}) {
     try {
@@ -109,6 +129,10 @@ export const api = {
 
       if (filters.hasSolution !== undefined) {
         filterArr.push(filters.hasSolution ? `solution_md != ""` : `solution_md = ""`);
+      }
+
+      if (filters.hasImage !== undefined) {
+        filterArr.push(filters.hasImage ? `has_image = true` : `has_image = false`);
       }
 
       if (filters.source) {
@@ -414,7 +438,7 @@ export const api = {
   async getTasksStatsSnapshot() {
     try {
       const records = await pb.collection('tasks').getFullList({
-        fields: 'id,topic,subtopic,tags,difficulty,answer,solution_md,has_image,source',
+        fields: 'id,topic,subtopic,tags,difficulty,answer,solution_md,has_image,source,year',
       });
       return records;
     } catch (error) {
@@ -455,6 +479,16 @@ export const api = {
       return await pb.collection('subtopics').update(id, data);
     } catch (error) {
       console.error('Error updating subtopic:', error);
+      throw error;
+    }
+  },
+
+  // Удалить подтему
+  async deleteSubtopic(id) {
+    try {
+      return await pb.collection('subtopics').delete(id);
+    } catch (error) {
+      console.error('Error deleting subtopic:', error);
       throw error;
     }
   },

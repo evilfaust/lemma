@@ -248,7 +248,7 @@ const TaskStatsDashboard = ({ topics = [], tags = [], subtopics = [], sources = 
             <Table
               size="small"
               dataSource={topicRows}
-              pagination={{ pageSize: 10 }}
+              pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
               columns={[
                 { title: '№', dataIndex: 'ege', width: 60 },
                 { title: 'Тема', dataIndex: 'title' },
@@ -276,7 +276,7 @@ const TaskStatsDashboard = ({ topics = [], tags = [], subtopics = [], sources = 
                     <Table
                       size="small"
                       dataSource={subtopicRows}
-                      pagination={{ pageSize: 10 }}
+                      pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
                       columns={[
                         { title: 'Подтема', dataIndex: 'title' },
                         { title: 'Тема', dataIndex: 'topicTitle' },
@@ -296,7 +296,7 @@ const TaskStatsDashboard = ({ topics = [], tags = [], subtopics = [], sources = 
             <Table
               size="small"
               dataSource={sourceRows}
-              pagination={{ pageSize: 10 }}
+              pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
               columns={[
                 { title: 'Источник', dataIndex: 'source' },
                 { title: 'Кол-во', dataIndex: 'count', width: 90 },

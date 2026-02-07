@@ -119,6 +119,7 @@ python pb_parser_theory.py       # Загрузить теорию
 
 - **Архитектура:** [ARCHITECTURE.md](ARCHITECTURE.md)
 - **Изменения:** [CHANGELOG.md](CHANGELOG.md)
+- **Каталог/дубли:** [README.MD](README.MD#основные-возможности)
 - **Запуск без PDF:** [README.MD](README.MD#быстрый-запуск-из-корня-проекта)
 - **PDF Экспорт:** [PDF_EXPORT_UPGRADE.md](PDF_EXPORT_UPGRADE.md)
 - **Подробно:** [README.MD](README.MD)

@@ -44,6 +44,7 @@ const TaskFilters = ({
     if (values.tags && values.tags.length > 0) newFilters.tags = values.tags;
     if (values.hasAnswer !== undefined) newFilters.hasAnswer = values.hasAnswer === 'yes';
     if (values.hasSolution !== undefined) newFilters.hasSolution = values.hasSolution === 'yes';
+    if (values.hasImage !== undefined) newFilters.hasImage = values.hasImage === 'yes';
     if (values.sortBy) newFilters.sortBy = values.sortBy;
 
     setFilters(newFilters);
@@ -58,6 +59,9 @@ const TaskFilters = ({
     }
     if (filters.hasSolution !== undefined) {
       values.hasSolution = filters.hasSolution ? 'yes' : 'no';
+    }
+    if (filters.hasImage !== undefined) {
+      values.hasImage = filters.hasImage ? 'yes' : 'no';
     }
     return values;
   };
@@ -269,7 +273,7 @@ const TaskFilters = ({
         </Row>
 
         <Row gutter={16}>
-          <Col xs={24} sm={12}>
+          <Col xs={24} sm={8}>
             <Form.Item name="hasAnswer" label="Наличие ответа">
               <Radio.Group>
                 <Radio.Button value={undefined}>Все</Radio.Button>
@@ -279,12 +283,22 @@ const TaskFilters = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12}>
+          <Col xs={24} sm={8}>
             <Form.Item name="hasSolution" label="Наличие решения">
               <Radio.Group>
                 <Radio.Button value={undefined}>Все</Radio.Button>
                 <Radio.Button value="yes">С решением</Radio.Button>
                 <Radio.Button value="no">Без решения</Radio.Button>
+              </Radio.Group>
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} sm={8}>
+            <Form.Item name="hasImage" label="Наличие изображения">
+              <Radio.Group>
+                <Radio.Button value={undefined}>Все</Radio.Button>
+                <Radio.Button value="yes">С изображением</Radio.Button>
+                <Radio.Button value="no">Без изображения</Radio.Button>
               </Radio.Group>
             </Form.Item>
           </Col>
@@ -376,6 +390,15 @@ const TaskFilters = ({
                   color="green"
                 >
                   {filters.hasSolution ? 'С решением' : 'Без решения'}
+                </Tag>
+              )}
+              {filters.hasImage !== undefined && (
+                <Tag
+                  closable
+                  onClose={() => removeFilter('hasImage')}
+                  color="green"
+                >
+                  {filters.hasImage ? 'С изображением' : 'Без изображения'}
                 </Tag>
               )}
               {filters.sortBy && filters.sortBy !== 'code' && (

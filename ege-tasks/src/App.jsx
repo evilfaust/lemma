@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { Layout, Menu, ConfigProvider, theme, message } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
 import TaskStatsDashboard from './components/TaskStatsDashboard';
+import TaskCatalogManager from './components/TaskCatalogManager';
 import TheoryBrowser from './components/TheoryBrowser';
 import TheoryEditor from './components/TheoryEditor';
 import TheoryArticleView from './components/TheoryArticleView';
@@ -74,6 +75,11 @@ function App() {
       label: 'Статистика',
     },
     {
+      key: 'catalog',
+      icon: <AppstoreOutlined />,
+      label: 'Каталог',
+    },
+    {
       key: 'generator',
       icon: <FileSearchOutlined />,
       label: 'Генератор',
@@ -118,8 +124,8 @@ function App() {
     setCurrentView('theory-browser');
   };
 
-  const openTasksWithTag = (tagId) => {
-    setTaskListInitialFilters({ tags: [tagId] });
+  const openTasksWithFilters = (filters) => {
+    setTaskListInitialFilters(filters);
     setTaskListFiltersToken(prev => prev + 1);
     setCurrentView('tasks');
   };
@@ -153,7 +159,19 @@ function App() {
             tags={tags}
             subtopics={subtopics}
             sources={sources}
-            onTagClick={openTasksWithTag}
+            onTagClick={(tagId) => openTasksWithFilters({ tags: [tagId] })}
+          />
+        );
+      case 'catalog':
+        return (
+          <TaskCatalogManager
+            topics={topics}
+            subtopics={subtopics}
+            tags={tags}
+            sources={sources}
+            years={years}
+            onOpenTasks={openTasksWithFilters}
+            onReloadData={loadData}
           />
         );
       case 'generator':
@@ -230,6 +248,7 @@ function App() {
     switch (currentView) {
       case 'tasks': return 'Все задачи';
       case 'stats': return 'Статистика задач';
+      case 'catalog': return 'Каталог задач';
       case 'generator': return 'Генератор';
       case 'test-generator': return 'Контрольные работы';
       case 'import': return 'Импорт задач';
@@ -280,7 +299,7 @@ function App() {
           <Menu
             mode="inline"
             selectedKeys={getSelectedKeys()}
-            defaultOpenKeys={['theory']}
+            defaultOpenKeys={[]}
             items={menuItems}
             onClick={({ key }) => {
               setCurrentView(key);
