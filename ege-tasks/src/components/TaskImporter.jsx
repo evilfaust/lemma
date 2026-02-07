@@ -1,0 +1,946 @@
+import { useState, useMemo } from 'react';
+import {
+  Card, Upload, Button, Steps, Select, Space, Alert, Progress,
+  Statistic, Collapse, Checkbox, Tag, Tabs, Input, Descriptions,
+  Row, Col, Empty, Badge, message, Typography, Spin, Modal, InputNumber,
+} from 'antd';
+import {
+  InboxOutlined, CheckCircleOutlined,
+  WarningOutlined, CloseCircleOutlined, ReloadOutlined,
+  FileTextOutlined, GlobalOutlined, DownloadOutlined, PlusOutlined,
+} from '@ant-design/icons';
+import MathRenderer from './MathRenderer';
+import { useTaskImport } from '../hooks/useTaskImport';
+import { api } from '../services/pocketbase';
+
+const { Dragger } = Upload;
+const { TextArea } = Input;
+const { Text } = Typography;
+
+const PDF_SERVICE_URL = 'http://localhost:3001';
+
+const DIFFICULTY_COLORS = {
+  '1': '#52c41a',
+  '2': '#faad14',
+  '3': '#ff4d4f',
+  '4': '#722ed1',
+  '5': '#13c2c2',
+};
+
+const DIFFICULTY_LABELS = {
+  '1': 'Базовый',
+  '2': 'Средний',
+  '3': 'Сложный',
+  '4': 'Повышенный',
+  '5': 'Олимпиадный',
+};
+
+const FORMAT_TAG = {
+  ege: { color: 'blue', label: 'ЕГЭ' },
+  mordkovich: { color: 'purple', label: 'Мордкович' },
+  sdamgia: { color: 'green', label: 'РЕШУ ЕГЭ' },
+};
+
+export default function TaskImporter({ topics: propTopics = [], tags = [], subtopics: propSubtopics = [], onImportComplete }) {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [inputMode, setInputMode] = useState('file'); // 'file' | 'text' | 'sdamgia'
+  const [textInput, setTextInput] = useState('');
+  const [fileName, setFileName] = useState('');
+
+  // Локальные мутабельные списки (обновляются при создании новых тем/подтем)
+  const [localTopics, setLocalTopics] = useState(propTopics);
+  const [localSubtopics, setLocalSubtopics] = useState(propSubtopics);
+
+  // Синхронизация с props при внешних обновлениях
+  if (propTopics !== localTopics && propTopics.length !== localTopics.length) {
+    setLocalTopics(propTopics);
+  }
+  if (propSubtopics !== localSubtopics && propSubtopics.length !== localSubtopics.length) {
+    setLocalSubtopics(propSubtopics);
+  }
+
+  // Состояние создания темы
+  const [showNewTopic, setShowNewTopic] = useState(false);
+  const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [newTopicNumber, setNewTopicNumber] = useState(null);
+  const [creatingTopic, setCreatingTopic] = useState(false);
+
+  // Состояние создания подтемы
+  const [showNewSubtopic, setShowNewSubtopic] = useState(false);
+  const [newSubtopicName, setNewSubtopicName] = useState('');
+  const [creatingSubtopic, setCreatingSubtopic] = useState(false);
+  // Для какой темы создаём подтему (sdamgia-форма или шаг 2)
+  const [newSubtopicContext, setNewSubtopicContext] = useState(null); // 'sdamgia' | 'preview'
+
+  // Состояние для sdamgia
+  const [sdamgiaUrl, setSdamgiaUrl] = useState('');
+  const [sdamgiaTopicId, setSdamgiaTopicId] = useState(null);
+  const [sdamgiaSubtopic, setSdamgiaSubtopic] = useState('');
+  const [sdamgiaDifficulty, setSdamgiaDifficulty] = useState('1');
+  const [sdamgiaTags, setSdamgiaTags] = useState('');
+  const [sdamgiaLoading, setSdamgiaLoading] = useState(false);
+  const [sdamgiaError, setSdamgiaError] = useState('');
+
+  const {
+    parsedData,
+    selectedTasks,
+    topicId,
+    subtopicId,
+    importing,
+    importProgress,
+    importResults,
+    setTopicId,
+    setSubtopicId,
+    handleParse,
+    handleParseSdamgia,
+    toggleTask,
+    selectAll,
+    deselectAll,
+    handleImport,
+    reset,
+  } = useTaskImport({ topics: localTopics, tags, subtopics: localSubtopics });
+
+  // Подтемы для выбранной темы (шаг 2 — предпросмотр)
+  const filteredSubtopics = useMemo(() => {
+    if (!topicId) return [];
+    return localSubtopics.filter(st => st.topic === topicId);
+  }, [topicId, localSubtopics]);
+
+  // Подтемы для sdamgia-формы (шаг 1)
+  const sdamgiaFilteredSubtopics = useMemo(() => {
+    if (!sdamgiaTopicId) return [];
+    return localSubtopics.filter(st => st.topic === sdamgiaTopicId);
+  }, [sdamgiaTopicId, localSubtopics]);
+
+  // Нормализация названия для проверки дубликатов
+  const normalize = (s) => (s || '').trim().toLowerCase();
+
+  // Создание новой темы
+  const handleCreateTopic = async () => {
+    const trimmedTitle = (newTopicTitle || '').trim();
+    if (!trimmedTitle) {
+      message.warning('Введите название темы');
+      return;
+    }
+    if (newTopicNumber === null || newTopicNumber === undefined || newTopicNumber === '') {
+      message.warning('Укажите номер ЕГЭ');
+      return;
+    }
+
+    const existingByNumber = localTopics.find(t => String(t.ege_number) === String(newTopicNumber));
+    if (existingByNumber) {
+      message.warning(`Тема с номером ${newTopicNumber} уже существует: "${existingByNumber.title}"`);
+      return;
+    }
+
+    const existingByTitle = localTopics.find(t => normalize(t.title) === normalize(trimmedTitle));
+    if (existingByTitle) {
+      message.warning(`Тема "${trimmedTitle}" уже существует`);
+      return;
+    }
+
+    setCreatingTopic(true);
+    try {
+      const newTopic = await api.createTopic({
+        title: trimmedTitle,
+        ege_number: Number(newTopicNumber),
+        order: Number(newTopicNumber),
+      });
+      setLocalTopics(prev => [...prev, newTopic]);
+      message.success(`Тема "${trimmedTitle}" создана`);
+      setNewTopicTitle('');
+      setNewTopicNumber(null);
+      setShowNewTopic(false);
+      // Автоматически выбираем в зависимости от контекста
+      if (currentStep === 0) {
+        setSdamgiaTopicId(newTopic.id);
+      } else {
+        handleTopicChange(newTopic.id);
+      }
+    } catch (error) {
+      console.error('Error creating topic:', error);
+      message.error('Ошибка при создании темы');
+    } finally {
+      setCreatingTopic(false);
+    }
+  };
+
+  // Создание новой подтемы
+  const handleCreateSubtopic = async (forTopicId) => {
+    if (!forTopicId) {
+      message.warning('Сначала выберите тему');
+      return;
+    }
+    const trimmedName = (newSubtopicName || '').trim();
+    if (!trimmedName) {
+      message.warning('Введите название подтемы');
+      return;
+    }
+
+    const existing = localSubtopics.find(st =>
+      st.topic === forTopicId && normalize(st.name) === normalize(trimmedName)
+    );
+    if (existing) {
+      message.warning(`Подтема "${trimmedName}" уже существует`);
+      return;
+    }
+
+    setCreatingSubtopic(true);
+    try {
+      const newSub = await api.createSubtopic({
+        name: trimmedName,
+        topic: forTopicId,
+      });
+      setLocalSubtopics(prev => [...prev, newSub]);
+      message.success(`Подтема "${trimmedName}" создана`);
+      setNewSubtopicName('');
+      setShowNewSubtopic(false);
+      // Автоматически выбираем
+      if (newSubtopicContext === 'sdamgia') {
+        setSdamgiaSubtopic(newSub.name);
+      } else {
+        setSubtopicId(newSub.id);
+      }
+    } catch (error) {
+      console.error('Error creating subtopic:', error);
+      message.error('Ошибка при создании подтемы');
+    } finally {
+      setCreatingSubtopic(false);
+    }
+  };
+
+  // Обработка загрузки файла
+  const handleFileUpload = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      setFileName(file.name);
+      handleParse(text);
+      setCurrentStep(1);
+    };
+    reader.onerror = () => {
+      message.error('Ошибка чтения файла');
+    };
+    reader.readAsText(file, 'UTF-8');
+    return false;
+  };
+
+  // Обработка вставки текста
+  const handleTextParse = () => {
+    if (!textInput.trim()) {
+      message.warning('Вставьте текст для парсинга');
+      return;
+    }
+    setFileName('(вставленный текст)');
+    handleParse(textInput);
+    setCurrentStep(1);
+  };
+
+  // Загрузка задач с sdamgia.ru
+  const handleSdamgiaFetch = async () => {
+    if (!sdamgiaUrl.trim()) {
+      message.warning('Введите URL страницы');
+      return;
+    }
+
+    if (!sdamgiaUrl.includes('sdamgia.ru')) {
+      setSdamgiaError('URL должен быть с сайта sdamgia.ru');
+      return;
+    }
+
+    setSdamgiaLoading(true);
+    setSdamgiaError('');
+
+    try {
+      const response = await fetch(`${PDF_SERVICE_URL}/parse-sdamgia`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: sdamgiaUrl }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || err.message || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.problems || data.problems.length === 0) {
+        setSdamgiaError('Задачи не найдены на странице. Проверьте URL.');
+        setSdamgiaLoading(false);
+        return;
+      }
+
+      // Конвертируем через хук
+      setFileName(`РЕШУ ЕГЭ (${data.count} задач)`);
+      // Находим тему для передачи названия в metadata
+      const selectedTopic = localTopics.find(t => t.id === sdamgiaTopicId);
+      const topicName = selectedTopic
+        ? `${selectedTopic.ege_number ? `ЕГЭ-База №${selectedTopic.ege_number}` : selectedTopic.title}`
+        : '';
+      handleParseSdamgia(data.problems, {
+        taskNumber: selectedTopic?.ege_number ? String(selectedTopic.ege_number) : '',
+        subtopic: sdamgiaSubtopic,
+        difficulty: sdamgiaDifficulty,
+        tagsStr: sdamgiaTags,
+      });
+      // Устанавливаем тему и подтему напрямую (перезаписываем автоматический маппинг)
+      if (sdamgiaTopicId) {
+        setTopicId(sdamgiaTopicId);
+      }
+      if (sdamgiaSubtopic && sdamgiaTopicId) {
+        // Подтема выбрана по имени — ищем её id
+        const matchedSub = localSubtopics.find(st =>
+          st.topic === sdamgiaTopicId && st.name === sdamgiaSubtopic
+        );
+        if (matchedSub) {
+          setSubtopicId(matchedSub.id);
+        }
+      }
+      setCurrentStep(1);
+
+    } catch (e) {
+      if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
+        setSdamgiaError('PDF-сервис недоступен. Запустите: cd pocketbase && npm run pdf');
+      } else {
+        setSdamgiaError(e.message);
+      }
+    } finally {
+      setSdamgiaLoading(false);
+    }
+  };
+
+  // Запуск импорта
+  const handleStartImport = async () => {
+    if (!topicId) {
+      message.error('Выберите тему');
+      return;
+    }
+    if (selectedTasks.size === 0) {
+      message.warning('Выберите хотя бы одну задачу');
+      return;
+    }
+    setCurrentStep(2);
+    const results = await handleImport();
+    if (results && onImportComplete) {
+      onImportComplete();
+    }
+  };
+
+  // Начать заново
+  const handleReset = () => {
+    reset();
+    setCurrentStep(0);
+    setTextInput('');
+    setFileName('');
+    setSdamgiaError('');
+  };
+
+  // Обработка смены темы — сбрасываем подтему
+  const handleTopicChange = (value) => {
+    setTopicId(value);
+    setSubtopicId(null);
+  };
+
+  // ===== Шаг 1: Загрузка =====
+  const renderUploadStep = () => (
+    <div>
+      <Tabs
+        activeKey={inputMode}
+        onChange={setInputMode}
+        items={[
+          {
+            key: 'file',
+            label: 'Загрузить файл',
+            children: (
+              <Dragger
+                accept=".md,.txt"
+                beforeUpload={handleFileUpload}
+                showUploadList={false}
+                style={{ padding: '20px 0' }}
+              >
+                <p className="ant-upload-drag-icon">
+                  <InboxOutlined />
+                </p>
+                <p className="ant-upload-text">
+                  Перетащите .md файл сюда или нажмите для выбора
+                </p>
+                <p className="ant-upload-hint">
+                  Поддерживаются форматы ЕГЭ и Мордкович
+                </p>
+              </Dragger>
+            ),
+          },
+          {
+            key: 'text',
+            label: 'Вставить текст',
+            children: (
+              <div>
+                <TextArea
+                  rows={12}
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder={`---\ntopic: ЕГЭ-База №14 Вычисления\nsubtopic: Дроби\ndifficulty: 1\ntags: Вычисления\n---\n\n**1** [1] Найдите значение выражения $2^{10} \\cdot 3^{6} : 6^{5}$\nответ: 96\ntags: [База, Вычисления]`}
+                  style={{ fontFamily: 'monospace', fontSize: 13 }}
+                />
+                <Button
+                  type="primary"
+                  onClick={handleTextParse}
+                  style={{ marginTop: 12 }}
+                  icon={<FileTextOutlined />}
+                >
+                  Разобрать
+                </Button>
+              </div>
+            ),
+          },
+          {
+            key: 'sdamgia',
+            label: (
+              <span>
+                <GlobalOutlined style={{ marginRight: 4 }} />
+                Импорт с сайта
+              </span>
+            ),
+            children: (
+              <div>
+                <Alert
+                  type="info"
+                  showIcon
+                  style={{ marginBottom: 16 }}
+                  message="Импорт задач с РЕШУ ЕГЭ (sdamgia.ru)"
+                  description={
+                    <span>
+                      Откройте нужную категорию задач на сайте, в URL добавьте <Text code>&print=true</Text> и вставьте ссылку ниже.
+                      Требуется запущенный PDF-сервис на порту 3001.
+                    </span>
+                  }
+                />
+
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ marginBottom: 4, fontWeight: 500 }}>URL страницы</div>
+                  <Input
+                    size="large"
+                    placeholder="https://mathb-ege.sdamgia.ru/test?category_id=12&filter=all_a&print=true"
+                    value={sdamgiaUrl}
+                    onChange={(e) => setSdamgiaUrl(e.target.value)}
+                    prefix={<GlobalOutlined style={{ color: '#999' }} />}
+                  />
+                </div>
+
+                <Card size="small" title="Метаданные задач" style={{ marginBottom: 16 }}>
+                  <Row gutter={[16, 12]}>
+                    <Col span={12}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>
+                        Тема <span style={{ color: '#ff4d4f' }}>*</span>
+                      </div>
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Select
+                          style={{ flex: 1 }}
+                          value={sdamgiaTopicId}
+                          onChange={(value) => {
+                            setSdamgiaTopicId(value);
+                            setSdamgiaSubtopic('');
+                          }}
+                          placeholder="Выберите тему"
+                          showSearch
+                          optionFilterProp="label"
+                          options={localTopics.map(t => ({
+                            value: t.id,
+                            label: `${t.ege_number ? `№${t.ege_number} ` : ''}${t.title}`,
+                          }))}
+                        />
+                        <Button
+                          icon={<PlusOutlined />}
+                          onClick={() => setShowNewTopic(true)}
+                          title="Создать тему"
+                        />
+                      </Space.Compact>
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>Сложность</div>
+                      <Select
+                        style={{ width: '100%' }}
+                        value={sdamgiaDifficulty}
+                        onChange={setSdamgiaDifficulty}
+                        options={[
+                          { value: '1', label: '1 — Базовый' },
+                          { value: '2', label: '2 — Средний' },
+                          { value: '3', label: '3 — Сложный' },
+                        ]}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>Подтема</div>
+                      <Space.Compact style={{ width: '100%' }}>
+                        <Select
+                          style={{ flex: 1 }}
+                          value={sdamgiaSubtopic || undefined}
+                          onChange={setSdamgiaSubtopic}
+                          placeholder="Подтема"
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          disabled={!sdamgiaTopicId}
+                          options={sdamgiaFilteredSubtopics.map(st => ({
+                            value: st.name,
+                            label: st.name,
+                          }))}
+                        />
+                        <Button
+                          icon={<PlusOutlined />}
+                          disabled={!sdamgiaTopicId}
+                          onClick={() => {
+                            setNewSubtopicContext('sdamgia');
+                            setShowNewSubtopic(true);
+                          }}
+                          title="Создать подтему"
+                        />
+                      </Space.Compact>
+                    </Col>
+                    <Col span={24}>
+                      <div style={{ marginBottom: 4, fontSize: 12, color: '#666' }}>Теги (через запятую)</div>
+                      <Input
+                        value={sdamgiaTags}
+                        onChange={(e) => setSdamgiaTags(e.target.value)}
+                        placeholder="Например: База, Вычисления"
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+
+                {sdamgiaError && (
+                  <Alert
+                    type="error"
+                    message={sdamgiaError}
+                    showIcon
+                    closable
+                    onClose={() => setSdamgiaError('')}
+                    style={{ marginBottom: 16 }}
+                  />
+                )}
+
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  onClick={handleSdamgiaFetch}
+                  loading={sdamgiaLoading}
+                  disabled={!sdamgiaUrl.trim()}
+                  size="large"
+                >
+                  Загрузить задачи
+                </Button>
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+
+  // ===== Шаг 2: Предпросмотр =====
+  const renderPreviewStep = () => {
+    if (!parsedData) return null;
+
+    const hasErrors = parsedData.errors.length > 0;
+    const fmt = FORMAT_TAG[parsedData.format] || FORMAT_TAG.ege;
+
+    return (
+      <div>
+        {/* Ошибки */}
+        {parsedData.errors.map((err, i) => (
+          <Alert key={`err-${i}`} type="error" message={err} showIcon style={{ marginBottom: 8 }} />
+        ))}
+
+        {/* Предупреждения */}
+        {parsedData.warnings.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            message={`${parsedData.warnings.length} предупреждений`}
+            description={
+              <ul style={{ margin: '4px 0 0', paddingLeft: 20 }}>
+                {parsedData.warnings.slice(0, 5).map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+                {parsedData.warnings.length > 5 && (
+                  <li>...и ещё {parsedData.warnings.length - 5}</li>
+                )}
+              </ul>
+            }
+          />
+        )}
+
+        {/* Метаданные */}
+        <Card size="small" title="Метаданные" style={{ marginBottom: 16 }}>
+          <Descriptions size="small" column={2}>
+            <Descriptions.Item label="Источник">{fileName}</Descriptions.Item>
+            <Descriptions.Item label="Формат">
+              <Tag color={fmt.color}>{fmt.label}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="Тема">{parsedData.metadata.topic || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Подтема">{parsedData.metadata.subtopic || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Источник данных">{parsedData.metadata.source || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Год">{parsedData.metadata.year || '—'}</Descriptions.Item>
+            <Descriptions.Item label="Глобальные теги">
+              {parsedData.metadata.tags.length > 0
+                ? parsedData.metadata.tags.map(t => <Tag key={t}>{t}</Tag>)
+                : '—'
+              }
+            </Descriptions.Item>
+            <Descriptions.Item label="Задач найдено">
+              <Badge count={parsedData.tasks.length} showZero style={{ backgroundColor: '#1890ff' }} />
+            </Descriptions.Item>
+          </Descriptions>
+        </Card>
+
+        {/* Маппинг на БД */}
+        <Card size="small" title="Привязка к базе данных" style={{ marginBottom: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>
+                Тема <span style={{ color: '#ff4d4f' }}>*</span>
+              </div>
+              <Space.Compact style={{ width: '100%' }}>
+                <Select
+                  style={{ flex: 1 }}
+                  value={topicId}
+                  onChange={handleTopicChange}
+                  placeholder="Выберите тему"
+                  showSearch
+                  optionFilterProp="label"
+                  status={!topicId ? 'error' : undefined}
+                  options={localTopics.map(t => ({
+                    value: t.id,
+                    label: `${t.ege_number ? `№${t.ege_number} ` : ''}${t.title}`,
+                  }))}
+                />
+                <Button
+                  icon={<PlusOutlined />}
+                  onClick={() => setShowNewTopic(true)}
+                  title="Создать тему"
+                />
+              </Space.Compact>
+              {!topicId && (
+                <Text type="danger" style={{ fontSize: 12 }}>Тема обязательна для импорта</Text>
+              )}
+            </Col>
+            <Col span={12}>
+              <div style={{ marginBottom: 4, fontWeight: 500 }}>Подтема</div>
+              <Space.Compact style={{ width: '100%' }}>
+                <Select
+                  style={{ flex: 1 }}
+                  value={subtopicId}
+                  onChange={setSubtopicId}
+                  placeholder="Выберите подтему (необязательно)"
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                  disabled={!topicId}
+                  options={filteredSubtopics.map(st => ({
+                    value: st.id,
+                    label: st.name,
+                  }))}
+                />
+                <Button
+                  icon={<PlusOutlined />}
+                  disabled={!topicId}
+                  onClick={() => {
+                    setNewSubtopicContext('preview');
+                    setShowNewSubtopic(true);
+                  }}
+                  title="Создать подтему"
+                />
+              </Space.Compact>
+            </Col>
+          </Row>
+        </Card>
+
+        {/* Список задач */}
+        <Card
+          size="small"
+          title={
+            <Space>
+              <span>Задачи для импорта</span>
+              <Tag color="blue">{selectedTasks.size} из {parsedData.tasks.length}</Tag>
+            </Space>
+          }
+          extra={
+            <Space>
+              <Button size="small" onClick={selectAll}>Выбрать все</Button>
+              <Button size="small" onClick={deselectAll}>Снять выбор</Button>
+            </Space>
+          }
+        >
+          {parsedData.tasks.length === 0 ? (
+            <Empty description="Задачи не найдены" />
+          ) : (
+            <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+              {parsedData.tasks.map((task, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: '8px 12px',
+                    borderBottom: '1px solid #f0f0f0',
+                    background: selectedTasks.has(index) ? '#f6ffed' : 'transparent',
+                    opacity: selectedTasks.has(index) ? 1 : 0.6,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                    <Checkbox
+                      checked={selectedTasks.has(index)}
+                      onChange={() => toggleTask(index)}
+                      style={{ marginTop: 3 }}
+                    />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ marginBottom: 4 }}>
+                        <Text strong>#{task.number}</Text>
+                        {task.sdamgiaId && (
+                          <Text type="secondary" style={{ marginLeft: 8, fontSize: 11 }}>
+                            (id: {task.sdamgiaId})
+                          </Text>
+                        )}
+                        <Tag
+                          color={DIFFICULTY_COLORS[task.difficulty] || '#999'}
+                          style={{ marginLeft: 8 }}
+                        >
+                          {DIFFICULTY_LABELS[task.difficulty] || `Сложность ${task.difficulty}`}
+                        </Tag>
+                        {task.imageUrl && <Tag color="cyan">Изображение</Tag>}
+                      </div>
+                      <div style={{ fontSize: 13, marginBottom: 4 }}>
+                        <MathRenderer text={task.statement_md} />
+                      </div>
+                      {task.answer && (
+                        <div style={{ fontSize: 12, color: '#666' }}>
+                          <Text type="secondary">Ответ: </Text>
+                          <MathRenderer text={task.answer} />
+                        </div>
+                      )}
+                      {task.tags.length > 0 && (
+                        <div style={{ marginTop: 4 }}>
+                          {task.tags.map((t, i) => (
+                            <Tag key={i} style={{ fontSize: 11 }}>{t}</Tag>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        {/* Кнопки */}
+        <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
+          <Button onClick={() => { handleReset(); }}>
+            Назад
+          </Button>
+          <Button
+            type="primary"
+            onClick={handleStartImport}
+            disabled={hasErrors || !topicId || selectedTasks.size === 0}
+          >
+            Импортировать {selectedTasks.size} задач
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  // ===== Шаг 3: Импорт =====
+  const renderImportStep = () => {
+    const percent = importProgress.total > 0
+      ? Math.round((importProgress.current / importProgress.total) * 100)
+      : 0;
+
+    return (
+      <div>
+        {importing && (
+          <div style={{ textAlign: 'center', padding: '24px 0' }}>
+            <Progress
+              type="circle"
+              percent={percent}
+              format={() => `${importProgress.current}/${importProgress.total}`}
+            />
+            <div style={{ marginTop: 16, color: '#666' }}>
+              Импортируем задачи...
+            </div>
+          </div>
+        )}
+
+        {importResults && (
+          <div>
+            <Row gutter={16} style={{ marginBottom: 24 }}>
+              <Col span={8}>
+                <Card>
+                  <Statistic
+                    title="Добавлено"
+                    value={importResults.added}
+                    valueStyle={{ color: '#52c41a' }}
+                    prefix={<CheckCircleOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card>
+                  <Statistic
+                    title="Пропущено (дубли)"
+                    value={importResults.skipped}
+                    valueStyle={{ color: '#faad14' }}
+                    prefix={<WarningOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col span={8}>
+                <Card>
+                  <Statistic
+                    title="Ошибки"
+                    value={importResults.errors}
+                    valueStyle={{ color: importResults.errors > 0 ? '#ff4d4f' : '#999' }}
+                    prefix={<CloseCircleOutlined />}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            {importResults.details.length > 0 && (
+              <Collapse
+                items={[{
+                  key: 'log',
+                  label: `Подробный лог (${importResults.details.length} записей)`,
+                  children: (
+                    <div style={{ maxHeight: 300, overflowY: 'auto', fontSize: 13 }}>
+                      {importResults.details.map((d, i) => (
+                        <div
+                          key={i}
+                          style={{
+                            padding: '4px 0',
+                            borderBottom: '1px solid #f5f5f5',
+                            color: d.status === 'added' ? '#52c41a'
+                              : d.status === 'skipped' ? '#faad14'
+                              : '#ff4d4f',
+                          }}
+                        >
+                          {d.status === 'added' && '+ '}
+                          {d.status === 'skipped' && '~ '}
+                          {d.status === 'error' && '! '}
+                          {d.message}
+                        </div>
+                      ))}
+                    </div>
+                  ),
+                }]}
+              />
+            )}
+
+            <div style={{ marginTop: 16 }}>
+              <Button
+                type="primary"
+                icon={<ReloadOutlined />}
+                onClick={handleReset}
+              >
+                Импортировать ещё
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <Steps
+        current={currentStep}
+        style={{ marginBottom: 24 }}
+        items={[
+          { title: 'Загрузка', description: 'Файл, текст или сайт' },
+          { title: 'Предпросмотр', description: 'Проверка и настройки' },
+          { title: 'Импорт', description: 'Загрузка в базу' },
+        ]}
+      />
+
+      {currentStep === 0 && renderUploadStep()}
+      {currentStep === 1 && renderPreviewStep()}
+      {currentStep === 2 && renderImportStep()}
+
+      {/* Модальное окно создания темы */}
+      <Modal
+        title="Создать новую тему"
+        open={showNewTopic}
+        onOk={handleCreateTopic}
+        onCancel={() => {
+          setShowNewTopic(false);
+          setNewTopicTitle('');
+          setNewTopicNumber(null);
+        }}
+        confirmLoading={creatingTopic}
+        okText="Создать"
+        cancelText="Отмена"
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Название темы</div>
+          <Input
+            value={newTopicTitle}
+            onChange={(e) => setNewTopicTitle(e.target.value)}
+            placeholder="Например: Вычисления и преобразования"
+            onPressEnter={handleCreateTopic}
+          />
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Номер задания ЕГЭ</div>
+          <InputNumber
+            style={{ width: '100%' }}
+            min={1}
+            max={27}
+            value={newTopicNumber}
+            onChange={setNewTopicNumber}
+            placeholder="Например: 14"
+          />
+        </div>
+      </Modal>
+
+      {/* Модальное окно создания подтемы */}
+      <Modal
+        title="Создать новую подтему"
+        open={showNewSubtopic}
+        onOk={() => {
+          const forTopicId = newSubtopicContext === 'sdamgia' ? sdamgiaTopicId : topicId;
+          handleCreateSubtopic(forTopicId);
+        }}
+        onCancel={() => {
+          setShowNewSubtopic(false);
+          setNewSubtopicName('');
+        }}
+        confirmLoading={creatingSubtopic}
+        okText="Создать"
+        cancelText="Отмена"
+      >
+        <div style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+          Тема: <strong>
+            {(() => {
+              const tid = newSubtopicContext === 'sdamgia' ? sdamgiaTopicId : topicId;
+              const t = localTopics.find(t => t.id === tid);
+              return t ? `${t.ege_number ? `№${t.ege_number} ` : ''}${t.title}` : '—';
+            })()}
+          </strong>
+        </div>
+        <div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Название подтемы</div>
+          <Input
+            value={newSubtopicName}
+            onChange={(e) => setNewSubtopicName(e.target.value)}
+            placeholder="Например: Логарифмические уравнения"
+            onPressEnter={() => {
+              const forTopicId = newSubtopicContext === 'sdamgia' ? sdamgiaTopicId : topicId;
+              handleCreateSubtopic(forTopicId);
+            }}
+          />
+        </div>
+      </Modal>
+    </div>
+  );
+}

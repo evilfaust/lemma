@@ -1,0 +1,379 @@
+import { useState, useCallback, useRef } from 'react';
+import { api } from '../services/pocketbase';
+import { parseMarkdownFile, parseSdamgiaResult, getRandomTagColor } from '../utils/markdownTaskParser';
+
+/**
+ * Хук для импорта задач из markdown файлов.
+ * Управляет состоянием парсинга, маппинга на БД и процессом импорта.
+ */
+export function useTaskImport({ topics = [], tags: existingTags = [], subtopics: existingSubtopics = [] } = {}) {
+  const [parsedData, setParsedData] = useState(null);
+  const [selectedTasks, setSelectedTasks] = useState(new Set());
+  const [topicId, setTopicId] = useState(null);
+  const [subtopicId, setSubtopicId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
+  const [importResults, setImportResults] = useState(null);
+
+  // Кэш тегов: title -> id (для избежания повторных запросов)
+  const tagCacheRef = useRef(new Map());
+  // Ссылка на актуальные теги (обновляется при создании новых)
+  const tagsRef = useRef(existingTags);
+
+  // Обновить ссылку на теги при изменении props
+  if (existingTags !== tagsRef.current && existingTags.length > 0) {
+    tagsRef.current = existingTags;
+    // Перестраиваем кэш
+    tagCacheRef.current = new Map();
+    existingTags.forEach(t => tagCacheRef.current.set(t.title, t.id));
+  }
+
+  /**
+   * Ищет тему по названию из YAML.
+   * Сначала точное совпадение, затем частичное.
+   */
+  const matchTopic = useCallback((topicName) => {
+    if (!topicName || topics.length === 0) return null;
+
+    // Точное совпадение
+    const exact = topics.find(t => t.title === topicName);
+    if (exact) return exact.id;
+
+    // Частичное совпадение (содержит подстроку)
+    const partial = topics.filter(t =>
+      t.title.toLowerCase().includes(topicName.toLowerCase()) ||
+      topicName.toLowerCase().includes(t.title.toLowerCase())
+    );
+    if (partial.length === 1) return partial[0].id;
+
+    // Если несколько — вернём null, пользователь выберет сам
+    return null;
+  }, [topics]);
+
+  /**
+   * Ищет подтему по названию для указанной темы.
+   */
+  const matchSubtopic = useCallback((subtopicName, forTopicId) => {
+    if (!subtopicName || !forTopicId) return null;
+
+    const topicSubtopics = existingSubtopics.filter(st => st.topic === forTopicId);
+    const exact = topicSubtopics.find(st => st.name === subtopicName);
+    if (exact) return exact.id;
+
+    const partial = topicSubtopics.filter(st =>
+      st.name.toLowerCase().includes(subtopicName.toLowerCase())
+    );
+    if (partial.length === 1) return partial[0].id;
+
+    return null;
+  }, [existingSubtopics]);
+
+  /**
+   * Устанавливает parsedData и автоматически подбирает тему/подтему.
+   * Общая логика для handleParse и handleParseSdamgia.
+   */
+  const applyParsedData = useCallback((result) => {
+    setParsedData(result);
+    setImportResults(null);
+
+    // Выбираем все задачи с непустым условием
+    const selected = new Set();
+    result.tasks.forEach((task, i) => {
+      if (task.statement_md && task.statement_md.trim()) {
+        selected.add(i);
+      }
+    });
+    setSelectedTasks(selected);
+
+    // Автоматический маппинг темы
+    const matchedTopicId = matchTopic(result.metadata.topic);
+    setTopicId(matchedTopicId);
+
+    // Автоматический маппинг подтемы
+    if (matchedTopicId && result.metadata.subtopic) {
+      setSubtopicId(matchSubtopic(result.metadata.subtopic, matchedTopicId));
+    } else {
+      setSubtopicId(null);
+    }
+
+    return result;
+  }, [matchTopic, matchSubtopic]);
+
+  /**
+   * Парсит текст markdown и устанавливает начальное состояние.
+   */
+  const handleParse = useCallback((text) => {
+    const result = parseMarkdownFile(text);
+    return applyParsedData(result);
+  }, [applyParsedData]);
+
+  /**
+   * Парсит результат загрузки с sdamgia.ru.
+   * @param {Array} problems — массив от сервера [{ id, condition, answer, images }]
+   * @param {Object} sdamgiaMetadata — { taskNumber, subtopic, difficulty, tagsStr }
+   */
+  const handleParseSdamgia = useCallback((problems, sdamgiaMetadata) => {
+    const result = parseSdamgiaResult(problems, sdamgiaMetadata);
+    return applyParsedData(result);
+  }, [applyParsedData]);
+
+  /**
+   * Переключает выбор задачи.
+   */
+  const toggleTask = useCallback((index) => {
+    setSelectedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAll = useCallback(() => {
+    if (!parsedData) return;
+    const all = new Set();
+    parsedData.tasks.forEach((task, i) => {
+      if (task.statement_md && task.statement_md.trim()) {
+        all.add(i);
+      }
+    });
+    setSelectedTasks(all);
+  }, [parsedData]);
+
+  const deselectAll = useCallback(() => {
+    setSelectedTasks(new Set());
+  }, []);
+
+  /**
+   * Получает или создаёт тег по title.
+   * Использует кэш для минимизации запросов.
+   */
+  const getOrCreateTag = async (title) => {
+    const trimmed = title.trim();
+    if (!trimmed) return null;
+
+    // Проверяем кэш
+    if (tagCacheRef.current.has(trimmed)) {
+      return tagCacheRef.current.get(trimmed);
+    }
+
+    // Ищем через API
+    const existing = await api.findTagByTitle(trimmed);
+    if (existing) {
+      tagCacheRef.current.set(trimmed, existing.id);
+      return existing.id;
+    }
+
+    // Создаём новый тег
+    try {
+      const newTag = await api.createTag({
+        title: trimmed,
+        color: getRandomTagColor(),
+      });
+      tagCacheRef.current.set(trimmed, newTag.id);
+      return newTag.id;
+    } catch (e) {
+      console.error(`Ошибка создания тега "${trimmed}":`, e);
+      return null;
+    }
+  };
+
+  /**
+   * Получает или создаёт подтему.
+   */
+  const getOrCreateSubtopic = async (name, forTopicId) => {
+    if (!name || !forTopicId) return null;
+
+    // Ищем среди существующих
+    const topicSubtopics = existingSubtopics.filter(st => st.topic === forTopicId);
+    const existing = topicSubtopics.find(st => st.name === name);
+    if (existing) return existing.id;
+
+    // Создаём
+    try {
+      const newSubtopic = await api.createSubtopic({
+        name,
+        topic: forTopicId,
+        order: 0,
+      });
+      return newSubtopic.id;
+    } catch (e) {
+      console.error(`Ошибка создания подтемы "${name}":`, e);
+      return null;
+    }
+  };
+
+  /**
+   * Основная функция импорта.
+   * Последовательно создаёт задачи в PocketBase.
+   */
+  const handleImport = useCallback(async () => {
+    if (!parsedData || !topicId || selectedTasks.size === 0) return null;
+
+    setImporting(true);
+    const total = selectedTasks.size;
+    setImportProgress({ current: 0, total });
+
+    const results = { added: 0, skipped: 0, errors: 0, details: [] };
+
+    try {
+      // 1. Загружаем существующие данные одним запросом
+      const existingRecords = await api.getTaskStatementsAndCodes(topicId);
+      const existingStatements = new Set(
+        existingRecords.map(r => (r.statement_md || '').trim())
+      );
+
+      // 2. Определяем следующий код задачи
+      const topic = topics.find(t => t.id === topicId);
+      const egeNumber = topic?.ege_number;
+      if (!egeNumber && egeNumber !== 0) {
+        results.errors = total;
+        results.details.push({ status: 'error', message: 'У темы не указан номер ЕГЭ (ege_number)' });
+        setImportResults(results);
+        setImporting(false);
+        return results;
+      }
+
+      const prefix = `${egeNumber}-`;
+      const existingNumbers = existingRecords
+        .map(r => r.code)
+        .filter(code => code && code.startsWith(prefix))
+        .map(code => {
+          const parts = code.split('-');
+          return parts.length === 2 ? parseInt(parts[1], 10) : 0;
+        })
+        .filter(n => !isNaN(n));
+
+      let nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
+
+      // 3. Получаем или создаём подтему
+      let importSubtopicId = subtopicId;
+      if (!importSubtopicId && parsedData.metadata.subtopic) {
+        importSubtopicId = await getOrCreateSubtopic(parsedData.metadata.subtopic, topicId);
+      }
+
+      // 4. Импортируем задачи
+      const tasksToImport = parsedData.tasks.filter((_, i) => selectedTasks.has(i));
+
+      for (let i = 0; i < tasksToImport.length; i++) {
+        const task = tasksToImport[i];
+        setImportProgress({ current: i + 1, total });
+
+        // Проверяем дубликат
+        if (existingStatements.has(task.statement_md.trim())) {
+          results.skipped++;
+          results.details.push({
+            status: 'skipped',
+            number: task.number,
+            message: `#${task.number}: пропущено (дубликат)`,
+          });
+          continue;
+        }
+
+        // Создаём/находим теги
+        const tagIds = [];
+        for (const tagTitle of task.tags) {
+          const tagId = await getOrCreateTag(tagTitle);
+          if (tagId) tagIds.push(tagId);
+        }
+
+        // Генерируем код
+        const code = `${egeNumber}-${String(nextNumber).padStart(3, '0')}`;
+        nextNumber++;
+
+        // Формируем данные задачи
+        const recordData = {
+          code,
+          topic: topicId,
+          difficulty: task.difficulty || parsedData.metadata.difficulty || '1',
+          statement_md: task.statement_md,
+          answer: task.answer || '',
+          solution_md: '',
+          explanation_md: '',
+          source: parsedData.metadata.source || '',
+          year: parsedData.metadata.year || null,
+          has_image: Boolean(task.imageUrl),
+          image_url: task.imageUrl || '',
+        };
+
+        if (importSubtopicId) {
+          recordData.subtopic = [importSubtopicId];
+        }
+
+        if (tagIds.length > 0) {
+          recordData.tags = tagIds;
+        }
+
+        try {
+          await api.createTask(recordData);
+          results.added++;
+          results.details.push({
+            status: 'added',
+            number: task.number,
+            code,
+            message: `#${task.number}: добавлено с кодом ${code}`,
+          });
+          // Добавляем в set чтобы не было дублей внутри одного файла
+          existingStatements.add(task.statement_md.trim());
+        } catch (e) {
+          results.errors++;
+          results.details.push({
+            status: 'error',
+            number: task.number,
+            message: `#${task.number}: ошибка — ${e.message}`,
+          });
+        }
+      }
+    } catch (e) {
+      results.errors++;
+      results.details.push({
+        status: 'error',
+        message: `Общая ошибка: ${e.message}`,
+      });
+    }
+
+    setImportResults(results);
+    setImporting(false);
+    return results;
+  }, [parsedData, topicId, subtopicId, selectedTasks, topics, existingSubtopics]);
+
+  /**
+   * Сброс состояния для нового импорта.
+   */
+  const reset = useCallback(() => {
+    setParsedData(null);
+    setSelectedTasks(new Set());
+    setTopicId(null);
+    setSubtopicId(null);
+    setImporting(false);
+    setImportProgress({ current: 0, total: 0 });
+    setImportResults(null);
+  }, []);
+
+  return {
+    // Состояние
+    parsedData,
+    selectedTasks,
+    topicId,
+    subtopicId,
+    importing,
+    importProgress,
+    importResults,
+
+    // Сеттеры
+    setTopicId,
+    setSubtopicId,
+
+    // Действия
+    handleParse,
+    handleParseSdamgia,
+    toggleTask,
+    selectAll,
+    deselectAll,
+    handleImport,
+    reset,
+  };
+}
