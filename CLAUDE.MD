@@ -4,15 +4,16 @@
 
 ## Project Overview
 
-This is **EGE Tasks Manager**, a full-stack web application for managing educational tasks for EGE (Russian standardized exam) preparation. The system stores, filters, edits tasks, and generates printable worksheets with LaTeX math support.
+This is **EGE Tasks Manager**, a full-stack web application for managing educational tasks for EGE (Russian standardized exam) preparation. The system stores, filters, edits tasks, generates printable worksheets with LaTeX math support, and includes a theory module.
 
 ## Tech Stack
 
 ### Frontend
 - **React 18.2** with Vite 5.0
-- **Ant Design 5.29** for UI components
+- **Ant Design 5.12** for UI components
 - **KaTeX** for LaTeX math rendering
-- **PocketBase SDK** for API communication
+- **Monaco Editor** for theory article editing
+- **PocketBase SDK 0.21** for API communication
 
 ### Backend
 - **PocketBase** (Backend-as-a-Service)
@@ -35,71 +36,109 @@ This is **EGE Tasks Manager**, a full-stack web application for managing educati
 generation-test/
 ├── ege-tasks/              # Frontend React application
 │   ├── src/
-│   │   ├── components/     # React components
-│   │   │   └── worksheet/  # Reusable worksheet components
-│   │   ├── hooks/          # Custom React hooks
+│   │   ├── components/     # React components (18 main)
+│   │   │   └── worksheet/  # Reusable worksheet components (10)
+│   │   ├── hooks/          # Custom React hooks (11)
 │   │   ├── services/       # API services (pocketbase.js)
-│   │   ├── utils/          # Utility functions
-│   │   ├── App.jsx         # Main app component
+│   │   ├── utils/          # Utility functions (4)
+│   │   ├── App.jsx         # Main app component with routing
 │   │   └── main.jsx        # Entry point
+│   ├── *.js                # Node.js utility scripts
 │   ├── package.json
 │   └── vite.config.js
 ├── pocketbase/             # Backend
 │   ├── pocketbase          # Executable
-│   ├── pb_data/           # Database and storage
-│   ├── pb_migrations/     # Database migrations
-│   ├── pb_hooks/          # PocketBase JS hooks
-│   ├── pdf-service.js     # PDF generation service (Node.js)
-│   ├── package.json       # Node.js dependencies
-│   ├── start-all.sh       # Startup script
-│   └── code.js            # Legacy hooks
-├── source/                # Source markdown files for tasks
-├── pb_parser.py          # Main parser for markdown tasks
-└── pb_parser_mordkovich.py  # Specialized parser
+│   ├── pb_data/            # Database and storage
+│   ├── pb_migrations/      # Database migrations (33 files)
+│   ├── pb_hooks/           # PocketBase JS hooks
+│   ├── pdf-service.js      # PDF generation service (Node.js)
+│   ├── package.json        # Node.js dependencies
+│   └── start-all.sh        # Startup script
+├── source/                 # Source markdown files for tasks
+├── backups/                # Database backups
+├── start.sh                # Start all services
+├── stop.sh                 # Stop all services
+├── backup.sh               # Backup database
+├── package.json            # Root package.json (concurrently)
+├── pb_parser.py            # Main parser for markdown tasks
+├── pb_parser_mordkovich.py # Specialized parser for Mordkovich
+└── pb_parser_theory.py     # Parser for theory articles
 ```
 
 ## Key Components
 
 ### Frontend Components (ege-tasks/src/components/)
 
-**Main Components:**
-- `TaskList.jsx` - Main task list with filtering
+**Task Management:**
+- `TaskList.jsx` - Main task list with filtering, sorting, bulk operations, external filter support
 - `TaskCard.jsx` - Individual task card display
-- `TaskEditModal.jsx` - Task editing modal
-- `WorksheetGenerator.jsx` - Worksheet/card generator (A5/A6 cards) with font sizes 10-21px
-- `PrintableWorksheet.jsx` - Print-optimized worksheet view
+- `TaskFilters.jsx` - Filter panel (topic, subtopic, tag, difficulty, year, source, image)
+- `TaskEditModal.jsx` - Task editing modal with metadata
+- `TaskReplaceModal.jsx` - Modal for replacing tasks in variants (with duplicate exclusion)
+- `TaskImporter.jsx` - Import tasks from markdown/YAML files
+- `TaskStatsDashboard.jsx` - Analytics dashboard (by topics, subtopics, tags, difficulty, sources; tag cloud)
+- `TaskCatalogManager.jsx` - Catalog manager with CRUD for topics/subtopics/tags/sources, duplicate detection, merge
+
+**Worksheet Generators:**
+- `WorksheetGenerator.jsx` - Card generator (A5/A6/A4 formats) with font sizes 10-21px
 - `OralWorksheetGenerator.jsx` - "Устный счет" (Oral exam) worksheet generator with:
-  - Tag-based task distribution
+  - Tag/difficulty-based task distribution
   - Compact mode for maximum tasks per page
   - Drag & drop task reordering within and between variants
   - Font sizes: 10pt, 12pt, 14pt, 16pt, 20pt
   - Grid layout (1-3 columns) for multiple variants per page
-  - PDF export with html2pdf.js
-  - Filter to hide common task prefixes ("Вычислите:", "Найдите значение выражения" etc.)
-- `TestWorkGenerator.jsx` - **NEW** - Генератор контрольных работ:
-  - Конструктор структуры работы с блоками задач из разных тем
-  - Гибкие фильтры для каждого блока (тема, подтемы, сложность, теги)
-  - 3 режима генерации: разные задачи / перемешанные / одинаковые
-  - Drag & drop задач между вариантами
-  - Сохранение/загрузка работ в БД
-  - Экспорт в PDF
-  - Все возможности форматирования (компактный режим, шрифты, колонки)
-- `MathRenderer.jsx` - LaTeX (KaTeX) and Markdown (react-markdown + remark-gfm) rendering (supports tables, lists, formulas)
+  - PDF export (Puppeteer + html2pdf.js fallback)
+  - Filter to hide common task prefixes
+- `TestWorkGenerator.jsx` - Test/exam work generator:
+  - Multi-topic work structure with task blocks
+  - Independent filters per block (topic, subtopics, difficulty, tags)
+  - 3 generation modes: different / shuffled / same
+  - Progressive difficulty option
+  - Drag & drop tasks between variants
+  - Save/load works to DB
+  - PDF export with all formatting options
+- `PrintableWorksheet.jsx` - Print-optimized worksheet view
+
+**Rendering:**
+- `MathRenderer.jsx` - LaTeX (KaTeX) and Markdown (react-markdown + remark-gfm) rendering (tables, lists, formulas)
+
+**Theory Module:**
+- `TheoryBrowser.jsx` - Browse theory articles by categories
+- `TheoryEditor.jsx` - Edit theory articles (Monaco editor)
+- `TheoryArticleView.jsx` - View single theory article
+- `TheoryCategoryManager.jsx` - Manage theory categories
+- `TheoryPrintBuilder.jsx` - Print builder for theory summaries
 
 **Reusable Worksheet Components (ege-tasks/src/components/worksheet/):**
-- `FilterBlock.jsx` - Переиспользуемый блок фильтров для подбора задач
-- `VariantSettings.jsx` - Настройки генерации вариантов
-- `FormatSettings.jsx` - Настройки форматирования для печати
+- `FilterBlock.jsx` - Universal filter block for task selection (topic, subtopic, difficulty, tags, source, year)
+- `VariantSettings.jsx` - Variant generation settings (count, mode, sort type, progressive difficulty)
+- `FormatSettings.jsx` - Print formatting settings (columns, font size, compact mode, prefixes, answers)
+- `VariantRenderer.jsx` - Render variant with tasks and numbering
+- `VariantStats.jsx` - Variant statistics (task count, average difficulty)
+- `AnswersPage.jsx` - Answers page for printing
+- `DistributionPanel.jsx` - Task distribution panel (by tag or difficulty)
+- `ActionButtons.jsx` - Action buttons (print, PDF, save, load)
+- `SaveWorkModal.jsx` - Modal for saving work to DB
+- `LoadWorkModal.jsx` - Modal for loading saved work
 
 ### Custom Hooks (ege-tasks/src/hooks/)
-- `useWorksheetGeneration.js` - Универсальная логика генерации вариантов с задачами
-- `useTaskDragDrop.js` - Drag & drop задач между вариантами
-- `useWorksheetActions.js` - Действия с работами (печать, PDF, сохранение, загрузка)
-- `usePuppeteerPDF.js` - **NEW** - Высококачественный PDF экспорт через Puppeteer
-- `useMarkdownProcessor.js` - Обработка markdown
+- `useWorksheetGeneration.js` - Universal variant generation logic (multi-topic blocks, deduplication, 3 modes, progressive difficulty)
+- `useTaskDragDrop.js` - Drag & drop tasks between variants
+- `useWorksheetActions.js` - Work actions (print, PDF, save/update/load/delete works)
+- `usePuppeteerPDF.js` - High-quality PDF export via Puppeteer service
+- `useTaskEditing.js` - Task editing logic with validation
+- `useDistribution.js` - Task distribution management (by tag or difficulty field)
+- `useTaskImport.js` - Task import logic from markdown/YAML
+- `useMarkdownProcessor.js` - Markdown processing
 - `useKeyboardShortcuts.js` - Keyboard shortcuts
-- `useDocumentStats.js` - Статистика документов
-- `useAutosave.js` - Автосохранение
+- `useDocumentStats.js` - Document statistics
+- `useAutosave.js` - Autosave and restore
+
+### Utility Functions (ege-tasks/src/utils/)
+- `theoryThemes.js` - Theory theme configuration and page sizes for printing
+- `filterTaskText.js` - Filter common task prefixes ("Вычислите:", "Найдите значение выражения" etc.)
+- `taskCodeGenerator.js` - Task code generator (format: `{topic}-{number}`)
+- `markdownTaskParser.js` - Markdown task parser with YAML frontmatter support
 
 ### Database Collections (PocketBase)
 
@@ -166,25 +205,45 @@ generation-test/
 }
 ```
 
-**variants** - Test variants
+**works** - Saved test works
 ```javascript
 {
   id: string,
+  title: string,
+  topic: relation,
+  created: datetime
+}
+```
+
+**variants** - Test variants (linked to works)
+```javascript
+{
+  id: string,
+  work: relation,       // Link to works
   title: string,
   tasks: relation[],    // Array of task IDs
   created: datetime
 }
 ```
 
-**works** - Student works/submissions
+**theory_categories** - Theory article categories
 ```javascript
 {
   id: string,
-  variant: relation,
-  student_name: string,
-  answers: json,        // Student answers
-  score: number,
-  created: datetime
+  title: string,
+  order: number
+}
+```
+
+**theory_articles** - Theory articles
+```javascript
+{
+  id: string,
+  title: string,
+  category: relation,   // Link to theory_categories
+  content: text,        // Article content (Markdown + LaTeX)
+  tags: relation[],     // Links to tags
+  order: number
 }
 ```
 
@@ -206,7 +265,7 @@ generation-test/
 
 ### Task Codes
 Format: `{topic_number}-{sequence}` (e.g., "14-001", "16-023")
-Generated automatically by `generate_task_code.py`
+Generated automatically by `taskCodeGenerator.js` or `generate_task_code.py`
 
 ### Worksheet Formats
 - `a6` - 4 cards per A4 sheet
@@ -217,30 +276,24 @@ Generated automatically by `generate_task_code.py`
 
 ### Running the Application
 ```bash
-# Start Backend (PocketBase + PDF Service)
+# Start everything (from project root)
+./start.sh              # Or: npm run dev
+./start.sh --no-pdf     # Without PDF service
+
+# Start Backend only (PocketBase + PDF Service)
 cd pocketbase
-npm install         # First time only
-npm run dev         # Runs both services
-# PocketBase: http://127.0.0.1:8090
-# PDF Service: http://localhost:3001
+npm run dev
 
-# Or manually:
-# Terminal 1: ./pocketbase serve
-# Terminal 2: node pdf-service.js
-
-# Start React frontend
+# Start React frontend only
 cd ege-tasks
-npm install
 npm run dev  # Runs on http://localhost:5173
 ```
 
 ### Parsing Tasks from Markdown
 ```bash
-# Standard parser
-python pb_parser.py
-
-# Mordkovich textbook parser
-python pb_parser_mordkovich.py
+python pb_parser.py              # Standard parser
+python pb_parser_mordkovich.py   # Mordkovich textbook parser
+python pb_parser_theory.py       # Theory articles parser
 ```
 
 ### Working with Database
@@ -256,33 +309,55 @@ python pb_parser_mordkovich.py
 - `fix-latex-braces.js` - Fix LaTeX brace formatting
 - `link-tasks-to-subtopics.js` - Link tasks to subtopics
 - `migrate-images.js` - Migrate image files
+- `migrate-subtopics.js` - Migrate subtopics
 - `update-empty-subtopics.js` - Update tasks with empty subtopics
+- `update-subtopics-array.js` - Update subtopics arrays
+
+### Python Utility Scripts (in project root)
+- `pb_parser.py` - Main parser for markdown tasks
+- `pb_parser_mordkovich.py` - Mordkovich textbook parser
+- `pb_parser_theory.py` - Theory articles parser
+- `generate_task_code.py` - Task code generator
+- `fix-markdown-latex.py` - Fix LaTeX formatting
+- `fix-parsed-fractions.py` - Fix fraction formatting
+- `fix-m17-topic.py` - Fix topic M17
+- `fix-tag-6kl-to-7kl.py` - Migrate tags 6kl to 7kl
+- `fix_tags.py` - Fix tags
+- `fix_task2_tables.py` - Fix task2 tables
+- `add_tag_colors.py` - Add colors to tags
+- `recolor_tags.py` - Recolor tags
+- `delete-duplicate-codes.py` - Delete duplicate codes
+- `renumber_ustno.py` - Renumber oral tasks
+- `sync_tags.py` - Synchronize tags
 
 ## API Service (ege-tasks/src/services/pocketbase.js)
 
 Key functions:
-- `getTopics()` - Fetch all topics
-- `getSubtopics(topicId)` - Fetch subtopics for a topic
-- `getTasks(filters)` - Fetch tasks with filters
-- `getRandomTasks(count, filters)` - Get random tasks
-- `createCard(data)` - Create worksheet card
-- `updateTask(id, data)` - Update task
-- `deleteTask(id)` - Delete task
+- **Topics:** `getTopics()`, `getTopic(id)`, `createTopic(data)`, `updateTopic(id, data)`
+- **Subtopics:** `getSubtopics(topicId)`, `createSubtopic(data)`, `updateSubtopic(id, data)`, `deleteSubtopic(id)`
+- **Tags:** `getTags()`, `createTag(data)`, `updateTag(id, data)`, `deleteTag(id)`, `findTagByTitle(title)`
+- **Tasks:** `getTasks(filters)`, `getTask(id)`, `createTask(data)`, `updateTask(id, data)`, `deleteTask(id)`, `getRandomTasks(count, filters)`, `getRandomTasksWithoutRepetition(count, filters, excludeIds)`, `getTasksWithProgressiveDifficulty(count, filters, excludeIds)`, `getTaskStatementsAndCodes(topicId)`
+- **Cards:** `getCards()`, `getCard(id)`, `createCard(data)`, `updateCard(id, data)`, `deleteCard(id)`
+- **Works:** `getWorks()`, `getWork(id)`, `createWork(data)`, `updateWork(id, data)`, `deleteWork(id)`
+- **Variants:** `getVariantsByWork(workId)`, `getVariant(id)`, `createVariant(data)`, `updateVariant(id, data)`, `deleteVariant(id)`
+- **Theory:** `getTheoryCategories()`, `createTheoryCategory(data)`, `updateTheoryCategory(id, data)`, `deleteTheoryCategory(id)`, `getTheoryArticles(filters)`, `getTheoryArticle(id)`, `createTheoryArticle(data)`, `updateTheoryArticle(id, data)`, `deleteTheoryArticle(id)`, `getTheoryArticleCountByCategory()`
+- **Stats:** `getUniqueYears()`, `getUniqueSources()`, `getTasksStatsSnapshot()`
 
-## Recent Changes (from git log)
+## App Navigation (App.jsx views)
 
-Latest commits:
-1. **Feat: Добавлен генератор контрольных работ (TestWorkGenerator)**
-   - Создан новый компонент для составления контрольных работ с задачами из разных тем
-   - Выделены переиспользуемые хуки: useWorksheetGeneration, useTaskDragDrop, useWorksheetActions
-   - Созданы переиспользуемые UI компоненты: FilterBlock, VariantSettings, FormatSettings
-   - Добавлена возможность создавать блоки задач с индивидуальными фильтрами для каждой темы
-   - Интегрирован в главное меню приложения
-2. Fix: Added Button import to PrintableWorksheet
-3. Feat: Improved printable worksheet form
-4. Fix: Excluded duplicate tasks within variants when replacing
-5. Feat: Added filters to task replacement modal
-6. Fix: Fixed subtopic filtering for Multiple relation
+| View Key | Label | Component | Description |
+|----------|-------|-----------|-------------|
+| `tasks` | Все задачи | TaskList | Browse, filter, edit, bulk operations |
+| `stats` | Статистика | TaskStatsDashboard | Analytics by topics, tags, difficulty |
+| `catalog` | Каталог | TaskCatalogManager | CRUD topics/subtopics/tags, duplicates |
+| `generator` | Генератор | OralWorksheetGenerator | Oral exam worksheets |
+| `test-generator` | Контрольные работы | TestWorkGenerator | Test/exam work generator |
+| `import` | Импорт задач | TaskImporter | Import from markdown |
+| `theory-browser` | Библиотека | TheoryBrowser | Browse theory articles |
+| `theory-editor` | Редактор | TheoryEditor | Edit articles (Monaco) |
+| `theory-view` | Просмотр | TheoryArticleView | View article |
+| `theory-print` | Конспекты | TheoryPrintBuilder | Print theory summaries |
+| `theory-categories` | Категории | TheoryCategoryManager | Manage categories |
 
 ## Known Issues & Patterns
 
@@ -301,6 +376,10 @@ Latest commits:
 - Filter by topic/subtopic for relevant replacements
 - Maintain difficulty level when replacing
 
+### Distribution Sorting
+- Tag distribution preserves tag grouping (sort only on random)
+- Difficulty distribution preserves ascending order (never shuffle)
+
 ## File Locations Reference
 
 ### Key Files to Modify
@@ -310,26 +389,14 @@ Latest commits:
 - API service: `ege-tasks/src/services/pocketbase.js`
 - Main app: `ege-tasks/src/App.jsx`
 - Styles: `ege-tasks/src/App.css`
-- Backend hooks: `pocketbase/code.js`
+- Backend hooks: `pocketbase/pb_hooks/*.js`
 - Migrations: `pocketbase/pb_migrations/*.js`
 
 ### Configuration Files
 - Frontend env: `ege-tasks/.env` (VITE_PB_URL)
 - Vite config: `ege-tasks/vite.config.js`
 - Package deps: `ege-tasks/package.json`
-
-## Python Scripts
-
-### pb_parser.py
-Main parser for loading tasks from markdown files
-- Reads YAML frontmatter for metadata
-- Parses task statements and answers
-- Handles images
-- Checks for duplicates
-- Authenticates with PocketBase admin
-
-### fix-markdown-latex.py
-Fixes LaTeX formatting issues in markdown files
+- Root package: `package.json` (concurrently scripts)
 
 ## Development Notes
 
@@ -339,6 +406,7 @@ Fixes LaTeX formatting issues in markdown files
 3. API changes should update `ege-tasks/src/services/pocketbase.js`
 4. Always test LaTeX rendering after text changes
 5. Check print preview for worksheet modifications
+6. Use existing reusable hooks and worksheet components
 
 ### Testing Checklist
 - Task filtering works correctly
@@ -347,6 +415,7 @@ Fixes LaTeX formatting issues in markdown files
 - Print layout maintains formatting
 - Random task selection avoids duplicates
 - Task editing saves all fields
+- Build succeeds: `cd ege-tasks && npm run build`
 
 ### Code Style
 - React components use JSX
@@ -365,27 +434,32 @@ VITE_PB_URL=http://127.0.0.1:8090
 ## Quick Reference Commands
 
 ```bash
+# All services (from root)
+npm run dev              # Start everything
+npm run dev:no-pdf       # Without PDF service
+npm run install:all      # Install all dependencies
+
 # Frontend
 cd ege-tasks
-npm run dev          # Development server
-npm run build        # Production build
-npm run preview      # Preview production build
+npm run dev              # Development server
+npm run build            # Production build
+npm run preview          # Preview production build
 
 # Backend
 cd pocketbase
-./pocketbase serve   # Start server
-./pocketbase migrate # Run migrations
+npm run dev              # PocketBase + PDF service
+npm run start            # PocketBase only
+npm run pdf              # PDF service only
 
 # Utilities
 python pb_parser.py                # Parse markdown tasks
 python pb_parser_mordkovich.py     # Parse Mordkovich tasks
-node ege-tasks/check-tasks.js      # Verify tasks
-node ege-tasks/link-tasks-to-subtopics.js  # Link subtopics
+python pb_parser_theory.py         # Parse theory articles
 ```
 
 ## PDF Export System
 
-### High-Quality PDF Generation (NEW)
+### High-Quality PDF Generation
 - **Method:** Puppeteer (headless Chrome)
 - **Service:** Standalone Node.js on port 3001
 - **Quality:** Perfect KaTeX rendering, vector text
@@ -424,6 +498,9 @@ await puppeteerPDF.exportToPDF(printRef, 'filename', options);
 10. **Markdown files** in `source/` are named by topic number
 11. **PDF Service** must be running for high-quality PDF export
 12. **Puppeteer PDF** - use `usePuppeteerPDF` hook for PDF generation
+13. **Theory module** has its own components, categories, and articles
+14. **Reuse hooks** when building new generators (useWorksheetGeneration, useTaskDragDrop, useWorksheetActions)
+15. **Reuse worksheet components** from `worksheet/` directory
 
 ## Related Documentation
 
@@ -432,4 +509,5 @@ await puppeteerPDF.exportToPDF(printRef, 'filename', options);
 - `CHANGELOG.md` - История изменений
 - `PDF_EXPORT_UPGRADE.md` - Подробно о PDF экспорте через Puppeteer
 - `QUICK_START.md` - Быстрый старт для разработчиков
+- `START_GUIDE.md` - Руководство по запуску
 - `TEST_AND_COMMIT.md` - Инструкции по тестированию и коммитам
