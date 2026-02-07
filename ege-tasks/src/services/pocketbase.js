@@ -351,6 +351,35 @@ export const api = {
     }
   },
 
+  // ============ ИМПОРТ ЗАДАЧ ============
+
+  // Поиск тега по title
+  async findTagByTitle(title) {
+    try {
+      const records = await pb.collection('tags').getFullList({
+        filter: `title = "${title}"`,
+      });
+      return records.length > 0 ? records[0] : null;
+    } catch (error) {
+      console.error('Error finding tag:', error);
+      return null;
+    }
+  },
+
+  // Получить statement_md и code всех задач темы (для проверки дубликатов и генерации кодов)
+  async getTaskStatementsAndCodes(topicId) {
+    try {
+      const records = await pb.collection('tasks').getFullList({
+        filter: `topic = "${topicId}"`,
+        fields: 'statement_md,code',
+      });
+      return records;
+    } catch (error) {
+      console.error('Error fetching task statements:', error);
+      return [];
+    }
+  },
+
   // ============ МЕТАДАННЫЕ ============
 
   // Получить уникальные годы из задач
@@ -377,6 +406,19 @@ export const api = {
       return sources.sort();
     } catch (error) {
       console.error('Error fetching sources:', error);
+      return [];
+    }
+  },
+
+  // Получить минимальные поля задач для статистики
+  async getTasksStatsSnapshot() {
+    try {
+      const records = await pb.collection('tasks').getFullList({
+        fields: 'id,topic,subtopic,tags,difficulty,answer,solution_md,has_image,source',
+      });
+      return records;
+    } catch (error) {
+      console.error('Error fetching tasks stats snapshot:', error);
       return [];
     }
   },

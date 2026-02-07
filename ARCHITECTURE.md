@@ -60,6 +60,7 @@ await generateFromStructure(
     variantsMode: 'different',  // 'different' | 'shuffled' | 'same'
     variantsCount: 2,           // Количество вариантов
     sortType: 'random',         // 'random' | 'code' | 'difficulty'
+    progressiveDifficulty: false, // Автоматическая прогрессия сложности
   }
 );
 ```
@@ -157,6 +158,7 @@ const {
   handlePrint,          // Функция печати
   handleExportPDF,      // Экспорт в PDF
   handleSaveWork,       // Сохранение в БД
+  handleUpdateWork,     // Обновление сохранённой работы
   handleLoadWorks,      // Загрузка списка работ
   handleLoadWork,       // Загрузка конкретной работы
   handleDeleteWork,     // Удаление работы
@@ -288,6 +290,17 @@ setVariants(variants);
 ```
 
 ---
+
+### `TaskStatsDashboard`
+
+**Назначение:** Дашборд аналитики по задачам
+
+**Расположение:** `src/components/TaskStatsDashboard.jsx`
+
+**Функции:**
+- Подсчёт задач по темам, подтемам, тегам, сложности и источникам
+- Облако тегов с переходом к задачам по клику
+- Выявление «белых пятен» по темам и подтемам
 
 ## Генераторы
 

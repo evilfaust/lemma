@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Modal, Form, Input, InputNumber, Button, Space, Alert } from 'antd';
 import { SaveOutlined } from '@ant-design/icons';
 
@@ -11,6 +12,8 @@ import { SaveOutlined } from '@ant-design/icons';
  * @param {number} variantsCount - количество вариантов
  * @param {number} tasksCount - общее количество задач
  * @param {string} initialTitle - начальное название работы
+ * @param {number|null} initialTimeLimit - начальное время (мин)
+ * @param {boolean} isEdit - режим редактирования
  */
 const SaveWorkModal = ({
   visible,
@@ -20,13 +23,26 @@ const SaveWorkModal = ({
   variantsCount = 0,
   tasksCount = 0,
   initialTitle = 'Контрольная работа',
+  initialTimeLimit = null,
+  isEdit = false,
 }) => {
+  const [form] = Form.useForm();
+
+  useEffect(() => {
+    if (visible) {
+      form.setFieldsValue({
+        title: initialTitle,
+        timeLimit: initialTimeLimit,
+      });
+    }
+  }, [visible, initialTitle, initialTimeLimit, form]);
+
   return (
     <Modal
       title={
         <Space>
           <SaveOutlined />
-          <span>Сохранить работу</span>
+          <span>{isEdit ? 'Сохранить изменения' : 'Сохранить работу'}</span>
         </Space>
       }
       open={visible}
@@ -35,16 +51,17 @@ const SaveWorkModal = ({
       width={500}
     >
       <Form
+        form={form}
         layout="vertical"
         onFinish={onSave}
-        initialValues={{
-          title: initialTitle,
-          timeLimit: null,
-        }}
       >
         <Alert
           message="Информация"
-          description={`Будет сохранено ${variantsCount} вариант(ов) с общим количеством ${tasksCount} задач.`}
+          description={
+            isEdit
+              ? `Изменения будут применены к ${variantsCount} вариант(ам) с общим количеством ${tasksCount} задач.`
+              : `Будет сохранено ${variantsCount} вариант(ов) с общим количеством ${tasksCount} задач.`
+          }
           type="info"
           showIcon
           style={{ marginBottom: 16 }}

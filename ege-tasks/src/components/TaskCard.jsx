@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Tag, Space, Typography, Divider, Image, Button, Select, message, Badge } from 'antd';
+import { Card, Tag, Space, Typography, Divider, Image, Button, Select, message, Badge, Checkbox } from 'antd';
 import { 
   CheckCircleOutlined, 
   CloseCircleOutlined,
@@ -14,7 +14,7 @@ import { api } from '../services/pocketbase';
 const { Text, Paragraph } = Typography;
 const { Option } = Select;
 
-const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics, onUpdate }) => {
+const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics, onUpdate, selected = false, onSelect }) => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [changingDifficulty, setChangingDifficulty] = useState(false);
 
@@ -83,6 +83,11 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
         style={{ height: '100%' }}
         title={
           <Space>
+            <Checkbox
+              checked={selected}
+              onChange={(e) => onSelect?.(task.id, e.target.checked)}
+              onClick={(e) => e.stopPropagation()}
+            />
             <Text strong>{task.code}</Text>
             {task.expand?.topic && (
               <Tag color="blue">№{task.expand.topic.ege_number}</Tag>
@@ -251,4 +256,3 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
 };
 
 export default TaskCard;
-

@@ -91,6 +91,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   const [loadModalVisible, setLoadModalVisible] = useState(false);
   const [savedWorks, setSavedWorks] = useState([]);
   const [loadingWorks, setLoadingWorks] = useState(false);
+  const [currentWork, setCurrentWork] = useState(null);
+  const [progressiveDifficulty, setProgressiveDifficulty] = useState(false);
 
   // Счётчик доступных задач
   const [availableTasksCount, setAvailableTasksCount] = useState(0);
@@ -159,6 +161,10 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     const tasksPerVariant = values.tasksPerVariant || 20;
 
     // Валидация распределений
+    if (values.progressiveDifficulty && (tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0)) {
+      message.warning('Автопрогрессия несовместима с ручным распределением по тегам/сложности');
+      return;
+    }
     if (tagDistribution.items.length > 0) {
       if (!tagDistribution.validate(tasksPerVariant)) return;
     }
@@ -185,6 +191,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       sortType: values.sortType || 'random',
       tagDistribution: tagDistribution.items.length > 0 ? tagDistribution.items : undefined,
       difficultyDistribution: difficultyDistribution.items.length > 0 ? difficultyDistribution.items : undefined,
+      progressiveDifficulty: values.progressiveDifficulty || false,
       getLabelForTag: (tagId) => availableTags.find(t => t.id === tagId)?.title || tagId,
       getLabelForDifficulty: (val) => difficultyOptions.find(o => o.value === val)?.label || val,
     });
@@ -197,6 +204,8 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
     tagDistribution.reset();
     difficultyDistribution.reset();
     form.resetFields();
+    setCurrentWork(null);
+    setProgressiveDifficulty(false);
   };
 
   const handleFormValuesChange = (changedValues) => {
@@ -213,7 +222,11 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
   // Обработчики сохранения/загрузки через useWorksheetActions
   const handleSaveWork = async (values) => {
     const topic = form.getFieldValue('topic') || null;
-    await worksheetActions.handleSaveWork({ ...values, topic }, variants);
+    if (currentWork?.id) {
+      await worksheetActions.handleUpdateWork(currentWork.id, { ...values, topic }, variants);
+    } else {
+      await worksheetActions.handleSaveWork({ ...values, topic }, variants);
+    }
     setSaveModalVisible(false);
   };
 
@@ -234,6 +247,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
       const { work, variants: loadedVariants } = await worksheetActions.handleLoadWork(workId);
       setVariants(loadedVariants);
       form.setFieldsValue({ workTitle: work.title, topic: work.topic });
+      setCurrentWork(work);
       setLoadModalVisible(false);
       message.success(`Работа "${work.title}" успешно загружена`);
     } finally {
@@ -292,6 +306,7 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
             variantsMode: 'different',
             tasksPerVariant: 20,
             workTitle: 'Лист задач',
+            progressiveDifficulty: false,
           }}
         >
           <Collapse defaultActiveKey={['filters', 'tags', 'variants', 'format']}>
@@ -517,7 +532,22 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
                 />
               )}
 
-              {selectedTopic && tagDistribution.items.length === 0 && (
+              <Form.Item name="progressiveDifficulty" valuePropName="checked">
+                <Space>
+                  <Switch
+                    checked={progressiveDifficulty}
+                    onChange={(checked) => {
+                      setProgressiveDifficulty(checked);
+                      if (checked) {
+                        difficultyDistribution.reset();
+                      }
+                    }}
+                  />
+                  <span>Автопрогрессия сложности</span>
+                </Space>
+              </Form.Item>
+
+              {selectedTopic && tagDistribution.items.length === 0 && !progressiveDifficulty && (
                 <DistributionPanel
                   items={difficultyDistribution.items}
                   options={difficultyOptions}
@@ -905,7 +935,9 @@ const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics 
         saving={worksheetActions.saving}
         variantsCount={variants.length}
         tasksCount={variants.reduce((sum, v) => sum + v.tasks.length, 0)}
-        initialTitle="Лист задач"
+        initialTitle={currentWork?.title || 'Лист задач'}
+        initialTimeLimit={currentWork?.time_limit ?? null}
+        isEdit={!!currentWork?.id}
       />
 
       <LoadWorkModal

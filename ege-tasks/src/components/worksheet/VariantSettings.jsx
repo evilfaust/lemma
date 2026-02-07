@@ -1,4 +1,4 @@
-import { Row, Col, Form, Select, InputNumber } from 'antd';
+import { Row, Col, Form, Select, InputNumber, Switch } from 'antd';
 
 const { Option } = Select;
 
@@ -12,6 +12,8 @@ const VariantSettings = ({
   setVariantsMode,
   sortType,
   setSortType,
+  progressiveDifficulty,
+  setProgressiveDifficulty,
   showTasksCount = true,
   tasksPerVariant,
 }) => {
@@ -49,6 +51,17 @@ const VariantSettings = ({
             </Select>
           </Form.Item>
         </Col>
+
+        {typeof progressiveDifficulty === 'boolean' && (
+          <Col xs={24} md={8}>
+            <Form.Item label="Автопрогрессия сложности">
+              <Switch
+                checked={progressiveDifficulty}
+                onChange={setProgressiveDifficulty}
+              />
+            </Form.Item>
+          </Col>
+        )}
       </Row>
 
       {showTasksCount && tasksPerVariant > 0 && (

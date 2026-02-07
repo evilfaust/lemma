@@ -60,6 +60,7 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
     handlePrint,
     handleExportPDF,
     handleSaveWork,
+    handleUpdateWork,
     handleLoadWorks,
     handleLoadWork,
     handleDeleteWork,
@@ -73,6 +74,7 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
   const [variantsCount, setVariantsCount] = useState(1);
   const [variantsMode, setVariantsMode] = useState('different');
   const [sortType, setSortType] = useState('random');
+  const [progressiveDifficulty, setProgressiveDifficulty] = useState(false);
 
   // Настройки формата
   const [columns, setColumns] = useState(1);
@@ -90,6 +92,7 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
   const [loadModalVisible, setLoadModalVisible] = useState(false);
   const [savedWorks, setSavedWorks] = useState([]);
   const [loadingWorks, setLoadingWorks] = useState(false);
+  const [currentWork, setCurrentWork] = useState(null);
 
   /**
    * Добавление нового блока фильтров
@@ -180,6 +183,7 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
       variantsMode,
       variantsCount,
       sortType,
+      progressiveDifficulty,
     });
   };
 
@@ -190,13 +194,18 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
     reset();
     setWorkBlocks([]);
     form.resetFields();
+    setCurrentWork(null);
   };
 
   /**
    * Сохранение работы
    */
   const handleSave = async (values) => {
-    await handleSaveWork(values, variants);
+    if (currentWork?.id) {
+      await handleUpdateWork(currentWork.id, values, variants);
+    } else {
+      await handleSaveWork(values, variants);
+    }
     setSaveModalVisible(false);
   };
 
@@ -222,6 +231,7 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
       form.setFieldsValue({
         workTitle: work.title,
       });
+      setCurrentWork(work);
       setLoadModalVisible(false);
       message.success(`Работа "${work.title}" успешно загружена`);
     } finally {
@@ -355,6 +365,8 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
                 setVariantsMode={setVariantsMode}
                 sortType={sortType}
                 setSortType={setSortType}
+                progressiveDifficulty={progressiveDifficulty}
+                setProgressiveDifficulty={setProgressiveDifficulty}
                 showTasksCount={true}
                 tasksPerVariant={getTotalTaskCount()}
               />
@@ -482,6 +494,9 @@ const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }
         saving={saving}
         variantsCount={variants.length}
         tasksCount={variants.reduce((sum, v) => sum + v.tasks.length, 0)}
+        initialTitle={currentWork?.title || 'Контрольная работа'}
+        initialTimeLimit={currentWork?.time_limit ?? null}
+        isEdit={!!currentWork?.id}
       />
 
       <LoadWorkModal

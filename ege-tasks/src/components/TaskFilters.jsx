@@ -4,7 +4,18 @@ import { FilterOutlined, ClearOutlined, SearchOutlined, CloseCircleOutlined, Sor
 
 const { Option } = Select;
 
-const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], onFilterChange, totalCount, onCreateTask }) => {
+const TaskFilters = ({
+  topics,
+  tags,
+  years = [],
+  sources = [],
+  subtopics = [],
+  onFilterChange,
+  totalCount,
+  onCreateTask,
+  initialFilters = null,
+  initialFiltersToken = 0,
+}) => {
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({});
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -38,6 +49,26 @@ const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], o
     setFilters(newFilters);
     onFilterChange(newFilters);
   }, [onFilterChange]);
+
+  const buildFormValuesFromFilters = (filters) => {
+    if (!filters) return {};
+    const values = { ...filters };
+    if (filters.hasAnswer !== undefined) {
+      values.hasAnswer = filters.hasAnswer ? 'yes' : 'no';
+    }
+    if (filters.hasSolution !== undefined) {
+      values.hasSolution = filters.hasSolution ? 'yes' : 'no';
+    }
+    return values;
+  };
+
+  useEffect(() => {
+    if (!initialFiltersToken) return;
+    const values = buildFormValuesFromFilters(initialFilters);
+    form.setFieldsValue(values);
+    setSelectedTopic(values.topic || null);
+    applyFilters(values);
+  }, [initialFiltersToken]);
 
   // Обработчик изменения любого поля
   const handleFieldChange = (changedValues, allValues) => {
@@ -376,4 +407,3 @@ const TaskFilters = ({ topics, tags, years = [], sources = [], subtopics = [], o
 };
 
 export default TaskFilters;
-

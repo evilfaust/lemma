@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { Layout, Menu, ConfigProvider, theme, message } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
+import TaskStatsDashboard from './components/TaskStatsDashboard';
 import TheoryBrowser from './components/TheoryBrowser';
 import TheoryEditor from './components/TheoryEditor';
 import TheoryArticleView from './components/TheoryArticleView';
 import TheoryCategoryManager from './components/TheoryCategoryManager';
 import TheoryPrintBuilder from './components/TheoryPrintBuilder';
+import TaskImporter from './components/TaskImporter';
 import { api } from './services/pocketbase';
 import 'katex/dist/katex.min.css';
 import './App.css';
@@ -24,6 +26,8 @@ function App() {
   const [subtopics, setSubtopics] = useState([]);
   const [theoryCategories, setTheoryCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
+  const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
 
   // State for theory navigation
   const [editingArticleId, setEditingArticleId] = useState(null);
@@ -65,6 +69,11 @@ function App() {
       label: 'Все задачи',
     },
     {
+      key: 'stats',
+      icon: <PieChartOutlined />,
+      label: 'Статистика',
+    },
+    {
       key: 'generator',
       icon: <FileSearchOutlined />,
       label: 'Генератор',
@@ -73,6 +82,11 @@ function App() {
       key: 'test-generator',
       icon: <FileAddOutlined />,
       label: 'Контрольные работы',
+    },
+    {
+      key: 'import',
+      icon: <UploadOutlined />,
+      label: 'Импорт задач',
     },
     {
       key: 'theory',
@@ -104,6 +118,12 @@ function App() {
     setCurrentView('theory-browser');
   };
 
+  const openTasksWithTag = (tagId) => {
+    setTaskListInitialFilters({ tags: [tagId] });
+    setTaskListFiltersToken(prev => prev + 1);
+    setCurrentView('tasks');
+  };
+
   const handleArticleSaved = (newId) => {
     if (!editingArticleId && newId) {
       setEditingArticleId(newId);
@@ -122,6 +142,18 @@ function App() {
             sources={sources}
             subtopics={subtopics}
             loading={loading}
+            initialFilters={taskListInitialFilters}
+            initialFiltersToken={taskListFiltersToken}
+          />
+        );
+      case 'stats':
+        return (
+          <TaskStatsDashboard
+            topics={topics}
+            tags={tags}
+            subtopics={subtopics}
+            sources={sources}
+            onTagClick={openTasksWithTag}
           />
         );
       case 'generator':
@@ -142,6 +174,15 @@ function App() {
             years={years}
             sources={sources}
             subtopics={subtopics}
+          />
+        );
+      case 'import':
+        return (
+          <TaskImporter
+            topics={topics}
+            tags={tags}
+            subtopics={subtopics}
+            onImportComplete={loadData}
           />
         );
       case 'theory-browser':
@@ -188,8 +229,10 @@ function App() {
   const getHeaderTitle = () => {
     switch (currentView) {
       case 'tasks': return 'Все задачи';
+      case 'stats': return 'Статистика задач';
       case 'generator': return 'Генератор';
       case 'test-generator': return 'Контрольные работы';
+      case 'import': return 'Импорт задач';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
       case 'theory-view': return 'Теория — Просмотр';

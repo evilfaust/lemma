@@ -123,6 +123,57 @@ export const useWorksheetActions = () => {
   };
 
   /**
+   * Обновление существующей работы в БД
+   */
+  const handleUpdateWork = async (workId, workData, variants) => {
+    setSaving(true);
+    try {
+      await api.updateWork(workId, {
+        title: workData.title || 'Контрольная работа',
+        topic: workData.topic || null,
+        time_limit: workData.timeLimit ? parseInt(workData.timeLimit) : null,
+      });
+
+      const existingVariants = await api.getVariantsByWork(workId);
+      const existingByNumber = new Map(existingVariants.map(v => [v.number, v]));
+      const incomingNumbers = new Set();
+
+      for (const variant of variants) {
+        const taskIds = variant.tasks.map(t => t.id);
+        const order = variant.tasks.map((t, idx) => ({ taskId: t.id, position: idx }));
+        const payload = {
+          work: workId,
+          number: variant.number,
+          tasks: taskIds,
+          order: order,
+        };
+
+        incomingNumbers.add(variant.number);
+        const existing = existingByNumber.get(variant.number);
+        if (existing) {
+          await api.updateVariant(existing.id, payload);
+        } else {
+          await api.createVariant(payload);
+        }
+      }
+
+      for (const variant of existingVariants) {
+        if (!incomingNumbers.has(variant.number)) {
+          await api.deleteVariant(variant.id);
+        }
+      }
+
+      message.success(`Работа "${workData.title}" успешно обновлена`);
+    } catch (error) {
+      console.error('Error updating work:', error);
+      message.error('Ошибка при обновлении работы');
+      throw error;
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /**
    * Загрузка сохранённых работ
    */
   const handleLoadWorks = async () => {
@@ -206,6 +257,7 @@ export const useWorksheetActions = () => {
     handleExportPDF,
     handleExportPDFLegacy,
     handleSaveWork,
+    handleUpdateWork,
     handleLoadWorks,
     handleLoadWork,
     handleDeleteWork,

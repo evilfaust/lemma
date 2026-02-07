@@ -18,12 +18,14 @@ export const useWorksheetGeneration = () => {
    * @param {string} options.variantsMode - 'different' | 'shuffled' | 'same'
    * @param {number} options.variantsCount - Количество вариантов
    * @param {string} options.sortType - 'code' | 'difficulty' | 'random'
+   * @param {boolean} options.progressiveDifficulty - Автоматическая прогрессия сложности
    */
   const generateFromStructure = async (structure, options = {}) => {
     const {
       variantsMode = 'different',
       variantsCount = 1,
       sortType = 'random',
+      progressiveDifficulty = false,
     } = options;
 
     setLoading(true);
@@ -46,9 +48,10 @@ export const useWorksheetGeneration = () => {
             // Исключаем уже использованные задачи
             const filteredTasks = availableTasks.filter(t => !usedTaskIds.has(t.id));
 
-            // Перемешиваем и берём нужное количество
-            const shuffled = [...filteredTasks].sort(() => Math.random() - 0.5);
-            const selected = shuffled.slice(0, block.count);
+            // Выбор задач (прогрессия или случайно)
+            const selected = progressiveDifficulty
+              ? selectTasksWithProgressiveDifficulty(filteredTasks, block.count)
+              : [...filteredTasks].sort(() => Math.random() - 0.5).slice(0, block.count);
 
             if (selected.length < block.count) {
               message.warning(
@@ -81,7 +84,9 @@ export const useWorksheetGeneration = () => {
 
         for (const block of structure) {
           const filters = buildFilters(block);
-          const tasks = await api.getRandomTasks(block.count, filters);
+          const tasks = progressiveDifficulty
+            ? selectTasksWithProgressiveDifficulty(await api.getTasks(filters), block.count)
+            : await api.getRandomTasks(block.count, filters);
 
           if (tasks.length < block.count) {
             message.warning(
@@ -113,7 +118,9 @@ export const useWorksheetGeneration = () => {
 
         for (const block of structure) {
           const filters = buildFilters(block);
-          const tasks = await api.getRandomTasks(block.count, filters);
+          const tasks = progressiveDifficulty
+            ? selectTasksWithProgressiveDifficulty(await api.getTasks(filters), block.count)
+            : await api.getRandomTasks(block.count, filters);
 
           if (tasks.length < block.count) {
             message.warning(
@@ -177,6 +184,7 @@ export const useWorksheetGeneration = () => {
    * @param {string} options.sortType - 'code' | 'difficulty' | 'random'
    * @param {Array} [options.tagDistribution] - Распределение по тегам [{tag, count}]
    * @param {Array} [options.difficultyDistribution] - Распределение по сложности [{difficulty, count}]
+   * @param {boolean} [options.progressiveDifficulty] - Автоматическая прогрессия сложности
    * @param {Function} [options.getLabelForTag] - (tagId) => name для предупреждений
    * @param {Function} [options.getLabelForDifficulty] - (diffValue) => label для предупреждений
    */
@@ -188,6 +196,7 @@ export const useWorksheetGeneration = () => {
       sortType = 'random',
       tagDistribution,
       difficultyDistribution,
+      progressiveDifficulty = false,
       getLabelForTag,
       getLabelForDifficulty,
     } = options;
@@ -310,6 +319,48 @@ export const useWorksheetGeneration = () => {
           createVariantsFromBase(baseTasks, variantsCount, 'same', generatedVariants);
         }
 
+      } else if (progressiveDifficulty) {
+        // === Прогрессивная сложность ===
+        const apiFilters = buildBaseFilters();
+        const hasFilters = Object.keys(apiFilters).length > 0;
+        let pool = await api.getTasks(hasFilters ? apiFilters : {});
+
+        // Клиентский поиск
+        if (filters.search) {
+          const searchLower = filters.search.toLowerCase();
+          pool = pool.filter(task =>
+            task.code?.toLowerCase().includes(searchLower) ||
+            task.statement_md?.toLowerCase().includes(searchLower)
+          );
+        }
+
+        if (pool.length === 0) {
+          message.warning('Задачи не найдены по заданным фильтрам');
+          setAllTasks([]);
+          setVariants([]);
+          return [];
+        }
+
+        if (variantsMode === 'different') {
+          const usedTaskIds = new Set();
+          for (let i = 0; i < variantsCount; i++) {
+            const available = pool.filter(t => !usedTaskIds.has(t.id));
+            const selected = selectTasksWithProgressiveDifficulty(available, tasksPerVariant);
+            if (selected.length < tasksPerVariant) {
+              message.warning(`Вариант ${i + 1}: найдено только ${selected.length} из ${tasksPerVariant} задач`);
+            }
+            selected.forEach(t => usedTaskIds.add(t.id));
+            sortTasks(selected, sortType);
+            generatedVariants.push({ number: i + 1, tasks: selected });
+          }
+        } else {
+          const baseTasks = selectTasksWithProgressiveDifficulty(pool, tasksPerVariant);
+          if (baseTasks.length < tasksPerVariant) {
+            message.warning(`Найдено только ${baseTasks.length} из ${tasksPerVariant} задач`);
+          }
+          sortTasks(baseTasks, sortType);
+          createVariantsFromBase(baseTasks, variantsCount, variantsMode, generatedVariants);
+        }
       } else {
         // === Стандартная генерация ===
         const apiFilters = buildBaseFilters();
@@ -385,6 +436,66 @@ export const useWorksheetGeneration = () => {
         : [...baseTasks];
       target.push({ number: i + 1, tasks });
     }
+  };
+
+  /**
+   * Вспомогательная: выбор задач с прогрессивной сложностью
+   */
+  const selectTasksWithProgressiveDifficulty = (tasks, totalCount) => {
+    if (!tasks || tasks.length === 0) return [];
+
+    const tasksByDifficulty = {
+      '1': [],
+      '2': [],
+      '3': [],
+      '4': [],
+      '5': [],
+    };
+
+    tasks.forEach(task => {
+      const difficulty = task.difficulty || '1';
+      if (tasksByDifficulty[difficulty]) {
+        tasksByDifficulty[difficulty].push(task);
+      }
+    });
+
+    Object.keys(tasksByDifficulty).forEach(diff => {
+      tasksByDifficulty[diff].sort(() => Math.random() - 0.5);
+    });
+
+    const distribution = calculateProgressiveDistribution(totalCount);
+    const result = [];
+    distribution.forEach(({ difficulty, taskCount }) => {
+      const selected = tasksByDifficulty[difficulty].slice(0, taskCount);
+      result.push(...selected);
+    });
+
+    return result;
+  };
+
+  /**
+   * Вспомогательная: расчёт прогрессивного распределения по сложности
+   */
+  const calculateProgressiveDistribution = (totalCount) => {
+    const dist = [
+      { difficulty: '1', taskCount: Math.ceil(totalCount * 0.4) },
+      { difficulty: '2', taskCount: Math.ceil(totalCount * 0.3) },
+      { difficulty: '3', taskCount: Math.ceil(totalCount * 0.2) },
+      { difficulty: '4', taskCount: Math.ceil(totalCount * 0.07) },
+      { difficulty: '5', taskCount: Math.ceil(totalCount * 0.03) },
+    ];
+
+    let currentSum = dist.reduce((sum, d) => sum + d.taskCount, 0);
+    while (currentSum > totalCount) {
+      for (let i = dist.length - 1; i >= 0 && currentSum > totalCount; i--) {
+        if (dist[i].taskCount > 0) {
+          dist[i].taskCount--;
+          currentSum--;
+        }
+      }
+    }
+
+    return dist.filter(d => d.taskCount > 0);
   };
 
   /**

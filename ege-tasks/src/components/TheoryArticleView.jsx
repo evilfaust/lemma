@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, Spin, Tag, Space, message, Select, Tooltip } from 'antd';
+import { Button, Spin, Tag, Space, message, Select, Tooltip, Card, List, Divider } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined
@@ -7,6 +7,7 @@ import {
 import { useMarkdownProcessor } from '../hooks';
 import { getPageDimensions, getThemeStyles, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
+import MathRenderer from './MathRenderer';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
@@ -18,10 +19,22 @@ export default function TheoryArticleView({ articleId, categories = [], onBack, 
   const [currentTheme, setCurrentTheme] = useState('classic');
   const [pageSettings, setPageSettings] = useState(DEFAULT_SETTINGS);
   const [isExporting, setIsExporting] = useState(false);
+  const [relatedTasks, setRelatedTasks] = useState([]);
+  const [relatedTags, setRelatedTags] = useState([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
 
   useEffect(() => {
     if (articleId) loadArticle(articleId);
   }, [articleId]);
+
+  useEffect(() => {
+    if (article?.tags && article.tags.length > 0) {
+      loadRelatedTasks(article.tags);
+    } else {
+      setRelatedTasks([]);
+      setRelatedTags([]);
+    }
+  }, [article?.id, article?.tags]);
 
   const loadArticle = async (id) => {
     setLoading(true);
@@ -36,6 +49,35 @@ export default function TheoryArticleView({ articleId, categories = [], onBack, 
       message.error('Ошибка при загрузке статьи');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRelatedTasks = async (tagTitles = []) => {
+    setLoadingRelated(true);
+    try {
+      const allTags = await api.getTags();
+      const tagMap = new Map(allTags.map(t => [t.title.toLowerCase(), t]));
+      const matched = tagTitles
+        .map(t => tagMap.get(t.toLowerCase()))
+        .filter(Boolean);
+
+      const tagIds = matched.map(t => t.id);
+      setRelatedTags(matched);
+
+      if (tagIds.length === 0) {
+        setRelatedTasks([]);
+        return;
+      }
+
+      const tasks = await api.getTasks({ tags: tagIds });
+      const sorted = [...tasks].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+      setRelatedTasks(sorted);
+    } catch (error) {
+      console.error('Error loading related tasks:', error);
+      setRelatedTasks([]);
+      setRelatedTags([]);
+    } finally {
+      setLoadingRelated(false);
     }
   };
 
@@ -155,6 +197,58 @@ export default function TheoryArticleView({ articleId, categories = [], onBack, 
           style={previewStyles}
           dangerouslySetInnerHTML={{ __html: html }}
         />
+      </div>
+
+      {/* Связанные задачи — скрывается при печати */}
+      <div className="no-print" style={{ marginTop: 24 }}>
+        <Divider />
+        <Card title="Задачи по теме">
+          {article.tags?.length ? (
+            <>
+              <div style={{ marginBottom: 12 }}>
+                <Space wrap>
+                  {relatedTags.length > 0 ? (
+                    relatedTags.map(tag => (
+                      <Tag key={tag.id} color={tag.color}>{tag.title}</Tag>
+                    ))
+                  ) : (
+                    <Tag color="default">Теги статьи не найдены в базе задач</Tag>
+                  )}
+                </Space>
+              </div>
+              {loadingRelated ? (
+                <div style={{ textAlign: 'center', padding: 20 }}><Spin /></div>
+              ) : relatedTasks.length === 0 ? (
+                <div style={{ color: '#999' }}>Нет задач по выбранным тегам.</div>
+              ) : (
+                <>
+                  <div style={{ color: '#666', marginBottom: 8 }}>
+                    Найдено задач: {relatedTasks.length}. Показано: {Math.min(20, relatedTasks.length)}.
+                  </div>
+                  <List
+                    size="small"
+                    dataSource={relatedTasks.slice(0, 20)}
+                    renderItem={(task) => (
+                      <List.Item>
+                        <div>
+                          <Space wrap size={6} style={{ marginBottom: 4 }}>
+                            <Tag color="blue">{task.code}</Tag>
+                            <Tag>Сложность: {task.difficulty || '1'}</Tag>
+                          </Space>
+                          <div style={{ fontSize: 13 }}>
+                            <MathRenderer text={task.statement_md} />
+                          </div>
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+                </>
+              )}
+            </>
+          ) : (
+            <div style={{ color: '#999' }}>В статье нет тегов для поиска задач.</div>
+          )}
+        </Card>
       </div>
     </div>
   );
