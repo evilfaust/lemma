@@ -56,11 +56,12 @@ export const useWorksheetActions = () => {
       const opt = {
         margin: [7, 7, 7, 7], // мм
         filename: `${filename}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
+        image: { type: 'jpeg', quality: 1.0 },
         html2canvas: {
-          scale: 2,
+          scale: 3,
           useCORS: true,
           logging: false,
+          letterRendering: true,
         },
         jsPDF: {
           unit: 'mm',

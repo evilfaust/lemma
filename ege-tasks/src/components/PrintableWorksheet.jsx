@@ -228,8 +228,8 @@ const PrintableWorksheet = forwardRef(({
           display: flex;
           justify-content: space-between;
           align-items: flex-end;
-          margin-bottom: 8px;
-          padding-bottom: 4px;
+          margin-bottom: 6px;
+          padding-bottom: 3px;
           border-bottom: 1.5px solid #333;
         }
 
@@ -265,7 +265,7 @@ const PrintableWorksheet = forwardRef(({
           flex: 1;
           display: flex;
           flex-direction: column;
-          gap: 3px;
+          gap: 2px;
         }
 
         .card-task-row {
@@ -274,7 +274,7 @@ const PrintableWorksheet = forwardRef(({
           gap: 4px;
           page-break-inside: avoid;
           position: relative;
-          padding: 2px 0;
+          padding: 1px 0;
           cursor: grab;
           transition: background-color 0.15s;
         }
@@ -296,13 +296,13 @@ const PrintableWorksheet = forwardRef(({
           font-size: ${fontSize}px;
           color: #333;
           flex-shrink: 0;
-          line-height: 1.45;
+          line-height: 1.35;
         }
 
         .card-task-text {
           flex: 1;
           font-size: ${fontSize}px;
-          line-height: 1.45;
+          line-height: 1.35;
         }
 
         .card-task-text p {
@@ -348,6 +348,19 @@ const PrintableWorksheet = forwardRef(({
           }
           .worksheet-card {
             border: 1px solid #bbb !important;
+          }
+        }
+
+        @media print {
+          .tasks-container {
+            gap: 1px;
+          }
+          .card-task-row {
+            padding: 0;
+          }
+          .card-task-number,
+          .card-task-text {
+            line-height: 1.3;
           }
         }
 
