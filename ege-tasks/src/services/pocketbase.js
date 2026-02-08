@@ -1,5 +1,6 @@
 import PocketBase from 'pocketbase';
 import { shuffleArray } from '../utils/shuffle';
+import { escapeFilter } from '../utils/escapeFilter';
 
 const pb = new PocketBase(import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090');
 
@@ -99,29 +100,29 @@ export const api = {
       const filterArr = [];
 
       if (filters.topic) {
-        filterArr.push(`topic = "${filters.topic}"`);
+        filterArr.push(`topic = "${escapeFilter(filters.topic)}"`);
       }
 
       // Фильтрация по подтеме - это Multiple relation (массив)
       // Используем оператор ~ для проверки наличия ID в массиве
       if (filters.subtopic) {
-        filterArr.push(`subtopic ~ "${filters.subtopic}"`);
+        filterArr.push(`subtopic ~ "${escapeFilter(filters.subtopic)}"`);
       }
 
       // Фильтрация по массиву подтем (несколько подтем)
       if (filters.subtopics && filters.subtopics.length > 0) {
-        const subtopicFilters = filters.subtopics.map(stId => `subtopic ~ "${stId}"`);
+        const subtopicFilters = filters.subtopics.map(stId => `subtopic ~ "${escapeFilter(stId)}"`);
         filterArr.push(`(${subtopicFilters.join(' || ')})`);
       }
 
       // Фильтрация по тегам (несколько тегов)
       if (filters.tags && filters.tags.length > 0) {
-        const tagFilters = filters.tags.map(tagId => `tags ~ "${tagId}"`);
+        const tagFilters = filters.tags.map(tagId => `tags ~ "${escapeFilter(tagId)}"`);
         filterArr.push(`(${tagFilters.join(' || ')})`);
       }
 
       if (filters.difficulty) {
-        filterArr.push(`difficulty = "${filters.difficulty}"`);
+        filterArr.push(`difficulty = "${escapeFilter(filters.difficulty)}"`);
       }
 
       if (filters.hasAnswer !== undefined) {
@@ -137,11 +138,11 @@ export const api = {
       }
 
       if (filters.source) {
-        filterArr.push(`source ~ "${filters.source}"`);
+        filterArr.push(`source ~ "${escapeFilter(filters.source)}"`);
       }
 
       if (filters.year) {
-        filterArr.push(`year = ${filters.year}`);
+        filterArr.push(`year = ${Number(filters.year) || 0}`);
       }
 
       const filterString = filterArr.length > 0 ? filterArr.join(' && ') : '';
@@ -382,7 +383,7 @@ export const api = {
   async findTagByTitle(title) {
     try {
       const records = await pb.collection('tags').getFullList({
-        filter: `title = "${title}"`,
+        filter: `title = "${escapeFilter(title)}"`,
       });
       return records.length > 0 ? records[0] : null;
     } catch (error) {
@@ -395,7 +396,7 @@ export const api = {
   async getTaskStatementsAndCodes(topicId) {
     try {
       const records = await pb.collection('tasks').getFullList({
-        filter: `topic = "${topicId}"`,
+        filter: `topic = "${escapeFilter(topicId)}"`,
         fields: 'statement_md,code',
       });
       return records;
@@ -451,7 +452,7 @@ export const api = {
   // Получить все подтемы
   async getSubtopics(topicId = null) {
     try {
-      const filter = topicId ? `topic = "${topicId}"` : '';
+      const filter = topicId ? `topic = "${escapeFilter(topicId)}"` : '';
       const records = await pb.collection('subtopics').getFullList({
         filter,
         sort: 'order,name',
@@ -568,7 +569,7 @@ export const api = {
   async getVariantsByWork(workId) {
     try {
       const records = await pb.collection('variants').getFullList({
-        filter: `work = "${workId}"`,
+        filter: `work = "${escapeFilter(workId)}"`,
         sort: 'number',
         expand: 'tasks,tasks.topic',
       });
@@ -664,15 +665,15 @@ export const api = {
       const filterArr = [];
 
       if (filters.category) {
-        filterArr.push(`category = "${filters.category}"`);
+        filterArr.push(`category = "${escapeFilter(filters.category)}"`);
       }
 
       if (filters.search) {
-        filterArr.push(`title ~ "${filters.search}"`);
+        filterArr.push(`title ~ "${escapeFilter(filters.search)}"`);
       }
 
       if (filters.tags && filters.tags.length > 0) {
-        const tagFilters = filters.tags.map(tag => `tags ~ "${tag}"`);
+        const tagFilters = filters.tags.map(tag => `tags ~ "${escapeFilter(tag)}"`);
         filterArr.push(`(${tagFilters.join(' || ')})`);
       }
 
