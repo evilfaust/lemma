@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Layout, Menu, ConfigProvider, theme, message } from 'antd';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Layout, Menu, ConfigProvider, theme, message, Spin } from 'antd';
 import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
@@ -7,7 +7,7 @@ import TestWorkGenerator from './components/TestWorkGenerator';
 import TaskStatsDashboard from './components/TaskStatsDashboard';
 import TaskCatalogManager from './components/TaskCatalogManager';
 import TheoryBrowser from './components/TheoryBrowser';
-import TheoryEditor from './components/TheoryEditor';
+const TheoryEditor = lazy(() => import('./components/TheoryEditor'));
 import TheoryArticleView from './components/TheoryArticleView';
 import TheoryCategoryManager from './components/TheoryCategoryManager';
 import TheoryPrintBuilder from './components/TheoryPrintBuilder';
@@ -214,12 +214,14 @@ function App() {
         );
       case 'theory-editor':
         return (
-          <TheoryEditor
-            articleId={editingArticleId}
-            categories={theoryCategories}
-            onBack={navigateToBrowser}
-            onSaved={handleArticleSaved}
-          />
+          <Suspense fallback={<div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>}>
+            <TheoryEditor
+              articleId={editingArticleId}
+              categories={theoryCategories}
+              onBack={navigateToBrowser}
+              onSaved={handleArticleSaved}
+            />
+          </Suspense>
         );
       case 'theory-view':
         return (
