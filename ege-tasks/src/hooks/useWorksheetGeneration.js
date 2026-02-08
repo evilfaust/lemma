@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { message } from 'antd';
 import { api } from '../services/pocketbase';
+import { shuffleArray } from '../utils/shuffle';
 
 /**
  * Хук для генерации вариантов работ с задачами
@@ -38,7 +39,7 @@ export const useWorksheetGeneration = () => {
         const usedTaskIds = new Set();
 
         for (let i = 0; i < variantsCount; i++) {
-          const variantTasks = [];
+          let variantTasks = [];
 
           for (const block of structure) {
             // Получаем задачи для этого блока
@@ -51,7 +52,7 @@ export const useWorksheetGeneration = () => {
             // Выбор задач (прогрессия или случайно)
             const selected = progressiveDifficulty
               ? selectTasksWithProgressiveDifficulty(filteredTasks, block.count)
-              : [...filteredTasks].sort(() => Math.random() - 0.5).slice(0, block.count);
+              : shuffleArray(filteredTasks).slice(0, block.count);
 
             if (selected.length < block.count) {
               message.warning(
@@ -66,7 +67,7 @@ export const useWorksheetGeneration = () => {
 
           // Сортировка задач в варианте
           if (sortType === 'random') {
-            variantTasks.sort(() => Math.random() - 0.5);
+            variantTasks = shuffleArray(variantTasks);
           } else if (sortType === 'code') {
             variantTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
           } else if (sortType === 'difficulty') {
@@ -106,7 +107,7 @@ export const useWorksheetGeneration = () => {
 
         // Создаём варианты с перемешанным порядком
         for (let i = 0; i < variantsCount; i++) {
-          const shuffled = [...baseTasks].sort(() => Math.random() - 0.5);
+          const shuffled = shuffleArray(baseTasks);
           generatedVariants.push({
             number: i + 1,
             tasks: shuffled,
@@ -239,7 +240,7 @@ export const useWorksheetGeneration = () => {
             const variantTasks = [];
             for (const item of tagDistribution) {
               const available = allAvailableTasks[item.tag].filter(t => !usedTaskIds.has(t.id));
-              const shuffled = [...available].sort(() => Math.random() - 0.5);
+              const shuffled = shuffleArray(available);
               const selected = shuffled.slice(0, item.count);
               if (selected.length < item.count) {
                 const name = getLabelForTag?.(item.tag) || item.tag;
@@ -291,7 +292,7 @@ export const useWorksheetGeneration = () => {
             const variantTasks = [];
             for (const item of sorted) {
               const available = allAvailableTasks[item.difficulty].filter(t => !usedTaskIds.has(t.id));
-              const shuffled = [...available].sort(() => Math.random() - 0.5);
+              const shuffled = shuffleArray(available);
               const selected = shuffled.slice(0, item.count);
               if (selected.length < item.count) {
                 const label = getLabelForDifficulty?.(item.difficulty) || item.difficulty;
@@ -418,7 +419,9 @@ export const useWorksheetGeneration = () => {
    */
   const sortTasks = (tasks, sortType) => {
     if (sortType === 'random') {
-      tasks.sort(() => Math.random() - 0.5);
+      const shuffled = shuffleArray(tasks);
+      tasks.length = 0;
+      tasks.push(...shuffled);
     } else if (sortType === 'code') {
       tasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
     } else if (sortType === 'difficulty') {
@@ -432,7 +435,7 @@ export const useWorksheetGeneration = () => {
   const createVariantsFromBase = (baseTasks, count, mode, target) => {
     for (let i = 0; i < count; i++) {
       const tasks = mode === 'shuffled'
-        ? [...baseTasks].sort(() => Math.random() - 0.5)
+        ? shuffleArray(baseTasks)
         : [...baseTasks];
       target.push({ number: i + 1, tasks });
     }
@@ -460,7 +463,7 @@ export const useWorksheetGeneration = () => {
     });
 
     Object.keys(tasksByDifficulty).forEach(diff => {
-      tasksByDifficulty[diff].sort(() => Math.random() - 0.5);
+      tasksByDifficulty[diff] = shuffleArray(tasksByDifficulty[diff]);
     });
 
     const distribution = calculateProgressiveDistribution(totalCount);

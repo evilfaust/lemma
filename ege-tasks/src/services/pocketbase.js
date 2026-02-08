@@ -1,4 +1,5 @@
 import PocketBase from 'pocketbase';
+import { shuffleArray } from '../utils/shuffle';
 
 const pb = new PocketBase(import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090');
 
@@ -164,7 +165,7 @@ export const api = {
       const allTasks = await this.getTasks(filters);
 
       // Перемешиваем массив
-      const shuffled = [...allTasks].sort(() => Math.random() - 0.5);
+      const shuffled = shuffleArray(allTasks);
 
       // Берем первые count элементов
       return shuffled.slice(0, count);
@@ -187,7 +188,7 @@ export const api = {
       }
 
       // Перемешиваем массив
-      const shuffled = [...availableTasks].sort(() => Math.random() - 0.5);
+      const shuffled = shuffleArray(availableTasks);
 
       // Берем первые count элементов
       return shuffled.slice(0, count);
@@ -223,7 +224,7 @@ export const api = {
 
       // Перемешиваем задачи в каждой группе сложности
       Object.keys(tasksByDifficulty).forEach(diff => {
-        tasksByDifficulty[diff].sort(() => Math.random() - 0.5);
+        tasksByDifficulty[diff] = shuffleArray(tasksByDifficulty[diff]);
       });
 
       // Рассчитываем распределение по сложности (прогрессивное)
