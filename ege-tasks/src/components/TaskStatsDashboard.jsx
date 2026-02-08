@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Row, Col, Card, Statistic, Table, Progress, Space, Button, Tag, Spin, Empty, Collapse, Tooltip } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
-const TaskStatsDashboard = ({ topics = [], tags = [], subtopics = [], sources = [], onTagClick }) => {
+const TaskStatsDashboard = ({ onTagClick }) => {
+  const { topics, tags, subtopics, sources } = useReferenceData();
   const [loading, setLoading] = useState(true);
   const [tasksSnapshot, setTasksSnapshot] = useState([]);
 

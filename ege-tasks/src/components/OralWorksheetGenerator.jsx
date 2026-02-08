@@ -40,12 +40,14 @@ import {
   useWorksheetActions,
   useDistribution,
 } from '../hooks';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './TaskWorksheet.css';
 
 const { Option } = Select;
 const { Panel } = Collapse;
 
-const TaskSheetGenerator = ({ topics, tags, years = [], sources = [], subtopics = [] }) => {
+const TaskSheetGenerator = () => {
+  const { topics, tags, years, sources, subtopics } = useReferenceData();
   const [form] = Form.useForm();
   const worksheetGen = useWorksheetGeneration();
   const { variants, setVariants, loading, generateFromFilters } = worksheetGen;

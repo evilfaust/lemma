@@ -11,9 +11,11 @@ import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
 import './theory/TheoryEditor.css';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './theory/TheoryArticlePrint.css';
 
-export default function TheoryPrintBuilder({ categories = [], onBack }) {
+export default function TheoryPrintBuilder({ onBack }) {
+  const { theoryCategories: categories } = useReferenceData();
   const [allArticles, setAllArticles] = useState([]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedArticles, setSelectedArticles] = useState([]);

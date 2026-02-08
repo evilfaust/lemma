@@ -1,5 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { Layout, Menu, ConfigProvider, theme, message, Spin } from 'antd';
+import { useState, lazy, Suspense } from 'react';
+import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
 import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
@@ -12,21 +12,14 @@ import TheoryArticleView from './components/TheoryArticleView';
 import TheoryCategoryManager from './components/TheoryCategoryManager';
 import TheoryPrintBuilder from './components/TheoryPrintBuilder';
 import TaskImporter from './components/TaskImporter';
-import { api } from './services/pocketbase';
+import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
 import './App.css';
 
 const { Header, Content, Sider } = Layout;
 
-function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState('tasks');
-  const [topics, setTopics] = useState([]);
-  const [tags, setTags] = useState([]);
-  const [years, setYears] = useState([]);
-  const [sources, setSources] = useState([]);
-  const [subtopics, setSubtopics] = useState([]);
-  const [theoryCategories, setTheoryCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
   const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
 
@@ -34,34 +27,7 @@ function App() {
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [viewingArticleId, setViewingArticleId] = useState(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [topicsData, tagsData, yearsData, sourcesData, subtopicsData, theoryCatsData] = await Promise.all([
-        api.getTopics(),
-        api.getTags(),
-        api.getUniqueYears(),
-        api.getUniqueSources(),
-        api.getSubtopics(),
-        api.getTheoryCategories(),
-      ]);
-      setTopics(topicsData);
-      setTags(tagsData);
-      setYears(yearsData);
-      setSources(sourcesData);
-      setSubtopics(subtopicsData);
-      setTheoryCategories(theoryCatsData);
-    } catch (error) {
-      console.error('Error loading data:', error);
-      message.error('Ошибка при загрузке данных');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { theoryCategories, reloadData } = useReferenceData();
 
   const menuItems = [
     {
@@ -134,7 +100,7 @@ function App() {
     if (!editingArticleId && newId) {
       setEditingArticleId(newId);
     }
-    api.getTheoryCategories().then(setTheoryCategories);
+    reloadData();
   };
 
   const renderContent = () => {
@@ -142,12 +108,6 @@ function App() {
       case 'tasks':
         return (
           <TaskList
-            topics={topics}
-            tags={tags}
-            years={years}
-            sources={sources}
-            subtopics={subtopics}
-            loading={loading}
             initialFilters={taskListInitialFilters}
             initialFiltersToken={taskListFiltersToken}
           />
@@ -155,58 +115,24 @@ function App() {
       case 'stats':
         return (
           <TaskStatsDashboard
-            topics={topics}
-            tags={tags}
-            subtopics={subtopics}
-            sources={sources}
             onTagClick={(tagId) => openTasksWithFilters({ tags: [tagId] })}
           />
         );
       case 'catalog':
         return (
           <TaskCatalogManager
-            topics={topics}
-            subtopics={subtopics}
-            tags={tags}
-            sources={sources}
-            years={years}
             onOpenTasks={openTasksWithFilters}
-            onReloadData={loadData}
           />
         );
       case 'generator':
-        return (
-          <TaskSheetGenerator
-            topics={topics}
-            tags={tags}
-            years={years}
-            sources={sources}
-            subtopics={subtopics}
-          />
-        );
+        return <TaskSheetGenerator />;
       case 'test-generator':
-        return (
-          <TestWorkGenerator
-            topics={topics}
-            tags={tags}
-            years={years}
-            sources={sources}
-            subtopics={subtopics}
-          />
-        );
+        return <TestWorkGenerator />;
       case 'import':
-        return (
-          <TaskImporter
-            topics={topics}
-            tags={tags}
-            subtopics={subtopics}
-            onImportComplete={loadData}
-          />
-        );
+        return <TaskImporter />;
       case 'theory-browser':
         return (
           <TheoryBrowser
-            categories={theoryCategories}
             onEditArticle={navigateToEditor}
             onViewArticle={navigateToView}
             onCreateArticle={() => navigateToEditor(null)}
@@ -217,7 +143,6 @@ function App() {
           <Suspense fallback={<div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>}>
             <TheoryEditor
               articleId={editingArticleId}
-              categories={theoryCategories}
               onBack={navigateToBrowser}
               onSaved={handleArticleSaved}
             />
@@ -227,7 +152,6 @@ function App() {
         return (
           <TheoryArticleView
             articleId={viewingArticleId}
-            categories={theoryCategories}
             onBack={navigateToBrowser}
             onEdit={navigateToEditor}
           />
@@ -235,7 +159,6 @@ function App() {
       case 'theory-print':
         return (
           <TheoryPrintBuilder
-            categories={theoryCategories}
             onBack={navigateToBrowser}
           />
         );
@@ -269,6 +192,77 @@ function App() {
   };
 
   return (
+    <Layout style={{ minHeight: '100vh' }}>
+      <Sider
+        breakpoint="lg"
+        collapsedWidth="0"
+        width={220}
+        style={{
+          background: '#fff',
+          boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
+        }}
+      >
+        <div style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 18,
+          fontWeight: 600,
+          color: '#1890ff'
+        }}>
+          ЕГЭ Задачи
+        </div>
+        <Menu
+          mode="inline"
+          selectedKeys={getSelectedKeys()}
+          defaultOpenKeys={[]}
+          items={menuItems}
+          onClick={({ key }) => {
+            setCurrentView(key);
+            if (key === 'theory-browser') {
+              setEditingArticleId(null);
+              setViewingArticleId(null);
+            }
+          }}
+          style={{ borderRight: 0 }}
+        />
+      </Sider>
+
+      <Layout>
+        <Header style={{
+          background: '#fff',
+          padding: '0 24px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+          display: 'flex',
+          alignItems: 'center',
+          fontSize: 20,
+          fontWeight: 500,
+        }}>
+          {getHeaderTitle()}
+        </Header>
+
+        <Content style={{
+          margin: currentView === 'theory-editor' ? 0 : '24px 16px 0',
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            padding: currentView === 'theory-editor' ? 0 : 24,
+            minHeight: currentView === 'theory-editor' ? undefined : 360,
+            height: currentView === 'theory-editor' ? '100%' : undefined,
+            background: '#fff',
+            borderRadius: currentView === 'theory-editor' ? 0 : 8,
+          }}>
+            {renderContent()}
+          </div>
+        </Content>
+      </Layout>
+    </Layout>
+  );
+}
+
+function App() {
+  return (
     <ConfigProvider
       theme={{
         algorithm: theme.defaultAlgorithm,
@@ -277,72 +271,9 @@ function App() {
         },
       }}
     >
-      <Layout style={{ minHeight: '100vh' }}>
-        <Sider
-          breakpoint="lg"
-          collapsedWidth="0"
-          width={220}
-          style={{
-            background: '#fff',
-            boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
-          }}
-        >
-          <div style={{
-            height: 64,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 18,
-            fontWeight: 600,
-            color: '#1890ff'
-          }}>
-            ЕГЭ Задачи
-          </div>
-          <Menu
-            mode="inline"
-            selectedKeys={getSelectedKeys()}
-            defaultOpenKeys={[]}
-            items={menuItems}
-            onClick={({ key }) => {
-              setCurrentView(key);
-              if (key === 'theory-browser') {
-                setEditingArticleId(null);
-                setViewingArticleId(null);
-              }
-            }}
-            style={{ borderRight: 0 }}
-          />
-        </Sider>
-
-        <Layout>
-          <Header style={{
-            background: '#fff',
-            padding: '0 24px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: 20,
-            fontWeight: 500,
-          }}>
-            {getHeaderTitle()}
-          </Header>
-
-          <Content style={{
-            margin: currentView === 'theory-editor' ? 0 : '24px 16px 0',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              padding: currentView === 'theory-editor' ? 0 : 24,
-              minHeight: currentView === 'theory-editor' ? undefined : 360,
-              height: currentView === 'theory-editor' ? '100%' : undefined,
-              background: '#fff',
-              borderRadius: currentView === 'theory-editor' ? 0 : 8,
-            }}>
-              {renderContent()}
-            </div>
-          </Content>
-        </Layout>
-      </Layout>
+      <ReferenceDataProvider>
+        <AppContent />
+      </ReferenceDataProvider>
     </ConfigProvider>
   );
 }

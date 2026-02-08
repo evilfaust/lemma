@@ -11,9 +11,11 @@ import MathRenderer from './MathRenderer';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './theory/TheoryArticlePrint.css';
 
-export default function TheoryArticleView({ articleId, categories = [], onBack, onEdit }) {
+export default function TheoryArticleView({ articleId, onBack, onEdit }) {
+  const { theoryCategories: categories } = useReferenceData();
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('classic');

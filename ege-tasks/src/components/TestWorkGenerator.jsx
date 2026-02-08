@@ -37,6 +37,7 @@ import {
   useWorksheetActions,
   useTaskEditing,
 } from '../hooks';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './TaskWorksheet.css';
 
 const { Panel } = Collapse;
@@ -44,7 +45,8 @@ const { Panel } = Collapse;
 /**
  * Генератор контрольных работ с задачами из разных тем
  */
-const TestWorkGenerator = ({ topics, tags, subtopics, years = [], sources = [] }) => {
+const TestWorkGenerator = () => {
+  const { topics, tags, subtopics, years, sources } = useReferenceData();
   const [form] = Form.useForm();
   const printRef = useRef();
 

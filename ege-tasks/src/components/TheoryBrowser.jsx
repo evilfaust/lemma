@@ -5,10 +5,12 @@ import {
   PrinterOutlined, SearchOutlined, BookOutlined
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 const { Paragraph } = Typography;
 
-export default function TheoryBrowser({ categories = [], onEditArticle, onViewArticle, onCreateArticle }) {
+export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateArticle }) {
+  const { theoryCategories: categories } = useReferenceData();
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);

@@ -12,6 +12,7 @@ import {
 import MathRenderer from './MathRenderer';
 import { useTaskImport } from '../hooks/useTaskImport';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 const { Dragger } = Upload;
 const { TextArea } = Input;
@@ -41,22 +42,23 @@ const FORMAT_TAG = {
   sdamgia: { color: 'green', label: 'РЕШУ ЕГЭ' },
 };
 
-export default function TaskImporter({ topics: propTopics = [], tags = [], subtopics: propSubtopics = [], onImportComplete }) {
+export default function TaskImporter() {
+  const { topics: ctxTopics, tags, subtopics: ctxSubtopics, reloadData } = useReferenceData();
   const [currentStep, setCurrentStep] = useState(0);
   const [inputMode, setInputMode] = useState('file'); // 'file' | 'text' | 'sdamgia'
   const [textInput, setTextInput] = useState('');
   const [fileName, setFileName] = useState('');
 
   // Локальные мутабельные списки (обновляются при создании новых тем/подтем)
-  const [localTopics, setLocalTopics] = useState(propTopics);
-  const [localSubtopics, setLocalSubtopics] = useState(propSubtopics);
+  const [localTopics, setLocalTopics] = useState(ctxTopics);
+  const [localSubtopics, setLocalSubtopics] = useState(ctxSubtopics);
 
-  // Синхронизация с props при внешних обновлениях
-  if (propTopics !== localTopics && propTopics.length !== localTopics.length) {
-    setLocalTopics(propTopics);
+  // Синхронизация с контекстом при внешних обновлениях
+  if (ctxTopics !== localTopics && ctxTopics.length !== localTopics.length) {
+    setLocalTopics(ctxTopics);
   }
-  if (propSubtopics !== localSubtopics && propSubtopics.length !== localSubtopics.length) {
-    setLocalSubtopics(propSubtopics);
+  if (ctxSubtopics !== localSubtopics && ctxSubtopics.length !== localSubtopics.length) {
+    setLocalSubtopics(ctxSubtopics);
   }
 
   // Состояние создания темы
@@ -322,8 +324,8 @@ export default function TaskImporter({ topics: propTopics = [], tags = [], subto
     }
     setCurrentStep(2);
     const results = await handleImport();
-    if (results && onImportComplete) {
-      onImportComplete();
+    if (results) {
+      reloadData();
     }
   };
 

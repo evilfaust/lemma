@@ -26,18 +26,14 @@ import {
   FolderOpenOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 const { TabPane } = Tabs;
 
 const TaskCatalogManager = ({
-  topics = [],
-  subtopics = [],
-  tags = [],
-  sources = [],
-  years = [],
   onOpenTasks,
-  onReloadData,
 }) => {
+  const { topics, subtopics, tags, sources, years, reloadData } = useReferenceData();
   const [loading, setLoading] = useState(true);
   const [tasksSnapshot, setTasksSnapshot] = useState([]);
 
@@ -309,7 +305,7 @@ const TaskCatalogManager = ({
       }
       setTopicModalOpen(false);
       setEditingTopic(null);
-      onReloadData?.();
+      reloadData();
     } catch (error) {
       message.error('Ошибка при сохранении темы');
     }
@@ -326,7 +322,7 @@ const TaskCatalogManager = ({
       }
       setSubtopicModalOpen(false);
       setEditingSubtopic(null);
-      onReloadData?.();
+      reloadData();
     } catch (error) {
       message.error('Ошибка при сохранении подтемы');
     }
@@ -343,7 +339,7 @@ const TaskCatalogManager = ({
       }
       setTagModalOpen(false);
       setEditingTag(null);
-      onReloadData?.();
+      reloadData();
     } catch (error) {
       message.error('Ошибка при сохранении тега');
     }
@@ -362,7 +358,7 @@ const TaskCatalogManager = ({
           }
           await api.deleteTopic(topic.id);
           message.success('Тема удалена');
-          onReloadData?.();
+          reloadData();
           loadSnapshot();
         } catch (error) {
           message.error('Ошибка при удалении темы');
@@ -388,7 +384,7 @@ const TaskCatalogManager = ({
           }
           await api.deleteSubtopic(subtopic.id);
           message.success('Подтема удалена');
-          onReloadData?.();
+          reloadData();
           loadSnapshot();
         } catch (error) {
           message.error('Ошибка при удалении подтемы');
@@ -414,7 +410,7 @@ const TaskCatalogManager = ({
           }
           await api.deleteTag(tag.id);
           message.success('Тег удалён');
-          onReloadData?.();
+          reloadData();
           loadSnapshot();
         } catch (error) {
           message.error('Ошибка при удалении тега');
@@ -480,7 +476,7 @@ const TaskCatalogManager = ({
       setMergeType(null);
       setMergeFrom(null);
       setMergeTo(null);
-      onReloadData?.();
+      reloadData();
       loadSnapshot();
     } catch (error) {
       message.error('Ошибка при объединении');
@@ -505,7 +501,7 @@ const TaskCatalogManager = ({
       setSourceRenameFrom(null);
       setSourceRenameTo('');
       loadSnapshot();
-      onReloadData?.();
+      reloadData();
     } catch (error) {
       message.error('Ошибка при обновлении источника');
     }
@@ -524,7 +520,7 @@ const TaskCatalogManager = ({
           }
           message.success('Источник удалён');
           loadSnapshot();
-          onReloadData?.();
+          reloadData();
         } catch (error) {
           message.error('Ошибка при удалении источника');
         }
@@ -544,7 +540,7 @@ const TaskCatalogManager = ({
     <div>
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ReloadOutlined />} onClick={loadSnapshot}>Обновить статистику</Button>
-        <Button onClick={onReloadData} disabled={!onReloadData}>Обновить справочники</Button>
+        <Button onClick={reloadData}>Обновить справочники</Button>
       </Space>
 
       <Tabs defaultActiveKey="topics">

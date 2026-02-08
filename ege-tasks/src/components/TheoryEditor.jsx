@@ -38,7 +38,10 @@ $$
 $$
 `;
 
-export default function TheoryEditor({ articleId = null, categories = [], onBack, onSaved }) {
+import { useReferenceData } from '../contexts/ReferenceDataContext';
+
+export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
+  const { theoryCategories: categories } = useReferenceData();
   const initialData = useMemo(() => {
     const { content, settings } = loadAutosave(articleId);
     return {

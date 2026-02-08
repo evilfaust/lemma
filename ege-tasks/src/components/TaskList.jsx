@@ -4,17 +4,13 @@ import TaskFilters from './TaskFilters';
 import TaskCard from './TaskCard';
 import TaskEditModal from './TaskEditModal';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 const TaskList = ({
-  topics,
-  tags,
-  years,
-  sources,
-  subtopics,
-  loading: initialLoading,
   initialFilters = null,
   initialFiltersToken = 0,
 }) => {
+  const { topics, tags, years, sources, subtopics, loading: initialLoading } = useReferenceData();
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [loading, setLoading] = useState(false);
