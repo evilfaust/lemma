@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Button, Space, Typography, Spin, Empty, message, Modal } from 'antd';
-import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Spin, Empty, message, Modal, Popconfirm } from 'antd';
+import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { shuffleArray } from '../../utils/shuffle';
 
@@ -197,25 +197,46 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       },
     },
     {
-      title: 'Исправление',
-      key: 'correction',
-      width: 100,
-      render: (_, record) => record.correction_used ?
-        <Tag color="orange">Да</Tag> :
-        <Text type="secondary">Нет</Text>,
-    },
-    {
       title: '',
       key: 'actions',
-      width: 50,
+      width: 80,
       render: (_, record) => (
-        <Button
-          type="text"
-          icon={<SwapOutlined />}
-          onClick={() => handleNewVariant(record)}
-          title="Другой вариант"
-          size="small"
-        />
+        <Space size={4}>
+          <Button
+            type="text"
+            icon={<SwapOutlined />}
+            onClick={() => handleNewVariant(record)}
+            title="Другой вариант"
+            size="small"
+          />
+          <Popconfirm
+            title="Удалить попытку?"
+            description="Все ответы этой попытки будут удалены."
+            okText="Удалить"
+            cancelText="Отмена"
+            onConfirm={async () => {
+              try {
+                await api.deleteAttempt(record.id);
+                setAttempts(prev => prev.filter(a => a.id !== record.id));
+                setExpandedAnswers(prev => {
+                  const next = { ...prev };
+                  delete next[record.id];
+                  return next;
+                });
+                message.success('Попытка удалена');
+              } catch (err) {
+                message.error('Ошибка при удалении попытки');
+              }
+            }}
+          >
+            <Button
+              type="text"
+              icon={<DeleteOutlined />}
+              danger
+              size="small"
+            />
+          </Popconfirm>
+        </Space>
       ),
     },
   ];

@@ -57,6 +57,37 @@ fi
 echo -e "${BLUE}│ Frontend:      http://localhost:5173    │${NC}"
 echo -e "${BLUE}└─────────────────────────────────────────┘${NC}"
 echo ""
+
+# Показать адреса локальной сети
+LAN_IPS=()
+if command -v ipconfig &> /dev/null; then
+    for IFACE in en0 en1; do
+        IP=$(ipconfig getifaddr "$IFACE" 2>/dev/null)
+        if [ -n "$IP" ]; then
+            LAN_IPS+=("$IP")
+        fi
+    done
+elif command -v hostname &> /dev/null; then
+    IPS=$(hostname -I 2>/dev/null | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' || true)
+    while IFS= read -r IP; do
+        [ -n "$IP" ] && LAN_IPS+=("$IP")
+    done <<< "$IPS"
+fi
+
+PRIMARY_IP="127.0.0.1"
+if [ ${#LAN_IPS[@]} -gt 0 ]; then
+    PRIMARY_IP="${LAN_IPS[0]}"
+    echo -e "${GREEN}Доступ в локальной сети:${NC}"
+    for IP in "${LAN_IPS[@]}"; do
+        echo -e "  ${BLUE}Frontend:${NC} http://${IP}:5173"
+        echo -e "  ${BLUE}PocketBase:${NC} http://${IP}:8090"
+    done
+    echo ""
+fi
+
+# Передаем адрес PocketBase во фронтенд
+export VITE_PB_URL="http://${PRIMARY_IP}:8090"
+
 echo -e "${YELLOW}Нажмите Ctrl+C для остановки всех сервисов${NC}"
 echo -e "${YELLOW}Запуск без PDF: ./start.sh --no-pdf${NC}"
 echo ""

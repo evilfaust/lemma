@@ -25,7 +25,7 @@ const StudentTestPage = ({ studentSession }) => {
   const handleSubmit = () => {
     Modal.confirm({
       title: 'Отправить ответы?',
-      content: `Вы ответили на ${Object.values(answers).filter(a => a?.trim()).length} из ${tasks.length} вопросов. После отправки изменить ответы можно только один раз.`,
+      content: `Вы ответили на ${Object.values(answers).filter(a => a?.trim()).length} из ${tasks.length} вопросов. После отправки изменить ответы нельзя.`,
       okText: 'Отправить',
       cancelText: 'Вернуться',
       onOk: doSubmit,
@@ -102,7 +102,8 @@ const StudentTestPage = ({ studentSession }) => {
           <Input
             className="task-answer-input"
             placeholder="Ответ"
-            inputMode="decimal"
+            inputMode="text"
+            type="text"
             value={answers[task.id] || ''}
             onChange={e => updateAnswer(task.id, e.target.value)}
           />

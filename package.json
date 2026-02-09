@@ -6,7 +6,7 @@
     "scripts": {
       "dev": "concurrently -n \"BACKEND,PDF,FRONTEND\" -c \"bgBlue.bold,bgMagenta.bold,bgGreen.bold\" \"npm run dev:backend\" \"npm run dev:pdf\" \"npm run dev:frontend\"",
       "dev:no-pdf": "concurrently -n \"BACKEND,FRONTEND\" -c \"bgBlue.bold,bgGreen.bold\" \"npm run dev:backend\" \"npm run dev:frontend\"",
-      "dev:backend": "cd pocketbase && ./pocketbase serve --hooksDir=pb_hooks",
+      "dev:backend": "cd pocketbase && ./pocketbase serve --hooksDir=pb_hooks --http 0.0.0.0:8090",
       "dev:pdf": "cd pocketbase && node pdf-service.js",
       "dev:frontend": "cd ege-tasks && npm run dev",
     "install:all": "cd pocketbase && npm install && cd ../ege-tasks && npm install",

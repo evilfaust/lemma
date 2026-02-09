@@ -943,6 +943,15 @@ export const api = {
     }
   },
 
+  async deleteAttempt(id) {
+    try {
+      return await pb.collection('attempts').delete(id);
+    } catch (error) {
+      console.error('Error deleting attempt:', error);
+      throw error;
+    }
+  },
+
   // ============ ОТВЕТЫ НА ЗАДАЧИ (ATTEMPT ANSWERS) ============
 
   async createAttemptAnswer(data) {

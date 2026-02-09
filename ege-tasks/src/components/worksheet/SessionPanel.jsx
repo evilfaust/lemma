@@ -14,7 +14,24 @@ const { Text, Title } = Typography;
 const SessionPanel = ({ workId }) => {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [host, setHost] = useState(() => window.location.hostname + ':5173');
+  const defaultPort = window.location.port || '5173';
+  const normalizeHost = useCallback((raw) => {
+    let value = (raw || '').trim();
+    if (!value) {
+      return `${window.location.hostname}:${defaultPort}`;
+    }
+
+    value = value.replace(/^https?:\/\//i, '');
+    value = value.split('/')[0];
+
+    if (!value.includes(':')) {
+      value = `${value}:${defaultPort}`;
+    }
+
+    return value;
+  }, [defaultPort]);
+
+  const [host, setHost] = useState(() => normalizeHost(window.location.host || window.location.hostname));
   const [qrFullscreen, setQrFullscreen] = useState(false);
   const qrRef = useRef();
 
@@ -26,13 +43,23 @@ const SessionPanel = ({ workId }) => {
       try {
         let existing = await api.getSessionByWork(workId);
         if (!existing) {
+          const normalized = normalizeHost(host);
           existing = await api.createSession({
             work: workId,
             is_open: true,
-            host_override: host,
+            host_override: normalized,
           });
+          setHost(normalized);
         } else if (existing.host_override) {
-          setHost(existing.host_override);
+          const normalized = normalizeHost(existing.host_override);
+          setHost(normalized);
+          if (normalized !== existing.host_override) {
+            try {
+              await api.updateSession(existing.id, { host_override: normalized });
+            } catch (err) {
+              // ignore
+            }
+          }
         }
         setSession(existing);
       } catch (err) {
@@ -58,7 +85,8 @@ const SessionPanel = ({ workId }) => {
   };
 
   const handleHostChange = useCallback(async (e) => {
-    const newHost = e.target.value;
+    const rawHost = e.target.value;
+    const newHost = normalizeHost(rawHost);
     setHost(newHost);
     if (session) {
       try {
@@ -67,7 +95,7 @@ const SessionPanel = ({ workId }) => {
         // Тихая ошибка при обновлении host
       }
     }
-  }, [session]);
+  }, [session, normalizeHost]);
 
   const copyLink = () => {
     navigator.clipboard.writeText(studentUrl).then(() => {
