@@ -1,0 +1,99 @@
+.student-app {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 16px;
+  min-height: 100vh;
+  font-size: 16px;
+}
+
+.student-app .ant-input,
+.student-app .ant-btn {
+  font-size: 16px;
+  min-height: 44px;
+}
+
+.student-app .ant-btn-lg {
+  min-height: 48px;
+  font-size: 18px;
+}
+
+.student-app .task-item {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.student-app .task-number {
+  font-weight: 700;
+  font-size: 16px;
+  color: #1890ff;
+  margin-bottom: 8px;
+}
+
+.student-app .task-statement {
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
+.student-app .task-statement img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+
+.student-app .task-answer-input {
+  font-size: 18px !important;
+  min-height: 48px !important;
+}
+
+.student-app .result-score {
+  font-size: 32px;
+  font-weight: 700;
+  text-align: center;
+  margin: 24px 0;
+}
+
+.student-app .result-score.good {
+  color: #52c41a;
+}
+
+.student-app .result-score.ok {
+  color: #faad14;
+}
+
+.student-app .result-score.bad {
+  color: #ff4d4f;
+}
+
+.student-app .error-task {
+  background: #fff2f0;
+  border: 1px solid #ffccc7;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.student-app .correct-badge {
+  color: #52c41a;
+  font-weight: 600;
+}
+
+.student-app .wrong-badge {
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+.student-app .katex {
+  font-size: 1.05em;
+}
+
+.student-app .submit-bar {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 12px 0;
+  border-top: 1px solid #f0f0f0;
+  z-index: 10;
+}

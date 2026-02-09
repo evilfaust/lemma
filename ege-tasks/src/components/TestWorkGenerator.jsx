@@ -206,7 +206,10 @@ const TestWorkGenerator = () => {
     if (currentWork?.id) {
       await handleUpdateWork(currentWork.id, values, variants);
     } else {
-      await handleSaveWork(values, variants);
+      const work = await handleSaveWork(values, variants);
+      if (work) {
+        setCurrentWork(work);
+      }
     }
     setSaveModalVisible(false);
   };

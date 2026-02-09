@@ -508,11 +508,40 @@ export const api = {
   },
 
   // Получить все работы
-  async getWorks() {
+  async getWorks(options = {}) {
+    const {
+      includeArchived = false,
+      archived = false,
+      search = '',
+      topic = null,
+    } = options;
+
     try {
+      const filterArr = [];
+
+      if (!includeArchived) {
+        if (archived) {
+          filterArr.push('archived = true');
+        } else {
+          // Если поле archived ещё не проставлено (null), считаем как false
+          filterArr.push('(archived = false || archived = null)');
+        }
+      }
+
+      if (topic) {
+        filterArr.push(`topic = "${escapeFilter(topic)}"`);
+      }
+
+      if (search) {
+        filterArr.push(`title ~ "${escapeFilter(search)}"`);
+      }
+
+      const filterString = filterArr.length > 0 ? filterArr.join(' && ') : '';
+
       const records = await pb.collection('works').getFullList({
         sort: '-created',
         expand: 'topic',
+        filter: filterString,
       });
       return records;
     } catch (error) {
@@ -551,6 +580,16 @@ export const api = {
       console.error('Error updating work:', error);
       throw error;
     }
+  },
+
+  // Архивировать работу
+  async archiveWork(id) {
+    return this.updateWork(id, { archived: true });
+  },
+
+  // Разархивировать работу
+  async unarchiveWork(id) {
+    return this.updateWork(id, { archived: false });
   },
 
   // ============ ВАРИАНТЫ (VARIANTS) ============
@@ -752,6 +791,214 @@ export const api = {
       console.error('Error fetching article counts:', error);
       return {};
     }
+  },
+
+  // ============ СЕССИИ ВЫДАЧИ (WORK SESSIONS) ============
+
+  async createSession(data) {
+    try {
+      return await pb.collection('work_sessions').create(data);
+    } catch (error) {
+      console.error('Error creating session:', error);
+      throw error;
+    }
+  },
+
+  async getSession(id) {
+    try {
+      return await pb.collection('work_sessions').getOne(id, {
+        expand: 'work',
+      });
+    } catch (error) {
+      console.error('Error fetching session:', error);
+      return null;
+    }
+  },
+
+  async getSessionByWork(workId) {
+    try {
+      const records = await pb.collection('work_sessions').getFullList({
+        filter: `work = "${escapeFilter(workId)}"`,
+        sort: '-created',
+      });
+      return records.length > 0 ? records[0] : null;
+    } catch (error) {
+      console.error('Error fetching session by work:', error);
+      return null;
+    }
+  },
+
+  async getSessionsByWork(workId) {
+    try {
+      return await pb.collection('work_sessions').getFullList({
+        filter: `work = "${escapeFilter(workId)}"`,
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching sessions by work:', error);
+      return [];
+    }
+  },
+
+  async getSessionsByWorks(workIds = []) {
+    try {
+      if (!workIds.length) return [];
+      const filter = workIds.map(id => `work = "${escapeFilter(id)}"`).join(' || ');
+      return await pb.collection('work_sessions').getFullList({
+        filter,
+        sort: '-created',
+        fields: 'id,work,created',
+      });
+    } catch (error) {
+      console.error('Error fetching sessions by works:', error);
+      return [];
+    }
+  },
+
+  async updateSession(id, data) {
+    try {
+      return await pb.collection('work_sessions').update(id, data);
+    } catch (error) {
+      console.error('Error updating session:', error);
+      throw error;
+    }
+  },
+
+  // ============ ПОПЫТКИ УЧЕНИКОВ (ATTEMPTS) ============
+
+  async createAttempt(data) {
+    try {
+      return await pb.collection('attempts').create(data);
+    } catch (error) {
+      console.error('Error creating attempt:', error);
+      throw error;
+    }
+  },
+
+  async getAttemptByDevice(sessionId, deviceId) {
+    try {
+      const records = await pb.collection('attempts').getFullList({
+        filter: `session = "${escapeFilter(sessionId)}" && device_id = "${escapeFilter(deviceId)}"`,
+        sort: '-created',
+        expand: 'variant',
+      });
+      return records.length > 0 ? records[0] : null;
+    } catch (error) {
+      console.error('Error fetching attempt by device:', error);
+      return null;
+    }
+  },
+
+  async getAttemptsBySession(sessionId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `session = "${escapeFilter(sessionId)}"`,
+        sort: 'student_name,-created',
+        expand: 'variant',
+      });
+    } catch (error) {
+      console.error('Error fetching attempts:', error);
+      return [];
+    }
+  },
+
+  async getAttemptsBySessions(sessionIds = []) {
+    try {
+      if (!sessionIds.length) return [];
+      const filter = sessionIds.map(id => `session = "${escapeFilter(id)}"`).join(' || ');
+      return await pb.collection('attempts').getFullList({
+        filter,
+        fields: 'id,session,score,total',
+      });
+    } catch (error) {
+      console.error('Error fetching attempts by sessions:', error);
+      return [];
+    }
+  },
+
+  async getAttemptsCountByWork(workId) {
+    try {
+      const sessions = await this.getSessionsByWork(workId);
+      if (sessions.length === 0) return 0;
+
+      const sessionFilters = sessions.map(s => `session = "${escapeFilter(s.id)}"`);
+      const filter = sessionFilters.join(' || ');
+      const attempts = await pb.collection('attempts').getFullList({
+        filter,
+        fields: 'id',
+      });
+      return attempts.length;
+    } catch (error) {
+      console.error('Error fetching attempts count by work:', error);
+      return 0;
+    }
+  },
+
+  async updateAttempt(id, data) {
+    try {
+      return await pb.collection('attempts').update(id, data);
+    } catch (error) {
+      console.error('Error updating attempt:', error);
+      throw error;
+    }
+  },
+
+  // ============ ОТВЕТЫ НА ЗАДАЧИ (ATTEMPT ANSWERS) ============
+
+  async createAttemptAnswer(data) {
+    try {
+      return await pb.collection('attempt_answers').create(data);
+    } catch (error) {
+      console.error('Error creating attempt answer:', error);
+      throw error;
+    }
+  },
+
+  async getAttemptAnswers(attemptId) {
+    try {
+      return await pb.collection('attempt_answers').getFullList({
+        filter: `attempt = "${escapeFilter(attemptId)}"`,
+        expand: 'task',
+      });
+    } catch (error) {
+      console.error('Error fetching attempt answers:', error);
+      return [];
+    }
+  },
+
+  async updateAttemptAnswer(id, data) {
+    try {
+      return await pb.collection('attempt_answers').update(id, data);
+    } catch (error) {
+      console.error('Error updating attempt answer:', error);
+      throw error;
+    }
+  },
+
+  async batchCreateAttemptAnswers(answers) {
+    const results = [];
+    for (const answer of answers) {
+      try {
+        const result = await pb.collection('attempt_answers').create(answer);
+        results.push(result);
+      } catch (error) {
+        console.error('Error creating attempt answer:', error);
+      }
+    }
+    return results;
+  },
+
+  async batchUpdateAttemptAnswers(answers) {
+    const results = [];
+    for (const { id, ...data } of answers) {
+      try {
+        const result = await pb.collection('attempt_answers').update(id, data);
+        results.push(result);
+      } catch (error) {
+        console.error('Error updating attempt answer:', error);
+      }
+    }
+    return results;
   },
 };
 

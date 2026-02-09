@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -12,6 +12,8 @@ import TheoryArticleView from './components/TheoryArticleView';
 import TheoryCategoryManager from './components/TheoryCategoryManager';
 import TheoryPrintBuilder from './components/TheoryPrintBuilder';
 import TaskImporter from './components/TaskImporter';
+import WorkManager from './components/WorkManager';
+import WorkEditorPage from './components/WorkEditorPage';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
 import './App.css';
@@ -54,6 +56,16 @@ function AppContent() {
       key: 'test-generator',
       icon: <FileAddOutlined />,
       label: 'Контрольные работы',
+    },
+    {
+      key: 'work-manager',
+      icon: <SolutionOutlined />,
+      label: 'Мои работы',
+    },
+    {
+      key: 'work-editor',
+      icon: <EditOutlined />,
+      label: 'Редактор работ',
     },
     {
       key: 'import',
@@ -128,6 +140,10 @@ function AppContent() {
         return <TaskSheetGenerator />;
       case 'test-generator':
         return <TestWorkGenerator />;
+      case 'work-manager':
+        return <WorkManager />;
+      case 'work-editor':
+        return <WorkEditorPage />;
       case 'import':
         return <TaskImporter />;
       case 'theory-browser':
@@ -176,6 +192,8 @@ function AppContent() {
       case 'catalog': return 'Каталог задач';
       case 'generator': return 'Генератор';
       case 'test-generator': return 'Контрольные работы';
+      case 'work-manager': return 'Мои работы';
+      case 'work-editor': return 'Редактор работ';
       case 'import': return 'Импорт задач';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';

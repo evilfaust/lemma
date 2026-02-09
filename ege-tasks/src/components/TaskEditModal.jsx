@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, InputNumber, message, Button, Space, Popconfirm, Spin, Divider } from 'antd';
+import { Modal, Form, Select, Input, InputNumber, message, Button, Space, Popconfirm, Spin, Divider, Alert } from 'antd';
 import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
@@ -380,6 +380,14 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         </div>
       }
     >
+      {!isCreateMode && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Изменения будут применены ко всем работам, где используется эта задача."
+          style={{ marginBottom: 16 }}
+        />
+      )}
       <Form
         form={form}
         layout="vertical"
