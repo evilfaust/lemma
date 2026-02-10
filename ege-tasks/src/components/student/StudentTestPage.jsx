@@ -91,9 +91,9 @@ const StudentTestPage = ({ studentSession }) => {
           <div className="task-number">Задача {idx + 1}</div>
           <div className="task-statement">
             <MathRenderer text={task.statement_md} />
-            {task.image && (
+            {(task.image_url || task.image) && (
               <img
-                src={`${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
+                src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
                 alt=""
                 style={{ maxWidth: '100%', marginTop: 8, borderRadius: 8 }}
               />
