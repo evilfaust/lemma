@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Table, Space, Button, Modal, Form, Input, Tag, Tooltip, message } from 'antd';
+import { Card, Table, Space, Button, Modal, Form, Input, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
@@ -11,6 +11,7 @@ export default function TagTab({ tagRows, tasksSnapshot, onOpenTasks, onMerge, o
   const [form] = Form.useForm();
 
   const openModal = (tag = null) => {
+  const { message } = App.useApp();
     setEditing(tag);
     setModalOpen(true);
     form.setFieldsValue({

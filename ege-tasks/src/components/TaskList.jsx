@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Row, Col, Spin, Empty, Pagination, message, Skeleton, Card, Space, Button, Select, Checkbox, Modal } from 'antd';
+import { Row, Col, Spin, Empty, Pagination, Skeleton, Card, Space, Button, Select, Checkbox, Modal, App } from 'antd';
 import TaskFilters from './TaskFilters';
 import TaskCard from './TaskCard';
 import TaskEditModal from './TaskEditModal';
@@ -86,6 +86,7 @@ const TaskList = ({
   }, [filters.search, filters.sortBy, tasks]);
 
   const loadTasks = async (newFilters = {}, resetPage = false) => {
+  const { message } = App.useApp();
     setLoading(true);
     try {
       const data = await api.getTasks(newFilters);

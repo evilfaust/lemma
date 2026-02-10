@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Tag, Space, Typography, Divider, Image, Button, Select, message, Badge, Checkbox } from 'antd';
+import { Card, Tag, Space, Typography, Divider, Image, Button, Select, Badge, Checkbox, App } from 'antd';
 import { 
   CheckCircleOutlined, 
   CloseCircleOutlined,
@@ -15,6 +15,7 @@ const { Text, Paragraph } = Typography;
 const { Option } = Select;
 
 const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics, onUpdate, selected = false, onSelect }) => {
+  const { message } = App.useApp();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [changingDifficulty, setChangingDifficulty] = useState(false);
 

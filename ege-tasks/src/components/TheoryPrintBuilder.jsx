@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, Checkbox, Select, Input, Tag, message, Spin, Empty, Tooltip } from 'antd';
+import { Button, Checkbox, Select, Input, Tag, Spin, Empty, Tooltip, App } from 'antd';
 import {
   FilePdfOutlined, PrinterOutlined,
   ArrowLeftOutlined
@@ -33,6 +33,7 @@ export default function TheoryPrintBuilder({ onBack }) {
   }, [categoryFilter]);
 
   const loadArticlesList = async () => {
+  const { message } = App.useApp();
     setLoading(true);
     try {
       const filters = {};

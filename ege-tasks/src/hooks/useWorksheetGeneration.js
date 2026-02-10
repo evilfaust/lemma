@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { api } from '../services/pocketbase';
 import { shuffleArray } from '../utils/shuffle';
 
@@ -8,6 +8,7 @@ import { shuffleArray } from '../utils/shuffle';
  * Поддерживает разные режимы генерации и структуры фильтров
  */
 export const useWorksheetGeneration = () => {
+  const { message } = App.useApp();
   const [variants, setVariants] = useState([]);
   const [allTasks, setAllTasks] = useState([]);
   const [loading, setLoading] = useState(false);

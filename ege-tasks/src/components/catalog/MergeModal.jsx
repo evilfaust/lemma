@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal, Select, Space, message } from 'antd';
+import { Modal, Select, Space, App } from 'antd';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
 
@@ -8,6 +8,7 @@ export default function MergeModal({ open, mergeType, mergeFrom, sourceRows, tas
   const [mergeTo, setMergeTo] = useState(null);
 
   const handleMerge = async () => {
+  const { message } = App.useApp();
     if (!mergeType || !mergeFrom || !mergeTo) return;
 
     try {

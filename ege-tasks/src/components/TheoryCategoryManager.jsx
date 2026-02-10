@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, ColorPicker, Space, message, Popconfirm, Tag } from 'antd';
+import { Table, Button, Modal, Form, Input, InputNumber, ColorPicker, Space, Popconfirm, Tag, App } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 
@@ -25,6 +25,7 @@ export default function TheoryCategoryManager() {
   }, []);
 
   const loadData = async () => {
+  const { message } = App.useApp();
     setLoading(true);
     try {
       const [cats, counts] = await Promise.all([

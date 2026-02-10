@@ -1,10 +1,11 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { api } from '../services/pocketbase';
 
 const ReferenceDataContext = createContext(null);
 
 export function ReferenceDataProvider({ children }) {
+  const { message } = App.useApp();
   const [topics, setTopics] = useState([]);
   const [tags, setTags] = useState([]);
   const [years, setYears] = useState([]);
@@ -36,7 +37,7 @@ export function ReferenceDataProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [message]);
 
   useEffect(() => {
     reloadData();

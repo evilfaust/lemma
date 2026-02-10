@@ -1,19 +1,5 @@
 import { useState, useRef, useMemo } from 'react';
-import {
-  Card,
-  Form,
-  Button,
-  Space,
-  Alert,
-  Collapse,
-  Spin,
-  Row,
-  Col,
-  Statistic,
-  Timeline,
-  Tag,
-  message,
-} from 'antd';
+import { Card, Form, Button, Space, Alert, Collapse, Spin, Row, Col, Statistic, Timeline, Tag, App } from 'antd';
 import {
   PlusOutlined,
   InfoCircleOutlined,
@@ -46,6 +32,7 @@ const { Panel } = Collapse;
  * Генератор контрольных работ с задачами из разных тем
  */
 const TestWorkGenerator = () => {
+  const { message } = App.useApp();
   const { topics, tags, subtopics, years, sources } = useReferenceData();
   const [form] = Form.useForm();
   const printRef = useRef();

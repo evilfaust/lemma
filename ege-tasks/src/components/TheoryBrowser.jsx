@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Input, Select, Button, Tag, Empty, Spin, Space, Popconfirm, message, Typography } from 'antd';
+import { Card, Row, Col, Input, Select, Button, Tag, Empty, Spin, Space, Popconfirm, Typography, App } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
   PrinterOutlined, SearchOutlined, BookOutlined
@@ -21,6 +21,7 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
   }, [selectedCategory]);
 
   const loadArticles = async () => {
+  const { message } = App.useApp();
     setLoading(true);
     try {
       const filters = {};

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
-import { Button, Select, Input, Modal, message, Spin, InputNumber, Radio, Tag, Space, Tooltip } from 'antd';
+import { Button, Select, Input, Modal, Spin, InputNumber, Radio, Tag, Space, Tooltip, App } from 'antd';
 import {
   SaveOutlined, SettingOutlined,
   FormatPainterOutlined, ColumnWidthOutlined, FilePdfOutlined,
@@ -43,6 +43,7 @@ import { useReferenceData } from '../contexts/ReferenceDataContext';
 export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const { theoryCategories: categories } = useReferenceData();
   const initialData = useMemo(() => {
+  const { message } = App.useApp();
     const { content, settings } = loadAutosave(articleId);
     return {
       content: content || DEFAULT_CONTENT,

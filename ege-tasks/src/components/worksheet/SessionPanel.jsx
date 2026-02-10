@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Switch, Input, Button, Space, Typography, Spin, Alert, message, Divider, Modal } from 'antd';
+import { Switch, Input, Button, Space, Typography, Spin, Alert, Divider, Modal, App } from 'antd';
 import { CopyOutlined, QrcodeOutlined, DownloadOutlined, LinkOutlined, FullscreenOutlined } from '@ant-design/icons';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/pocketbase';
@@ -12,6 +12,7 @@ const { Text, Title } = Typography;
  * Создаёт/загружает сессию, показывает QR-код и ссылку, управляет приёмом.
  */
 const SessionPanel = ({ workId }) => {
+  const { message } = App.useApp();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const defaultPort = window.location.port || '5173';

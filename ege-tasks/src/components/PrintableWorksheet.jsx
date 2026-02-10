@@ -1,5 +1,5 @@
 import { useState, forwardRef } from 'react';
-import { Card, Typography, Image, Tooltip, message, Button } from 'antd';
+import { Card, Typography, Image, Tooltip, Button, App } from 'antd';
 import { SwapOutlined, EditOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import TaskReplaceModal from './TaskReplaceModal';
@@ -32,6 +32,7 @@ const PrintableWorksheet = forwardRef(({
   const [cards, setCards] = useState(initialCards || []);
 
   const filterTaskText = (text) => {
+  const { message } = App.useApp();
     if (!hideTaskPrefixes) return text;
     return filterTaskTextUtil(text);
   };

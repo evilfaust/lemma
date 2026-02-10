@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Select, Tooltip, message } from 'antd';
+import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Select, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
@@ -11,6 +11,7 @@ export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, 
   const [form] = Form.useForm();
 
   const openModal = (subtopic = null) => {
+  const { message } = App.useApp();
     setEditing(subtopic);
     setModalOpen(true);
     form.setFieldsValue({

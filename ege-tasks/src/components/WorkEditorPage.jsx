@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, List, Button, Space, Input, Select, Tag, Typography, Spin, Row, Col, Empty, message } from 'antd';
+import { Card, List, Button, Space, Input, Select, Tag, Typography, Spin, Row, Col, Empty, App } from 'antd';
 import { ReloadOutlined, FolderOpenOutlined, InboxOutlined } from '@ant-design/icons';
 import WorkEditor from './WorkEditor';
 import { api } from '../services/pocketbase';
@@ -9,6 +9,7 @@ const { Text } = Typography;
 const { Option } = Select;
 
 const WorkEditorPage = () => {
+  const { message } = App.useApp();
   const { topics, tags, subtopics, years, sources } = useReferenceData();
   const [works, setWorks] = useState([]);
   const [loadingWorks, setLoadingWorks] = useState(true);

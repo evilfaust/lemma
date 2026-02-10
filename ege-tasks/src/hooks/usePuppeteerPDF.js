@@ -1,11 +1,12 @@
 import { useState, useCallback } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 
 /**
  * Хук для экспорта в PDF через Puppeteer на сервере
  * Обеспечивает высокое качество PDF с идеальным рендерингом KaTeX
  */
 export const usePuppeteerPDF = () => {
+  const { message } = App.useApp();
   const [exporting, setExporting] = useState(false);
   const [serverAvailable, setServerAvailable] = useState(true);
 

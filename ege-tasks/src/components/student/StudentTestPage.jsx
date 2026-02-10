@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Input, Button, Typography, Modal, message } from 'antd';
+import { Input, Button, Typography, Modal, App } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
@@ -14,6 +14,7 @@ const PB_URL = import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090';
  * Показывает задачи варианта с полями для ответов.
  */
 const StudentTestPage = ({ studentSession }) => {
+  const { message } = App.useApp();
   const { attempt, setAttempt, variant, tasks } = studentSession;
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);

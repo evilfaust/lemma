@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 
 /**
  * Хук для управления drag & drop задач между вариантами
  */
 export const useTaskDragDrop = (variants, setVariants) => {
+  const { message } = App.useApp();
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragOverTask, setDragOverTask] = useState(null);
 

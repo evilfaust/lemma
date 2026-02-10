@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Button, Space, Typography, Spin, Empty, message, Modal, Popconfirm } from 'antd';
+import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App } from 'antd';
 import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { shuffleArray } from '../../utils/shuffle';
@@ -11,6 +11,7 @@ const { Text } = Typography;
  * Таблица попыток учеников с возможностью просмотра ответов, ручного зачёта и выдачи нового варианта.
  */
 const TeacherResultsDashboard = ({ sessionId }) => {
+  const { message } = App.useApp();
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedAnswers, setExpandedAnswers] = useState({});

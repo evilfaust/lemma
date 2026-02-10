@@ -1,5 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { App as AntApp } from 'antd'
 import './App.css'
 
 const pathname = window.location.pathname;
@@ -23,6 +24,8 @@ if (pathname.startsWith('/student/')) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <RootComponent />
+    <AntApp>
+      <RootComponent />
+    </AntApp>
   </React.StrictMode>,
 )

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import { api } from '../services/pocketbase';
 
 /**
@@ -11,6 +11,7 @@ import { api } from '../services/pocketbase';
  * @returns {Object} обработчики и состояния для модалок замены/редактирования
  */
 export const useTaskEditing = (variants, setVariants) => {
+  const { message } = App.useApp();
   // Замена задачи
   const [replaceModalVisible, setReplaceModalVisible] = useState(false);
   const [taskToReplace, setTaskToReplace] = useState(null);

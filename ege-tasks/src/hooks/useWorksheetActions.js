@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 import html2pdf from 'html2pdf.js';
 import { api } from '../services/pocketbase';
 import { usePuppeteerPDF } from './usePuppeteerPDF';
@@ -8,6 +8,7 @@ import { usePuppeteerPDF } from './usePuppeteerPDF';
  * Хук для действий с листами работ (сохранение, печать, экспорт)
  */
 export const useWorksheetActions = () => {
+  const { message } = App.useApp();
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pdfMethod, setPdfMethod] = useState('puppeteer'); // 'puppeteer' | 'legacy'

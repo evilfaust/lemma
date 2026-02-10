@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { message } from 'antd';
+import { App } from 'antd';
 
 /**
  * Универсальный хук для управления распределением задач по ключевому полю.
@@ -12,6 +12,7 @@ import { message } from 'antd';
  * @param {string} options.itemLabel - название элемента для сообщений об ошибках (напр. 'тег', 'уровень сложности')
  */
 const useDistribution = (keyField, { onTotalChange, itemLabel = 'элемент' } = {}) => {
+  const { message } = App.useApp();
   const [items, setItems] = useState([]);
 
   const calcTotal = (arr) => arr.reduce((sum, item) => sum + (item.count || 0), 0);

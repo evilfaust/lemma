@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, InputNumber, message, Button, Space, Popconfirm, Spin, Divider, Alert } from 'antd';
+import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, App } from 'antd';
 import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
@@ -9,6 +9,7 @@ const { Option } = Select;
 const { TextArea } = Input;
 
 const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [], allSources = [], allYears = [], allSubtopics = [], allTopics = [] }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);

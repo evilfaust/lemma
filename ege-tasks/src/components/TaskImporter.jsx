@@ -1,9 +1,5 @@
 import { useState, useMemo } from 'react';
-import {
-  Card, Upload, Button, Steps, Select, Space, Alert, Progress,
-  Statistic, Collapse, Checkbox, Tag, Tabs, Input, Descriptions,
-  Row, Col, Empty, Badge, message, Typography, Spin, Modal, InputNumber,
-} from 'antd';
+import { Card, Upload, Button, Steps, Select, Space, Alert, Progress, Statistic, Collapse, Checkbox, Tag, Tabs, Input, Descriptions, Row, Col, Empty, Badge, Typography, Spin, Modal, InputNumber, App } from 'antd';
 import {
   InboxOutlined, CheckCircleOutlined,
   WarningOutlined, CloseCircleOutlined, ReloadOutlined,
@@ -104,6 +100,7 @@ export default function TaskImporter() {
 
   // Подтемы для выбранной темы (шаг 2 — предпросмотр)
   const filteredSubtopics = useMemo(() => {
+  const { message } = App.useApp();
     if (!topicId) return [];
     return localSubtopics.filter(st => st.topic === topicId);
   }, [topicId, localSubtopics]);

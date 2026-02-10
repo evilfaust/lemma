@@ -1,23 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  Card,
-  Form,
-  Select,
-  InputNumber,
-  Button,
-  Space,
-  Row,
-  Col,
-  Switch,
-  Radio,
-  message,
-  Spin,
-  Alert,
-  Input,
-  Table,
-  Popconfirm,
-  Tag,
-} from 'antd';
+import { Card, Form, Select, InputNumber, Button, Space, Row, Col, Switch, Radio, Spin, Alert, Input, Table, Popconfirm, Tag, App } from 'antd';
 import {
   ReloadOutlined,
   InfoCircleOutlined,
@@ -34,6 +16,7 @@ const { Option } = Select;
 const { TextArea } = Input;
 
 const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sources = [] }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [worksheet, setWorksheet] = useState(null);

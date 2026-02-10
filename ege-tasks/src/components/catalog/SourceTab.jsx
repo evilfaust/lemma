@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Table, Space, Button, Modal, Input, Tooltip, message } from 'antd';
+import { Card, Table, Space, Button, Modal, Input, Tooltip, App } from 'antd';
 import { DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
@@ -11,6 +11,7 @@ export default function SourceTab({ sourceRows, tasksSnapshot, onOpenTasks, onMe
   const [renameTo, setRenameTo] = useState('');
 
   const openRename = (source) => {
+  const { message } = App.useApp();
     setRenameFrom(source);
     setRenameTo(source || '');
     setRenameModalOpen(true);

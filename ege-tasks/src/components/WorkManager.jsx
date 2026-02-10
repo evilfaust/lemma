@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Card, List, Button, Tag, Empty, Spin, Modal, Space, Typography, message, Collapse, Tabs } from 'antd';
+import { Card, List, Button, Tag, Empty, Spin, Modal, Space, Typography, Collapse, Tabs, App } from 'antd';
 import { DeleteOutlined, SendOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import SessionPanel from './worksheet/SessionPanel';
@@ -11,6 +11,7 @@ const { Text, Title } = Typography;
  * Страница «Мои работы» — список сохранённых работ с выдачей и статистикой.
  */
 const WorkManager = () => {
+  const { message } = App.useApp();
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeWork, setActiveWork] = useState(null); // ID работы, для которой открыта панель выдачи

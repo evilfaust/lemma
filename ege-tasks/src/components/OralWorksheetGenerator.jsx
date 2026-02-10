@@ -1,23 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import {
-  Card,
-  Form,
-  Select,
-  Space,
-  Row,
-  Col,
-  Switch,
-  Radio,
-  InputNumber,
-  Input,
-  message,
-  Spin,
-  Tag,
-  Divider,
-  Collapse,
-  Badge,
-  Alert,
-} from 'antd';
+import { Card, Form, Select, Space, Row, Col, Switch, Radio, InputNumber, Input, Spin, Tag, Divider, Collapse, Badge, Alert, App } from 'antd';
 import {
   FilterOutlined,
   SearchOutlined,
@@ -44,9 +26,9 @@ import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './TaskWorksheet.css';
 
 const { Option } = Select;
-const { Panel } = Collapse;
 
 const TaskSheetGenerator = () => {
+  const { message } = App.useApp();
   const { topics, tags, years, sources, subtopics } = useReferenceData();
   const [form] = Form.useForm();
   const worksheetGen = useWorksheetGeneration();
@@ -319,6 +301,479 @@ const TaskSheetGenerator = () => {
     />
   );
 
+  const collapseItems = [
+    {
+      key: 'filters',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span>📋 Фильтры задач</span>
+          <Badge
+            count={loadingTasksCount ? '...' : availableTasksCount}
+            overflowCount={9999}
+            style={{ backgroundColor: availableTasksCount > 0 ? '#52c41a' : '#ff4d4f' }}
+            showZero
+          />
+        </span>
+      ),
+      children: (
+        <>
+          <Row gutter={16}>
+            <Col xs={24}>
+              <Form.Item name="search" label="Поиск по коду или тексту">
+                <Input
+                  placeholder="Введите код задачи или текст..."
+                  prefix={<SearchOutlined />}
+                  allowClear
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} md={8}>
+              <Form.Item
+                name="topic"
+                label="Тема"
+              >
+                <Select
+                  placeholder="Все темы"
+                  showSearch
+                  optionFilterProp="children"
+                  allowClear
+                >
+                  {topics.map(topic => (
+                    <Option key={topic.id} value={topic.id}>
+                      №{topic.ege_number} - {topic.title}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="subtopic" label="Подтема">
+                <Select
+                  placeholder={selectedTopic ? "Выберите подтему" : "Сначала выберите тему"}
+                  showSearch
+                  optionFilterProp="children"
+                  allowClear
+                  disabled={!selectedTopic}
+                  onChange={(value) => setSelectedSubtopic(value || null)}
+                >
+                  {subtopics
+                    .filter(subtopic => !selectedTopic || subtopic.topic === selectedTopic)
+                    .map(subtopic => (
+                      <Option key={subtopic.id} value={subtopic.id}>
+                        {subtopic.name}
+                      </Option>
+                    ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="difficulty" label="Сложность">
+                <Select placeholder="Любая" allowClear>
+                  <Option value="1">1 - Базовый</Option>
+                  <Option value="2">2 - Средний</Option>
+                  <Option value="3">3 - Повышенный</Option>
+                  <Option value="4">4 - Высокий</Option>
+                  <Option value="5">5 - Олимпиадный</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} md={8}>
+              <Form.Item name="filterTags" label="Теги">
+                <Select
+                  mode="multiple"
+                  placeholder="Фильтр по тегам"
+                  allowClear
+                  showSearch
+                  optionFilterProp="children"
+                  loading={loadingTags}
+                >
+                  {availableTags.map(tag => (
+                    <Option key={tag.id} value={tag.id}>
+                      <Tag color={tag.color} style={{ marginRight: 4 }}>{tag.title}</Tag>
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="source" label="Источник">
+                <Select placeholder="Любой" allowClear showSearch>
+                  {sources.map(s => (
+                    <Option key={s} value={s}>{s}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="year" label="Год">
+                <Select placeholder="Любой" allowClear showSearch>
+                  {years.map(y => (
+                    <Option key={y} value={y}>{y}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Row gutter={16}>
+            <Col xs={24} md={8}>
+              <Form.Item name="sortType" label="Сортировка">
+                <Select>
+                  <Option value="code">По коду</Option>
+                  <Option value="difficulty">По сложности</Option>
+                  <Option value="random">Случайная</Option>
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="hasAnswer" label="Наличие ответа">
+                <Radio.Group>
+                  <Radio.Button value={undefined}>Все</Radio.Button>
+                  <Radio.Button value="yes">С ответом</Radio.Button>
+                  <Radio.Button value="no">Без ответа</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} md={8}>
+              <Form.Item name="hasSolution" label="Наличие решения">
+                <Radio.Group>
+                  <Radio.Button value={undefined}>Все</Radio.Button>
+                  <Radio.Button value="yes">С решением</Radio.Button>
+                  <Radio.Button value="no">Без решения</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+          </Row>
+        </>
+      ),
+    },
+    {
+      key: 'tags',
+      label: '🏷️ Распределение по тегам (опционально)',
+      children: (
+        <>
+          {!selectedTopic && (
+            <Alert
+              message="Выберите тему, чтобы настроить распределение по тегам"
+              type="warning"
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {selectedTopic && loadingTags && (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <Spin />
+              <div style={{ marginTop: 8, color: '#666' }}>Загрузка доступных тегов...</div>
+            </div>
+          )}
+
+          {selectedTopic && !loadingTags && availableTags.length === 0 && (
+            <Alert
+              message="В выбранной теме нет задач с тегами"
+              type="info"
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {selectedTopic && !loadingTags && availableTags.length > 0 && (
+            <>
+              <Alert
+                message={`Найдено ${availableTags.length} тег(ов) в задачах этой темы. Настройте количество задач для каждого тега. Общее количество задач будет автоматически рассчитано.`}
+                type="info"
+                style={{ marginBottom: 16 }}
+              />
+
+              <DistributionPanel
+                items={tagDistribution.items}
+                options={availableTags.map(tag => ({ value: tag.id, label: tag.title }))}
+                keyField="tag"
+                onAdd={tagDistribution.addItem}
+                onRemove={tagDistribution.removeItem}
+                onChange={tagDistribution.updateItem}
+                total={tagDistribution.getTotal()}
+                expectedTotal={form.getFieldValue('tasksPerVariant') || 0}
+                addButtonText="Добавить тег"
+                selectPlaceholder="Выберите тег"
+              />
+            </>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'difficulty',
+      label: '📊 Распределение по сложности (опционально)',
+      children: (
+        <>
+          {!selectedTopic && (
+            <Alert
+              message="Выберите тему, чтобы настроить распределение по сложности"
+              type="warning"
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          {selectedTopic && tagDistribution.items.length > 0 && (
+            <Alert
+              message="Распределение по сложности нельзя использовать одновременно с распределением по тегам"
+              type="warning"
+              style={{ marginBottom: 16 }}
+            />
+          )}
+
+          <Form.Item name="progressiveDifficulty" valuePropName="checked">
+            <Space>
+              <Switch
+                checked={progressiveDifficulty}
+                onChange={(checked) => {
+                  setProgressiveDifficulty(checked);
+                  if (checked) {
+                    difficultyDistribution.reset();
+                  }
+                }}
+              />
+              <span>Автопрогрессия сложности</span>
+            </Space>
+          </Form.Item>
+
+          {selectedTopic && tagDistribution.items.length === 0 && !progressiveDifficulty && (
+            <DistributionPanel
+              items={difficultyDistribution.items}
+              options={difficultyOptions}
+              keyField="difficulty"
+              onAdd={difficultyDistribution.addItem}
+              onRemove={difficultyDistribution.removeItem}
+              onChange={difficultyDistribution.updateItem}
+              total={difficultyDistribution.getTotal()}
+              expectedTotal={form.getFieldValue('tasksPerVariant') || 0}
+              addButtonText="Добавить уровень сложности"
+              selectPlaceholder="Выберите уровень сложности"
+              showColorTags
+            />
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'variants',
+      label: '🎲 Генерация вариантов',
+      children: (
+        <Row gutter={16}>
+          <Col xs={24} md={8}>
+            <Form.Item name="variantsCount" label="Количество вариантов">
+              <InputNumber min={1} max={10} style={{ width: '100%' }} />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={8}>
+            <Form.Item
+              name="tasksPerVariant"
+              label="Задач в варианте"
+              tooltip={tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0 ? "Автоматически рассчитывается из распределения" : ""}
+            >
+              <InputNumber
+                min={1}
+                max={100}
+                style={{ width: '100%' }}
+                disabled={tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0}
+              />
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} md={8}>
+            <Form.Item name="variantsMode" label="Режим вариантов">
+              <Select>
+                <Option value="different">Разные задачи</Option>
+                <Option value="shuffled">Одинаковые, разный порядок</Option>
+                <Option value="same">Одинаковые задачи</Option>
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+      ),
+    },
+    {
+      key: 'format',
+      label: '🎨 Формат печати',
+      children: (
+        <>
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col xs={24}>
+              <Form.Item label="Режим вывода" style={{ marginBottom: 0 }}>
+                <Radio.Group
+                  value={outputMode}
+                  onChange={(e) => setOutputMode(e.target.value)}
+                  buttonStyle="solid"
+                  size="large"
+                >
+                  <Radio.Button value="sheet">Лист задач</Radio.Button>
+                  <Radio.Button value="cards">Карточки</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+          </Row>
+
+          <Divider style={{ margin: '8px 0 16px' }} />
+
+          {outputMode === 'sheet' && (
+            <>
+              <Row gutter={16}>
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    label="Колонки"
+                    tooltip={compactMode ? "В компактном режиме - количество вариантов в ряд" : "Колонки для задач в варианте"}
+                  >
+                    <Radio.Group
+                      value={columns}
+                      onChange={(e) => setColumns(e.target.value)}
+                      buttonStyle="solid"
+                    >
+                      <Radio.Button value={1}>1</Radio.Button>
+                      <Radio.Button value={2}>2</Radio.Button>
+                      <Radio.Button value={3}>3</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={8}>
+                  <Form.Item label="Размер шрифта">
+                    <Radio.Group
+                      value={fontSize}
+                      onChange={(e) => setFontSize(e.target.value)}
+                      buttonStyle="solid"
+                    >
+                      <Radio.Button value={10}>10pt</Radio.Button>
+                      <Radio.Button value={12}>12pt</Radio.Button>
+                      <Radio.Button value={14}>14pt</Radio.Button>
+                      <Radio.Button value={16}>16pt</Radio.Button>
+                      <Radio.Button value={20}>20pt</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Место для решения">
+                    <Radio.Group
+                      value={solutionSpace}
+                      onChange={(e) => setSolutionSpace(e.target.value)}
+                      buttonStyle="solid"
+                    >
+                      <Radio.Button value="none">Нет</Radio.Button>
+                      <Radio.Button value="small">Мало</Radio.Button>
+                      <Radio.Button value="medium">Средне</Radio.Button>
+                      <Radio.Button value="large">Много</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col xs={24} md={6}>
+                  <Form.Item label="Компактный режим">
+                    <Switch checked={compactMode} onChange={setCompactMode} />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item
+                    label="Скрыть «Вычислите:» и т.п."
+                    tooltip="Убирает типовые фразы из начала условия задач"
+                  >
+                    <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Поля для ФИО">
+                    <Switch
+                      checked={showStudentInfo}
+                      onChange={setShowStudentInfo}
+                      disabled={compactMode}
+                    />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Ответы в тексте">
+                    <Switch
+                      checked={showAnswersInline}
+                      onChange={setShowAnswersInline}
+                      disabled={compactMode}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+
+              <Row gutter={16}>
+                <Col xs={24} md={6}>
+                  <Form.Item label="Лист с ответами">
+                    <Switch checked={showAnswersPage} onChange={setShowAnswersPage} />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Название варианта">
+                    <Input
+                      placeholder="Вариант"
+                      value={variantLabel}
+                      onChange={(e) => setVariantLabel(e.target.value)}
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
+          )}
+
+          {outputMode === 'cards' && (
+            <>
+              <Row gutter={16}>
+                <Col xs={24} md={6}>
+                  <Form.Item label="Формат карточек">
+                    <Select value={cardFormat} onChange={setCardFormat}>
+                      <Option value="А6">A6</Option>
+                      <Option value="А5">A5</Option>
+                      <Option value="А4">A4</Option>
+                    </Select>
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Показывать ответы">
+                    <Switch checked={showCardAnswers} onChange={setShowCardAnswers} />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Показывать решения">
+                    <Switch checked={showCardSolutions} onChange={setShowCardSolutions} />
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
+                  <Form.Item label="Поля для ФИО">
+                    <Switch checked={showCardStudentInfo} onChange={setShowCardStudentInfo} />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </>
+          )}
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="task-worksheet-container">
       <Card
@@ -346,503 +801,7 @@ const TaskSheetGenerator = () => {
             progressiveDifficulty: false,
           }}
         >
-          <Collapse defaultActiveKey={['filters', 'tags', 'variants', 'format']}>
-            {/* Фильтры */}
-            <Panel
-              header={
-                <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span>📋 Фильтры задач</span>
-                  <Badge
-                    count={loadingTasksCount ? '...' : availableTasksCount}
-                    overflowCount={9999}
-                    style={{ backgroundColor: availableTasksCount > 0 ? '#52c41a' : '#ff4d4f' }}
-                    showZero
-                  />
-                </span>
-              }
-              key="filters"
-            >
-              <Row gutter={16}>
-                <Col xs={24}>
-                  <Form.Item name="search" label="Поиск по коду или тексту">
-                    <Input
-                      placeholder="Введите код задачи или текст..."
-                      prefix={<SearchOutlined />}
-                      allowClear
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    name="topic"
-                    label="Тема"
-                  >
-                    <Select
-                      placeholder="Все темы"
-                      showSearch
-                      optionFilterProp="children"
-                      allowClear
-                    >
-                      {topics.map(topic => (
-                        <Option key={topic.id} value={topic.id}>
-                          №{topic.ege_number} - {topic.title}
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="subtopic" label="Подтема">
-                    <Select
-                      placeholder={selectedTopic ? "Выберите подтему" : "Сначала выберите тему"}
-                      showSearch
-                      optionFilterProp="children"
-                      allowClear
-                      disabled={!selectedTopic}
-                      onChange={(value) => setSelectedSubtopic(value || null)}
-                    >
-                      {subtopics
-                        .filter(subtopic => !selectedTopic || subtopic.topic === selectedTopic)
-                        .map(subtopic => (
-                          <Option key={subtopic.id} value={subtopic.id}>
-                            {subtopic.name}
-                          </Option>
-                        ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="difficulty" label="Сложность">
-                    <Select placeholder="Любая" allowClear>
-                      <Option value="1">1 - Базовый</Option>
-                      <Option value="2">2 - Средний</Option>
-                      <Option value="3">3 - Повышенный</Option>
-                      <Option value="4">4 - Высокий</Option>
-                      <Option value="5">5 - Олимпиадный</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} md={8}>
-                  <Form.Item name="filterTags" label="Теги">
-                    <Select
-                      mode="multiple"
-                      placeholder="Фильтр по тегам"
-                      allowClear
-                      showSearch
-                      optionFilterProp="children"
-                      loading={loadingTags}
-                    >
-                      {availableTags.map(tag => (
-                        <Option key={tag.id} value={tag.id}>
-                          <Tag color={tag.color} style={{ marginRight: 4 }}>{tag.title}</Tag>
-                        </Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="source" label="Источник">
-                    <Select placeholder="Любой" allowClear showSearch>
-                      {sources.map(s => (
-                        <Option key={s} value={s}>{s}</Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="year" label="Год">
-                    <Select placeholder="Любой" allowClear showSearch>
-                      {years.map(y => (
-                        <Option key={y} value={y}>{y}</Option>
-                      ))}
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} md={8}>
-                  <Form.Item name="sortType" label="Сортировка">
-                    <Select>
-                      <Option value="code">По коду</Option>
-                      <Option value="difficulty">По сложности</Option>
-                      <Option value="random">Случайная</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="hasAnswer" label="Наличие ответа">
-                    <Radio.Group>
-                      <Radio.Button value={undefined}>Все</Radio.Button>
-                      <Radio.Button value="yes">С ответом</Radio.Button>
-                      <Radio.Button value="no">Без ответа</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="hasSolution" label="Наличие решения">
-                    <Radio.Group>
-                      <Radio.Button value={undefined}>Все</Radio.Button>
-                      <Radio.Button value="yes">С решением</Radio.Button>
-                      <Radio.Button value="no">Без решения</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Panel>
-
-            {/* Теги */}
-            <Panel header="🏷️ Распределение по тегам (опционально)" key="tags">
-              {!selectedTopic && (
-                <Alert
-                  message="Выберите тему, чтобы настроить распределение по тегам"
-                  type="warning"
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-
-              {selectedTopic && loadingTags && (
-                <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <Spin />
-                  <div style={{ marginTop: 8, color: '#666' }}>Загрузка доступных тегов...</div>
-                </div>
-              )}
-
-              {selectedTopic && !loadingTags && availableTags.length === 0 && (
-                <Alert
-                  message="В выбранной теме нет задач с тегами"
-                  type="info"
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-
-              {selectedTopic && !loadingTags && availableTags.length > 0 && (
-                <>
-                  <Alert
-                    message={`Найдено ${availableTags.length} тег(ов) в задачах этой темы. Настройте количество задач для каждого тега. Общее количество задач будет автоматически рассчитано.`}
-                    type="info"
-                    style={{ marginBottom: 16 }}
-                  />
-
-                  <DistributionPanel
-                    items={tagDistribution.items}
-                    options={availableTags.map(tag => ({ value: tag.id, label: tag.title }))}
-                    keyField="tag"
-                    onAdd={tagDistribution.addItem}
-                    onRemove={tagDistribution.removeItem}
-                    onChange={tagDistribution.updateItem}
-                    total={tagDistribution.getTotal()}
-                    expectedTotal={form.getFieldValue('tasksPerVariant') || 0}
-                    addButtonText="Добавить тег"
-                    selectPlaceholder="Выберите тег"
-                  />
-                </>
-              )}
-            </Panel>
-
-            {/* Сложность */}
-            <Panel header="📊 Распределение по сложности (опционально)" key="difficulty">
-              {!selectedTopic && (
-                <Alert
-                  message="Выберите тему, чтобы настроить распределение по сложности"
-                  type="warning"
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-
-              {selectedTopic && tagDistribution.items.length > 0 && (
-                <Alert
-                  message="Распределение по сложности нельзя использовать одновременно с распределением по тегам"
-                  type="warning"
-                  style={{ marginBottom: 16 }}
-                />
-              )}
-
-              <Form.Item name="progressiveDifficulty" valuePropName="checked">
-                <Space>
-                  <Switch
-                    checked={progressiveDifficulty}
-                    onChange={(checked) => {
-                      setProgressiveDifficulty(checked);
-                      if (checked) {
-                        difficultyDistribution.reset();
-                      }
-                    }}
-                  />
-                  <span>Автопрогрессия сложности</span>
-                </Space>
-              </Form.Item>
-
-              {selectedTopic && tagDistribution.items.length === 0 && !progressiveDifficulty && (
-                <DistributionPanel
-                  items={difficultyDistribution.items}
-                  options={difficultyOptions}
-                  keyField="difficulty"
-                  onAdd={difficultyDistribution.addItem}
-                  onRemove={difficultyDistribution.removeItem}
-                  onChange={difficultyDistribution.updateItem}
-                  total={difficultyDistribution.getTotal()}
-                  expectedTotal={form.getFieldValue('tasksPerVariant') || 0}
-                  addButtonText="Добавить уровень сложности"
-                  selectPlaceholder="Выберите уровень сложности"
-                  showColorTags
-                />
-              )}
-            </Panel>
-
-            {/* Варианты */}
-            <Panel header="🎲 Генерация вариантов" key="variants">
-              <Row gutter={16}>
-                <Col xs={24} md={8}>
-                  <Form.Item name="variantsCount" label="Количество вариантов">
-                    <InputNumber min={1} max={10} style={{ width: '100%' }} />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item
-                    name="tasksPerVariant"
-                    label="Задач в варианте"
-                    tooltip={tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0 ? "Автоматически рассчитывается из распределения" : ""}
-                  >
-                    <InputNumber
-                      min={1}
-                      max={100}
-                      style={{ width: '100%' }}
-                      disabled={tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0}
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item name="variantsMode" label="Режим вариантов">
-                    <Select>
-                      <Option value="different">Разные задачи</Option>
-                      <Option value="shuffled">Одинаковые, разный порядок</Option>
-                      <Option value="same">Одинаковые задачи</Option>
-                    </Select>
-                  </Form.Item>
-                </Col>
-              </Row>
-            </Panel>
-
-            {/* Формат */}
-            <Panel header="🎨 Формат печати" key="format">
-              <Row gutter={16} style={{ marginBottom: 16 }}>
-                <Col xs={24}>
-                  <Form.Item label="Режим вывода" style={{ marginBottom: 0 }}>
-                    <Radio.Group
-                      value={outputMode}
-                      onChange={(e) => setOutputMode(e.target.value)}
-                      buttonStyle="solid"
-                      size="large"
-                    >
-                      <Radio.Button value="sheet">Лист задач</Radio.Button>
-                      <Radio.Button value="cards">Карточки</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Divider style={{ margin: '8px 0 16px' }} />
-
-              {outputMode === 'sheet' && (
-                <>
-                  <Row gutter={16}>
-                    <Col xs={24} md={6}>
-                      <Form.Item
-                        label="Колонки"
-                        tooltip={compactMode ? "В компактном режиме - количество вариантов в ряд" : "Колонки для задач в варианте"}
-                      >
-                        <Radio.Group
-                          value={columns}
-                          onChange={(e) => setColumns(e.target.value)}
-                          buttonStyle="solid"
-                        >
-                          <Radio.Button value={1}>1</Radio.Button>
-                          <Radio.Button value={2}>2</Radio.Button>
-                          <Radio.Button value={3}>3</Radio.Button>
-                        </Radio.Group>
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={8}>
-                      <Form.Item label="Размер шрифта">
-                        <Radio.Group
-                          value={fontSize}
-                          onChange={(e) => setFontSize(e.target.value)}
-                          buttonStyle="solid"
-                        >
-                          <Radio.Button value={10}>10pt</Radio.Button>
-                          <Radio.Button value={12}>12pt</Radio.Button>
-                          <Radio.Button value={14}>14pt</Radio.Button>
-                          <Radio.Button value={16}>16pt</Radio.Button>
-                          <Radio.Button value={20}>20pt</Radio.Button>
-                        </Radio.Group>
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Место для решения">
-                        <Radio.Group
-                          value={solutionSpace}
-                          onChange={(e) => setSolutionSpace(e.target.value)}
-                          buttonStyle="solid"
-                        >
-                          <Radio.Button value="none">Нет</Radio.Button>
-                          <Radio.Button value="small">Мало</Radio.Button>
-                          <Radio.Button value="medium">Средне</Radio.Button>
-                          <Radio.Button value="large">Много</Radio.Button>
-                        </Radio.Group>
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={16}>
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Компактный режим">
-                        <Switch checked={compactMode} onChange={setCompactMode} />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item
-                        label="Скрыть «Вычислите:» и т.п."
-                        tooltip="Убирает типовые фразы из начала условия задач"
-                      >
-                        <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Поля для ФИО">
-                        <Switch
-                          checked={showStudentInfo}
-                          onChange={setShowStudentInfo}
-                          disabled={compactMode}
-                        />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Ответы в тексте">
-                        <Switch
-                          checked={showAnswersInline}
-                          onChange={setShowAnswersInline}
-                          disabled={compactMode}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={16}>
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Лист с ответами">
-                        <Switch checked={showAnswersPage} onChange={setShowAnswersPage} />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={12}>
-                      <Form.Item label="Название варианта">
-                        <Input
-                          value={variantLabel}
-                          onChange={(e) => setVariantLabel(e.target.value)}
-                          placeholder="Вариант"
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                </>
-              )}
-
-              {outputMode === 'cards' && (
-                <>
-                  <Row gutter={16}>
-                    <Col xs={24} md={8}>
-                      <Form.Item label="Формат карточки">
-                        <Select value={cardFormat} onChange={setCardFormat}>
-                          <Option value="А6">А6 (4 на листе A4)</Option>
-                          <Option value="А5">А5 (2 на листе A4)</Option>
-                          <Option value="А4">А4 (1 на листе)</Option>
-                          <Option value="А4-2V">А4 (2 вертикальные карточки)</Option>
-                          <Option value="А4-3V">А4 (3 вертикальные карточки)</Option>
-                        </Select>
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={8}>
-                      <Form.Item label="Размер шрифта">
-                        <Radio.Group
-                          value={fontSize}
-                          onChange={(e) => setFontSize(e.target.value)}
-                          buttonStyle="solid"
-                        >
-                          <Radio.Button value={10}>10pt</Radio.Button>
-                          <Radio.Button value={12}>12pt</Radio.Button>
-                          <Radio.Button value={14}>14pt</Radio.Button>
-                          <Radio.Button value={16}>16pt</Radio.Button>
-                          <Radio.Button value={20}>20pt</Radio.Button>
-                        </Radio.Group>
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={16}>
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Поля для ФИ">
-                        <Switch checked={showCardStudentInfo} onChange={setShowCardStudentInfo} />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Ответы в карточках">
-                        <Switch checked={showCardAnswers} onChange={setShowCardAnswers} />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item label="Решения в карточках">
-                        <Switch checked={showCardSolutions} onChange={setShowCardSolutions} />
-                      </Form.Item>
-                    </Col>
-
-                    <Col xs={24} md={6}>
-                      <Form.Item
-                        label="Скрыть «Вычислите:» и т.п."
-                        tooltip="Убирает типовые фразы из начала условия задач"
-                      >
-                        <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-
-                  <Row gutter={16}>
-                    <Col xs={24} md={12}>
-                      <Form.Item label="Название карточки">
-                        <Input
-                          value={variantLabel}
-                          onChange={(e) => setVariantLabel(e.target.value)}
-                          placeholder="Проверочная работа"
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                </>
-              )}
-            </Panel>
-          </Collapse>
+          <Collapse defaultActiveKey={['filters', 'tags', 'variants', 'format']} items={collapseItems} />
 
           <Form.Item style={{ marginTop: 16 }}>
             <ActionButtons

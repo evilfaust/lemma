@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { Button, Spin, Tag, Space, message, Select, Tooltip, Card, List, Divider } from 'antd';
+import { Button, Spin, Tag, Space, Select, Tooltip, Card, List, Divider, App } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined
@@ -39,6 +39,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   }, [article?.id, article?.tags]);
 
   const loadArticle = async (id) => {
+  const { message } = App.useApp();
     setLoading(true);
     try {
       const data = await api.getTheoryArticle(id);

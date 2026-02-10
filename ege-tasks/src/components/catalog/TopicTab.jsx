@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Tooltip, message } from 'antd';
+import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
@@ -11,6 +11,7 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
   const [form] = Form.useForm();
 
   const openModal = (topic = null) => {
+  const { message } = App.useApp();
     setEditing(topic);
     setModalOpen(true);
     form.setFieldsValue({
