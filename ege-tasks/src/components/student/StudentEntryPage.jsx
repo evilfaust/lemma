@@ -56,10 +56,12 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
   }
 
   // Форма входа
+  const studentTitle = session.student_title?.trim() || 'Самостоятельная работа';
+
   return (
     <div style={{ padding: '40px 0' }}>
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <Title level={3} style={{ marginBottom: 8 }}>Контрольная работа</Title>
+        <Title level={3} style={{ marginBottom: 8 }}>{studentTitle}</Title>
         {session.expand?.work?.title && (
           <Text type="secondary" style={{ fontSize: 16 }}>
             {session.expand.work.title}

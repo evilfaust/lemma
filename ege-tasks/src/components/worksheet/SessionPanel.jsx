@@ -32,6 +32,7 @@ const SessionPanel = ({ workId }) => {
   }, [defaultPort]);
 
   const [host, setHost] = useState(() => normalizeHost(window.location.host || window.location.hostname));
+  const [studentTitle, setStudentTitle] = useState('Самостоятельная работа');
   const [qrFullscreen, setQrFullscreen] = useState(false);
   const qrRef = useRef();
 
@@ -48,11 +49,14 @@ const SessionPanel = ({ workId }) => {
             work: workId,
             is_open: true,
             host_override: normalized,
+            student_title: 'Самостоятельная работа',
           });
           setHost(normalized);
+          setStudentTitle('Самостоятельная работа');
         } else if (existing.host_override) {
           const normalized = normalizeHost(existing.host_override);
           setHost(normalized);
+          setStudentTitle(existing.student_title || 'Самостоятельная работа');
           if (normalized !== existing.host_override) {
             try {
               await api.updateSession(existing.id, { host_override: normalized });
@@ -96,6 +100,18 @@ const SessionPanel = ({ workId }) => {
       }
     }
   }, [session, normalizeHost]);
+
+  const handleStudentTitleChange = useCallback(async (e) => {
+    const title = e.target.value;
+    setStudentTitle(title);
+    if (session) {
+      try {
+        await api.updateSession(session.id, { student_title: title });
+      } catch (err) {
+        // silent
+      }
+    }
+  }, [session]);
 
   const copyLink = () => {
     navigator.clipboard.writeText(studentUrl).then(() => {
@@ -159,6 +175,16 @@ const SessionPanel = ({ workId }) => {
           onChange={handleHostChange}
           placeholder="192.168.1.100:5173"
           addonBefore={<LinkOutlined />}
+        />
+      </div>
+
+      {/* Заголовок для учеников */}
+      <div style={{ marginBottom: 16 }}>
+        <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Заголовок для учеников:</Text>
+        <Input
+          value={studentTitle}
+          onChange={handleStudentTitleChange}
+          placeholder="Самостоятельная работа"
         />
       </div>
 

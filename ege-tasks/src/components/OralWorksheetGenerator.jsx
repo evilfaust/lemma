@@ -99,15 +99,54 @@ const TaskSheetGenerator = () => {
   // Счётчик доступных задач
   const [availableTasksCount, setAvailableTasksCount] = useState(0);
   const [loadingTasksCount, setLoadingTasksCount] = useState(false);
+  const watchedValues = Form.useWatch([], form);
 
-  // Загружаем доступные теги и счётчик задач при изменении темы/подтем
+  // Загружаем доступные теги при изменении темы/подтем
   useEffect(() => {
     loadAvailableTags();
   }, [selectedTopic, selectedSubtopic]);
 
+  // Пересчитываем количество задач по всем фильтрам
+  useEffect(() => {
+    if (!watchedValues) return;
+    const timer = setTimeout(async () => {
+      setLoadingTasksCount(true);
+      try {
+        const filters = {};
+        if (watchedValues.topic) filters.topic = watchedValues.topic;
+        if (watchedValues.subtopic) filters.subtopic = watchedValues.subtopic;
+        if (watchedValues.difficulty) filters.difficulty = watchedValues.difficulty;
+        if (watchedValues.source) filters.source = watchedValues.source;
+        if (watchedValues.year) filters.year = watchedValues.year;
+        if (watchedValues.filterTags && watchedValues.filterTags.length > 0) filters.tags = watchedValues.filterTags;
+        if (watchedValues.hasAnswer !== undefined) filters.hasAnswer = watchedValues.hasAnswer === 'yes';
+        if (watchedValues.hasSolution !== undefined) filters.hasSolution = watchedValues.hasSolution === 'yes';
+
+        const hasFilters = Object.keys(filters).length > 0;
+        let tasks = await api.getTasks(hasFilters ? filters : {});
+
+        if (watchedValues.search) {
+          const searchLower = watchedValues.search.toLowerCase();
+          tasks = tasks.filter(task =>
+            task.code?.toLowerCase().includes(searchLower) ||
+            task.statement_md?.toLowerCase().includes(searchLower)
+          );
+        }
+
+        setAvailableTasksCount(tasks.length);
+      } catch (error) {
+        console.error('Error loading tasks count:', error);
+        setAvailableTasksCount(0);
+      } finally {
+        setLoadingTasksCount(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [watchedValues]);
+
   const loadAvailableTags = async () => {
     setLoadingTags(true);
-    setLoadingTasksCount(true);
     try {
       const filters = {};
       if (selectedTopic) {
@@ -120,9 +159,6 @@ const TaskSheetGenerator = () => {
 
       // Получаем задачи для текущих фильтров (или все если фильтров нет)
       const tasks = await api.getTasks(Object.keys(filters).length > 0 ? filters : {});
-
-      // Сохраняем количество доступных задач
-      setAvailableTasksCount(tasks.length);
 
       // Собираем уникальные теги
       const tagSet = new Set();
@@ -146,7 +182,6 @@ const TaskSheetGenerator = () => {
       console.error('Error loading available tags:', error);
     } finally {
       setLoadingTags(false);
-      setLoadingTasksCount(false);
     }
   };
 

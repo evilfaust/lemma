@@ -10,6 +10,8 @@ import TeacherResultsDashboard from './worksheet/TeacherResultsDashboard';
 import { useTaskDragDrop, useTaskEditing } from '../hooks';
 import './TaskWorksheet.css';
 
+const PB_URL = import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090';
+
 const { Text } = Typography;
 const { Option } = Select;
 
@@ -265,6 +267,14 @@ const WorkEditor = ({
                                   </div>
                                   <div className="task-content">
                                     <MathRenderer text={task.statement_md} />
+                                    {(task.image_url || task.image) && (
+                                      <div className="task-image">
+                                        <img
+                                          src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
+                                          alt=""
+                                        />
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
