@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import {
   Card,
   Form,
@@ -71,6 +71,20 @@ const TestWorkGenerator = () => {
     puppeteerAvailable,
   } = useWorksheetActions();
   const taskEditing = useTaskEditing(variants, setVariants);
+
+  const timelineItems = useMemo(() => workBlocks.map((block) => ({
+    key: block.id,
+    children: (
+      <div>
+        <div style={{ fontWeight: 600 }}>{getTopicTitle(block.topic)}</div>
+        <div style={{ color: '#666', fontSize: 12 }}>
+          Задач: {block.count}
+          {block.difficulty.length > 0 && ` • Сложность: ${block.difficulty.join(', ')}`}
+          {block.subtopics.length > 0 && ` • Подтем: ${block.subtopics.length}`}
+        </div>
+      </div>
+    ),
+  })), [workBlocks]);
 
   // Настройки вариантов
   const [variantsCount, setVariantsCount] = useState(1);
@@ -345,18 +359,7 @@ const TestWorkGenerator = () => {
                     </Col>
                   </Row>
 
-                  <Timeline mode="left">
-                    {workBlocks.map((block, idx) => (
-                      <Timeline.Item key={block.id}>
-                        <div style={{ fontWeight: 600 }}>{getTopicTitle(block.topic)}</div>
-                        <div style={{ color: '#666', fontSize: 12 }}>
-                          Задач: {block.count}
-                          {block.difficulty.length > 0 && ` • Сложность: ${block.difficulty.join(', ')}`}
-                          {block.subtopics.length > 0 && ` • Подтем: ${block.subtopics.length}`}
-                        </div>
-                      </Timeline.Item>
-                    ))}
-                  </Timeline>
+                  <Timeline mode="left" items={timelineItems} />
                 </Card>
               )}
             </Panel>

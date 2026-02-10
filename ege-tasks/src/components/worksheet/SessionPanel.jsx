@@ -170,12 +170,14 @@ const SessionPanel = ({ workId }) => {
       {/* Host */}
       <div style={{ marginBottom: 16 }}>
         <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Host / IP адрес:</Text>
-        <Input
-          value={host}
-          onChange={handleHostChange}
-          placeholder="192.168.1.100:5173"
-          addonBefore={<LinkOutlined />}
-        />
+        <Space.Compact style={{ width: '100%' }}>
+          <Button icon={<LinkOutlined />} />
+          <Input
+            value={host}
+            onChange={handleHostChange}
+            placeholder="192.168.1.100:5173"
+          />
+        </Space.Compact>
       </div>
 
       {/* Заголовок для учеников */}
@@ -191,14 +193,13 @@ const SessionPanel = ({ workId }) => {
       {/* Ссылка */}
       <div style={{ marginBottom: 16 }}>
         <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Ссылка для учеников:</Text>
-        <Input.Group compact>
+        <Space.Compact style={{ width: '100%' }}>
           <Input
             value={studentUrl}
             readOnly
-            style={{ width: 'calc(100% - 40px)' }}
           />
           <Button icon={<CopyOutlined />} onClick={copyLink} />
-        </Input.Group>
+        </Space.Compact>
       </div>
 
       {/* QR-код */}

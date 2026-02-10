@@ -515,7 +515,8 @@ const TaskSheetGenerator = () => {
 
               {selectedTopic && loadingTags && (
                 <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                  <Spin tip="Загрузка доступных тегов..." />
+                  <Spin />
+                  <div style={{ marginTop: 8, color: '#666' }}>Загрузка доступных тегов...</div>
                 </div>
               )}
 

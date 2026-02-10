@@ -146,7 +146,7 @@ const WorkEditor = ({
           </Button>
         </Space>
       }
-      bodyStyle={{ paddingTop: 12 }}
+      styles={{ body: { paddingTop: 12 } }}
     >
       {hasAttempts && (
         <Alert

@@ -71,7 +71,7 @@ export const useWorksheetGeneration = () => {
           } else if (sortType === 'code') {
             variantTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
           } else if (sortType === 'difficulty') {
-            variantTasks.sort((a, b) => (a.difficulty || '1').localeCompare(b.difficulty || '1'));
+            variantTasks.sort((a, b) => String(a.difficulty ?? '1').localeCompare(String(b.difficulty ?? '1')));
           }
 
           generatedVariants.push({
@@ -102,7 +102,7 @@ export const useWorksheetGeneration = () => {
         if (sortType === 'code') {
           baseTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
         } else if (sortType === 'difficulty') {
-          baseTasks.sort((a, b) => (a.difficulty || '1').localeCompare(b.difficulty || '1'));
+          baseTasks.sort((a, b) => String(a.difficulty ?? '1').localeCompare(String(b.difficulty ?? '1')));
         }
 
         // Создаём варианты с перемешанным порядком

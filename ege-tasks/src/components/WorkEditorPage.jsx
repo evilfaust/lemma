@@ -249,7 +249,7 @@ const WorkEditorPage = () => {
       extra={
         <Button icon={<ReloadOutlined />} onClick={loadWorks} />
       }
-      bodyStyle={{ padding: 12 }}
+      styles={{ body: { padding: 12 } }}
     >
       <Space direction="vertical" style={{ width: '100%' }} size={8}>
         <Input.Search
