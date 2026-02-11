@@ -15,7 +15,7 @@ const PB_URL = PB_BASE_URL;
  * Показывает результат, ошибочные задачи и кнопку исправления.
  */
 const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
-  const { attempt, tasks } = studentSession;
+  const { attempt, tasks, session } = studentSession;
   const [attemptAnswers, setAttemptAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,10 +46,13 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     );
   }
 
-  const hasAchievement = attempt?.expand?.achievement || attempt?.achievement;
-  const hasUnlockedAchievements =
-    (attempt?.expand?.unlocked_achievements && attempt.expand.unlocked_achievements.length > 0) ||
-    (attempt?.unlocked_achievements && attempt.unlocked_achievements.length > 0);
+  // Проверяем, включены ли достижения для этой сессии
+  const achievementsEnabled = session?.achievements_enabled || false;
+
+  const hasAchievement = achievementsEnabled && (attempt?.expand?.achievement || attempt?.achievement);
+  const hasUnlockedAchievements = achievementsEnabled &&
+    ((attempt?.expand?.unlocked_achievements && attempt.expand.unlocked_achievements.length > 0) ||
+    (attempt?.unlocked_achievements && attempt.unlocked_achievements.length > 0));
 
   return (
     <div style={{ padding: '20px 0' }}>
