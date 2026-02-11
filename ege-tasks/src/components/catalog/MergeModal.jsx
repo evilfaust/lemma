@@ -5,10 +5,10 @@ import { api } from '../../services/pocketbase';
 
 export default function MergeModal({ open, mergeType, mergeFrom, sourceRows, tasksSnapshot, onClose, onReload }) {
   const { topics, subtopics, tags, reloadData } = useReferenceData();
+  const { message } = App.useApp();
   const [mergeTo, setMergeTo] = useState(null);
 
   const handleMerge = async () => {
-  const { message } = App.useApp();
     if (!mergeType || !mergeFrom || !mergeTo) return;
 
     try {

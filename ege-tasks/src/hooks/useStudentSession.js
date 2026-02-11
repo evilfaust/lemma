@@ -14,6 +14,17 @@ export function useStudentSession(sessionId, deviceId) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const getIssueNumber = useCallback((attemptRecord, attempts = []) => {
+    if (!attemptRecord?.id) return 1;
+
+    const sameDeviceAttempts = attempts
+      .filter(a => a.device_id === attemptRecord.device_id)
+      .sort((a, b) => new Date(a.created) - new Date(b.created));
+
+    const index = sameDeviceAttempts.findIndex(a => a.id === attemptRecord.id);
+    return index >= 0 ? index + 1 : sameDeviceAttempts.length + 1;
+  }, []);
+
   // Загрузка сессии и проверка существующей попытки
   useEffect(() => {
     if (!sessionId || !deviceId) return;
@@ -34,7 +45,11 @@ export function useStudentSession(sessionId, deviceId) {
         // Проверить существующую попытку для этого устройства
         const existingAttempt = await api.getAttemptByDevice(sessionId, deviceId);
         if (existingAttempt) {
-          setAttempt(existingAttempt);
+          const allAttempts = await api.getAttemptsBySession(sessionId);
+          setAttempt({
+            ...existingAttempt,
+            issueNumber: getIssueNumber(existingAttempt, allAttempts),
+          });
           // Загрузить вариант с задачами
           const variantData = await api.getVariant(existingAttempt.variant);
           if (variantData) {
@@ -50,7 +65,7 @@ export function useStudentSession(sessionId, deviceId) {
     };
 
     init();
-  }, [sessionId, deviceId]);
+  }, [sessionId, deviceId, getIssueNumber]);
 
   // Загрузка задач варианта в правильном порядке
   const loadVariantTasks = async (variantData) => {
@@ -119,7 +134,10 @@ export function useStudentSession(sessionId, deviceId) {
         total: taskList.length,
       });
 
-      setAttempt(newAttempt);
+      setAttempt({
+        ...newAttempt,
+        issueNumber: getIssueNumber(newAttempt, [...allAttempts, newAttempt]),
+      });
       setVariant(chosenVariant);
       await loadVariantTasks(chosenVariant);
 
@@ -129,7 +147,7 @@ export function useStudentSession(sessionId, deviceId) {
       setError('Ошибка при начале теста');
       return null;
     }
-  }, [session, sessionId, deviceId]);
+  }, [session, sessionId, deviceId, getIssueNumber]);
 
   return {
     session,

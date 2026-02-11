@@ -32,6 +32,16 @@ code {
   vertical-align: middle;
 }
 
+/* Ограничение размеров изображений в тексте задач */
+.task-statement img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  height: auto;
+  margin: 8px auto;
+  object-fit: contain;
+}
+
 /* Inline формулы */
 .katex-html {
   display: inline-block;
@@ -88,6 +98,16 @@ code {
 
 .ant-card-body {
   padding: 16px;
+}
+
+/* Изображения в карточках задач */
+.task-card-image .ant-image-img {
+  display: block;
+  max-width: 100%;
+  max-height: 220px;
+  height: auto;
+  margin: 0 auto;
+  object-fit: contain;
 }
 
 /* Плавная прокрутка */

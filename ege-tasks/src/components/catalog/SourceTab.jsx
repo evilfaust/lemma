@@ -6,12 +6,12 @@ import { api } from '../../services/pocketbase';
 
 export default function SourceTab({ sourceRows, tasksSnapshot, onOpenTasks, onMerge, onReload }) {
   const { reloadData } = useReferenceData();
+  const { message } = App.useApp();
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameFrom, setRenameFrom] = useState(null);
   const [renameTo, setRenameTo] = useState('');
 
   const openRename = (source) => {
-  const { message } = App.useApp();
     setRenameFrom(source);
     setRenameTo(source || '');
     setRenameModalOpen(true);

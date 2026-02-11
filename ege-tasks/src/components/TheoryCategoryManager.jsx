@@ -13,6 +13,7 @@ const DEFAULT_CATEGORIES = [
 ];
 
 export default function TheoryCategoryManager() {
+  const { message } = App.useApp();
   const [categories, setCategories] = useState([]);
   const [articleCounts, setArticleCounts] = useState({});
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,6 @@ export default function TheoryCategoryManager() {
   }, []);
 
   const loadData = async () => {
-  const { message } = App.useApp();
     setLoading(true);
     try {
       const [cats, counts] = await Promise.all([

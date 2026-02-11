@@ -11,6 +11,7 @@ const TaskList = ({
   initialFiltersToken = 0,
 }) => {
   const { topics, tags, years, sources, subtopics, loading: initialLoading } = useReferenceData();
+  const { message } = App.useApp();
   const [tasks, setTasks] = useState([]);
   const [filteredTasks, setFilteredTasks] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -86,7 +87,6 @@ const TaskList = ({
   }, [filters.search, filters.sortBy, tasks]);
 
   const loadTasks = async (newFilters = {}, resetPage = false) => {
-  const { message } = App.useApp();
     setLoading(true);
     try {
       const data = await api.getTasks(newFilters);

@@ -10,6 +10,7 @@ import { useReferenceData } from '../contexts/ReferenceDataContext';
 const { Paragraph } = Typography;
 
 export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateArticle }) {
+  const { message } = App.useApp();
   const { theoryCategories: categories } = useReferenceData();
   const [articles, setArticles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +22,6 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
   }, [selectedCategory]);
 
   const loadArticles = async () => {
-  const { message } = App.useApp();
     setLoading(true);
     try {
       const filters = {};

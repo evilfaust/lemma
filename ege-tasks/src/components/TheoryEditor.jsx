@@ -5,8 +5,8 @@ import {
   FormatPainterOutlined, ColumnWidthOutlined, FilePdfOutlined,
   ArrowLeftOutlined, TagsOutlined
 } from '@ant-design/icons';
-import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave } from '../hooks';
-import { getPageDimensions, getThemeStyles, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
+import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave, usePuppeteerPDF } from '../hooks';
+import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
@@ -41,9 +41,9 @@ $$
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
+  const { message } = App.useApp();
   const { theoryCategories: categories } = useReferenceData();
   const initialData = useMemo(() => {
-  const { message } = App.useApp();
     const { content, settings } = loadAutosave(articleId);
     return {
       content: content || DEFAULT_CONTENT,
@@ -69,6 +69,8 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const [summary, setSummary] = useState('');
 
   const editorRef = useRef(null);
+  const previewRef = useRef(null);
+  const puppeteerPDF = usePuppeteerPDF();
 
   // Process markdown
   const html = useMarkdownProcessor(markdown, pageSettings.columns);
@@ -178,23 +180,27 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
 
   // Export PDF
   const handleExportPDF = useCallback(async () => {
+    const filename = (title || 'theory-article').trim();
+    const puppeteerSuccess = await puppeteerPDF.exportToPDF(previewRef, filename, {
+      format: pageSettings.pageSize || 'A4',
+      landscape: pageSettings.orientation === 'landscape',
+      marginTop: `${pageSettings.marginTop}mm`,
+      marginBottom: `${pageSettings.marginBottom}mm`,
+      marginLeft: `${pageSettings.marginLeft}mm`,
+      marginRight: `${pageSettings.marginRight}mm`,
+    });
+
+    if (puppeteerSuccess || !previewRef.current || puppeteerPDF.serverAvailable) {
+      return;
+    }
+
+    message.warning('PDF-сервис недоступен. Используем резервный экспорт.');
     setIsExporting(true);
     try {
-      const styles = getThemeStyles(currentTheme, pageSettings);
       const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
-
-      const container = document.createElement('div');
-      container.innerHTML = `
-        <style>${styles}</style>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-        <div class="page" data-theme="${currentTheme}">${html}</div>
-      `;
-
-      document.body.appendChild(container);
-
       const opt = {
         margin: 0,
-        filename: `${title || 'theory-article'}.pdf`,
+        filename: `${filename}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: {
@@ -204,16 +210,15 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         },
       };
 
-      await html2pdf().set(opt).from(container.querySelector('.page')).save();
-      document.body.removeChild(container);
-      message.success('PDF экспортирован');
+      await html2pdf().set(opt).from(previewRef.current).save();
+      message.success('PDF экспортирован (резервный метод)');
     } catch (error) {
       console.error('PDF export error:', error);
       message.error('Ошибка при экспорте PDF');
     } finally {
       setIsExporting(false);
     }
-  }, [html, currentTheme, pageSettings, title]);
+  }, [title, pageSettings, puppeteerPDF, message]);
 
   // Toggle columns
   const toggleColumns = useCallback(() => {
@@ -312,7 +317,13 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             Сохранить
           </Button>
           <Tooltip title="Экспорт PDF">
-            <Button type="text" size="small" icon={<FilePdfOutlined />} onClick={handleExportPDF} loading={isExporting} />
+            <Button
+              type="text"
+              size="small"
+              icon={<FilePdfOutlined />}
+              onClick={handleExportPDF}
+              loading={isExporting || puppeteerPDF.exporting}
+            />
           </Tooltip>
         </div>
       </div>
@@ -360,6 +371,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
           </div>
           <div className="theory-preview-wrapper">
             <div
+              ref={previewRef}
               className="theory-preview-content"
               data-theme={currentTheme}
               style={previewStyles}

@@ -151,6 +151,7 @@ const TaskFilters = ({
         form={form}
         layout="vertical"
         onValuesChange={handleFieldChange}
+        initialValues={{ sortBy: 'code' }}
       >
         <Row gutter={16}>
           <Col xs={24} sm={18} md={18}>
@@ -166,7 +167,6 @@ const TaskFilters = ({
             <Form.Item name="sortBy" label="Сортировка">
               <Select
                 placeholder="Выберите сортировку"
-                defaultValue="code"
                 suffixIcon={<SortAscendingOutlined />}
               >
                 <Option value="code">По коду</Option>

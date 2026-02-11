@@ -74,9 +74,7 @@ elif command -v hostname &> /dev/null; then
     done <<< "$IPS"
 fi
 
-PRIMARY_IP="127.0.0.1"
 if [ ${#LAN_IPS[@]} -gt 0 ]; then
-    PRIMARY_IP="${LAN_IPS[0]}"
     echo -e "${GREEN}Доступ в локальной сети:${NC}"
     for IP in "${LAN_IPS[@]}"; do
         echo -e "  ${BLUE}Frontend:${NC} http://${IP}:5173"
@@ -85,8 +83,10 @@ if [ ${#LAN_IPS[@]} -gt 0 ]; then
     echo ""
 fi
 
-# Передаем адрес PocketBase во фронтенд
-export VITE_PB_URL="http://${PRIMARY_IP}:8090"
+if [ -n "${VITE_PB_URL:-}" ]; then
+    echo -e "${YELLOW}Используется пользовательский VITE_PB_URL:${NC} ${VITE_PB_URL}"
+    echo ""
+fi
 
 echo -e "${YELLOW}Нажмите Ctrl+C для остановки всех сервисов${NC}"
 echo -e "${YELLOW}Запуск без PDF: ./start.sh --no-pdf${NC}"

@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App } from 'antd';
-import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover } from 'antd';
+import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { shuffleArray } from '../../utils/shuffle';
+import MathRenderer from '../MathRenderer';
+import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 
 const { Text } = Typography;
+const PB_URL = PB_BASE_URL;
 
 /**
  * Панель результатов учителя.
@@ -166,6 +169,26 @@ const TeacherResultsDashboard = ({ sessionId }) => {
     corrected: { color: 'green', text: 'Исправлен' },
   };
 
+  const issueNumberByAttemptId = useMemo(() => {
+    const grouped = {};
+    attempts.forEach((attempt) => {
+      const key = `${attempt.session}:${attempt.device_id}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(attempt);
+    });
+
+    const result = {};
+    Object.values(grouped).forEach((group) => {
+      group
+        .sort((a, b) => new Date(a.created) - new Date(b.created))
+        .forEach((attempt, index) => {
+          result[attempt.id] = index + 1;
+        });
+    });
+
+    return result;
+  }, [attempts]);
+
   const columns = [
     {
       title: 'Ученик',
@@ -178,6 +201,12 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       key: 'variant',
       width: 80,
       render: (_, record) => record.expand?.variant?.number || '—',
+    },
+    {
+      title: 'Выдача',
+      key: 'issueNumber',
+      width: 95,
+      render: (_, record) => issueNumberByAttemptId[record.id] || 1,
     },
     {
       title: 'Результат',
@@ -255,8 +284,43 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       {
         title: 'Задача',
         key: 'task',
-        width: 100,
-        render: (_, a) => a.expand?.task?.code || '—',
+        width: 180,
+        render: (_, a) => {
+          const task = a.expand?.task;
+          const hasContent = Boolean(task?.statement_md || task?.image || task?.image_url);
+
+          return (
+            <Space size={6}>
+              <Text>{task?.code || '—'}</Text>
+              {hasContent && (
+                <Popover
+                  trigger="click"
+                  placement="rightTop"
+                  title={`Условие ${task?.code || ''}`}
+                  overlayStyle={{ maxWidth: 560 }}
+                  content={(
+                    <div style={{ maxWidth: 520, maxHeight: 420, overflow: 'auto' }}>
+                      {task?.statement_md ? (
+                        <MathRenderer text={task.statement_md} />
+                      ) : (
+                        <Text type="secondary">Текст условия отсутствует</Text>
+                      )}
+                      {(task?.image_url || task?.image) && (
+                        <img
+                          src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
+                          alt=""
+                          style={{ maxWidth: '100%', marginTop: 8, borderRadius: 8 }}
+                        />
+                      )}
+                    </div>
+                  )}
+                >
+                  <Button type="text" size="small" icon={<EyeOutlined />} style={{ padding: 0 }} />
+                </Popover>
+              )}
+            </Space>
+          );
+        },
       },
       {
         title: 'Ответ ученика',

@@ -1,8 +1,9 @@
 import PocketBase from 'pocketbase';
 import { shuffleArray } from '../utils/shuffle';
 import { escapeFilter } from '../utils/escapeFilter';
+import { PB_BASE_URL } from './pocketbaseUrl';
 
-const pb = new PocketBase(import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090');
+const pb = new PocketBase(PB_BASE_URL);
 
 // Отключаем автоматическое обновление токена для анонимного доступа
 pb.autoCancellation(false);
@@ -821,7 +822,26 @@ export const api = {
         filter: `work = "${escapeFilter(workId)}"`,
         sort: '-created',
       });
-      return records.length > 0 ? records[0] : null;
+      if (records.length === 0) return null;
+      if (records.length === 1) return records[0];
+
+      // Если есть дубликаты сессий для одной работы, выбираем сессию
+      // с наибольшим числом попыток, затем самую новую.
+      const sessionIds = records.map(r => r.id);
+      const attempts = await this.getAttemptsBySessions(sessionIds);
+      const attemptsBySession = attempts.reduce((acc, attempt) => {
+        acc[attempt.session] = (acc[attempt.session] || 0) + 1;
+        return acc;
+      }, {});
+
+      const sorted = [...records].sort((a, b) => {
+        const attemptsA = attemptsBySession[a.id] || 0;
+        const attemptsB = attemptsBySession[b.id] || 0;
+        if (attemptsA !== attemptsB) return attemptsB - attemptsA;
+        return new Date(b.created) - new Date(a.created);
+      });
+
+      return sorted[0];
     } catch (error) {
       console.error('Error fetching session by work:', error);
       return null;

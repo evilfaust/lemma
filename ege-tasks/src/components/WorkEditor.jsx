@@ -8,9 +8,10 @@ import TaskSelectModal from './TaskSelectModal';
 import SessionPanel from './worksheet/SessionPanel';
 import TeacherResultsDashboard from './worksheet/TeacherResultsDashboard';
 import { useTaskDragDrop, useTaskEditing } from '../hooks';
+import { PB_BASE_URL } from '../services/pocketbaseUrl';
 import './TaskWorksheet.css';
 
-const PB_URL = import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090';
+const PB_URL = PB_BASE_URL;
 
 const { Text } = Typography;
 const { Option } = Select;

@@ -3,10 +3,11 @@ import { Typography, Spin, Divider } from 'antd';
 import { CheckCircleOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
+import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 
 const { Title, Text } = Typography;
 
-const PB_URL = import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090';
+const PB_URL = PB_BASE_URL;
 
 /**
  * Страница результатов ученика.
@@ -50,7 +51,10 @@ const StudentResultPage = ({ studentSession }) => {
         <Title level={4} style={{ marginBottom: 4 }}>
           Результат
         </Title>
-        <Text type="secondary">{attempt?.student_name}</Text>
+        <Text type="secondary">
+          {attempt?.student_name}
+          {attempt?.issueNumber ? ` • Выдача №${attempt.issueNumber}` : ''}
+        </Text>
       </div>
 
       <div className={`result-score ${scoreClass}`}>

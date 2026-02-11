@@ -11,6 +11,9 @@ import remarkGfm from 'remark-gfm';
  */
 const MathRenderer = ({ text, inline = true }) => {
   if (!text) return null;
+  const katexSettings = {
+    strict: (errorCode) => (errorCode === 'unicodeTextInMathMode' ? 'ignore' : 'warn'),
+  };
 
   // Функция для обработки LaTeX в тексте
   const processLatex = (content) => {
@@ -66,12 +69,12 @@ const MathRenderer = ({ text, inline = true }) => {
       if (match.type === 'block') {
         parts.push(
           <div key={`block-${index}`} style={{ margin: '10px 0' }}>
-            <BlockMath math={match.content} />
+            <BlockMath math={match.content} settings={katexSettings} />
           </div>
         );
       } else {
         parts.push(
-          <InlineMath key={`inline-${index}`} math={match.content} />
+          <InlineMath key={`inline-${index}`} math={match.content} settings={katexSettings} />
         );
       }
 

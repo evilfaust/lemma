@@ -127,7 +127,7 @@ function AppContent() {
       case 'stats':
         return (
           <TaskStatsDashboard
-            onTagClick={(tagId) => openTasksWithFilters({ tags: [tagId] })}
+            onOpenTasks={openTasksWithFilters}
           />
         );
       case 'catalog':

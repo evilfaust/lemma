@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Input, Button, Typography, Modal, App } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
+import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { checkAnswer } from '../../utils/answerChecker';
 
 const { Title, Text } = Typography;
 
-const PB_URL = import.meta.env.VITE_PB_URL || 'http://127.0.0.1:8090';
+const PB_URL = PB_BASE_URL;
 
 /**
  * Страница прохождения теста.
@@ -18,6 +19,49 @@ const StudentTestPage = ({ studentSession }) => {
   const { attempt, setAttempt, variant, tasks } = studentSession;
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const storageKey = useMemo(
+    () => (attempt?.id ? `ege_student_answers_${attempt.id}` : null),
+    [attempt?.id]
+  );
+
+  useEffect(() => {
+    if (!storageKey) return;
+
+    try {
+      const savedRaw = localStorage.getItem(storageKey);
+      if (!savedRaw) return;
+
+      const saved = JSON.parse(savedRaw);
+      if (!saved || typeof saved !== 'object') return;
+
+      const validTaskIds = new Set(tasks.map(t => t.id));
+      const restored = Object.entries(saved).reduce((acc, [taskId, value]) => {
+        if (validTaskIds.has(taskId)) {
+          acc[taskId] = typeof value === 'string' ? value : String(value ?? '');
+        }
+        return acc;
+      }, {});
+
+      setAnswers(restored);
+    } catch (err) {
+      console.error('Error restoring saved student answers:', err);
+    }
+  }, [storageKey, tasks]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+
+    try {
+      const hasAnyAnswer = Object.values(answers).some(v => (v || '').trim().length > 0);
+      if (!hasAnyAnswer) {
+        localStorage.removeItem(storageKey);
+        return;
+      }
+      localStorage.setItem(storageKey, JSON.stringify(answers));
+    } catch (err) {
+      console.error('Error saving student answers draft:', err);
+    }
+  }, [answers, storageKey]);
 
   const updateAnswer = (taskId, value) => {
     setAnswers(prev => ({ ...prev, [taskId]: value }));
@@ -65,6 +109,9 @@ const StudentTestPage = ({ studentSession }) => {
         submitted_at: new Date().toISOString(),
       });
 
+      if (storageKey) {
+        localStorage.removeItem(storageKey);
+      }
       setAttempt({ ...attempt, ...updated });
       message.success('Ответы отправлены');
     } catch (err) {
@@ -84,7 +131,10 @@ const StudentTestPage = ({ studentSession }) => {
         <Title level={4} style={{ marginBottom: 4 }}>
           Вариант {variant.number}
         </Title>
-        <Text type="secondary">{attempt.student_name}</Text>
+        <Text type="secondary">
+          {attempt.student_name}
+          {attempt?.issueNumber ? ` • Выдача №${attempt.issueNumber}` : ''}
+        </Text>
       </div>
 
       {tasks.map((task, idx) => (

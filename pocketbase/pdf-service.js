@@ -91,8 +91,9 @@ app.post('/generate', async (req, res) => {
     // Генерируем PDF
     const pdf = await page.pdf({
       format: options.format || 'A4',
+      landscape: options.landscape || false,
       printBackground: true,
-      preferCSSPageSize: false,
+      preferCSSPageSize: options.preferCSSPageSize || false,
       margin: {
         top: options.marginTop || '7mm',
         bottom: options.marginBottom || '7mm',
@@ -143,6 +144,7 @@ app.post('/generate', async (req, res) => {
 // ============================================================
 
 const SDAMGIA_BASE_URL = 'https://mathb-ege.sdamgia.ru';
+const NEWLINE_MARKER = '___BR___';
 
 /**
  * Очистка LaTeX формул от русских слов (alt-текст из SVG формул sdamgia)
@@ -221,8 +223,81 @@ function cleanLatexFormula(text) {
 }
 
 /**
- * Обработка условия задачи — извлечение текста, формул и изображений
- * Порт process_condition из par.py
+ * Конвертирует HTML таблицу в Markdown таблицу
+ */
+function tableToMarkdown($, tableEl) {
+  const rows = [];
+
+  $(tableEl).find('tr').each(function () {
+    const cells = [];
+    $(this).find('th, td').each(function () {
+      // Получаем текст ячейки (может содержать формулы через img alt)
+      let cellText = $(this).text().trim();
+      // Убираем переносы строк внутри ячейки
+      cellText = cellText.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+      cells.push(cellText);
+    });
+    if (cells.length > 0) {
+      rows.push(cells);
+    }
+  });
+
+  if (rows.length === 0) return '';
+
+  // Формируем markdown таблицу
+  const lines = [];
+
+  // Первая строка (заголовки)
+  if (rows.length > 0) {
+    lines.push('| ' + rows[0].join(' | ') + ' |');
+    // Разделитель
+    lines.push('| ' + rows[0].map(() => '---').join(' | ') + ' |');
+  }
+
+  // Остальные строки (данные)
+  for (let i = 1; i < rows.length; i++) {
+    lines.push('| ' + rows[i].join(' | ') + ' |');
+  }
+
+  return '\n\n' + lines.join('\n') + '\n\n';
+}
+
+/**
+ * Конвертирует HTML список (ol/ul) в Markdown список
+ * Обрабатывает только прямые дочерние li (> li), игнорируя вложенные списки
+ */
+function listToMarkdown($, listEl, ordered = true) {
+  const items = [];
+  let index = 1;
+
+  $(listEl).children('li').each(function () {
+    // Клонируем элемент для обработки
+    const $li = $(this).clone();
+
+    // Удаляем вложенные списки (если есть)
+    $li.find('ol, ul').remove();
+
+    let itemText = $li.text().trim();
+    // Убираем лишние пробелы
+    itemText = itemText.replace(/\s+/g, ' ');
+
+    if (itemText) {
+      if (ordered) {
+        items.push(`${index}) ${itemText}`);
+        index++;
+      } else {
+        items.push(`- ${itemText}`);
+      }
+    }
+  });
+
+  if (items.length === 0) return '';
+  return '\n\n' + items.join('\n') + '\n\n';
+}
+
+/**
+ * Обработка условия задачи — извлечение текста, формул, таблиц и изображений
+ * Порт process_condition из par.py + поддержка таблиц
  */
 function processCondition($, conditionEl) {
   if (!conditionEl) return { text: '', images: [] };
@@ -230,13 +305,93 @@ function processCondition($, conditionEl) {
   const images = [];
   let formulaIndex = 0;
   let imgIndex = 0;
+  let tableIndex = 0;
   const formulaReplacements = {};
   const imageReplacements = {};
+  const tableReplacements = {};
 
   // Клонируем элемент чтобы не менять оригинал
   const $el = $(conditionEl).clone();
 
-  // Обрабатываем все img
+  // Сначала обрабатываем формулы внутри таблиц (чтобы alt-текст попал в ячейки)
+  $el.find('table img').each(function () {
+    const imgUrl = $(this).attr('src') || '';
+    if (imgUrl.includes('formula') || imgUrl.includes('/formula/')) {
+      const altText = $(this).attr('alt') || '';
+      if (altText) {
+        const cleanedLatex = cleanLatexFormula(altText);
+        const marker = `___FORMULA_${formulaIndex}___`;
+        formulaReplacements[marker] = `$${cleanedLatex}$`;
+        formulaIndex++;
+        $(this).replaceWith(marker);
+      } else {
+        $(this).remove();
+      }
+    }
+  });
+
+  // Обрабатываем таблицы — конвертируем в markdown
+  $el.find('table').each(function () {
+    const markdownTable = tableToMarkdown($, this);
+    if (markdownTable) {
+      const marker = `___TABLE_${tableIndex}___`;
+      tableReplacements[marker] = markdownTable;
+      tableIndex++;
+      $(this).replaceWith(marker);
+    } else {
+      $(this).remove();
+    }
+  });
+
+  // Обрабатываем "фейковые" списки в параграфах (специфика sdamgia)
+  // Обычно <p class="left_margin">1) ...</p>
+  $el.find('p').each(function () {
+    const $p = $(this);
+    let text = $p.text().trim();
+
+    // Проверяем, похоже ли это на элемент списка "1) ..." или "a) ..." или "- ..."
+    // Мы хотим убедиться, что он начинается с новой строки
+    if (/^\d+\)/.test(text) || /^[a-zа-я]\)/.test(text) || /^-\s/.test(text)) {
+      $p.prepend(NEWLINE_MARKER);
+    } else {
+      // Обычный параграф - двойной перенос для разделения
+      $p.prepend(NEWLINE_MARKER + NEWLINE_MARKER);
+    }
+  });
+
+  // Обрабатываем нумерованные списки (ol)
+  $el.find('ol').each(function () {
+    let index = 1;
+    const $ol = $(this);
+
+    // Добавляем маркеры переноса
+    $ol.before(NEWLINE_MARKER + NEWLINE_MARKER);
+
+    $ol.children('li').each(function () {
+      const $li = $(this);
+      // Добавляем маркер и конвертируем в формат 1. для markdown
+      $li.prepend(`${NEWLINE_MARKER}${index}. `);
+      index++;
+    });
+
+    $ol.after(NEWLINE_MARKER + NEWLINE_MARKER);
+  });
+
+  // Обрабатываем маркированные списки (ul)
+  $el.find('ul').each(function () {
+    const $ul = $(this);
+
+    $ul.before(NEWLINE_MARKER + NEWLINE_MARKER);
+
+    $ul.children('li').each(function () {
+      const $li = $(this);
+      $li.prepend(`${NEWLINE_MARKER}- `);
+    });
+
+    $ul.after(NEWLINE_MARKER + NEWLINE_MARKER);
+  });
+
+  // Обрабатываем изображения (формулы и картинки вне таблиц)
   $el.find('img').each(function () {
     const imgUrl = $(this).attr('src') || '';
     if (!imgUrl) {
@@ -264,14 +419,26 @@ function processCondition($, conditionEl) {
       }
       images.push(fullUrl);
       const marker = `___IMAGE_${imgIndex}___`;
-      imageReplacements[marker] = `\n![image](${fullUrl})\n`;
+      // Оборачиваем изображение в маркеры, чтобы оно было на отдельной строке
+      imageReplacements[marker] = `${NEWLINE_MARKER}![image](${fullUrl})${NEWLINE_MARKER}`;
       imgIndex++;
       $(this).replaceWith(marker);
     }
   });
 
-  // Получаем текст с маркерами
+  // Получаем текст с маркерами и чистим пробелы (схлопываем множественные пробелы)
   let text = $el.text().replace(/\s+/g, ' ').trim();
+
+  // Восстанавливаем переносы строк из маркеров
+  text = text.replaceAll(NEWLINE_MARKER, '\n');
+
+  // Чистим множественные переносы (больше 2)
+  text = text.replace(/\n{3,}/g, '\n\n');
+
+  // Заменяем маркеры таблиц на markdown
+  for (const [marker, mdTable] of Object.entries(tableReplacements)) {
+    text = text.replace(marker, mdTable);
+  }
 
   // Заменяем маркеры формул на LaTeX
   for (const [marker, latex] of Object.entries(formulaReplacements)) {

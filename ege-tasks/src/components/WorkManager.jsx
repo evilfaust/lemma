@@ -99,7 +99,11 @@ const WorkManager = () => {
       ) : (
         <List
           dataSource={works}
-          renderItem={work => (
+          renderItem={work => {
+            const timeLimit = Number(work.time_limit);
+            const hasPositiveTimeLimit = Number.isFinite(timeLimit) && timeLimit > 0;
+
+            return (
             <Card
               size="small"
               style={{ marginBottom: 12 }}
@@ -119,8 +123,8 @@ const WorkManager = () => {
                         year: 'numeric',
                       })}
                     </Text>
-                    {work.time_limit && (
-                      <Tag>{work.time_limit} мин</Tag>
+                    {hasPositiveTimeLimit && (
+                      <Tag>{timeLimit} мин</Tag>
                     )}
                     {work.expand?.topic && (
                       <Tag color="purple">
@@ -159,7 +163,7 @@ const WorkManager = () => {
                 </div>
               )}
             </Card>
-          )}
+          )}}
         />
       )}
       {/* Модальное окно просмотра работы */}

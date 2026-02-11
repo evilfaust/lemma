@@ -155,16 +155,17 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
         }
       >
         {/* Условие задачи */}
-        <Paragraph style={{ fontSize: 14, marginBottom: 12 }}>
+        <Paragraph className="task-statement" style={{ fontSize: 14, marginBottom: 12 }}>
           <MathRenderer text={task.statement_md} />
         </Paragraph>
 
         {/* Изображение если есть */}
         {task.has_image && task.image_url && (
-          <div style={{ marginBottom: 12 }}>
+          <div className="task-card-image" style={{ marginBottom: 12 }}>
             <Image
               src={task.image_url}
               alt="Task image"
+              preview={false}
               style={{ maxWidth: '100%' }}
             />
           </div>

@@ -1,11 +1,11 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button, Spin, Tag, Space, Select, Tooltip, Card, List, Divider, App } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined
 } from '@ant-design/icons';
-import { useMarkdownProcessor } from '../hooks';
-import { getPageDimensions, getThemeStyles, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
+import { useMarkdownProcessor, usePuppeteerPDF } from '../hooks';
+import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
 import MathRenderer from './MathRenderer';
 import html2pdf from 'html2pdf.js';
@@ -15,6 +15,7 @@ import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './theory/TheoryArticlePrint.css';
 
 export default function TheoryArticleView({ articleId, onBack, onEdit }) {
+  const { message } = App.useApp();
   const { theoryCategories: categories } = useReferenceData();
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -24,6 +25,8 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const [relatedTasks, setRelatedTasks] = useState([]);
   const [relatedTags, setRelatedTags] = useState([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
+  const previewRef = useRef(null);
+  const puppeteerPDF = usePuppeteerPDF();
 
   useEffect(() => {
     if (articleId) loadArticle(articleId);
@@ -39,7 +42,6 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   }, [article?.id, article?.tags]);
 
   const loadArticle = async (id) => {
-  const { message } = App.useApp();
     setLoading(true);
     try {
       const data = await api.getTheoryArticle(id);
@@ -110,23 +112,27 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
 
   const handleExportPDF = useCallback(async () => {
     if (!article) return;
+    const filename = (article.title || 'theory').trim();
+    const puppeteerSuccess = await puppeteerPDF.exportToPDF(previewRef, filename, {
+      format: pageSettings.pageSize || 'A4',
+      landscape: pageSettings.orientation === 'landscape',
+      marginTop: `${pageSettings.marginTop}mm`,
+      marginBottom: `${pageSettings.marginBottom}mm`,
+      marginLeft: `${pageSettings.marginLeft}mm`,
+      marginRight: `${pageSettings.marginRight}mm`,
+    });
+
+    if (puppeteerSuccess || !previewRef.current || puppeteerPDF.serverAvailable) {
+      return;
+    }
+
+    message.warning('PDF-сервис недоступен. Используем резервный экспорт.');
     setIsExporting(true);
     try {
-      const styles = getThemeStyles(currentTheme, pageSettings);
       const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
-
-      const container = document.createElement('div');
-      container.innerHTML = `
-        <style>${styles}</style>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
-        <div class="page" data-theme="${currentTheme}">${html}</div>
-      `;
-
-      document.body.appendChild(container);
-
       const opt = {
         margin: 0,
-        filename: `${article.title || 'theory'}.pdf`,
+        filename: `${filename}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: {
@@ -136,16 +142,15 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
         },
       };
 
-      await html2pdf().set(opt).from(container.querySelector('.page')).save();
-      document.body.removeChild(container);
-      message.success('PDF экспортирован');
+      await html2pdf().set(opt).from(previewRef.current).save();
+      message.success('PDF экспортирован (резервный метод)');
     } catch (error) {
       console.error('PDF export error:', error);
       message.error('Ошибка при экспорте PDF');
     } finally {
       setIsExporting(false);
     }
-  }, [html, currentTheme, pageSettings, article]);
+  }, [article, pageSettings, puppeteerPDF, message]);
 
   const handlePrint = useCallback(() => {
     window.print();
@@ -187,7 +192,12 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
             <Button type="text" icon={<PrinterOutlined />} onClick={handlePrint} />
           </Tooltip>
           <Tooltip title="Экспорт PDF">
-            <Button type="text" icon={<FilePdfOutlined />} onClick={handleExportPDF} loading={isExporting} />
+            <Button
+              type="text"
+              icon={<FilePdfOutlined />}
+              onClick={handleExportPDF}
+              loading={isExporting || puppeteerPDF.exporting}
+            />
           </Tooltip>
         </div>
       </div>
@@ -195,6 +205,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       {/* Контент — при печати занимает всю страницу */}
       <div className="theory-article-content-wrapper">
         <div
+          ref={previewRef}
           className="theory-preview-content theory-article-print-area"
           data-theme={currentTheme}
           style={previewStyles}

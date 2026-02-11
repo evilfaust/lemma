@@ -6,12 +6,12 @@ import { api } from '../../services/pocketbase';
 
 export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, onMerge, onReload }) {
   const { topics, reloadData } = useReferenceData();
+  const { message } = App.useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
 
   const openModal = (subtopic = null) => {
-  const { message } = App.useApp();
     setEditing(subtopic);
     setModalOpen(true);
     form.setFieldsValue({

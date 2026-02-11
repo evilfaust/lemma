@@ -149,6 +149,8 @@ export const usePuppeteerPDF = () => {
           filename: `${filename}.pdf`,
           options: {
             format: options.format || 'A4',
+            landscape: options.landscape || false,
+            preferCSSPageSize: options.preferCSSPageSize || false,
             marginTop: options.marginTop || '5mm',
             marginBottom: options.marginBottom || '5mm',
             marginLeft: options.marginLeft || '5mm',

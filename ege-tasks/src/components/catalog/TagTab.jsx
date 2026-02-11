@@ -6,12 +6,12 @@ import { api } from '../../services/pocketbase';
 
 export default function TagTab({ tagRows, tasksSnapshot, onOpenTasks, onMerge, onReload }) {
   const { reloadData } = useReferenceData();
+  const { message } = App.useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form] = Form.useForm();
 
   const openModal = (tag = null) => {
-  const { message } = App.useApp();
     setEditing(tag);
     setModalOpen(true);
     form.setFieldsValue({

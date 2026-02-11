@@ -97,6 +97,16 @@
   text-align: justify;
 }
 
+/* Изображения из Markdown внутри условия */
+.task-content img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  height: auto;
+  margin: 8px auto;
+  object-fit: contain;
+}
+
 /* Изображение в задаче */
 .task-image {
   margin: 8px 0;
@@ -113,6 +123,12 @@
 
 @media print {
   .task-image img {
+    max-height: 140px;
+  }
+}
+
+@media print {
+  .task-content img {
     max-height: 140px;
   }
 }
