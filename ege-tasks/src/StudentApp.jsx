@@ -45,7 +45,7 @@ function StudentApp() {
   });
 
   const studentSession = useStudentSession(sessionId, deviceId);
-  const { attempt } = studentSession;
+  const { attempt, session } = studentSession;
   const [viewOverride, setViewOverride] = useState(null); // Для ручной смены экрана (например, галерея)
 
   // Определяем текущий экран на основе состояния attempt
@@ -59,8 +59,8 @@ function StudentApp() {
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#1890ff' } }}>
       <div className="student-app">
-        {/* Кнопка "Мои достижения" в шапке (показывать когда есть попытка) */}
-        {attempt && currentView !== 'gallery' && (
+        {/* Кнопка "Мои достижения" в шапке (показывать только если ачивки включены) */}
+        {attempt && session?.achievements_enabled && currentView !== 'gallery' && (
           <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000 }}>
             <Button
               type="primary"

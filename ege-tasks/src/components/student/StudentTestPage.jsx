@@ -107,28 +107,34 @@ const StudentTestPage = ({ studentSession }) => {
       // Вычислить процент правильных ответов
       const percentage = tasks.length > 0 ? (score / tasks.length) * 100 : 0;
 
-      // Загрузить все достижения
-      const achievements = await api.getAchievements();
+      // Проверить, включены ли достижения для этой сессии
+      let randomBadge = null;
+      let unlocked = [];
 
-      // Выбрать случайный значок на основе процента
-      const randomBadge = getRandomAchievement(achievements, percentage);
+      if (session.achievements_enabled) {
+        // Загрузить все достижения
+        const achievements = await api.getAchievements();
 
-      // Получить все попытки студента для проверки условий
-      const deviceId = localStorage.getItem('ege_device_id');
-      const allAttempts = await api.getAttemptsByDevice(session.id, deviceId);
+        // Выбрать случайный значок на основе процента
+        randomBadge = getRandomAchievement(achievements, percentage);
 
-      // Проверить разблокированные достижения за условия
-      const previouslyUnlockedIds = getPreviouslyUnlockedIds(allAttempts);
-      const unlocked = checkUnlockedAchievements(
-        achievements,
-        {
-          percentage,
-          durationMinutes,
-          submittedAt: new Date(),
-        },
-        [...allAttempts, { id: attempt.id }], // Включить текущую попытку для подсчета
-        previouslyUnlockedIds
-      );
+        // Получить все попытки студента для проверки условий
+        const deviceId = localStorage.getItem('ege_device_id');
+        const allAttempts = await api.getAttemptsByDevice(session.id, deviceId);
+
+        // Проверить разблокированные достижения за условия
+        const previouslyUnlockedIds = getPreviouslyUnlockedIds(allAttempts);
+        unlocked = checkUnlockedAchievements(
+          achievements,
+          {
+            percentage,
+            durationMinutes,
+            submittedAt: new Date(),
+          },
+          [...allAttempts, { id: attempt.id }], // Включить текущую попытку для подсчета
+          previouslyUnlockedIds
+        );
+      }
 
       // Сохранить ответы
       await api.batchCreateAttemptAnswers(answerRecords);

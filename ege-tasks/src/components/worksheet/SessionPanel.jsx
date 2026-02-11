@@ -89,6 +89,17 @@ const SessionPanel = ({ workId }) => {
     }
   };
 
+  const toggleAchievements = async (checked) => {
+    if (!session) return;
+    try {
+      const updated = await api.updateSession(session.id, { achievements_enabled: checked });
+      setSession({ ...session, ...updated });
+      message.success(checked ? 'Достижения включены' : 'Достижения отключены');
+    } catch (err) {
+      message.error('Ошибка обновления сессии');
+    }
+  };
+
   const handleHostChange = useCallback(async (e) => {
     const rawHost = e.target.value;
     const newHost = normalizeHost(rawHost);
@@ -166,6 +177,20 @@ const SessionPanel = ({ workId }) => {
           checkedChildren="Открыт"
           unCheckedChildren="Закрыт"
         />
+      </div>
+
+      {/* Управление достижениями */}
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Text strong>Достижения:</Text>
+        <Switch
+          checked={session.achievements_enabled || false}
+          onChange={toggleAchievements}
+          checkedChildren="Включены"
+          unCheckedChildren="Отключены"
+        />
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          (Показывать значки и ачивки студентам)
+        </Text>
       </div>
 
       {/* Host */}
