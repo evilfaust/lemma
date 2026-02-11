@@ -1,9 +1,11 @@
 import { useState, useMemo } from 'react';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, Button } from 'antd';
+import { ArrowLeftOutlined, TrophyOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentEntryPage from './components/student/StudentEntryPage';
 import StudentTestPage from './components/student/StudentTestPage';
 import StudentResultPage from './components/student/StudentResultPage';
+import AchievementGallery from './components/student/AchievementGallery';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -44,17 +46,44 @@ function StudentApp() {
 
   const studentSession = useStudentSession(sessionId, deviceId);
   const { attempt } = studentSession;
+  const [viewOverride, setViewOverride] = useState(null); // Для ручной смены экрана (например, галерея)
 
   // Определяем текущий экран на основе состояния attempt
   const currentView = useMemo(() => {
+    if (viewOverride) return viewOverride;
     if (!attempt) return 'entry';
     if (attempt.status === 'started') return 'test';
     return 'result'; // submitted или corrected
-  }, [attempt]);
+  }, [attempt, viewOverride]);
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#1890ff' } }}>
       <div className="student-app">
+        {/* Кнопка "Мои достижения" в шапке (показывать когда есть попытка) */}
+        {attempt && currentView !== 'gallery' && (
+          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000 }}>
+            <Button
+              type="primary"
+              icon={<TrophyOutlined />}
+              onClick={() => setViewOverride('gallery')}
+            >
+              Мои достижения
+            </Button>
+          </div>
+        )}
+
+        {/* Кнопка "Назад" на экране галереи */}
+        {currentView === 'gallery' && (
+          <div style={{ position: 'fixed', top: 16, left: 16, zIndex: 1000 }}>
+            <Button
+              icon={<ArrowLeftOutlined />}
+              onClick={() => setViewOverride(null)}
+            >
+              Назад
+            </Button>
+          </div>
+        )}
+
         {currentView === 'entry' && (
           <StudentEntryPage
             sessionId={sessionId}
@@ -62,16 +91,25 @@ function StudentApp() {
             studentSession={studentSession}
           />
         )}
+
         {currentView === 'test' && (
           <StudentTestPage
             studentSession={studentSession}
           />
         )}
+
         {currentView === 'result' && (
           <StudentResultPage
             studentSession={studentSession}
             sessionId={sessionId}
             deviceId={deviceId}
+            onNavigateToGallery={() => setViewOverride('gallery')}
+          />
+        )}
+
+        {currentView === 'gallery' && (
+          <AchievementGallery
+            studentSession={studentSession}
           />
         )}
       </div>

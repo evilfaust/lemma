@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Typography, Spin, Divider } from 'antd';
-import { CheckCircleOutlined } from '@ant-design/icons';
+import { Typography, Spin, Divider, Button } from 'antd';
+import { CheckCircleOutlined, TrophyOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
+import AchievementBadge from './AchievementBadge';
 
 const { Title, Text } = Typography;
 
@@ -13,7 +14,7 @@ const PB_URL = PB_BASE_URL;
  * Страница результатов ученика.
  * Показывает результат, ошибочные задачи и кнопку исправления.
  */
-const StudentResultPage = ({ studentSession }) => {
+const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
   const { attempt, tasks } = studentSession;
   const [attemptAnswers, setAttemptAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,11 @@ const StudentResultPage = ({ studentSession }) => {
     );
   }
 
+  const hasAchievement = attempt?.expand?.achievement || attempt?.achievement;
+  const hasUnlockedAchievements =
+    (attempt?.expand?.unlocked_achievements && attempt.expand.unlocked_achievements.length > 0) ||
+    (attempt?.unlocked_achievements && attempt.unlocked_achievements.length > 0);
+
   return (
     <div style={{ padding: '20px 0' }}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
@@ -73,6 +79,53 @@ const StudentResultPage = ({ studentSession }) => {
           </Text>
         )}
       </div>
+
+      {/* Полученный случайный значок */}
+      {hasAchievement && (
+        <div className="achievement-section">
+          <Title level={5} style={{ marginBottom: 16 }}>
+            🎉 Получен значок!
+          </Title>
+          <AchievementBadge
+            achievement={attempt.expand?.achievement || attempt.achievement}
+            size="large"
+            showDetails={true}
+          />
+        </div>
+      )}
+
+      {/* Разблокированные достижения */}
+      {hasUnlockedAchievements && (
+        <div className="unlocked-section">
+          <Title level={5} style={{ marginBottom: 16 }}>
+            🏆 Разблокированы достижения!
+          </Title>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
+            {(attempt.expand?.unlocked_achievements || []).map(ach => (
+              <AchievementBadge
+                key={ach.id}
+                achievement={ach}
+                size="medium"
+                showDetails={true}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Кнопка "Мои достижения" */}
+      {(hasAchievement || hasUnlockedAchievements) && onNavigateToGallery && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Button
+            type="dashed"
+            icon={<TrophyOutlined />}
+            size="large"
+            onClick={onNavigateToGallery}
+          >
+            Посмотреть мои достижения
+          </Button>
+        </div>
+      )}
 
       {/* Список ошибочных задач */}
       {wrongAnswers.length > 0 && (

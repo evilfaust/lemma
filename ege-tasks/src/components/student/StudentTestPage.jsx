@@ -5,6 +5,7 @@ import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { checkAnswer } from '../../utils/answerChecker';
+import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds } from '../../utils/achievementEngine';
 
 const { Title, Text } = Typography;
 
@@ -16,9 +17,10 @@ const PB_URL = PB_BASE_URL;
  */
 const StudentTestPage = ({ studentSession }) => {
   const { message } = App.useApp();
-  const { attempt, setAttempt, variant, tasks } = studentSession;
+  const { attempt, setAttempt, variant, tasks, session } = studentSession;
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [startTime] = useState(Date.now()); // Засечь время начала теста
   const storageKey = useMemo(
     () => (attempt?.id ? `ege_student_answers_${attempt.id}` : null),
     [attempt?.id]
@@ -80,6 +82,10 @@ const StudentTestPage = ({ studentSession }) => {
   const doSubmit = async () => {
     setSubmitting(true);
     try {
+      // Вычислить время прохождения
+      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+      const durationMinutes = durationSeconds / 60;
+
       // Проверить каждый ответ
       let score = 0;
       const answerRecords = [];
@@ -98,21 +104,60 @@ const StudentTestPage = ({ studentSession }) => {
         });
       }
 
+      // Вычислить процент правильных ответов
+      const percentage = tasks.length > 0 ? (score / tasks.length) * 100 : 0;
+
+      // Загрузить все достижения
+      const achievements = await api.getAchievements();
+
+      // Выбрать случайный значок на основе процента
+      const randomBadge = getRandomAchievement(achievements, percentage);
+
+      // Получить все попытки студента для проверки условий
+      const deviceId = localStorage.getItem('ege_device_id');
+      const allAttempts = await api.getAttemptsByDevice(session.id, deviceId);
+
+      // Проверить разблокированные достижения за условия
+      const previouslyUnlockedIds = getPreviouslyUnlockedIds(allAttempts);
+      const unlocked = checkUnlockedAchievements(
+        achievements,
+        {
+          percentage,
+          durationMinutes,
+          submittedAt: new Date(),
+        },
+        [...allAttempts, { id: attempt.id }], // Включить текущую попытку для подсчета
+        previouslyUnlockedIds
+      );
+
       // Сохранить ответы
       await api.batchCreateAttemptAnswers(answerRecords);
 
-      // Обновить попытку
+      // Обновить попытку с достижениями
       const updated = await api.updateAttempt(attempt.id, {
         status: 'submitted',
         score,
         total: tasks.length,
         submitted_at: new Date().toISOString(),
+        duration_seconds: durationSeconds,
+        achievement: randomBadge?.id || null,
+        unlocked_achievements: unlocked.map(a => a.id),
       });
 
       if (storageKey) {
         localStorage.removeItem(storageKey);
       }
-      setAttempt({ ...attempt, ...updated });
+
+      // Сохранить expand данные для отображения в результатах
+      const updatedWithExpand = {
+        ...updated,
+        expand: {
+          achievement: randomBadge,
+          unlocked_achievements: unlocked,
+        },
+      };
+
+      setAttempt({ ...attempt, ...updatedWithExpand });
       message.success('Ответы отправлены');
     } catch (err) {
       console.error('Error submitting answers:', err);

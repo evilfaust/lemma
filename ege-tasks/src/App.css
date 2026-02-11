@@ -138,6 +138,187 @@ html {
   margin: 50px 0;
 }
 
+/* ============ ДОСТИЖЕНИЯ (ACHIEVEMENTS) ============ */
+
+/* Значок достижения */
+.achievement-badge {
+  display: inline-block;
+  text-align: center;
+  padding: 16px;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.achievement-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Размеры значков */
+.achievement-badge-small {
+  padding: 12px;
+  min-width: 80px;
+}
+
+.achievement-badge-medium {
+  padding: 16px;
+  min-width: 140px;
+}
+
+.achievement-badge-large {
+  padding: 24px;
+  min-width: 200px;
+}
+
+/* Редкость: обычный */
+.achievement-badge.common {
+  background: linear-gradient(135deg, #f5f5f5, #e0e0e0);
+  border: 2px solid #bdbdbd;
+}
+
+/* Редкость: редкий */
+.achievement-badge.rare {
+  background: linear-gradient(135deg, #fff3e0, #ffe0b2);
+  border: 2px solid #ff9800;
+}
+
+/* Редкость: легендарный */
+.achievement-badge.legendary {
+  background: linear-gradient(135deg, #f3e5f5, #e1bee7);
+  border: 2px solid #9c27b0;
+  box-shadow: 0 0 20px rgba(156, 39, 176, 0.3);
+  animation: legendaryGlow 2s ease-in-out infinite;
+}
+
+@keyframes legendaryGlow {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(156, 39, 176, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(156, 39, 176, 0.5);
+  }
+}
+
+/* Заблокированный значок */
+.achievement-badge.locked {
+  opacity: 0.5;
+  filter: grayscale(100%);
+  cursor: not-allowed;
+}
+
+.achievement-badge.locked:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+/* Замок на заблокированном значке */
+.achievement-lock-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+  font-size: 48px;
+  z-index: 2;
+}
+
+/* Обертка иконки */
+.achievement-icon-wrapper {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+/* Иконка достижения */
+.achievement-icon {
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+/* Детали достижения */
+.achievement-details {
+  margin-top: 8px;
+}
+
+.achievement-rarity {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* Секция с полученным значком */
+.achievement-section {
+  background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+  border: 2px solid #1890ff;
+  border-radius: 12px;
+  padding: 24px;
+  margin: 24px 0;
+  text-align: center;
+  animation: fadeInUp 0.5s ease;
+}
+
+/* Секция с разблокированными достижениями */
+.unlocked-section {
+  margin-top: 24px;
+  padding: 16px;
+  background: #f9fafb;
+  border-radius: 8px;
+}
+
+.unlocked-section .achievement-badge {
+  margin: 8px;
+}
+
+/* Галерея достижений */
+.achievement-gallery {
+  padding: 20px;
+}
+
+.achievement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+  }
+}
+
+.achievement-stats {
+  text-align: center;
+  padding: 20px;
+  background: #f0f2f5;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+/* Анимация появления */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Responsive typography */
 @media (max-width: 576px) {
   .ant-typography {
@@ -146,5 +327,9 @@ html {
 
   .ant-card-head-title {
     font-size: 13px;
+  }
+
+  .achievement-grid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   }
 }

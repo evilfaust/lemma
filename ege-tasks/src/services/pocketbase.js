@@ -909,6 +909,19 @@ export const api = {
     }
   },
 
+  async getAttemptsByDevice(sessionId, deviceId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `session = "${escapeFilter(sessionId)}" && device_id = "${escapeFilter(deviceId)}"`,
+        expand: 'achievement,unlocked_achievements',
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching attempts by device:', error);
+      return [];
+    }
+  },
+
   async getAttemptsBySession(sessionId) {
     try {
       return await pb.collection('attempts').getFullList({
@@ -1028,6 +1041,55 @@ export const api = {
       }
     }
     return results;
+  },
+
+  // ============ АЧИВКИ (ACHIEVEMENTS) ============
+
+  async getAchievements() {
+    try {
+      return await pb.collection('achievements').getFullList({
+        sort: 'order,title',
+      });
+    } catch (error) {
+      console.error('Error fetching achievements:', error);
+      return [];
+    }
+  },
+
+  async getAchievement(id) {
+    try {
+      return await pb.collection('achievements').getOne(id);
+    } catch (error) {
+      console.error('Error fetching achievement:', error);
+      return null;
+    }
+  },
+
+  async createAchievement(data) {
+    try {
+      return await pb.collection('achievements').create(data);
+    } catch (error) {
+      console.error('Error creating achievement:', error);
+      throw error;
+    }
+  },
+
+  async updateAchievement(id, data) {
+    try {
+      return await pb.collection('achievements').update(id, data);
+    } catch (error) {
+      console.error('Error updating achievement:', error);
+      throw error;
+    }
+  },
+
+  async deleteAchievement(id) {
+    try {
+      return await pb.collection('achievements').delete(id);
+    } catch (error) {
+      console.error('Error deleting achievement:', error);
+      throw error;
+    }
   },
 };
 
