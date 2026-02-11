@@ -108,7 +108,7 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
                   style={{ width: 105 }}
                   onClick={(e) => e.stopPropagation()}
                   variant="borderless"
-                  dropdownMatchSelectWidth={140}
+                  popupMatchSelectWidth={140}
                   suffixIcon={null}
                 >
                   <Option value="1">
