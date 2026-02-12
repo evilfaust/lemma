@@ -2,6 +2,9 @@
 # ============================================
 # PocketBase Database Backup Script
 # Ежедневный бэкап с ротацией (хранит 10 последних)
+#
+# КРИТИЧЕСКИ ВАЖНО: ВСЕГДА запускай этот скрипт
+# ПЕРЕД любыми операциями с базой данных!
 # ============================================
 
 PROJECT_DIR="/Users/evilfaust/Documents/APP/generation-test"
@@ -42,6 +45,22 @@ if [ "$BACKUP_COUNT" -gt "$MAX_BACKUPS" ]; then
     ls -1t "$BACKUP_DIR"/backup_*.tar.gz | tail -n +$((MAX_BACKUPS + 1)) | xargs rm -f
 fi
 
+# Статистика БД
+TASK_COUNT=$(sqlite3 "$PB_DATA/data.db" "SELECT COUNT(*) FROM tasks;" 2>/dev/null || echo "?")
+ATTEMPT_COUNT=$(sqlite3 "$PB_DATA/data.db" "SELECT COUNT(*) FROM attempts;" 2>/dev/null || echo "?")
+STUDENT_COUNT=$(sqlite3 "$PB_DATA/data.db" "SELECT COUNT(*) FROM students;" 2>/dev/null || echo "?")
+
 # Лог
 SIZE=$(du -sh "$BACKUP_DIR/$BACKUP_NAME.tar.gz" | cut -f1)
-echo "[$(date)] Бэкап создан: $BACKUP_NAME.tar.gz ($SIZE) | Всего бэкапов: $(ls -1 "$BACKUP_DIR"/backup_*.tar.gz 2>/dev/null | wc -l | tr -d ' ')/$MAX_BACKUPS"
+echo "=========================================="
+echo "✅ БЭКАП УСПЕШНО СОЗДАН"
+echo "=========================================="
+echo "Дата: $(date)"
+echo "Файл: $BACKUP_NAME.tar.gz"
+echo "Размер: $SIZE"
+echo "Содержимое:"
+echo "  - Задач: $TASK_COUNT"
+echo "  - Попыток студентов: $ATTEMPT_COUNT"
+echo "  - Студентов: $STUDENT_COUNT"
+echo "Всего бэкапов: $(ls -1 "$BACKUP_DIR"/backup_*.tar.gz 2>/dev/null | wc -l | tr -d ' ')/$MAX_BACKUPS"
+echo "=========================================="
