@@ -319,6 +319,150 @@ def generate_code(topic_id: str):
     return f"{ege_number}-{str(next_num).zfill(3)}"
 
 # --------------------------
+# 4.5. Преобразование в LaTeX
+# --------------------------
+def convert_to_latex(text):
+    """
+    Преобразует математические обозначения РЕШУ ЕГЭ в LaTeX.
+    Примеры входных данных:
+    - "косинусальфа = минус дробь: числитель: 1, знаменатель: корень из: 10 конец дроби"
+    - "синусальфа = минус дробь: числитель: 5, знаменатель: корень из: 26 конец дроби"
+    """
+    if not text:
+        return text
+
+    original_text = text
+
+    # Шаг 1: Удаляем "конец дроби" - это артефакт парсинга
+    text = re.sub(r'\s*конец\s+дроби', '', text, flags=re.IGNORECASE)
+
+    # Шаг 2: Тригонометрические функции (склеенные с альфа)
+    text = re.sub(r'косинусальфа', r'\\cos\\alpha', text, flags=re.IGNORECASE)
+    text = re.sub(r'синусальфа', r'\\sin\\alpha', text, flags=re.IGNORECASE)
+    text = re.sub(r'тангенсальфа', r'\\tan\\alpha', text, flags=re.IGNORECASE)
+    text = re.sub(r'котангенсальфа', r'\\cot\\alpha', text, flags=re.IGNORECASE)
+
+    # Шаг 3: Тригонометрические функции с пробелом
+    text = re.sub(r'косинус\s+альфа', r'\\cos\\alpha', text, flags=re.IGNORECASE)
+    text = re.sub(r'синус\s+альфа', r'\\sin\\alpha', text, flags=re.IGNORECASE)
+    text = re.sub(r'тангенс\s+альфа', r'\\tan\\alpha', text, flags=re.IGNORECASE)
+    text = re.sub(r'котангенс\s+альфа', r'\\cot\\alpha', text, flags=re.IGNORECASE)
+
+    # Шаг 4: Простые тригонометрические функции
+    trig_functions = {
+        'косинус': r'\\cos',
+        'синус': r'\\sin',
+        'тангенс': r'\\tan',
+        'котангенс': r'\\cot',
+    }
+
+    for key, latex in trig_functions.items():
+        text = re.sub(rf'\b{key}\b', latex, text, flags=re.IGNORECASE)
+
+    # Шаг 5: Греческие буквы и Pi (обрабатываем до дробей!)
+    # "3Пи" -> "3\\pi"
+    text = re.sub(r'(\d+)\s*Пи', r'\1\\pi', text, flags=re.IGNORECASE)
+
+    greek_letters = {
+        'альфа': r'\\alpha',
+        'бета': r'\\beta',
+        'гамма': r'\\gamma',
+        'дельта': r'\\delta',
+        'пи': r'\\pi',
+    }
+
+    for key, latex in greek_letters.items():
+        text = re.sub(rf'\b{key}\b', latex, text, flags=re.IGNORECASE)
+
+    # Шаг 6: Корни (до дробей, чтобы корректно обработать вложенность)
+    # "корень из: 10" -> "\\sqrt{10}"
+    # "корень из: 26" -> "\\sqrt{26}"
+    text = re.sub(r'корень\s+из:\s*(\d+)', r'\\sqrt{\1}', text, flags=re.IGNORECASE)
+    text = re.sub(r'квадратный\s+корень\s+из:\s*(\d+)', r'\\sqrt{\1}', text, flags=re.IGNORECASE)
+
+    # Шаг 7: Дроби формата "дробь: числитель: X, знаменатель: Y"
+    # Поддержка вложенных дробей
+    max_iterations = 10
+    iteration = 0
+    while 'дробь:' in text.lower() and iteration < max_iterations:
+        # Улучшенный паттерн: ищем числитель до запятой, знаменатель до пробела/скобки/конца
+        fraction_pattern = r'дробь:\s*числитель:\s*([^,]+?),\s*знаменатель:\s*([^\s\)\.]+)'
+
+        match = re.search(fraction_pattern, text, flags=re.IGNORECASE)
+        if not match:
+            # Пробуем альтернативный паттерн без запятой
+            fraction_pattern = r'дробь:\s*числитель:\s*(.+?)\s+знаменатель:\s*(.+?)(?=\s|$|\.|\))'
+            match = re.search(fraction_pattern, text, flags=re.IGNORECASE)
+            if not match:
+                break
+
+        numerator = match.group(1).strip()
+        denominator = match.group(2).strip()
+
+        # Удаляем возможные артефакты
+        numerator = numerator.rstrip('.,;')
+        denominator = denominator.rstrip('.,;')
+
+        # LaTeX дробь
+        latex_fraction = f'\\frac{{{numerator}}}{{{denominator}}}'
+        text = text[:match.start()] + latex_fraction + text[match.end():]
+
+        iteration += 1
+
+    # Шаг 8: Степени
+    text = re.sub(r'(\d+)\s+в\s+степени\s+\(?\s*(\d+)\s*\)?', r'\1^{\2}', text, flags=re.IGNORECASE)
+    text = re.sub(r'(\w+)\s+в\s+степени\s+\(?\s*(\d+)\s*\)?', r'\1^{\2}', text, flags=re.IGNORECASE)
+
+    # Шаг 9: Минус и арифметические операции
+    text = re.sub(r'\s+минус\s+', ' -', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+плюс\s+', ' + ', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+умножить\s+на\s+', r' \\cdot ', text, flags=re.IGNORECASE)
+
+    # Шаг 10: Специальные слова
+    # "иальфаприналлежит" -> "и \\alpha \\in"
+    text = re.sub(r'иальфаприналлежит', r' и $\\alpha \\in$', text, flags=re.IGNORECASE)
+    text = re.sub(r'и\s+альфа\s+прина[лд]+[еж]+ит', r' и $\\alpha \\in$', text, flags=re.IGNORECASE)
+
+    # Шаг 11: Очистка лишних пробелов
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
+
+    # Шаг 12: Оборачиваем математику в $...$
+    # Ищем фрагменты с LaTeX командами и оборачиваем их
+    if '\\' in text:
+        # Разбиваем текст на части: текст и математика
+        parts = []
+        current_pos = 0
+
+        # Ищем все математические выражения
+        math_pattern = r'(\\[a-zA-Z]+|\\frac\{[^\}]+\}\{[^\}]+\}|[\\]+[a-zA-Z]+)'
+
+        for match in re.finditer(math_pattern, text):
+            # Добавляем текст до математики
+            if match.start() > current_pos:
+                parts.append(text[current_pos:match.start()])
+
+            # Добавляем математику в $...$
+            math_expr = match.group(0)
+            if not (text[max(0, match.start()-1):match.start()] == '$' or
+                    text[match.end():match.end()+1] == '$'):
+                parts.append(f'${math_expr}$')
+            else:
+                parts.append(math_expr)
+
+            current_pos = match.end()
+
+        # Добавляем оставшийся текст
+        if current_pos < len(text):
+            parts.append(text[current_pos:])
+
+        # Объединяем части и упрощаем множественные $ ($$$ -> $)
+        text = ''.join(parts)
+        text = re.sub(r'\$+', '$', text)
+
+    return text
+
+# --------------------------
 # 5. ПАРСИНГ MD С YAML
 # --------------------------
 print(f"\n📄 Читаю файл: {MD_FILE}")
@@ -509,22 +653,26 @@ error_count = 0
 
 for num, task in tasks.items():
     statement = task["statement_md"]
-    
+
     if statement in existing_statements:
         print(f"⚠️  Задание {num}: пропущено (дубликат)")
         skipped_count += 1
         continue
 
     code = generate_code(TOPIC_ID)
-    
+
+    # Преобразуем текст задания в LaTeX
+    statement_latex = convert_to_latex(statement)
+    answer_latex = convert_to_latex(task.get("answer", ""))
+
     # Все поля из PocketBase schema
     image_url = task.get("image_url", "")
     record_data = {
         "code": code,
         "topic": TOPIC_ID,
         "difficulty": task.get("difficulty", difficulty),
-        "statement_md": statement,
-        "answer": task.get("answer", ""),
+        "statement_md": statement_latex,
+        "answer": answer_latex,
         "solution_md": "",
         "explanation_md": "",
         "source": source,

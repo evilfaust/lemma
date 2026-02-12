@@ -6,6 +6,118 @@ const TAG_COLORS = [
 ];
 
 /**
+ * Преобразует математические обозначения РЕШУ ЕГЭ в LaTeX.
+ * Примеры:
+ * - "косинусальфа = минус дробь: числитель: 1, знаменатель: корень из: 10"
+ *   -> "$\\cos\\alpha = -\\frac{1}{\\sqrt{10}}$"
+ * - "синусальфа = минус дробь: числитель: 5, знаменатель: корень из: 26"
+ *   -> "$\\sin\\alpha = -\\frac{5}{\\sqrt{26}}$"
+ */
+export function convertToLatex(text) {
+  if (!text || typeof text !== 'string') return text;
+
+  let result = text;
+
+  // Шаг 1: Удаляем "конец дроби" - это артефакт парсинга
+  result = result.replace(/\s*конец\s+дроби/gi, '');
+
+  // Шаг 2: Тригонометрические функции (склеенные с альфа)
+  result = result.replace(/косинусальфа/gi, '\\cos\\alpha');
+  result = result.replace(/синусальфа/gi, '\\sin\\alpha');
+  result = result.replace(/тангенсальфа/gi, '\\tan\\alpha');
+  result = result.replace(/котангенсальфа/gi, '\\cot\\alpha');
+
+  // Шаг 3: Тригонометрические функции с пробелом
+  result = result.replace(/косинус\s+альфа/gi, '\\cos\\alpha');
+  result = result.replace(/синус\s+альфа/gi, '\\sin\\alpha');
+  result = result.replace(/тангенс\s+альфа/gi, '\\tan\\alpha');
+  result = result.replace(/котангенс\s+альфа/gi, '\\cot\\alpha');
+
+  // Шаг 4: Простые тригонометрические функции
+  result = result.replace(/\bкосинус\b/gi, '\\cos');
+  result = result.replace(/\bсинус\b/gi, '\\sin');
+  result = result.replace(/\bтангенс\b/gi, '\\tan');
+  result = result.replace(/\bкотангенс\b/gi, '\\cot');
+
+  // Шаг 5: Pi с числами (до греческих букв!)
+  result = result.replace(/(\d+)\s*Пи/gi, '$1\\pi');
+
+  // Шаг 6: Греческие буквы
+  result = result.replace(/\bальфа\b/gi, '\\alpha');
+  result = result.replace(/\bбета\b/gi, '\\beta');
+  result = result.replace(/\bгамма\b/gi, '\\gamma');
+  result = result.replace(/\bдельта\b/gi, '\\delta');
+  result = result.replace(/\bпи\b/gi, '\\pi');
+
+  // Шаг 7: Корни (до дробей!)
+  result = result.replace(/корень\s+из:\s*(\d+)/gi, '\\sqrt{$1}');
+  result = result.replace(/квадратный\s+корень\s+из:\s*(\d+)/gi, '\\sqrt{$1}');
+
+  // Шаг 8: Дроби формата "дробь: числитель: X, знаменатель: Y"
+  let maxIterations = 10;
+  let iteration = 0;
+  while (/дробь:/i.test(result) && iteration < maxIterations) {
+    // Паттерн: числитель до запятой, знаменатель до пробела/скобки/конца
+    const fractionPattern = /дробь:\s*числитель:\s*([^,]+?),\s*знаменатель:\s*([^\s\)\.]+)/i;
+    const match = result.match(fractionPattern);
+
+    if (!match) {
+      // Альтернативный паттерн без запятой
+      const altPattern = /дробь:\s*числитель:\s*(.+?)\s+знаменатель:\s*(.+?)(?=\s|$|\.|\))/i;
+      const altMatch = result.match(altPattern);
+      if (!altMatch) break;
+
+      const numerator = altMatch[1].trim().replace(/[,\.;]+$/, '');
+      const denominator = altMatch[2].trim().replace(/[,\.;]+$/, '');
+      const latexFraction = `\\frac{${numerator}}{${denominator}}`;
+      result = result.substring(0, altMatch.index) + latexFraction + result.substring(altMatch.index + altMatch[0].length);
+    } else {
+      const numerator = match[1].trim().replace(/[,\.;]+$/, '');
+      const denominator = match[2].trim().replace(/[,\.;]+$/, '');
+      const latexFraction = `\\frac{${numerator}}{${denominator}}`;
+      result = result.substring(0, match.index) + latexFraction + result.substring(match.index + match[0].length);
+    }
+
+    iteration++;
+  }
+
+  // Шаг 9: Степени
+  result = result.replace(/(\d+)\s+в\s+степени\s+\(?\s*(\d+)\s*\)?/gi, '$1^{$2}');
+  result = result.replace(/(\w+)\s+в\s+степени\s+\(?\s*(\d+)\s*\)?/gi, '$1^{$2}');
+
+  // Шаг 10: Минус и арифметические операции
+  result = result.replace(/\s+минус\s+/gi, ' -');
+  result = result.replace(/\s+плюс\s+/gi, ' + ');
+  result = result.replace(/\s+умножить\s+на\s+/gi, ' \\cdot ');
+
+  // Шаг 11: Специальные слова
+  result = result.replace(/иальфаприналлежит/gi, ' и $\\alpha \\in$');
+  result = result.replace(/и\s+альфа\s+прина[лд]+[еж]+ит/gi, ' и $\\alpha \\in$');
+  result = result.replace(/\bприналлежит\b/gi, '\\in');
+
+  // Шаг 12: Очистка лишних пробелов
+  result = result.replace(/\s+/g, ' ').trim();
+
+  // Шаг 13: Оборачиваем математику в $...$
+  // Находим последовательные математические символы и оборачиваем их
+  if (/\\/.test(result)) {
+    // Паттерн для поиска математических выражений (включая вложенные фигурные скобки)
+    // Ищем последовательности с LaTeX командами
+    const mathExpressionPattern = /([^\s]*\\[a-zA-Z]+(?:\{[^}]*\})*[^\s]*(?:\s+[^\s]*\\[a-zA-Z]+(?:\{[^}]*\})*[^\s]*)*)/g;
+
+    result = result.replace(mathExpressionPattern, (match) => {
+      // Если уже обёрнуто, не оборачиваем снова
+      if (match.startsWith('$') && match.endsWith('$')) {
+        return match;
+      }
+      return `$${match}$`;
+    });
+  }
+
+  return result;
+}
+
+/**
  * Парсит строку тегов в массив строк.
  * Поддерживает: "тег", "тег1, тег2", "[тег1, тег2]", массив
  */
@@ -153,6 +265,12 @@ export function parseEgeTasks(content, metadata) {
     tasks.push(currentTask);
   }
 
+  // Применяем преобразование в LaTeX
+  tasks.forEach(task => {
+    task.statement_md = convertToLatex(task.statement_md);
+    task.answer = convertToLatex(task.answer);
+  });
+
   return tasks;
 }
 
@@ -249,6 +367,12 @@ export function parseMordkovichTasks(content, metadata) {
     tasks.push(currentTask);
   }
 
+  // Применяем преобразование в LaTeX
+  tasks.forEach(task => {
+    task.statement_md = convertToLatex(task.statement_md);
+    task.answer = convertToLatex(task.answer);
+  });
+
   return tasks;
 }
 
@@ -343,11 +467,15 @@ export function parseSdamgiaResult(problems, metadata = {}) {
   const topicName = taskNumber ? `ЕГЭ-База №${taskNumber}` : '';
 
   const tasks = problems.map((problem, index) => {
+    // Применяем преобразование в LaTeX к условию и ответу
+    const statement = convertToLatex((problem.condition || '').trim());
+    const answer = convertToLatex((problem.answer || '').trim());
+
     const task = {
       number: index + 1,
       difficulty,
-      statement_md: (problem.condition || '').trim(),
-      answer: (problem.answer || '').trim(),
+      statement_md: statement,
+      answer: answer,
       tags: [...globalTags],
       imageUrl: '',
       sdamgiaId: problem.id || '',
