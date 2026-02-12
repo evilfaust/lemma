@@ -42,17 +42,19 @@ export function useStudentSession(sessionId, deviceId) {
         }
         setSession(sessionData);
 
-        // Проверить существующую попытку
-        // Если студент авторизован, ищем по student_id, иначе по device_id
+        // Проверить существующую попытку для ЭТОЙ СЕССИИ
+        // Если студент авторизован, ищем по student_id И session_id
+        // Иначе по device_id И session_id
         let existingAttempt = null;
         const student = api.getAuthStudent();
 
         if (student) {
-          // Авторизованный студент - ищем по student
+          // Авторизованный студент - ищем попытки для ЭТОЙ сессии
           const studentAttempts = await api.getAttemptsByStudent(sessionId, student.id);
-          existingAttempt = studentAttempts[0] || null; // Берем последнюю попытку
+          // Берем последнюю попытку для этой сессии (studentAttempts уже отфильтрованы по session)
+          existingAttempt = studentAttempts[0] || null;
         } else {
-          // Неавторизованный - ищем по device_id
+          // Неавторизованный - ищем по device_id для этой сессии
           existingAttempt = await api.getAttemptByDevice(sessionId, deviceId);
         }
 

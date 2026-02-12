@@ -1,48 +1,55 @@
 import { useState } from 'react';
-import { Card, Form, Input, Button, Typography, Space, App } from 'antd';
-import { UserOutlined, UserAddOutlined } from '@ant-design/icons';
+import { Card, Form, Input, Button, Typography, Tabs, App } from 'antd';
+import { UserOutlined, LockOutlined, UserAddOutlined, LoginOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 
 const { Title, Text } = Typography;
 
 /**
- * Страница обязательной регистрации для студентов
+ * Страница авторизации и регистрации для студентов
  */
 const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [form] = Form.useForm();
+  const [activeTab, setActiveTab] = useState('login');
+  const [loginForm] = Form.useForm();
+  const [registerForm] = Form.useForm();
 
-  const handleSubmit = async (values) => {
+  const handleLogin = async (values) => {
     setLoading(true);
     try {
-      // Генерируем уникальный username из имени и случайного числа
-      const timestamp = Date.now().toString().slice(-6);
-      const randomNum = Math.floor(Math.random() * 1000);
-      const username = `student_${timestamp}_${randomNum}`;
+      const authData = await api.loginStudent(values.username, values.password);
+      message.success(`Добро пожаловать, ${authData.record.name}!`);
+      onAuthSuccess(authData.record);
+    } catch (err) {
+      console.error('Login error:', err);
+      message.error('Неверный логин или пароль');
+    }
+    setLoading(false);
+  };
 
-      // Простой пароль - комбинация из фамилии и случайного числа
-      const password = `${values.lastName.toLowerCase()}${randomNum}`;
-
-      // Полное имя для отображения
-      const fullName = `${values.firstName} ${values.lastName}`;
-
+  const handleRegister = async (values) => {
+    setLoading(true);
+    try {
       // Регистрируем студента
       await api.registerStudent({
-        username,
-        password,
-        passwordConfirm: password,
-        name: fullName,
+        username: values.username,
+        password: values.password,
+        passwordConfirm: values.password,
+        name: values.name,
       });
 
       // Автоматический вход
-      const authData = await api.loginStudent(username, password);
-      message.success(`Добро пожаловать, ${fullName}!`);
+      const authData = await api.loginStudent(values.username, values.password);
+      message.success(`Добро пожаловать, ${values.name}!`);
       onAuthSuccess(authData.record);
     } catch (err) {
       console.error('Register error:', err);
-      // Если username занят (маловероятно), пробуем еще раз
-      message.error('Ошибка регистрации. Попробуйте еще раз.');
+      if (err.data?.data?.username?.message?.includes('already exists')) {
+        message.error('Этот логин уже занят');
+      } else {
+        message.error('Ошибка регистрации. Проверьте данные.');
+      }
     }
     setLoading(false);
   };
@@ -55,66 +62,143 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
           {sessionTitle || 'Тест'}
         </Title>
         <Text type="secondary">
-          Представьтесь, пожалуйста
+          Войдите или зарегистрируйтесь для продолжения
         </Text>
       </div>
 
       <Card>
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSubmit}
-          size="large"
-          autoComplete="off"
-        >
-          <Form.Item
-            name="firstName"
-            label="Имя"
-            rules={[
-              { required: true, message: 'Введите ваше имя' },
-              { min: 2, message: 'Минимум 2 символа' }
-            ]}
-          >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="Иван"
-              autoFocus
-            />
-          </Form.Item>
+        <Tabs
+          activeKey={activeTab}
+          onChange={setActiveTab}
+          centered
+          items={[
+            {
+              key: 'login',
+              label: 'Вход',
+              children: (
+                <Form
+                  form={loginForm}
+                  layout="vertical"
+                  onFinish={handleLogin}
+                  size="large"
+                  autoComplete="off"
+                >
+                  <Form.Item
+                    name="username"
+                    label="Логин"
+                    rules={[{ required: true, message: 'Введите логин' }]}
+                  >
+                    <Input
+                      prefix={<UserOutlined />}
+                      placeholder="Ваш логин"
+                      autoFocus={activeTab === 'login'}
+                    />
+                  </Form.Item>
 
-          <Form.Item
-            name="lastName"
-            label="Фамилия"
-            rules={[
-              { required: true, message: 'Введите вашу фамилию' },
-              { min: 2, message: 'Минимум 2 символа' }
-            ]}
-          >
-            <Input
-              prefix={<UserOutlined />}
-              placeholder="Иванов"
-            />
-          </Form.Item>
+                  <Form.Item
+                    name="password"
+                    label="Пароль"
+                    rules={[{ required: true, message: 'Введите пароль' }]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="Ваш пароль"
+                    />
+                  </Form.Item>
 
-          <Form.Item style={{ marginTop: 24 }}>
-            <Button
-              type="primary"
-              htmlType="submit"
-              block
-              icon={<UserAddOutlined />}
-              loading={loading}
-              size="large"
-            >
-              Начать тест
-            </Button>
-          </Form.Item>
+                  <Form.Item style={{ marginTop: 24 }}>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      icon={<LoginOutlined />}
+                      loading={loading}
+                      size="large"
+                    >
+                      Войти
+                    </Button>
+                  </Form.Item>
+                </Form>
+              ),
+            },
+            {
+              key: 'register',
+              label: 'Регистрация',
+              children: (
+                <Form
+                  form={registerForm}
+                  layout="vertical"
+                  onFinish={handleRegister}
+                  size="large"
+                  autoComplete="off"
+                >
+                  <Form.Item
+                    name="name"
+                    label="Фамилия и имя"
+                    rules={[
+                      { required: true, message: 'Введите фамилию и имя' },
+                      { min: 5, message: 'Минимум 5 символов' }
+                    ]}
+                  >
+                    <Input
+                      prefix={<UserOutlined />}
+                      placeholder="Иванов Иван"
+                      autoFocus={activeTab === 'register'}
+                    />
+                  </Form.Item>
 
-          <div style={{ textAlign: 'center', marginTop: 16 }}>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Ваши результаты и достижения будут сохранены
-            </Text>
-          </div>
-        </Form>
+                  <Form.Item
+                    name="username"
+                    label="Логин"
+                    rules={[
+                      { required: true, message: 'Введите логин' },
+                      { min: 3, message: 'Минимум 3 символа' },
+                      { pattern: /^[a-zA-Z0-9_]+$/, message: 'Только латинские буквы, цифры и _' }
+                    ]}
+                  >
+                    <Input
+                      prefix={<UserOutlined />}
+                      placeholder="ivan123"
+                    />
+                  </Form.Item>
+
+                  <Form.Item
+                    name="password"
+                    label="Пароль"
+                    rules={[
+                      { required: true, message: 'Введите пароль' },
+                      { min: 4, message: 'Минимум 4 символа' }
+                    ]}
+                  >
+                    <Input.Password
+                      prefix={<LockOutlined />}
+                      placeholder="Придумайте пароль"
+                    />
+                  </Form.Item>
+
+                  <Form.Item style={{ marginTop: 24 }}>
+                    <Button
+                      type="primary"
+                      htmlType="submit"
+                      block
+                      icon={<UserAddOutlined />}
+                      loading={loading}
+                      size="large"
+                    >
+                      Зарегистрироваться
+                    </Button>
+                  </Form.Item>
+
+                  <div style={{ textAlign: 'center', marginTop: 16 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      Ваши результаты и достижения будут сохранены
+                    </Text>
+                  </div>
+                </Form>
+              ),
+            },
+          ]}
+        />
       </Card>
     </div>
   );
