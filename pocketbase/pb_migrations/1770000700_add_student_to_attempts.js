@@ -17,11 +17,11 @@ migrate((app) => {
     "type": "relation"
   }))
 
-  // Update view rule to allow students to see their own attempts
-  collection.viewRule = "@request.auth.id != '' && (student = @request.auth.id || student = '')"
+  // Update view rule: students see only their attempts, admins see all
+  collection.viewRule = "@request.auth.id = '' || @request.auth.collectionName != 'students' || student = @request.auth.id || student = ''"
 
-  // Update list rule
-  collection.listRule = "@request.auth.id != '' && (student = @request.auth.id || student = '')"
+  // Update list rule: students see only their attempts, admins see all
+  collection.listRule = "@request.auth.id = '' || @request.auth.collectionName != 'students' || student = @request.auth.id || student = ''"
 
   return app.save(collection)
 }, (app) => {
