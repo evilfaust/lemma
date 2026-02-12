@@ -147,6 +147,7 @@ const TeacherResultsDashboard = ({ sessionId }) => {
             session: sessionId,
             student_name: attempt.student_name,
             device_id: attempt.device_id,
+            student: attempt.student || null, // Копируем student из предыдущей попытки
             variant: chosenVariantId,
             status: 'started',
             score: 0,

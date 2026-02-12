@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Typography, Spin, Divider, Button, Space } from 'antd';
-import { CheckCircleOutlined, TrophyOutlined, RedoOutlined } from '@ant-design/icons';
+import { Typography, Spin, Divider, Button } from 'antd';
+import { CheckCircleOutlined, TrophyOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
@@ -12,13 +12,12 @@ const PB_URL = PB_BASE_URL;
 
 /**
  * Страница результатов ученика.
- * Показывает результат, ошибочные задачи и кнопку прохождения еще раз.
+ * Показывает результат и ошибочные задачи.
  */
-const StudentResultPage = ({ studentSession, sessionId, deviceId, onNavigateToGallery }) => {
-  const { attempt, tasks, session, setAttempt, startAttempt } = studentSession;
+const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
+  const { attempt, tasks, session } = studentSession;
   const [attemptAnswers, setAttemptAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [retrying, setRetrying] = useState(false);
 
   // Загрузить ответы
   useEffect(() => {
@@ -38,15 +37,6 @@ const StudentResultPage = ({ studentSession, sessionId, deviceId, onNavigateToGa
   const percentage = total > 0 ? (score / total) * 100 : 0;
 
   const scoreClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'ok' : 'bad';
-
-  // Обработчик повторного прохождения
-  const handleRetry = async () => {
-    setRetrying(true);
-    const student = api.getAuthStudent();
-    const studentName = student?.name || attempt?.student_name || 'Студент';
-    await startAttempt(studentName);
-    setRetrying(false);
-  };
 
   if (loading) {
     return (
@@ -134,37 +124,19 @@ const StudentResultPage = ({ studentSession, sessionId, deviceId, onNavigateToGa
         </div>
       )}
 
-      {/* Действия */}
-      <div style={{ textAlign: 'center', marginTop: 24 }}>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          {/* Кнопка "Пройти еще раз" (если сессия открыта) */}
-          {session?.is_open && (
-            <Button
-              type="primary"
-              icon={<RedoOutlined />}
-              size="large"
-              block
-              onClick={handleRetry}
-              loading={retrying}
-            >
-              Пройти еще раз
-            </Button>
-          )}
-
-          {/* Кнопка "Мои достижения" */}
-          {(hasAchievement || hasUnlockedAchievements) && onNavigateToGallery && (
-            <Button
-              type="dashed"
-              icon={<TrophyOutlined />}
-              size="large"
-              block
-              onClick={onNavigateToGallery}
-            >
-              Посмотреть мои достижения
-            </Button>
-          )}
-        </Space>
-      </div>
+      {/* Кнопка "Мои достижения" */}
+      {(hasAchievement || hasUnlockedAchievements) && onNavigateToGallery && (
+        <div style={{ textAlign: 'center', marginTop: 24 }}>
+          <Button
+            type="dashed"
+            icon={<TrophyOutlined />}
+            size="large"
+            onClick={onNavigateToGallery}
+          >
+            Посмотреть мои достижения
+          </Button>
+        </div>
+      )}
 
       {/* Список ошибочных задач */}
       {wrongAnswers.length > 0 && (
