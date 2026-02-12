@@ -900,7 +900,7 @@ export const api = {
       const records = await pb.collection('attempts').getFullList({
         filter: `session = "${escapeFilter(sessionId)}" && device_id = "${escapeFilter(deviceId)}"`,
         sort: '-created',
-        expand: 'variant',
+        expand: 'variant,achievement,unlocked_achievements',
       });
       return records.length > 0 ? records[0] : null;
     } catch (error) {
@@ -1062,6 +1062,22 @@ export const api = {
     } catch (error) {
       console.error('Error fetching achievement:', error);
       return null;
+    }
+  },
+
+  async getAchievementsByIds(ids = []) {
+    try {
+      const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+      if (uniqueIds.length === 0) return [];
+
+      const filter = uniqueIds
+        .map((id) => `id = "${escapeFilter(id)}"`)
+        .join(' || ');
+
+      return await pb.collection('achievements').getFullList({ filter });
+    } catch (error) {
+      console.error('Error fetching achievements by ids:', error);
+      return [];
     }
   },
 

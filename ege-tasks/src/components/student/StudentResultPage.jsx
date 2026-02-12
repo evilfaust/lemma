@@ -18,6 +18,8 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
   const { attempt, tasks, session } = studentSession;
   const [attemptAnswers, setAttemptAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [resolvedAchievement, setResolvedAchievement] = useState(null);
+  const [resolvedUnlocked, setResolvedUnlocked] = useState([]);
 
   // Загрузить ответы
   useEffect(() => {
@@ -38,6 +40,69 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
 
   const scoreClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'ok' : 'bad';
 
+  // Проверяем, включены ли достижения для этой сессии
+  const achievementsEnabled = session?.achievements_enabled || false;
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadAchievements = async () => {
+      if (!achievementsEnabled || !attempt) {
+        setResolvedAchievement(null);
+        setResolvedUnlocked([]);
+        return;
+      }
+
+      const expandedAchievement = attempt?.expand?.achievement;
+      const expandedUnlocked = attempt?.expand?.unlocked_achievements;
+
+      const achievementId = typeof attempt?.achievement === 'string'
+        ? attempt.achievement
+        : attempt?.achievement?.id;
+      const unlockedIds = Array.isArray(attempt?.unlocked_achievements)
+        ? attempt.unlocked_achievements
+        : [];
+
+      if (expandedAchievement && Array.isArray(expandedUnlocked)) {
+        setResolvedAchievement(expandedAchievement);
+        setResolvedUnlocked(expandedUnlocked);
+        return;
+      }
+
+      const idsToLoad = [];
+      if (!expandedAchievement && achievementId) idsToLoad.push(achievementId);
+      if (!Array.isArray(expandedUnlocked) && unlockedIds.length > 0) {
+        idsToLoad.push(...unlockedIds);
+      }
+
+      if (idsToLoad.length === 0) {
+        setResolvedAchievement(expandedAchievement || null);
+        setResolvedUnlocked(Array.isArray(expandedUnlocked) ? expandedUnlocked : []);
+        return;
+      }
+
+      const loaded = await api.getAchievementsByIds(idsToLoad);
+      if (cancelled) return;
+      const byId = new Map(loaded.map((a) => [a.id, a]));
+
+      setResolvedAchievement(
+        expandedAchievement || (achievementId ? byId.get(achievementId) || null : null)
+      );
+      setResolvedUnlocked(
+        Array.isArray(expandedUnlocked)
+          ? expandedUnlocked
+          : unlockedIds.map((id) => byId.get(id)).filter(Boolean)
+      );
+    };
+
+    loadAchievements();
+    return () => {
+      cancelled = true;
+    };
+  }, [achievementsEnabled, attempt?.id, attempt?.achievement, attempt?.unlocked_achievements, attempt?.expand]);
+
+  const hasAchievement = achievementsEnabled && !!resolvedAchievement;
+  const hasUnlockedAchievements = achievementsEnabled && resolvedUnlocked.length > 0;
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: 60 }}>
@@ -45,14 +110,6 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
       </div>
     );
   }
-
-  // Проверяем, включены ли достижения для этой сессии
-  const achievementsEnabled = session?.achievements_enabled || false;
-
-  const hasAchievement = achievementsEnabled && (attempt?.expand?.achievement || attempt?.achievement);
-  const hasUnlockedAchievements = achievementsEnabled &&
-    ((attempt?.expand?.unlocked_achievements && attempt.expand.unlocked_achievements.length > 0) ||
-    (attempt?.unlocked_achievements && attempt.unlocked_achievements.length > 0));
 
   return (
     <div style={{ padding: '20px 0' }}>
@@ -92,7 +149,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
             </Title>
           </div>
           <AchievementBadge
-            achievement={attempt.expand?.achievement || attempt.achievement}
+            achievement={resolvedAchievement}
             size="large"
             showDetails={true}
             animated={true}
@@ -110,7 +167,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
             </Title>
           </div>
           <div className="unlocked-achievements-grid">
-            {(attempt.expand?.unlocked_achievements || []).map((ach, index) => (
+            {resolvedUnlocked.map((ach, index) => (
               <AchievementBadge
                 key={ach.id}
                 achievement={ach}

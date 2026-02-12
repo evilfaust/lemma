@@ -115,23 +115,38 @@ const StudentTestPage = ({ studentSession }) => {
         // Загрузить все достижения
         const achievements = await api.getAchievements();
 
-        // Выбрать случайный значок на основе процента
-        randomBadge = getRandomAchievement(achievements, percentage);
+        // Получить все попытки для проверки условий.
+        // Для авторизованного студента считаем прогресс по student_id, иначе по device_id.
+        const authStudent = api.getAuthStudent();
+        let allAttempts = [];
+        if (authStudent?.id) {
+          allAttempts = await api.getAttemptsByStudent(session.id, authStudent.id);
+        } else {
+          const deviceId = localStorage.getItem('ege_device_id');
+          if (deviceId) {
+            allAttempts = await api.getAttemptsByDevice(session.id, deviceId);
+          }
+        }
 
-        // Получить все попытки студента для проверки условий
-        const deviceId = localStorage.getItem('ege_device_id');
-        const allAttempts = await api.getAttemptsByDevice(session.id, deviceId);
+        // Выбрать случайный значок, по возможности без повторов уже полученных.
+        const previouslyEarnedRandomIds = allAttempts
+          .map((a) => a.achievement)
+          .filter(Boolean);
+        randomBadge = getRandomAchievement(achievements, percentage, previouslyEarnedRandomIds);
 
         // Проверить разблокированные достижения за условия
         const previouslyUnlockedIds = getPreviouslyUnlockedIds(allAttempts);
+        const attemptsIncludingCurrent = allAttempts.some((a) => a.id === attempt.id)
+          ? allAttempts
+          : [...allAttempts, { id: attempt.id }];
         unlocked = checkUnlockedAchievements(
           achievements,
           {
             percentage,
             durationMinutes,
-            submittedAt: new Date(),
+            submittedAt: new Date().toISOString(),
           },
-          [...allAttempts, { id: attempt.id }], // Включить текущую попытку для подсчета
+          attemptsIncludingCurrent,
           previouslyUnlockedIds
         );
       }

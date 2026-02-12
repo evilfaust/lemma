@@ -4,9 +4,10 @@ import { shuffleArray } from './shuffle';
  * Выбрать случайный значок по редкости на основе процента правильных ответов
  * @param {Array} achievements - массив всех достижений
  * @param {number} percentage - процент правильных ответов (0-100)
+ * @param {Array} excludedIds - ID, которые желательно не выдавать повторно
  * @returns {object|null} - выбранное достижение или null
  */
-export function getRandomAchievement(achievements, percentage) {
+export function getRandomAchievement(achievements, percentage, excludedIds = []) {
   // Определить редкость на основе результата
   let rarity;
   if (percentage >= 90) {
@@ -29,8 +30,13 @@ export function getRandomAchievement(achievements, percentage) {
     return null;
   }
 
+  // Предпочтительно не выдавать уже полученные значки той же редкости
+  const excluded = new Set(excludedIds);
+  const nonDuplicate = filtered.filter((a) => !excluded.has(a.id));
+  const pool = nonDuplicate.length > 0 ? nonDuplicate : filtered;
+
   // Вернуть случайный значок из подходящих
-  return shuffleArray([...filtered])[0];
+  return shuffleArray([...pool])[0];
 }
 
 /**
@@ -77,7 +83,7 @@ export function checkUnlockedAchievements(
 function isAchievementUnlocked(achievement, attemptData, allAttempts) {
   const { condition_type, condition_value } = achievement;
 
-  if (!condition_type || !condition_value) {
+  if (!condition_type || condition_value == null) {
     return false;
   }
 
@@ -118,28 +124,46 @@ function checkSpecialCondition(conditionValue, attemptData) {
   }
 
   const date = new Date(submittedAt);
+  const toMinutes = (timeString) => {
+    if (typeof timeString !== 'string') return null;
+    const [hRaw, mRaw] = timeString.split(':');
+    const h = Number(hRaw);
+    const m = Number(mRaw);
+    if (!Number.isInteger(h) || !Number.isInteger(m)) return null;
+    if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+    return h * 60 + m;
+  };
 
   // Проверка времени суток
   if (conditionValue.time_after || conditionValue.time_before) {
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const timeString = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    const currentMinutes = date.getHours() * 60 + date.getMinutes();
+    const after = toMinutes(conditionValue.time_after);
+    const before = toMinutes(conditionValue.time_before);
 
-    if (conditionValue.time_after && timeString >= conditionValue.time_after) {
-      return true;
-    }
-
-    if (conditionValue.time_before && timeString <= conditionValue.time_before) {
-      return true;
+    if (after !== null && before !== null) {
+      // Окно может пересекать полночь: например, 22:00-06:00
+      const inWindow = after <= before
+        ? currentMinutes >= after && currentMinutes <= before
+        : currentMinutes >= after || currentMinutes <= before;
+      if (!inWindow) return false;
+    } else if (after !== null && currentMinutes < after) {
+      return false;
+    } else if (before !== null && currentMinutes > before) {
+      return false;
     }
   }
 
-  // Проверка дня недели (0 = воскресенье, 6 = суббота)
+  // Проверка дня недели (0 = воскресенье, 6 = суббота).
+  // Если передан массив, достаточно совпадения с одним из дней.
   if (conditionValue.day_of_week !== undefined) {
-    return date.getDay() === conditionValue.day_of_week;
+    const day = date.getDay();
+    if (Array.isArray(conditionValue.day_of_week)) {
+      return conditionValue.day_of_week.includes(day);
+    }
+    return day === conditionValue.day_of_week;
   }
 
-  return false;
+  return true;
 }
 
 /**
