@@ -465,11 +465,29 @@ export function parseSdamgiaResult(problems, metadata = {}) {
   const globalTags = parseTags(metadata.tagsStr);
   const taskNumber = metadata.taskNumber || '';
   const topicName = taskNumber ? `ЕГЭ-База №${taskNumber}` : '';
+  const shouldConvertLegacyMath = (text) => {
+    if (!text) return false;
+    // Если уже есть LaTeX/Markdown структуры, повторная конверсия ломает выражения
+    if (/\\[a-zA-Z]+/.test(text) || /\$/.test(text) || /!\[[^\]]*]\([^)]+\)/.test(text) || /\|.*\|/.test(text)) {
+      return false;
+    }
+    // Конвертируем только "сырой" текст старого формата
+    return /(дробь:|числитель:|знаменатель:|корень\s+из|косинус|синус|тангенс|котангенс|альфа|бета|гамма|дельта|пи)/i.test(text);
+  };
+  const normalizeSdamgiaText = (text) => String(text || '')
+    .replace(/___BR___/g, '\n')
+    .replace(/\u00AD/g, '') // soft hyphen
+    .replace(/\u200B/g, '') // zero-width space
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 
   const tasks = problems.map((problem, index) => {
-    // Применяем преобразование в LaTeX к условию и ответу
-    const statement = convertToLatex((problem.condition || '').trim());
-    const answer = convertToLatex((problem.answer || '').trim());
+    const rawStatement = normalizeSdamgiaText(problem.condition);
+    const rawAnswer = normalizeSdamgiaText(problem.answer);
+
+    // Конвертируем в LaTeX только если пришёл "старый" текст без готовой разметки
+    const statement = shouldConvertLegacyMath(rawStatement) ? convertToLatex(rawStatement) : rawStatement;
+    const answer = shouldConvertLegacyMath(rawAnswer) ? convertToLatex(rawAnswer) : rawAnswer;
 
     const task = {
       number: index + 1,

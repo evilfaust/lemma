@@ -7,6 +7,9 @@
 # ПЕРЕД любыми операциями с базой данных!
 # ============================================
 
+# Безопасный режим: останавливаемся при любой ошибке
+set -euo pipefail
+
 PROJECT_DIR="/Users/evilfaust/Documents/APP/generation-test"
 PB_DATA="$PROJECT_DIR/pocketbase/pb_data"
 BACKUP_DIR="$PROJECT_DIR/backups"
@@ -17,6 +20,12 @@ CURRENT_BACKUP="$BACKUP_DIR/$BACKUP_NAME"
 
 # Создаём папку для текущего бэкапа
 mkdir -p "$CURRENT_BACKUP"
+
+# Проверяем, что базы существуют
+if [ ! -f "$PB_DATA/data.db" ] || [ ! -f "$PB_DATA/auxiliary.db" ]; then
+    echo "❌ Файлы базы данных не найдены в $PB_DATA"
+    exit 1
+fi
 
 # Используем sqlite3 .backup для безопасного копирования
 # (корректно работает даже если PocketBase запущен)
@@ -29,6 +38,13 @@ else
     cp "$PB_DATA/auxiliary.db" "$CURRENT_BACKUP/auxiliary.db"
 fi
 
+# Валидация: убеждаемся, что файлы реально создались и не пустые
+if [ ! -s "$CURRENT_BACKUP/data.db" ] || [ ! -s "$CURRENT_BACKUP/auxiliary.db" ]; then
+    echo "❌ Бэкап БД не создан или пустой"
+    rm -rf "$CURRENT_BACKUP"
+    exit 1
+fi
+
 # Копируем storage (если появятся файлы)
 if [ -d "$PB_DATA/storage" ] && [ "$(ls -A "$PB_DATA/storage" 2>/dev/null)" ]; then
     cp -r "$PB_DATA/storage" "$CURRENT_BACKUP/storage"
@@ -38,6 +54,11 @@ fi
 cd "$BACKUP_DIR"
 tar -czf "$BACKUP_NAME.tar.gz" "$BACKUP_NAME"
 rm -rf "$CURRENT_BACKUP"
+
+if [ ! -s "$BACKUP_DIR/$BACKUP_NAME.tar.gz" ]; then
+    echo "❌ Архив бэкапа не создан"
+    exit 1
+fi
 
 # Ротация: удаляем старые бэкапы, оставляем последние MAX_BACKUPS
 BACKUP_COUNT=$(ls -1 "$BACKUP_DIR"/backup_*.tar.gz 2>/dev/null | wc -l | tr -d ' ')

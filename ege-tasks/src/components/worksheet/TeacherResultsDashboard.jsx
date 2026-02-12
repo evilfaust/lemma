@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover } from 'antd';
-import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover, Select } from 'antd';
+import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined, EyeOutlined, TrophyOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { shuffleArray } from '../../utils/shuffle';
 import MathRenderer from '../MathRenderer';
@@ -18,6 +18,13 @@ const TeacherResultsDashboard = ({ sessionId }) => {
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedAnswers, setExpandedAnswers] = useState({});
+  const [achievements, setAchievements] = useState([]);
+  const [achievementsLoading, setAchievementsLoading] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualAttempt, setManualAttempt] = useState(null);
+  const [manualRandomAchievementId, setManualRandomAchievementId] = useState(undefined);
+  const [manualUnlockedAchievementIds, setManualUnlockedAchievementIds] = useState([]);
 
   const loadAttempts = useCallback(async () => {
     if (!sessionId) return;
@@ -36,6 +43,22 @@ const TeacherResultsDashboard = ({ sessionId }) => {
     const interval = setInterval(loadAttempts, 15000);
     return () => clearInterval(interval);
   }, [loadAttempts]);
+
+  const loadAchievements = useCallback(async () => {
+    setAchievementsLoading(true);
+    try {
+      const data = await api.getAchievements();
+      setAchievements(data);
+    } catch (err) {
+      console.error('Error loading achievements:', err);
+      message.error('Ошибка загрузки достижений');
+    }
+    setAchievementsLoading(false);
+  }, [message]);
+
+  useEffect(() => {
+    loadAchievements();
+  }, [loadAchievements]);
 
   const loadAnswers = async (attemptId) => {
     if (expandedAnswers[attemptId]) return;
@@ -164,6 +187,65 @@ const TeacherResultsDashboard = ({ sessionId }) => {
     });
   };
 
+  const openManualAchievementsModal = (attempt) => {
+    setManualAttempt(attempt);
+    setManualRandomAchievementId(
+      typeof attempt.achievement === 'string' ? attempt.achievement : attempt.achievement?.id
+    );
+    setManualUnlockedAchievementIds(
+      Array.isArray(attempt.unlocked_achievements) ? attempt.unlocked_achievements : []
+    );
+    setManualModalOpen(true);
+  };
+
+  const handleManualAchievementsSave = async () => {
+    if (!manualAttempt) return;
+    setManualSaving(true);
+    try {
+      const updated = await api.updateAttempt(manualAttempt.id, {
+        achievement: manualRandomAchievementId || null,
+        unlocked_achievements: manualUnlockedAchievementIds,
+      });
+
+      setAttempts((prev) => prev.map((a) => (
+        a.id === manualAttempt.id
+          ? {
+            ...a,
+            ...updated,
+            achievement: manualRandomAchievementId || null,
+            unlocked_achievements: manualUnlockedAchievementIds,
+          }
+          : a
+      )));
+
+      message.success('Ачивки обновлены');
+      setManualModalOpen(false);
+      setManualAttempt(null);
+    } catch (err) {
+      console.error('Error updating manual achievements:', err);
+      message.error('Ошибка при сохранении ачивок');
+    }
+    setManualSaving(false);
+  };
+
+  const randomAchievementOptions = useMemo(() => {
+    return achievements
+      .filter((a) => a.type === 'random')
+      .map((a) => ({
+        value: a.id,
+        label: `${a.title}${a.rarity ? ` (${a.rarity})` : ''}`,
+      }));
+  }, [achievements]);
+
+  const conditionAchievementOptions = useMemo(() => {
+    return achievements
+      .filter((a) => a.type === 'condition')
+      .map((a) => ({
+        value: a.id,
+        label: a.title,
+      }));
+  }, [achievements]);
+
   const statusMap = {
     started: { color: 'default', text: 'Начат' },
     submitted: { color: 'blue', text: 'Отправлен' },
@@ -230,9 +312,16 @@ const TeacherResultsDashboard = ({ sessionId }) => {
     {
       title: '',
       key: 'actions',
-      width: 80,
+      width: 120,
       render: (_, record) => (
         <Space size={4}>
+          <Button
+            type="text"
+            icon={<TrophyOutlined />}
+            onClick={() => openManualAchievementsModal(record)}
+            title="Выдать ачивки вручную"
+            size="small"
+          />
           <Button
             type="text"
             icon={<SwapOutlined />}
@@ -422,6 +511,44 @@ const TeacherResultsDashboard = ({ sessionId }) => {
           scroll={{ x: 600 }}
         />
       )}
+
+      <Modal
+        title={manualAttempt ? `Ачивки: ${manualAttempt.student_name}` : 'Ручная выдача ачивок'}
+        open={manualModalOpen}
+        onCancel={() => setManualModalOpen(false)}
+        onOk={handleManualAchievementsSave}
+        okText="Сохранить"
+        cancelText="Отмена"
+        confirmLoading={manualSaving}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Text type="secondary">Случайный значок (achievement)</Text>
+          <Select
+            allowClear
+            showSearch
+            placeholder="Не выбран"
+            style={{ width: '100%' }}
+            loading={achievementsLoading}
+            options={randomAchievementOptions}
+            value={manualRandomAchievementId}
+            onChange={(value) => setManualRandomAchievementId(value)}
+            optionFilterProp="label"
+          />
+
+          <Text type="secondary">Разблокированные достижения (unlocked_achievements)</Text>
+          <Select
+            mode="multiple"
+            showSearch
+            placeholder="Выберите достижения"
+            style={{ width: '100%' }}
+            loading={achievementsLoading}
+            options={conditionAchievementOptions}
+            value={manualUnlockedAchievementIds}
+            onChange={(value) => setManualUnlockedAchievementIds(value)}
+            optionFilterProp="label"
+          />
+        </Space>
+      </Modal>
     </div>
   );
 };

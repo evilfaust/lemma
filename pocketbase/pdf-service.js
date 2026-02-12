@@ -453,8 +453,8 @@ function processCondition($, conditionEl) {
       }
       images.push(fullUrl);
       const marker = `___IMAGE_${imgIndex}___`;
-      // Оборачиваем изображение в маркеры, чтобы оно было на отдельной строке
-      imageReplacements[marker] = `${NEWLINE_MARKER}![image](${fullUrl})${NEWLINE_MARKER}`;
+      // Изображение всегда на отдельной строке
+      imageReplacements[marker] = `\n![image](${fullUrl})\n`;
       imgIndex++;
       $(this).replaceWith(marker);
     }
@@ -465,6 +465,10 @@ function processCondition($, conditionEl) {
 
   // Восстанавливаем переносы строк из маркеров
   text = text.replaceAll(NEWLINE_MARKER, '\n');
+
+  // Убираем артефакты типографики SDAMGIA
+  text = text.replace(/\u00AD/g, ''); // soft hyphen
+  text = text.replace(/\u200B/g, ''); // zero-width space
 
   // Чистим множественные переносы (больше 2)
   text = text.replace(/\n{3,}/g, '\n\n');
