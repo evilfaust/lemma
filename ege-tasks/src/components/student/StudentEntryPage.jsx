@@ -1,24 +1,24 @@
 import { useState } from 'react';
-import { Input, Button, Result, Spin, Typography, Space } from 'antd';
-import { LoadingOutlined, StopOutlined } from '@ant-design/icons';
+import { Button, Result, Spin, Typography, Space } from 'antd';
+import { LoadingOutlined, StopOutlined, UserOutlined } from '@ant-design/icons';
+import { api } from '../../services/pocketbase';
 
 const { Title, Text } = Typography;
 
 /**
- * Страница входа ученика.
- * Показывает форму ввода ФИО или сообщение о закрытии приёма.
+ * Страница подтверждения входа ученика.
+ * Показывает приветствие и кнопку начала теста.
  */
 const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
   const { session, loading, error, startAttempt } = studentSession;
-  const [studentName, setStudentName] = useState('');
   const [starting, setStarting] = useState(false);
 
-  const handleStart = async () => {
-    const name = studentName.trim();
-    if (!name) return;
+  const student = api.getAuthStudent();
+  const studentName = student?.name || 'Студент';
 
+  const handleStart = async () => {
     setStarting(true);
-    await startAttempt(name);
+    await startAttempt(studentName);
     setStarting(false);
   };
 
@@ -55,7 +55,7 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
     );
   }
 
-  // Форма входа
+  // Приветствие и кнопка начала
   const studentTitle = session.student_title?.trim() || 'Самостоятельная работа';
 
   return (
@@ -63,39 +63,27 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
         <Title level={3} style={{ marginBottom: 8 }}>{studentTitle}</Title>
         {session.expand?.work?.title && (
-          <Text type="secondary" style={{ fontSize: 16 }}>
+          <Text type="secondary" style={{ fontSize: 16, display: 'block', marginBottom: 16 }}>
             {session.expand.work.title}
           </Text>
         )}
+        <Space style={{ marginTop: 24, justifyContent: 'center' }}>
+          <UserOutlined style={{ fontSize: 20, color: '#1890ff' }} />
+          <Text strong style={{ fontSize: 18 }}>
+            {studentName}
+          </Text>
+        </Space>
       </div>
 
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div>
-          <Text strong style={{ fontSize: 16, display: 'block', marginBottom: 8 }}>
-            Введите Фамилию и Имя
-          </Text>
-          <Input
-            size="large"
-            placeholder="Иванов Иван"
-            value={studentName}
-            onChange={e => setStudentName(e.target.value)}
-            onPressEnter={handleStart}
-            autoFocus
-            style={{ fontSize: 18 }}
-          />
-        </div>
-
-        <Button
-          type="primary"
-          size="large"
-          block
-          onClick={handleStart}
-          loading={starting}
-          disabled={!studentName.trim()}
-        >
-          Начать
-        </Button>
-      </Space>
+      <Button
+        type="primary"
+        size="large"
+        block
+        onClick={handleStart}
+        loading={starting}
+      >
+        Начать тест
+      </Button>
     </div>
   );
 };
