@@ -42,8 +42,20 @@ export function useStudentSession(sessionId, deviceId) {
         }
         setSession(sessionData);
 
-        // Проверить существующую попытку для этого устройства
-        const existingAttempt = await api.getAttemptByDevice(sessionId, deviceId);
+        // Проверить существующую попытку
+        // Если студент авторизован, ищем по student_id, иначе по device_id
+        let existingAttempt = null;
+        const student = api.getAuthStudent();
+
+        if (student) {
+          // Авторизованный студент - ищем по student
+          const studentAttempts = await api.getAttemptsByStudent(sessionId, student.id);
+          existingAttempt = studentAttempts[0] || null; // Берем последнюю попытку
+        } else {
+          // Неавторизованный - ищем по device_id
+          existingAttempt = await api.getAttemptByDevice(sessionId, deviceId);
+        }
+
         if (existingAttempt) {
           const allAttempts = await api.getAttemptsBySession(sessionId);
           setAttempt({
@@ -124,10 +136,12 @@ export function useStudentSession(sessionId, deviceId) {
 
       // Создать attempt
       const taskList = chosenVariant.expand?.tasks || [];
+      const student = api.getAuthStudent();
       const newAttempt = await api.createAttempt({
         session: sessionId,
         student_name: studentName,
         device_id: deviceId,
+        student: student?.id || null, // Привязываем к студенту если авторизован
         variant: chosenVariantId,
         status: 'started',
         score: 0,

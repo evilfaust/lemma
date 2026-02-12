@@ -25,10 +25,20 @@ const AchievementGallery = ({ studentSession }) => {
         const achievements = await api.getAchievements();
         setAllAchievements(achievements);
 
-        // Загрузить все попытки пользователя (device_id)
-        const deviceId = localStorage.getItem('ege_device_id');
-        if (session?.id && deviceId) {
-          const attempts = await api.getAttemptsByDevice(session.id, deviceId);
+        // Загрузить все попытки пользователя
+        const student = api.getAuthStudent();
+        if (session?.id) {
+          let attempts = [];
+          if (student) {
+            // Авторизованный студент - загружаем по student_id
+            attempts = await api.getAttemptsByStudent(session.id, student.id);
+          } else {
+            // Неавторизованный - загружаем по device_id
+            const deviceId = localStorage.getItem('ege_device_id');
+            if (deviceId) {
+              attempts = await api.getAttemptsByDevice(session.id, deviceId);
+            }
+          }
           setUserAttempts(attempts);
         }
       } catch (err) {

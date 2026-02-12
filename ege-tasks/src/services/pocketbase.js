@@ -1091,6 +1091,51 @@ export const api = {
       throw error;
     }
   },
+
+  // ============ СТУДЕНТЫ (STUDENTS AUTH) ============
+
+  async registerStudent(data) {
+    try {
+      return await pb.collection('students').create(data);
+    } catch (error) {
+      console.error('Error registering student:', error);
+      throw error;
+    }
+  },
+
+  async loginStudent(username, password) {
+    try {
+      return await pb.collection('students').authWithPassword(username, password);
+    } catch (error) {
+      console.error('Error logging in student:', error);
+      throw error;
+    }
+  },
+
+  async logoutStudent() {
+    pb.authStore.clear();
+  },
+
+  getAuthStudent() {
+    return pb.authStore.model;
+  },
+
+  isStudentAuthenticated() {
+    return pb.authStore.isValid && pb.authStore.model?.collectionName === 'students';
+  },
+
+  async getAttemptsByStudent(sessionId, studentId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `session = "${escapeFilter(sessionId)}" && student = "${escapeFilter(studentId)}"`,
+        expand: 'achievement,unlocked_achievements',
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching student attempts:', error);
+      return [];
+    }
+  },
 };
 
 export default pb;

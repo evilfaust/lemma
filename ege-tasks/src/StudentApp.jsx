@@ -1,11 +1,13 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ConfigProvider, Button } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
+import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentEntryPage from './components/student/StudentEntryPage';
 import StudentTestPage from './components/student/StudentTestPage';
 import StudentResultPage from './components/student/StudentResultPage';
 import AchievementGallery from './components/student/AchievementGallery';
+import { api } from './services/pocketbase';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -44,31 +46,68 @@ function StudentApp() {
     return id;
   });
 
+  const [student, setStudent] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Проверить авторизацию при загрузке
+  useEffect(() => {
+    if (api.isStudentAuthenticated()) {
+      setStudent(api.getAuthStudent());
+    }
+    setAuthChecked(true);
+  }, []);
+
   const studentSession = useStudentSession(sessionId, deviceId);
   const { attempt, session } = studentSession;
   const [viewOverride, setViewOverride] = useState(null); // Для ручной смены экрана (например, галерея)
 
+  const handleAuthSuccess = (authStudent) => {
+    setStudent(authStudent);
+  };
+
+  const handleLogout = () => {
+    api.logoutStudent();
+    setStudent(null);
+    window.location.reload(); // Перезагрузить для сброса состояния
+  };
+
   // Определяем текущий экран на основе состояния attempt
   const currentView = useMemo(() => {
+    if (!authChecked) return 'loading';
+    if (!student) return 'auth';
     if (viewOverride) return viewOverride;
     if (!attempt) return 'entry';
     if (attempt.status === 'started') return 'test';
     return 'result'; // submitted или corrected
-  }, [attempt, viewOverride]);
+  }, [authChecked, student, attempt, viewOverride]);
+
+  if (currentView === 'loading') {
+    return null; // Или спиннер
+  }
 
   return (
     <ConfigProvider theme={{ token: { colorPrimary: '#1890ff' } }}>
       <div className="student-app">
-        {/* Кнопка "Мои достижения" в шапке (показывать только если ачивки включены) */}
-        {attempt && session?.achievements_enabled && currentView !== 'gallery' && (
-          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000 }}>
+        {/* Кнопки в шапке */}
+        {student && currentView !== 'auth' && (
+          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000, display: 'flex', gap: 8 }}>
+            {/* Кнопка "Мои достижения" (показывать только если ачивки включены) */}
+            {attempt && session?.achievements_enabled && currentView !== 'gallery' && (
+              <Button
+                type="primary"
+                icon={<TrophyOutlined />}
+                onClick={() => setViewOverride('gallery')}
+              >
+                Мои достижения
+              </Button>
+            )}
+
+            {/* Кнопка выхода */}
             <Button
-              type="primary"
-              icon={<TrophyOutlined />}
-              onClick={() => setViewOverride('gallery')}
-            >
-              Мои достижения
-            </Button>
+              icon={<LogoutOutlined />}
+              onClick={handleLogout}
+              title="Выйти"
+            />
           </div>
         )}
 
@@ -82,6 +121,13 @@ function StudentApp() {
               Назад
             </Button>
           </div>
+        )}
+
+        {currentView === 'auth' && (
+          <StudentAuthPage
+            onAuthSuccess={handleAuthSuccess}
+            sessionTitle={session?.student_title}
+          />
         )}
 
         {currentView === 'entry' && (
