@@ -85,31 +85,39 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
 
       {/* Полученный случайный значок */}
       {hasAchievement && (
-        <div className="achievement-section">
-          <Title level={5} style={{ marginBottom: 16 }}>
-            🎉 Получен значок!
-          </Title>
+        <div className="achievement-section achievement-reveal">
+          <div className="achievement-header">
+            <Title level={3} className="achievement-section-title">
+              ✨ Получен значок!
+            </Title>
+          </div>
           <AchievementBadge
             achievement={attempt.expand?.achievement || attempt.achievement}
             size="large"
             showDetails={true}
+            animated={true}
+            animationDelay={300}
           />
         </div>
       )}
 
       {/* Разблокированные достижения */}
       {hasUnlockedAchievements && (
-        <div className="unlocked-section">
-          <Title level={5} style={{ marginBottom: 16 }}>
-            🏆 Разблокированы достижения!
-          </Title>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-            {(attempt.expand?.unlocked_achievements || []).map(ach => (
+        <div className="unlocked-section achievement-reveal">
+          <div className="achievement-header">
+            <Title level={3} className="achievement-section-title">
+              🏆 Новые достижения!
+            </Title>
+          </div>
+          <div className="unlocked-achievements-grid">
+            {(attempt.expand?.unlocked_achievements || []).map((ach, index) => (
               <AchievementBadge
                 key={ach.id}
                 achievement={ach}
                 size="medium"
                 showDetails={true}
+                animated={true}
+                animationDelay={800 + index * 200}
               />
             ))}
           </div>

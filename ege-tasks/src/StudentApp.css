@@ -97,3 +97,382 @@
   border-top: 1px solid #f0f0f0;
   z-index: 10;
 }
+
+/* ========================================
+   ACHIEVEMENT SYSTEM STYLES
+   ======================================== */
+
+/* Achievement Sections */
+.achievement-section,
+.unlocked-section {
+  margin: 32px 0;
+  padding: 24px;
+  background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+  border-radius: 20px;
+  border: 2px solid transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.achievement-section {
+  background: linear-gradient(135deg, #f093fb15 0%, #f5576c15 100%);
+}
+
+.achievement-reveal {
+  animation: sectionReveal 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+@keyframes sectionReveal {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.achievement-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.achievement-section-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-weight: 800 !important;
+  font-size: 28px !important;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 !important;
+  letter-spacing: -0.5px;
+  text-shadow: 0 2px 20px rgba(102, 126, 234, 0.3);
+}
+
+.unlocked-achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  justify-items: center;
+}
+
+/* Achievement Badge */
+.achievement-badge {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: visible;
+  opacity: 0;
+  transform: translateY(-100px) scale(0.3) rotate(-10deg);
+}
+
+.achievement-badge.visible {
+  animation: badgeDrop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes badgeDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-100px) scale(0.3) rotate(-10deg);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(10px) scale(1.05) rotate(2deg);
+  }
+  80% {
+    transform: translateY(-5px) scale(0.98) rotate(-1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.achievement-badge:hover {
+  transform: translateY(-8px) scale(1.05);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+/* Size variants */
+.achievement-badge-small {
+  padding: 16px;
+  min-width: 140px;
+}
+
+.achievement-badge-medium {
+  padding: 20px;
+  min-width: 200px;
+}
+
+.achievement-badge-large {
+  padding: 32px;
+  min-width: 280px;
+}
+
+/* Glow effect */
+.achievement-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  height: 100%;
+  transform: translate(-50%, -50%);
+  border-radius: 20px;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.achievement-badge.visible .achievement-glow {
+  animation: glowPulse 2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}
+
+/* Rarity-specific styles */
+.achievement-badge.common .achievement-glow {
+  background: radial-gradient(circle, rgba(82, 196, 26, 0.4) 0%, transparent 70%);
+  box-shadow: 0 0 60px rgba(82, 196, 26, 0.6);
+}
+
+.achievement-badge.rare .achievement-glow {
+  background: radial-gradient(circle, rgba(102, 126, 234, 0.5) 0%, transparent 70%);
+  box-shadow: 0 0 80px rgba(102, 126, 234, 0.7);
+}
+
+.achievement-badge.legendary .achievement-glow {
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.6) 0%, transparent 70%);
+  box-shadow: 0 0 100px rgba(255, 215, 0, 0.8);
+  animation: legendaryGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes legendaryGlow {
+  0%, 100% {
+    opacity: 0.4;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: translate(-50%, -50%) scale(1.2);
+  }
+}
+
+.achievement-badge.common {
+  border: 2px solid rgba(82, 196, 26, 0.3);
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%);
+}
+
+.achievement-badge.rare {
+  border: 2px solid rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #ffffff 0%, #eff6ff 100%);
+}
+
+.achievement-badge.legendary {
+  border: 2px solid rgba(255, 215, 0, 0.5);
+  background: linear-gradient(135deg, #ffffff 0%, #fffbeb 100%);
+  box-shadow: 0 4px 20px rgba(255, 215, 0, 0.2), 0 0 40px rgba(255, 215, 0, 0.1);
+}
+
+/* Icon wrapper */
+.achievement-icon-wrapper {
+  position: relative;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+}
+
+.achievement-badge.visible .achievement-icon-wrapper {
+  animation: iconBounce 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s backwards;
+}
+
+@keyframes iconBounce {
+  0% {
+    transform: scale(0) rotate(-180deg);
+  }
+  60% {
+    transform: scale(1.2) rotate(10deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+.achievement-icon {
+  display: block;
+  border-radius: 16px;
+  object-fit: contain;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.achievement-badge:hover .achievement-icon {
+  transform: scale(1.1) rotate(5deg);
+}
+
+/* Achievement details */
+.achievement-details {
+  text-align: center;
+  width: 100%;
+}
+
+.achievement-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+  font-weight: 700 !important;
+  margin: 8px 0 6px !important;
+  color: #1a1a1a;
+  letter-spacing: -0.3px;
+}
+
+.achievement-description {
+  display: block;
+  font-size: 14px !important;
+  line-height: 1.5;
+  color: #666;
+  margin-top: 4px;
+}
+
+.achievement-rarity {
+  margin-top: 12px;
+  padding: 6px 16px;
+  border-radius: 20px;
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.rarity-common {
+  background: linear-gradient(135deg, #52c41a 0%, #73d13d 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(82, 196, 26, 0.3);
+}
+
+.rarity-rare {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.4);
+}
+
+.rarity-legendary {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+  box-shadow: 0 2px 8px rgba(240, 147, 251, 0.4);
+  animation: rarityShine 2s ease-in-out infinite;
+}
+
+@keyframes rarityShine {
+  0%, 100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.2);
+  }
+}
+
+/* Locked state */
+.achievement-badge.locked {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+  cursor: not-allowed;
+}
+
+.achievement-badge.locked:hover {
+  transform: none;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.achievement-lock-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 10;
+  color: #999;
+}
+
+.achievement-locked-text {
+  display: block;
+  font-size: 12px !important;
+  margin-top: 8px;
+  color: #999;
+}
+
+/* Confetti animation */
+.confetti-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 100;
+  overflow: visible;
+}
+
+.confetti-piece {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  top: -20px;
+  opacity: 1;
+  animation: confettiFall 1.5s ease-out forwards;
+}
+
+@keyframes confettiFall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(400px) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Sparkle particles for legendary */
+.achievement-badge.legendary.visible::before,
+.achievement-badge.legendary.visible::after {
+  content: '✨';
+  position: absolute;
+  font-size: 24px;
+  animation: sparkle 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.achievement-badge.legendary.visible::before {
+  top: -10px;
+  right: -10px;
+  animation-delay: 0s;
+}
+
+.achievement-badge.legendary.visible::after {
+  bottom: -10px;
+  left: -10px;
+  animation-delay: 1s;
+}
+
+@keyframes sparkle {
+  0%, 100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1) rotate(180deg);
+  }
+}
