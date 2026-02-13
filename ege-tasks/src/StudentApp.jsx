@@ -57,7 +57,7 @@ function StudentApp() {
     setAuthChecked(true);
   }, []);
 
-  const studentSession = useStudentSession(sessionId, deviceId);
+  const studentSession = useStudentSession(sessionId, deviceId, student?.id || null);
   const { attempt, session } = studentSession;
   const [viewOverride, setViewOverride] = useState(null); // Для ручной смены экрана (например, галерея)
 

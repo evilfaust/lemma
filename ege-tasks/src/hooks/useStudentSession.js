@@ -6,7 +6,7 @@ import { shuffleArray } from '../utils/shuffle';
  * Хук для управления сессией ученика.
  * Загружает сессию, проверяет существующую попытку, назначает вариант.
  */
-export function useStudentSession(sessionId, deviceId) {
+export function useStudentSession(sessionId, deviceId, authStudentId = null) {
   const [session, setSession] = useState(null);
   const [attempt, setAttempt] = useState(null);
   const [variant, setVariant] = useState(null);
@@ -42,15 +42,19 @@ export function useStudentSession(sessionId, deviceId) {
         }
         setSession(sessionData);
 
+        // Сбросить состояние перед переопределением попытки (например, после логина)
+        setAttempt(null);
+        setVariant(null);
+        setTasks([]);
+
         // Проверить существующую попытку для ЭТОЙ СЕССИИ
         // Если студент авторизован, ищем по student_id И session_id
         // Иначе по device_id И session_id
         let existingAttempt = null;
-        const student = api.getAuthStudent();
 
-        if (student) {
+        if (authStudentId) {
           // Авторизованный студент - ищем попытки для ЭТОЙ сессии
-          const studentAttempts = await api.getAttemptsByStudent(sessionId, student.id);
+          const studentAttempts = await api.getAttemptsByStudent(sessionId, authStudentId);
           // Берем последнюю попытку для этой сессии (studentAttempts уже отфильтрованы по session)
           existingAttempt = studentAttempts[0] || null;
         } else {
@@ -79,7 +83,7 @@ export function useStudentSession(sessionId, deviceId) {
     };
 
     init();
-  }, [sessionId, deviceId, getIssueNumber]);
+  }, [sessionId, deviceId, authStudentId, getIssueNumber]);
 
   // Загрузка задач варианта в правильном порядке
   const loadVariantTasks = async (variantData) => {
@@ -171,10 +175,9 @@ export function useStudentSession(sessionId, deviceId) {
 
     const refreshAttempt = async () => {
       try {
-        const student = api.getAuthStudent();
         let fresh = null;
-        if (student) {
-          const attempts = await api.getAttemptsByStudent(sessionId, student.id);
+        if (authStudentId) {
+          const attempts = await api.getAttemptsByStudent(sessionId, authStudentId);
           fresh = attempts.find(a => a.id === attempt.id) || null;
         } else {
           const attempts = await api.getAttemptsByDevice(sessionId, deviceId);
@@ -197,7 +200,7 @@ export function useStudentSession(sessionId, deviceId) {
 
     const interval = setInterval(refreshAttempt, 10000); // каждые 10 секунд
     return () => clearInterval(interval);
-  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, sessionId, deviceId]);
+  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, sessionId, deviceId, authStudentId]);
 
   return {
     session,

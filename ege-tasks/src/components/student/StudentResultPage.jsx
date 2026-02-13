@@ -170,9 +170,10 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
             const task = tasks.find(t => t.id === answer.task) || answer.expand?.task;
             if (!task) return null;
             const taskIndex = tasks.findIndex(t => t.id === answer.task);
+            const taskNumber = taskIndex >= 0 ? taskIndex + 1 : i + 1;
             return (
               <div key={answer.id} className="error-task" style={{ animationDelay: `${0.08 * i}s` }}>
-                <div className="task-number">Задача {taskIndex + 1}</div>
+                <div className="task-number">Задача {taskNumber}</div>
                 <div className="task-statement">
                   <MathRenderer text={task.statement_md} />
                   {(task.image_url || task.image) && (

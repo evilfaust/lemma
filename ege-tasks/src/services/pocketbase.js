@@ -1019,26 +1019,40 @@ export const api = {
 
   async batchCreateAttemptAnswers(answers) {
     const results = [];
+    const failed = [];
     for (const answer of answers) {
       try {
         const result = await pb.collection('attempt_answers').create(answer);
         results.push(result);
       } catch (error) {
         console.error('Error creating attempt answer:', error);
+        failed.push({ answer, error });
       }
+    }
+    if (failed.length > 0) {
+      const err = new Error(`Failed to create ${failed.length} of ${answers.length} attempt answers`);
+      err.failed = failed;
+      throw err;
     }
     return results;
   },
 
   async batchUpdateAttemptAnswers(answers) {
     const results = [];
+    const failed = [];
     for (const { id, ...data } of answers) {
       try {
         const result = await pb.collection('attempt_answers').update(id, data);
         results.push(result);
       } catch (error) {
         console.error('Error updating attempt answer:', error);
+        failed.push({ id, data, error });
       }
+    }
+    if (failed.length > 0) {
+      const err = new Error(`Failed to update ${failed.length} of ${answers.length} attempt answers`);
+      err.failed = failed;
+      throw err;
     }
     return results;
   },

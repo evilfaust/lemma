@@ -145,7 +145,26 @@ const StudentTestPage = ({ studentSession }) => {
         );
       }
 
-      await api.batchCreateAttemptAnswers(answerRecords);
+      const existingAnswers = await api.getAttemptAnswers(attempt.id);
+      const existingByTaskId = new Map(existingAnswers.map((a) => [a.task, a]));
+      const toCreate = [];
+      const toUpdate = [];
+
+      for (const record of answerRecords) {
+        const existing = existingByTaskId.get(record.task);
+        if (existing?.id) {
+          toUpdate.push({ id: existing.id, ...record });
+        } else {
+          toCreate.push(record);
+        }
+      }
+
+      if (toCreate.length > 0) {
+        await api.batchCreateAttemptAnswers(toCreate);
+      }
+      if (toUpdate.length > 0) {
+        await api.batchUpdateAttemptAnswers(toUpdate);
+      }
 
       const updated = await api.updateAttempt(attempt.id, {
         status: 'submitted',
