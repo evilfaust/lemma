@@ -60,11 +60,7 @@ function StudentApp() {
   const studentSession = useStudentSession(sessionId, deviceId, student?.id || null);
   const { attempt, session } = studentSession;
   const [viewOverride, setViewOverride] = useState(null); // Для ручной смены экрана (например, галерея)
-  const hasAttemptAchievements = !!attempt && (
-    !!attempt.achievement
-    || (Array.isArray(attempt.unlocked_achievements) && attempt.unlocked_achievements.length > 0)
-  );
-  const canOpenAchievements = !!attempt && (session?.achievements_enabled || hasAttemptAchievements);
+  const canOpenAchievements = !!attempt;
 
   const handleAuthSuccess = (authStudent) => {
     setStudent(authStudent);
@@ -109,7 +105,7 @@ function StudentApp() {
               )}
             </div>
             <div className="student-top-bar-right">
-              {/* Кнопка "Мои достижения" (показывать только если ачивки включены) */}
+              {/* Кнопка "Достижения" доступна после появления попытки */}
               {canOpenAchievements && currentView !== 'gallery' && (
                 <Button
                   type="primary"
