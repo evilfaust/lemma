@@ -107,6 +107,14 @@ const StudentTestPage = ({ studentSession }) => {
 
       const percentage = tasks.length > 0 ? (score / tasks.length) * 100 : 0;
 
+      console.log('[StudentTest] Результаты теста:', {
+        score,
+        total: tasks.length,
+        percentage: percentage.toFixed(2),
+        durationSeconds,
+        answersCount: answerRecords.length,
+      });
+
       let randomBadge = null;
       let unlocked = [];
 
@@ -160,6 +168,8 @@ const StudentTestPage = ({ studentSession }) => {
       }
 
       const existingAnswers = await api.getAttemptAnswers(attempt.id);
+      console.log('[StudentTest] Существующих ответов:', existingAnswers.length);
+
       const existingByTaskId = new Map(existingAnswers.map((a) => [a.task, a]));
       const toCreate = [];
       const toUpdate = [];
@@ -173,12 +183,28 @@ const StudentTestPage = ({ studentSession }) => {
         }
       }
 
+      console.log('[StudentTest] Сохранение ответов:', {
+        toCreate: toCreate.length,
+        toUpdate: toUpdate.length,
+      });
+
       if (toCreate.length > 0) {
-        await api.batchCreateAttemptAnswers(toCreate);
+        const created = await api.batchCreateAttemptAnswers(toCreate);
+        console.log('[StudentTest] Создано ответов:', created.length);
       }
       if (toUpdate.length > 0) {
-        await api.batchUpdateAttemptAnswers(toUpdate);
+        const updated = await api.batchUpdateAttemptAnswers(toUpdate);
+        console.log('[StudentTest] Обновлено ответов:', updated.length);
       }
+
+      console.log('[StudentTest] Обновление попытки:', {
+        attemptId: attempt.id,
+        status: 'submitted',
+        score,
+        total: tasks.length,
+        achievement: randomBadge?.id || null,
+        unlocked: unlocked.map(a => a.id),
+      });
 
       const updated = await api.updateAttempt(attempt.id, {
         status: 'submitted',
@@ -189,6 +215,8 @@ const StudentTestPage = ({ studentSession }) => {
         achievement: randomBadge?.id || null,
         unlocked_achievements: unlocked.map(a => a.id),
       });
+
+      console.log('[StudentTest] Попытка обновлена:', updated);
 
       if (storageKey) {
         localStorage.removeItem(storageKey);
@@ -203,10 +231,11 @@ const StudentTestPage = ({ studentSession }) => {
       };
 
       setAttempt({ ...attempt, ...updatedWithExpand });
+      console.log('[StudentTest] Состояние попытки обновлено, переход к результатам');
       message.success('Ответы отправлены');
     } catch (err) {
-      console.error('Error submitting answers:', err);
-      message.error('Ошибка при отправке ответов');
+      console.error('[StudentTest] ОШИБКА при отправке ответов:', err);
+      message.error('Ошибка при отправке ответов: ' + (err.message || 'неизвестная ошибка'));
     }
     setSubmitting(false);
   };
