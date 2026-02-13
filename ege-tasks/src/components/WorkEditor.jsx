@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Card, Tabs, Form, Input, InputNumber, Select, Button, Space, Typography, Tooltip, Alert, Empty, Tag, Popconfirm } from 'antd';
-import { SaveOutlined, CopyOutlined, EditOutlined, SwapOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Tabs, Form, Input, InputNumber, Select, Button, Space, Typography, Tooltip, Alert, Empty, Tag, Popconfirm, Modal, App } from 'antd';
+import { SaveOutlined, CopyOutlined, EditOutlined, SwapOutlined, DeleteOutlined, PlusOutlined, ExportOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
@@ -31,10 +31,14 @@ const WorkEditor = ({
   years = [],
   sources = [],
 }) => {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [activeVariantKey, setActiveVariantKey] = useState(null);
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addTargetVariant, setAddTargetVariant] = useState(null);
+  const [moveModalVisible, setMoveModalVisible] = useState(false);
+  const [moveTargetVariantIndex, setMoveTargetVariantIndex] = useState(null);
+  const [movingTaskRef, setMovingTaskRef] = useState(null);
 
   const dragDropHandlers = useTaskDragDrop(variants, setVariants);
   const taskEditing = useTaskEditing(variants, setVariants);
@@ -73,6 +77,45 @@ const WorkEditor = ({
     const next = [...variants];
     next[variantIndex].tasks.splice(taskIndex, 1);
     setVariants(next);
+  };
+
+  const openMoveTaskModal = (variantIndex, taskIndex) => {
+    setMovingTaskRef({ variantIndex, taskIndex });
+    const defaultTarget = variants.findIndex((_, idx) => idx !== variantIndex);
+    setMoveTargetVariantIndex(defaultTarget >= 0 ? defaultTarget : null);
+    setMoveModalVisible(true);
+  };
+
+  const handleMoveTask = () => {
+    if (!movingTaskRef) return;
+    const { variantIndex: sourceVariantIndex, taskIndex: sourceTaskIndex } = movingTaskRef;
+    const targetVariantIndex = moveTargetVariantIndex;
+
+    if (
+      sourceVariantIndex === undefined ||
+      sourceTaskIndex === undefined ||
+      targetVariantIndex === null ||
+      targetVariantIndex === undefined
+    ) {
+      return;
+    }
+
+    if (sourceVariantIndex === targetVariantIndex) {
+      message.info('Выберите другой вариант');
+      return;
+    }
+
+    const next = [...variants];
+    const [task] = next[sourceVariantIndex].tasks.splice(sourceTaskIndex, 1);
+    if (!task) return;
+
+    next[targetVariantIndex].tasks.push(task);
+    setVariants(next);
+    setMoveModalVisible(false);
+    setMoveTargetVariantIndex(null);
+    setMovingTaskRef(null);
+    setActiveVariantKey(String(next[targetVariantIndex]?.number || targetVariantIndex + 1));
+    message.success('Задача перенесена в другой вариант');
   };
 
   const openAddTaskModal = (variantIndex) => {
@@ -255,6 +298,15 @@ const WorkEditor = ({
                                           onClick={() => taskEditing.handleReplaceTask(idx, taskIndex, task)}
                                         />
                                       </Tooltip>
+                                      <Tooltip title="Перенести в другой вариант">
+                                        <Button
+                                          type="text"
+                                          size="small"
+                                          icon={<ExportOutlined />}
+                                          disabled={variants.length <= 1}
+                                          onClick={() => openMoveTaskModal(idx, taskIndex)}
+                                        />
+                                      </Tooltip>
                                       <Tooltip title="Удалить из варианта">
                                         <Button
                                           type="text"
@@ -379,6 +431,40 @@ const WorkEditor = ({
         tags={tags}
         excludeIds={(activeVariant?.tasks || []).map(t => t.id)}
       />
+
+      <Modal
+        title="Перенести задачу"
+        open={moveModalVisible}
+        onCancel={() => {
+          setMoveModalVisible(false);
+          setMoveTargetVariantIndex(null);
+          setMovingTaskRef(null);
+        }}
+        onOk={handleMoveTask}
+        okText="Перенести"
+        cancelText="Отмена"
+        okButtonProps={{ disabled: moveTargetVariantIndex === null || moveTargetVariantIndex === undefined }}
+      >
+        <Form layout="vertical">
+          <Form.Item label="Куда перенести">
+            <Select
+              placeholder="Выберите вариант"
+              value={moveTargetVariantIndex}
+              onChange={setMoveTargetVariantIndex}
+            >
+              {variants.map((variant, idx) => (
+                <Option
+                  key={variant.number || idx + 1}
+                  value={idx}
+                  disabled={idx === movingTaskRef?.variantIndex}
+                >
+                  Вариант {variant.number || idx + 1}
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
     </Card>
   );
 };

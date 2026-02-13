@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
 import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
@@ -15,6 +15,7 @@ import TaskImporter from './components/TaskImporter';
 import WorkManager from './components/WorkManager';
 import WorkEditorPage from './components/WorkEditorPage';
 import StudentProgressDashboard from './components/StudentProgressDashboard';
+import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
 import './App.css';
@@ -32,6 +33,15 @@ function AppContent() {
   const [viewingArticleId, setViewingArticleId] = useState(null);
 
   const { theoryCategories, reloadData } = useReferenceData();
+
+  useEffect(() => {
+    // Teacher UI must always work in unrestricted mode.
+    // If a student auth token remains in localStorage, PocketBase list rules
+    // return only that student's attempts, breaking dashboards.
+    if (api.isStudentAuthenticated()) {
+      api.logoutStudent();
+    }
+  }, []);
 
   const menuItems = [
     {

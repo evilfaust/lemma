@@ -26,8 +26,6 @@ import {
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './TaskWorksheet.css';
 
-const { Panel } = Collapse;
-
 /**
  * Генератор контрольных работ с задачами из разных тем
  */
@@ -156,10 +154,10 @@ const TestWorkGenerator = () => {
   /**
    * Получение названия темы
    */
-  const getTopicTitle = (topicId) => {
+  function getTopicTitle(topicId) {
     const topic = topics.find(t => t.id === topicId);
     return topic ? `№${topic.ege_number} - ${topic.title}` : 'Не выбрана';
-  };
+  }
 
   /**
    * Генерация работы
@@ -294,103 +292,114 @@ const TestWorkGenerator = () => {
 
       <Card title="Настройки контрольной работы" className="no-print">
         <Form form={form} layout="vertical" onFinish={handleGenerate} initialValues={{ workTitle: 'Контрольная работа' }}>
-          <Collapse defaultActiveKey={['structure', 'variants', 'format']}>
-            {/* Структура работы */}
-            <Panel header="📚 Структура контрольной работы" key="structure">
-              {workBlocks.length === 0 && (
-                <Alert
-                  message="Добавьте блоки задач для составления контрольной работы"
-                  description="Каждый блок позволяет настроить количество и фильтры для задач из определённой темы"
-                  type="info"
-                  style={{ marginBottom: 16 }}
-                />
-              )}
+          <Collapse
+            defaultActiveKey={['structure', 'variants', 'format']}
+            items={[
+              {
+                key: 'structure',
+                label: '📚 Структура контрольной работы',
+                children: (
+                  <>
+                    {workBlocks.length === 0 && (
+                      <Alert
+                        message="Добавьте блоки задач для составления контрольной работы"
+                        description="Каждый блок позволяет настроить количество и фильтры для задач из определённой темы"
+                        type="info"
+                        style={{ marginBottom: 16 }}
+                      />
+                    )}
 
-              {workBlocks.map((block, index) => (
-                <FilterBlock
-                  key={block.id}
-                  block={block}
-                  index={index}
-                  topics={topics}
-                  subtopics={subtopics}
-                  tags={tags}
-                  sources={sources}
-                  years={years}
-                  onChange={updateBlock}
-                  onRemove={removeBlock}
-                />
-              ))}
+                    {workBlocks.map((block, index) => (
+                      <FilterBlock
+                        key={block.id}
+                        block={block}
+                        index={index}
+                        topics={topics}
+                        subtopics={subtopics}
+                        tags={tags}
+                        sources={sources}
+                        years={years}
+                        onChange={updateBlock}
+                        onRemove={removeBlock}
+                      />
+                    ))}
 
-              <Button
-                type="dashed"
-                block
-                icon={<PlusOutlined />}
-                onClick={addBlock}
-                style={{ marginBottom: 16 }}
-              >
-                Добавить блок задач
-              </Button>
+                    <Button
+                      type="dashed"
+                      block
+                      icon={<PlusOutlined />}
+                      onClick={addBlock}
+                      style={{ marginBottom: 16 }}
+                    >
+                      Добавить блок задач
+                    </Button>
 
-              {/* Статистика структуры */}
-              {workBlocks.length > 0 && (
-                <Card size="small" title="📊 Предпросмотр структуры">
-                  <Row gutter={16} style={{ marginBottom: 16 }}>
-                    <Col span={8}>
-                      <Statistic title="Блоков" value={workBlocks.length} />
-                    </Col>
-                    <Col span={8}>
-                      <Statistic title="Тем" value={getUniqueTopicsCount()} />
-                    </Col>
-                    <Col span={8}>
-                      <Statistic title="Задач" value={getTotalTaskCount()} />
-                    </Col>
-                  </Row>
+                    {workBlocks.length > 0 && (
+                      <Card size="small" title="📊 Предпросмотр структуры">
+                        <Row gutter={16} style={{ marginBottom: 16 }}>
+                          <Col span={8}>
+                            <Statistic title="Блоков" value={workBlocks.length} />
+                          </Col>
+                          <Col span={8}>
+                            <Statistic title="Тем" value={getUniqueTopicsCount()} />
+                          </Col>
+                          <Col span={8}>
+                            <Statistic title="Задач" value={getTotalTaskCount()} />
+                          </Col>
+                        </Row>
 
-                  <Timeline mode="left" items={timelineItems} />
-                </Card>
-              )}
-            </Panel>
-
-            {/* Настройки вариантов */}
-            <Panel header="🎲 Генерация вариантов" key="variants">
-              <VariantSettings
-                variantsCount={variantsCount}
-                setVariantsCount={setVariantsCount}
-                variantsMode={variantsMode}
-                setVariantsMode={setVariantsMode}
-                sortType={sortType}
-                setSortType={setSortType}
-                progressiveDifficulty={progressiveDifficulty}
-                setProgressiveDifficulty={setProgressiveDifficulty}
-                showTasksCount={true}
-                tasksPerVariant={getTotalTaskCount()}
-              />
-            </Panel>
-
-            {/* Формат печати */}
-            <Panel header="🎨 Формат печати" key="format">
-              <FormatSettings
-                columns={columns}
-                setColumns={setColumns}
-                fontSize={fontSize}
-                setFontSize={setFontSize}
-                solutionSpace={solutionSpace}
-                setSolutionSpace={setSolutionSpace}
-                compactMode={compactMode}
-                setCompactMode={setCompactMode}
-                hideTaskPrefixes={hideTaskPrefixes}
-                setHideTaskPrefixes={setHideTaskPrefixes}
-                showStudentInfo={showStudentInfo}
-                setShowStudentInfo={setShowStudentInfo}
-                showAnswersInline={showAnswersInline}
-                setShowAnswersInline={setShowAnswersInline}
-                showAnswersPage={showAnswersPage}
-                setShowAnswersPage={setShowAnswersPage}
-                variantLabel={variantLabel}
-                setVariantLabel={setVariantLabel}
-              />
-            </Panel>
-          </Collapse>
+                        <Timeline mode="left" items={timelineItems} />
+                      </Card>
+                    )}
+                  </>
+                ),
+              },
+              {
+                key: 'variants',
+                label: '🎲 Генерация вариантов',
+                children: (
+                  <VariantSettings
+                    variantsCount={variantsCount}
+                    setVariantsCount={setVariantsCount}
+                    variantsMode={variantsMode}
+                    setVariantsMode={setVariantsMode}
+                    sortType={sortType}
+                    setSortType={setSortType}
+                    progressiveDifficulty={progressiveDifficulty}
+                    setProgressiveDifficulty={setProgressiveDifficulty}
+                    showTasksCount={true}
+                    tasksPerVariant={getTotalTaskCount()}
+                  />
+                ),
+              },
+              {
+                key: 'format',
+                label: '🎨 Формат печати',
+                children: (
+                  <FormatSettings
+                    columns={columns}
+                    setColumns={setColumns}
+                    fontSize={fontSize}
+                    setFontSize={setFontSize}
+                    solutionSpace={solutionSpace}
+                    setSolutionSpace={setSolutionSpace}
+                    compactMode={compactMode}
+                    setCompactMode={setCompactMode}
+                    hideTaskPrefixes={hideTaskPrefixes}
+                    setHideTaskPrefixes={setHideTaskPrefixes}
+                    showStudentInfo={showStudentInfo}
+                    setShowStudentInfo={setShowStudentInfo}
+                    showAnswersInline={showAnswersInline}
+                    setShowAnswersInline={setShowAnswersInline}
+                    showAnswersPage={showAnswersPage}
+                    setShowAnswersPage={setShowAnswersPage}
+                    variantLabel={variantLabel}
+                    setVariantLabel={setVariantLabel}
+                  />
+                ),
+              },
+            ]}
+          />
 
           <Form.Item style={{ marginTop: 16 }}>
             <ActionButtons
