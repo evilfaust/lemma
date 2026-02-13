@@ -116,7 +116,14 @@ const StudentTestPage = ({ studentSession }) => {
         const authStudent = api.getAuthStudent();
         let allAttempts = [];
         if (authStudent?.id) {
-          allAttempts = await api.getAttemptsByStudent(session.id, authStudent.id);
+          const deviceId = localStorage.getItem('ege_device_id');
+          const [studentAttempts, deviceAttempts] = await Promise.all([
+            api.getAttemptsByStudent(session.id, authStudent.id),
+            deviceId ? api.getAttemptsByDevice(session.id, deviceId) : Promise.resolve([]),
+          ]);
+          const byId = new Map();
+          [...studentAttempts, ...deviceAttempts].forEach((a) => byId.set(a.id, a));
+          allAttempts = Array.from(byId.values());
         } else {
           const deviceId = localStorage.getItem('ege_device_id');
           if (deviceId) {

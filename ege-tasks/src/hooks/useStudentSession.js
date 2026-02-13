@@ -25,6 +25,23 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     return index >= 0 ? index + 1 : sameDeviceAttempts.length + 1;
   }, []);
 
+  const getAccessibleAttempts = useCallback(async () => {
+    if (!sessionId) return [];
+
+    if (authStudentId) {
+      const [studentAttempts, deviceAttempts] = await Promise.all([
+        api.getAttemptsByStudent(sessionId, authStudentId),
+        api.getAttemptsByDevice(sessionId, deviceId),
+      ]);
+
+      const byId = new Map();
+      [...studentAttempts, ...deviceAttempts].forEach((a) => byId.set(a.id, a));
+      return Array.from(byId.values()).sort((a, b) => new Date(b.created) - new Date(a.created));
+    }
+
+    return await api.getAttemptsByDevice(sessionId, deviceId);
+  }, [sessionId, deviceId, authStudentId]);
+
   // Загрузка сессии и проверка существующей попытки
   useEffect(() => {
     if (!sessionId || !deviceId) return;
@@ -47,19 +64,22 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
         setVariant(null);
         setTasks([]);
 
-        // Проверить существующую попытку для ЭТОЙ СЕССИИ
-        // Если студент авторизован, ищем по student_id И session_id
-        // Иначе по device_id И session_id
-        let existingAttempt = null;
+        // Проверить существующую попытку для ЭТОЙ сессии.
+        // Для авторизованного студента учитываем и student_id, и device_id
+        // (чтобы подхватывать попытки, созданные до логина на этом устройстве).
+        const existingAttempts = await getAccessibleAttempts();
+        let existingAttempt = existingAttempts[0] || null;
 
-        if (authStudentId) {
-          // Авторизованный студент - ищем попытки для ЭТОЙ сессии
-          const studentAttempts = await api.getAttemptsByStudent(sessionId, authStudentId);
-          // Берем последнюю попытку для этой сессии (studentAttempts уже отфильтрованы по session)
-          existingAttempt = studentAttempts[0] || null;
-        } else {
-          // Неавторизованный - ищем по device_id для этой сессии
-          existingAttempt = await api.getAttemptByDevice(sessionId, deviceId);
+        // Если попытка была создана как гостевая, привязываем ее к студенту.
+        if (existingAttempt && authStudentId && !existingAttempt.student) {
+          try {
+            existingAttempt = await api.updateAttempt(existingAttempt.id, {
+              student: authStudentId,
+              student_name: existingAttempt.student_name,
+            });
+          } catch (linkErr) {
+            // Если привязка не удалась, продолжаем с текущей попыткой без блокировки UX.
+          }
         }
 
         if (existingAttempt) {
@@ -83,7 +103,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     };
 
     init();
-  }, [sessionId, deviceId, authStudentId, getIssueNumber]);
+  }, [sessionId, deviceId, authStudentId, getIssueNumber, getAccessibleAttempts]);
 
   // Загрузка задач варианта в правильном порядке
   const loadVariantTasks = async (variantData) => {
@@ -110,6 +130,35 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     if (!session) return null;
 
     try {
+      // Если попытка уже есть (включая гостевую на текущем устройстве), продолжаем её.
+      const existingAttempts = await getAccessibleAttempts();
+      const existingAttempt = existingAttempts[0] || null;
+      if (existingAttempt) {
+        let resolvedAttempt = existingAttempt;
+        if (authStudentId && !existingAttempt.student) {
+          try {
+            resolvedAttempt = await api.updateAttempt(existingAttempt.id, {
+              student: authStudentId,
+              student_name: studentName,
+            });
+          } catch (linkErr) {
+            // Не блокируем старт, если не удалось привязать гостевую попытку.
+          }
+        }
+
+        const allAttempts = await api.getAttemptsBySession(sessionId);
+        setAttempt({
+          ...resolvedAttempt,
+          issueNumber: getIssueNumber(resolvedAttempt, allAttempts),
+        });
+        const existingVariant = await api.getVariant(resolvedAttempt.variant);
+        if (existingVariant) {
+          setVariant(existingVariant);
+          await loadVariantTasks(existingVariant);
+        }
+        return resolvedAttempt;
+      }
+
       // Получить все варианты работы
       const allVariants = await api.getVariantsByWork(session.work);
       if (allVariants.length === 0) {
@@ -142,12 +191,11 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
 
       // Создать attempt
       const taskList = chosenVariant.expand?.tasks || [];
-      const student = api.getAuthStudent();
       const newAttempt = await api.createAttempt({
         session: sessionId,
         student_name: studentName,
         device_id: deviceId,
-        student: student?.id || null, // Привязываем к студенту если авторизован
+        ...(authStudentId ? { student: authStudentId } : {}),
         variant: chosenVariantId,
         status: 'started',
         score: 0,
@@ -167,7 +215,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
       setError('Ошибка при начале теста');
       return null;
     }
-  }, [session, sessionId, deviceId, getIssueNumber]);
+  }, [session, sessionId, deviceId, authStudentId, getIssueNumber, getAccessibleAttempts]);
 
   // Периодическое обновление attempt (для ручной выдачи ачивок учителем)
   useEffect(() => {
@@ -175,14 +223,8 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
 
     const refreshAttempt = async () => {
       try {
-        let fresh = null;
-        if (authStudentId) {
-          const attempts = await api.getAttemptsByStudent(sessionId, authStudentId);
-          fresh = attempts.find(a => a.id === attempt.id) || null;
-        } else {
-          const attempts = await api.getAttemptsByDevice(sessionId, deviceId);
-          fresh = attempts.find(a => a.id === attempt.id) || null;
-        }
+        const attempts = await getAccessibleAttempts();
+        const fresh = attempts.find(a => a.id === attempt.id) || null;
         if (fresh) {
           // Обновляем только если изменились поля ачивок или статус
           const achChanged = fresh.achievement !== attempt.achievement
@@ -200,7 +242,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
 
     const interval = setInterval(refreshAttempt, 10000); // каждые 10 секунд
     return () => clearInterval(interval);
-  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, sessionId, deviceId, authStudentId]);
+  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, getAccessibleAttempts]);
 
   return {
     session,
