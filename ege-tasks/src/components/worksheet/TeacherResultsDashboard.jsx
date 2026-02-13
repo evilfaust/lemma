@@ -306,6 +306,35 @@ const TeacherResultsDashboard = ({ sessionId }) => {
     return [...base, ...extra];
   }, [achievements, manualUnlockedAchievementIds]);
 
+  const achievementById = useMemo(() => {
+    const map = new Map();
+    achievements.forEach((a) => map.set(a.id, a));
+    return map;
+  }, [achievements]);
+
+  const manualIssuedItems = useMemo(() => {
+    const items = [];
+    if (manualRandomAchievementId) {
+      const ach = achievementById.get(manualRandomAchievementId);
+      items.push({
+        id: manualRandomAchievementId,
+        title: ach?.title || manualRandomAchievementId,
+        type: 'random',
+      });
+    }
+
+    manualUnlockedAchievementIds.forEach((id) => {
+      const ach = achievementById.get(id);
+      items.push({
+        id,
+        title: ach?.title || id,
+        type: 'condition',
+      });
+    });
+
+    return items;
+  }, [manualRandomAchievementId, manualUnlockedAchievementIds, achievementById]);
+
   const statusMap = {
     started: { color: 'default', text: 'Начат' },
     submitted: { color: 'blue', text: 'Отправлен' },
@@ -582,11 +611,24 @@ const TeacherResultsDashboard = ({ sessionId }) => {
         confirmLoading={manualSaving}
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Text type="secondary">Уже выдано</Text>
+          {manualIssuedItems.length === 0 ? (
+            <Text type="secondary">Пока ничего не выдано</Text>
+          ) : (
+            <Space wrap>
+              {manualIssuedItems.map((item) => (
+                <Tag key={`${item.type}:${item.id}`} color={item.type === 'random' ? 'gold' : 'blue'}>
+                  {item.title}
+                </Tag>
+              ))}
+            </Space>
+          )}
+
           <Text type="secondary">Случайный значок (achievement)</Text>
           <Select
             allowClear
             showSearch
-            placeholder="Не выбран"
+            placeholder="Выберите значок для выдачи"
             style={{ width: '100%' }}
             loading={achievementsLoading}
             options={randomAchievementOptions}
@@ -599,7 +641,7 @@ const TeacherResultsDashboard = ({ sessionId }) => {
           <Select
             mode="multiple"
             showSearch
-            placeholder="Выберите достижения"
+            placeholder="Выберите достижения для выдачи"
             style={{ width: '100%' }}
             loading={achievementsLoading}
             options={conditionAchievementOptions}
