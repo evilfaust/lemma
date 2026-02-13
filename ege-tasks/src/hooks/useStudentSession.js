@@ -165,6 +165,40 @@ export function useStudentSession(sessionId, deviceId) {
     }
   }, [session, sessionId, deviceId, getIssueNumber]);
 
+  // Периодическое обновление attempt (для ручной выдачи ачивок учителем)
+  useEffect(() => {
+    if (!attempt || !attempt.id || attempt.status === 'started') return;
+
+    const refreshAttempt = async () => {
+      try {
+        const student = api.getAuthStudent();
+        let fresh = null;
+        if (student) {
+          const attempts = await api.getAttemptsByStudent(sessionId, student.id);
+          fresh = attempts.find(a => a.id === attempt.id) || null;
+        } else {
+          const attempts = await api.getAttemptsByDevice(sessionId, deviceId);
+          fresh = attempts.find(a => a.id === attempt.id) || null;
+        }
+        if (fresh) {
+          // Обновляем только если изменились поля ачивок или статус
+          const achChanged = fresh.achievement !== attempt.achievement
+            || JSON.stringify(fresh.unlocked_achievements) !== JSON.stringify(attempt.unlocked_achievements)
+            || fresh.status !== attempt.status
+            || fresh.score !== attempt.score;
+          if (achChanged) {
+            setAttempt(prev => ({ ...prev, ...fresh, issueNumber: prev?.issueNumber }));
+          }
+        }
+      } catch (err) {
+        // Игнорируем ошибки polling
+      }
+    };
+
+    const interval = setInterval(refreshAttempt, 10000); // каждые 10 секунд
+    return () => clearInterval(interval);
+  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, sessionId, deviceId]);
+
   return {
     session,
     attempt,

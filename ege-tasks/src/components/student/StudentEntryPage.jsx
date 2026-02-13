@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Button, Result, Spin, Typography, Space } from 'antd';
-import { LoadingOutlined, StopOutlined, UserOutlined } from '@ant-design/icons';
+import { Button, Result, Spin, Typography } from 'antd';
+import { LoadingOutlined, StopOutlined, UserOutlined, RocketOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 
 const { Title, Text } = Typography;
@@ -25,9 +25,11 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
   // Загрузка
   if (loading) {
     return (
-      <div style={{ textAlign: 'center', padding: '80px 0' }}>
-        <Spin indicator={<LoadingOutlined style={{ fontSize: 40 }} spin />} />
-        <div style={{ marginTop: 16, fontSize: 16, color: '#666' }}>Загрузка...</div>
+      <div className="student-skeleton">
+        <div className="student-skeleton-circle" />
+        <div className="student-skeleton-line" style={{ width: '60%' }} />
+        <div className="student-skeleton-line" style={{ width: '40%' }} />
+        <div className="student-skeleton-btn" />
       </div>
     );
   }
@@ -55,35 +57,47 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
     );
   }
 
-  // Приветствие и кнопка начала
   const studentTitle = session.student_title?.trim() || 'Самостоятельная работа';
 
   return (
-    <div style={{ padding: '40px 0' }}>
-      <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <Title level={3} style={{ marginBottom: 8 }}>{studentTitle}</Title>
+    <div className="student-entry">
+      <div className="student-entry-hero">
+        <div className="student-entry-badge">
+          <RocketOutlined />
+        </div>
+
+        <Title level={3} className="student-entry-title">
+          {studentTitle}
+        </Title>
+
         {session.expand?.work?.title && (
-          <Text type="secondary" style={{ fontSize: 16, display: 'block', marginBottom: 16 }}>
+          <Text className="student-entry-work-title">
             {session.expand.work.title}
           </Text>
         )}
-        <Space style={{ marginTop: 24, justifyContent: 'center' }}>
-          <UserOutlined style={{ fontSize: 20, color: '#1890ff' }} />
-          <Text strong style={{ fontSize: 18 }}>
+
+        <div className="student-entry-student">
+          <div className="student-entry-student-icon">
+            <UserOutlined />
+          </div>
+          <span className="student-entry-student-name">
             {studentName}
-          </Text>
-        </Space>
+          </span>
+        </div>
       </div>
 
-      <Button
-        type="primary"
-        size="large"
-        block
-        onClick={handleStart}
-        loading={starting}
-      >
-        Начать тест
-      </Button>
+      <div className="student-entry-start-btn">
+        <Button
+          type="primary"
+          size="large"
+          block
+          onClick={handleStart}
+          loading={starting}
+          icon={<RocketOutlined />}
+        >
+          Начать тест
+        </Button>
+      </div>
     </div>
   );
 };

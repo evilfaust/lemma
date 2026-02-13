@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Card, Form, Input, Button, Typography, Tabs, App } from 'antd';
-import { UserOutlined, LockOutlined, UserAddOutlined, LoginOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, UserAddOutlined, LoginOutlined, BookOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 
 const { Title, Text } = Typography;
@@ -31,7 +31,6 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
   const handleRegister = async (values) => {
     setLoading(true);
     try {
-      // Регистрируем студента
       await api.registerStudent({
         username: values.username,
         password: values.password,
@@ -39,7 +38,6 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
         name: values.name,
       });
 
-      // Автоматический вход
       const authData = await api.loginStudent(values.username, values.password);
       message.success(`Добро пожаловать, ${values.name}!`);
       onAuthSuccess(authData.record);
@@ -54,19 +52,21 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
     setLoading(false);
   };
 
-
   return (
-    <div style={{ padding: '40px 16px', maxWidth: 450, margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <Title level={3} style={{ marginBottom: 8 }}>
+    <div className="student-auth">
+      <div className="student-auth-header">
+        <div className="student-auth-icon">
+          <BookOutlined />
+        </div>
+        <Title level={3} className="student-auth-title">
           {sessionTitle || 'Тест'}
         </Title>
-        <Text type="secondary">
+        <Text className="student-auth-subtitle">
           Войдите или зарегистрируйтесь для продолжения
         </Text>
       </div>
 
-      <Card>
+      <Card className="student-auth-card">
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
@@ -189,8 +189,8 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
                     </Button>
                   </Form.Item>
 
-                  <div style={{ textAlign: 'center', marginTop: 16 }}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
+                  <div className="student-auth-footer">
+                    <Text type="secondary" style={{ fontSize: 13 }}>
                       Ваши результаты и достижения будут сохранены
                     </Text>
                   </div>

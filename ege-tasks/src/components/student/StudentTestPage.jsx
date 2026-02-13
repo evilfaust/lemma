@@ -20,7 +20,7 @@ const StudentTestPage = ({ studentSession }) => {
   const { attempt, setAttempt, variant, tasks, session } = studentSession;
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [startTime] = useState(Date.now()); // Засечь время начала теста
+  const [startTime] = useState(Date.now());
   const storageKey = useMemo(
     () => (attempt?.id ? `ege_student_answers_${attempt.id}` : null),
     [attempt?.id]
@@ -69,10 +69,13 @@ const StudentTestPage = ({ studentSession }) => {
     setAnswers(prev => ({ ...prev, [taskId]: value }));
   };
 
+  const answeredCount = Object.values(answers).filter(a => a?.trim()).length;
+  const progressPercent = tasks.length > 0 ? (answeredCount / tasks.length) * 100 : 0;
+
   const handleSubmit = () => {
     Modal.confirm({
       title: 'Отправить ответы?',
-      content: `Вы ответили на ${Object.values(answers).filter(a => a?.trim()).length} из ${tasks.length} вопросов. После отправки изменить ответы нельзя.`,
+      content: `Вы ответили на ${answeredCount} из ${tasks.length} вопросов. После отправки изменить ответы нельзя.`,
       okText: 'Отправить',
       cancelText: 'Вернуться',
       onOk: doSubmit,
@@ -82,11 +85,9 @@ const StudentTestPage = ({ studentSession }) => {
   const doSubmit = async () => {
     setSubmitting(true);
     try {
-      // Вычислить время прохождения
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
       const durationMinutes = durationSeconds / 60;
 
-      // Проверить каждый ответ
       let score = 0;
       const answerRecords = [];
 
@@ -104,19 +105,14 @@ const StudentTestPage = ({ studentSession }) => {
         });
       }
 
-      // Вычислить процент правильных ответов
       const percentage = tasks.length > 0 ? (score / tasks.length) * 100 : 0;
 
-      // Проверить, включены ли достижения для этой сессии
       let randomBadge = null;
       let unlocked = [];
 
       if (session.achievements_enabled) {
-        // Загрузить все достижения
         const achievements = await api.getAchievements();
 
-        // Получить все попытки для проверки условий.
-        // Для авторизованного студента считаем прогресс по student_id, иначе по device_id.
         const authStudent = api.getAuthStudent();
         let allAttempts = [];
         if (authStudent?.id) {
@@ -128,13 +124,11 @@ const StudentTestPage = ({ studentSession }) => {
           }
         }
 
-        // Выбрать случайный значок, по возможности без повторов уже полученных.
         const previouslyEarnedRandomIds = allAttempts
           .map((a) => a.achievement)
           .filter(Boolean);
         randomBadge = getRandomAchievement(achievements, percentage, previouslyEarnedRandomIds);
 
-        // Проверить разблокированные достижения за условия
         const previouslyUnlockedIds = getPreviouslyUnlockedIds(allAttempts);
         const attemptsIncludingCurrent = allAttempts.some((a) => a.id === attempt.id)
           ? allAttempts
@@ -151,10 +145,8 @@ const StudentTestPage = ({ studentSession }) => {
         );
       }
 
-      // Сохранить ответы
       await api.batchCreateAttemptAnswers(answerRecords);
 
-      // Обновить попытку с достижениями
       const updated = await api.updateAttempt(attempt.id, {
         status: 'submitted',
         score,
@@ -169,7 +161,6 @@ const StudentTestPage = ({ studentSession }) => {
         localStorage.removeItem(storageKey);
       }
 
-      // Сохранить expand данные для отображения в результатах
       const updatedWithExpand = {
         ...updated,
         expand: {
@@ -188,44 +179,73 @@ const StudentTestPage = ({ studentSession }) => {
   };
 
   if (!variant || !tasks.length) {
-    return <div style={{ textAlign: 'center', padding: 40 }}>Загрузка варианта...</div>;
+    return (
+      <div className="student-skeleton">
+        <div className="student-skeleton-line" style={{ width: '50%' }} />
+        <div className="student-skeleton-line" style={{ width: '30%' }} />
+        {[1, 2, 3].map(i => (
+          <div key={i} className="student-skeleton-btn" style={{ height: 100, marginTop: 16 }} />
+        ))}
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        <Title level={4} style={{ marginBottom: 4 }}>
+    <div className="student-test">
+      <div className="student-test-header">
+        <Title level={4} className="student-test-variant-title">
           Вариант {variant.number}
         </Title>
-        <Text type="secondary">
+        <Text className="student-test-meta">
           {attempt.student_name}
-          {attempt?.issueNumber ? ` • Выдача №${attempt.issueNumber}` : ''}
+          {attempt?.issueNumber ? ` · Выдача №${attempt.issueNumber}` : ''}
         </Text>
       </div>
 
-      {tasks.map((task, idx) => (
-        <div key={task.id} className="task-item">
-          <div className="task-number">Задача {idx + 1}</div>
-          <div className="task-statement">
-            <MathRenderer text={task.statement_md} />
-            {(task.image_url || task.image) && (
-              <img
-                src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
-                alt=""
-                style={{ maxWidth: '100%', marginTop: 8, borderRadius: 8 }}
-              />
-            )}
-          </div>
-          <Input
-            className="task-answer-input"
-            placeholder="Ответ"
-            inputMode="text"
-            type="text"
-            value={answers[task.id] || ''}
-            onChange={e => updateAnswer(task.id, e.target.value)}
+      {/* Progress bar */}
+      <div className="student-test-progress">
+        <div className="student-test-progress-bar">
+          <div
+            className="student-test-progress-fill"
+            style={{ width: `${progressPercent}%` }}
           />
         </div>
-      ))}
+        <div className="student-test-progress-text">
+          <span>Отвечено: {answeredCount} из {tasks.length}</span>
+          <span>{Math.round(progressPercent)}%</span>
+        </div>
+      </div>
+
+      {tasks.map((task, idx) => {
+        const isFilled = (answers[task.id] || '').trim().length > 0;
+        return (
+          <div
+            key={task.id}
+            className={`task-item ${isFilled ? 'task-item--filled' : ''}`}
+            style={{ animationDelay: `${0.05 * idx}s` }}
+          >
+            <div className="task-number">Задача {idx + 1}</div>
+            <div className="task-statement">
+              <MathRenderer text={task.statement_md} />
+              {(task.image_url || task.image) && (
+                <img
+                  src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
+                  alt=""
+                  style={{ maxWidth: '100%', marginTop: 8, borderRadius: 12 }}
+                />
+              )}
+            </div>
+            <Input
+              className="task-answer-input"
+              placeholder="Ответ"
+              inputMode="text"
+              type="text"
+              value={answers[task.id] || ''}
+              onChange={e => updateAnswer(task.id, e.target.value)}
+            />
+          </div>
+        );
+      })}
 
       <div className="submit-bar">
         <Button

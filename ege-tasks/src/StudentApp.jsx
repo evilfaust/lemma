@@ -86,40 +86,44 @@ function StudentApp() {
   }
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#1890ff' } }}>
+    <ConfigProvider theme={{ token: { colorPrimary: '#4361ee' } }}>
       <div className="student-app">
-        {/* Кнопки в шапке */}
+        {/* Верхняя панель навигации */}
         {student && currentView !== 'auth' && (
-          <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 1000, display: 'flex', gap: 8 }}>
-            {/* Кнопка "Мои достижения" (показывать только если ачивки включены) */}
-            {attempt && session?.achievements_enabled && currentView !== 'gallery' && (
+          <div className="student-top-bar">
+            <div className="student-top-bar-left">
+              {/* Кнопка "Назад" на экране галереи */}
+              {currentView === 'gallery' && (
+                <Button
+                  className="student-top-bar-btn"
+                  icon={<ArrowLeftOutlined />}
+                  onClick={() => setViewOverride(null)}
+                >
+                  Назад
+                </Button>
+              )}
+            </div>
+            <div className="student-top-bar-right">
+              {/* Кнопка "Мои достижения" (показывать только если ачивки включены) */}
+              {attempt && session?.achievements_enabled && currentView !== 'gallery' && (
+                <Button
+                  type="primary"
+                  className="student-top-bar-btn student-top-bar-btn--primary"
+                  icon={<TrophyOutlined />}
+                  onClick={() => setViewOverride('gallery')}
+                >
+                  Достижения
+                </Button>
+              )}
+
+              {/* Кнопка выхода */}
               <Button
-                type="primary"
-                icon={<TrophyOutlined />}
-                onClick={() => setViewOverride('gallery')}
-              >
-                Мои достижения
-              </Button>
-            )}
-
-            {/* Кнопка выхода */}
-            <Button
-              icon={<LogoutOutlined />}
-              onClick={handleLogout}
-              title="Выйти"
-            />
-          </div>
-        )}
-
-        {/* Кнопка "Назад" на экране галереи */}
-        {currentView === 'gallery' && (
-          <div style={{ position: 'fixed', top: 16, left: 16, zIndex: 1000 }}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => setViewOverride(null)}
-            >
-              Назад
-            </Button>
+                className="student-top-bar-btn"
+                icon={<LogoutOutlined />}
+                onClick={handleLogout}
+                title="Выйти"
+              />
+            </div>
           </div>
         )}
 
