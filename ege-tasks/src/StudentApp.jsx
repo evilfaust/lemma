@@ -112,9 +112,7 @@ function StudentApp() {
                   className="student-top-bar-btn student-top-bar-btn--primary"
                   icon={<TrophyOutlined />}
                   onClick={() => setViewOverride('gallery')}
-                >
-                  Достижения
-                </Button>
+                />
               )}
 
               {/* Кнопка выхода */}

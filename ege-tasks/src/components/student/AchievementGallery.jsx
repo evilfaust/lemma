@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Typography, Spin, Progress, Segmented, Empty } from 'antd';
 import { TrophyOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
+import { getPreviouslyEarnedBadgeIds, getPreviouslyUnlockedIds } from '../../utils/achievementEngine';
 import AchievementBadge from './AchievementBadge';
 
 const { Title, Text } = Typography;
@@ -53,22 +54,15 @@ const AchievementGallery = ({ studentSession }) => {
     load();
   }, [session?.id]);
 
+  // Собрать все полученные значки (случайные) и разблокированные достижения (условные)
   const earnedBadgeIds = useMemo(() => {
-    const ids = new Set();
-    for (const attempt of userAttempts) {
-      if (attempt.achievement) ids.add(attempt.achievement);
-    }
-    return ids;
+    const ids = getPreviouslyEarnedBadgeIds(userAttempts);
+    return new Set(ids);
   }, [userAttempts]);
 
   const unlockedAchievementIds = useMemo(() => {
-    const ids = new Set();
-    for (const attempt of userAttempts) {
-      if (attempt.unlocked_achievements && Array.isArray(attempt.unlocked_achievements)) {
-        for (const achId of attempt.unlocked_achievements) ids.add(achId);
-      }
-    }
-    return ids;
+    const ids = getPreviouslyUnlockedIds(userAttempts);
+    return new Set(ids);
   }, [userAttempts]);
 
   const allEarnedIds = useMemo(() => {

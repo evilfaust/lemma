@@ -5,7 +5,7 @@ import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { checkAnswer } from '../../utils/answerChecker';
-import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds } from '../../utils/achievementEngine';
+import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds, getPreviouslyEarnedBadgeIds } from '../../utils/achievementEngine';
 
 const { Title, Text } = Typography;
 
@@ -111,8 +111,10 @@ const StudentTestPage = ({ studentSession }) => {
       let unlocked = [];
 
       if (session.achievements_enabled) {
+        console.log('[StudentTest] Обработка достижений включена');
         const achievements = await api.getAchievements();
 
+        // Получить все попытки студента (авторизованного или гостя по device_id)
         const authStudent = api.getAuthStudent();
         let allAttempts = [];
         if (authStudent?.id) {
@@ -131,11 +133,11 @@ const StudentTestPage = ({ studentSession }) => {
           }
         }
 
-        const previouslyEarnedRandomIds = allAttempts
-          .map((a) => a.achievement)
-          .filter(Boolean);
-        randomBadge = getRandomAchievement(achievements, percentage, previouslyEarnedRandomIds);
+        // СЛУЧАЙНЫЙ ЗНАЧОК (badge) - выдается один за попытку на основе результата
+        const previouslyEarnedBadgeIds = getPreviouslyEarnedBadgeIds(allAttempts);
+        randomBadge = getRandomAchievement(achievements, percentage, previouslyEarnedBadgeIds);
 
+        // УСЛОВНЫЕ ДОСТИЖЕНИЯ - разблокируются при выполнении условий
         const previouslyUnlockedIds = getPreviouslyUnlockedIds(allAttempts);
         const attemptsIncludingCurrent = allAttempts.some((a) => a.id === attempt.id)
           ? allAttempts
@@ -150,6 +152,11 @@ const StudentTestPage = ({ studentSession }) => {
           attemptsIncludingCurrent,
           previouslyUnlockedIds
         );
+
+        console.log('[StudentTest] Обработка достижений завершена:', {
+          randomBadge: randomBadge?.code || null,
+          unlockedCount: unlocked.length,
+        });
       }
 
       const existingAnswers = await api.getAttemptAnswers(attempt.id);

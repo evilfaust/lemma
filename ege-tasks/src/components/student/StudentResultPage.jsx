@@ -47,12 +47,9 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
         return;
       }
 
+      // Если expand уже есть — используем его (данные с сервера после отправки теста)
       const expandedAchievement = attempt?.expand?.achievement;
       const expandedUnlocked = attempt?.expand?.unlocked_achievements;
-      const achievementId = typeof attempt?.achievement === 'string'
-        ? attempt.achievement : attempt?.achievement?.id;
-      const unlockedIds = Array.isArray(attempt?.unlocked_achievements)
-        ? attempt.unlocked_achievements : [];
 
       if (expandedAchievement && Array.isArray(expandedUnlocked)) {
         setResolvedAchievement(expandedAchievement);
@@ -60,26 +57,28 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
         return;
       }
 
+      // Иначе загружаем по ID (если данные обновились от учителя или через polling)
+      const achievementId = typeof attempt?.achievement === 'string'
+        ? attempt.achievement : attempt?.achievement?.id;
+      const unlockedIds = Array.isArray(attempt?.unlocked_achievements)
+        ? attempt.unlocked_achievements : [];
+
       const idsToLoad = [];
-      if (!expandedAchievement && achievementId) idsToLoad.push(achievementId);
-      if (!Array.isArray(expandedUnlocked) && unlockedIds.length > 0) idsToLoad.push(...unlockedIds);
+      if (achievementId) idsToLoad.push(achievementId);
+      if (unlockedIds.length > 0) idsToLoad.push(...unlockedIds);
 
       if (idsToLoad.length === 0) {
-        setResolvedAchievement(expandedAchievement || null);
-        setResolvedUnlocked(Array.isArray(expandedUnlocked) ? expandedUnlocked : []);
+        setResolvedAchievement(null);
+        setResolvedUnlocked([]);
         return;
       }
 
       const loaded = await api.getAchievementsByIds(idsToLoad);
       if (cancelled) return;
-      const byId = new Map(loaded.map((a) => [a.id, a]));
 
-      setResolvedAchievement(expandedAchievement || (achievementId ? byId.get(achievementId) || null : null));
-      setResolvedUnlocked(
-        Array.isArray(expandedUnlocked)
-          ? expandedUnlocked
-          : unlockedIds.map((id) => byId.get(id)).filter(Boolean)
-      );
+      const byId = new Map(loaded.map((a) => [a.id, a]));
+      setResolvedAchievement(achievementId ? byId.get(achievementId) || null : null);
+      setResolvedUnlocked(unlockedIds.map((id) => byId.get(id)).filter(Boolean));
     };
 
     loadAchievements();
@@ -129,37 +128,56 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
         )}
       </div>
 
-      {/* Полученный случайный значок */}
-      {hasAchievement && (
-        <div className="achievement-section achievement-reveal">
-          <div className="achievement-header">
-            <Title level={3} className="achievement-section-title">Получен значок!</Title>
-          </div>
-          <AchievementBadge achievement={resolvedAchievement} size="large" showDetails animated animationDelay={300} />
-        </div>
-      )}
+      {/* Блок достижений */}
+      {achievementsEnabled && (
+        <>
+          {/* Полученный случайный значок */}
+          {hasAchievement && (
+            <div className="achievement-section achievement-reveal">
+              <div className="achievement-header">
+                <Title level={3} className="achievement-section-title">Получен значок!</Title>
+              </div>
+              <AchievementBadge achievement={resolvedAchievement} size="large" showDetails animated animationDelay={300} />
+            </div>
+          )}
 
-      {/* Разблокированные достижения */}
-      {hasUnlockedAchievements && (
-        <div className="unlocked-section achievement-reveal">
-          <div className="achievement-header">
-            <Title level={3} className="achievement-section-title">Новые достижения!</Title>
-          </div>
-          <div className="unlocked-achievements-grid">
-            {resolvedUnlocked.map((ach, index) => (
-              <AchievementBadge key={ach.id} achievement={ach} size="medium" showDetails animated animationDelay={800 + index * 200} />
-            ))}
-          </div>
-        </div>
-      )}
+          {/* Разблокированные достижения */}
+          {hasUnlockedAchievements && (
+            <div className="unlocked-section achievement-reveal">
+              <div className="achievement-header">
+                <Title level={3} className="achievement-section-title">Новые достижения!</Title>
+              </div>
+              <div className="unlocked-achievements-grid">
+                {resolvedUnlocked.map((ach, index) => (
+                  <AchievementBadge key={ach.id} achievement={ach} size="medium" showDetails animated animationDelay={800 + index * 200} />
+                ))}
+              </div>
+            </div>
+          )}
 
-      {/* Кнопка "Мои достижения" */}
-      {(hasAchievement || hasUnlockedAchievements) && onNavigateToGallery && (
-        <div className="student-result-gallery-btn">
-          <Button type="dashed" icon={<TrophyOutlined />} size="large" onClick={onNavigateToGallery}>
-            Посмотреть мои достижения
-          </Button>
-        </div>
+          {/* Сообщение если значок не выдан (но результат >= 40%) */}
+          {!hasAchievement && !hasUnlockedAchievements && percentage >= 40 && (
+            <div className="achievement-section" style={{ textAlign: 'center', padding: '20px', background: '#f5f5f5', borderRadius: '12px', marginTop: '16px' }}>
+              <Text type="secondary" style={{ fontSize: '14px' }}>
+                {percentage >= 90
+                  ? 'Все легендарные значки уже получены! Попробуйте разблокировать достижения за специальные условия.'
+                  : percentage >= 70
+                  ? 'Все редкие значки этого уровня уже получены! Стремитесь к результату 90%+ для легендарных значков.'
+                  : 'Все обычные значки уже получены! Набирайте 70%+ для получения редких значков.'
+                }
+              </Text>
+            </div>
+          )}
+
+          {/* Кнопка "Мои достижения" */}
+          {onNavigateToGallery && (
+            <div className="student-result-gallery-btn">
+              <Button type="dashed" icon={<TrophyOutlined />} size="large" onClick={onNavigateToGallery}>
+                Посмотреть мои достижения
+              </Button>
+            </div>
+          )}
+        </>
       )}
 
       {/* Список ошибочных задач */}

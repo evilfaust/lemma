@@ -2,10 +2,21 @@ import { shuffleArray } from './shuffle';
 
 /**
  * Выбрать случайный значок по редкости на основе процента правильных ответов
+ *
+ * ЛОГИКА ВЫДАЧИ:
+ * - 90%+ → legendary (4 значка)
+ * - 70-89% → rare (8 значков)
+ * - 40-69% → common (10 значков)
+ * - <40% → не выдается
+ *
+ * УНИКАЛЬНОСТЬ:
+ * - Сначала пытаемся выдать неполученный значок той же редкости
+ * - Если все значки редкости уже получены → возвращаем null (не дублируем)
+ *
  * @param {Array} achievements - массив всех достижений
  * @param {number} percentage - процент правильных ответов (0-100)
- * @param {Array} excludedIds - ID, которые желательно не выдавать повторно
- * @returns {object|null} - выбранное достижение или null
+ * @param {Array} excludedIds - ID уже полученных случайных значков (badge.achievement)
+ * @returns {object|null} - выбранный значок или null если нечего выдавать
  */
 export function getRandomAchievement(achievements, percentage, excludedIds = []) {
   // Определить редкость на основе результата
@@ -18,6 +29,7 @@ export function getRandomAchievement(achievements, percentage, excludedIds = [])
     rarity = 'common';
   } else {
     // Нет награды при результате < 40%
+    console.log('[AchievementEngine] Результат слишком низкий для значка:', percentage);
     return null;
   }
 
@@ -27,24 +39,40 @@ export function getRandomAchievement(achievements, percentage, excludedIds = [])
   );
 
   if (filtered.length === 0) {
+    console.warn('[AchievementEngine] Нет значков редкости:', rarity);
     return null;
   }
 
-  // Предпочтительно не выдавать уже полученные значки той же редкости
+  // ИСПРАВЛЕНИЕ: Выдавать только неполученные значки
   const excluded = new Set(excludedIds);
   const nonDuplicate = filtered.filter((a) => !excluded.has(a.id));
-  const pool = nonDuplicate.length > 0 ? nonDuplicate : filtered;
 
-  // Вернуть случайный значок из подходящих
-  return shuffleArray([...pool])[0];
+  // Если все значки этой редкости уже получены — не выдаем повторно
+  if (nonDuplicate.length === 0) {
+    console.log('[AchievementEngine] Все значки редкости уже получены:', rarity,
+      `(${filtered.length} всего, ${excludedIds.length} получено)`);
+    return null;
+  }
+
+  // Вернуть случайный значок из неполученных
+  const chosen = shuffleArray([...nonDuplicate])[0];
+  console.log('[AchievementEngine] Выдан значок:', chosen.code, `(${rarity}, осталось ${nonDuplicate.length - 1})`);
+  return chosen;
 }
 
 /**
  * Проверить и вернуть разблокированные достижения за условия
+ *
+ * ЛОГИКА ПРОВЕРКИ:
+ * - Проверяются только достижения типа 'condition'
+ * - Пропускаются уже разблокированные (из previouslyUnlocked)
+ * - Проверяется выполнение условия (score/speed/count/special)
+ * - Возвращается массив НОВЫХ разблокировок для этой попытки
+ *
  * @param {Array} achievements - массив всех достижений
- * @param {object} attemptData - данные текущей попытки
+ * @param {object} attemptData - данные текущей попытки {percentage, durationMinutes, submittedAt}
  * @param {Array} allAttempts - все попытки студента (для подсчета количества)
- * @param {Array} previouslyUnlocked - ID уже разблокированных достижений
+ * @param {Array} previouslyUnlocked - ID уже разблокированных достижений (из unlocked_achievements)
  * @returns {Array} - массив новых разблокированных достижений
  */
 export function checkUnlockedAchievements(
@@ -58,6 +86,13 @@ export function checkUnlockedAchievements(
   // Фильтровать только достижения за условия
   const conditionAchievements = achievements.filter((a) => a.type === 'condition');
 
+  console.log('[AchievementEngine] Проверка условных достижений:', {
+    totalConditions: conditionAchievements.length,
+    alreadyUnlocked: previouslyUnlocked.length,
+    attemptData,
+    attemptsCount: allAttempts.length,
+  });
+
   for (const achievement of conditionAchievements) {
     // Пропустить уже разблокированные
     if (previouslyUnlocked.includes(achievement.id)) {
@@ -67,9 +102,11 @@ export function checkUnlockedAchievements(
     // Проверить условие
     if (isAchievementUnlocked(achievement, attemptData, allAttempts)) {
       unlocked.push(achievement);
+      console.log('[AchievementEngine] Разблокировано достижение:', achievement.code, achievement.condition_type);
     }
   }
 
+  console.log('[AchievementEngine] Новых разблокировок:', unlocked.length);
   return unlocked;
 }
 
@@ -167,14 +204,19 @@ function checkSpecialCondition(conditionValue, attemptData) {
 }
 
 /**
- * Собрать все ID уже разблокированных достижений из всех попыток студента
+ * Собрать все ID уже разблокированных условных достижений из всех попыток студента
+ *
+ * ВАЖНО: Эта функция собирает только УСЛОВНЫЕ достижения (unlocked_achievements).
+ * Случайные значки (achievement) обрабатываются отдельно в getRandomAchievement().
+ *
  * @param {Array} attempts - все попытки студента
- * @returns {Array} - массив ID разблокированных достижений
+ * @returns {Array} - массив ID разблокированных условных достижений
  */
 export function getPreviouslyUnlockedIds(attempts) {
   const ids = new Set();
 
   for (const attempt of attempts) {
+    // unlocked_achievements - массив ID условных достижений
     if (attempt.unlocked_achievements && Array.isArray(attempt.unlocked_achievements)) {
       for (const id of attempt.unlocked_achievements) {
         ids.add(id);
@@ -182,5 +224,27 @@ export function getPreviouslyUnlockedIds(attempts) {
     }
   }
 
-  return Array.from(ids);
+  const result = Array.from(ids);
+  console.log('[AchievementEngine] Ранее разблокированных достижений:', result.length);
+  return result;
+}
+
+/**
+ * Собрать все ID ранее полученных случайных значков
+ *
+ * @param {Array} attempts - все попытки студента
+ * @returns {Array} - массив ID полученных случайных значков
+ */
+export function getPreviouslyEarnedBadgeIds(attempts) {
+  const ids = [];
+
+  for (const attempt of attempts) {
+    // achievement - единственный случайный значок за попытку
+    if (attempt.achievement) {
+      ids.push(attempt.achievement);
+    }
+  }
+
+  console.log('[AchievementEngine] Ранее полученных значков:', ids.length);
+  return ids;
 }
