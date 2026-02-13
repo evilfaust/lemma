@@ -26,6 +26,42 @@ const TeacherResultsDashboard = ({ sessionId }) => {
   const [manualRandomAchievementId, setManualRandomAchievementId] = useState(undefined);
   const [manualUnlockedAchievementIds, setManualUnlockedAchievementIds] = useState([]);
 
+  const normalizeAchievementId = useCallback((value) => {
+    if (!value) return undefined;
+    if (typeof value === 'string') return value || undefined;
+    if (typeof value === 'object' && typeof value.id === 'string') return value.id;
+    return undefined;
+  }, []);
+
+  const normalizeAchievementIds = useCallback((value) => {
+    if (!value) return [];
+
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => {
+          if (typeof item === 'string') return item;
+          if (item && typeof item === 'object' && typeof item.id === 'string') return item.id;
+          return null;
+        })
+        .filter(Boolean);
+    }
+
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map((item) => (typeof item === 'string' ? item : item?.id))
+            .filter(Boolean);
+        }
+      } catch (_) {
+        if (value.trim()) return [value.trim()];
+      }
+    }
+
+    return [];
+  }, []);
+
   const loadAttempts = useCallback(async () => {
     if (!sessionId) return;
     setLoading(true);
@@ -189,12 +225,8 @@ const TeacherResultsDashboard = ({ sessionId }) => {
 
   const openManualAchievementsModal = (attempt) => {
     setManualAttempt(attempt);
-    setManualRandomAchievementId(
-      typeof attempt.achievement === 'string' ? attempt.achievement : attempt.achievement?.id
-    );
-    setManualUnlockedAchievementIds(
-      Array.isArray(attempt.unlocked_achievements) ? attempt.unlocked_achievements : []
-    );
+    setManualRandomAchievementId(normalizeAchievementId(attempt.achievement));
+    setManualUnlockedAchievementIds(normalizeAchievementIds(attempt.unlocked_achievements));
     setManualModalOpen(true);
   };
 
@@ -229,22 +261,50 @@ const TeacherResultsDashboard = ({ sessionId }) => {
   };
 
   const randomAchievementOptions = useMemo(() => {
-    return achievements
+    const base = achievements
       .filter((a) => a.type === 'random')
       .map((a) => ({
         value: a.id,
         label: `${a.title}${a.rarity ? ` (${a.rarity})` : ''}`,
       }));
-  }, [achievements]);
+
+    if (!manualRandomAchievementId) return base;
+    if (base.some((o) => o.value === manualRandomAchievementId)) return base;
+
+    const fallback = achievements.find((a) => a.id === manualRandomAchievementId);
+    if (fallback) {
+      return [...base, {
+        value: fallback.id,
+        label: `${fallback.title}${fallback.rarity ? ` (${fallback.rarity})` : ''}`,
+      }];
+    }
+
+    return [...base, { value: manualRandomAchievementId, label: `${manualRandomAchievementId} (не найдено)` }];
+  }, [achievements, manualRandomAchievementId]);
 
   const conditionAchievementOptions = useMemo(() => {
-    return achievements
+    const base = achievements
       .filter((a) => a.type === 'condition')
       .map((a) => ({
         value: a.id,
         label: a.title,
       }));
-  }, [achievements]);
+
+    const missingSelected = manualUnlockedAchievementIds.filter(
+      (id) => !base.some((o) => o.value === id)
+    );
+    if (missingSelected.length === 0) return base;
+
+    const extra = missingSelected.map((id) => {
+      const fallback = achievements.find((a) => a.id === id);
+      return {
+        value: id,
+        label: fallback?.title || `${id} (не найдено)`,
+      };
+    });
+
+    return [...base, ...extra];
+  }, [achievements, manualUnlockedAchievementIds]);
 
   const statusMap = {
     started: { color: 'default', text: 'Начат' },
