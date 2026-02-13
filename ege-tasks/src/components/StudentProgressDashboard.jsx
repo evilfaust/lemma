@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Empty, Modal, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
+import { App, Button, Empty, Modal, Progress, Select, Space, Spin, Table, Tag, Typography } from 'antd';
 import { ReloadOutlined, UserOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 
@@ -53,6 +53,9 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
   const [attempts, setAttempts] = useState([]);
   const [works, setWorks] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [classFilter, setClassFilter] = useState('all');
+  const [editingClass, setEditingClass] = useState('');
+  const [savingClass, setSavingClass] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -123,6 +126,7 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         id: student.id,
         name: student.name || '—',
         username: student.username || '—',
+        studentClass: student.student_class || '',
         registeredAt: student.created || null,
         attemptsCount: studentAttempts.length,
         finishedCount: finishedAttempts.length,
@@ -137,6 +141,23 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
     });
   }, [students, attemptsByStudentId]);
 
+  const classOptions = useMemo(() => {
+    const values = Array.from(new Set(
+      students
+        .map((s) => (s.student_class || '').trim())
+        .filter(Boolean)
+    ));
+
+    values.sort((a, b) => a.localeCompare(b, 'ru', { numeric: true, sensitivity: 'base' }));
+    return values;
+  }, [students]);
+
+  const filteredTableData = useMemo(() => {
+    if (classFilter === 'all') return tableData;
+    if (classFilter === '__none__') return tableData.filter((s) => !s.studentClass);
+    return tableData.filter((s) => s.studentClass === classFilter);
+  }, [tableData, classFilter]);
+
   const columns = [
     {
       title: 'Ученик',
@@ -149,6 +170,17 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         </Space>
       ),
       sorter: (a, b) => a.name.localeCompare(b.name),
+    },
+    {
+      title: 'Класс',
+      key: 'studentClass',
+      width: 120,
+      render: (_, record) => (
+        record.studentClass
+          ? <Tag color="geekblue">{record.studentClass}</Tag>
+          : <Text type="secondary">—</Text>
+      ),
+      sorter: (a, b) => (a.studentClass || '').localeCompare(b.studentClass || '', 'ru'),
     },
     {
       title: 'Попытки',
@@ -225,6 +257,40 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
       .sort((a, b) => new Date(b.created) - new Date(a.created));
   }, [selectedStudent, attemptsByStudentId]);
 
+  useEffect(() => {
+    if (!selectedStudent) {
+      setEditingClass('');
+      return;
+    }
+    setEditingClass(selectedStudent.studentClass || '');
+  }, [selectedStudent]);
+
+  const handleSaveStudentClass = useCallback(async () => {
+    if (!selectedStudent) return;
+    setSavingClass(true);
+    try {
+      await api.updateStudent(selectedStudent.id, {
+        student_class: editingClass || '',
+      });
+
+      setStudents((prev) => prev.map((student) => (
+        student.id === selectedStudent.id
+          ? { ...student, student_class: editingClass || '' }
+          : student
+      )));
+      setSelectedStudent((prev) => (prev ? { ...prev, studentClass: editingClass || '' } : prev));
+      message.success('Класс сохранён');
+    } catch (err) {
+      console.error('Error saving student class:', err);
+      if (err?.status === 404) {
+        message.error('Класс не сохранён: нет прав на обновление students. Перезапустите PocketBase, чтобы применить миграцию 1770001100.');
+      } else {
+        message.error('Не удалось сохранить класс');
+      }
+    }
+    setSavingClass(false);
+  }, [selectedStudent, editingClass, message]);
+
   const selectedStudentCompletedWorks = useMemo(() => {
     if (!selectedStudent) return [];
     const studentAttempts = attemptsByStudentId.get(selectedStudent.id) || [];
@@ -250,22 +316,33 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <Space>
           <UserOutlined />
-          <Text strong>Зарегистрированные ученики ({tableData.length})</Text>
+          <Text strong>Зарегистрированные ученики ({filteredTableData.length})</Text>
+          <Select
+            size="small"
+            value={classFilter}
+            style={{ minWidth: 180 }}
+            onChange={setClassFilter}
+            options={[
+              { value: 'all', label: 'Все классы' },
+              { value: '__none__', label: 'Без класса' },
+              ...classOptions.map((value) => ({ value, label: value })),
+            ]}
+          />
         </Space>
         <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading} size="small">
           Обновить
         </Button>
       </div>
 
-      {tableData.length === 0 ? (
+      {filteredTableData.length === 0 ? (
         <Empty description="Нет зарегистрированных учеников" />
       ) : (
         <Table
           columns={columns}
-          dataSource={tableData}
+          dataSource={filteredTableData}
           size="small"
           pagination={false}
-          scroll={{ x: 920 }}
+          scroll={{ x: 1040 }}
         />
       )}
 
@@ -280,10 +357,44 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Space wrap>
               <Tag>Логин: @{selectedStudent.username}</Tag>
+              <Tag color="geekblue">Класс: {selectedStudent.studentClass || '—'}</Tag>
               <Tag>Регистрация: {formatDateTime(selectedStudent.registeredAt)}</Tag>
               <Tag color="blue">Попыток: {selectedStudent.attemptsCount}</Tag>
               <Tag color="green">Решено: {selectedStudent.totalScore} / {selectedStudent.totalTasks}</Tag>
               <Tag color="gold">Ачивок: {selectedStudent.achievementsCount}</Tag>
+            </Space>
+
+            <Space wrap align="start">
+              <Text strong>Класс:</Text>
+              <Select
+                value={editingClass || undefined}
+                placeholder="Не указан"
+                allowClear
+                style={{ minWidth: 180 }}
+                onChange={(value) => setEditingClass(value || '')}
+                options={[
+                  ...classOptions.map((value) => ({ value, label: value })),
+                  { value: '5', label: '5 класс' },
+                  { value: '6', label: '6 класс' },
+                  { value: '7', label: '7 класс' },
+                  { value: '8', label: '8 класс' },
+                  { value: '9', label: '9 класс' },
+                  { value: '10', label: '10 класс' },
+                  { value: '11', label: '11 класс' },
+                  { value: '10А', label: '10А' },
+                  { value: '10Б', label: '10Б' },
+                  { value: '11А', label: '11А' },
+                  { value: '11Б', label: '11Б' },
+                ]}
+              />
+              <Button
+                type="primary"
+                size="small"
+                loading={savingClass}
+                onClick={handleSaveStudentClass}
+              >
+                Сохранить класс
+              </Button>
             </Space>
 
             <div>

@@ -2,22 +2,20 @@
 
 Отвечай мне только на русском языке
 
-## 🚨 КРИТИЧЕСКОЕ ПРАВИЛО РАБОТЫ С БАЗОЙ ДАННЫХ 🚨
+## КРИТИЧЕСКОЕ ПРАВИЛО РАБОТЫ С БАЗОЙ ДАННЫХ
 
-**⛔ НИКОГДА, НИ ПРИ КАКИХ ОБСТОЯТЕЛЬСТВАХ НЕ УДАЛЯТЬ/ПЕРЕЗАПИСЫВАТЬ БАЗУ ДАННЫХ БЕЗ ПРЕДВАРИТЕЛЬНОГО БЭКАПА!**
+**НИКОГДА, НИ ПРИ КАКИХ ОБСТОЯТЕЛЬСТВАХ НЕ УДАЛЯТЬ/ПЕРЕЗАПИСЫВАТЬ БАЗУ ДАННЫХ БЕЗ ПРЕДВАРИТЕЛЬНОГО БЭКАПА!**
 
 ### Строго запрещено:
-- ❌ `rm -rf pocketbase/pb_data`
-- ❌ Восстановление из старых бэкапов без проверки даты
-- ❌ Любые деструктивные операции с БД без создания свежего бэкапа
-- ❌ Команды типа `./pocketbase migrate down` без крайней необходимости
+- `rm -rf pocketbase/pb_data`
+- Восстановление из старых бэкапов без проверки даты
+- Любые деструктивные операции с БД без создания свежего бэкапа
+- Команды типа `./pocketbase migrate down` без крайней необходимости
 
 ### Обязательная процедура перед ЛЮБЫМИ операциями с БД:
 1. **Создать новый бэкап:**
    ```bash
    ./backup.sh
-   # ИЛИ
-   cd pocketbase && tar -czf ~/Desktop/emergency_backup_$(date +%Y%m%d_%H%M%S).tar.gz pb_data/
    ```
 2. **Проверить дату последнего бэкапа:**
    ```bash
@@ -35,65 +33,71 @@
 
 ## Project Overview
 
-This is **EGE Tasks Manager**, a full-stack web application for managing educational tasks for EGE (Russian standardized exam) preparation. The system stores, filters, edits tasks, generates printable worksheets with LaTeX math support, and includes a theory module.
+**EGE Tasks Manager** — полнофункциональная веб-платформа для учителей математики. Два интерфейса:
+- **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
+- **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
+
+Текущая версия: **3.2.0** (февраль 2026)
 
 ## Tech Stack
 
 ### Frontend
 - **React 18.2** with Vite 5.0
 - **Ant Design 5.12** for UI components
-- **KaTeX** for LaTeX math rendering
-- **Monaco Editor** for theory article editing
+- **KaTeX 0.16.9** for LaTeX math rendering
+- **react-markdown 10.1 + remark-gfm 4.0** for Markdown rendering
+- **Monaco Editor 4.7** for theory article editing
 - **PocketBase SDK 0.21** for API communication
+- **DOMPurify 3.3** for HTML sanitization
+- **qrcode.react 4.2** for QR codes (student sessions)
+- **html2pdf.js 0.14** for fallback PDF export
 
 ### Backend
-- **PocketBase** (Backend-as-a-Service)
-- SQLite database
-- Built-in RESTful API
-- File storage for images
-- **PDF Service** (Node.js + Express + Puppeteer)
+- **PocketBase** (Backend-as-a-Service, SQLite, REST API, Auth, File storage)
+- **PDF Service** (Node.js + Express + Puppeteer on port 3001)
   - High-quality PDF generation
-  - Standalone microservice on port 3001
-  - Perfect KaTeX rendering
+  - sdamgia.ru parser (POST /parse-sdamgia)
+- **Cheerio** for HTML parsing
 
 ### Utilities
 - **Python 3.x** for parsers and scripts
-- Node.js scripts for migrations and utilities
-- **Puppeteer** for PDF generation
+- **Shell scripts** for start/stop/backup/restore
 
 ## Project Structure
 
 ```
 generation-test/
-├── ege-tasks/              # Frontend React application
+├── ege-tasks/                    # Frontend (React + Vite)
 │   ├── src/
-│   │   ├── components/     # React components (18 main)
-│   │   │   └── worksheet/  # Reusable worksheet components (10)
-│   │   ├── hooks/          # Custom React hooks (11)
-│   │   ├── services/       # API services (pocketbase.js)
-│   │   ├── utils/          # Utility functions (4)
-│   │   ├── App.jsx         # Main app component with routing
-│   │   └── main.jsx        # Entry point
-│   ├── *.js                # Node.js utility scripts
+│   │   ├── components/           # React components (25+)
+│   │   │   ├── catalog/          # Catalog sub-components (7)
+│   │   │   ├── worksheet/        # Reusable worksheet components (12)
+│   │   │   └── student/          # Student-facing components (7)
+│   │   ├── hooks/                # Custom React hooks (12)
+│   │   ├── services/             # API services (pocketbase.js)
+│   │   ├── utils/                # Utility functions (9)
+│   │   ├── contexts/             # React contexts (ReferenceDataContext)
+│   │   ├── App.jsx               # Teacher interface + routing
+│   │   └── main.jsx              # Entry point (dual routing)
 │   ├── package.json
 │   └── vite.config.js
-├── pocketbase/             # Backend
-│   ├── pocketbase          # Executable
-│   ├── pb_data/            # Database and storage
-│   ├── pb_migrations/      # Database migrations (33 files)
-│   ├── pb_hooks/           # PocketBase JS hooks
-│   ├── pdf-service.js      # PDF generation service (Node.js)
-│   ├── package.json        # Node.js dependencies
-│   └── start-all.sh        # Startup script
-├── source/                 # Source markdown files for tasks
-├── backups/                # Database backups
-├── start.sh                # Start all services
-├── stop.sh                 # Stop all services
-├── backup.sh               # Backup database
-├── package.json            # Root package.json (concurrently)
-├── pb_parser.py            # Main parser for markdown tasks
-├── pb_parser_mordkovich.py # Specialized parser for Mordkovich
-└── pb_parser_theory.py     # Parser for theory articles
+├── pocketbase/                   # Backend
+│   ├── pocketbase                # Executable
+│   ├── pb_data/                  # Database and storage
+│   ├── pb_migrations/            # Database migrations (48 files)
+│   ├── pb_hooks/                 # PocketBase JS hooks (pdf.pb.js)
+│   ├── pdf-service.js            # Standalone PDF + sdamgia service
+│   ├── code.js                   # Task code generator
+│   └── package.json
+├── source/                       # Source markdown files for tasks
+│   └── mordkovich/               # Mordkovich textbook tasks
+├── backups/                      # Database backups
+├── start.sh / stop.sh            # Start/stop all services
+├── backup.sh / restore.sh        # Backup/restore database
+├── pb_parser.py                  # Main task parser
+├── pb_parser_mordkovich.py       # Mordkovich parser
+├── pb_parser_theory.py           # Theory articles parser
+└── package.json                  # Root (concurrently)
 ```
 
 ## Key Components
@@ -106,439 +110,299 @@ generation-test/
 - `TaskFilters.jsx` - Filter panel (topic, subtopic, tag, difficulty, year, source, image)
 - `TaskEditModal.jsx` - Task editing modal with metadata
 - `TaskReplaceModal.jsx` - Modal for replacing tasks in variants (with duplicate exclusion)
-- `TaskImporter.jsx` - Import tasks from markdown/YAML files
+- `TaskSelectModal.jsx` - Modal for selecting tasks from catalog
+- `TaskImporter.jsx` - Import tasks from markdown/YAML/sdamgia.ru
 - `TaskStatsDashboard.jsx` - Analytics dashboard (by topics, subtopics, tags, difficulty, sources; tag cloud)
-- `TaskCatalogManager.jsx` - Catalog manager with CRUD for topics/subtopics/tags/sources, duplicate detection, merge
+- `TaskCatalogManager.jsx` - Catalog manager with CRUD, duplicate detection, merge
+  - Sub-components: `catalog/TopicTab`, `SubtopicTab`, `TagTab`, `SourceTab`, `OtherTab`, `DuplicateTab`, `MergeModal`
 
 **Worksheet Generators:**
 - `WorksheetGenerator.jsx` - Card generator (A5/A6/A4 formats) with font sizes 10-21px
-- `OralWorksheetGenerator.jsx` - "Устный счет" (Oral exam) worksheet generator with:
-  - Tag/difficulty-based task distribution
-  - Compact mode for maximum tasks per page
-  - Drag & drop task reordering within and between variants
-  - Font sizes: 10pt, 12pt, 14pt, 16pt, 20pt
-  - Grid layout (1-3 columns) for multiple variants per page
-  - PDF export (Puppeteer + html2pdf.js fallback)
-  - Filter to hide common task prefixes
-- `TestWorkGenerator.jsx` - Test/exam work generator:
-  - Multi-topic work structure with task blocks
-  - Independent filters per block (topic, subtopics, difficulty, tags)
-  - 3 generation modes: different / shuffled / same
-  - Progressive difficulty option
-  - Drag & drop tasks between variants
-  - Save/load works to DB
-  - PDF export with all formatting options
+- `OralWorksheetGenerator.jsx` - "Устный счет" worksheet generator
+- `TestWorkGenerator.jsx` - Test/exam work generator (multi-topic blocks, 3 modes)
 - `PrintableWorksheet.jsx` - Print-optimized worksheet view
 
+**Work Management:**
+- `WorkEditor.jsx` - Edit saved works (variants, tasks, sessions, results)
+- `WorkEditorPage.jsx` - Page wrapper for WorkEditor (loads work from DB)
+- `WorkManager.jsx` - List/archive/filter saved works
+
 **Rendering:**
-- `MathRenderer.jsx` - LaTeX (KaTeX) and Markdown (react-markdown + remark-gfm) rendering (tables, lists, formulas)
+- `MathRenderer.jsx` - LaTeX (KaTeX) + Markdown (react-markdown + remark-gfm) rendering
 
 **Theory Module:**
 - `TheoryBrowser.jsx` - Browse theory articles by categories
-- `TheoryEditor.jsx` - Edit theory articles (Monaco editor)
+- `TheoryEditor.jsx` - Edit articles (Monaco editor, lazy loaded)
 - `TheoryArticleView.jsx` - View single theory article
 - `TheoryCategoryManager.jsx` - Manage theory categories
 - `TheoryPrintBuilder.jsx` - Print builder for theory summaries
 
-**Reusable Worksheet Components (ege-tasks/src/components/worksheet/):**
-- `FilterBlock.jsx` - Universal filter block for task selection (topic, subtopic, difficulty, tags, source, year)
-- `VariantSettings.jsx` - Variant generation settings (count, mode, sort type, progressive difficulty)
-- `FormatSettings.jsx` - Print formatting settings (columns, font size, compact mode, prefixes, answers)
-- `VariantRenderer.jsx` - Render variant with tasks and numbering
-- `VariantStats.jsx` - Variant statistics (task count, average difficulty)
+**Student Progress:**
+- `StudentProgressDashboard.jsx` - Teacher view of all students (attempts, scores, class)
+
+**Student-Facing (components/student/):**
+- `StudentApp.jsx` - Root student component (dual routing entry)
+- `StudentAuthPage.jsx` - Login/Register (username + password)
+- `StudentEntryPage.jsx` - Start test screen
+- `StudentTestPage.jsx` - Answer questions (auto-save to localStorage)
+- `StudentResultPage.jsx` - View results + achievements
+- `AchievementBadge.jsx` - Single badge with animation
+- `AchievementGallery.jsx` - All achievements collection
+
+**Reusable Worksheet Components (components/worksheet/):**
+- `FilterBlock.jsx` - Universal filter block
+- `VariantSettings.jsx` - Variant generation settings
+- `FormatSettings.jsx` - Print formatting settings
+- `VariantRenderer.jsx` - Render variant with tasks
+- `VariantStats.jsx` - Variant statistics
 - `AnswersPage.jsx` - Answers page for printing
-- `DistributionPanel.jsx` - Task distribution panel (by tag or difficulty)
+- `DistributionPanel.jsx` - Task distribution (by tag or difficulty)
 - `ActionButtons.jsx` - Action buttons (print, PDF, save, load)
-- `SaveWorkModal.jsx` - Modal for saving work to DB
-- `LoadWorkModal.jsx` - Modal for loading saved work
+- `SaveWorkModal.jsx` / `LoadWorkModal.jsx` - Save/load work modals
+- `SessionPanel.jsx` - Session management (QR code, link, attempts)
+- `TeacherResultsDashboard.jsx` - Teacher results view with achievements
 
 ### Custom Hooks (ege-tasks/src/hooks/)
-- `useWorksheetGeneration.js` - Universal variant generation logic (multi-topic blocks, deduplication, 3 modes, progressive difficulty)
+- `useWorksheetGeneration.js` - Universal variant generation (multi-topic blocks, deduplication, 3 modes, progressive difficulty)
 - `useTaskDragDrop.js` - Drag & drop tasks between variants
-- `useWorksheetActions.js` - Work actions (print, PDF, save/update/load/delete works)
+- `useWorksheetActions.js` - Work actions (print, PDF, save/update/load/delete)
 - `usePuppeteerPDF.js` - High-quality PDF export via Puppeteer service
-- `useTaskEditing.js` - Task editing logic with validation
-- `useDistribution.js` - Task distribution management (by tag or difficulty field)
-- `useTaskImport.js` - Task import logic from markdown/YAML
-- `useMarkdownProcessor.js` - Markdown processing
+- `useTaskEditing.js` - Task editing logic with modals
+- `useDistribution.js` - Task distribution management (by tag or difficulty)
+- `useTaskImport.js` - Task import from markdown/YAML/sdamgia
+- `useStudentSession.js` - Student test session management (attempt lifecycle, round-robin, polling)
+- `useMarkdownProcessor.js` - Markdown + LaTeX processing with debounce
 - `useKeyboardShortcuts.js` - Keyboard shortcuts
 - `useDocumentStats.js` - Document statistics
 - `useAutosave.js` - Autosave and restore
 
+### Contexts (ege-tasks/src/contexts/)
+- `ReferenceDataContext.jsx` - Global reference data (topics, tags, subtopics, years, sources, theoryCategories)
+  - Hook: `useReferenceData()` - returns all reference data + `reloadData()`
+
 ### Utility Functions (ege-tasks/src/utils/)
-- `theoryThemes.js` - Theory theme configuration and page sizes for printing
-- `filterTaskText.js` - Filter common task prefixes ("Вычислите:", "Найдите значение выражения" etc.)
+- `achievementEngine.js` - Achievement system engine (random badges + conditional unlocks)
+- `answerChecker.js` - Answer checking (numeric comparison, fractions, LaTeX, alternatives via `|`)
+- `filterTaskText.js` - Filter common task prefixes
 - `taskCodeGenerator.js` - Task code generator (format: `{topic}-{number}`)
-- `markdownTaskParser.js` - Markdown task parser with YAML frontmatter support
+- `markdownTaskParser.js` - Markdown task parser with YAML frontmatter + sdamgia parser
+- `theoryThemes.js` - Theory theme configuration
+- `shuffle.js` - Fisher-Yates shuffle
+- `escapeFilter.js` - Escape PocketBase filter strings
+- `normalize.js` - Text normalization
 
-### Database Collections (PocketBase)
+## Database Collections (PocketBase)
 
-**topics** - Exam topics
-```javascript
-{
-  id: string,
-  title: string,        // Topic name
-  ege_number: number,   // EGE task number (1-27)
-  description: string,
-  order: number
-}
+### Core Collections
+
+**topics** - `{ id, title, section: "Алгебра"|"Геометрия", ege_number, order, slug }`
+
+**subtopics** - `{ id, name, topic: relation→topics, order }`
+
+**tags** - `{ id, title, color: string (hex) }`
+
+**tasks** - `{ id, code, topic: relation→topics, subtopic: relation[]→subtopics, tags: relation→tags, difficulty: number(1-3), statement_md, answer, solution_md, explanation_md, source, year, image: file, has_image }`
+
+**cards** - `{ id, title, tasks: relation[]→tasks, show_answers, show_solutions, format: "А6"|"А5"|"А4", layout, note }`
+
+**works** - `{ id, title, class: number, topic: relation→topics, time_limit: number }`
+
+**variants** - `{ id, work: relation→works, number, tasks: relation[]→tasks, order: json }`
+
+### Theory Collections
+
+**theory_categories** - `{ id, title, description, order, color }`
+
+**theory_articles** - `{ id, title, category: relation→theory_categories, content_md: text(max 100000), order, summary, tags: json, theme_settings: json }`
+
+### Student/Testing Collections
+
+**students** (Auth collection) - `{ id, username, password(hashed), name, student_class }`
+
+**work_sessions** - `{ id, work: relation→works, is_open, host_override, achievements_enabled, student_title }`
+
+**attempts** - `{ id, session: relation→work_sessions, student: relation→students, student_name, device_id, variant: relation→variants, status: "started"|"submitted"|"corrected", score, total, achievement: relation→achievements, unlocked_achievements: relation[]→achievements, duration_seconds, submitted_at, corrected_at }`
+
+**attempt_answers** - `{ id, attempt: relation→attempts, task: relation→tasks, answer_raw, answer_normalized, is_correct }`
+
+**achievements** - `{ id, code(unique), title, description, icon, type: "random"|"condition", rarity: "common"|"rare"|"legendary", condition_type: "score"|"speed"|"count"|"special", condition_value: json, order }`
+
+### Access Control
+- tasks, topics, tags, subtopics, works, variants, cards: Superuser only
+- achievements: Public read, Superuser write
+- students: Self-read + unauth all; self-update + unauth update
+- attempts: Own + unauth all (read); Public (write)
+- work_sessions, attempt_answers: Public
+
+## App Navigation (App.jsx views)
+
+| View Key | Label | Component |
+|----------|-------|-----------|
+| `tasks` | Все задачи | TaskList |
+| `stats` | Статистика | TaskStatsDashboard |
+| `catalog` | Каталог | TaskCatalogManager |
+| `generator` | Устный счёт | OralWorksheetGenerator |
+| `test-generator` | Контрольные работы | TestWorkGenerator |
+| `work-manager` | Работы | WorkManager |
+| `work-editor` | Редактор работ | WorkEditorPage |
+| `students` | Прогресс учеников | StudentProgressDashboard |
+| `import` | Импорт задач | TaskImporter |
+| `theory-browser` | Библиотека | TheoryBrowser |
+| `theory-editor` | Редактор | TheoryEditor |
+| `theory-view` | Просмотр | TheoryArticleView |
+| `theory-print` | Конспекты | TheoryPrintBuilder |
+| `theory-categories` | Категории | TheoryCategoryManager |
+
+## Student Flow
+
+URL: `/student/{sessionId}`
+
+```
+1. Load session by sessionId
+2. Check auth (localStorage) → StudentAuthPage if needed
+3. No attempt → StudentEntryPage → startAttempt() (round-robin variant)
+4. attempt.status='started' → StudentTestPage (auto-save answers)
+5. Submit → checkAnswer() for each task → calculate score
+6. If achievements_enabled: getRandomAchievement() + checkUnlockedAchievements()
+7. Save attempt_answers, update attempt status='submitted'
+8. → StudentResultPage (results + achievements)
+9. Polling every 10s for teacher-issued achievements
 ```
 
-**subtopics** - Subtopics for finer categorization
-```javascript
-{
-  id: string,
-  title: string,
-  topic: relation,      // Link to topics
-  order: number
-}
-```
+## Achievement System
 
-**tags** - Task tags
-```javascript
-{
-  id: string,
-  title: string,
-  color: string         // Hex color
-}
-```
+- 30 predefined achievements (common/rare/legendary + condition-based)
+- Random badges: one per attempt based on score (90%+→legendary, 70-89%→rare, 40-69%→common)
+- Conditional: score≥100%, score≥90%, speed≤5min, count≥1/10/50, night_owl, early_bird
+- Engine: `utils/achievementEngine.js`
+- Teacher can manually award achievements
 
-**tasks** - Main task collection
-```javascript
-{
-  id: string,
-  code: string,         // Unique code (e.g., "14-001")
-  topic: relation,      // Link to topics
-  subtopic: relation[], // Links to subtopics (Multiple)
-  tags: relation[],     // Links to tags
-  difficulty: string,   // "1", "2", "3"
-  statement_md: text,   // Task statement (Markdown + LaTeX)
-  answer: string,
-  solution_md: text,    // Solution (Markdown + LaTeX)
-  explanation_md: text,
-  source: string,
-  year: number,
-  image: file,          // Optional image
-  has_image: boolean
-}
-```
+## Answer Checking (answerChecker.js)
 
-**cards** - Saved worksheets
-```javascript
-{
-  id: string,
-  title: string,
-  topic: relation,
-  tasks: relation[],    // Array of task IDs
-  format: string,       // "a6", "a5", "a4"
-  show_answers: bool,
-  cards_data: json      // Card layout data
-}
-```
-
-**works** - Saved test works
-```javascript
-{
-  id: string,
-  title: string,
-  topic: relation,
-  created: datetime
-}
-```
-
-**variants** - Test variants (linked to works)
-```javascript
-{
-  id: string,
-  work: relation,       // Link to works
-  title: string,
-  tasks: relation[],    // Array of task IDs
-  created: datetime
-}
-```
-
-**theory_categories** - Theory article categories
-```javascript
-{
-  id: string,
-  title: string,
-  order: number
-}
-```
-
-**theory_articles** - Theory articles
-```javascript
-{
-  id: string,
-  title: string,
-  category: relation,   // Link to theory_categories
-  content: text,        // Article content (Markdown + LaTeX)
-  tags: relation[],     // Links to tags
-  order: number
-}
-```
+- Numeric comparison with epsilon (1e-6)
+- Supports: decimals, fractions (1/3), LaTeX fractions (\frac{1}{3}), mixed fractions
+- Alternatives via `|` separator (e.g., "3|3.0")
+- Fallback: text comparison for non-numeric
 
 ## Important Conventions
 
 ### LaTeX Formatting
 - Inline math: `$x^2 + y^2$`
 - Block math: `$$\frac{a}{b}$$`
-- Common patterns:
-  - Powers: `x^2`, `a^{10}`
-  - Fractions: `\frac{a}{b}`
-  - Roots: `\sqrt{x}`, `\sqrt[3]{x}`
-  - Greek letters: `\alpha`, `\beta`, `\gamma`
+- KaTeX (not MathJax), wrapped in try-catch
 
 ### Difficulty Levels
-- `"1"` - Basic (green, #52c41a)
-- `"2"` - Medium (orange, #faad14)
-- `"3"` - Advanced (red, #ff4d4f)
+- `1` - Basic (green, #52c41a)
+- `2` - Medium (orange, #faad14)
+- `3` - Advanced (red, #ff4d4f)
 
 ### Task Codes
-Format: `{topic_number}-{sequence}` (e.g., "14-001", "16-023")
-Generated automatically by `taskCodeGenerator.js` or `generate_task_code.py`
-
-### Worksheet Formats
-- `a6` - 4 cards per A4 sheet
-- `a5` - 2 cards per A4 sheet
-- `a4` - 1 card per A4 sheet
+- Format: `{topic_number}-{sequence}` (e.g., "14-001")
+- Mordkovich: `M{paragraph}-{sequence}` (e.g., "M17-001")
 
 ## Common Tasks
 
 ### Running the Application
 ```bash
-# Start everything (from project root)
-./start.sh              # Or: npm run dev
+./start.sh              # All services (PocketBase + PDF + Frontend)
 ./start.sh --no-pdf     # Without PDF service
-
-# Start Backend only (PocketBase + PDF Service)
-cd pocketbase
-npm run dev
-
-# Start React frontend only
-cd ege-tasks
-npm run dev  # Runs on http://localhost:5173
+npm run dev             # Same as start.sh
 ```
 
-### Parsing Tasks from Markdown
+### Services
+- PocketBase: http://127.0.0.1:8090 (Admin: http://127.0.0.1:8090/_/)
+- PDF Service: http://localhost:3001
+- Frontend: http://localhost:5173
+- Student: http://localhost:5173/student/{sessionId}
+
+### Database Backup
 ```bash
-python pb_parser.py              # Standard parser
-python pb_parser_mordkovich.py   # Mordkovich textbook parser
-python pb_parser_theory.py       # Theory articles parser
+./backup.sh             # Create backup (sqlite3 .backup, safe while running)
+./restore.sh            # Restore from backup (with safety checks)
 ```
 
-### Working with Database
-- Admin panel: http://127.0.0.1:8090/_/
-- API base: http://127.0.0.1:8090/api/
-- Collections endpoint: `/api/collections/{collection}/records`
-
-### Node.js Utility Scripts (in ege-tasks/)
-- `check-images-11.js` - Check images for topic 11
-- `check-tasks-16.js` - Check tasks for topic 16
-- `check-tasks.js` - General task verification
-- `delete-tasks-by-topic.js` - Bulk delete by topic
-- `fix-latex-braces.js` - Fix LaTeX brace formatting
-- `link-tasks-to-subtopics.js` - Link tasks to subtopics
-- `migrate-images.js` - Migrate image files
-- `migrate-subtopics.js` - Migrate subtopics
-- `update-empty-subtopics.js` - Update tasks with empty subtopics
-- `update-subtopics-array.js` - Update subtopics arrays
-
-### Python Utility Scripts (in project root)
-- `pb_parser.py` - Main parser for markdown tasks
-- `pb_parser_mordkovich.py` - Mordkovich textbook parser
-- `pb_parser_theory.py` - Theory articles parser
-- `generate_task_code.py` - Task code generator
-- `fix-markdown-latex.py` - Fix LaTeX formatting
-- `fix-parsed-fractions.py` - Fix fraction formatting
-- `fix-m17-topic.py` - Fix topic M17
-- `fix-tag-6kl-to-7kl.py` - Migrate tags 6kl to 7kl
-- `fix_tags.py` - Fix tags
-- `fix_task2_tables.py` - Fix task2 tables
-- `add_tag_colors.py` - Add colors to tags
-- `recolor_tags.py` - Recolor tags
-- `delete-duplicate-codes.py` - Delete duplicate codes
-- `renumber_ustno.py` - Renumber oral tasks
-- `sync_tags.py` - Synchronize tags
+### Build
+```bash
+cd ege-tasks && npm run build
+```
 
 ## API Service (ege-tasks/src/services/pocketbase.js)
 
-Key functions:
-- **Topics:** `getTopics()`, `getTopic(id)`, `createTopic(data)`, `updateTopic(id, data)`
-- **Subtopics:** `getSubtopics(topicId)`, `createSubtopic(data)`, `updateSubtopic(id, data)`, `deleteSubtopic(id)`
-- **Tags:** `getTags()`, `createTag(data)`, `updateTag(id, data)`, `deleteTag(id)`, `findTagByTitle(title)`
-- **Tasks:** `getTasks(filters)`, `getTask(id)`, `createTask(data)`, `updateTask(id, data)`, `deleteTask(id)`, `getRandomTasks(count, filters)`, `getRandomTasksWithoutRepetition(count, filters, excludeIds)`, `getTasksWithProgressiveDifficulty(count, filters, excludeIds)`, `getTaskStatementsAndCodes(topicId)`
-- **Cards:** `getCards()`, `getCard(id)`, `createCard(data)`, `updateCard(id, data)`, `deleteCard(id)`
-- **Works:** `getWorks()`, `getWork(id)`, `createWork(data)`, `updateWork(id, data)`, `deleteWork(id)`
-- **Variants:** `getVariantsByWork(workId)`, `getVariant(id)`, `createVariant(data)`, `updateVariant(id, data)`, `deleteVariant(id)`
-- **Theory:** `getTheoryCategories()`, `createTheoryCategory(data)`, `updateTheoryCategory(id, data)`, `deleteTheoryCategory(id)`, `getTheoryArticles(filters)`, `getTheoryArticle(id)`, `createTheoryArticle(data)`, `updateTheoryArticle(id, data)`, `deleteTheoryArticle(id)`, `getTheoryArticleCountByCategory()`
-- **Stats:** `getUniqueYears()`, `getUniqueSources()`, `getTasksStatsSnapshot()`
+Key function groups:
+- **Topics:** getTopics, getTopic, createTopic, updateTopic
+- **Subtopics:** getSubtopics, createSubtopic, updateSubtopic, deleteSubtopic
+- **Tags:** getTags, createTag, updateTag, deleteTag, findTagByTitle
+- **Tasks:** getTasks, getTask, createTask, updateTask, deleteTask, getRandomTasks, getRandomTasksWithoutRepetition, getTasksWithProgressiveDifficulty, getTaskStatementsAndCodes
+- **Cards:** getCards, getCard, createCard, updateCard, deleteCard
+- **Works:** getWorks, getWork, createWork, updateWork, deleteWork, archiveWork, unarchiveWork
+- **Variants:** getVariantsByWork, getVariant, createVariant, updateVariant, deleteVariant
+- **Sessions:** createSession, getSession, getSessionByWork, getSessionsByWork, getSessionsByWorks, updateSession
+- **Attempts:** createAttempt, getAttemptByDevice, getAttemptsByDevice, getAttemptsBySession, getAttemptsByStudent, updateAttempt, deleteAttempt, getAttemptsBySessions, getAttemptsCountByWork
+- **Answers:** createAttemptAnswer, getAttemptAnswers, updateAttemptAnswer, batchCreateAttemptAnswers, batchUpdateAttemptAnswers
+- **Achievements:** getAchievements, getAchievement, getAchievementsByIds, createAchievement, updateAchievement, deleteAchievement
+- **Students:** registerStudent, loginStudent, logoutStudent, isStudentAuthenticated, getAuthStudent, getStudents, updateStudent, getAttemptsByStudent, getAttemptsForRegisteredStudents
+- **Theory:** getTheoryCategories, createTheoryCategory, updateTheoryCategory, deleteTheoryCategory, getTheoryArticles, getTheoryArticle, createTheoryArticle, updateTheoryArticle, deleteTheoryArticle, getTheoryArticleCountByCategory
+- **Stats:** getUniqueYears, getUniqueSources, getTasksStatsSnapshot
 
-## App Navigation (App.jsx views)
+## PDF Export System
 
-| View Key | Label | Component | Description |
-|----------|-------|-----------|-------------|
-| `tasks` | Все задачи | TaskList | Browse, filter, edit, bulk operations |
-| `stats` | Статистика | TaskStatsDashboard | Analytics by topics, tags, difficulty |
-| `catalog` | Каталог | TaskCatalogManager | CRUD topics/subtopics/tags, duplicates |
-| `generator` | Генератор | OralWorksheetGenerator | Oral exam worksheets |
-| `test-generator` | Контрольные работы | TestWorkGenerator | Test/exam work generator |
-| `import` | Импорт задач | TaskImporter | Import from markdown |
-| `theory-browser` | Библиотека | TheoryBrowser | Browse theory articles |
-| `theory-editor` | Редактор | TheoryEditor | Edit articles (Monaco) |
-| `theory-view` | Просмотр | TheoryArticleView | View article |
-| `theory-print` | Конспекты | TheoryPrintBuilder | Print theory summaries |
-| `theory-categories` | Категории | TheoryCategoryManager | Manage categories |
+- **Primary:** Puppeteer (port 3001) - perfect KaTeX, vector text, 2-3x smaller
+- **Fallback:** html2pdf.js (automatic if service unavailable)
+- **Hook:** `usePuppeteerPDF` → `exportToPDF(printRef, filename, options)`
+- **API:** `POST /generate` (html, filename, options) → PDF
+- **Sdamgia parser:** `POST /parse-sdamgia` (url) → [{id, condition, answer, images}]
 
-## Known Issues & Patterns
+## Key Files to Modify
 
-### Image Handling
-- Images stored in PocketBase file storage
-- URLs: `{PB_URL}/api/files/{collection}/{record}/{filename}`
-- Need to check image existence before display
-
-### LaTeX Rendering
-- Must import `katex/dist/katex.min.css`
-- Wrapped in try-catch to handle malformed LaTeX
-- Use `MathRenderer` component for consistent rendering
-
-### Task Replacement in Variants
-- Should exclude duplicates within same variant
-- Filter by topic/subtopic for relevant replacements
-- Maintain difficulty level when replacing
-
-### Distribution Sorting
-- Tag distribution preserves tag grouping (sort only on random)
-- Difficulty distribution preserves ascending order (never shuffle)
-
-## File Locations Reference
-
-### Key Files to Modify
 - Frontend components: `ege-tasks/src/components/*.jsx`
-- Reusable components: `ege-tasks/src/components/worksheet/*.jsx`
+- Student components: `ege-tasks/src/components/student/*.jsx`
+- Catalog components: `ege-tasks/src/components/catalog/*.jsx`
+- Worksheet components: `ege-tasks/src/components/worksheet/*.jsx`
 - Custom hooks: `ege-tasks/src/hooks/*.js`
 - API service: `ege-tasks/src/services/pocketbase.js`
-- Main app: `ege-tasks/src/App.jsx`
+- Context: `ege-tasks/src/contexts/ReferenceDataContext.jsx`
+- Utils: `ege-tasks/src/utils/*.js`
+- Main apps: `ege-tasks/src/App.jsx`, `ege-tasks/src/main.jsx`
 - Styles: `ege-tasks/src/App.css`
 - Backend hooks: `pocketbase/pb_hooks/*.js`
+- PDF service: `pocketbase/pdf-service.js`
 - Migrations: `pocketbase/pb_migrations/*.js`
-
-### Configuration Files
-- Frontend env: `ege-tasks/.env` (VITE_PB_URL)
-- Vite config: `ege-tasks/vite.config.js`
-- Package deps: `ege-tasks/package.json`
-- Root package: `package.json` (concurrently scripts)
+- Config: `ege-tasks/.env` (VITE_PB_URL), `ege-tasks/vite.config.js`
 
 ## Development Notes
 
 ### When Adding New Features
-1. Frontend changes go in `ege-tasks/src/`
-2. Database schema changes need migrations in `pocketbase/pb_migrations/`
-3. API changes should update `ege-tasks/src/services/pocketbase.js`
-4. Always test LaTeX rendering after text changes
-5. Check print preview for worksheet modifications
-6. Use existing reusable hooks and worksheet components
+1. Frontend changes: `ege-tasks/src/`
+2. DB schema changes: new migration in `pocketbase/pb_migrations/`
+3. API changes: update `ege-tasks/src/services/pocketbase.js`
+4. Use `useReferenceData()` context for global data (topics, tags, etc.)
+5. Reuse existing hooks (useWorksheetGeneration, useTaskDragDrop, useWorksheetActions)
+6. Reuse worksheet components from `worksheet/` directory
+7. Student and teacher interfaces are isolated — be careful with auth
+8. Always test LaTeX rendering after text changes
+9. Build check: `cd ege-tasks && npm run build`
 
-### Testing Checklist
-- Task filtering works correctly
-- LaTeX renders properly
-- Images load correctly
-- Print layout maintains formatting
-- Random task selection avoids duplicates
-- Task editing saves all fields
-- Build succeeds: `cd ege-tasks && npm run build`
+### Security Notes
+- Teacher loads App.jsx → auto-logout from student account (prevents data leaks)
+- Student auth is PocketBase Auth (students collection)
+- Unauth users = teachers/admins (special rules in PocketBase)
+- Never expose admin credentials in frontend code
 
-### Code Style
-- React components use JSX
-- Ant Design components for UI
-- Async/await for API calls
-- Error handling with try-catch
-- Loading states for async operations
-
-## Environment Setup
-
-Required environment variables (ege-tasks/.env):
-```env
-VITE_PB_URL=http://127.0.0.1:8090
-```
-
-## Quick Reference Commands
-
-```bash
-# All services (from root)
-npm run dev              # Start everything
-npm run dev:no-pdf       # Without PDF service
-npm run install:all      # Install all dependencies
-
-# Frontend
-cd ege-tasks
-npm run dev              # Development server
-npm run build            # Production build
-npm run preview          # Preview production build
-
-# Backend
-cd pocketbase
-npm run dev              # PocketBase + PDF service
-npm run start            # PocketBase only
-npm run pdf              # PDF service only
-
-# Utilities
-python pb_parser.py                # Parse markdown tasks
-python pb_parser_mordkovich.py     # Parse Mordkovich tasks
-python pb_parser_theory.py         # Parse theory articles
-```
-
-## PDF Export System
-
-### High-Quality PDF Generation
-- **Method:** Puppeteer (headless Chrome)
-- **Service:** Standalone Node.js on port 3001
-- **Quality:** Perfect KaTeX rendering, vector text
-- **Performance:** 2-3x smaller files, 1.5-2x faster
-- **Fallback:** Automatic switch to html2pdf.js if service unavailable
-
-### PDF Service API
-```javascript
-// Health check
-GET http://localhost:3001/health
-
-// Generate PDF
-POST http://localhost:3001/generate
-Body: { html, filename, options: { format, margins } }
-```
-
-### Using in Components
-```javascript
-import { usePuppeteerPDF } from '../hooks';
-
-const puppeteerPDF = usePuppeteerPDF();
-await puppeteerPDF.exportToPDF(printRef, 'filename', options);
-```
-
-## Tips for AI Assistance
-
-1. **Always check file existence** before reading/editing
-2. **React components** are in `ege-tasks/src/components/`
-3. **Database schema** is defined in PocketBase migrations
-4. **LaTeX math** uses KaTeX library, not MathJax
-5. **Print layouts** are in `PrintableWorksheet.jsx`
-6. **API calls** go through `pocketbase.js` service
-7. **Task codes** follow pattern `{topic}-{number}`
-8. **Difficulty colors** are hardcoded in components
-9. **Images** need proper PocketBase URL construction
-10. **Markdown files** in `source/` are named by topic number
-11. **PDF Service** must be running for high-quality PDF export
-12. **Puppeteer PDF** - use `usePuppeteerPDF` hook for PDF generation
-13. **Theory module** has its own components, categories, and articles
-14. **Reuse hooks** when building new generators (useWorksheetGeneration, useTaskDragDrop, useWorksheetActions)
-15. **Reuse worksheet components** from `worksheet/` directory
+### Known Patterns
+- Image URLs: `{PB_URL}/api/files/{collection}/{record}/{filename}`
+- Task replacement: exclude duplicates within variant, filter by topic/subtopic
+- Distribution sorting: tag distribution preserves grouping, difficulty preserves order
+- Variant order: stored as JSON `[{taskId, position}]`
 
 ## Related Documentation
 
 - `README.MD` - Полное руководство пользователя
 - `ARCHITECTURE.md` - Архитектура проекта
-- `CHANGELOG.md` - История изменений
-- `PDF_EXPORT_UPGRADE.md` - Подробно о PDF экспорте через Puppeteer
-- `QUICK_START.md` - Быстрый старт для разработчиков
+- `CHANGELOG.md` - История изменений (v1.0 → v3.2)
+- `DATABASE_SAFETY.md` - Правила безопасности БД
+- `BACKUP_GUIDE.md` - Руководство по бэкапам
+- `PDF_EXPORT_UPGRADE.md` - PDF экспорт через Puppeteer
+- `QUICK_START.md` - Быстрый старт
 - `START_GUIDE.md` - Руководство по запуску
-- `TEST_AND_COMMIT.md` - Инструкции по тестированию и коммитам
+- `TEST_AND_COMMIT.md` - Тестирование и коммиты
+- `SDAMGIA_TABLE_PARSING.md` - Парсинг таблиц sdamgia.ru

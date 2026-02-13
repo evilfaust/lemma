@@ -1171,11 +1171,20 @@ export const api = {
     try {
       return await pb.collection('students').getFullList({
         sort: '-created',
-        fields: 'id,username,name,created,updated',
+        fields: 'id,username,name,student_class,created,updated',
       });
     } catch (error) {
       console.error('Error fetching students:', error);
       return [];
+    }
+  },
+
+  async updateStudent(id, data) {
+    try {
+      return await pb.collection('students').update(id, data);
+    } catch (error) {
+      console.error('Error updating student:', error);
+      throw error;
     }
   },
 

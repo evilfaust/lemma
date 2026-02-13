@@ -164,6 +164,7 @@ const WorkEditor = ({
   if (!work) {
     return (
       <Card>
+        <Form form={form} component={false} />
         <Empty description="Выберите работу слева, чтобы редактировать" />
       </Card>
     );
