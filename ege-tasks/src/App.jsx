@@ -23,6 +23,7 @@ const { Header, Content, Sider } = Layout;
 
 function AppContent() {
   const [currentView, setCurrentView] = useState('tasks');
+  const [selectedWorkIdForEditor, setSelectedWorkIdForEditor] = useState(null);
   const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
   const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
 
@@ -149,9 +150,16 @@ function AppContent() {
       case 'work-manager':
         return <WorkManager />;
       case 'work-editor':
-        return <WorkEditorPage />;
+        return <WorkEditorPage initialWorkId={selectedWorkIdForEditor} />;
       case 'students':
-        return <StudentProgressDashboard />;
+        return (
+          <StudentProgressDashboard
+            onOpenWork={(workId) => {
+              setSelectedWorkIdForEditor(workId);
+              setCurrentView('work-editor');
+            }}
+          />
+        );
       case 'import':
         return <TaskImporter />;
       case 'theory-browser':

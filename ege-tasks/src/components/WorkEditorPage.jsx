@@ -8,7 +8,7 @@ import { useReferenceData } from '../contexts/ReferenceDataContext';
 const { Text } = Typography;
 const { Option } = Select;
 
-const WorkEditorPage = () => {
+const WorkEditorPage = ({ initialWorkId = null }) => {
   const { message } = App.useApp();
   const { topics, tags, subtopics, years, sources } = useReferenceData();
   const [works, setWorks] = useState([]);
@@ -25,6 +25,11 @@ const WorkEditorPage = () => {
     search: '',
     topic: null,
   });
+
+  useEffect(() => {
+    if (!initialWorkId) return;
+    setSelectedWorkId(initialWorkId);
+  }, [initialWorkId]);
 
   const loadWorks = useCallback(async () => {
     setLoadingWorks(true);

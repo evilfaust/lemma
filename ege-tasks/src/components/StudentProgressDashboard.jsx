@@ -46,22 +46,25 @@ const normalizeUnlockedIds = (value) => {
   return [];
 };
 
-const StudentProgressDashboard = () => {
+const StudentProgressDashboard = ({ onOpenWork }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [attempts, setAttempts] = useState([]);
+  const [works, setWorks] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [studentsData, attemptsData] = await Promise.all([
+      const [studentsData, attemptsData, worksData] = await Promise.all([
         api.getStudents(),
         api.getAttemptsForRegisteredStudents(),
+        api.getWorks({ includeArchived: true }),
       ]);
       setStudents(studentsData);
       setAttempts(attemptsData);
+      setWorks(worksData);
     } catch (err) {
       console.error('Error loading student progress dashboard:', err);
       message.error('Ошибка загрузки прогресса учеников');
@@ -72,6 +75,12 @@ const StudentProgressDashboard = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const worksById = useMemo(() => {
+    const map = new Map();
+    works.forEach((work) => map.set(work.id, work));
+    return map;
+  }, [works]);
 
   const attemptsByStudentId = useMemo(() => {
     const map = new Map();
@@ -99,9 +108,14 @@ const StudentProgressDashboard = () => {
         .sort((a, b) => new Date(b) - new Date(a))[0] || null;
 
       const achievements = new Set();
+      const completedWorkIds = new Set();
       studentAttempts.forEach((a) => {
         if (a.achievement) achievements.add(a.achievement);
         normalizeUnlockedIds(a.unlocked_achievements).forEach((id) => achievements.add(id));
+        if (a.status !== 'started') {
+          const workId = a.expand?.session?.work;
+          if (workId) completedWorkIds.add(workId);
+        }
       });
 
       return {
@@ -117,6 +131,7 @@ const StudentProgressDashboard = () => {
         totalScore,
         totalTasks,
         achievementsCount: achievements.size,
+        completedWorksCount: completedWorkIds.size,
         lastAttemptAt,
       };
     });
@@ -174,6 +189,13 @@ const StudentProgressDashboard = () => {
       sorter: (a, b) => a.achievementsCount - b.achievementsCount,
     },
     {
+      title: 'Работы',
+      dataIndex: 'completedWorksCount',
+      key: 'completedWorksCount',
+      width: 90,
+      sorter: (a, b) => a.completedWorksCount - b.completedWorksCount,
+    },
+    {
       title: 'Последняя активность',
       key: 'lastAttemptAt',
       width: 190,
@@ -202,6 +224,22 @@ const StudentProgressDashboard = () => {
       .slice()
       .sort((a, b) => new Date(b.created) - new Date(a.created));
   }, [selectedStudent, attemptsByStudentId]);
+
+  const selectedStudentCompletedWorks = useMemo(() => {
+    if (!selectedStudent) return [];
+    const studentAttempts = attemptsByStudentId.get(selectedStudent.id) || [];
+    const ids = new Set();
+    studentAttempts.forEach((attempt) => {
+      if (attempt.status === 'started') return;
+      const workId = attempt.expand?.session?.work;
+      if (workId) ids.add(workId);
+    });
+
+    return Array.from(ids).map((id) => ({
+      id,
+      title: worksById.get(id)?.title || 'Работа',
+    }));
+  }, [selectedStudent, attemptsByStudentId, worksById]);
 
   if (loading && tableData.length === 0) {
     return <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>;
@@ -248,6 +286,27 @@ const StudentProgressDashboard = () => {
               <Tag color="gold">Ачивок: {selectedStudent.achievementsCount}</Tag>
             </Space>
 
+            <div>
+              <Text strong>Выполненные работы</Text>
+              <div style={{ marginTop: 8 }}>
+                {selectedStudentCompletedWorks.length === 0 ? (
+                  <Text type="secondary">Нет завершённых работ</Text>
+                ) : (
+                  <Space wrap>
+                    {selectedStudentCompletedWorks.map((work) => (
+                      <Button
+                        key={work.id}
+                        size="small"
+                        onClick={() => onOpenWork?.(work.id)}
+                      >
+                        {work.title}
+                      </Button>
+                    ))}
+                  </Space>
+                )}
+              </div>
+            </div>
+
             <Table
               rowKey="id"
               size="small"
@@ -266,6 +325,23 @@ const StudentProgressDashboard = () => {
                   key: 'session',
                   width: 170,
                   render: (_, record) => record.session || '—',
+                },
+                {
+                  title: 'Работа',
+                  key: 'work',
+                  width: 220,
+                  render: (_, record) => {
+                    const workId = record.expand?.session?.work;
+                    if (!workId) return <Text type="secondary">—</Text>;
+                    return (
+                      <Space>
+                        <Text>{worksById.get(workId)?.title || workId}</Text>
+                        <Button size="small" type="link" onClick={() => onOpenWork?.(workId)}>
+                          Открыть
+                        </Button>
+                      </Space>
+                    );
+                  },
                 },
                 {
                   title: 'Вариант',
