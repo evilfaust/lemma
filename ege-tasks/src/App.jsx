@@ -1,6 +1,6 @@
 import { useState, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -14,6 +14,7 @@ import TheoryPrintBuilder from './components/TheoryPrintBuilder';
 import TaskImporter from './components/TaskImporter';
 import WorkManager from './components/WorkManager';
 import WorkEditorPage from './components/WorkEditorPage';
+import StudentProgressDashboard from './components/StudentProgressDashboard';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
 import './App.css';
@@ -66,6 +67,11 @@ function AppContent() {
       key: 'work-editor',
       icon: <EditOutlined />,
       label: 'Редактор работ',
+    },
+    {
+      key: 'students',
+      icon: <TeamOutlined />,
+      label: 'Ученики',
     },
     {
       key: 'import',
@@ -144,6 +150,8 @@ function AppContent() {
         return <WorkManager />;
       case 'work-editor':
         return <WorkEditorPage />;
+      case 'students':
+        return <StudentProgressDashboard />;
       case 'import':
         return <TaskImporter />;
       case 'theory-browser':
@@ -194,6 +202,7 @@ function AppContent() {
       case 'test-generator': return 'Контрольные работы';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
+      case 'students': return 'Ученики';
       case 'import': return 'Импорт задач';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';

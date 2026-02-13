@@ -1166,6 +1166,31 @@ export const api = {
       return [];
     }
   },
+
+  async getStudents() {
+    try {
+      return await pb.collection('students').getFullList({
+        sort: '-created',
+        fields: 'id,username,name,created,updated',
+      });
+    } catch (error) {
+      console.error('Error fetching students:', error);
+      return [];
+    }
+  },
+
+  async getAttemptsForRegisteredStudents() {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: 'student != ""',
+        sort: '-created',
+        expand: 'session,variant',
+      });
+    } catch (error) {
+      console.error('Error fetching attempts for registered students:', error);
+      return [];
+    }
+  },
 };
 
 export default pb;
