@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -15,6 +15,7 @@ import TaskImporter from './components/TaskImporter';
 import WorkManager from './components/WorkManager';
 import WorkEditorPage from './components/WorkEditorPage';
 import StudentProgressDashboard from './components/StudentProgressDashboard';
+import AchievementManager from './components/AchievementManager';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
@@ -80,9 +81,13 @@ function AppContent() {
       label: 'Редактор работ',
     },
     {
-      key: 'students',
+      key: 'students-group',
       icon: <TeamOutlined />,
       label: 'Ученики',
+      children: [
+        { key: 'students', label: 'Прогресс' },
+        { key: 'achievements', icon: <TrophyOutlined />, label: 'Достижения' },
+      ],
     },
     {
       key: 'import',
@@ -170,6 +175,8 @@ function AppContent() {
             }}
           />
         );
+      case 'achievements':
+        return <AchievementManager />;
       case 'import':
         return <TaskImporter />;
       case 'theory-browser':
@@ -220,7 +227,8 @@ function AppContent() {
       case 'test-generator': return 'Контрольные работы';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
-      case 'students': return 'Ученики';
+      case 'students': return 'Прогресс учеников';
+      case 'achievements': return 'Управление достижениями';
       case 'import': return 'Импорт задач';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';

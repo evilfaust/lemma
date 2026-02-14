@@ -1122,6 +1122,19 @@ export const api = {
     }
   },
 
+  async getAttemptsWithAchievements() {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: 'achievement != "" || unlocked_achievements:length > 0',
+        sort: '-created',
+        fields: 'id,student,student_name,achievement,unlocked_achievements,created,score,total',
+      });
+    } catch (error) {
+      console.error('Error fetching attempts with achievements:', error);
+      return [];
+    }
+  },
+
   // ============ СТУДЕНТЫ (STUDENTS AUTH) ============
 
   async registerStudent(data) {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Empty, Modal, Progress, Select, Space, Spin, Table, Tag, Typography } from 'antd';
-import { ReloadOutlined, UserOutlined } from '@ant-design/icons';
+import { App, Button, Collapse, Empty, Modal, Progress, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
+import { ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 
 const { Text } = Typography;
@@ -53,7 +53,6 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
   const [attempts, setAttempts] = useState([]);
   const [works, setWorks] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [classFilter, setClassFilter] = useState('all');
   const [editingClass, setEditingClass] = useState('');
   const [savingClass, setSavingClass] = useState(false);
 
@@ -152,11 +151,38 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
     return values;
   }, [students]);
 
-  const filteredTableData = useMemo(() => {
-    if (classFilter === 'all') return tableData;
-    if (classFilter === '__none__') return tableData.filter((s) => !s.studentClass);
-    return tableData.filter((s) => s.studentClass === classFilter);
-  }, [tableData, classFilter]);
+  // Группировка по классам для Collapse
+  const groupedByClass = useMemo(() => {
+    const groups = new Map();
+
+    tableData.forEach((student) => {
+      const cls = student.studentClass || '__none__';
+      if (!groups.has(cls)) groups.set(cls, []);
+      groups.get(cls).push(student);
+    });
+
+    // Сортируем классы: сначала по числу, потом буквы, "Без класса" в конец
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (a === '__none__') return 1;
+      if (b === '__none__') return -1;
+      return a.localeCompare(b, 'ru', { numeric: true, sensitivity: 'base' });
+    });
+
+    return sortedKeys.map((key) => {
+      const students = groups.get(key);
+      const avgPercent = students.length > 0
+        ? Math.round(students.reduce((sum, s) => sum + s.avgPercent, 0) / students.length)
+        : 0;
+      const totalAttempts = students.reduce((sum, s) => sum + s.attemptsCount, 0);
+      return {
+        key,
+        label: key === '__none__' ? 'Без класса' : key,
+        students,
+        avgPercent,
+        totalAttempts,
+      };
+    });
+  }, [tableData]);
 
   const columns = [
     {
@@ -307,42 +333,60 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
     }));
   }, [selectedStudent, attemptsByStudentId, worksById]);
 
+  // Колонки без колонки "Класс" для таблиц внутри Collapse
+  const columnsWithoutClass = useMemo(() =>
+    columns.filter((c) => c.key !== 'studentClass'),
+    [columns]
+  );
+
   if (loading && tableData.length === 0) {
     return <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>;
   }
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Space>
-          <UserOutlined />
-          <Text strong>Зарегистрированные ученики ({filteredTableData.length})</Text>
-          <Select
-            size="small"
-            value={classFilter}
-            style={{ minWidth: 180 }}
-            onChange={setClassFilter}
-            options={[
-              { value: 'all', label: 'Все классы' },
-              { value: '__none__', label: 'Без класса' },
-              ...classOptions.map((value) => ({ value, label: value })),
-            ]}
-          />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Space size={16}>
+          <UserOutlined style={{ fontSize: 16 }} />
+          <Text strong style={{ fontSize: 15 }}>Ученики: {tableData.length}</Text>
+          <Text type="secondary">Классов: {groupedByClass.filter(g => g.key !== '__none__').length}</Text>
         </Space>
         <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading} size="small">
           Обновить
         </Button>
       </div>
 
-      {filteredTableData.length === 0 ? (
+      {tableData.length === 0 ? (
         <Empty description="Нет зарегистрированных учеников" />
       ) : (
-        <Table
-          columns={columns}
-          dataSource={filteredTableData}
-          size="small"
-          pagination={false}
-          scroll={{ x: 1040 }}
+        <Collapse
+          defaultActiveKey={groupedByClass.length <= 4 ? groupedByClass.map(g => g.key) : []}
+          style={{ background: 'transparent' }}
+          items={groupedByClass.map((group) => ({
+            key: group.key,
+            label: (
+              <Space size={12}>
+                <TeamOutlined />
+                <Text strong style={{ fontSize: 14 }}>{group.label}</Text>
+                <Tag>{group.students.length} уч.</Tag>
+                <Tag color={group.avgPercent >= 70 ? 'green' : group.avgPercent >= 40 ? 'blue' : 'default'}>
+                  Средний: {group.avgPercent}%
+                </Tag>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Попыток: {group.totalAttempts}
+                </Text>
+              </Space>
+            ),
+            children: (
+              <Table
+                columns={columnsWithoutClass}
+                dataSource={group.students}
+                size="small"
+                pagination={group.students.length > 20 ? { pageSize: 20 } : false}
+                scroll={{ x: 920 }}
+              />
+            ),
+          }))}
         />
       )}
 
