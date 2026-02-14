@@ -1,13 +1,15 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
-import { Button, Select, Input, Modal, Spin, InputNumber, Radio, Tag, Space, Tooltip, App } from 'antd';
+import { Button, Select, Input, Modal, Spin, InputNumber, Radio, Tag, Space, Tooltip, Badge, App } from 'antd';
 import {
   SaveOutlined, SettingOutlined,
   FormatPainterOutlined, ColumnWidthOutlined, FilePdfOutlined,
-  ArrowLeftOutlined, TagsOutlined
+  ArrowLeftOutlined, TagsOutlined, CheckCircleOutlined
 } from '@ant-design/icons';
 import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave, usePuppeteerPDF } from '../hooks';
 import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
+import EditorToolbar from './theory/EditorToolbar';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
@@ -38,11 +40,9 @@ $$
 $$
 `;
 
-import { useReferenceData } from '../contexts/ReferenceDataContext';
-
 export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const { message } = App.useApp();
-  const { theoryCategories: categories } = useReferenceData();
+  const { theoryCategories: categories, reloadData } = useReferenceData();
   const initialData = useMemo(() => {
     const { content, settings } = loadAutosave(articleId);
     return {
@@ -61,6 +61,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const [isExporting, setIsExporting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [articleLoading, setArticleLoading] = useState(!!articleId);
+  const [splitPos, setSplitPos] = useState(50);
 
   // Article metadata
   const [title, setTitle] = useState('');
@@ -70,6 +71,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
 
   const editorRef = useRef(null);
   const previewRef = useRef(null);
+  const containerRef = useRef(null);
   const puppeteerPDF = usePuppeteerPDF();
 
   // Process markdown
@@ -116,21 +118,16 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const insertFormula = useCallback((type) => {
     const editor = editorRef.current;
     if (!editor) return;
-
     const selection = editor.getSelection();
-
     if (type === 'inline') {
-      const text = '$ $';
-      editor.executeEdits('', [{ range: selection, text }]);
+      editor.executeEdits('', [{ range: selection, text: '$ $' }]);
       const pos = selection.getStartPosition();
       editor.setPosition({ lineNumber: pos.lineNumber, column: pos.column + 2 });
     } else if (type === 'block') {
-      const text = '\n$$\n\n$$\n';
-      editor.executeEdits('', [{ range: selection, text }]);
+      editor.executeEdits('', [{ range: selection, text: '\n$$\n\n$$\n' }]);
       const pos = selection.getStartPosition();
       editor.setPosition({ lineNumber: pos.lineNumber + 2, column: 1 });
     }
-
     editor.focus();
   }, []);
 
@@ -144,7 +141,6 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
       message.warning('Выберите категорию');
       return;
     }
-
     setSaving(true);
     try {
       const data = {
@@ -155,7 +151,6 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         summary: summary.trim(),
         theme_settings: { pageSettings, currentTheme },
       };
-
       if (articleId) {
         await api.updateTheoryArticle(articleId, data);
         message.success('Статья обновлена');
@@ -164,12 +159,13 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         message.success('Статья создана');
         onSaved?.(created.id);
       }
+      reloadData();
     } catch (error) {
       message.error('Ошибка при сохранении');
     } finally {
       setSaving(false);
     }
-  }, [title, categoryId, markdown, articleTags, summary, pageSettings, currentTheme, articleId, onSaved]);
+  }, [title, categoryId, markdown, articleTags, summary, pageSettings, currentTheme, articleId, onSaved, reloadData]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -189,10 +185,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
       marginLeft: `${pageSettings.marginLeft}mm`,
       marginRight: `${pageSettings.marginRight}mm`,
     });
-
-    if (puppeteerSuccess || !previewRef.current || puppeteerPDF.serverAvailable) {
-      return;
-    }
+    if (puppeteerSuccess || !previewRef.current || puppeteerPDF.serverAvailable) return;
 
     message.warning('PDF-сервис недоступен. Используем резервный экспорт.');
     setIsExporting(true);
@@ -203,13 +196,8 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         filename: `${filename}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: {
-          unit: 'mm',
-          format: [dims.width, dims.height],
-          orientation: pageSettings.orientation,
-        },
+        jsPDF: { unit: 'mm', format: [dims.width, dims.height], orientation: pageSettings.orientation },
       };
-
       await html2pdf().set(opt).from(previewRef.current).save();
       message.success('PDF экспортирован (резервный метод)');
     } catch (error) {
@@ -224,6 +212,37 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const toggleColumns = useCallback(() => {
     setPageSettings(prev => ({ ...prev, columns: prev.columns === 1 ? 2 : 1 }));
   }, []);
+
+  // Resize handler
+  const handleResizeStart = useCallback((e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startPos = splitPos;
+    const container = containerRef.current;
+    if (!container) return;
+    const containerWidth = container.offsetWidth;
+
+    const onMove = (ev) => {
+      const delta = ev.clientX - startX;
+      const newPos = Math.min(80, Math.max(20, startPos + (delta / containerWidth) * 100));
+      setSplitPos(newPos);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [splitPos]);
+
+  // Trigger Monaco layout on split change
+  useEffect(() => {
+    editorRef.current?.layout();
+  }, [splitPos]);
 
   // Preview styles
   const previewStyles = useMemo(() => {
@@ -251,9 +270,9 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
 
   return (
     <div className="theory-editor-container">
-      {/* Компактный тулбар */}
-      <div className="theory-editor-toolbar">
-        <div className="toolbar-group">
+      {/* Meta toolbar */}
+      <div className="theory-editor-meta-toolbar">
+        <div className="toolbar-left">
           {onBack && (
             <Tooltip title="Назад">
               <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack} />
@@ -264,34 +283,27 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             value={title}
             onChange={e => setTitle(e.target.value)}
             size="small"
-            style={{ width: 200 }}
+            className="theory-title-input"
           />
           <Select
             placeholder="Категория"
             value={categoryId}
             onChange={setCategoryId}
             size="small"
-            style={{ width: 150 }}
+            style={{ width: 160 }}
             options={categories.map(c => ({
               label: <Tag color={c.color} style={{ margin: 0 }}>{c.title}</Tag>,
               value: c.id,
             }))}
           />
           <Tooltip title={articleTags.length > 0 ? `Теги: ${articleTags.join(', ')}` : 'Теги'}>
-            <Button
-              type="text"
-              size="small"
-              icon={<TagsOutlined />}
-              onClick={() => setIsTagsModalOpen(true)}
-            >
-              {articleTags.length > 0 && <span style={{ fontSize: 11, color: '#888' }}>{articleTags.length}</span>}
-            </Button>
+            <Badge count={articleTags.length} size="small" offset={[-4, 0]}>
+              <Button type="text" size="small" icon={<TagsOutlined />} onClick={() => setIsTagsModalOpen(true)} />
+            </Badge>
           </Tooltip>
         </div>
 
-        <div style={{ flex: 1 }} />
-
-        <div className="toolbar-group">
+        <div className="toolbar-right">
           <Tooltip title={pageSettings.columns > 1 ? '1 колонка' : '2 колонки'}>
             <Button
               type={pageSettings.columns > 1 ? 'primary' : 'text'}
@@ -313,6 +325,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             icon={<SaveOutlined />}
             onClick={handleSave}
             loading={saving}
+            className="theory-save-btn"
           >
             Сохранить
           </Button>
@@ -328,12 +341,15 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         </div>
       </div>
 
+      {/* Formatting toolbar */}
+      <EditorToolbar editorRef={editorRef} />
+
       {/* Editor + Preview */}
-      <div className="theory-editor-body">
+      <div className="theory-editor-body" ref={containerRef}>
         {/* Editor Panel */}
-        <div className="theory-editor-panel">
+        <div className="theory-editor-panel editor-panel" style={{ width: `calc(${splitPos}% - 3px)` }}>
           <div className="panel-header">
-            <span>Редактор (Markdown + LaTeX)</span>
+            <span>Markdown + LaTeX</span>
             <span className="hint">Ctrl+I — inline, Ctrl+B — блочная формула</span>
           </div>
           <Suspense fallback={<div className="theory-editor-loading">Загрузка редактора...</div>}>
@@ -359,15 +375,16 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
           </Suspense>
         </div>
 
+        {/* Resize handle */}
+        <div className="theory-editor-resize-handle" onMouseDown={handleResizeStart} />
+
         {/* Preview Panel */}
-        <div className="theory-editor-panel">
+        <div className="theory-editor-panel preview-panel">
           <div className="panel-header">
             <span>
-              Превью ({pageSettings.pageSize} {pageSettings.orientation === 'landscape' ? '↔' : '↕'}) — {THEME_NAMES[currentTheme]}
+              Превью ({pageSettings.pageSize} {pageSettings.orientation === 'landscape' ? '↔' : '↕'})
             </span>
-            <span className="stats">
-              {stats.words} слов | {stats.formulas} формул
-            </span>
+            <span className="hint">{THEME_NAMES[currentTheme] || currentTheme}</span>
           </div>
           <div className="theory-preview-wrapper">
             <div
@@ -381,6 +398,26 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         </div>
       </div>
 
+      {/* Status bar */}
+      <div className="theory-editor-statusbar">
+        <span className="statusbar-item">{stats.words} слов</span>
+        <span className="statusbar-divider" />
+        <span className="statusbar-item">{stats.formulas} формул</span>
+        <span className="statusbar-divider" />
+        <span className="statusbar-item">{stats.chars} символов</span>
+        <span className="statusbar-divider" />
+        <span
+          className="statusbar-item statusbar-theme"
+          onClick={() => setIsThemeModalOpen(true)}
+        >
+          <FormatPainterOutlined /> {THEME_NAMES[currentTheme] || currentTheme}
+        </span>
+        <div className="statusbar-spacer" />
+        <span className="statusbar-item statusbar-autosave">
+          <CheckCircleOutlined /> Автосохранение
+        </span>
+      </div>
+
       {/* Tags Modal */}
       <Modal
         title="Теги статьи"
@@ -389,7 +426,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         footer={null}
         width={400}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className="theory-tags-content">
           <Select
             mode="tags"
             placeholder="Введите теги через Enter"
@@ -400,7 +437,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             open={false}
           />
           {articleTags.length > 0 && (
-            <div>
+            <div className="theory-tags-list">
               {articleTags.map(tag => (
                 <Tag
                   key={tag}
@@ -413,6 +450,13 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
               ))}
             </div>
           )}
+          <Input.TextArea
+            placeholder="Краткое описание (summary)"
+            value={summary}
+            onChange={e => setSummary(e.target.value)}
+            rows={2}
+            style={{ marginTop: 8 }}
+          />
         </div>
       </Modal>
 
@@ -429,10 +473,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             <div
               key={theme.id}
               className={`theory-theme-card ${currentTheme === theme.id ? 'active' : ''}`}
-              onClick={() => {
-                setCurrentTheme(theme.id);
-                setIsThemeModalOpen(false);
-              }}
+              onClick={() => { setCurrentTheme(theme.id); setIsThemeModalOpen(false); }}
             >
               <div className="theme-preview" data-theme={theme.id}>
                 <div className="preview-title">Заголовок</div>
@@ -442,9 +483,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
               <div className="theme-info">
                 <h4>{theme.name}</h4>
                 <p>{theme.description}</p>
-                {currentTheme === theme.id && (
-                  <Tag color="green" style={{ marginTop: 4 }}>Выбрана</Tag>
-                )}
+                {currentTheme === theme.id && <Tag color="green" style={{ marginTop: 4 }}>Выбрана</Tag>}
               </div>
             </div>
           ))}
@@ -459,9 +498,9 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
         footer={null}
         width={500}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '8px 0' }}>
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Формат страницы</div>
+        <div className="theory-settings-content">
+          <div className="theory-settings-section">
+            <div className="theory-settings-section-title">Формат страницы</div>
             <Radio.Group
               value={pageSettings.pageSize}
               onChange={e => setPageSettings(prev => ({ ...prev, pageSize: e.target.value }))}
@@ -471,8 +510,8 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             </Radio.Group>
           </div>
 
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Ориентация</div>
+          <div className="theory-settings-section">
+            <div className="theory-settings-section-title">Ориентация</div>
             <Radio.Group
               value={pageSettings.orientation}
               onChange={e => setPageSettings(prev => ({ ...prev, orientation: e.target.value }))}
@@ -482,41 +521,41 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             </Radio.Group>
           </div>
 
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Поля (мм)</div>
+          <div className="theory-settings-section">
+            <div className="theory-settings-section-title">Поля (мм)</div>
             <Space>
               <div>
-                <div style={{ fontSize: 12, color: '#888' }}>Верх</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Верх</div>
                 <InputNumber min={5} max={50} value={pageSettings.marginTop}
                   onChange={v => setPageSettings(prev => ({ ...prev, marginTop: v || 15 }))} />
               </div>
               <div>
-                <div style={{ fontSize: 12, color: '#888' }}>Низ</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Низ</div>
                 <InputNumber min={5} max={50} value={pageSettings.marginBottom}
                   onChange={v => setPageSettings(prev => ({ ...prev, marginBottom: v || 15 }))} />
               </div>
               <div>
-                <div style={{ fontSize: 12, color: '#888' }}>Лево</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Лево</div>
                 <InputNumber min={5} max={50} value={pageSettings.marginLeft}
                   onChange={v => setPageSettings(prev => ({ ...prev, marginLeft: v || 15 }))} />
               </div>
               <div>
-                <div style={{ fontSize: 12, color: '#888' }}>Право</div>
+                <div style={{ fontSize: 12, color: '#8c8c8c' }}>Право</div>
                 <InputNumber min={5} max={50} value={pageSettings.marginRight}
                   onChange={v => setPageSettings(prev => ({ ...prev, marginRight: v || 15 }))} />
               </div>
             </Space>
           </div>
 
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Размер шрифта (px)</div>
+          <div className="theory-settings-section">
+            <div className="theory-settings-section-title">Размер шрифта (px)</div>
             <InputNumber min={10} max={24} value={pageSettings.fontSize}
               onChange={v => setPageSettings(prev => ({ ...prev, fontSize: v || 16 }))} />
           </div>
 
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Быстрые пресеты</div>
-            <Space wrap>
+          <div className="theory-settings-section">
+            <div className="theory-settings-section-title">Быстрые пресеты</div>
+            <div className="theory-settings-presets">
               <Button size="small" onClick={() => setPageSettings({
                 pageSize: 'A4', orientation: 'portrait', columns: 1,
                 marginTop: 20, marginBottom: 20, marginLeft: 20, marginRight: 20, fontSize: 16
@@ -533,7 +572,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
                 pageSize: 'A4', orientation: 'portrait', columns: 1,
                 marginTop: 8, marginBottom: 8, marginLeft: 8, marginRight: 8, fontSize: 11
               })}>A4 Плотная</Button>
-            </Space>
+            </div>
           </div>
         </div>
       </Modal>

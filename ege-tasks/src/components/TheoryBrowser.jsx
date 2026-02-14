@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Card, Row, Col, Input, Select, Button, Tag, Empty, Spin, Space, Popconfirm, Typography, App } from 'antd';
+import { Input, Select, Button, Tag, Spin, Popconfirm, Tooltip, App } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
-  PrinterOutlined, SearchOutlined, BookOutlined
+  SearchOutlined, BookOutlined, AppstoreOutlined, ClockCircleOutlined
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
-
-const { Paragraph } = Typography;
+import './theory/TheoryBrowser.css';
 
 export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateArticle }) {
   const { message } = App.useApp();
   const { theoryCategories: categories } = useReferenceData();
   const [articles, setArticles] = useState([]);
+  const [articleCounts, setArticleCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [searchText, setSearchText] = useState('');
@@ -20,6 +20,10 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
   useEffect(() => {
     loadArticles();
   }, [selectedCategory]);
+
+  useEffect(() => {
+    loadArticleCounts();
+  }, []);
 
   const loadArticles = async () => {
     setLoading(true);
@@ -35,17 +39,26 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
     }
   };
 
+  const loadArticleCounts = async () => {
+    try {
+      const counts = await api.getTheoryArticleCountByCategory();
+      setArticleCounts(counts);
+    } catch (error) {
+      console.error('Error loading article counts:', error);
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       await api.deleteTheoryArticle(id);
       message.success('Статья удалена');
       loadArticles();
+      loadArticleCounts();
     } catch (error) {
       message.error('Ошибка при удалении');
     }
   };
 
-  // Client-side search filter
   const filteredArticles = articles.filter(a => {
     if (!searchText) return true;
     const search = searchText.toLowerCase();
@@ -57,144 +70,186 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
   });
 
   const getCategoryInfo = (categoryId) => {
-    const cat = categories.find(c => c.id === categoryId);
-    if (!cat) {
-      // Try expanded data
-      return null;
-    }
-    return cat;
+    return categories.find(c => c.id === categoryId) || null;
   };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('ru-RU', {
+      day: 'numeric',
+      month: 'short',
+    });
+  };
+
+  // Статистика для hero
+  const totalArticles = articles.length;
+  const recentCount = articles.filter(a => {
+    if (!a.updated) return false;
+    const diff = Date.now() - new Date(a.updated).getTime();
+    return diff < 7 * 24 * 60 * 60 * 1000; // 7 дней
+  }).length;
 
   return (
     <div>
-      {/* Toolbar */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Button type="primary" icon={<PlusOutlined />} onClick={onCreateArticle}>
-          Новая статья
-        </Button>
-
-        <Select
-          placeholder="Все категории"
-          allowClear
-          value={selectedCategory}
-          onChange={setSelectedCategory}
-          style={{ width: 200 }}
-          options={[
-            ...categories.map(c => ({
-              label: <Tag color={c.color}>{c.title}</Tag>,
-              value: c.id,
-            })),
-          ]}
-        />
-
-        <Input
-          placeholder="Поиск по названию..."
-          prefix={<SearchOutlined />}
-          value={searchText}
-          onChange={e => setSearchText(e.target.value)}
-          style={{ width: 250 }}
-          allowClear
-        />
-
-        <span style={{ color: '#888', fontSize: 13 }}>
-          Всего: {filteredArticles.length}
-        </span>
+      {/* Hero секция */}
+      <div className="theory-browser-hero">
+        <div className="theory-hero-card theory-hero-card--articles">
+          <div className="theory-hero-icon"><BookOutlined /></div>
+          <div className="theory-hero-value">{totalArticles}</div>
+          <div className="theory-hero-label">Статей</div>
+        </div>
+        <div className="theory-hero-card theory-hero-card--categories">
+          <div className="theory-hero-icon"><AppstoreOutlined /></div>
+          <div className="theory-hero-value">{categories.length}</div>
+          <div className="theory-hero-label">Категорий</div>
+        </div>
+        <div className="theory-hero-card theory-hero-card--recent">
+          <div className="theory-hero-icon"><ClockCircleOutlined /></div>
+          <div className="theory-hero-value">{recentCount}</div>
+          <div className="theory-hero-label">За неделю</div>
+        </div>
       </div>
 
-      {/* Category chips */}
+      {/* Панель поиска */}
+      <div className="theory-browser-search-bar">
+        <div className="theory-search-input">
+          <Input
+            placeholder="Поиск по названию, описанию или тегам..."
+            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+            size="large"
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+            allowClear
+          />
+        </div>
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          className="theory-create-btn"
+          onClick={onCreateArticle}
+        >
+          Новая статья
+        </Button>
+      </div>
+
+      {/* Category pills */}
       {categories.length > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <Tag
-            color={!selectedCategory ? '#1890ff' : undefined}
-            style={{ cursor: 'pointer', marginBottom: 4 }}
+        <div className="theory-category-pills">
+          <div
+            className={`theory-category-pill ${!selectedCategory ? 'active' : ''}`}
+            style={{ '--pill-color': '#4361ee' }}
             onClick={() => setSelectedCategory(null)}
           >
             Все
-          </Tag>
+            <span className="pill-count">{totalArticles}</span>
+          </div>
           {categories.map(cat => (
-            <Tag
+            <div
               key={cat.id}
-              color={selectedCategory === cat.id ? cat.color : undefined}
-              style={{
-                cursor: 'pointer',
-                marginBottom: 4,
-                opacity: selectedCategory && selectedCategory !== cat.id ? 0.5 : 1,
-              }}
+              className={`theory-category-pill ${selectedCategory === cat.id ? 'active' : ''}`}
+              style={{ '--pill-color': cat.color }}
               onClick={() => setSelectedCategory(selectedCategory === cat.id ? null : cat.id)}
             >
+              <span className="pill-dot" style={{ background: cat.color }} />
               {cat.title}
-            </Tag>
+              <span className="pill-count">{articleCounts[cat.id] || 0}</span>
+            </div>
           ))}
         </div>
       )}
 
-      {/* Articles grid */}
+      {/* Контент */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 60 }}>
+        <div className="theory-browser-loading">
           <Spin size="large" />
         </div>
       ) : filteredArticles.length === 0 ? (
-        <Empty
-          image={<BookOutlined style={{ fontSize: 64, color: '#d9d9d9' }} />}
-          description={articles.length === 0 ? 'Нет статей. Создайте первую!' : 'Ничего не найдено'}
-        >
+        <div className="theory-browser-empty">
+          <div className="theory-browser-empty-icon"><BookOutlined /></div>
+          <div className="theory-browser-empty-text">
+            {articles.length === 0 ? 'Нет статей. Создайте первую!' : 'Ничего не найдено'}
+          </div>
           {articles.length === 0 && (
             <Button type="primary" icon={<PlusOutlined />} onClick={onCreateArticle}>
               Создать статью
             </Button>
           )}
-        </Empty>
+        </div>
       ) : (
-        <Row gutter={[16, 16]}>
+        <div className="theory-articles-grid">
           {filteredArticles.map(article => {
             const cat = getCategoryInfo(article.category) || article.expand?.category;
             return (
-              <Col key={article.id} xs={24} sm={24} md={12} lg={8} xl={6}>
-                <Card
-                  hoverable
-                  size="small"
-                  title={
-                    <span style={{ fontSize: 14 }}>
-                      {article.title}
+              <div
+                key={article.id}
+                className="theory-article-card"
+                style={{ '--card-accent': cat?.color || '#d9d9d9' }}
+                onClick={() => onViewArticle?.(article.id)}
+              >
+                <div className="theory-article-card-header">
+                  {cat && (
+                    <span
+                      className="theory-article-category-badge"
+                      style={{ color: cat.color }}
+                    >
+                      {cat.title}
                     </span>
-                  }
-                  extra={
-                    cat && <Tag color={cat.color} style={{ fontSize: 11 }}>{cat.title}</Tag>
-                  }
-                  actions={[
-                    <EyeOutlined key="view" onClick={() => onViewArticle?.(article.id)} />,
-                    <EditOutlined key="edit" onClick={() => onEditArticle?.(article.id)} />,
+                  )}
+                  <span className="theory-article-date">
+                    {formatDate(article.updated)}
+                  </span>
+                </div>
+
+                <h3 className="theory-article-card-title">{article.title}</h3>
+
+                {article.summary && (
+                  <p className="theory-article-card-summary">{article.summary}</p>
+                )}
+
+                <div className="theory-article-card-footer">
+                  <div className="theory-article-tags">
+                    {(article.tags || []).slice(0, 3).map(tag => (
+                      <span key={tag} className="theory-article-tag">{tag}</span>
+                    ))}
+                  </div>
+                  <div className="theory-article-actions">
+                    <Tooltip title="Просмотр">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EyeOutlined />}
+                        onClick={(e) => { e.stopPropagation(); onViewArticle?.(article.id); }}
+                      />
+                    </Tooltip>
+                    <Tooltip title="Редактировать">
+                      <Button
+                        type="text"
+                        size="small"
+                        icon={<EditOutlined />}
+                        onClick={(e) => { e.stopPropagation(); onEditArticle?.(article.id); }}
+                      />
+                    </Tooltip>
                     <Popconfirm
-                      key="delete"
                       title="Удалить статью?"
                       onConfirm={() => handleDelete(article.id)}
                       okText="Да"
                       cancelText="Нет"
                     >
-                      <DeleteOutlined />
-                    </Popconfirm>,
-                  ]}
-                >
-                  {article.summary && (
-                    <Paragraph ellipsis={{ rows: 2 }} style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>
-                      {article.summary}
-                    </Paragraph>
-                  )}
-
-                  <div>
-                    {(article.tags || []).slice(0, 4).map(tag => (
-                      <Tag key={tag} style={{ fontSize: 11, marginBottom: 2 }}>{tag}</Tag>
-                    ))}
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </Popconfirm>
                   </div>
-
-                  <div style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
-                    {article.updated ? new Date(article.updated).toLocaleDateString('ru-RU') : ''}
-                  </div>
-                </Card>
-              </Col>
+                </div>
+              </div>
             );
           })}
-        </Row>
+        </div>
       )}
     </div>
   );

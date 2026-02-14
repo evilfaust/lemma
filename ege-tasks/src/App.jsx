@@ -296,15 +296,15 @@ function AppContent() {
         </Header>
 
         <Content style={{
-          margin: currentView === 'theory-editor' ? 0 : '24px 16px 0',
+          margin: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? 0 : '24px 16px 0',
           overflow: 'hidden',
         }}>
           <div style={{
-            padding: currentView === 'theory-editor' ? 0 : 24,
-            minHeight: currentView === 'theory-editor' ? undefined : 360,
-            height: currentView === 'theory-editor' ? '100%' : undefined,
+            padding: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? 0 : 24,
+            minHeight: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? undefined : 360,
+            height: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? '100%' : undefined,
             background: '#fff',
-            borderRadius: currentView === 'theory-editor' ? 0 : 8,
+            borderRadius: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? 0 : 8,
           }}>
             {renderContent()}
           </div>

@@ -1,0 +1,485 @@
+/* ===== Theory Print Builder — Конспекты ===== */
+
+@keyframes theoryFadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Main layout */
+.theory-print-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Toolbar */
+.theory-print-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid #f0f0f0;
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+.theory-print-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.theory-print-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.theory-print-toolbar .ant-input {
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.theory-print-toolbar .ant-select .ant-select-selector {
+  border-radius: 8px !important;
+}
+
+.theory-print-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: #e8e8e8;
+  flex-shrink: 0;
+}
+
+/* Split layout */
+.theory-print-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* Left panel — article selector */
+.theory-print-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.theory-print-sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.theory-print-sidebar-header h3 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a2e;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.theory-print-counter {
+  font-size: 12px;
+  color: #8c8c8c;
+  font-weight: 500;
+  margin-top: 8px;
+}
+
+.theory-print-counter strong {
+  color: #4361ee;
+}
+
+/* Article list */
+.theory-print-article-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.theory-print-article-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
+  border: 1.5px solid transparent;
+  background: #fff;
+}
+
+.theory-print-article-item:hover {
+  border-color: #d9d9d9;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.theory-print-article-item.selected {
+  background: #f0f5ff;
+  border-color: #4361ee;
+}
+
+.theory-print-article-item .ant-checkbox-wrapper {
+  pointer-events: none;
+}
+
+.theory-print-article-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.theory-print-article-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a2e;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theory-print-article-category {
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.theory-print-article-order {
+  font-size: 18px;
+  font-weight: 700;
+  color: #d9d9d9;
+  flex-shrink: 0;
+  min-width: 24px;
+  text-align: center;
+}
+
+.theory-print-article-item.selected .theory-print-article-order {
+  color: #4361ee;
+}
+
+/* Selected articles reorder section */
+.theory-print-selected {
+  border-top: 1px solid #f0f0f0;
+  padding: 12px;
+  background: #fff;
+}
+
+.theory-print-selected-header {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8c8c8c;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.theory-print-selected-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.theory-print-selected-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: #f5f5ff;
+  border-radius: 8px;
+  border: 1px solid #e8e8f0;
+  cursor: grab;
+  transition: all 0.2s ease;
+  font-size: 12px;
+  color: #1a1a2e;
+}
+
+.theory-print-selected-item:active {
+  cursor: grabbing;
+}
+
+.theory-print-selected-item:hover {
+  background: #ebebff;
+  border-color: #c5c5ee;
+}
+
+.theory-print-selected-item.dragging {
+  opacity: 0.5;
+  box-shadow: 0 4px 12px rgba(67, 97, 238, 0.2);
+}
+
+.theory-print-selected-item.drag-over {
+  border-color: #4361ee;
+  background: #e0e7ff;
+}
+
+.theory-print-selected-item-drag {
+  color: #bfbfbf;
+  flex-shrink: 0;
+}
+
+.theory-print-selected-item-num {
+  font-weight: 700;
+  color: #4361ee;
+  min-width: 18px;
+  flex-shrink: 0;
+}
+
+.theory-print-selected-item-title {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theory-print-selected-item-remove {
+  color: #bfbfbf;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.2s;
+}
+
+.theory-print-selected-item-remove:hover {
+  color: #ff4d4f;
+}
+
+/* Right panel — preview */
+.theory-print-preview-area {
+  flex: 1;
+  overflow-y: auto;
+  background: #e8e8e8;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.theory-print-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #8c8c8c;
+  animation: theoryFadeInUp 0.5s ease-out;
+}
+
+.theory-print-empty-icon {
+  font-size: 56px;
+  color: #d9d9d9;
+  margin-bottom: 16px;
+}
+
+.theory-print-empty-text {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.theory-print-empty-hint {
+  font-size: 13px;
+  color: #bfbfbf;
+  margin-top: 4px;
+}
+
+/* Page counter */
+.theory-print-page-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  font-size: 13px;
+  color: #595959;
+  animation: theoryFadeInUp 0.5s ease-out;
+}
+
+.theory-print-page-info strong {
+  color: #4361ee;
+}
+
+/* Print area */
+.theory-print-content {
+  animation: theoryFadeInUp 0.5s ease-out;
+}
+
+/* ===== Print styles ===== */
+@media print {
+  body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ant-layout-sider,
+  .ant-layout-header,
+  .ant-pagination,
+  .no-print,
+  .theory-print-toolbar,
+  .theory-print-sidebar,
+  .theory-print-page-info {
+    display: none !important;
+  }
+
+  .ant-layout,
+  .ant-layout-content {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+  }
+
+  .theory-print-view {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .theory-print-layout {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .theory-print-preview-area {
+    padding: 0 !important;
+    background: white !important;
+    overflow: visible !important;
+    flex: none !important;
+    width: 100% !important;
+  }
+
+  .theory-article-print-area {
+    width: 100% !important;
+    min-height: auto !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    font-size: 12pt !important;
+    line-height: 1.5 !important;
+    background: white !important;
+  }
+
+  .theory-article-print-area .katex {
+    font-size: 1em !important;
+  }
+
+  .theory-article-print-area .katex-display {
+    margin: 12pt 0 !important;
+    overflow: hidden !important;
+  }
+
+  .theory-article-print-area h1 {
+    font-size: 18pt !important;
+    margin-bottom: 12pt !important;
+    page-break-after: avoid;
+  }
+
+  .theory-article-print-area h2 {
+    font-size: 15pt !important;
+    margin-top: 16pt !important;
+    margin-bottom: 8pt !important;
+    page-break-after: avoid;
+  }
+
+  .theory-article-print-area h3 {
+    font-size: 13pt !important;
+    margin-top: 12pt !important;
+    margin-bottom: 6pt !important;
+    page-break-after: avoid;
+  }
+
+  .theory-article-print-area p {
+    margin-bottom: 6pt !important;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .theory-article-print-area ul,
+  .theory-article-print-area ol {
+    margin-left: 20pt !important;
+    margin-bottom: 8pt !important;
+  }
+
+  .theory-article-print-area li {
+    margin-bottom: 3pt !important;
+  }
+
+  .theory-article-print-area blockquote {
+    border-left: 3pt solid #666 !important;
+    padding: 6pt 12pt !important;
+    margin: 8pt 0 !important;
+    background: #f5f5f5 !important;
+    page-break-inside: avoid;
+  }
+
+  .theory-article-print-area table {
+    page-break-inside: avoid;
+    border-collapse: collapse !important;
+  }
+
+  .theory-article-print-area td,
+  .theory-article-print-area th {
+    border: 1px solid #333 !important;
+    padding: 4pt 8pt !important;
+  }
+
+  .theory-article-print-area img {
+    max-width: 100% !important;
+    page-break-inside: avoid;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .theory-print-sidebar {
+    width: 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  .theory-print-layout {
+    flex-direction: column;
+  }
+
+  .theory-print-sidebar {
+    width: 100%;
+    max-height: 300px;
+    border-right: none;
+    border-bottom: 1px solid #f0f0f0;
+  }
+
+  .theory-print-preview-area {
+    padding: 16px;
+  }
+
+  .theory-print-toolbar {
+    flex-wrap: wrap;
+  }
+}

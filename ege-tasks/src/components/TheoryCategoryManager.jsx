@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, InputNumber, ColorPicker, Space, Popconfirm, Tag, App } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, Modal, Form, Input, InputNumber, ColorPicker, Space, Popconfirm, Tag, App } from 'antd';
+import { PlusOutlined, EditOutlined, DeleteOutlined, BookOutlined, HolderOutlined, AppstoreOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
+import './theory/TheoryCategoryManager.css';
 
 const DEFAULT_CATEGORIES = [
   { title: 'Алгебра', color: '#1890ff', order: 1 },
@@ -19,6 +20,8 @@ export default function TheoryCategoryManager() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -84,7 +87,6 @@ export default function TheoryCategoryManager() {
         color,
         order: values.order || 0,
       };
-
       if (editingCategory) {
         await api.updateTheoryCategory(editingCategory.id, data);
         message.success('Категория обновлена');
@@ -95,7 +97,7 @@ export default function TheoryCategoryManager() {
       setModalOpen(false);
       loadData();
     } catch (error) {
-      if (error.errorFields) return; // validation error
+      if (error.errorFields) return;
       message.error('Ошибка при сохранении');
     }
   };
@@ -115,103 +117,150 @@ export default function TheoryCategoryManager() {
     }
   };
 
-  const columns = [
-    {
-      title: 'Цвет',
-      dataIndex: 'color',
-      key: 'color',
-      width: 60,
-      render: (color) => (
-        <div style={{
-          width: 24,
-          height: 24,
-          borderRadius: 4,
-          background: color || '#1890ff',
-          border: '1px solid #d9d9d9',
-        }} />
-      ),
-    },
-    {
-      title: 'Название',
-      dataIndex: 'title',
-      key: 'title',
-      render: (title, record) => (
-        <Tag color={record.color || '#1890ff'}>{title}</Tag>
-      ),
-    },
-    {
-      title: 'Описание',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-    },
-    {
-      title: 'Порядок',
-      dataIndex: 'order',
-      key: 'order',
-      width: 80,
-    },
-    {
-      title: 'Статей',
-      key: 'articles',
-      width: 80,
-      render: (_, record) => articleCounts[record.id] || 0,
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 120,
-      render: (_, record) => (
-        <Space>
-          <Button
-            type="text"
-            icon={<EditOutlined />}
-            onClick={() => handleEdit(record)}
-          />
-          <Popconfirm
-            title="Удалить категорию?"
-            description={articleCounts[record.id] > 0
-              ? `В этой категории ${articleCounts[record.id]} статей. Сначала переместите их.`
-              : 'Это действие нельзя отменить.'
-            }
-            onConfirm={() => handleDelete(record.id)}
-            okText="Да"
-            cancelText="Нет"
-            disabled={articleCounts[record.id] > 0}
-          >
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              disabled={articleCounts[record.id] > 0}
-            />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
+  // Drag-and-drop
+  const handleDragStart = (index) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    setDragOverIndex(index);
+  };
+
+  const handleDrop = async (index) => {
+    if (dragIndex === null || dragIndex === index) {
+      setDragIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+    const newCats = [...categories];
+    const [moved] = newCats.splice(dragIndex, 1);
+    newCats.splice(index, 0, moved);
+
+    // Optimistic update
+    setCategories(newCats);
+    setDragIndex(null);
+    setDragOverIndex(null);
+
+    // Update order in DB
+    try {
+      for (let i = 0; i < newCats.length; i++) {
+        if (newCats[i].order !== i + 1) {
+          await api.updateTheoryCategory(newCats[i].id, { order: i + 1 });
+        }
+      }
+    } catch (error) {
+      message.error('Ошибка при изменении порядка');
+      loadData();
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDragIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Lighten color for gradient
+  const lightenColor = (hex, percent) => {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const amt = Math.round(2.55 * percent);
+    const R = Math.min(255, (num >> 16) + amt);
+    const G = Math.min(255, ((num >> 8) & 0x00FF) + amt);
+    const B = Math.min(255, (num & 0x0000FF) + amt);
+    return `#${(0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1)}`;
+  };
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
+      <div className="theory-categories-header">
+        <h2><AppstoreOutlined /> Категории</h2>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
           Добавить категорию
         </Button>
-        {categories.length === 0 && (
-          <Button onClick={handleSeedDefaults}>
-            Создать категории по умолчанию
-          </Button>
-        )}
       </div>
 
-      <Table
-        columns={columns}
-        dataSource={categories}
-        rowKey="id"
-        loading={loading}
-        pagination={false}
-        size="middle"
-      />
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40 }}>
+          <span style={{ color: '#8c8c8c' }}>Загрузка...</span>
+        </div>
+      ) : categories.length === 0 ? (
+        <div className="theory-categories-empty">
+          <div className="theory-categories-empty-icon"><AppstoreOutlined /></div>
+          <div>Категорий пока нет</div>
+          <Button onClick={handleSeedDefaults} style={{ marginTop: 16 }}>
+            Создать категории по умолчанию
+          </Button>
+        </div>
+      ) : (
+        <div className="theory-categories-grid">
+          {categories.map((cat, index) => {
+            const count = articleCounts[cat.id] || 0;
+            return (
+              <div
+                key={cat.id}
+                className={`theory-category-card ${dragIndex === index ? 'dragging' : ''} ${dragOverIndex === index ? 'drag-over' : ''}`}
+                style={{ animationDelay: `${index * 0.05}s` }}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={() => handleDrop(index)}
+                onDragEnd={handleDragEnd}
+              >
+                <div className="category-card-drag">
+                  <HolderOutlined />
+                </div>
+
+                <div
+                  className="category-card-icon"
+                  style={{
+                    background: `linear-gradient(135deg, ${cat.color}, ${lightenColor(cat.color, 30)})`,
+                  }}
+                >
+                  <BookOutlined />
+                </div>
+
+                <div className="category-card-body">
+                  <h3 className="category-card-title">{cat.title}</h3>
+                  {cat.description && (
+                    <p className="category-card-desc">{cat.description}</p>
+                  )}
+                </div>
+
+                <div className="category-card-stats">
+                  <span className="category-card-count">{count} статей</span>
+                  <span className="category-card-order">#{cat.order}</span>
+                </div>
+
+                <div className="category-card-actions">
+                  <Button
+                    type="text"
+                    icon={<EditOutlined />}
+                    onClick={() => handleEdit(cat)}
+                  />
+                  <Popconfirm
+                    title="Удалить категорию?"
+                    description={count > 0
+                      ? `В этой категории ${count} статей. Сначала переместите их.`
+                      : 'Это действие нельзя отменить.'
+                    }
+                    onConfirm={() => handleDelete(cat.id)}
+                    okText="Да"
+                    cancelText="Нет"
+                    disabled={count > 0}
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      disabled={count > 0}
+                    />
+                  </Popconfirm>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       <Modal
         title={editingCategory ? 'Редактировать категорию' : 'Новая категория'}

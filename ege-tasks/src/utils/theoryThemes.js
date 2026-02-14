@@ -25,7 +25,10 @@ export const DEFAULT_SETTINGS = {
 
 export const THEME_NAMES = {
     classic: 'Классическая',
-    notebook: 'Тетрадь'
+    minimal: 'Минимализм',
+    academic: 'Академическая',
+    notebook: 'Тетрадь',
+    compact: 'Компактная'
 }
 
 // Theme styles generator for PDF export and preview

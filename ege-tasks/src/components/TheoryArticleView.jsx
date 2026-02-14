@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Button, Spin, Tag, Space, Select, Tooltip, Card, List, Divider, App } from 'antd';
+import { Button, Spin, Tag, Select, Tooltip, Drawer, App } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
-  PrinterOutlined
+  PrinterOutlined, FormatPainterOutlined, BookOutlined
 } from '@ant-design/icons';
 import { useMarkdownProcessor, usePuppeteerPDF } from '../hooks';
 import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
@@ -12,7 +12,7 @@ import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
-import './theory/TheoryArticlePrint.css';
+import './theory/TheoryArticleView.css';
 
 export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const { message } = App.useApp();
@@ -25,7 +25,11 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const [relatedTasks, setRelatedTasks] = useState([]);
   const [relatedTags, setRelatedTags] = useState([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
+  const [toc, setToc] = useState([]);
+  const [activeHeading, setActiveHeading] = useState(-1);
+  const [themeDrawerOpen, setThemeDrawerOpen] = useState(false);
   const previewRef = useRef(null);
+  const contentRef = useRef(null);
   const puppeteerPDF = usePuppeteerPDF();
 
   useEffect(() => {
@@ -62,21 +66,12 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     try {
       const allTags = await api.getTags();
       const tagMap = new Map(allTags.map(t => [t.title.toLowerCase(), t]));
-      const matched = tagTitles
-        .map(t => tagMap.get(t.toLowerCase()))
-        .filter(Boolean);
-
+      const matched = tagTitles.map(t => tagMap.get(t.toLowerCase())).filter(Boolean);
       const tagIds = matched.map(t => t.id);
       setRelatedTags(matched);
-
-      if (tagIds.length === 0) {
-        setRelatedTasks([]);
-        return;
-      }
-
+      if (tagIds.length === 0) { setRelatedTasks([]); return; }
       const tasks = await api.getTasks({ tags: tagIds });
-      const sorted = [...tasks].sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-      setRelatedTasks(sorted);
+      setRelatedTasks([...tasks].sort((a, b) => (a.code || '').localeCompare(b.code || '')));
     } catch (error) {
       console.error('Error loading related tasks:', error);
       setRelatedTasks([]);
@@ -88,9 +83,51 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
 
   const html = useMarkdownProcessor(article?.content_md || '', pageSettings.columns);
 
+  // Generate TOC from rendered HTML
+  useEffect(() => {
+    if (!html) { setToc([]); return; }
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const headings = tempDiv.querySelectorAll('h1, h2, h3');
+    const tocItems = Array.from(headings).map((h, i) => ({
+      id: `heading-${i}`,
+      text: h.textContent,
+      level: parseInt(h.tagName[1]),
+    }));
+    setToc(tocItems);
+  }, [html]);
+
+  // Add IDs to headings after render
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const headings = previewRef.current.querySelectorAll('h1, h2, h3');
+    headings.forEach((h, i) => { h.id = `heading-${i}`; });
+  }, [html]);
+
+  // IntersectionObserver for active TOC item
+  useEffect(() => {
+    if (!previewRef.current || toc.length === 0) return;
+    const headings = previewRef.current.querySelectorAll('h1, h2, h3');
+    if (headings.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const index = Array.from(headings).indexOf(entry.target);
+            if (index >= 0) setActiveHeading(index);
+          }
+        }
+      },
+      { rootMargin: '-10% 0px -80% 0px', root: contentRef.current }
+    );
+    headings.forEach(h => observer.observe(h));
+    return () => observer.disconnect();
+  }, [html, toc.length]);
+
   const previewStyles = useMemo(() => {
     const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
-    const base = {
+    return {
       width: `${dims.width}mm`,
       minHeight: `${dims.height}mm`,
       padding: `${pageSettings.marginTop}mm ${pageSettings.marginRight}mm ${pageSettings.marginBottom}mm ${pageSettings.marginLeft}mm`,
@@ -100,14 +137,13 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       margin: '0 auto',
       background: 'white',
       boxShadow: '0 0 10px rgba(0,0,0,0.1)',
+      ...(pageSettings.columns > 1 && {
+        display: 'grid',
+        gridTemplateColumns: `repeat(${pageSettings.columns}, 1fr)`,
+        columnGap: '15px',
+        alignContent: 'start',
+      }),
     };
-    if (pageSettings.columns > 1) {
-      base.display = 'grid';
-      base.gridTemplateColumns = `repeat(${pageSettings.columns}, 1fr)`;
-      base.columnGap = '15px';
-      base.alignContent = 'start';
-    }
-    return base;
   }, [pageSettings]);
 
   const handleExportPDF = useCallback(async () => {
@@ -121,10 +157,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       marginLeft: `${pageSettings.marginLeft}mm`,
       marginRight: `${pageSettings.marginRight}mm`,
     });
-
-    if (puppeteerSuccess || !previewRef.current || puppeteerPDF.serverAvailable) {
-      return;
-    }
+    if (puppeteerSuccess || !previewRef.current || puppeteerPDF.serverAvailable) return;
 
     message.warning('PDF-сервис недоступен. Используем резервный экспорт.');
     setIsExporting(true);
@@ -135,13 +168,8 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
         filename: `${filename}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: {
-          unit: 'mm',
-          format: [dims.width, dims.height],
-          orientation: pageSettings.orientation,
-        },
+        jsPDF: { unit: 'mm', format: [dims.width, dims.height], orientation: pageSettings.orientation },
       };
-
       await html2pdf().set(opt).from(previewRef.current).save();
       message.success('PDF экспортирован (резервный метод)');
     } catch (error) {
@@ -152,9 +180,19 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     }
   }, [article, pageSettings, puppeteerPDF, message]);
 
-  const handlePrint = useCallback(() => {
-    window.print();
+  const handlePrint = useCallback(() => window.print(), []);
+
+  const scrollToHeading = useCallback((headingId) => {
+    const el = document.getElementById(headingId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '';
+    return new Date(dateStr).toLocaleDateString('ru-RU', {
+      day: 'numeric', month: 'long', year: 'numeric',
+    });
+  };
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>;
@@ -168,7 +206,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
 
   return (
     <div className="theory-article-view">
-      {/* Toolbar — скрывается при печати */}
+      {/* Toolbar */}
       <div className="theory-article-toolbar no-print">
         <div className="theory-article-toolbar-left">
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack}>Назад</Button>
@@ -177,10 +215,9 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
             value={currentTheme}
             onChange={setCurrentTheme}
             size="small"
-            style={{ width: 150 }}
+            style={{ width: 160 }}
             options={Object.entries(THEME_NAMES).map(([key, label]) => ({
-              value: key,
-              label,
+              value: key, label,
             }))}
           />
         </div>
@@ -202,68 +239,145 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
         </div>
       </div>
 
-      {/* Контент — при печати занимает всю страницу */}
-      <div className="theory-article-content-wrapper">
-        <div
-          ref={previewRef}
-          className="theory-preview-content theory-article-print-area"
-          data-theme={currentTheme}
-          style={previewStyles}
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      </div>
+      {/* Layout with optional TOC */}
+      <div className="theory-article-layout">
+        {/* TOC Sidebar */}
+        {toc.length > 3 && (
+          <aside className="theory-article-toc no-print">
+            <div className="toc-title">Содержание</div>
+            {toc.map((item, i) => (
+              <a
+                key={i}
+                className={`toc-item toc-level-${item.level} ${activeHeading === i ? 'active' : ''}`}
+                onClick={() => scrollToHeading(item.id)}
+              >
+                {item.text}
+              </a>
+            ))}
+          </aside>
+        )}
 
-      {/* Связанные задачи — скрывается при печати */}
-      <div className="no-print" style={{ marginTop: 24 }}>
-        <Divider />
-        <Card title="Задачи по теме">
-          {article.tags?.length ? (
-            <>
-              <div style={{ marginBottom: 12 }}>
-                <Space wrap>
-                  {relatedTags.length > 0 ? (
-                    relatedTags.map(tag => (
-                      <Tag key={tag.id} color={tag.color}>{tag.title}</Tag>
-                    ))
-                  ) : (
-                    <Tag color="default">Теги статьи не найдены в базе задач</Tag>
-                  )}
-                </Space>
+        {/* Main content */}
+        <div className="theory-article-main" ref={contentRef}>
+          {/* Article header */}
+          <div className="theory-article-header no-print">
+            {cat && (
+              <span
+                className="theory-article-category"
+                style={{ color: cat.color, borderColor: cat.color }}
+              >
+                {cat.title}
+              </span>
+            )}
+            <h1 className="theory-article-title">{article.title}</h1>
+            {article.summary && (
+              <p className="theory-article-summary">{article.summary}</p>
+            )}
+            <div className="theory-article-meta">
+              {(article.tags || []).map(tag => (
+                <span key={tag} className="theory-meta-tag">{tag}</span>
+              ))}
+              <span className="theory-meta-date">{formatDate(article.updated)}</span>
+            </div>
+          </div>
+
+          {/* Article body */}
+          <div className="theory-article-content-wrapper">
+            <div
+              ref={previewRef}
+              className="theory-preview-content theory-article-print-area"
+              data-theme={currentTheme}
+              style={previewStyles}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          </div>
+
+          {/* Related tasks */}
+          {(article.tags?.length > 0) && (
+            <div className="theory-related-section no-print">
+              <div className="theory-related-header">
+                <BookOutlined /> Связанные задачи ({relatedTasks.length})
               </div>
+
+              {relatedTags.length > 0 && (
+                <div className="theory-related-tags">
+                  {relatedTags.map(tag => (
+                    <Tag key={tag.id} color={tag.color}>{tag.title}</Tag>
+                  ))}
+                </div>
+              )}
+
               {loadingRelated ? (
                 <div style={{ textAlign: 'center', padding: 20 }}><Spin /></div>
               ) : relatedTasks.length === 0 ? (
-                <div style={{ color: '#999' }}>Нет задач по выбранным тегам.</div>
+                <div style={{ color: '#8c8c8c', fontSize: 13 }}>
+                  {relatedTags.length === 0 ? 'Теги статьи не найдены в базе задач.' : 'Нет задач по выбранным тегам.'}
+                </div>
               ) : (
-                <>
-                  <div style={{ color: '#666', marginBottom: 8 }}>
-                    Найдено задач: {relatedTasks.length}. Показано: {Math.min(20, relatedTasks.length)}.
-                  </div>
-                  <List
-                    size="small"
-                    dataSource={relatedTasks.slice(0, 20)}
-                    renderItem={(task) => (
-                      <List.Item>
-                        <div>
-                          <Space wrap size={6} style={{ marginBottom: 4 }}>
-                            <Tag color="blue">{task.code}</Tag>
-                            <Tag>Сложность: {task.difficulty || '1'}</Tag>
-                          </Space>
-                          <div style={{ fontSize: 13 }}>
-                            <MathRenderer text={task.statement_md} />
-                          </div>
-                        </div>
-                      </List.Item>
-                    )}
-                  />
-                </>
+                <div className="theory-related-scroll">
+                  {relatedTasks.slice(0, 12).map(task => (
+                    <div key={task.id} className="theory-related-card">
+                      <div className="related-card-code">
+                        <Tag color="blue">{task.code}</Tag>
+                        <span className={`difficulty-dot difficulty-${task.difficulty || 1}`} />
+                      </div>
+                      <div className="related-card-text">
+                        <MathRenderer text={task.statement_md} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </>
-          ) : (
-            <div style={{ color: '#999' }}>В статье нет тегов для поиска задач.</div>
+            </div>
           )}
-        </Card>
+        </div>
       </div>
+
+      {/* Floating actions */}
+      <div className="theory-floating-actions no-print">
+        <Tooltip title="Редактировать" placement="left">
+          <Button shape="circle" icon={<EditOutlined />} onClick={() => onEdit?.(articleId)} />
+        </Tooltip>
+        <Tooltip title="Печать" placement="left">
+          <Button shape="circle" icon={<PrinterOutlined />} onClick={handlePrint} />
+        </Tooltip>
+        <Tooltip title="Экспорт PDF" placement="left">
+          <Button
+            shape="circle"
+            icon={<FilePdfOutlined />}
+            onClick={handleExportPDF}
+            loading={isExporting || puppeteerPDF.exporting}
+          />
+        </Tooltip>
+        <Tooltip title="Тема" placement="left">
+          <Button
+            shape="circle"
+            icon={<FormatPainterOutlined />}
+            onClick={() => setThemeDrawerOpen(true)}
+          />
+        </Tooltip>
+      </div>
+
+      {/* Theme drawer */}
+      <Drawer
+        title="Тема оформления"
+        open={themeDrawerOpen}
+        onClose={() => setThemeDrawerOpen(false)}
+        width={280}
+      >
+        <div className="theory-theme-drawer">
+          {Object.entries(THEME_NAMES).map(([key, label]) => (
+            <div
+              key={key}
+              className={`theory-theme-option ${currentTheme === key ? 'active' : ''}`}
+              onClick={() => { setCurrentTheme(key); setThemeDrawerOpen(false); }}
+            >
+              <span>{label}</span>
+              {currentTheme === key && <Tag color="green">Выбрана</Tag>}
+            </div>
+          ))}
+        </div>
+      </Drawer>
     </div>
   );
 }

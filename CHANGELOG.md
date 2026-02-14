@@ -1,5 +1,25 @@
 # Changelog — История изменений
 
+## [3.3.0] - 2026-02-14
+
+### Добавлено
+- **Глубокий редизайн модуля «Теория»** — полная переработка всех 5 компонентов
+  - **TheoryBrowser** — hero-секция со статистикой, градиентные карточки, категории-pills с цветными точками, кастомные карточки статей с hover-анимациями
+  - **TheoryEditor** — rich formatting toolbar (заголовки, форматирование, списки, таблицы, формулы, изображения, ссылки), split-pane с ресайзом мышкой, status bar (слова, формулы, символы, тема, автосохранение)
+  - **TheoryArticleView** — TOC sidebar с IntersectionObserver, floating action bar (Edit/Print/PDF/Theme), связанные задачи горизонтальными карточками
+  - **TheoryCategoryManager** — визуальные карточки с градиентными иконками вместо таблицы, drag-and-drop для порядка
+  - **TheoryPrintBuilder** — sidebar с выбором и drag-and-drop переупорядочиванием статей, индикатор кол-ва страниц
+- **EditorToolbar** — новый субкомпонент с 4 группами кнопок форматирования для Monaco Editor
+- **TableInsertPopover** — popover для вставки таблиц NxM
+- **5 тем оформления** — classic, minimal, academic, notebook, compact (ранее только 2)
+
+### Изменено
+- Full-height layout для theory-view и theory-print (убраны лишние padding/margin)
+- 7 новых CSS-файлов для компонентов теории
+- Все компоненты используют staggered-анимации, HTML5 Drag API, современные карточки
+
+---
+
 ## [3.2.0] - 2026-02-13
 
 ### Добавлено
