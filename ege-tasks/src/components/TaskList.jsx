@@ -13,7 +13,7 @@ const TaskList = ({
   const { topics, tags, years, sources, subtopics, loading: initialLoading } = useReferenceData();
   const { message } = App.useApp();
   const [tasks, setTasks] = useState([]);
-  const [filteredTasks, setFilteredTasks] = useState([]);
+  const [totalTasks, setTotalTasks] = useState(0);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -31,87 +31,48 @@ const TaskList = ({
 
   useEffect(() => {
     if (!initialFiltersToken) {
-      loadTasks();
+      loadTasks({}, { page: 1, perPage: pageSize });
     }
   }, [initialFiltersToken]);
 
-  // Применяем клиентский поиск и сортировку
-  // (фильтрация по остальным параметрам происходит на сервере)
-  useEffect(() => {
-    let result = [...tasks];
+  const loadTasks = async (newFilters = {}, options = {}) => {
+    const {
+      page = currentPage,
+      perPage = pageSize,
+      clearSelection = true,
+    } = options;
 
-    // Применяем поиск
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      result = result.filter(task => {
-        return (
-          task.code?.toLowerCase().includes(searchLower) ||
-          task.statement_md?.toLowerCase().includes(searchLower)
-        );
-      });
-    }
-
-    // Применяем сортировку
-    if (filters.sortBy) {
-      switch (filters.sortBy) {
-        case 'code':
-          result.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-          break;
-        case 'difficulty':
-          result.sort((a, b) => {
-            const diffA = parseInt(a.difficulty || '1');
-            const diffB = parseInt(b.difficulty || '1');
-            return diffA - diffB;
-          });
-          break;
-        case 'created':
-          result.sort((a, b) => new Date(b.created) - new Date(a.created));
-          break;
-        case 'updated':
-          result.sort((a, b) => new Date(b.updated) - new Date(a.updated));
-          break;
-        default:
-          result.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-      }
-    } else {
-      // Сортировка по умолчанию - по коду
-      result.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
-    }
-
-    setFilteredTasks(result);
-
-    // Сбрасываем на первую страницу при изменении поиска
-    if (filters.search) {
-      setCurrentPage(1);
-    }
-  }, [filters.search, filters.sortBy, tasks]);
-
-  // Если после фильтрации/удаления текущая страница вышла за пределы,
-  // возвращаем пользователя на последнюю доступную страницу.
-  useEffect(() => {
-    const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [filteredTasks.length, pageSize, currentPage]);
-
-  const loadTasks = async (newFilters = {}, resetPage = false) => {
     setLoading(true);
     try {
-      const data = await api.getTasks(newFilters);
-      setTasks(data);
-      setFilteredTasks(data);
-      setSelectedTaskIds(new Set());
-      setBulkTags([]);
-      setBulkTagMode('add');
-      setBulkDifficulty(null);
-      setBulkSource(null);
-      setBulkSubtopics([]);
-      setBulkTopic(null);
-      if (resetPage) {
-        setCurrentPage(1);
+      const pageData = await api.getTasksPage({
+        page,
+        perPage,
+        filters: newFilters,
+      });
+
+      // После удаления/фильтрации можем оказаться на несуществующей странице.
+      if (page > 1 && pageData.items.length === 0 && pageData.totalItems > 0) {
+        const lastPage = Math.ceil(pageData.totalItems / perPage);
+        setCurrentPage(lastPage);
+        await loadTasks(newFilters, { page: lastPage, perPage, clearSelection });
+        return;
       }
-      // Сохраняем фильтры в ref
+
+      setTasks(pageData.items || []);
+      setTotalTasks(pageData.totalItems || 0);
+      setCurrentPage(pageData.page || page);
+      setPageSize(pageData.perPage || perPage);
+
+      if (clearSelection) {
+        setSelectedTaskIds(new Set());
+        setBulkTags([]);
+        setBulkTagMode('add');
+        setBulkDifficulty(null);
+        setBulkSource(null);
+        setBulkSubtopics([]);
+        setBulkTopic(null);
+      }
+
       filtersRef.current = newFilters;
     } catch (error) {
       console.error('Error loading tasks:', error);
@@ -123,23 +84,22 @@ const TaskList = ({
 
   const handleFilterChange = (newFilters) => {
     setFilters(newFilters);
-
-    // Разделяем поиск от остальных фильтров
-    const { search, ...serverFilters } = newFilters;
-
-    // Загружаем задачи с серверными фильтрами и сбрасываем страницу
-    loadTasks(serverFilters, true);
+    setCurrentPage(1);
+    loadTasks(newFilters, { page: 1, perPage: pageSize });
   };
 
   const handlePageChange = (page, size) => {
     setCurrentPage(page);
     setPageSize(size);
+    loadTasks(filtersRef.current, { page, perPage: size, clearSelection: false });
   };
 
   const handleTaskUpdate = () => {
-    // Перезагружаем задачи с СОХРАНЁННЫМИ фильтрами из ref
-    // Фильтры и страница НЕ сбрасываются!
-    loadTasksWithoutReset(filtersRef.current);
+    loadTasks(filtersRef.current, {
+      page: currentPage,
+      perPage: pageSize,
+      clearSelection: false,
+    });
   };
 
   const handleCreateTask = () => {
@@ -167,33 +127,7 @@ const TaskList = ({
     }
   };
 
-  const loadTasksWithoutReset = async (currentFilters = {}) => {
-    setLoading(true);
-    try {
-      const data = await api.getTasks(currentFilters);
-      setTasks(data);
-      setSelectedTaskIds(new Set());
-      setBulkTags([]);
-      setBulkTagMode('add');
-      setBulkDifficulty(null);
-      setBulkSource(null);
-      setBulkSubtopics([]);
-      setBulkTopic(null);
-      // filteredTasks обновится через useEffect с клиентским поиском
-      // НЕ сбрасываем currentPage и фильтры!
-      filtersRef.current = currentFilters; // Обновляем ref
-    } catch (error) {
-      console.error('Error loading tasks:', error);
-      message.error('Ошибка при загрузке задач');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Пагинация
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedTasks = filteredTasks.slice(startIndex, endIndex);
+  const paginatedTasks = tasks;
   const selectedTasks = tasks.filter(t => selectedTaskIds.has(t.id));
   const pageAllSelected = paginatedTasks.length > 0 && paginatedTasks.every(t => selectedTaskIds.has(t.id));
   const pageSomeSelected = paginatedTasks.some(t => selectedTaskIds.has(t.id));
@@ -255,7 +189,7 @@ const TaskList = ({
       setSelectedTaskIds(new Set());
       setBulkTags([]);
       setBulkTagMode('add');
-      await loadTasksWithoutReset(filtersRef.current);
+      await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
     } catch (error) {
       console.error('Error bulk tag update:', error);
       message.error({ content: 'Ошибка при массовом обновлении тегов', key: 'bulk', duration: 2 });
@@ -282,7 +216,7 @@ const TaskList = ({
       message.success({ content: `Сложность обновлена у ${selectedTaskIds.size} задач`, key: 'bulk', duration: 2 });
       setSelectedTaskIds(new Set());
       setBulkDifficulty(null);
-      await loadTasksWithoutReset(filtersRef.current);
+      await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
     } catch (error) {
       console.error('Error bulk difficulty update:', error);
       message.error({ content: 'Ошибка при массовом обновлении сложности', key: 'bulk', duration: 2 });
@@ -309,7 +243,7 @@ const TaskList = ({
       message.success({ content: `Источник обновлён у ${selectedTaskIds.size} задач`, key: 'bulk', duration: 2 });
       setSelectedTaskIds(new Set());
       setBulkSource(null);
-      await loadTasksWithoutReset(filtersRef.current);
+      await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
     } catch (error) {
       console.error('Error bulk source update:', error);
       message.error({ content: 'Ошибка при массовом обновлении источника', key: 'bulk', duration: 2 });
@@ -336,7 +270,7 @@ const TaskList = ({
       message.success({ content: `Подтемы обновлены у ${selectedTaskIds.size} задач`, key: 'bulk', duration: 2 });
       setSelectedTaskIds(new Set());
       setBulkSubtopics([]);
-      await loadTasksWithoutReset(filtersRef.current);
+      await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
     } catch (error) {
       console.error('Error bulk subtopic update:', error);
       message.error({ content: 'Ошибка при массовом обновлении подтем', key: 'bulk', duration: 2 });
@@ -364,7 +298,7 @@ const TaskList = ({
       setSelectedTaskIds(new Set());
       setBulkTopic(null);
       setBulkSubtopics([]);
-      await loadTasksWithoutReset(filtersRef.current);
+      await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
     } catch (error) {
       console.error('Error bulk topic update:', error);
       message.error({ content: 'Ошибка при массовом обновлении темы', key: 'bulk', duration: 2 });
@@ -394,7 +328,7 @@ const TaskList = ({
           }
           message.success({ content: `Удалено задач: ${selectedTaskIds.size}`, key: 'bulk', duration: 2 });
           setSelectedTaskIds(new Set());
-          await loadTasksWithoutReset(filtersRef.current);
+          await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
         } catch (error) {
           console.error('Error bulk delete:', error);
           message.error({ content: 'Ошибка при массовом удалении', key: 'bulk', duration: 2 });
@@ -422,7 +356,7 @@ const TaskList = ({
         sources={sources}
         subtopics={subtopics}
         onFilterChange={handleFilterChange}
-        totalCount={filteredTasks.length}
+        totalCount={totalTasks}
         onCreateTask={handleCreateTask}
         initialFilters={initialFilters}
         initialFiltersToken={initialFiltersToken}
@@ -544,7 +478,7 @@ const TaskList = ({
             </Col>
           ))}
         </Row>
-      ) : filteredTasks.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <Empty 
           description="Задачи не найдены"
           style={{ marginTop: 50 }}
@@ -573,7 +507,7 @@ const TaskList = ({
             <Pagination
               current={currentPage}
               pageSize={pageSize}
-              total={filteredTasks.length}
+              total={totalTasks}
               onChange={handlePageChange}
               showSizeChanger
               showTotal={(total) => `Всего задач: ${total}`}

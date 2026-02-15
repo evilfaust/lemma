@@ -96,65 +96,109 @@ export const api = {
   },
 
   // Получить задачи с фильтрами
-  async getTasks(filters = {}) {
+  _buildTasksFilter(filters = {}) {
+    const filterArr = [];
+
+    if (filters.search) {
+      const searchTerm = escapeFilter(filters.search);
+      filterArr.push(`(code ~ "${searchTerm}" || statement_md ~ "${searchTerm}")`);
+    }
+
+    if (filters.topic) {
+      filterArr.push(`topic = "${escapeFilter(filters.topic)}"`);
+    }
+
+    // Фильтрация по подтеме - это Multiple relation (массив)
+    // Используем оператор ~ для проверки наличия ID в массиве
+    if (filters.subtopic) {
+      filterArr.push(`subtopic ~ "${escapeFilter(filters.subtopic)}"`);
+    }
+
+    // Фильтрация по массиву подтем (несколько подтем)
+    if (filters.subtopics && filters.subtopics.length > 0) {
+      const subtopicFilters = filters.subtopics.map(stId => `subtopic ~ "${escapeFilter(stId)}"`);
+      filterArr.push(`(${subtopicFilters.join(' || ')})`);
+    }
+
+    // Фильтрация по тегам (несколько тегов)
+    if (filters.tags && filters.tags.length > 0) {
+      const tagFilters = filters.tags.map(tagId => `tags ~ "${escapeFilter(tagId)}"`);
+      filterArr.push(`(${tagFilters.join(' || ')})`);
+    }
+
+    if (filters.difficulty) {
+      filterArr.push(`difficulty = "${escapeFilter(filters.difficulty)}"`);
+    }
+
+    if (filters.hasAnswer !== undefined) {
+      filterArr.push(filters.hasAnswer ? `answer != ""` : `answer = ""`);
+    }
+
+    if (filters.hasSolution !== undefined) {
+      filterArr.push(filters.hasSolution ? `solution_md != ""` : `solution_md = ""`);
+    }
+
+    if (filters.hasImage !== undefined) {
+      filterArr.push(filters.hasImage ? `has_image = true` : `has_image = false`);
+    }
+
+    if (filters.source) {
+      filterArr.push(`source ~ "${escapeFilter(filters.source)}"`);
+    }
+
+    if (filters.year) {
+      filterArr.push(`year = ${Number(filters.year) || 0}`);
+    }
+
+    return filterArr.length > 0 ? filterArr.join(' && ') : '';
+  },
+
+  _buildTasksSort(sortBy) {
+    switch (sortBy) {
+      case 'difficulty':
+        return 'difficulty,code';
+      case 'created':
+        return '-created';
+      case 'updated':
+        return '-updated';
+      case 'code':
+      default:
+        return 'code';
+    }
+  },
+
+  async getTasksPage({ page = 1, perPage = 20, filters = {} } = {}) {
     try {
-      const filterArr = [];
+      const filterString = this._buildTasksFilter(filters);
+      const sort = this._buildTasksSort(filters.sortBy);
 
-      if (filters.topic) {
-        filterArr.push(`topic = "${escapeFilter(filters.topic)}"`);
-      }
-
-      // Фильтрация по подтеме - это Multiple relation (массив)
-      // Используем оператор ~ для проверки наличия ID в массиве
-      if (filters.subtopic) {
-        filterArr.push(`subtopic ~ "${escapeFilter(filters.subtopic)}"`);
-      }
-
-      // Фильтрация по массиву подтем (несколько подтем)
-      if (filters.subtopics && filters.subtopics.length > 0) {
-        const subtopicFilters = filters.subtopics.map(stId => `subtopic ~ "${escapeFilter(stId)}"`);
-        filterArr.push(`(${subtopicFilters.join(' || ')})`);
-      }
-
-      // Фильтрация по тегам (несколько тегов)
-      if (filters.tags && filters.tags.length > 0) {
-        const tagFilters = filters.tags.map(tagId => `tags ~ "${escapeFilter(tagId)}"`);
-        filterArr.push(`(${tagFilters.join(' || ')})`);
-      }
-
-      if (filters.difficulty) {
-        filterArr.push(`difficulty = "${escapeFilter(filters.difficulty)}"`);
-      }
-
-      if (filters.hasAnswer !== undefined) {
-        filterArr.push(filters.hasAnswer ? `answer != ""` : `answer = ""`);
-      }
-
-      if (filters.hasSolution !== undefined) {
-        filterArr.push(filters.hasSolution ? `solution_md != ""` : `solution_md = ""`);
-      }
-
-      if (filters.hasImage !== undefined) {
-        filterArr.push(filters.hasImage ? `has_image = true` : `has_image = false`);
-      }
-
-      if (filters.source) {
-        filterArr.push(`source ~ "${escapeFilter(filters.source)}"`);
-      }
-
-      if (filters.year) {
-        filterArr.push(`year = ${Number(filters.year) || 0}`);
-      }
-
-      const filterString = filterArr.length > 0 ? filterArr.join(' && ') : '';
-
-      const records = await pb.collection('tasks').getFullList({
+      return await pb.collection('tasks').getList(page, perPage, {
         filter: filterString,
         expand: 'topic,tags,subtopic',
-        sort: filters.sort || 'code',
+        sort,
       });
+    } catch (error) {
+      console.error('Error fetching tasks page:', error);
+      return {
+        items: [],
+        page,
+        perPage,
+        totalItems: 0,
+        totalPages: 0,
+      };
+    }
+  },
 
-      return records;
+  async getTasks(filters = {}) {
+    try {
+      const filterString = this._buildTasksFilter(filters);
+      const sort = this._buildTasksSort(filters.sortBy);
+
+      return await pb.collection('tasks').getFullList({
+        filter: filterString,
+        expand: 'topic,tags,subtopic',
+        sort,
+      });
     } catch (error) {
       console.error('Error fetching tasks:', error);
       return [];
