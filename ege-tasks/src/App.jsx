@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -85,7 +85,7 @@ function AppContent() {
       icon: <TeamOutlined />,
       label: 'Ученики',
       children: [
-        { key: 'students', label: 'Прогресс' },
+        { key: 'students', icon: <BarChartOutlined />, label: 'Прогресс' },
         { key: 'achievements', icon: <TrophyOutlined />, label: 'Достижения' },
       ],
     },
@@ -99,10 +99,10 @@ function AppContent() {
       icon: <BookOutlined />,
       label: 'Теория',
       children: [
-        { key: 'theory-browser', label: 'Библиотека' },
-        { key: 'theory-editor', label: 'Редактор' },
-        { key: 'theory-print', label: 'Конспекты' },
-        { key: 'theory-categories', label: 'Категории' },
+        { key: 'theory-browser', icon: <ReadOutlined />, label: 'Библиотека' },
+        { key: 'theory-editor', icon: <EditOutlined />, label: 'Редактор' },
+        { key: 'theory-print', icon: <SnippetsOutlined />, label: 'Конспекты' },
+        { key: 'theory-categories', icon: <FolderOutlined />, label: 'Категории' },
       ],
     },
   ];
@@ -163,7 +163,14 @@ function AppContent() {
       case 'test-generator':
         return <TestWorkGenerator />;
       case 'work-manager':
-        return <WorkManager />;
+        return (
+          <WorkManager
+            onEditWork={(workId) => {
+              setSelectedWorkIdForEditor(workId);
+              setCurrentView('work-editor');
+            }}
+          />
+        );
       case 'work-editor':
         return <WorkEditorPage initialWorkId={selectedWorkIdForEditor} />;
       case 'students':

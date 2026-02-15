@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Table, Space, Button, Modal, Input, Tooltip, App } from 'antd';
 import { DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
@@ -10,6 +10,15 @@ export default function SourceTab({ sourceRows, tasksSnapshot, onOpenTasks, onMe
   const [renameModalOpen, setRenameModalOpen] = useState(false);
   const [renameFrom, setRenameFrom] = useState(null);
   const [renameTo, setRenameTo] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(sourceRows.length / pageSize));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [sourceRows.length, pageSize, currentPage]);
 
   const openRename = (source) => {
     setRenameFrom(source);
@@ -62,7 +71,16 @@ export default function SourceTab({ sourceRows, tasksSnapshot, onOpenTasks, onMe
         <Table
           size="small"
           dataSource={sourceRows}
-          pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
+          pagination={{
+            current: currentPage,
+            pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
+          }}
           columns={[
             { title: 'Источник', dataIndex: 'source', sorter: (a, b) => (a.source || '').localeCompare(b.source || '') },
             { title: 'Кол-во', dataIndex: 'count', width: 90, sorter: (a, b) => a.count - b.count },

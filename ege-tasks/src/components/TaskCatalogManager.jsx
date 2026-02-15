@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Tabs, Space, Button, Spin } from 'antd';
-import { ReloadOutlined } from '@ant-design/icons';
+import { ReloadOutlined, AppstoreOutlined, TagsOutlined, CopyOutlined, BookOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { normalizeLabel, normalizeStatementStrict, normalizeStatementLoose } from '../utils/normalize';
@@ -11,6 +11,7 @@ import SourceTab from './catalog/SourceTab';
 import OtherTab from './catalog/OtherTab';
 import DuplicateTab from './catalog/DuplicateTab';
 import MergeModal from './catalog/MergeModal';
+import './TaskCatalogManager.css';
 
 const TaskCatalogManager = ({ onOpenTasks }) => {
   const { topics, subtopics, tags, sources, years, reloadData } = useReferenceData();
@@ -175,7 +176,11 @@ const TaskCatalogManager = ({ onOpenTasks }) => {
   };
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>;
+    return (
+      <div className="catalog-dashboard catalog-loading">
+        <Spin size="large" />
+      </div>
+    );
   }
 
   const tabItems = [
@@ -187,14 +192,49 @@ const TaskCatalogManager = ({ onOpenTasks }) => {
     { key: 'duplicates', label: 'Дубли', children: <DuplicateTab duplicateGroups={duplicateGroups} onOpenTasks={handleOpenTasks} onMerge={openMerge} /> },
   ];
 
-  return (
-    <div>
-      <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ReloadOutlined />} onClick={loadSnapshot}>Обновить статистику</Button>
-        <Button onClick={reloadData}>Обновить справочники</Button>
-      </Space>
+  const totalDuplicates =
+    duplicateGroups.topicsDup.length +
+    duplicateGroups.subtopicsDup.length +
+    duplicateGroups.tagsDup.length +
+    duplicateGroups.sourcesDup.length +
+    duplicateGroups.strictTasks.length +
+    duplicateGroups.looseTasks.length;
 
-      <Tabs defaultActiveKey="topics" items={tabItems} />
+  return (
+    <div className="catalog-dashboard">
+      <div className="catalog-dashboard-header">
+        <h2 className="catalog-dashboard-title">
+          <AppstoreOutlined />
+          Каталог и справочники
+        </h2>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={loadSnapshot}>Обновить статистику</Button>
+          <Button onClick={reloadData}>Обновить справочники</Button>
+        </Space>
+      </div>
+
+      <div className="catalog-hero-grid">
+        <div className="catalog-hero-card catalog-hero-card--tasks">
+          <div className="catalog-hero-label">Всего задач</div>
+          <div className="catalog-hero-value">{tasksSnapshot.length.toLocaleString()}</div>
+        </div>
+        <div className="catalog-hero-card catalog-hero-card--topics">
+          <div className="catalog-hero-label"><BookOutlined /> Темы и подтемы</div>
+          <div className="catalog-hero-value">{(topics.length + subtopics.length).toLocaleString()}</div>
+        </div>
+        <div className="catalog-hero-card catalog-hero-card--tags">
+          <div className="catalog-hero-label"><TagsOutlined /> Теги</div>
+          <div className="catalog-hero-value">{tagRows.length.toLocaleString()}</div>
+        </div>
+        <div className="catalog-hero-card catalog-hero-card--duplicates">
+          <div className="catalog-hero-label"><CopyOutlined /> Группы дублей</div>
+          <div className="catalog-hero-value">{totalDuplicates.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <div className="catalog-tabs-shell">
+        <Tabs defaultActiveKey="topics" items={tabItems} />
+      </div>
 
       <MergeModal
         open={mergeModalOpen}

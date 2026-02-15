@@ -1,7 +1,18 @@
+import { useEffect, useState } from 'react';
 import { Card, Table, Space, Button, Divider } from 'antd';
 import { FolderOpenOutlined } from '@ant-design/icons';
 
 export default function OtherTab({ difficultyRows, yearRows, stats, onOpenTasks }) {
+  const [yearPage, setYearPage] = useState(1);
+  const [yearPageSize, setYearPageSize] = useState(20);
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(yearRows.length / yearPageSize));
+    if (yearPage > totalPages) {
+      setYearPage(totalPages);
+    }
+  }, [yearRows.length, yearPageSize, yearPage]);
+
   return (
     <>
       <Card title="Сложность" style={{ marginBottom: 16 }}>
@@ -26,7 +37,16 @@ export default function OtherTab({ difficultyRows, yearRows, stats, onOpenTasks 
         <Table
           size="small"
           dataSource={yearRows}
-          pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
+          pagination={{
+            current: yearPage,
+            pageSize: yearPageSize,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (page, size) => {
+              setYearPage(page);
+              setYearPageSize(size);
+            },
+          }}
           columns={[
             { title: 'Год', dataIndex: 'year', width: 120, sorter: (a, b) => Number(a.year) - Number(b.year) },
             { title: 'Кол-во', dataIndex: 'count', width: 120, sorter: (a, b) => a.count - b.count },

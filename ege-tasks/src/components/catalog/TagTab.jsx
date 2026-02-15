@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Table, Space, Button, Modal, Form, Input, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
@@ -9,7 +9,16 @@ export default function TagTab({ tagRows, tasksSnapshot, onOpenTasks, onMerge, o
   const { message } = App.useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(tagRows.length / pageSize));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [tagRows.length, pageSize, currentPage]);
 
   const openModal = (tag = null) => {
     setEditing(tag);
@@ -72,7 +81,16 @@ export default function TagTab({ tagRows, tasksSnapshot, onOpenTasks, onMerge, o
         <Table
           size="small"
           dataSource={tagRows}
-          pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
+          pagination={{
+            current: currentPage,
+            pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
+          }}
           columns={[
             {
               title: 'Тег',

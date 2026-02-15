@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Select, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
@@ -9,7 +9,16 @@ export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, 
   const { message } = App.useApp();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [form] = Form.useForm();
+
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(subtopicRows.length / pageSize));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [subtopicRows.length, pageSize, currentPage]);
 
   const openModal = (subtopic = null) => {
     setEditing(subtopic);
@@ -73,7 +82,16 @@ export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, 
         <Table
           size="small"
           dataSource={subtopicRows}
-          pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }}
+          pagination={{
+            current: currentPage,
+            pageSize,
+            showSizeChanger: true,
+            pageSizeOptions: [10, 20, 50, 100],
+            onChange: (page, size) => {
+              setCurrentPage(page);
+              setPageSize(size);
+            },
+          }}
           columns={[
             { title: 'Подтема', dataIndex: 'title', sorter: (a, b) => (a.title || '').localeCompare(b.title || '') },
             { title: 'Тема', dataIndex: 'topicTitle', sorter: (a, b) => (a.topicTitle || '').localeCompare(b.topicTitle || '') },

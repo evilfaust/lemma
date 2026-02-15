@@ -86,6 +86,15 @@ const TaskList = ({
     }
   }, [filters.search, filters.sortBy, tasks]);
 
+  // Если после фильтрации/удаления текущая страница вышла за пределы,
+  // возвращаем пользователя на последнюю доступную страницу.
+  useEffect(() => {
+    const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [filteredTasks.length, pageSize, currentPage]);
+
   const loadTasks = async (newFilters = {}, resetPage = false) => {
     setLoading(true);
     try {
