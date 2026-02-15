@@ -1180,6 +1180,32 @@ export const api = {
     }
   },
 
+  async getAttemptsByStudentAll(studentId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `student = "${escapeFilter(studentId)}"`,
+        expand: 'achievement,unlocked_achievements',
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching all attempts by student:', error);
+      return [];
+    }
+  },
+
+  async getAttemptsByDeviceAll(deviceId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `device_id = "${escapeFilter(deviceId)}"`,
+        expand: 'achievement,unlocked_achievements',
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching all attempts by device:', error);
+      return [];
+    }
+  },
+
   async getStudents() {
     try {
       return await pb.collection('students').getFullList({

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Collapse, Empty, Modal, Progress, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
-import { ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
+import { App, Button, Collapse, Empty, Modal, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
+import { ReloadOutlined, UserOutlined, TeamOutlined, TrophyOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
+import './StudentProgressDashboard.css';
 
 const { Text } = Typography;
 
@@ -15,6 +16,20 @@ const formatDateTime = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '—';
   return date.toLocaleString('ru-RU');
+};
+
+const getAttemptTestTitle = (attempt, worksById) => {
+  const session = attempt?.expand?.session;
+  const studentTitle = session?.student_title?.trim();
+  if (studentTitle) return studentTitle;
+
+  const expandedWorkTitle = session?.expand?.work?.title?.trim();
+  if (expandedWorkTitle) return expandedWorkTitle;
+
+  const workTitle = session?.work ? worksById?.get(session.work)?.title?.trim() : '';
+  if (workTitle) return workTitle;
+
+  return session?.id || attempt?.session || '—';
 };
 
 const normalizeUnlockedIds = (value) => {
@@ -53,8 +68,6 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
   const [attempts, setAttempts] = useState([]);
   const [works, setWorks] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [editingClass, setEditingClass] = useState('');
-  const [savingClass, setSavingClass] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -108,6 +121,9 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         .map((a) => a.created)
         .filter(Boolean)
         .sort((a, b) => new Date(b) - new Date(a))[0] || null;
+      const latestAttempt = studentAttempts
+        .slice()
+        .sort((a, b) => new Date(b.created) - new Date(a.created))[0] || null;
 
       const achievements = new Set();
       const completedWorkIds = new Set();
@@ -136,20 +152,10 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         achievementsCount: achievements.size,
         completedWorksCount: completedWorkIds.size,
         lastAttemptAt,
+        latestTestTitle: getAttemptTestTitle(latestAttempt, worksById),
       };
     });
-  }, [students, attemptsByStudentId]);
-
-  const classOptions = useMemo(() => {
-    const values = Array.from(new Set(
-      students
-        .map((s) => (s.student_class || '').trim())
-        .filter(Boolean)
-    ));
-
-    values.sort((a, b) => a.localeCompare(b, 'ru', { numeric: true, sensitivity: 'base' }));
-    return values;
-  }, [students]);
+  }, [students, attemptsByStudentId, worksById]);
 
   // Группировка по классам для Collapse
   const groupedByClass = useMemo(() => {
@@ -184,6 +190,26 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
     });
   }, [tableData]);
 
+  const dashboardStats = useMemo(() => {
+    const totalStudents = tableData.length;
+    const classCount = groupedByClass.filter((group) => group.key !== '__none__').length;
+    const finishedAttempts = tableData.reduce((sum, row) => sum + row.finishedCount, 0);
+    const totalAttempts = tableData.reduce((sum, row) => sum + row.attemptsCount, 0);
+    const avgResult = totalStudents > 0
+      ? Math.round(tableData.reduce((sum, row) => sum + row.avgPercent, 0) / totalStudents)
+      : 0;
+    const achievements = tableData.reduce((sum, row) => sum + row.achievementsCount, 0);
+
+    return {
+      totalStudents,
+      classCount,
+      finishedAttempts,
+      totalAttempts,
+      avgResult,
+      achievements,
+    };
+  }, [tableData, groupedByClass]);
+
   const columns = [
     {
       title: 'Ученик',
@@ -216,6 +242,20 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         <Text>{record.finishedCount}/{record.attemptsCount}</Text>
       ),
       sorter: (a, b) => a.attemptsCount - b.attemptsCount,
+    },
+    {
+      title: 'Последний тест',
+      key: 'latestTestTitle',
+      width: 220,
+      render: (_, record) => (
+        <Text
+          ellipsis={{ tooltip: record.latestTestTitle }}
+          type={record.latestTestTitle === '—' ? 'secondary' : undefined}
+        >
+          {record.latestTestTitle}
+        </Text>
+      ),
+      sorter: (a, b) => (a.latestTestTitle || '').localeCompare(b.latestTestTitle || '', 'ru'),
     },
     {
       title: 'Средний результат',
@@ -283,40 +323,6 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
       .sort((a, b) => new Date(b.created) - new Date(a.created));
   }, [selectedStudent, attemptsByStudentId]);
 
-  useEffect(() => {
-    if (!selectedStudent) {
-      setEditingClass('');
-      return;
-    }
-    setEditingClass(selectedStudent.studentClass || '');
-  }, [selectedStudent]);
-
-  const handleSaveStudentClass = useCallback(async () => {
-    if (!selectedStudent) return;
-    setSavingClass(true);
-    try {
-      await api.updateStudent(selectedStudent.id, {
-        student_class: editingClass || '',
-      });
-
-      setStudents((prev) => prev.map((student) => (
-        student.id === selectedStudent.id
-          ? { ...student, student_class: editingClass || '' }
-          : student
-      )));
-      setSelectedStudent((prev) => (prev ? { ...prev, studentClass: editingClass || '' } : prev));
-      message.success('Класс сохранён');
-    } catch (err) {
-      console.error('Error saving student class:', err);
-      if (err?.status === 404) {
-        message.error('Класс не сохранён: нет прав на обновление students. Перезапустите PocketBase, чтобы применить миграцию 1770001100.');
-      } else {
-        message.error('Не удалось сохранить класс');
-      }
-    }
-    setSavingClass(false);
-  }, [selectedStudent, editingClass, message]);
-
   const selectedStudentCompletedWorks = useMemo(() => {
     if (!selectedStudent) return [];
     const studentAttempts = attemptsByStudentId.get(selectedStudent.id) || [];
@@ -340,54 +346,90 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
   );
 
   if (loading && tableData.length === 0) {
-    return <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>;
+    return (
+      <div className="spd-loading">
+        <Spin />
+      </div>
+    );
   }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Space size={16}>
-          <UserOutlined style={{ fontSize: 16 }} />
-          <Text strong style={{ fontSize: 15 }}>Ученики: {tableData.length}</Text>
-          <Text type="secondary">Классов: {groupedByClass.filter(g => g.key !== '__none__').length}</Text>
-        </Space>
-        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading} size="small">
+    <div className="spd-dashboard">
+      <div className="spd-dashboard-header">
+        <h2 className="spd-dashboard-title">
+          <UserOutlined />
+          Прогресс учеников
+        </h2>
+        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
           Обновить
         </Button>
       </div>
 
+      <div className="spd-hero-grid">
+        <div className="spd-hero-card spd-hero-card--students">
+          <div className="spd-hero-label">Ученики</div>
+          <div className="spd-hero-value">{dashboardStats.totalStudents}</div>
+          <div className="spd-hero-suffix">{dashboardStats.classCount} классов</div>
+        </div>
+        <div className="spd-hero-card spd-hero-card--attempts">
+          <div className="spd-hero-label">Попытки</div>
+          <div className="spd-hero-value">{dashboardStats.finishedAttempts}</div>
+          <div className="spd-hero-suffix">из {dashboardStats.totalAttempts}</div>
+        </div>
+        <div className="spd-hero-card spd-hero-card--result">
+          <div className="spd-hero-label">Средний результат</div>
+          <div className="spd-hero-value">{dashboardStats.avgResult}%</div>
+          <div className="spd-hero-suffix">по завершённым работам</div>
+        </div>
+        <div className="spd-hero-card spd-hero-card--achievements">
+          <div className="spd-hero-label">Достижения</div>
+          <div className="spd-hero-value">{dashboardStats.achievements}</div>
+          <div className="spd-hero-suffix">разблокировано всего</div>
+        </div>
+      </div>
+
       {tableData.length === 0 ? (
-        <Empty description="Нет зарегистрированных учеников" />
+        <div className="spd-section">
+          <Empty description="Нет зарегистрированных учеников" />
+        </div>
       ) : (
-        <Collapse
-          defaultActiveKey={groupedByClass.length <= 4 ? groupedByClass.map(g => g.key) : []}
-          style={{ background: 'transparent' }}
-          items={groupedByClass.map((group) => ({
-            key: group.key,
-            label: (
-              <Space size={12}>
-                <TeamOutlined />
-                <Text strong style={{ fontSize: 14 }}>{group.label}</Text>
-                <Tag>{group.students.length} уч.</Tag>
-                <Tag color={group.avgPercent >= 70 ? 'green' : group.avgPercent >= 40 ? 'blue' : 'default'}>
-                  Средний: {group.avgPercent}%
-                </Tag>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  Попыток: {group.totalAttempts}
-                </Text>
-              </Space>
-            ),
-            children: (
-              <Table
-                columns={columnsWithoutClass}
-                dataSource={group.students}
-                size="small"
-                pagination={group.students.length > 20 ? { pageSize: 20 } : false}
-                scroll={{ x: 920 }}
-              />
-            ),
-          }))}
-        />
+        <div className="spd-section">
+          <div className="spd-section-header">
+            <div className="spd-section-icon">
+              <TeamOutlined />
+            </div>
+            <h3 className="spd-section-title">Классы и ученики</h3>
+          </div>
+          <Collapse
+            defaultActiveKey={groupedByClass.length <= 4 ? groupedByClass.map((g) => g.key) : []}
+            className="spd-collapse"
+            items={groupedByClass.map((group) => ({
+              key: group.key,
+              label: (
+                <Space size={12} wrap>
+                  <TeamOutlined />
+                  <Text strong>{group.label}</Text>
+                  <Tag>{group.students.length} уч.</Tag>
+                  <Tag color={group.avgPercent >= 70 ? 'green' : group.avgPercent >= 40 ? 'blue' : 'default'}>
+                    Средний: {group.avgPercent}%
+                  </Tag>
+                  <Text type="secondary">
+                    Попыток: {group.totalAttempts}
+                  </Text>
+                </Space>
+              ),
+              children: (
+                <Table
+                  columns={columnsWithoutClass}
+                  dataSource={group.students}
+                  size="small"
+                  pagination={group.students.length > 20 ? { pageSize: 20 } : false}
+                  scroll={{ x: 920 }}
+                />
+              ),
+            }))}
+          />
+        </div>
       )}
 
       <Modal
@@ -398,8 +440,8 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         width={900}
       >
         {selectedStudent && (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Space wrap>
+          <Space direction="vertical" size={16} style={{ width: '100%' }} className="spd-modal-content">
+            <Space wrap className="spd-modal-tags">
               <Tag>Логин: @{selectedStudent.username}</Tag>
               <Tag color="geekblue">Класс: {selectedStudent.studentClass || '—'}</Tag>
               <Tag>Регистрация: {formatDateTime(selectedStudent.registeredAt)}</Tag>
@@ -408,46 +450,16 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
               <Tag color="gold">Ачивок: {selectedStudent.achievementsCount}</Tag>
             </Space>
 
-            <Space wrap align="start">
-              <Text strong>Класс:</Text>
-              <Select
-                value={editingClass || undefined}
-                placeholder="Не указан"
-                allowClear
-                style={{ minWidth: 180 }}
-                onChange={(value) => setEditingClass(value || '')}
-                options={[
-                  ...classOptions.map((value) => ({ value, label: value })),
-                  { value: '5', label: '5 класс' },
-                  { value: '6', label: '6 класс' },
-                  { value: '7', label: '7 класс' },
-                  { value: '8', label: '8 класс' },
-                  { value: '9', label: '9 класс' },
-                  { value: '10', label: '10 класс' },
-                  { value: '11', label: '11 класс' },
-                  { value: '10А', label: '10А' },
-                  { value: '10Б', label: '10Б' },
-                  { value: '11А', label: '11А' },
-                  { value: '11Б', label: '11Б' },
-                ]}
-              />
-              <Button
-                type="primary"
-                size="small"
-                loading={savingClass}
-                onClick={handleSaveStudentClass}
-              >
-                Сохранить класс
-              </Button>
-            </Space>
-
-            <div>
-              <Text strong>Выполненные работы</Text>
-              <div style={{ marginTop: 8 }}>
+            <div className="spd-modal-card">
+              <div className="spd-modal-card-header">
+                <CheckCircleOutlined />
+                <Text strong>Выполненные работы</Text>
+              </div>
+              <div>
                 {selectedStudentCompletedWorks.length === 0 ? (
                   <Text type="secondary">Нет завершённых работ</Text>
                 ) : (
-                  <Space wrap>
+                  <Space wrap className="spd-modal-works">
                     {selectedStudentCompletedWorks.map((work) => (
                       <Button
                         key={work.id}
@@ -462,76 +474,86 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
               </div>
             </div>
 
-            <Table
-              rowKey="id"
-              size="small"
-              dataSource={selectedStudentAttempts}
-              pagination={false}
-              locale={{ emptyText: 'Попыток пока нет' }}
-              columns={[
-                {
-                  title: 'Дата',
-                  key: 'created',
-                  width: 180,
-                  render: (_, record) => formatDateTime(record.created),
-                },
-                {
-                  title: 'Сессия',
-                  key: 'session',
-                  width: 170,
-                  render: (_, record) => record.session || '—',
-                },
-                {
-                  title: 'Работа',
-                  key: 'work',
-                  width: 220,
-                  render: (_, record) => {
-                    const workId = record.expand?.session?.work;
-                    if (!workId) return <Text type="secondary">—</Text>;
-                    return (
-                      <Space>
-                        <Text>{worksById.get(workId)?.title || workId}</Text>
-                        <Button size="small" type="link" onClick={() => onOpenWork?.(workId)}>
-                          Открыть
-                        </Button>
-                      </Space>
-                    );
+            <div className="spd-modal-card">
+              <div className="spd-modal-card-header">
+                <TrophyOutlined />
+                <Text strong>История попыток</Text>
+              </div>
+              <Table
+                rowKey="id"
+                size="small"
+                dataSource={selectedStudentAttempts}
+                pagination={false}
+                locale={{ emptyText: 'Попыток пока нет' }}
+                columns={[
+                  {
+                    title: 'Дата',
+                    key: 'created',
+                    width: 180,
+                    render: (_, record) => formatDateTime(record.created),
                   },
-                },
                 {
-                  title: 'Вариант',
-                  key: 'variant',
-                  width: 100,
-                  render: (_, record) => record.expand?.variant?.number || '—',
-                },
-                {
-                  title: 'Статус',
-                  key: 'status',
-                  width: 110,
-                  render: (_, record) => record.status || '—',
-                },
-                {
-                  title: 'Результат',
-                  key: 'score',
-                  width: 150,
+                  title: 'Тест',
+                  key: 'session',
+                  width: 220,
                   render: (_, record) => (
-                    <Text>{record.score || 0} / {record.total || 0} ({toPercent(record.score || 0, record.total || 0)}%)</Text>
+                    <Text ellipsis={{ tooltip: getAttemptTestTitle(record, worksById) }}>
+                      {getAttemptTestTitle(record, worksById)}
+                    </Text>
                   ),
                 },
-                {
-                  title: 'Ачивки',
-                  key: 'ach',
-                  width: 120,
-                  render: (_, record) => {
-                    const achCount = new Set([
-                      ...(record.achievement ? [record.achievement] : []),
-                      ...normalizeUnlockedIds(record.unlocked_achievements),
-                    ]).size;
-                    return achCount || '—';
+                  {
+                    title: 'Работа',
+                    key: 'work',
+                    width: 220,
+                    render: (_, record) => {
+                      const workId = record.expand?.session?.work;
+                      if (!workId) return <Text type="secondary">—</Text>;
+                      return (
+                        <Space>
+                          <Text>{worksById.get(workId)?.title || workId}</Text>
+                          <Button size="small" type="link" onClick={() => onOpenWork?.(workId)}>
+                            Открыть
+                          </Button>
+                        </Space>
+                      );
+                    },
                   },
-                },
-              ]}
-            />
+                  {
+                    title: 'Вариант',
+                    key: 'variant',
+                    width: 100,
+                    render: (_, record) => record.expand?.variant?.number || '—',
+                  },
+                  {
+                    title: 'Статус',
+                    key: 'status',
+                    width: 110,
+                    render: (_, record) => record.status || '—',
+                  },
+                  {
+                    title: 'Результат',
+                    key: 'score',
+                    width: 150,
+                    render: (_, record) => (
+                      <Text>{record.score || 0} / {record.total || 0} ({toPercent(record.score || 0, record.total || 0)}%)</Text>
+                    ),
+                  },
+                  {
+                    title: 'Ачивки',
+                    key: 'ach',
+                    width: 120,
+                    render: (_, record) => {
+                      const achCount = new Set([
+                        ...(record.achievement ? [record.achievement] : []),
+                        ...normalizeUnlockedIds(record.unlocked_achievements),
+                      ]).size;
+                      return achCount || '—';
+                    },
+                  },
+                ]}
+              />
+            </div>
           </Space>
         )}
       </Modal>

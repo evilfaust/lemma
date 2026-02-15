@@ -37,6 +37,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
   const percentage = total > 0 ? (score / total) * 100 : 0;
   const scoreClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'ok' : 'bad';
   const achievementsEnabled = session?.achievements_enabled || false;
+  const testTitle = session?.expand?.work?.title?.trim() || 'Тест';
 
   useEffect(() => {
     let cancelled = false;
@@ -100,6 +101,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     <div className="student-result">
       <div className="student-result-header">
         <Title level={4} className="student-result-title">Результат</Title>
+        <Text className="student-result-test-title">{testTitle}</Text>
         <Text className="student-result-meta">
           {attempt?.student_name}
           {attempt?.issueNumber ? ` · Выдача №${attempt.issueNumber}` : ''}

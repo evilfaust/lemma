@@ -71,6 +71,7 @@ const StudentTestPage = ({ studentSession }) => {
 
   const answeredCount = Object.values(answers).filter(a => a?.trim()).length;
   const progressPercent = tasks.length > 0 ? (answeredCount / tasks.length) * 100 : 0;
+  const testTitle = session?.expand?.work?.title?.trim() || 'Тест';
 
   const handleSubmit = () => {
     Modal.confirm({
@@ -258,6 +259,7 @@ const StudentTestPage = ({ studentSession }) => {
         <Title level={4} className="student-test-variant-title">
           Вариант {variant.number}
         </Title>
+        <Text className="student-test-title">{testTitle}</Text>
         <Text className="student-test-meta">
           {attempt.student_name}
           {attempt?.issueNumber ? ` · Выдача №${attempt.issueNumber}` : ''}

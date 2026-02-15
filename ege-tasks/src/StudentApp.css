@@ -351,6 +351,14 @@
   margin-bottom: 4px !important;
 }
 
+.student-test-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #4f5b7a;
+  margin-bottom: 2px;
+}
+
 .student-test-meta {
   color: #8c8c8c;
   font-size: 14px;
@@ -496,6 +504,14 @@
   font-weight: 800 !important;
   color: #1a1a2e !important;
   margin-bottom: 4px !important;
+}
+
+.student-result-test-title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: #4f5b7a;
+  margin-bottom: 2px;
 }
 
 .student-result-meta {
@@ -1042,6 +1058,19 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04);
 }
 
+.achievement-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .achievement-stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .achievement-stats-content {
   display: flex;
   align-items: center;
@@ -1099,12 +1128,61 @@
   min-width: 70px;
 }
 
+.achievement-gallery-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.achievement-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #3f4a69;
+}
+
+.achievement-legend-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.16);
+}
+
+.achievement-legend-dot--current {
+  background: #22c55e;
+}
+
+.achievement-legend-dot--total {
+  background: #3b82f6;
+}
+
+.achievement-legend-lock {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+}
+
+.achievement-legend-lock .anticon {
+  font-size: 13px;
+}
+
 /* Grid */
 .achievement-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 20px;
   margin-top: 8px;
+  align-items: stretch;
 }
 
 @media (max-width: 480px) {
@@ -1114,11 +1192,63 @@
   }
 }
 
+.achievement-gallery-item {
+  position: relative;
+  height: 100%;
+}
+
+.achievement-earned-dot {
+  position: absolute;
+  top: 11px;
+  right: 11px;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.96), 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.achievement-earned-dot--current {
+  background: #22c55e;
+}
+
+.achievement-earned-dot--total {
+  background: #3b82f6;
+}
+
+.achievement-earned-lock {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #6b7280;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.achievement-earned-lock .anticon {
+  font-size: 12px;
+}
+
 /* Override badge styles for gallery (no drop animation) */
 .achievement-gallery .achievement-badge {
   opacity: 1;
   transform: translateY(0) scale(1) rotate(0deg);
   animation: none;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  min-height: 360px;
+  justify-content: flex-start;
+  padding: 22px 20px;
+  border-radius: 18px;
 }
 
 .achievement-gallery .achievement-badge.visible {
@@ -1136,6 +1266,39 @@
 .achievement-gallery .achievement-badge .achievement-glow {
   animation: none;
   opacity: 0.2;
+}
+
+.achievement-gallery .achievement-lock-overlay {
+  display: none;
+}
+
+.achievement-gallery .achievement-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+}
+
+.achievement-gallery .achievement-title {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+}
+
+.achievement-gallery .achievement-description {
+  min-height: 48px;
+  text-align: center;
+}
+
+.achievement-gallery .achievement-rarity {
+  margin-top: auto;
+}
+
+.achievement-gallery .achievement-locked-text {
+  display: none;
 }
 
 .achievement-gallery .confetti-container {
