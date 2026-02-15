@@ -20,8 +20,6 @@ const formatDateTime = (value) => {
 
 const getAttemptTestTitle = (attempt, worksById) => {
   const session = attempt?.expand?.session;
-  const studentTitle = session?.student_title?.trim();
-  if (studentTitle) return studentTitle;
 
   const expandedWorkTitle = session?.expand?.work?.title?.trim();
   if (expandedWorkTitle) return expandedWorkTitle;
@@ -492,16 +490,6 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
                     width: 180,
                     render: (_, record) => formatDateTime(record.created),
                   },
-                {
-                  title: 'Тест',
-                  key: 'session',
-                  width: 220,
-                  render: (_, record) => (
-                    <Text ellipsis={{ tooltip: getAttemptTestTitle(record, worksById) }}>
-                      {getAttemptTestTitle(record, worksById)}
-                    </Text>
-                  ),
-                },
                   {
                     title: 'Работа',
                     key: 'work',

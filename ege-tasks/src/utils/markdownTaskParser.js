@@ -140,6 +140,18 @@ export function parseTags(tagsInput) {
 }
 
 /**
+ * Определяет, нужно ли применять legacy-конвертацию текста в LaTeX.
+ * Если в тексте уже есть LaTeX/Markdown-разметка, конвертацию пропускаем.
+ */
+function shouldConvertLegacyMath(text) {
+  if (!text) return false;
+  if (/\\[a-zA-Z]+/.test(text) || /\$/.test(text) || /!\[[^\]]*]\([^)]+\)/.test(text) || /\|.*\|/.test(text)) {
+    return false;
+  }
+  return /(дробь:|числитель:|знаменатель:|корень\s+из|косинус|синус|тангенс|котангенс|альфа|бета|гамма|дельта|пи)/i.test(text);
+}
+
+/**
  * Извлекает YAML frontmatter из markdown текста.
  * Возвращает { metadata, content } где content — текст без YAML-блока.
  */
@@ -209,10 +221,10 @@ export function parseEgeTasks(content, metadata) {
       let imageUrl = '';
 
       // Проверяем изображение в первой строке
-      const imgMatch = firstLine.match(/!\[image\]\((https?:\/\/[^)]+)\)/);
+      const imgMatch = firstLine.match(/!\[[^\]]*]\((https?:\/\/[^)]+)\)/);
       if (imgMatch) {
         imageUrl = imgMatch[1];
-        firstLine = firstLine.replace(/!\[image\]\(https?:\/\/[^)]+\)/, '').trim();
+        firstLine = firstLine.replace(/!\[[^\]]*]\(https?:\/\/[^)]+\)/, '').trim();
       }
 
       currentTask = {
@@ -248,10 +260,10 @@ export function parseEgeTasks(content, metadata) {
     // Собираем строки условия
     if (inStatement && line) {
       // Проверяем изображение
-      const imgMatch = line.match(/!\[image\]\((https?:\/\/[^)]+)\)/);
+      const imgMatch = line.match(/!\[[^\]]*]\((https?:\/\/[^)]+)\)/);
       if (imgMatch && currentTask) {
         currentTask.imageUrl = imgMatch[1];
-        const cleanedLine = line.replace(/!\[image\]\(https?:\/\/[^)]+\)/, '').trim();
+        const cleanedLine = line.replace(/!\[[^\]]*]\(https?:\/\/[^)]+\)/, '').trim();
         if (cleanedLine) currentStatement.push(cleanedLine);
       } else {
         currentStatement.push(line);
@@ -267,8 +279,12 @@ export function parseEgeTasks(content, metadata) {
 
   // Применяем преобразование в LaTeX
   tasks.forEach(task => {
-    task.statement_md = convertToLatex(task.statement_md);
-    task.answer = convertToLatex(task.answer);
+    if (shouldConvertLegacyMath(task.statement_md)) {
+      task.statement_md = convertToLatex(task.statement_md);
+    }
+    if (shouldConvertLegacyMath(task.answer)) {
+      task.answer = convertToLatex(task.answer);
+    }
   });
 
   return tasks;
@@ -350,10 +366,10 @@ export function parseMordkovichTasks(content, metadata) {
 
     // Собираем строки условия
     if (inStatement && line) {
-      const imgMatch = line.match(/!\[image\]\((https?:\/\/[^)]+)\)/);
+      const imgMatch = line.match(/!\[[^\]]*]\((https?:\/\/[^)]+)\)/);
       if (imgMatch && currentTask) {
         currentTask.imageUrl = imgMatch[1];
-        const cleanedLine = line.replace(/!\[image\]\(https?:\/\/[^)]+\)/, '').trim();
+        const cleanedLine = line.replace(/!\[[^\]]*]\(https?:\/\/[^)]+\)/, '').trim();
         if (cleanedLine) currentStatement.push(cleanedLine);
       } else {
         currentStatement.push(line);
@@ -369,8 +385,12 @@ export function parseMordkovichTasks(content, metadata) {
 
   // Применяем преобразование в LaTeX
   tasks.forEach(task => {
-    task.statement_md = convertToLatex(task.statement_md);
-    task.answer = convertToLatex(task.answer);
+    if (shouldConvertLegacyMath(task.statement_md)) {
+      task.statement_md = convertToLatex(task.statement_md);
+    }
+    if (shouldConvertLegacyMath(task.answer)) {
+      task.answer = convertToLatex(task.answer);
+    }
   });
 
   return tasks;
@@ -465,15 +485,6 @@ export function parseSdamgiaResult(problems, metadata = {}) {
   const globalTags = parseTags(metadata.tagsStr);
   const taskNumber = metadata.taskNumber || '';
   const topicName = taskNumber ? `ЕГЭ-База №${taskNumber}` : '';
-  const shouldConvertLegacyMath = (text) => {
-    if (!text) return false;
-    // Если уже есть LaTeX/Markdown структуры, повторная конверсия ломает выражения
-    if (/\\[a-zA-Z]+/.test(text) || /\$/.test(text) || /!\[[^\]]*]\([^)]+\)/.test(text) || /\|.*\|/.test(text)) {
-      return false;
-    }
-    // Конвертируем только "сырой" текст старого формата
-    return /(дробь:|числитель:|знаменатель:|корень\s+из|косинус|синус|тангенс|котангенс|альфа|бета|гамма|дельта|пи)/i.test(text);
-  };
   const normalizeSdamgiaText = (text) => String(text || '')
     .replace(/___BR___/g, '\n')
     .replace(/\u00AD/g, '') // soft hyphen
