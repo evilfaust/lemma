@@ -5,8 +5,15 @@ const isLoopbackHost = (host) => LOOPBACK_HOSTS.has((host || '').toLowerCase());
 
 const getBrowserBasedUrl = () => {
   if (typeof window !== 'undefined' && window.location?.hostname) {
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${window.location.hostname}:8090`;
+    const { protocol, hostname, origin } = window.location;
+
+    // On public/LAN hostnames prefer same-origin and let nginx proxy /api to PocketBase.
+    if (!isLoopbackHost(hostname)) {
+      return trimTrailingSlash(origin);
+    }
+
+    const safeProtocol = protocol === 'https:' ? 'https:' : 'http:';
+    return `${safeProtocol}//${hostname}:8090`;
   }
   return null;
 };
