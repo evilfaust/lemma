@@ -426,6 +426,7 @@ const PrintableWorksheet = forwardRef(({
                     {cardTasks.map((task, taskIndex) => {
                       const isDragging = draggedTask?.cardIndex === globalCardIndex && draggedTask?.taskIndex === taskIndex;
                       const isDragOver = dragOverTask?.cardIndex === globalCardIndex && dragOverTask?.taskIndex === taskIndex;
+                      const taskImageUrl = api.getTaskImageUrl(task);
 
                       return (
                         <div
@@ -442,9 +443,9 @@ const PrintableWorksheet = forwardRef(({
 
                           <div className="card-task-text">
                             <MathRenderer text={filterTaskText(task.statement_md)} />
-                            {task.has_image && task.image_url && (
+                            {task.has_image && taskImageUrl && (
                               <img
-                                src={task.image_url}
+                                src={taskImageUrl}
                                 alt="Изображение задачи"
                               />
                             )}

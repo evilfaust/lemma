@@ -611,6 +611,53 @@ app.post('/parse-sdamgia', async (req, res) => {
 });
 
 /**
+ * POST /fetch-image
+ * Прокси-загрузка картинки (для импорта задач без CORS-зависимости в браузере)
+ */
+app.post('/fetch-image', async (req, res) => {
+  try {
+    const { url } = req.body || {};
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'URL обязателен' });
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return res.status(400).json({ error: 'Некорректный URL' });
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      return res.status(400).json({ error: 'Поддерживаются только http/https URL' });
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+        Referer: `${parsed.protocol}//${parsed.host}/`,
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(502).json({ error: `Ошибка загрузки изображения: HTTP ${response.status}` });
+    }
+
+    const contentType = response.headers.get('content-type') || 'application/octet-stream';
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.send(buffer);
+  } catch (error) {
+    console.error('[ImageProxy] Ошибка:', error.message);
+    return res.status(500).json({ error: 'Ошибка прокси-загрузки изображения', message: error.message });
+  }
+});
+
+/**
  * GET /health
  * Health check
  */

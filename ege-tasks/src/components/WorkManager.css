@@ -398,6 +398,20 @@
   min-width: 0;
 }
 
+.wm-variant-task-image {
+  margin-top: 8px;
+}
+
+.wm-variant-task-image img {
+  display: block;
+  max-width: min(100%, 520px);
+  width: auto;
+  height: auto;
+  border-radius: 10px;
+  border: 1px solid #ececec;
+  background: #fff;
+}
+
 .wm-variant-task-answer {
   margin-top: 6px;
   padding-top: 6px;

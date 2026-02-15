@@ -2,6 +2,18 @@ import { useState, useCallback, useRef } from 'react';
 import { api } from '../services/pocketbase';
 import { parseMarkdownFile, parseSdamgiaResult, getRandomTagColor } from '../utils/markdownTaskParser';
 
+const getPdfServiceUrl = () => {
+  const envUrl = import.meta.env.VITE_PDF_SERVICE_URL;
+  if (envUrl) return envUrl;
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${window.location.hostname}:3001`;
+  }
+  return 'http://localhost:3001';
+};
+
+const PDF_SERVICE_URL = getPdfServiceUrl();
+
 /**
  * Хук для импорта задач из markdown файлов.
  * Управляет состоянием парсинга, маппинга на БД и процессом импорта.
@@ -147,6 +159,35 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
     setSelectedTasks(new Set());
   }, []);
 
+  const fetchImageAsFile = useCallback(async (imageUrl, fileBaseName) => {
+    if (!imageUrl) return null;
+
+    const response = await fetch(`${PDF_SERVICE_URL}/fetch-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: imageUrl }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ошибка загрузки изображения: HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const contentType = response.headers.get('content-type') || blob.type || 'image/png';
+    const ext = contentType.includes('png')
+      ? 'png'
+      : contentType.includes('jpeg') || contentType.includes('jpg')
+      ? 'jpg'
+      : contentType.includes('webp')
+      ? 'webp'
+      : contentType.includes('gif')
+      ? 'gif'
+      : 'png';
+
+    const safeName = String(fileBaseName || 'task-image').replace(/[^a-zA-Z0-9_-]/g, '_');
+    return new File([blob], `${safeName}.${ext}`, { type: contentType });
+  }, []);
+
   /**
    * Получает или создаёт тег по title.
    * Использует кэш для минимизации запросов.
@@ -284,6 +325,20 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
         const code = `${egeNumber}-${String(nextNumber).padStart(3, '0')}`;
         nextNumber++;
 
+        // Загружаем изображение локально (через PDF-сервис), если оно есть
+        let imageFile = null;
+        if (task.imageUrl) {
+          try {
+            imageFile = await fetchImageAsFile(task.imageUrl, `task_${code}`);
+          } catch (e) {
+            results.details.push({
+              status: 'warning',
+              number: task.number,
+              message: `#${task.number}: не удалось скачать изображение, сохранена внешняя ссылка`,
+            });
+          }
+        }
+
         // Формируем данные задачи
         const recordData = {
           code,
@@ -295,8 +350,8 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
           explanation_md: '',
           source: parsedData.metadata.source || '',
           year: parsedData.metadata.year || null,
-          has_image: Boolean(task.imageUrl),
-          image_url: task.imageUrl || '',
+          has_image: Boolean(task.imageUrl || imageFile),
+          image_url: imageFile ? '' : (task.imageUrl || ''),
         };
 
         if (importSubtopicId) {
@@ -308,7 +363,22 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
         }
 
         try {
-          await api.createTask(recordData);
+          let payload = recordData;
+          if (imageFile) {
+            const formData = new FormData();
+            Object.entries(recordData).forEach(([key, value]) => {
+              if (value === null || value === undefined) return;
+              if (Array.isArray(value)) {
+                value.forEach((item) => formData.append(key, item));
+              } else {
+                formData.append(key, value);
+              }
+            });
+            formData.append('image', imageFile);
+            payload = formData;
+          }
+
+          await api.createTask(payload);
           results.added++;
           results.details.push({
             status: 'added',
@@ -338,7 +408,7 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
     setImportResults(results);
     setImporting(false);
     return results;
-  }, [parsedData, topicId, subtopicId, selectedTasks, topics, existingSubtopics]);
+  }, [parsedData, topicId, subtopicId, selectedTasks, topics, existingSubtopics, fetchImageAsFile]);
 
   /**
    * Сброс состояния для нового импорта.

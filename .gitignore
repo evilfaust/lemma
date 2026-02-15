@@ -13,9 +13,11 @@ yarn-error.log*
 pocketbase/pb_data/*.db
 pocketbase/pb_data/*.db-shm
 pocketbase/pb_data/*.db-wal
+pocketbase/pb_data/storage/
 
 # Backups
 backups/
+task-image-cache/
 
 # OS
 .DS_Store

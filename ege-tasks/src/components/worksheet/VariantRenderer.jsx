@@ -2,6 +2,7 @@ import { Button, Tooltip } from 'antd';
 import { EditOutlined, SwapOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { filterTaskText } from '../../utils/filterTaskText';
+import { api } from '../../services/pocketbase';
 
 /**
  * Компонент рендеринга одного варианта (компактный и обычный режимы).
@@ -136,6 +137,7 @@ const VariantRenderer = ({
         {variant.tasks.map((task, taskIndex) => {
           const isDragging = dragDropHandlers?.isDragging(variantIndex, taskIndex);
           const isDragOver = dragDropHandlers?.isDragOver(variantIndex, taskIndex);
+          const taskImageUrl = api.getTaskImageUrl(task);
 
           return (
             <div
@@ -177,9 +179,9 @@ const VariantRenderer = ({
               <div className="task-content">
                 <MathRenderer text={applyTextFilter(task.statement_md)} />
 
-                {task.has_image && task.image_url && (
+                {task.has_image && taskImageUrl && (
                   <div className="task-image">
-                    <img src={task.image_url} alt="" />
+                    <img src={taskImageUrl} alt="" />
                   </div>
                 )}
               </div>

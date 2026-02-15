@@ -476,6 +476,7 @@ echo "VITE_PB_URL=http://127.0.0.1:8090" > ege-tasks/.env
 ```bash
 npm run dev          # Все сервисы
 npm run dev:no-pdf   # Без PDF-сервиса
+npm run migrate:task-images # Перенос внешних image_url в files tasks.image (требует PB_SUPERUSER_EMAIL/PASSWORD)
 ```
 
 ### Сервисы
@@ -641,6 +642,16 @@ Content-Type: application/json
 → [{ id, condition, answer, images }]
 ```
 
+### Прокси загрузки изображений
+```
+POST http://localhost:3001/fetch-image
+Content-Type: application/json
+
+{ "url": "https://..." }
+→ binary image/*
+```
+Используется импортом задач для сохранения картинок локально в PocketBase (`tasks.image`).
+
 ## API сервис (pocketbase.js)
 
 Основные группы функций:
@@ -650,7 +661,7 @@ Content-Type: application/json
 | Topics | `getTopics`, `getTopic`, `createTopic`, `updateTopic` |
 | Subtopics | `getSubtopics`, `createSubtopic`, `updateSubtopic`, `deleteSubtopic` |
 | Tags | `getTags`, `createTag`, `updateTag`, `deleteTag`, `findTagByTitle` |
-| Tasks | `getTasks`, `getTask`, `createTask`, `updateTask`, `deleteTask`, `getRandomTasks`, `getRandomTasksWithoutRepetition`, `getTasksWithProgressiveDifficulty` |
+| Tasks | `getTasks`, `getTask`, `createTask`, `updateTask`, `deleteTask`, `getRandomTasks`, `getRandomTasksWithoutRepetition`, `getTasksWithProgressiveDifficulty`, `getTaskImageUrl` |
 | Cards | `getCards`, `getCard`, `createCard`, `updateCard`, `deleteCard` |
 | Works | `getWorks`, `getWork`, `createWork`, `updateWork`, `deleteWork`, `archiveWork`, `unarchiveWork` |
 | Variants | `getVariantsByWork`, `getVariant`, `createVariant`, `updateVariant`, `deleteVariant` |

@@ -269,29 +269,38 @@ const WorkManager = ({ onEditWork }) => {
           label: `Вариант ${variant.number || idx + 1}`,
           children: (
             <div className="wm-variant-preview">
-              {(variant.expand?.tasks || []).map((task, tIdx) => (
-                <div key={task.id} className="wm-variant-task">
-                  <div className="wm-variant-task-num">{tIdx + 1}</div>
-                  <div className="wm-variant-task-content">
-                    <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
-                      {task.code && <Tag style={{ margin: 0 }}>{task.code}</Tag>}
-                      {task.difficulty && (
-                        <Tag
-                          style={{ margin: 0 }}
-                          color={{ 1: 'green', 2: 'orange', 3: 'red', 4: 'purple', 5: 'cyan' }[task.difficulty] || 'default'}
-                        >
-                          {{ 1: 'Базовый', 2: 'Средний', 3: 'Повышенный', 4: 'Высокий', 5: 'Олимпиадный' }[task.difficulty] || `Ур.${task.difficulty}`}
-                        </Tag>
+              {(variant.expand?.tasks || []).map((task, tIdx) => {
+                const taskImageUrl = api.getTaskImageUrl(task);
+
+                return (
+                  <div key={task.id} className="wm-variant-task">
+                    <div className="wm-variant-task-num">{tIdx + 1}</div>
+                    <div className="wm-variant-task-content">
+                      <div style={{ display: 'flex', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                        {task.code && <Tag style={{ margin: 0 }}>{task.code}</Tag>}
+                        {task.difficulty && (
+                          <Tag
+                            style={{ margin: 0 }}
+                            color={{ 1: 'green', 2: 'orange', 3: 'red', 4: 'purple', 5: 'cyan' }[task.difficulty] || 'default'}
+                          >
+                            {{ 1: 'Базовый', 2: 'Средний', 3: 'Повышенный', 4: 'Высокий', 5: 'Олимпиадный' }[task.difficulty] || `Ур.${task.difficulty}`}
+                          </Tag>
+                        )}
+                      </div>
+                      <MathRenderer text={task.statement_md} />
+                      {taskImageUrl && (
+                        <div className="wm-variant-task-image">
+                          <img src={taskImageUrl} alt="" />
+                        </div>
                       )}
-                    </div>
-                    <MathRenderer text={task.statement_md} />
-                    <div className="wm-variant-task-answer">
-                      <Text type="secondary">Ответ: </Text>
-                      <MathRenderer text={task.answer} />
+                      <div className="wm-variant-task-answer">
+                        <Text type="secondary">Ответ: </Text>
+                        <MathRenderer text={task.answer} />
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ),
         }))}

@@ -320,6 +320,14 @@ export const api = {
     return pb.files.getUrl(record, filename);
   },
 
+  // Получить универсальный URL изображения задачи (локальный файл или внешний URL)
+  getTaskImageUrl(task) {
+    if (!task) return '';
+    if (task.image_url) return task.image_url;
+    if (task.image) return pb.files.getUrl(task, task.image);
+    return '';
+  },
+
   // ============ КАРТОЧКИ ============
 
   // Создать карточку

@@ -18,6 +18,7 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
   const { message } = App.useApp();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [changingDifficulty, setChangingDifficulty] = useState(false);
+  const taskImageUrl = api.getTaskImageUrl(task);
 
   const getDifficultyColor = (difficulty) => {
     const colors = {
@@ -160,10 +161,10 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
         </Paragraph>
 
         {/* Изображение если есть */}
-        {task.has_image && task.image_url && (
+        {task.has_image && taskImageUrl && (
           <div className="task-card-image" style={{ marginBottom: 12 }}>
             <Image
-              src={task.image_url}
+              src={taskImageUrl}
               alt="Task image"
               preview={false}
               style={{ maxWidth: '100%' }}
