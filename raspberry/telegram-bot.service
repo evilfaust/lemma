@@ -1,0 +1,24 @@
+[Unit]
+Description=Telegram Bot for Raspberry Pi Monitoring
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=faust
+WorkingDirectory=/home/faust/ege-app/raspberry
+ExecStartPre=/bin/sleep 10
+ExecStartPre=/usr/bin/node /home/faust/ege-app/raspberry/telegram-bot.js startup
+ExecStart=/usr/bin/node /home/faust/ege-app/raspberry/telegram-bot.js daemon
+Restart=always
+RestartSec=10
+
+# Ограничения ресурсов
+MemoryMax=100M
+CPUQuota=10%
+
+# Переменные окружения
+Environment="NODE_ENV=production"
+
+[Install]
+WantedBy=multi-user.target

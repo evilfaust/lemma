@@ -1,0 +1,26 @@
+[Unit]
+Description=PDF Service (Puppeteer) for EGE Tasks Manager
+After=network.target pocketbase.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=faust
+Group=faust
+WorkingDirectory=/home/faust/ege-app/pocketbase
+ExecStart=/usr/bin/node pdf-service.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Ограничения ресурсов (для Raspberry Pi)
+MemoryLimit=768M
+CPUQuota=80%
+
+# Переменные окружения
+Environment="NODE_ENV=production"
+Environment="PORT=3001"
+
+[Install]
+WantedBy=multi-user.target
