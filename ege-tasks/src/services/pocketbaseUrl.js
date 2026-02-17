@@ -1,18 +1,25 @@
 const trimTrailingSlash = (url) => url.replace(/\/+$/, '');
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '0.0.0.0']);
+const VITE_DEV_PORTS = new Set(['5173', '5174']);
 
 const isLoopbackHost = (host) => LOOPBACK_HOSTS.has((host || '').toLowerCase());
+const isViteDevPort = (port) => VITE_DEV_PORTS.has(String(port || ''));
 
 const getBrowserBasedUrl = () => {
   if (typeof window !== 'undefined' && window.location?.hostname) {
-    const { protocol, hostname, origin } = window.location;
+    const { protocol, hostname, origin, port } = window.location;
+    const safeProtocol = protocol === 'https:' ? 'https:' : 'http:';
+
+    // На Vite dev (`:5173`) backend обычно на `:8090` без reverse-proxy.
+    if (isViteDevPort(port)) {
+      return `${safeProtocol}//${hostname}:8090`;
+    }
 
     // On public/LAN hostnames prefer same-origin and let nginx proxy /api to PocketBase.
     if (!isLoopbackHost(hostname)) {
       return trimTrailingSlash(origin);
     }
 
-    const safeProtocol = protocol === 'https:' ? 'https:' : 'http:';
     return `${safeProtocol}//${hostname}:8090`;
   }
   return null;

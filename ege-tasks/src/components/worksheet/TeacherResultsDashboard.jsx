@@ -189,12 +189,39 @@ const TeacherResultsDashboard = ({ sessionId }) => {
             }
           });
 
-          const minCount = Math.min(...Object.values(assignmentCount));
-          let candidates = Object.keys(assignmentCount).filter(
-            id => assignmentCount[id] === minCount
+          const variantIds = allVariants.map((v) => v.id);
+          const usedByStudent = new Set(
+            allAttempts
+              .filter((a) => {
+                if (attempt.student) return a.student === attempt.student;
+                if (attempt.device_id) return a.device_id === attempt.device_id;
+                return false;
+              })
+              .map((a) => a.variant)
+              .filter(Boolean)
           );
+
+          const selectMinAssigned = (ids) => {
+            if (!ids.length) return [];
+            const minCount = Math.min(...ids.map((id) => assignmentCount[id] ?? 0));
+            return ids.filter((id) => (assignmentCount[id] ?? 0) === minCount);
+          };
+
+          // Приоритет:
+          // 1) варианты, которых у ученика еще не было;
+          // 2) если таких нет — любые варианты;
+          // Внутри группы выбираем наименее выданные, затем случайно.
+          let candidates = selectMinAssigned(variantIds.filter((id) => !usedByStudent.has(id)));
+          if (candidates.length === 0) {
+            candidates = selectMinAssigned(variantIds);
+          }
+
+          // Не повторяем текущий вариант, если есть альтернатива.
           if (candidates.length > 1) {
-            candidates = candidates.filter(id => id !== attempt.variant);
+            const withoutCurrent = candidates.filter((id) => id !== attempt.variant);
+            if (withoutCurrent.length > 0) {
+              candidates = withoutCurrent;
+            }
           }
 
           const shuffled = shuffleArray([...candidates]);

@@ -45,8 +45,9 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
     );
   }
 
-  // Приём закрыт
-  if (!session.is_open) {
+  // Приём закрыт только при явном false.
+  // Если поле не пришло (undefined/null), не показываем ложное "закрыто".
+  if (session.is_open === false) {
     return (
       <Result
         status="error"

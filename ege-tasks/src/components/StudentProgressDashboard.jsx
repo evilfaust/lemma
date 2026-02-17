@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Collapse, Empty, Modal, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
+import { App, Button, Collapse, Empty, Modal, Popover, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
 import { ReloadOutlined, UserOutlined, TeamOutlined, TrophyOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import './StudentProgressDashboard.css';
@@ -59,25 +59,36 @@ const normalizeUnlockedIds = (value) => {
   return [];
 };
 
+const getAttemptAchievementIds = (attempt) => {
+  if (!attempt) return [];
+  return Array.from(new Set([
+    ...(attempt.achievement ? [attempt.achievement] : []),
+    ...normalizeUnlockedIds(attempt.unlocked_achievements),
+  ]));
+};
+
 const StudentProgressDashboard = ({ onOpenWork }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [works, setWorks] = useState([]);
+  const [achievements, setAchievements] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [studentsData, attemptsData, worksData] = await Promise.all([
+      const [studentsData, attemptsData, worksData, achievementsData] = await Promise.all([
         api.getStudents(),
         api.getAttemptsForRegisteredStudents(),
         api.getWorks({ includeArchived: true }),
+        api.getAchievements(),
       ]);
       setStudents(studentsData);
       setAttempts(attemptsData);
       setWorks(worksData);
+      setAchievements(achievementsData);
     } catch (err) {
       console.error('Error loading student progress dashboard:', err);
       message.error('Ошибка загрузки прогресса учеников');
@@ -94,6 +105,14 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
     works.forEach((work) => map.set(work.id, work));
     return map;
   }, [works]);
+
+  const achievementsById = useMemo(() => {
+    const map = new Map();
+    achievements.forEach((achievement) => {
+      map.set(achievement.id, achievement);
+    });
+    return map;
+  }, [achievements]);
 
   const attemptsByStudentId = useMemo(() => {
     const map = new Map();
@@ -148,6 +167,7 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         totalScore,
         totalTasks,
         achievementsCount: achievements.size,
+        achievementIds: Array.from(achievements),
         completedWorksCount: completedWorkIds.size,
         lastAttemptAt,
         latestTestTitle: getAttemptTestTitle(latestAttempt, worksById),
@@ -270,18 +290,29 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
       sorter: (a, b) => a.avgPercent - b.avgPercent,
     },
     {
-      title: 'Лучший',
-      dataIndex: 'bestPercent',
-      key: 'bestPercent',
-      width: 100,
-      render: (value) => <Tag color={value >= 80 ? 'green' : value >= 50 ? 'blue' : 'default'}>{value}%</Tag>,
-      sorter: (a, b) => a.bestPercent - b.bestPercent,
-    },
-    {
       title: 'Ачивки',
       dataIndex: 'achievementsCount',
       key: 'achievementsCount',
-      width: 100,
+      width: 140,
+      render: (_, record) => {
+        if (!record.achievementsCount) return '—';
+        return (
+          <Popover
+            trigger="click"
+            title="Полученные ачивки"
+            content={
+              <Space wrap style={{ maxWidth: 340 }}>
+                {record.achievementIds.map((achievementId) => {
+                  const title = achievementsById.get(achievementId)?.title || `ID: ${achievementId}`;
+                  return <Tag key={achievementId} color="gold">{title}</Tag>;
+                })}
+              </Space>
+            }
+          >
+            <Button size="small" type="link">{record.achievementsCount}</Button>
+          </Popover>
+        );
+      },
       sorter: (a, b) => a.achievementsCount - b.achievementsCount,
     },
     {
@@ -448,6 +479,21 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
               <Tag color="gold">Ачивок: {selectedStudent.achievementsCount}</Tag>
             </Space>
 
+            {selectedStudent.achievementsCount > 0 && (
+              <div className="spd-modal-card">
+                <div className="spd-modal-card-header">
+                  <TrophyOutlined />
+                  <Text strong>Полученные ачивки</Text>
+                </div>
+                <Space wrap>
+                  {selectedStudent.achievementIds.map((achievementId) => {
+                    const title = achievementsById.get(achievementId)?.title || `ID: ${achievementId}`;
+                    return <Tag key={achievementId} color="gold">{title}</Tag>;
+                  })}
+                </Space>
+              </div>
+            )}
+
             <div className="spd-modal-card">
               <div className="spd-modal-card-header">
                 <CheckCircleOutlined />
@@ -530,13 +576,27 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
                   {
                     title: 'Ачивки',
                     key: 'ach',
-                    width: 120,
+                    width: 180,
                     render: (_, record) => {
-                      const achCount = new Set([
-                        ...(record.achievement ? [record.achievement] : []),
-                        ...normalizeUnlockedIds(record.unlocked_achievements),
-                      ]).size;
-                      return achCount || '—';
+                      const attemptAchievementIds = getAttemptAchievementIds(record);
+                      if (attemptAchievementIds.length === 0) return '—';
+
+                      return (
+                        <Popover
+                          trigger="click"
+                          title="Ачивки в попытке"
+                          content={
+                            <Space wrap style={{ maxWidth: 320 }}>
+                              {attemptAchievementIds.map((achievementId) => {
+                                const title = achievementsById.get(achievementId)?.title || `ID: ${achievementId}`;
+                                return <Tag key={achievementId} color="gold">{title}</Tag>;
+                              })}
+                            </Space>
+                          }
+                        >
+                          <Button size="small" type="link">{attemptAchievementIds.length}</Button>
+                        </Popover>
+                      );
                     },
                   },
                 ]}
