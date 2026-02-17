@@ -37,7 +37,7 @@
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 
-Текущая версия: **3.2.0** (февраль 2026)
+Текущая версия: **3.4.0** (февраль 2026)
 
 ## Tech Stack
 
@@ -53,8 +53,11 @@
 - **html2pdf.js 0.14** for fallback PDF export
 
 ### Backend
-- **PocketBase** (Backend-as-a-Service, SQLite, REST API, Auth, File storage)
-- **PDF Service** (Node.js + Express + Puppeteer on port 3001)
+- **PocketBase 0.36.4** on VPS (https://task-ege.oipav.ru) — единая база данных
+  - Backend-as-a-Service, SQLite, REST API, Auth, File storage
+  - nginx reverse proxy + Let's Encrypt SSL
+  - Автобэкапы каждые 6 часов (cron)
+- **PDF Service** (Node.js + Express + Puppeteer on port 3001, local only)
   - High-quality PDF generation
   - sdamgia.ru parser (POST /parse-sdamgia)
 - **Cheerio** for HTML parsing
@@ -310,10 +313,17 @@ npm run dev             # Same as start.sh
 ```
 
 ### Services
-- PocketBase: http://127.0.0.1:8090 (Admin: http://127.0.0.1:8090/_/)
+- PocketBase (VPS): https://task-ege.oipav.ru (Admin: https://task-ege.oipav.ru/_/)
+- PocketBase (local fallback): http://127.0.0.1:8090
 - PDF Service: http://localhost:3001
 - Frontend: http://localhost:5173
 - Student: http://localhost:5173/student/{sessionId}
+
+### VPS Deployment (147.45.158.148)
+- PocketBase 0.36.4 → systemd `pocketbase-ege` → port 8095 → nginx reverse proxy → https://task-ege.oipav.ru
+- Backups: `/opt/pocketbase/backups/` (cron every 6h, max 20 backups)
+- Logs: `/var/log/pocketbase-ege.log`
+- Manage: `systemctl {start|stop|restart|status} pocketbase-ege`
 
 ### Database Backup
 ```bash

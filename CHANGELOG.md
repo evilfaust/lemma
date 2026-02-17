@@ -1,5 +1,25 @@
 # Changelog — История изменений
 
+## [3.4.0] - 2026-02-17
+
+### Добавлено
+- **Миграция PocketBase на VPS** — единая база данных для всех клиентов (Mac, Raspberry Pi)
+  - PocketBase 0.36.4 развёрнут на VPS (147.45.158.148)
+  - Домен: `https://task-ege.oipav.ru` с Let's Encrypt SSL
+  - nginx reverse proxy → PocketBase на порту 8095
+  - systemd сервис `pocketbase-ege` с автозапуском
+- **Автоматические бэкапы на VPS** — cron каждые 6 часов
+  - Безопасный бэкап через `sqlite3 .backup` (safe while running)
+  - Ротация: максимум 20 бэкапов
+  - Логирование в `/opt/pocketbase/backups/backup.log`
+
+### Изменено
+- **`VITE_PB_URL`** — обновлён на `https://task-ege.oipav.ru`
+- Фронтенд теперь работает с удалённой базой (локальный PB больше не требуется для разработки)
+- Обновлена документация (CLAUDE.md, CHANGELOG.md)
+
+---
+
 ## [3.3.2] - 2026-02-15
 
 ### Добавлено
