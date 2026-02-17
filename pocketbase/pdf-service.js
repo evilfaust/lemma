@@ -4,12 +4,18 @@
  */
 
 import express from 'express';
-import puppeteer from 'puppeteer';
+// Поддержка puppeteer-core (VPS с системным Chromium) и puppeteer (локально)
+let puppeteer;
+try {
+  puppeteer = (await import('puppeteer')).default;
+} catch {
+  puppeteer = (await import('puppeteer-core')).default;
+}
 import cors from 'cors';
 import * as cheerio from 'cheerio';
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
@@ -27,7 +33,7 @@ async function getBrowser() {
   }
 
   console.log('[PDF] Запуск Chromium...');
-  browser = await puppeteer.launch({
+  const launchOptions = {
     headless: true,
     args: [
       '--no-sandbox',
@@ -36,7 +42,15 @@ async function getBrowser() {
       '--disable-accelerated-2d-canvas',
       '--disable-gpu',
     ],
-  });
+  };
+
+  // На VPS используем системный Chromium через env
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    launchOptions.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
+    console.log(`[PDF] Используется системный Chromium: ${process.env.PUPPETEER_EXECUTABLE_PATH}`);
+  }
+
+  browser = await puppeteer.launch(launchOptions);
 
   browser.on('disconnected', () => {
     console.log('[PDF] Браузер отключен');

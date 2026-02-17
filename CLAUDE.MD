@@ -37,7 +37,7 @@
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 
-Текущая версия: **3.4.0** (февраль 2026)
+Текущая версия: **3.5.0** (февраль 2026)
 
 ## Tech Stack
 
@@ -52,14 +52,20 @@
 - **qrcode.react 4.2** for QR codes (student sessions)
 - **html2pdf.js 0.14** for fallback PDF export
 
-### Backend
-- **PocketBase 0.36.4** on VPS (https://task-ege.oipav.ru) — единая база данных
+### Backend (VPS: 147.45.158.148 / task-ege.oipav.ru)
+- **PocketBase 0.36.4** — единая база данных
   - Backend-as-a-Service, SQLite, REST API, Auth, File storage
   - nginx reverse proxy + Let's Encrypt SSL
+  - systemd: `pocketbase-ege` (порт 8095)
   - Автобэкапы каждые 6 часов (cron)
-- **PDF Service** (Node.js + Express + Puppeteer on port 3001, local only)
+- **PDF Service** (Node.js 20 + Express + Puppeteer-core + Chromium)
   - High-quality PDF generation
   - sdamgia.ru parser (POST /parse-sdamgia)
+  - systemd: `pdf-service-ege` (порт 3001)
+  - URL: `https://task-ege.oipav.ru/pdf`
+- **Telegram Bot** — мониторинг VPS + статистика БД
+  - systemd: `telegram-bot-ege`
+  - Команды: /status, /db, /backups, /health, /restart, /logs
 - **Cheerio** for HTML parsing
 
 ### Utilities
@@ -305,25 +311,34 @@ URL: `/student/{sessionId}`
 
 ## Common Tasks
 
-### Running the Application
+### Running the Application (Dev)
 ```bash
-./start.sh              # All services (PocketBase + PDF + Frontend)
-./start.sh --no-pdf     # Without PDF service
-npm run dev             # Same as start.sh
+./start.sh              # Только фронтенд (backend на VPS)
+./start.sh --local-pdf  # Фронтенд + локальный PDF-сервис
+./start.sh --full       # Фронтенд + локальный PB + PDF (полностью офлайн)
 ```
 
 ### Services
 - PocketBase (VPS): https://task-ege.oipav.ru (Admin: https://task-ege.oipav.ru/_/)
-- PocketBase (local fallback): http://127.0.0.1:8090
-- PDF Service: http://localhost:3001
-- Frontend: http://localhost:5173
+- PDF Service (VPS): https://task-ege.oipav.ru/pdf
+- Frontend (dev): http://localhost:5173
 - Student: http://localhost:5173/student/{sessionId}
 
 ### VPS Deployment (147.45.158.148)
-- PocketBase 0.36.4 → systemd `pocketbase-ege` → port 8095 → nginx reverse proxy → https://task-ege.oipav.ru
+```
+nginx (443) → task-ege.oipav.ru
+  /api/, /_/    → PocketBase (:8095)   systemd: pocketbase-ege
+  /pdf/         → PDF Service (:3001)  systemd: pdf-service-ege
+  Telegram Bot                         systemd: telegram-bot-ege
+```
 - Backups: `/opt/pocketbase/backups/` (cron every 6h, max 20 backups)
-- Logs: `/var/log/pocketbase-ege.log`
-- Manage: `systemctl {start|stop|restart|status} pocketbase-ege`
+- Logs: `journalctl -u {pocketbase-ege|pdf-service-ege|telegram-bot-ege}`
+- Manage: `systemctl {start|stop|restart|status} {pocketbase-ege|pdf-service-ege|telegram-bot-ege}`
+
+### Raspberry Pi (192.168.1.68)
+- Только статический фронтенд через Nginx
+- PocketBase, PDF, Telegram-бот — ОТКЛЮЧЕНЫ (всё на VPS)
+- Deploy: `./raspberry/deploy-to-raspberry.sh`
 
 ### Database Backup
 ```bash
@@ -408,7 +423,7 @@ Key function groups:
 
 - `README.MD` - Полное руководство пользователя
 - `ARCHITECTURE.md` - Архитектура проекта
-- `CHANGELOG.md` - История изменений (v1.0 → v3.2)
+- `CHANGELOG.md` - История изменений (v1.0 → v3.5)
 - `DATABASE_SAFETY.md` - Правила безопасности БД
 - `BACKUP_GUIDE.md` - Руководство по бэкапам
 - `PDF_EXPORT_UPGRADE.md` - PDF экспорт через Puppeteer

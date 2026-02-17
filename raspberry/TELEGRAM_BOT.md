@@ -1,31 +1,28 @@
-# Telegram Bot для мониторинга Raspberry Pi
+# Telegram Bot для мониторинга VPS
 
-## 📱 Описание
+## Описание
 
-Telegram-бот автоматически отправляет уведомление о подключении Raspberry Pi к сети и позволяет управлять сервисами через команды.
+Telegram-бот работает на VPS и мониторит все сервисы EGE Tasks Manager. Отправляет уведомление при запуске и принимает команды через long polling.
 
-## 🎯 Возможности
+## Расположение
 
-### Автоматические уведомления
+- **Исходник:** `raspberry/telegram-bot.js` (в репозитории)
+- **На VPS:** `/opt/pocketbase/telegram-bot/telegram-bot.js`
+- **Systemd:** `telegram-bot-ege`
 
-При загрузке Raspberry Pi бот отправит сообщение с:
-- 🌐 IP-адресом
-- 📡 Именем Wi-Fi сети
-- ✅ Статусом сервисов (PocketBase, PDF, Nginx)
-- 🔗 Прямой ссылкой на приложение
-
-### Команды бота
+## Команды бота
 
 | Команда | Описание |
 |---------|----------|
-| `/status` | Статус сервисов и системы |
-| `/ip` | Текущий IP-адрес и сеть |
-| `/stats` | Использование ресурсов (RAM, CPU, диск) |
-| `/restart` | Перезапустить все сервисы |
-| `/notify` | Отправить полное уведомление о статусе |
+| `/status` | Статус сервисов VPS + система (RAM, диск, uptime, load) |
+| `/db` | Статистика БД: задачи, темы, студенты, попытки, работы, сессии, статьи |
+| `/backups` | Последние 5 бэкапов + размер + следующий по расписанию |
+| `/health` | HTTP health-check PocketBase и PDF Service (локально + через домен) |
+| `/restart [service]` | Перезапуск: all / pocketbase / pdf / nginx / bot |
+| `/logs [service]` | Последние 20 строк логов (pocketbase / pdf / nginx / bot) |
 | `/help` | Список всех команд |
 
-## ⚙️ Конфигурация
+## Конфигурация
 
 ### Telegram Bot Token и Chat ID
 
@@ -35,305 +32,140 @@ const BOT_TOKEN = '8094410045:AAGD7DID-odRPOdwEpk85GhhTtsqQgRPZO4';
 const CHAT_ID = '328497552';
 ```
 
-### Как изменить Bot Token или Chat ID
-
-1. **Отредактировать на Mac:**
-   ```bash
-   nano raspberry/telegram-bot.js
-   # Изменить BOT_TOKEN и CHAT_ID в начале файла
-   ```
-
-2. **Задеплоить на Raspberry Pi:**
-   ```bash
-   ./raspberry/deploy-to-raspberry.sh
-   ```
-
-3. **Перезапустить бота:**
-   ```bash
-   ssh faust@192.168.1.68
-   sudo systemctl restart telegram-bot
-   ```
-
-## 🚀 Установка
-
-### Первичная установка (уже выполнена)
-
-Бот устанавливается автоматически при первичной настройке:
-```bash
-./raspberry/copy-configs-to-raspberry.sh
-ssh faust@192.168.1.68
-cd /home/faust/ege-app-setup
-./setup-raspberry.sh
+### Пути на VPS
+```javascript
+const PB_DATA_DIR = '/opt/pocketbase/pb_data';
+const BACKUP_DIR = '/opt/pocketbase/backups';
+const DB_PATH = '/opt/pocketbase/pb_data/data.db';
 ```
 
-### Обновление бота
-
-При любом деплое бот автоматически обновляется:
-```bash
-./raspberry/deploy-to-raspberry.sh
-```
-
-## 🔧 Управление сервисом
+## Управление
 
 ### Проверка статуса
 ```bash
-ssh faust@192.168.1.68
-sudo systemctl status telegram-bot
+ssh root@147.45.158.148
+systemctl status telegram-bot-ege
 ```
 
 ### Просмотр логов
 ```bash
-# Последние 50 строк
-sudo journalctl -u telegram-bot -n 50
-
-# Режим реального времени
-sudo journalctl -u telegram-bot -f
+journalctl -u telegram-bot-ege -n 50
+journalctl -u telegram-bot-ege -f  # реальное время
 ```
 
 ### Перезапуск
 ```bash
-sudo systemctl restart telegram-bot
+systemctl restart telegram-bot-ege
 ```
 
 ### Остановка/запуск
 ```bash
-sudo systemctl stop telegram-bot
-sudo systemctl start telegram-bot
+systemctl stop telegram-bot-ege
+systemctl start telegram-bot-ege
 ```
 
-### Отключение автозапуска
-```bash
-sudo systemctl disable telegram-bot
-```
+## Как это работает
 
-### Включение автозапуска
-```bash
-sudo systemctl enable telegram-bot
-```
+### Режимы работы
 
-## 📋 Как это работает
-
-### 1. При загрузке Raspberry Pi
-
-```
-1. Systemd запускает telegram-bot.service
-2. Ждет 10 секунд (пока подключится к Wi-Fi)
-3. Отправляет уведомление в Telegram (режим startup)
-4. Запускает демона для прослушивания команд (режим daemon)
-```
-
-### 2. При получении команды от пользователя
-
-```
-1. Бот получает сообщение через Telegram API (long polling)
-2. Проверяет Chat ID (безопасность)
-3. Выполняет соответствующую команду
-4. Отправляет результат в Telegram
-```
-
-### 3. Режимы работы
-
-**Startup режим** (выполняется один раз при загрузке):
+**Startup** (выполняется один раз при запуске):
 ```bash
 node telegram-bot.js startup
 ```
+Отправляет уведомление со статусом сервисов и системы.
 
-**Daemon режим** (постоянно работает и слушает команды):
+**Daemon** (постоянно работает):
 ```bash
 node telegram-bot.js daemon
 ```
+Слушает команды через Telegram API (long polling).
 
-## 🛡️ Безопасность
+### Systemd сервис
 
-### Проверка Chat ID
-Бот отвечает только на команды от пользователя с Chat ID: `328497552`
-
-### Ограничения ресурсов
-Systemd ограничивает использование ресурсов:
-- Максимум 100 MB RAM
-- Максимум 10% CPU
-
-### Автоперезапуск
-При сбое бот автоматически перезапускается через 10 секунд.
-
-## 🧪 Тестирование
-
-### Тест отправки уведомления
-```bash
-ssh faust@192.168.1.68
-cd /home/faust/ege-app/raspberry
-node telegram-bot.js startup
+```ini
+[Service]
+ExecStartPre=/usr/bin/node telegram-bot.js startup
+ExecStart=/usr/bin/node telegram-bot.js daemon
+Restart=always
+RestartSec=10
+MemoryMax=100M
+CPUQuota=10%
 ```
 
-### Тест команд
-```bash
-# Запустить бота в режиме daemon
-node telegram-bot.js daemon
+### Статистика БД
 
-# В Telegram написать боту команду, например: /status
+Бот получает статистику через `sqlite3` CLI (быстрее HTTP API, не нужен auth):
+```sql
+SELECT COUNT(*) FROM tasks;
+SELECT COUNT(*) FROM topics;
+-- и т.д.
 ```
 
-## 🔍 Устранение проблем
+### Health Check
 
-### Бот не отправляет уведомления
+Проверяет доступность эндпоинтов:
+- `http://localhost:8095/api/health` — PocketBase (локально)
+- `http://localhost:3001/health` — PDF Service (локально)
+- `https://task-ege.oipav.ru/api/health` — PocketBase (через домен)
 
-1. **Проверить статус сервиса:**
+## Безопасность
+
+- Бот отвечает только на команды от Chat ID: `328497552`
+- Ресурсы ограничены: 100 MB RAM, 10% CPU
+- Автоперезапуск при сбое через 10 секунд
+
+## Обновление бота
+
+1. Отредактировать `raspberry/telegram-bot.js` на Mac
+2. Скопировать на VPS:
    ```bash
-   sudo systemctl status telegram-bot
+   scp raspberry/telegram-bot.js root@147.45.158.148:/opt/pocketbase/telegram-bot/
+   ```
+3. Перезапустить:
+   ```bash
+   ssh root@147.45.158.148 "systemctl restart telegram-bot-ege"
    ```
 
-2. **Посмотреть логи:**
-   ```bash
-   sudo journalctl -u telegram-bot -n 100
-   ```
+## Примеры уведомлений
 
-3. **Проверить сетевое подключение:**
-   ```bash
-   ping -c 3 api.telegram.org
-   ```
-
-4. **Проверить Bot Token:**
-   ```bash
-   curl https://api.telegram.org/bot8094410045:AAGD7DID-odRPOdwEpk85GhhTtsqQgRPZO4/getMe
-   ```
-
-### Бот не отвечает на команды
-
-1. **Проверить режим работы:**
-   ```bash
-   ps aux | grep telegram-bot
-   # Должны быть 2 процесса: startup и daemon
-   ```
-
-2. **Перезапустить сервис:**
-   ```bash
-   sudo systemctl restart telegram-bot
-   ```
-
-3. **Проверить Chat ID:**
-   - Напишите боту любое сообщение
-   - Проверьте логи: `sudo journalctl -u telegram-bot -f`
-   - Если Chat ID не совпадает, бот проигнорирует команду
-
-### Ошибка "Permission denied"
-
-Проверить права на файл:
-```bash
-ls -la /home/faust/ege-app/raspberry/telegram-bot.js
-chmod +x /home/faust/ege-app/raspberry/telegram-bot.js
+### При запуске (автоматическое)
 ```
-
-## 📊 Примеры уведомлений
-
-### При загрузке (автоматическое)
-```
-🟢 Raspberry Pi подключен!
-
-📡 Сеть: VZMAKH_5G
-🌐 IP: 192.168.0.105
-
-Статус сервисов:
-✅ PocketBase: running
-✅ PDF Service: running
-✅ Nginx: running
-
-🔗 Приложение: http://192.168.0.105
-⚙️ Admin: http://192.168.0.105/_/
-
-💡 Доступные команды: /status, /ip, /stats, /restart
-```
-
-### /status
-```
-📊 Статус Raspberry Pi
+EGE Tasks VPS запущен!
 
 Сервисы:
-✅ PocketBase: running
-✅ PDF Service: running
-✅ Nginx: running
+  pocketbase-ege: running
+  pdf-service-ege: running
+  nginx: running
+  telegram-bot-ege: running
 
 Система:
-💾 RAM: 247Mi/906Mi
-🌡 Температура: 45.2°C
-💿 Диск: 3.2G/14G (24%)
-⏱ Uptime: up 2 hours, 34 minutes
+  RAM: 512Mi / 2048Mi
+  Диск: 8.2G / 30G
+  Uptime: up 5 days
+  Load: 0.15 0.10 0.05
+
+Доступные команды:
+/status /db /backups /health /restart /logs
 ```
 
-### /ip
+### /db
 ```
-🌐 Сетевая информация
+Статистика БД
 
-📡 Wi-Fi: VZMAKH_5G
-🌐 IP: 192.168.0.105
+  Задачи:      7079
+  Темы:        25
+  Студенты:    10
+  Попытки:     43
+  Работы:      15
+  Сессии:      8
+  Статьи:      12
 
-🔗 http://192.168.0.105
-```
-
-### /stats
-```
-📈 Использование ресурсов
-
-💾 Память: 247Mi/906Mi
-🌡 Температура CPU: 45.2°C
-💿 Диск: 3.2G/14G (24%)
-⏱ Время работы: up 2 hours, 34 minutes
+БД: /opt/pocketbase/pb_data/data.db
+Размер: 45.2 MB
 ```
 
-### /restart
-```
-🔄 Сервисы перезапущены
+## Важно
 
-✅ PocketBase
-✅ PDF Service
-✅ Nginx
-```
-
-## 🎓 Сценарии использования
-
-### Дома → Школа
-
-1. Выключить Raspberry Pi дома
-2. Принести в школу
-3. Включить питание
-4. Через 10-20 секунд получить сообщение в Telegram с IP-адресом в школьной сети
-5. Открыть приложение по полученному IP
-
-### Школа → Дом
-
-1. Выключить Raspberry Pi в школе
-2. Принести домой
-3. Включить питание
-4. Получить сообщение с домашним IP (192.168.1.68)
-
-### Проверка статуса из любой точки
-
-В любой момент можно написать боту команду `/status` или `/ip` и получить актуальную информацию.
-
-## 🔄 Обновление версии
-
-При изменении логики бота:
-
-1. **Отредактировать `telegram-bot.js`** на Mac
-2. **Задеплоить:**
-   ```bash
-   ./raspberry/deploy-to-raspberry.sh
-   ```
-3. **Перезапустить бота на Raspberry Pi:**
-   ```bash
-   ssh faust@192.168.1.68 "sudo systemctl restart telegram-bot"
-   ```
-
-## 📖 Дополнительная информация
-
-- [Telegram Bot API Documentation](https://core.telegram.org/bots/api)
-- [systemd Service Documentation](https://www.freedesktop.org/software/systemd/man/systemd.service.html)
-- [Node.js HTTPS Module](https://nodejs.org/api/https.html)
-
-## 🎯 Roadmap (возможные улучшения)
-
-- [ ] Webhook вместо long polling (быстрее, меньше ресурсов)
-- [ ] Уведомление при изменении IP-адреса (мониторинг в фоне)
-- [ ] Команда `/logs` для просмотра логов сервисов
-- [ ] Команда `/backup` для создания резервной копии БД
-- [ ] Графики использования ресурсов (через Chart.js + Canvas)
-- [ ] Уведомления о критических ошибках (автоматический мониторинг)
+- **Один BOT_TOKEN = один long-polling listener.** Нельзя запускать бота одновременно на VPS и Pi.
+- Бот на Pi отключён (`sudo systemctl disable telegram-bot`).
+- Бот не использует npm-зависимости — только встроённые модули Node.js (https, child_process).

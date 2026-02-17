@@ -1,81 +1,170 @@
 #!/usr/bin/env node
 
 /**
- * Telegram Bot для мониторинга Raspberry Pi
- * Отправляет уведомления о статусе при загрузке и по командам
+ * Telegram Bot для мониторинга VPS (EGE Tasks Manager)
+ * Мониторит сервисы, БД, бэкапы. Работает на VPS.
+ *
+ * Режимы: startup (уведомление при запуске) | daemon (long polling)
  */
 
 const https = require('https');
+const http = require('http');
 const { execSync } = require('child_process');
 
 // ============================================================================
 // Конфигурация
 // ============================================================================
 const BOT_TOKEN = '8094410045:AAGD7DID-odRPOdwEpk85GhhTtsqQgRPZO4';
-const CHAT_ID = 328497552; // Число, а не строка!
+const CHAT_ID = 328497552;
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
+const PB_DATA_PATH = '/opt/pocketbase/pb_data/data.db';
+const BACKUP_DIR = '/opt/pocketbase/backups';
+const PUBLIC_URL = 'https://task-ege.oipav.ru';
+
+// Имена systemd-сервисов на VPS
+const SERVICES = {
+  pocketbase: 'pocketbase-ege',
+  pdf: 'pdf-service-ege',
+  nginx: 'nginx',
+  bot: 'telegram-bot-ege',
+};
+
 // ============================================================================
-// Утилиты для работы с системой
+// Утилиты
 // ============================================================================
 
-function execCommand(command) {
+function exec(command) {
   try {
-    return execSync(command, { encoding: 'utf8' }).trim();
-  } catch (error) {
+    return execSync(command, { encoding: 'utf8', timeout: 10000 }).trim();
+  } catch {
     return null;
   }
 }
 
-function getIPAddress() {
-  const fullIP = execCommand("hostname -I");
-  if (!fullIP) return 'Не определен';
-  const ip = fullIP.split(' ')[0];
-  return ip || 'Не определен';
+function statusIcon(ok) { return ok ? '✅' : '❌'; }
+function statusWord(ok) { return ok ? 'running' : 'stopped'; }
+
+function isServiceActive(name) {
+  return exec(`systemctl is-active ${name} 2>/dev/null`) === 'active';
 }
 
-function getWiFiNetwork() {
-  const network = execCommand("nmcli -t -f active,ssid dev wifi | grep '^yes' | cut -d':' -f2");
-  return network || 'Не подключен';
-}
+// ============================================================================
+// Сбор данных — VPS
+// ============================================================================
 
-function getServiceStatus(serviceName) {
-  const status = execCommand(`systemctl is-active ${serviceName} 2>/dev/null`);
-  return status === 'active';
-}
-
-function getSystemStats() {
-  const memRaw = execCommand("free -h | grep Mem");
-  let memory = 'N/A';
-  if (memRaw) {
-    const parts = memRaw.split(/\s+/);
-    memory = `${parts[2]}/${parts[1]}`;
-  }
-
-  const cpuTemp = execCommand("vcgencmd measure_temp 2>/dev/null | cut -d'=' -f2");
-
-  const diskRaw = execCommand("df -h / | tail -1");
-  let disk = 'N/A';
-  if (diskRaw) {
-    const parts = diskRaw.split(/\s+/);
-    disk = `${parts[2]}/${parts[1]} (${parts[4]})`;
-  }
-
-  const uptime = execCommand("uptime -p");
-
+function getVPSServices() {
   return {
-    memory: memory,
-    temperature: cpuTemp || 'N/A',
-    disk: disk,
-    uptime: uptime || 'N/A'
+    pocketbase: isServiceActive(SERVICES.pocketbase),
+    pdf: isServiceActive(SERVICES.pdf),
+    nginx: isServiceActive(SERVICES.nginx),
+    bot: isServiceActive(SERVICES.bot),
   };
 }
 
-function getServicesStatus() {
+function getVPSStats() {
+  const memRaw = exec("free -h | grep Mem");
+  let memory = 'N/A';
+  if (memRaw) {
+    const p = memRaw.split(/\s+/);
+    memory = `${p[2]} / ${p[1]}`;
+  }
+
+  const diskRaw = exec("df -h / | tail -1");
+  let disk = 'N/A';
+  if (diskRaw) {
+    const p = diskRaw.split(/\s+/);
+    disk = `${p[2]} / ${p[1]} (${p[4]})`;
+  }
+
+  const load = exec("cat /proc/loadavg | awk '{print $1, $2, $3}'") || 'N/A';
+  const uptime = exec("uptime -p") || 'N/A';
+
+  return { memory, disk, load, uptime };
+}
+
+// ============================================================================
+// Сбор данных — База данных
+// ============================================================================
+
+function getDBStats() {
+  const q = (sql) => exec(`sqlite3 '${PB_DATA_PATH}' "${sql}" 2>/dev/null`);
+
+  const tasks = q('SELECT COUNT(*) FROM tasks') || '?';
+  const topics = q('SELECT COUNT(*) FROM topics') || '?';
+  const students = q('SELECT COUNT(*) FROM students') || '?';
+  const attempts = q('SELECT COUNT(*) FROM attempts') || '?';
+  const works = q('SELECT COUNT(*) FROM works') || '?';
+  const sessions = q('SELECT COUNT(*) FROM work_sessions') || '?';
+  const articles = q('SELECT COUNT(*) FROM theory_articles') || '?';
+
+  // Топ-3 темы по количеству задач
+  const topTopics = q(
+    "SELECT t.title || ': ' || COUNT(*) FROM tasks tk JOIN topics t ON tk.topic = t.id GROUP BY tk.topic ORDER BY COUNT(*) DESC LIMIT 3"
+  );
+
+  // Последняя попытка
+  const lastAttempt = q(
+    "SELECT datetime(submitted_at, 'localtime') || ' — ' || student_name || ' (' || score || '/' || total || ')' FROM attempts WHERE status='submitted' ORDER BY submitted_at DESC LIMIT 1"
+  );
+
+  return { tasks, topics, students, attempts, works, sessions, articles, topTopics, lastAttempt };
+}
+
+// ============================================================================
+// Сбор данных — Бэкапы
+// ============================================================================
+
+function getBackupInfo() {
+  const count = exec(`ls -1 ${BACKUP_DIR}/backup_*.tar.gz 2>/dev/null | wc -l`) || '0';
+  const latest = exec(`ls -t ${BACKUP_DIR}/backup_*.tar.gz 2>/dev/null | head -1`);
+  let latestInfo = 'нет бэкапов';
+
+  if (latest) {
+    const name = latest.split('/').pop();
+    const size = exec(`du -sh "${latest}" | cut -f1`) || '?';
+    // Извлекаем дату из имени: backup_2026-02-17_21-04-28.tar.gz
+    const match = name.match(/backup_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})/);
+    const dateStr = match ? `${match[1]} ${match[2]}:${match[3]}:${match[4]}` : name;
+    latestInfo = `${dateStr} (${size})`;
+  }
+
+  // Список последних 5
+  const list = exec(`ls -t ${BACKUP_DIR}/backup_*.tar.gz 2>/dev/null | head -5 | while read f; do
+    name=$(basename "$f")
+    size=$(du -sh "$f" | cut -f1)
+    echo "  • $name ($size)"
+  done`);
+
+  return { count, latestInfo, list: list || '  нет бэкапов' };
+}
+
+// ============================================================================
+// HTTP health checks
+// ============================================================================
+
+function httpGet(url) {
+  return new Promise((resolve) => {
+    const mod = url.startsWith('https') ? https : http;
+    const req = mod.get(url, { timeout: 5000 }, (res) => {
+      let body = '';
+      res.on('data', (c) => body += c);
+      res.on('end', () => resolve({ status: res.statusCode, body }));
+    });
+    req.on('error', () => resolve({ status: 0, body: 'connection failed' }));
+    req.on('timeout', () => { req.destroy(); resolve({ status: 0, body: 'timeout' }); });
+  });
+}
+
+async function healthCheck() {
+  const pb = await httpGet('http://127.0.0.1:8095/api/health');
+  const pdf = await httpGet('http://127.0.0.1:3001/health');
+  const ext = await httpGet(`${PUBLIC_URL}/api/health`);
+
   return {
-    pocketbase: getServiceStatus('pocketbase'),
-    pdf: getServiceStatus('pdf-service'),
-    nginx: getServiceStatus('nginx')
+    pbLocal: pb.status === 200,
+    pdfLocal: pdf.status === 200,
+    external: ext.status === 200,
   };
 }
 
@@ -83,61 +172,43 @@ function getServicesStatus() {
 // Telegram API
 // ============================================================================
 
-function sendTelegramMessage(text, parseMode = null) {
-  const payload = {
+function sendMessage(text, parseMode = 'Markdown') {
+  const payload = JSON.stringify({
     chat_id: CHAT_ID,
-    text: text
-  };
-
-  if (parseMode) {
-    payload.parse_mode = parseMode;
-  }
-
-  const data = JSON.stringify(payload);
-
-  const options = {
-    hostname: 'api.telegram.org',
-    path: `/bot${BOT_TOKEN}/sendMessage`,
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': Buffer.byteLength(data)
-    }
-  };
+    text,
+    parse_mode: parseMode,
+  });
 
   return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
+    const req = https.request({
+      hostname: 'api.telegram.org',
+      path: `/bot${BOT_TOKEN}/sendMessage`,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      },
+    }, (res) => {
       let body = '';
-      res.on('data', (chunk) => body += chunk);
+      res.on('data', (c) => body += c);
       res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve(JSON.parse(body));
-        } else {
-          reject(new Error(`HTTP ${res.statusCode}: ${body}`));
-        }
+        res.statusCode === 200 ? resolve(JSON.parse(body)) : reject(new Error(`HTTP ${res.statusCode}: ${body}`));
       });
     });
-
     req.on('error', reject);
-    req.write(data);
+    req.write(payload);
     req.end();
   });
 }
 
 function getUpdates(offset = 0) {
   return new Promise((resolve, reject) => {
-    const url = `${API_URL}/getUpdates?offset=${offset}&timeout=30`;
-
-    https.get(url, (res) => {
+    https.get(`${API_URL}/getUpdates?offset=${offset}&timeout=30`, (res) => {
       let body = '';
-      res.on('data', (chunk) => body += chunk);
+      res.on('data', (c) => body += c);
       res.on('end', () => {
-        try {
-          const data = JSON.parse(body);
-          resolve(data.result || []);
-        } catch (error) {
-          reject(error);
-        }
+        try { resolve(JSON.parse(body).result || []); }
+        catch (e) { reject(e); }
       });
     }).on('error', reject);
   });
@@ -147,155 +218,207 @@ function getUpdates(offset = 0) {
 // Форматирование сообщений
 // ============================================================================
 
-function formatStartupMessage() {
-  const ip = getIPAddress();
-  const network = getWiFiNetwork();
-  const services = getServicesStatus();
+function fmtStartup() {
+  const services = getVPSServices();
+  const stats = getVPSStats();
+  const ip = exec("hostname -I | awk '{print $1}'") || '?';
 
-  const statusEmoji = (status) => status ? '✅' : '❌';
-  const statusText = (status) => status ? 'running' : 'stopped';
+  let msg = '🟢 *VPS EGE Tasks запущен!*\n\n';
+  msg += `🌐 *IP:* \`${ip}\`\n`;
+  msg += `🔗 ${PUBLIC_URL}\n\n`;
+  msg += '*Сервисы:*\n';
+  msg += `${statusIcon(services.pocketbase)} PocketBase: ${statusWord(services.pocketbase)}\n`;
+  msg += `${statusIcon(services.pdf)} PDF Service: ${statusWord(services.pdf)}\n`;
+  msg += `${statusIcon(services.nginx)} Nginx: ${statusWord(services.nginx)}\n\n`;
+  msg += `💾 RAM: ${stats.memory}\n`;
+  msg += `💿 Диск: ${stats.disk}\n`;
+  msg += `⏱ ${stats.uptime}\n\n`;
+  msg += '_Команды:_ /status /db /backups /health /restart /help';
+  return msg;
+}
 
-  let message = '🟢 *Raspberry Pi подключен!*\n\n';
-  message += `📡 *Сеть:* ${network}\n`;
-  message += `🌐 *IP:* \`${ip}\`\n\n`;
-  message += '*Статус сервисов:*\n';
-  message += `${statusEmoji(services.pocketbase)} PocketBase: ${statusText(services.pocketbase)}\n`;
-  message += `${statusEmoji(services.pdf)} PDF Service: ${statusText(services.pdf)}\n`;
-  message += `${statusEmoji(services.nginx)} Nginx: ${statusText(services.nginx)}\n\n`;
+function fmtStatus() {
+  const svc = getVPSServices();
+  const stats = getVPSStats();
 
-  if (ip !== 'Не определен') {
-    message += `🔗 *Приложение:* http://${ip}\n`;
-    message += `⚙️ *Admin:* http://${ip}/\\_/\n\n`;
+  let msg = '📊 *Статус VPS*\n\n';
+  msg += '*Сервисы:*\n';
+  msg += `${statusIcon(svc.pocketbase)} PocketBase (pocketbase-ege)\n`;
+  msg += `${statusIcon(svc.pdf)} PDF Service (pdf-service-ege)\n`;
+  msg += `${statusIcon(svc.nginx)} Nginx\n`;
+  msg += `${statusIcon(svc.bot)} Telegram Bot\n\n`;
+  msg += '*Система:*\n';
+  msg += `💾 RAM: ${stats.memory}\n`;
+  msg += `💿 Диск: ${stats.disk}\n`;
+  msg += `📈 Load: ${stats.load}\n`;
+  msg += `⏱ ${stats.uptime}`;
+  return msg;
+}
+
+function fmtDB() {
+  const db = getDBStats();
+
+  let msg = '🗃 *Статистика базы данных*\n\n';
+  msg += `📝 Задач: *${db.tasks}*\n`;
+  msg += `📚 Тем: *${db.topics}*\n`;
+  msg += `📖 Статей теории: *${db.articles}*\n`;
+  msg += `📋 Работ: *${db.works}*\n`;
+  msg += `🎯 Сессий: *${db.sessions}*\n`;
+  msg += `👨‍🎓 Студентов: *${db.students}*\n`;
+  msg += `✏️ Попыток: *${db.attempts}*\n`;
+
+  if (db.topTopics) {
+    msg += '\n*Топ-3 темы:*\n';
+    db.topTopics.split('\n').forEach((line) => {
+      msg += `  • ${line}\n`;
+    });
   }
 
-  message += '_Доступные команды:_ /status, /ip, /stats, /restart';
-
-  return message;
-}
-
-function formatStatusMessage() {
-  const services = getServicesStatus();
-  const stats = getSystemStats();
-
-  const statusEmoji = (status) => status ? '✅' : '❌';
-  const statusText = (status) => status ? 'running' : 'stopped';
-
-  let message = '📊 *Статус Raspberry Pi*\n\n';
-  message += '*Сервисы:*\n';
-  message += `${statusEmoji(services.pocketbase)} PocketBase: ${statusText(services.pocketbase)}\n`;
-  message += `${statusEmoji(services.pdf)} PDF Service: ${statusText(services.pdf)}\n`;
-  message += `${statusEmoji(services.nginx)} Nginx: ${statusText(services.nginx)}\n\n`;
-  message += '*Система:*\n';
-  message += `💾 RAM: ${stats.memory}\n`;
-  message += `🌡 Температура: ${stats.temperature}\n`;
-  message += `💿 Диск: ${stats.disk}\n`;
-  message += `⏱ Uptime: ${stats.uptime}`;
-
-  return message;
-}
-
-function formatIPMessage() {
-  const ip = getIPAddress();
-  const network = getWiFiNetwork();
-
-  let message = '🌐 *Сетевая информация*\n\n';
-  message += `📡 *Wi-Fi:* ${network}\n`;
-  message += `🌐 *IP:* \`${ip}\`\n\n`;
-
-  if (ip !== 'Не определен') {
-    message += `🔗 http://${ip}`;
+  if (db.lastAttempt) {
+    msg += `\n🕐 *Последняя попытка:*\n  ${db.lastAttempt}`;
   }
 
-  return message;
+  return msg;
 }
 
-function formatStatsMessage() {
-  const stats = getSystemStats();
+function fmtBackups() {
+  const info = getBackupInfo();
 
-  let message = '📈 *Использование ресурсов*\n\n';
-  message += `💾 *Память:* ${stats.memory}\n`;
-  message += `🌡 *Температура CPU:* ${stats.temperature}\n`;
-  message += `💿 *Диск:* ${stats.disk}\n`;
-  message += `⏱ *Время работы:* ${stats.uptime}`;
+  let msg = '💾 *Бэкапы*\n\n';
+  msg += `Всего: *${info.count}* (макс 20)\n`;
+  msg += `Последний: ${info.latestInfo}\n`;
+  msg += `Расписание: каждые 6 часов (cron)\n\n`;
+  msg += '*Последние 5:*\n';
+  msg += info.list;
+  return msg;
+}
 
-  return message;
+async function fmtHealth() {
+  const h = await healthCheck();
+
+  let msg = '🏥 *Health Check*\n\n';
+  msg += `${statusIcon(h.pbLocal)} PocketBase (localhost:8095)\n`;
+  msg += `${statusIcon(h.pdfLocal)} PDF Service (localhost:3001)\n`;
+  msg += `${statusIcon(h.external)} External (${PUBLIC_URL})\n`;
+  return msg;
+}
+
+function fmtRestart(target) {
+  const validTargets = {
+    all: [SERVICES.pocketbase, SERVICES.pdf, SERVICES.nginx],
+    pocketbase: [SERVICES.pocketbase],
+    pb: [SERVICES.pocketbase],
+    pdf: [SERVICES.pdf],
+    nginx: [SERVICES.nginx],
+  };
+
+  const services = validTargets[target || 'all'];
+  if (!services) {
+    return '❓ Укажите сервис: /restart all | pocketbase | pdf | nginx';
+  }
+
+  services.forEach((s) => exec(`systemctl restart ${s} 2>&1`));
+  exec('sleep 2');
+
+  const svc = getVPSServices();
+  let msg = '🔄 *Сервисы перезапущены*\n\n';
+  if (services.includes(SERVICES.pocketbase)) msg += `${statusIcon(svc.pocketbase)} PocketBase\n`;
+  if (services.includes(SERVICES.pdf)) msg += `${statusIcon(svc.pdf)} PDF Service\n`;
+  if (services.includes(SERVICES.nginx)) msg += `${statusIcon(svc.nginx)} Nginx\n`;
+  return msg;
+}
+
+function fmtLogs(service) {
+  const svcMap = {
+    pocketbase: SERVICES.pocketbase,
+    pb: SERVICES.pocketbase,
+    pdf: SERVICES.pdf,
+    nginx: 'nginx',
+    bot: SERVICES.bot,
+  };
+
+  const svcName = svcMap[service || 'pocketbase'];
+  if (!svcName) {
+    return '❓ Укажите сервис: /logs pocketbase | pdf | nginx | bot';
+  }
+
+  const logs = exec(`journalctl -u ${svcName} --no-pager -n 20 --no-hostname 2>/dev/null`) ||
+               exec(`tail -20 /var/log/${svcName}.log 2>/dev/null`) ||
+               'Логи недоступны';
+
+  // Ограничиваем длину для Telegram (4096 символов макс)
+  const trimmed = logs.length > 3500 ? '...' + logs.slice(-3500) : logs;
+
+  return `📋 *Логи: ${svcName}* (последние 20 строк)\n\n\`\`\`\n${trimmed}\n\`\`\``;
+}
+
+function fmtHelp() {
+  let msg = '🤖 *EGE Tasks Bot (VPS)*\n\n';
+  msg += '*Мониторинг:*\n';
+  msg += '/status — статус сервисов и системы\n';
+  msg += '/health — health-check эндпоинтов\n';
+  msg += '/db — статистика базы данных\n';
+  msg += '/backups — информация о бэкапах\n\n';
+  msg += '*Управление:*\n';
+  msg += '/restart \\[all|pb|pdf|nginx\\] — перезапуск\n';
+  msg += '/logs \\[pb|pdf|nginx|bot\\] — логи сервиса\n\n';
+  msg += '*Ссылки:*\n';
+  msg += `🔗 [Приложение](${PUBLIC_URL})\n`;
+  msg += `⚙️ [Admin](${PUBLIC_URL}/_/)`;
+  return msg;
 }
 
 // ============================================================================
 // Обработка команд
 // ============================================================================
 
-function restartServices() {
-  const results = {
-    pocketbase: execCommand('sudo systemctl restart pocketbase 2>&1'),
-    pdf: execCommand('sudo systemctl restart pdf-service 2>&1'),
-    nginx: execCommand('sudo systemctl restart nginx 2>&1')
-  };
+async function handleCommand(text) {
+  const parts = text.trim().split(/\s+/);
+  const cmd = parts[0].toLowerCase();
+  const arg = parts[1]?.toLowerCase();
 
-  // Даем время на перезапуск
-  execCommand('sleep 2');
+  let response;
 
-  const services = getServicesStatus();
-  const statusEmoji = (status) => status ? '✅' : '❌';
-
-  let message = '🔄 *Сервисы перезапущены*\n\n';
-  message += `${statusEmoji(services.pocketbase)} PocketBase\n`;
-  message += `${statusEmoji(services.pdf)} PDF Service\n`;
-  message += `${statusEmoji(services.nginx)} Nginx`;
-
-  return message;
-}
-
-async function handleCommand(command, messageId) {
-  let response = '';
+  switch (cmd) {
+    case '/start':
+    case '/help':
+      response = fmtHelp();
+      break;
+    case '/status':
+      response = fmtStatus();
+      break;
+    case '/db':
+      response = fmtDB();
+      break;
+    case '/backups':
+      response = fmtBackups();
+      break;
+    case '/health':
+      response = await fmtHealth();
+      break;
+    case '/restart':
+      response = fmtRestart(arg);
+      break;
+    case '/logs':
+      response = fmtLogs(arg);
+      break;
+    case '/notify':
+      response = fmtStartup();
+      break;
+    default:
+      response = '❓ Неизвестная команда. /help — список команд';
+  }
 
   try {
-    switch (command) {
-      case '/start':
-      case '/help':
-        response = '🤖 *Telegram Bot для Raspberry Pi*\n\n';
-        response += '*Доступные команды:*\n';
-        response += '/status - Статус сервисов и системы\n';
-        response += '/ip - Текущий IP-адрес\n';
-        response += '/stats - Использование ресурсов\n';
-        response += '/restart - Перезапустить сервисы\n';
-        response += '/notify - Отправить статус (как при загрузке)';
-        break;
-
-      case '/status':
-        response = formatStatusMessage();
-        break;
-
-      case '/ip':
-        response = formatIPMessage();
-        break;
-
-      case '/stats':
-        response = formatStatsMessage();
-        break;
-
-      case '/restart':
-        response = restartServices();
-        break;
-
-      case '/notify':
-        response = formatStartupMessage();
-        break;
-
-      default:
-        response = '❓ Неизвестная команда. Используйте /help для списка команд.';
-    }
-
-    console.log(`Отправка ответа (${response.length} символов)`);
-    await sendTelegramMessage(response, 'Markdown');
-    console.log(`✅ Ответ отправлен на команду ${command}`);
+    await sendMessage(response);
+    console.log(`✅ Ответ на ${cmd}`);
   } catch (error) {
-    console.error(`❌ Ошибка обработки команды ${command}:`, error.message);
+    console.error(`❌ Ошибка ответа на ${cmd}:`, error.message);
   }
 }
 
 // ============================================================================
-// Long Polling (прослушивание команд)
+// Long Polling
 // ============================================================================
 
 let lastUpdateId = 0;
@@ -307,63 +430,39 @@ async function pollUpdates() {
     for (const update of updates) {
       lastUpdateId = update.update_id;
 
-      if (update.message && update.message.text) {
-        const command = update.message.text.trim();
-        const messageId = update.message.message_id;
-        const chatId = update.message.chat.id;
-
-        console.log(`Получена команда: ${command} от ${chatId}`);
-
-        // Проверяем, что сообщение от нужного пользователя
-        if (chatId === CHAT_ID) {
-          console.log(`Обработка команды: ${command}`);
-          await handleCommand(command, messageId);
-        } else {
-          console.log(`Игнорируем команду от неизвестного пользователя: ${chatId}`);
-        }
+      if (update.message?.text && update.message.chat.id === CHAT_ID) {
+        console.log(`Команда: ${update.message.text}`);
+        await handleCommand(update.message.text);
       }
     }
   } catch (error) {
-    console.error('Error polling updates:', error.message);
+    console.error('Polling error:', error.message);
   }
 }
 
 // ============================================================================
-// Главная функция
+// Main
 // ============================================================================
 
 async function main() {
   const mode = process.argv[2] || 'startup';
 
   if (mode === 'startup') {
-    // Режим отправки уведомления при загрузке
-    const message = formatStartupMessage();
-
     try {
-      await sendTelegramMessage(message, 'Markdown');
-      console.log('✅ Уведомление отправлено в Telegram');
+      await sendMessage(fmtStartup());
+      console.log('✅ Startup уведомление отправлено');
     } catch (error) {
       console.error('❌ Ошибка отправки:', error.message);
       process.exit(1);
     }
   } else if (mode === 'daemon') {
-    // Режим демона (прослушивание команд)
-    console.log('🤖 Telegram Bot запущен в режиме демона');
-    console.log('Прослушивание команд...');
-
-    // Запускаем polling каждые 2 секунды
+    console.log('🤖 EGE Tasks Bot запущен (VPS daemon)');
     setInterval(pollUpdates, 2000);
-
-    // Первый запрос сразу
     pollUpdates();
   } else {
-    console.error('Неизвестный режим. Используйте: startup или daemon');
+    console.error('Режим: startup | daemon');
     process.exit(1);
   }
 }
 
-// Запуск
-main().catch((error) => {
-  console.error('Критическая ошибка:', error);
-  process.exit(1);
-});
+main().catch((e) => { console.error('Fatal:', e); process.exit(1); });

@@ -1,5 +1,33 @@
 # Changelog — История изменений
 
+## [3.5.0] - 2026-02-17
+
+### Добавлено
+- **PDF-сервис на VPS** — Puppeteer (puppeteer-core + системный Chromium) на VPS
+  - systemd сервис `pdf-service-ege` (порт 3001)
+  - nginx reverse proxy: `https://task-ege.oipav.ru/pdf`
+  - Поддержка `PUPPETEER_EXECUTABLE_PATH` для системного Chromium
+  - Динамический импорт puppeteer/puppeteer-core
+- **Telegram-бот на VPS** — полная переписка для мониторинга VPS
+  - systemd сервис `telegram-bot-ege`
+  - Команды: `/status` (сервисы + система), `/db` (статистика БД через sqlite3),
+    `/backups` (бэкапы), `/health` (HTTP health-check), `/restart`, `/logs`, `/help`
+  - Старый бот на Pi отключён
+
+### Изменено
+- **`start.sh`** — упрощён: по умолчанию только фронтенд (backend на VPS)
+  - `--local-pdf` — фронтенд + локальный PDF-сервис
+  - `--full` — полностью локальный режим (PB + PDF + Frontend)
+- **`stop.sh`** — упрощён (VPS-сервисы не затрагиваются)
+- **`package.json`** (корневой) — обновлены скрипты dev/dev:local-pdf/dev:full
+- **`raspberry/deploy-to-raspberry.sh`** — упрощён до 4 шагов (только фронтенд + nginx)
+- **`raspberry/nginx.conf`** — убрано проксирование /api/, /_/, /pdf/ (всё на VPS)
+- **`pocketbase/pdf-service.js`** — поддержка puppeteer-core и env переменных
+- **`VITE_PDF_SERVICE_URL`** — `https://task-ege.oipav.ru/pdf`
+- Обновлена документация (CLAUDE.md, TELEGRAM_BOT.md, QUICK_REFERENCE.md)
+
+---
+
 ## [3.4.0] - 2026-02-17
 
 ### Добавлено
