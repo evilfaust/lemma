@@ -1,43 +1,36 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Switch, Input, Button, Space, Typography, Spin, Alert, Divider, Modal, App } from 'antd';
-import { CopyOutlined, QrcodeOutlined, DownloadOutlined, LinkOutlined, FullscreenOutlined } from '@ant-design/icons';
+import { Switch, Input, Button, Typography, Spin, Alert, Divider, Modal, App, Tag, Tooltip } from 'antd';
+import {
+  CopyOutlined,
+  QrcodeOutlined,
+  DownloadOutlined,
+  LinkOutlined,
+  FullscreenOutlined,
+  CheckCircleOutlined,
+  StopOutlined,
+  TrophyOutlined,
+} from '@ant-design/icons';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/pocketbase';
 import TeacherResultsDashboard from './TeacherResultsDashboard';
+import './SessionPanel.css';
 
 const { Text, Title } = Typography;
 
-/**
- * Панель «Выдача» для TestWorkGenerator.
- * Создаёт/загружает сессию, показывает QR-код и ссылку, управляет приёмом.
- */
 const SessionPanel = ({ workId }) => {
   const { message } = App.useApp();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const defaultPort = window.location.port || '5173';
-  const normalizeHost = useCallback((raw) => {
-    let value = (raw || '').trim();
-    if (!value) {
-      return `${window.location.hostname}:${defaultPort}`;
-    }
-
-    value = value.replace(/^https?:\/\//i, '');
-    value = value.split('/')[0];
-
-    if (!value.includes(':')) {
-      value = `${value}:${defaultPort}`;
-    }
-
-    return value;
-  }, [defaultPort]);
-
-  const [host, setHost] = useState(() => normalizeHost(window.location.host || window.location.hostname));
   const [studentTitle, setStudentTitle] = useState('Самостоятельная работа');
   const [qrFullscreen, setQrFullscreen] = useState(false);
   const qrRef = useRef();
 
-  // Загрузить или создать сессию
+  // Ссылка строится от текущего origin
+  const buildStudentUrl = useCallback((sessionId) => {
+    if (!sessionId) return '';
+    return `${window.location.origin}/student/${sessionId}`;
+  }, []);
+
   useEffect(() => {
     if (!workId) return;
     const init = async () => {
@@ -45,26 +38,15 @@ const SessionPanel = ({ workId }) => {
       try {
         let existing = await api.getSessionByWork(workId);
         if (!existing) {
-          const normalized = normalizeHost(host);
           existing = await api.createSession({
             work: workId,
             is_open: true,
-            host_override: normalized,
+            achievements_enabled: false,
             student_title: 'Самостоятельная работа',
           });
-          setHost(normalized);
           setStudentTitle('Самостоятельная работа');
-        } else if (existing.host_override) {
-          const normalized = normalizeHost(existing.host_override);
-          setHost(normalized);
+        } else {
           setStudentTitle(existing.student_title || 'Самостоятельная работа');
-          if (normalized !== existing.host_override) {
-            try {
-              await api.updateSession(existing.id, { host_override: normalized });
-            } catch (err) {
-              // ignore
-            }
-          }
         }
         setSession(existing);
       } catch (err) {
@@ -74,9 +56,9 @@ const SessionPanel = ({ workId }) => {
       setLoading(false);
     };
     init();
-  }, [workId]);
+  }, [workId, message]);
 
-  const studentUrl = session ? `http://${host}/student/${session.id}` : '';
+  const studentUrl = session ? buildStudentUrl(session.id) : '';
 
   const toggleOpen = async (checked) => {
     if (!session) return;
@@ -84,7 +66,7 @@ const SessionPanel = ({ workId }) => {
       const updated = await api.updateSession(session.id, { is_open: checked });
       setSession({ ...session, ...updated });
       message.success(checked ? 'Приём открыт' : 'Приём закрыт');
-    } catch (err) {
+    } catch {
       message.error('Ошибка обновления сессии');
     }
   };
@@ -95,66 +77,70 @@ const SessionPanel = ({ workId }) => {
       const updated = await api.updateSession(session.id, { achievements_enabled: checked });
       setSession({ ...session, ...updated });
       message.success(checked ? 'Достижения включены' : 'Достижения отключены');
-    } catch (err) {
+    } catch {
       message.error('Ошибка обновления сессии');
     }
   };
 
-  const handleHostChange = useCallback(async (e) => {
-    const rawHost = e.target.value;
-    const newHost = normalizeHost(rawHost);
-    setHost(newHost);
-    if (session) {
-      try {
-        await api.updateSession(session.id, { host_override: newHost });
-      } catch (err) {
-        // Тихая ошибка при обновлении host
-      }
-    }
-  }, [session, normalizeHost]);
+  const handleStudentTitleChange = useCallback((e) => {
+    setStudentTitle(e.target.value);
+  }, []);
 
-  const handleStudentTitleChange = useCallback(async (e) => {
+  const handleStudentTitleBlur = useCallback(async (e) => {
     const title = e.target.value;
-    setStudentTitle(title);
-    if (session) {
-      try {
-        await api.updateSession(session.id, { student_title: title });
-      } catch (err) {
-        // silent
-      }
+    if (!session) return;
+    try {
+      await api.updateSession(session.id, { student_title: title });
+    } catch {
+      message.error('Ошибка сохранения заголовка');
     }
-  }, [session]);
+  }, [session, message]);
 
-  const copyLink = () => {
-    navigator.clipboard.writeText(studentUrl).then(() => {
-      message.success('Ссылка скопирована');
-    }).catch(() => {
-      message.error('Не удалось скопировать');
-    });
+  const copyText = async (text) => {
+    if (!text) return false;
+    try {
+      if (navigator.clipboard?.writeText && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.cssText = 'position:fixed;opacity:0;';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
+  const copyLink = async () => {
+    const ok = await copyText(studentUrl);
+    if (ok) message.success('Ссылка скопирована');
+    else message.error('Не удалось скопировать');
   };
 
   const downloadQR = () => {
     const svg = qrRef.current?.querySelector('svg');
     if (!svg) return;
-
     const svgData = new XMLSerializer().serializeToString(svg);
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     const img = new Image();
-
     img.onload = () => {
       canvas.width = img.width * 2;
       canvas.height = img.height * 2;
       ctx.fillStyle = '#fff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
       const link = document.createElement('a');
-      link.download = 'qr-code.png';
+      link.download = 'qr-student.png';
       link.href = canvas.toDataURL('image/png');
       link.click();
     };
-
     img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
   };
 
@@ -167,82 +153,101 @@ const SessionPanel = ({ workId }) => {
   }
 
   return (
-    <div>
-      {/* Управление приёмом */}
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Text strong>Приём ответов:</Text>
-        <Switch
-          checked={session.is_open}
-          onChange={toggleOpen}
-          checkedChildren="Открыт"
-          unCheckedChildren="Закрыт"
-        />
-      </div>
+    <div className="session-panel">
 
-      {/* Управление достижениями */}
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
-        <Text strong>Достижения:</Text>
-        <Switch
-          checked={session.achievements_enabled || false}
-          onChange={toggleAchievements}
-          checkedChildren="Включены"
-          unCheckedChildren="Отключены"
-        />
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          (Показывать значки и ачивки студентам)
-        </Text>
-      </div>
-
-      {/* Host */}
-      <div style={{ marginBottom: 16 }}>
-        <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Host / IP адрес:</Text>
-        <Space.Compact style={{ width: '100%' }}>
-          <Button icon={<LinkOutlined />} />
-          <Input
-            value={host}
-            onChange={handleHostChange}
-            placeholder="192.168.1.100:5173"
-          />
-        </Space.Compact>
-      </div>
-
-      {/* Заголовок для учеников */}
-      <div style={{ marginBottom: 16 }}>
-        <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Заголовок для учеников:</Text>
-        <Input
-          value={studentTitle}
-          onChange={handleStudentTitleChange}
-          placeholder="Самостоятельная работа"
-        />
-      </div>
-
-      {/* Ссылка */}
-      <div style={{ marginBottom: 16 }}>
-        <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Ссылка для учеников:</Text>
-        <Space.Compact style={{ width: '100%' }}>
-          <Input
-            value={studentUrl}
-            readOnly
-          />
-          <Button icon={<CopyOutlined />} onClick={copyLink} />
-        </Space.Compact>
-      </div>
-
-      {/* QR-код */}
-      <div style={{ textAlign: 'center', marginBottom: 16 }}>
-        <div ref={qrRef} style={{ display: 'inline-block', padding: 16, background: '#fff', borderRadius: 12, border: '1px solid #f0f0f0' }}>
-          <QRCodeSVG value={studentUrl} size={200} level="M" />
+      {/* ── Топбар: статус + переключатели ── */}
+      <div className="session-panel__topbar">
+        <div className="session-panel__topbar-left">
+          <Tag
+            icon={session.is_open ? <CheckCircleOutlined /> : <StopOutlined />}
+            color={session.is_open ? 'success' : 'default'}
+            style={{ margin: 0 }}
+          >
+            {session.is_open ? 'Приём открыт' : 'Приём закрыт'}
+          </Tag>
+          <Tag icon={<QrcodeOutlined />} color="blue" style={{ margin: 0, fontFamily: 'monospace' }}>
+            {session.id}
+          </Tag>
         </div>
-        <div style={{ marginTop: 12 }}>
-          <Space>
-            <Button icon={<CopyOutlined />} onClick={copyLink}>Скопировать ссылку</Button>
-            <Button icon={<DownloadOutlined />} onClick={downloadQR}>Скачать QR</Button>
-            <Button icon={<FullscreenOutlined />} onClick={() => setQrFullscreen(true)}>На весь экран</Button>
-          </Space>
+
+        <div className="session-panel__topbar-right">
+          <span className="session-panel__toggle-label">Приём:</span>
+          <Switch
+            size="small"
+            checked={session.is_open}
+            onChange={toggleOpen}
+            checkedChildren="Вкл"
+            unCheckedChildren="Выкл"
+          />
+          <span className="session-panel__toggle-label">
+            <TrophyOutlined style={{ color: '#faad14' }} /> Достижения:
+          </span>
+          <Switch
+            size="small"
+            checked={session.achievements_enabled || false}
+            onChange={toggleAchievements}
+            checkedChildren="Вкл"
+            unCheckedChildren="Выкл"
+          />
         </div>
       </div>
 
-      {/* Полноэкранный QR-код для проектора */}
+      {/* ── Основной блок: поля + QR ── */}
+      <div className="session-panel__body">
+
+        {/* Поля */}
+        <div className="session-panel__fields">
+          <div className="session-panel__field-row">
+            <Text type="secondary" className="session-panel__field-label">Заголовок для учеников</Text>
+            <Input
+              value={studentTitle}
+              onChange={handleStudentTitleChange}
+              onBlur={handleStudentTitleBlur}
+              onPressEnter={(e) => e.target.blur()}
+              placeholder="Самостоятельная работа"
+            />
+          </div>
+
+          <div className="session-panel__field-row">
+            <Text type="secondary" className="session-panel__field-label">Ссылка для учеников</Text>
+            <Input
+              value={studentUrl}
+              readOnly
+              prefix={<LinkOutlined style={{ color: '#bfbfbf' }} />}
+              suffix={
+                <Tooltip title="Копировать ссылку">
+                  <CopyOutlined
+                    className="session-panel__copy-icon"
+                    onClick={copyLink}
+                  />
+                </Tooltip>
+              }
+              className="session-panel__url-input"
+            />
+          </div>
+        </div>
+
+        {/* QR + кнопки сбоку */}
+        <div className="session-panel__qr-col">
+          <div className="session-panel__qr-wrap" ref={qrRef}>
+            <QRCodeSVG value={studentUrl || 'https://example.com'} size={150} level="M" />
+          </div>
+          <div className="session-panel__qr-actions">
+            <Tooltip title="Копировать ссылку" placement="left">
+              <Button icon={<CopyOutlined />} onClick={copyLink} className="session-panel__qr-btn" />
+            </Tooltip>
+            <Tooltip title="На весь экран" placement="left">
+              <Button icon={<FullscreenOutlined />} onClick={() => setQrFullscreen(true)} className="session-panel__qr-btn" />
+            </Tooltip>
+            <Tooltip title="Скачать QR" placement="left">
+              <Button icon={<DownloadOutlined />} onClick={downloadQR} className="session-panel__qr-btn" />
+            </Tooltip>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── Модал: QR на весь экран ── */}
       <Modal
         open={qrFullscreen}
         onCancel={() => setQrFullscreen(false)}
@@ -259,21 +264,33 @@ const SessionPanel = ({ workId }) => {
             minHeight: '70vh',
             padding: 40,
           },
-          mask: { background: 'rgba(0, 0, 0, 0.85)' },
+          mask: { background: 'rgba(0,0,0,0.88)' },
         }}
         style={{ top: 0, maxWidth: '100vw', padding: 0 }}
       >
-        <div style={{ background: '#fff', padding: 40, borderRadius: 24, display: 'inline-block' }}>
-          <QRCodeSVG value={studentUrl} size={Math.min(window.innerWidth * 0.6, window.innerHeight * 0.6, 600)} level="M" />
+        <div style={{ background: '#fff', padding: 36, borderRadius: 24, display: 'inline-block' }}>
+          <QRCodeSVG
+            value={studentUrl || 'https://example.com'}
+            size={Math.min(window.innerWidth * 0.55, window.innerHeight * 0.55, 560)}
+            level="M"
+          />
         </div>
         <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <Title level={3} style={{ color: '#fff', marginBottom: 8 }}>{studentUrl}</Title>
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16 }}>Отсканируйте QR-код или перейдите по ссылке</Text>
+          <Title level={3} style={{ color: '#fff', marginBottom: 8 }}>{studentTitle}</Title>
+          <Text
+            style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, fontFamily: 'monospace', cursor: 'pointer' }}
+            onClick={copyLink}
+          >
+            {studentUrl}
+          </Text>
         </div>
+        <Button type="primary" icon={<CopyOutlined />} style={{ marginTop: 16 }} onClick={copyLink}>
+          Скопировать ссылку
+        </Button>
       </Modal>
 
-      {/* Результаты */}
-      <Divider>Результаты учеников</Divider>
+      {/* ── Результаты ── */}
+      <Divider style={{ margin: '4px 0 0' }}>Результаты учеников</Divider>
       <TeacherResultsDashboard sessionId={session.id} />
     </div>
   );
