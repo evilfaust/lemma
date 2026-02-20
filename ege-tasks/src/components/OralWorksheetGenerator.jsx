@@ -83,14 +83,25 @@ const TaskSheetGenerator = () => {
   const [loadingTasksCount, setLoadingTasksCount] = useState(false);
   const watchedValues = Form.useWatch([], form);
 
-  // Загружаем доступные теги при изменении темы/подтем
+  // Загружаем доступные теги при изменении темы/подтем (только если тема выбрана)
   useEffect(() => {
+    if (!selectedTopic) {
+      setAvailableTags([]);
+      return;
+    }
     loadAvailableTags();
   }, [selectedTopic, selectedSubtopic]);
 
-  // Пересчитываем количество задач по всем фильтрам
+  // Пересчитываем количество задач по всем фильтрам (только если выбрана тема)
   useEffect(() => {
     if (!watchedValues) return;
+
+    // Без темы счётчик не показываем — запрос всех задач слишком тяжёлый
+    if (!watchedValues.topic) {
+      setAvailableTasksCount(0);
+      return;
+    }
+
     const timer = setTimeout(async () => {
       setLoadingTasksCount(true);
       try {
@@ -101,11 +112,14 @@ const TaskSheetGenerator = () => {
         if (watchedValues.source) filters.source = watchedValues.source;
         if (watchedValues.year) filters.year = watchedValues.year;
         if (watchedValues.filterTags && watchedValues.filterTags.length > 0) filters.tags = watchedValues.filterTags;
-        if (watchedValues.hasAnswer !== undefined) filters.hasAnswer = watchedValues.hasAnswer === 'yes';
-        if (watchedValues.hasSolution !== undefined) filters.hasSolution = watchedValues.hasSolution === 'yes';
+        if (watchedValues.hasAnswer !== undefined && watchedValues.hasAnswer !== null) {
+          filters.hasAnswer = watchedValues.hasAnswer === 'yes';
+        }
+        if (watchedValues.hasSolution !== undefined && watchedValues.hasSolution !== null) {
+          filters.hasSolution = watchedValues.hasSolution === 'yes';
+        }
 
-        const hasFilters = Object.keys(filters).length > 0;
-        let tasks = await api.getTasks(hasFilters ? filters : {});
+        let tasks = await api.getTasks(filters);
 
         if (watchedValues.search) {
           const searchLower = watchedValues.search.toLowerCase();
@@ -122,7 +136,7 @@ const TaskSheetGenerator = () => {
       } finally {
         setLoadingTasksCount(false);
       }
-    }, 300);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [watchedValues]);
@@ -179,6 +193,12 @@ const TaskSheetGenerator = () => {
   const handleGenerate = async (values) => {
     const tasksPerVariant = values.tasksPerVariant || 20;
 
+    // Требуем выбор темы — без неё запрос слишком тяжёлый
+    if (!values.topic && !values.search) {
+      message.warning('Выберите тему или введите поисковый запрос перед генерацией');
+      return;
+    }
+
     // Валидация распределений
     if (values.progressiveDifficulty && (tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0)) {
       message.warning('Автопрогрессия несовместима с ручным распределением по тегам/сложности');
@@ -188,7 +208,7 @@ const TaskSheetGenerator = () => {
       if (!tagDistribution.validate(tasksPerVariant)) return;
     }
     if (difficultyDistribution.items.length > 0) {
-      if (!difficultyDistribution.validate()) return;
+      if (!difficultyDistribution.validate(tasksPerVariant)) return;
     }
 
     // Базовые фильтры
@@ -307,12 +327,16 @@ const TaskSheetGenerator = () => {
       label: (
         <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span>📋 Фильтры задач</span>
-          <Badge
-            count={loadingTasksCount ? '...' : availableTasksCount}
-            overflowCount={9999}
-            style={{ backgroundColor: availableTasksCount > 0 ? '#52c41a' : '#ff4d4f' }}
-            showZero
-          />
+          {selectedTopic ? (
+            <Badge
+              count={loadingTasksCount ? '...' : availableTasksCount}
+              overflowCount={9999}
+              style={{ backgroundColor: availableTasksCount > 0 ? '#52c41a' : '#ff4d4f' }}
+              showZero
+            />
+          ) : (
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>выберите тему</span>
+          )}
         </span>
       ),
       children: (
