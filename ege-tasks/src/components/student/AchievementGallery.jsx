@@ -84,9 +84,10 @@ const AchievementGallery = ({ studentSession }) => {
 
   const totalCount = allAchievements.length;
   const earnedCountTotal = totalEarnedIds.size;
-  const earnedCountLast = lastAttemptEarnedIds.size;
   const percentageTotal = totalCount > 0 ? (earnedCountTotal / totalCount) * 100 : 0;
-  const percentageLast = totalCount > 0 ? (earnedCountLast / totalCount) * 100 : 0;
+
+  // Объект последней полученной ачивки (случайный значок из последней попытки)
+  const lastBadge = attempt?.expand?.achievement || null;
 
   if (loading) {
     return (
@@ -106,24 +107,23 @@ const AchievementGallery = ({ studentSession }) => {
 
       <div className="achievement-stats-grid">
         <div className="achievement-stats">
-          <div className="achievement-stats-content">
-            <div className="achievement-stats-ring">
-              <Progress
-                type="circle"
-                percent={Math.round(percentageLast)}
-                size={90}
-                strokeWidth={10}
-                strokeColor="#22c55e"
+          <div className="achievement-stats-content achievement-stats-content--badge">
+            {lastBadge ? (
+              <AchievementBadge
+                achievement={lastBadge}
+                size="small"
+                showDetails={true}
+                animated={false}
               />
-            </div>
-            <div className="achievement-stats-info">
-              <Title level={5} className="achievement-stats-title">
-                Последняя попытка: {earnedCountLast} из {totalCount}
-              </Title>
-              <Text className="achievement-stats-subtitle">
-                {earnedCountLast > 0 ? 'Получено за этот тест' : 'Нет новых достижений'}
-              </Text>
-            </div>
+            ) : (
+              <div className="achievement-stats-empty">
+                <LockOutlined className="achievement-stats-empty-icon" />
+                <Text type="secondary">Нет новых достижений</Text>
+              </div>
+            )}
+            <Text className="achievement-stats-subtitle achievement-stats-subtitle--badge">
+              За последний тест
+            </Text>
           </div>
         </div>
 

@@ -1106,6 +1106,32 @@
   font-size: 14px;
 }
 
+/* Левая карточка: показываем значок последней ачивки */
+.achievement-stats-content--badge {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+}
+
+.achievement-stats-subtitle--badge {
+  margin-top: 2px;
+}
+
+.achievement-stats-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+}
+
+.achievement-stats-empty-icon {
+  font-size: 32px;
+  opacity: 0.25;
+}
+
 /* Filters */
 .achievement-gallery-filters {
   margin-bottom: 24px;
