@@ -123,14 +123,14 @@ const StudentTestPage = ({ studentSession }) => {
         console.log('[StudentTest] Обработка достижений включена');
         const achievements = await api.getAchievements();
 
-        // Получить все попытки студента (авторизованного или гостя по device_id)
+        // Получить ВСЕ попытки студента (из всех сессий), чтобы не выдавать уже полученные ачивки
         const authStudent = api.getAuthStudent();
         let allAttempts = [];
         if (authStudent?.id) {
           const deviceId = localStorage.getItem('ege_device_id');
           const [studentAttempts, deviceAttempts] = await Promise.all([
-            api.getAttemptsByStudent(session.id, authStudent.id),
-            deviceId ? api.getAttemptsByDevice(session.id, deviceId) : Promise.resolve([]),
+            api.getAttemptsByStudentAll(authStudent.id),
+            deviceId ? api.getAttemptsByDeviceAll(deviceId) : Promise.resolve([]),
           ]);
           const byId = new Map();
           [...studentAttempts, ...deviceAttempts].forEach((a) => byId.set(a.id, a));
@@ -138,7 +138,7 @@ const StudentTestPage = ({ studentSession }) => {
         } else {
           const deviceId = localStorage.getItem('ege_device_id');
           if (deviceId) {
-            allAttempts = await api.getAttemptsByDevice(session.id, deviceId);
+            allAttempts = await api.getAttemptsByDeviceAll(deviceId);
           }
         }
 
