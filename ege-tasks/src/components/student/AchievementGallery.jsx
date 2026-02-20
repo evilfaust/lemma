@@ -11,10 +11,9 @@ const { Title, Text } = Typography;
  * Галерея всех достижений студента
  */
 const AchievementGallery = ({ studentSession }) => {
-  const { session } = studentSession;
+  const { attempt } = studentSession;
   const [loading, setLoading] = useState(true);
   const [allAchievements, setAllAchievements] = useState([]);
-  const [sessionAttempts, setSessionAttempts] = useState([]);
   const [allUserAttempts, setAllUserAttempts] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [filterRarity, setFilterRarity] = useState('all');
@@ -28,24 +27,6 @@ const AchievementGallery = ({ studentSession }) => {
 
         const student = api.getAuthStudent();
         const deviceId = localStorage.getItem('ege_device_id');
-
-        if (session?.id) {
-          let sessionScopedAttempts = [];
-          if (student) {
-            const [studentAttempts, deviceAttempts] = await Promise.all([
-              api.getAttemptsByStudent(session.id, student.id),
-              deviceId ? api.getAttemptsByDevice(session.id, deviceId) : Promise.resolve([]),
-            ]);
-            const byId = new Map();
-            [...studentAttempts, ...deviceAttempts].forEach((a) => byId.set(a.id, a));
-            sessionScopedAttempts = Array.from(byId.values());
-          } else {
-            if (deviceId) {
-              sessionScopedAttempts = await api.getAttemptsByDevice(session.id, deviceId);
-            }
-          }
-          setSessionAttempts(sessionScopedAttempts);
-        }
 
         let allAttempts = [];
         if (student) {
@@ -67,23 +48,17 @@ const AchievementGallery = ({ studentSession }) => {
     };
 
     load();
-  }, [session?.id]);
+  }, []);
 
-  // Собрать все полученные значки (случайные) и разблокированные достижения (условные)
-  const earnedBadgeIdsCurrent = useMemo(() => {
-    const ids = getPreviouslyEarnedBadgeIds(sessionAttempts);
-    return new Set(ids);
-  }, [sessionAttempts]);
-
-  const unlockedAchievementIdsCurrent = useMemo(() => {
-    const ids = getPreviouslyUnlockedIds(sessionAttempts);
-    return new Set(ids);
-  }, [sessionAttempts]);
-
-  const currentSessionEarnedIds = useMemo(
-    () => new Set([...earnedBadgeIdsCurrent, ...unlockedAchievementIdsCurrent]),
-    [earnedBadgeIdsCurrent, unlockedAchievementIdsCurrent]
-  );
+  // Ачивки из последней попытки (только что сданной)
+  const lastAttemptEarnedIds = useMemo(() => {
+    const ids = new Set();
+    if (attempt?.achievement) ids.add(attempt.achievement);
+    if (Array.isArray(attempt?.unlocked_achievements)) {
+      attempt.unlocked_achievements.forEach(id => ids.add(id));
+    }
+    return ids;
+  }, [attempt?.achievement, attempt?.unlocked_achievements]);
 
   const earnedBadgeIdsTotal = useMemo(() => {
     const ids = getPreviouslyEarnedBadgeIds(allUserAttempts);
@@ -109,9 +84,9 @@ const AchievementGallery = ({ studentSession }) => {
 
   const totalCount = allAchievements.length;
   const earnedCountTotal = totalEarnedIds.size;
-  const earnedCountCurrent = currentSessionEarnedIds.size;
+  const earnedCountLast = lastAttemptEarnedIds.size;
   const percentageTotal = totalCount > 0 ? (earnedCountTotal / totalCount) * 100 : 0;
-  const percentageCurrent = totalCount > 0 ? (earnedCountCurrent / totalCount) * 100 : 0;
+  const percentageLast = totalCount > 0 ? (earnedCountLast / totalCount) * 100 : 0;
 
   if (loading) {
     return (
@@ -135,7 +110,7 @@ const AchievementGallery = ({ studentSession }) => {
             <div className="achievement-stats-ring">
               <Progress
                 type="circle"
-                percent={Math.round(percentageCurrent)}
+                percent={Math.round(percentageLast)}
                 size={90}
                 strokeWidth={10}
                 strokeColor="#22c55e"
@@ -143,10 +118,10 @@ const AchievementGallery = ({ studentSession }) => {
             </div>
             <div className="achievement-stats-info">
               <Title level={5} className="achievement-stats-title">
-                Текущий тест: {earnedCountCurrent} из {totalCount}
+                Последняя попытка: {earnedCountLast} из {totalCount}
               </Title>
               <Text className="achievement-stats-subtitle">
-                Что получено в этой сессии
+                {earnedCountLast > 0 ? 'Получено за этот тест' : 'Нет новых достижений'}
               </Text>
             </div>
           </div>
@@ -181,7 +156,7 @@ const AchievementGallery = ({ studentSession }) => {
       <div className="achievement-gallery-legend">
         <span className="achievement-legend-item">
           <span className="achievement-legend-dot achievement-legend-dot--current" />
-          За текущий тест
+          За последний тест
         </span>
         <span className="achievement-legend-item">
           <span className="achievement-legend-dot achievement-legend-dot--total" />
@@ -231,7 +206,7 @@ const AchievementGallery = ({ studentSession }) => {
       ) : (
         <div className="achievement-grid">
           {filteredAchievements.map(achievement => {
-            const isInCurrentSession = currentSessionEarnedIds.has(achievement.id);
+            const isInLastAttempt = lastAttemptEarnedIds.has(achievement.id);
             const isEarnedTotal = totalEarnedIds.has(achievement.id);
             return (
               <div key={achievement.id} className="achievement-gallery-item">
@@ -240,10 +215,10 @@ const AchievementGallery = ({ studentSession }) => {
                     <LockOutlined />
                   </span>
                 )}
-                {isEarnedTotal && isInCurrentSession && (
-                  <span className="achievement-earned-dot achievement-earned-dot--current" title="За текущий тест" />
+                {isEarnedTotal && isInLastAttempt && (
+                  <span className="achievement-earned-dot achievement-earned-dot--current" title="За последний тест" />
                 )}
-                {isEarnedTotal && !isInCurrentSession && (
+                {isEarnedTotal && !isInLastAttempt && (
                   <span className="achievement-earned-dot achievement-earned-dot--total" title="Получено ранее" />
                 )}
                 <AchievementBadge
