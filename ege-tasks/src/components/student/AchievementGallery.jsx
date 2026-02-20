@@ -143,25 +143,24 @@ const AchievementGallery = ({ studentSession }) => {
 
         <div className="achievement-stats">
           <div className="achievement-stats-content">
-            <div className="achievement-stats-ring">
-              <Progress
-                type="circle"
-                percent={Math.round(percentageTotal)}
-                size={90}
-                strokeWidth={10}
-                strokeColor={percentageTotal === 100 ? '#52c41a' : '#4361ee'}
-              />
-            </div>
+            <Progress
+              type="circle"
+              percent={Math.round(percentageTotal)}
+              size={96}
+              strokeWidth={9}
+              strokeColor={percentageTotal === 100 ? '#52c41a' : '#4361ee'}
+            />
             <div className="achievement-stats-info">
               <Title level={5} className="achievement-stats-title">
-                Всего: {earnedCountTotal} из {totalCount}
+                {earnedCountTotal} из {totalCount}
               </Title>
               <Text className="achievement-stats-subtitle">
                 {percentageTotal === 100
-                  ? 'Поздравляем! Все достижения получены!'
-                  : `Осталось ${totalCount - earnedCountTotal} достижений`
+                  ? '🎉 Все получены!'
+                  : `Осталось ${totalCount - earnedCountTotal}`
                 }
               </Text>
+              <Text className="achievement-stats-hint">Всего достижений</Text>
             </div>
           </div>
         </div>

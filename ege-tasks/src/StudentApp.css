@@ -1071,17 +1071,16 @@
   }
 }
 
+/* Вертикальный layout обеих карточек */
 .achievement-stats-content {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 24px;
-}
-
-@media (max-width: 480px) {
-  .achievement-stats-content {
-    flex-direction: column;
-    gap: 16px;
-  }
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  padding: 8px 0;
+  min-height: 200px;
 }
 
 .achievement-stats-ring .ant-progress-text {
@@ -1091,14 +1090,17 @@
 }
 
 .achievement-stats-info {
-  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .achievement-stats-title {
   font-size: 18px !important;
   font-weight: 700 !important;
   color: #1a1a2e !important;
-  margin-bottom: 4px !important;
+  margin-bottom: 0 !important;
 }
 
 .achievement-stats-subtitle {
@@ -1108,30 +1110,29 @@
 
 /* Иконка значка в шапке */
 .achievement-stats-badge-icon {
-  width: 144px;
-  height: 144px;
-  flex-shrink: 0;
+  width: 96px;
+  height: 96px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 24px;
+  border-radius: 22px;
   background: #f5f5f5;
 }
 
 .achievement-stats-badge-icon--empty {
   background: #f0f0f0;
-  font-size: 56px;
-  color: #bfbfbf;
+  font-size: 40px;
+  color: #d9d9d9;
 }
 
 .achievement-stats-badge-img {
-  width: 112px;
-  height: 112px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
 }
 
 .achievement-stats-badge-trophy {
-  font-size: 64px;
+  font-size: 44px;
   color: #faad14;
 }
 
@@ -1143,8 +1144,7 @@
 /* Тег редкости */
 .achievement-stats-rarity-tag {
   display: inline-block;
-  margin-top: 6px;
-  padding: 2px 10px;
+  padding: 3px 12px;
   border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
@@ -1158,8 +1158,6 @@
 
 /* Подсказка "За последний тест" */
 .achievement-stats-hint {
-  display: block;
-  margin-top: 6px;
   color: #bfbfbf;
   font-size: 12px;
 }
