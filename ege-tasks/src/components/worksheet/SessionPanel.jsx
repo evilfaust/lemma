@@ -25,10 +25,11 @@ const SessionPanel = ({ workId }) => {
   const [qrFullscreen, setQrFullscreen] = useState(false);
   const qrRef = useRef();
 
-  // Ссылка строится от текущего origin
+  // Ссылка всегда ведёт на отдельный студенческий домен
   const buildStudentUrl = useCallback((sessionId) => {
     if (!sessionId) return '';
-    return `${window.location.origin}/student/${sessionId}`;
+    const studentDomain = import.meta.env.VITE_STUDENT_URL || `${window.location.origin}/student`;
+    return `${studentDomain}/${sessionId}`;
   }, []);
 
   useEffect(() => {

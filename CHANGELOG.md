@@ -1,5 +1,51 @@
 # Changelog — История изменений
 
+## [3.6.0] - 2026-02-20
+
+### Добавлено
+- **Раздельные Vite-приложения** — монорепо с двумя независимыми бандлами из одного репозитория
+  - `index.html` + `src/teacher/main.jsx` — учительское приложение (локально)
+  - `student.html` + `src/student/main.jsx` — студенческое приложение (VPS)
+  - `npm run build` собирает оба бандла одновременно
+- **`src/shared/`** — общий код для обоих приложений
+  - `shared/services/pocketbase.js` + `pocketbaseUrl.js` — API и URL-резолвер
+  - `shared/components/MathRenderer.jsx` — рендерер LaTeX + Markdown
+  - `shared/utils/shuffle.js` + `escapeFilter.js` — утилиты
+  - Оригинальные пути сохранены как реэкспорты (обратная совместимость)
+- **`student.oipav.ru`** — отдельный домен для студенческого интерфейса
+  - Let's Encrypt SSL сертификат
+  - nginx конфиг на VPS: `/var/www/student-ege/`
+  - Фронтенд задеплоен: `https://student.oipav.ru`
+- **`VITE_STUDENT_URL`** — переменная окружения для домена студентов
+- **`raspberry/deploy-student-to-vps.sh`** — скрипт деплоя студенческого приложения на VPS
+- Alias `@shared` в `vite.config.js` для удобного импорта shared-модулей
+
+### Изменено
+- **`SessionPanel.jsx`** — `buildStudentUrl()` использует `VITE_STUDENT_URL` вместо `window.location.origin`
+  - QR-коды и ссылки теперь ведут на `https://student.oipav.ru/student/{sessionId}`
+- **`raspberry/nginx.conf`** — обновлён для поддержки двух SPA
+  - `/student/` → `student.html`
+  - `/` → `index.html`
+- **`ege-tasks/index.html`** — entrypoint учительского приложения → `src/teacher/main.jsx`
+- **`ege-tasks/vite.config.js`** — multi-input build + `@shared` alias
+- Удалён `src/main.jsx` (заменён двумя специализированными entrypoints)
+- Обновлён деплой Raspberry Pi (nginx конфиг + оба HTML файла)
+
+### Архитектура
+```
+Учитель (локально):           Студент (VPS: student.oipav.ru):
+index.html                    student.html
+src/teacher/main.jsx    →     src/student/main.jsx
+App.jsx + все компоненты      StudentApp.jsx + student/ компоненты
+         ↓                              ↓
+         └──── src/shared/ ────────────┘
+               (pocketbase, MathRenderer, shuffle, escapeFilter)
+                        ↓
+               PocketBase (task-ege.oipav.ru)
+```
+
+---
+
 ## [3.5.1] - 2026-02-20
 
 ### Изменено
