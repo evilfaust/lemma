@@ -193,12 +193,6 @@ const TaskSheetGenerator = () => {
   const handleGenerate = async (values) => {
     const tasksPerVariant = values.tasksPerVariant || 20;
 
-    // Требуем выбор темы — без неё запрос слишком тяжёлый
-    if (!values.topic && !values.search) {
-      message.warning('Выберите тему или введите поисковый запрос перед генерацией');
-      return;
-    }
-
     // Валидация распределений
     if (values.progressiveDifficulty && (tagDistribution.items.length > 0 || difficultyDistribution.items.length > 0)) {
       message.warning('Автопрогрессия несовместима с ручным распределением по тегам/сложности');
@@ -335,7 +329,7 @@ const TaskSheetGenerator = () => {
               showZero
             />
           ) : (
-            <span style={{ fontSize: 12, color: '#8c8c8c' }}>выберите тему</span>
+            <span style={{ fontSize: 12, color: '#8c8c8c' }}>все темы</span>
           )}
         </span>
       ),
