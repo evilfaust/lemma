@@ -107,23 +107,37 @@ const AchievementGallery = ({ studentSession }) => {
 
       <div className="achievement-stats-grid">
         <div className="achievement-stats">
-          <div className="achievement-stats-content achievement-stats-content--badge">
+          <div className="achievement-stats-content">
             {lastBadge ? (
-              <AchievementBadge
-                achievement={lastBadge}
-                size="small"
-                showDetails={true}
-                animated={false}
-              />
+              <>
+                <div className={`achievement-stats-badge-icon rarity-bg-${lastBadge.rarity}`}>
+                  {lastBadge.icon
+                    ? <img src={`/achievements/${lastBadge.icon}`} alt={lastBadge.title} className="achievement-stats-badge-img" />
+                    : <TrophyOutlined className="achievement-stats-badge-trophy" />
+                  }
+                </div>
+                <div className="achievement-stats-info">
+                  <Title level={5} className="achievement-stats-title">{lastBadge.title}</Title>
+                  {lastBadge.description && (
+                    <Text className="achievement-stats-subtitle">{lastBadge.description}</Text>
+                  )}
+                  <span className={`achievement-stats-rarity-tag rarity-tag-${lastBadge.rarity}`}>
+                    {{ common: 'Обычный', rare: 'Редкий', legendary: 'Легендарный' }[lastBadge.rarity]}
+                  </span>
+                  <Text className="achievement-stats-hint">За последний тест</Text>
+                </div>
+              </>
             ) : (
-              <div className="achievement-stats-empty">
-                <LockOutlined className="achievement-stats-empty-icon" />
-                <Text type="secondary">Нет новых достижений</Text>
-              </div>
+              <>
+                <div className="achievement-stats-badge-icon achievement-stats-badge-icon--empty">
+                  <LockOutlined />
+                </div>
+                <div className="achievement-stats-info">
+                  <Title level={5} className="achievement-stats-title">Нет новых достижений</Title>
+                  <Text className="achievement-stats-subtitle">За последний тест</Text>
+                </div>
+              </>
             )}
-            <Text className="achievement-stats-subtitle achievement-stats-subtitle--badge">
-              За последний тест
-            </Text>
           </div>
         </div>
 

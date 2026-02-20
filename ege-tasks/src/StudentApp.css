@@ -1106,30 +1106,62 @@
   font-size: 14px;
 }
 
-/* Левая карточка: показываем значок последней ачивки */
-.achievement-stats-content--badge {
-  flex-direction: column;
+/* Иконка значка в шапке */
+.achievement-stats-badge-icon {
+  width: 72px;
+  height: 72px;
+  flex-shrink: 0;
+  display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  text-align: center;
+  border-radius: 18px;
+  background: #f5f5f5;
 }
 
-.achievement-stats-subtitle--badge {
-  margin-top: 2px;
+.achievement-stats-badge-icon--empty {
+  background: #f0f0f0;
+  font-size: 28px;
+  color: #bfbfbf;
 }
 
-.achievement-stats-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 0;
+.achievement-stats-badge-img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
 }
 
-.achievement-stats-empty-icon {
+.achievement-stats-badge-trophy {
   font-size: 32px;
-  opacity: 0.25;
+  color: #faad14;
+}
+
+/* Фон иконки по редкости */
+.rarity-bg-common    { background: #f5f5f5; }
+.rarity-bg-rare      { background: #e8f0fe; }
+.rarity-bg-legendary { background: #fff8e1; }
+
+/* Тег редкости */
+.achievement-stats-rarity-tag {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.rarity-tag-common    { background: #f0f0f0; color: #8c8c8c; }
+.rarity-tag-rare      { background: #e8f0fe; color: #4361ee; }
+.rarity-tag-legendary { background: #fff3cd; color: #d48806; }
+
+/* Подсказка "За последний тест" */
+.achievement-stats-hint {
+  display: block;
+  margin-top: 6px;
+  color: #bfbfbf;
+  font-size: 12px;
 }
 
 /* Filters */
