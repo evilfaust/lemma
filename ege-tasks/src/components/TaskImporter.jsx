@@ -14,7 +14,15 @@ const { Dragger } = Upload;
 const { TextArea } = Input;
 const { Text } = Typography;
 
-const PDF_SERVICE_URL = 'http://localhost:3001';
+const PDF_SERVICE_URL = (() => {
+  const envUrl = import.meta.env.VITE_PDF_SERVICE_URL;
+  if (envUrl) return envUrl;
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${window.location.hostname}:3001`;
+  }
+  return 'http://localhost:3001';
+})();
 
 const DIFFICULTY_COLORS = {
   '1': '#52c41a',
@@ -300,7 +308,7 @@ export default function TaskImporter() {
 
     } catch (e) {
       if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-        setSdamgiaError('PDF-сервис недоступен. Запустите: cd pocketbase && npm run pdf');
+        setSdamgiaError(`PDF-сервис недоступен (${PDF_SERVICE_URL}). Проверьте соединение или запустите локально: cd pocketbase && npm run pdf`);
       } else {
         setSdamgiaError(e.message);
       }
