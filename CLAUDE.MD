@@ -37,7 +37,7 @@
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 
-Текущая версия: **3.5.0** (февраль 2026)
+Текущая версия: **3.6.0** (февраль 2026)
 
 ## Tech Stack
 
@@ -285,6 +285,8 @@ URL: `/student/{sessionId}`
 - Conditional: score≥100%, score≥90%, speed≤5min, count≥1/10/50, night_owl, early_bird
 - Engine: `utils/achievementEngine.js`
 - Teacher can manually award achievements
+- **ВАЖНО (2026-02-21):** Дедупликация — глобальная по всем сессиям. При выдаче ачивок используются `getAttemptsByStudentAll` / `getAttemptsByDeviceAll` (не по session.id), чтобы не повторять уже полученные ачивки из других работ.
+- `AchievementGallery` шапка: левая карточка — значок последней ачивки (`attempt.expand.achievement`), правая — общий прогресс.
 
 ## Answer Checking (answerChecker.js)
 
@@ -321,8 +323,9 @@ URL: `/student/{sessionId}`
 ### Services
 - PocketBase (VPS): https://task-ege.oipav.ru (Admin: https://task-ege.oipav.ru/_/)
 - PDF Service (VPS): https://task-ege.oipav.ru/pdf
-- Frontend (dev): http://localhost:5173
-- Student: http://localhost:5173/student/{sessionId}
+- **Student App (VPS):** https://student.oipav.ru/student/{sessionId}
+- Teacher App (dev): http://localhost:5173
+- Student App (dev): http://localhost:5173/student/{sessionId} (via student.html)
 
 ### VPS Deployment (147.45.158.148)
 ```
@@ -330,13 +333,18 @@ nginx (443) → task-ege.oipav.ru
   /api/, /_/    → PocketBase (:8095)   systemd: pocketbase-ege
   /pdf/         → PDF Service (:3001)  systemd: pdf-service-ege
   Telegram Bot                         systemd: telegram-bot-ege
+
+nginx (443) → student.oipav.ru
+  /            → /var/www/student-ege/student.html  (SPA)
 ```
 - Backups: `/opt/pocketbase/backups/` (cron every 6h, max 20 backups)
 - Logs: `journalctl -u {pocketbase-ege|pdf-service-ege|telegram-bot-ege}`
 - Manage: `systemctl {start|stop|restart|status} {pocketbase-ege|pdf-service-ege|telegram-bot-ege}`
+- Deploy student: `./raspberry/deploy-student-to-vps.sh`
 
 ### Raspberry Pi (192.168.1.68)
-- Только статический фронтенд через Nginx
+- Статический фронтенд через Nginx: `index.html` (учитель) + `student.html` (студент)
+- `/student/` → `student.html`, `/` → `index.html`
 - PocketBase, PDF, Telegram-бот — ОТКЛЮЧЕНЫ (всё на VPS)
 - Deploy: `./raspberry/deploy-to-raspberry.sh`
 
@@ -387,7 +395,9 @@ Key function groups:
 - API service: `ege-tasks/src/services/pocketbase.js`
 - Context: `ege-tasks/src/contexts/ReferenceDataContext.jsx`
 - Utils: `ege-tasks/src/utils/*.js`
-- Main apps: `ege-tasks/src/App.jsx`, `ege-tasks/src/main.jsx`
+- Main apps: `ege-tasks/src/App.jsx`, `ege-tasks/src/StudentApp.jsx`
+- Entrypoints: `ege-tasks/src/teacher/main.jsx`, `ege-tasks/src/student/main.jsx`
+- Shared code: `ege-tasks/src/shared/` (services, components, utils)
 - Styles: `ege-tasks/src/App.css`
 - Backend hooks: `pocketbase/pb_hooks/*.js`
 - PDF service: `pocketbase/pdf-service.js`
