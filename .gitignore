@@ -19,6 +19,9 @@ pocketbase/pb_data/storage/
 backups/
 task-image-cache/
 
+# Archive (одноразовые скрипты, не нужны в репозитории)
+_archive/
+
 # OS
 .DS_Store
 Thumbs.db
