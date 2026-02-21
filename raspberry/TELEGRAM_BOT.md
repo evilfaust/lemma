@@ -169,3 +169,29 @@ EGE Tasks VPS запущен!
 - **Один BOT_TOKEN = один long-polling listener.** Нельзя запускать бота одновременно на VPS и Pi.
 - Бот на Pi отключён (`sudo systemctl disable telegram-bot`).
 - Бот не использует npm-зависимости — только встроённые модули Node.js (https, child_process).
+
+---
+
+## Уведомление о появлении Raspberry Pi в сети
+
+Чтобы снова получать IP малины при старте, используйте отдельный oneshot-сервис без polling:
+
+- Скрипт: `pi-online-notify.sh`
+- Сервис: `pi-online-notify.service`
+- Конфиг: `/etc/ege-app/pi-notify.env`
+
+### Почему это работает вместе с VPS-ботом
+
+`pi-online-notify` только отправляет `sendMessage` и не вызывает `getUpdates`, поэтому не конфликтует с long-polling демоном на VPS.
+
+### Быстрая настройка на Raspberry Pi
+
+```bash
+sudo nano /etc/ege-app/pi-notify.env
+# заполнить BOT_TOKEN и CHAT_ID
+
+sudo systemctl daemon-reload
+sudo systemctl enable pi-online-notify.service
+sudo systemctl start pi-online-notify.service
+sudo systemctl status pi-online-notify.service
+```

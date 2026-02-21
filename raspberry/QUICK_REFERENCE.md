@@ -81,6 +81,16 @@ crontab -l | grep backup
 
 Команды: `/status`, `/db`, `/backups`, `/health`, `/restart`, `/logs`, `/help`
 
+## Уведомления от Raspberry Pi
+
+```bash
+ssh faust@192.168.1.68
+sudo nano /etc/ege-app/pi-notify.env   # BOT_TOKEN, CHAT_ID
+sudo systemctl enable pi-online-notify.service
+sudo systemctl start pi-online-notify.service
+sudo systemctl status pi-online-notify.service
+```
+
 ## Raspberry Pi — проверка
 
 ```bash

@@ -144,6 +144,34 @@ else
     echo "⚠️  Файл telegram-bot.service не найден"
 fi
 
+if [ -f "/home/faust/ege-app-setup/pi-online-notify.service" ]; then
+    sudo cp /home/faust/ege-app-setup/pi-online-notify.service /etc/systemd/system/
+    echo "  → pi-online-notify.service создан"
+else
+    echo "⚠️  Файл pi-online-notify.service не найден"
+fi
+
+if [ -f "/home/faust/ege-app-setup/pi-online-notify.sh" ]; then
+    sudo cp /home/faust/ege-app-setup/pi-online-notify.sh /usr/local/bin/pi-online-notify.sh
+    sudo chmod +x /usr/local/bin/pi-online-notify.sh
+    echo "  → /usr/local/bin/pi-online-notify.sh установлен"
+else
+    echo "⚠️  Файл pi-online-notify.sh не найден"
+fi
+
+if [ -f "/home/faust/ege-app-setup/pi-notify.env.example" ]; then
+    sudo mkdir -p /etc/ege-app
+    if [ ! -f "/etc/ege-app/pi-notify.env" ]; then
+        sudo cp /home/faust/ege-app-setup/pi-notify.env.example /etc/ege-app/pi-notify.env
+        sudo chmod 600 /etc/ege-app/pi-notify.env
+        echo "  → /etc/ege-app/pi-notify.env создан (заполните BOT_TOKEN и CHAT_ID)"
+    else
+        echo "  → /etc/ege-app/pi-notify.env уже существует"
+    fi
+else
+    echo "⚠️  Файл pi-notify.env.example не найден"
+fi
+
 # Перезагружаем systemd и включаем автозапуск
 sudo systemctl daemon-reload
 
@@ -160,6 +188,11 @@ fi
 if [ -f "/etc/systemd/system/telegram-bot.service" ]; then
     sudo systemctl enable telegram-bot.service
     echo "  → telegram-bot.service включен в автозапуск"
+fi
+
+if [ -f "/etc/systemd/system/pi-online-notify.service" ]; then
+    sudo systemctl enable pi-online-notify.service
+    echo "  → pi-online-notify.service включен в автозапуск"
 fi
 
 echo "✅ Systemd сервисы настроены"
