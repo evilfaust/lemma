@@ -21,6 +21,11 @@ export const PRINT_TASKS_PER_PAGE = 6;
 // Grid is 2x3, so one cell is 69 x (200/3) mm.
 export const PRINT_CELL_ASPECT_RATIO = 69 / (200 / 3);
 const isImageDrawing = (value = '') => value.startsWith('data:image/');
+
+/** URL изображения задачи: файловое поле → legacy base64 → пусто */
+function getTaskImageSrc(task) {
+  return api.getGeometryImageUrl(task) || '';
+}
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
 const getMinY = (layerType) => (layerType === 'text' ? -24 : -10);
 
@@ -114,7 +119,8 @@ export function GeometryPreviewCard({
   layout,
   onLayoutChange,
 }) {
-  const imageValue = task?.geogebra_image_base64 || (isImageDrawing(task?.geogebra_base64 || '') ? task.geogebra_base64 : '');
+  // Приоритет: файловое поле (drawing_image) → legacy base64 → пусто
+  const imageValue = getTaskImageSrc(task);
   const showImage = drawingMode === 'image' || drawingMode === 'task';
 
   const stageRef = useRef(null);

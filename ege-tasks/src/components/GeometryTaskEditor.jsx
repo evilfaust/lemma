@@ -103,10 +103,16 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
 
   // ── Состояние чертежа ─────────────────────────────────────────────────────
   const ggbApiRef = useRef(null);
+  // Legacy: старые задачи могли хранить PNG прямо в geogebra_base64
   const initialLegacyImage = isImageDrawing(task?.geogebra_base64 || '') ? task?.geogebra_base64 : '';
   const [ggbBase64, setGgbBase64] = useState(initialLegacyImage ? '' : (task?.geogebra_base64 || ''));
-  const [ggbImageBase64, setGgbImageBase64] = useState(task?.geogebra_image_base64 || initialLegacyImage || '');
-  const [ggbSaved, setGgbSaved] = useState(!!(task?.geogebra_base64 || task?.geogebra_image_base64));
+  // ggbImageBase64 — PNG в памяти (только после экспорта из GeoGebra в текущей сессии).
+  // Существующий чертёж отображается через URL файлового поля drawing_image.
+  const [ggbImageBase64, setGgbImageBase64] = useState(initialLegacyImage || '');
+  // Чертёж считается сохранённым если есть файл drawing_image, XML-состояние или legacy base64
+  const [ggbSaved, setGgbSaved] = useState(!!(task?.drawing_image || task?.geogebra_base64 || task?.geogebra_image_base64));
+  // URL существующего файла-чертежа (после миграции)
+  const existingDrawingUrl = api.getGeometryImageUrl(task);
   const [savingDrawing, setSavingDrawing] = useState(false);
   const [appName, setAppName] = useState(task?.geogebra_appname || 'geometry');
   const [drawingView, setDrawingView] = useState(task?.drawing_view === 'geogebra' ? 'geogebra' : 'image');
@@ -274,6 +280,21 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         return;
       }
 
+      // Конвертируем in-memory PNG в File для загрузки в PocketBase file storage.
+      // Если новый чертёж не генерировался — drawing_image не включаем (сохраняется существующий файл).
+      let drawingImageFile = null;
+      if (ggbImageBase64) {
+        try {
+          const raw = ggbImageBase64.replace(/^data:image\/\w+;base64,/, '');
+          const binary = atob(raw);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          drawingImageFile = new File([bytes], 'drawing.png', { type: 'image/png' });
+        } catch {
+          // при ошибке конвертации — не обновляем файл
+        }
+      }
+
       payload = {
         code: normalizedCode,
         title: values.title || '',
@@ -285,7 +306,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         answer: values.answer || '',
         solution_md: values.solution_md || '',
         geogebra_base64: ggbBase64 || '',
-        geogebra_image_base64: ggbImageBase64 || '',
+        // geogebra_image_base64 не пишем — изображение хранится в файловом поле drawing_image
         geogebra_svg: '',
         geogebra_appname: appName,
         drawing_view: drawingView,
@@ -293,6 +314,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         source: values.source || '',
         year: values.year || null,
       };
+
+      // Добавляем файл только если в этой сессии был экспортирован новый PNG
+      if (drawingImageFile) {
+        payload.drawing_image = drawingImageFile;
+      }
 
       if (isCreate) {
         await api.createGeometryTask(payload);
@@ -378,7 +404,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         appName={appName}
         onAppNameChange={(v) => { setAppName(v); setGgbSaved(false); }}
         initialBase64={ggbBase64}
-        imageBase64={ggbImageBase64}
+        imageBase64={ggbImageBase64 || existingDrawingUrl}
         onApiReady={(api) => { ggbApiRef.current = api; }}
         ggbSaved={ggbSaved}
         drawingView={drawingView}

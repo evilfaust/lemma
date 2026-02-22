@@ -1375,6 +1375,18 @@ export const api = {
 
   // ─── Geometry Tasks ───────────────────────────────────────────────────────
 
+  /**
+   * Возвращает URL файла-чертежа задачи (drawing_image).
+   * Если файлового поля нет — отдаёт legacy base64 (переходный период).
+   */
+  getGeometryImageUrl(task) {
+    if (task?.id && task?.drawing_image) {
+      return `${PB_BASE_URL}/api/files/geometry_tasks/${task.id}/${task.drawing_image}`;
+    }
+    // Legacy fallback: base64 (до выполнения миграции или для загруженного нового изображения)
+    return task?.geogebra_image_base64 || '';
+  },
+
   async getGeometryTasks(filters = {}) {
     try {
       const filterArr = [];
@@ -1396,10 +1408,21 @@ export const api = {
         filterArr.push(`(code ~ "${s}" || title ~ "${s}" || statement_md ~ "${s}")`);
       }
 
+      // Исключаем тяжёлые base64-поля из списка — они перенесены в файловое поле drawing_image.
+      // geogebra_base64 (XML состояние, ~30-100KB) нужен только в редакторе → getGeometryTask().
+      const LIGHT_FIELDS = [
+        'id', 'code', 'title', 'topic', 'subtopic', 'difficulty', 'task_type',
+        'answer', 'hints', 'geogebra_appname', 'drawing_view', 'source', 'year',
+        'preview_layout', 'drawing_image', 'created', 'updated',
+        'expand.topic.id', 'expand.topic.title',
+        'expand.subtopic.id', 'expand.subtopic.title',
+      ].join(',');
+
       return await pb.collection('geometry_tasks').getFullList({
         filter: filterArr.join(' && '),
         sort: 'code',
         expand: 'topic,subtopic',
+        fields: LIGHT_FIELDS,
       });
     } catch (error) {
       console.error('Error fetching geometry tasks:', error);
@@ -1409,7 +1432,10 @@ export const api = {
 
   async getGeometryTask(id) {
     try {
-      return await pb.collection('geometry_tasks').getOne(id);
+      // Полная запись со всеми полями (включая geogebra_base64 для редактора)
+      return await pb.collection('geometry_tasks').getOne(id, {
+        expand: 'topic,subtopic',
+      });
     } catch (error) {
       console.error('Error fetching geometry task:', error);
       throw error;
@@ -1418,6 +1444,8 @@ export const api = {
 
   async createGeometryTask(data) {
     try {
+      // PocketBase SDK автоматически создаёт FormData, если data содержит File/Blob.
+      // drawing_image передаётся как File-объект из редактора.
       return await pb.collection('geometry_tasks').create(data);
     } catch (error) {
       console.error('Error creating geometry task:', error);
@@ -1427,6 +1455,7 @@ export const api = {
 
   async updateGeometryTask(id, data) {
     try {
+      // Аналогично: если data.drawing_image — File, SDK сам сформирует FormData.
       return await pb.collection('geometry_tasks').update(id, data);
     } catch (error) {
       console.error('Error updating geometry task:', error);

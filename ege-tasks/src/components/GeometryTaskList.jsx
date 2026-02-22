@@ -349,7 +349,8 @@ export default function GeometryTaskList() {
       align: 'center',
       render: (v, record) => {
         const appLabels = { geometry: 'Геом.', graphing: 'Граф.', classic: 'Класс.', '3d': '3D' };
-        const hasImage = Boolean(record.geogebra_image_base64 || isImageDrawing(v || ''));
+        // После миграции: PNG хранится как файл в drawing_image
+        const hasImage = Boolean(record.drawing_image || record.geogebra_image_base64 || isImageDrawing(v || ''));
         const hasGgb = Boolean(v && !isImageDrawing(v || ''));
 
         if (!hasImage && !hasGgb) return <Text type="secondary">—</Text>;
