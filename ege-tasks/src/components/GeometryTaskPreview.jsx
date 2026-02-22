@@ -18,6 +18,7 @@ const DRAWING_OPTIONS = [
   { label: 'Картинка', value: 'image' },
   { label: 'GeoGebra', value: 'geogebra' },
 ];
+const PRINT_TASKS_PER_PAGE = 6;
 const isImageDrawing = (value = '') => value.startsWith('data:image/');
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
 const getMinY = (layerType) => (layerType === 'text' ? -24 : -10);
@@ -233,9 +234,7 @@ function GeometryPreviewCard({
           style={toLayerStyle(layout.image, 1)}
           onPointerDown={(e) => startInteraction(e, 'image', 'move')}
         >
-          {isPlaceholder ? (
-            <div className="geometry-preview-drawing-placeholder">Пустая карточка</div>
-          ) : showImage && imageValue ? (
+          {isPlaceholder ? null : showImage && imageValue ? (
             <img
               className="geometry-preview-image"
               src={imageValue}
@@ -290,7 +289,7 @@ function GeometryPreviewCard({
           onPointerDown={(e) => startInteraction(e, 'text', 'move')}
         >
           <div className="geometry-preview-text-content">
-            <MathRenderer text={isPlaceholder ? 'Пустая карточка' : normalizeStatement(task)} />
+            {!isPlaceholder && <MathRenderer text={normalizeStatement(task)} />}
             {showAnswers && task?.answer && (
               <div className="geometry-preview-answer">
                 <strong>Ответ:</strong> {task.answer}
@@ -364,9 +363,16 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     setLayoutOverrides({ print: {}, student: {} });
   }, [tasks]);
 
-  const visibleTasks = mode === 'print'
-    ? Array.from({ length: 6 }, (_, i) => tasks[i] || null)
-    : tasks;
+  const printPages = useMemo(() => {
+    const pages = [];
+    for (let i = 0; i < tasks.length; i += PRINT_TASKS_PER_PAGE) {
+      pages.push(tasks.slice(i, i + PRINT_TASKS_PER_PAGE));
+    }
+    if (pages.length === 0) pages.push([]);
+    return pages.map((pageTasks) =>
+      Array.from({ length: PRINT_TASKS_PER_PAGE }, (_, i) => pageTasks[i] || null));
+  }, [tasks]);
+  const visibleTasks = mode === 'print' ? printPages.flat() : tasks;
   const pendingCount = Object.keys(layoutOverrides[mode] || {}).length;
   const snapshotLayouts = useMemo(() => {
     const raw = safeParseLayout(currentPrintTest?.layout_snapshot);
@@ -463,7 +469,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   }, [layoutOverrides, mode, taskLayouts, tasks]);
 
   const handleSaveAsPrintTest = useCallback(async (values) => {
-    const printTasks = visibleTasks.filter(Boolean);
+    const printTasks = tasks.filter(Boolean);
     if (printTasks.length !== 6) {
       message.error('Для печатного теста нужно ровно 6 задач на листе A5');
       return;
@@ -520,7 +526,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     } finally {
       setSavingPrintTest(false);
     }
-  }, [currentPrintTest, getTaskLayout, layoutOverrides.print, visibleTasks]);
+  }, [currentPrintTest, getTaskLayout, layoutOverrides.print, tasks]);
 
   return (
     <div className="geometry-preview-root">
@@ -544,7 +550,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
             <Switch checked={showAnswers} onChange={setShowAnswers} />
             <Text>Показывать ответы</Text>
           </Space>
-          {mode === 'print' && <Tag>Лист A5: 6 задач</Tag>}
+          {mode === 'print' && <Tag>A5: {PRINT_TASKS_PER_PAGE} задач на лист · Листов: {printPages.length}</Tag>}
         </Space>
         <Space>
           <Button
@@ -586,45 +592,75 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
         </div>
       )}
 
-      <div className={`geometry-preview-sheet ${mode === 'print' ? 'a5' : ''}`}>
-        {mode === 'print' && (headerTopic || headerSubtopic) && (
-          <div className="geometry-preview-sheet-header">
-            {headerTopic && (
-              <div className="geometry-preview-sheet-topic">{headerTopic}</div>
-            )}
-            {headerSubtopic && (
-              <div className="geometry-preview-sheet-subtopic">{headerSubtopic}</div>
-            )}
-          </div>
-        )}
-        <div className={`geometry-preview-grid ${mode === 'student' ? 'student' : ''} ${mode === 'print' ? 'a5' : ''}`}>
-          {visibleTasks.map((task, idx) => {
-            const taskKey = task?.id || task?.code || `slot-${idx}`;
-            const layout = getTaskLayout(task, idx);
-            return (
-            <GeometryPreviewCard
-              key={taskKey}
-              task={task || {}}
-              index={idx}
-              isPlaceholder={!task}
-              showAnswers={showAnswers}
-              mode={mode}
-              drawingMode={drawingMode}
-              editable={layoutEdit}
-              layout={layout}
-              onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
-            />
-            );
-          })}
+      {mode === 'print' ? (
+        <div className="geometry-preview-pages">
+          {printPages.map((pageTasks, pageIndex) => (
+            <div className="geometry-preview-sheet a5" key={`page-${pageIndex + 1}`}>
+              {(headerTopic || headerSubtopic) && (
+                <div className="geometry-preview-sheet-header">
+                  {headerTopic && (
+                    <div className="geometry-preview-sheet-topic">{headerTopic}</div>
+                  )}
+                  {headerSubtopic && (
+                    <div className="geometry-preview-sheet-subtopic">{headerSubtopic}</div>
+                  )}
+                </div>
+              )}
+              <div className="geometry-preview-grid a5">
+                {pageTasks.map((task, idx) => {
+                  const globalIndex = pageIndex * PRINT_TASKS_PER_PAGE + idx;
+                  const taskKey = task?.id || task?.code || `slot-${pageIndex}-${idx}`;
+                  const layout = getTaskLayout(task, globalIndex);
+                  return (
+                    <GeometryPreviewCard
+                      key={taskKey}
+                      task={task || {}}
+                      index={globalIndex}
+                      isPlaceholder={!task}
+                      showAnswers={showAnswers}
+                      mode={mode}
+                      drawingMode={drawingMode}
+                      editable={layoutEdit}
+                      layout={layout}
+                      onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
-      </div>
+      ) : (
+        <div className="geometry-preview-sheet">
+          <div className="geometry-preview-grid student">
+            {visibleTasks.map((task, idx) => {
+              const taskKey = task?.id || task?.code || `slot-${idx}`;
+              const layout = getTaskLayout(task, idx);
+              return (
+                <GeometryPreviewCard
+                  key={taskKey}
+                  task={task || {}}
+                  index={idx}
+                  isPlaceholder={!task}
+                  showAnswers={showAnswers}
+                  mode={mode}
+                  drawingMode={drawingMode}
+                  editable={layoutEdit}
+                  layout={layout}
+                  onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
       <SaveGeometryPrintModal
         visible={saveModalVisible}
         onCancel={() => setSaveModalVisible(false)}
         onSave={handleSaveAsPrintTest}
         saving={savingPrintTest}
         isUpdate={!!currentPrintTest?.id}
-        tasksCount={visibleTasks.filter(Boolean).length}
+        tasksCount={PRINT_TASKS_PER_PAGE}
         initialTitle={
           currentPrintTest?.title
             || `Геометрия A5 · ${new Date().toLocaleDateString('ru-RU')}`

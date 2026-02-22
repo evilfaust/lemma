@@ -32,6 +32,12 @@
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
 }
 
+.geometry-preview-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .geometry-preview-sheet.a5 {
   width: 148mm;
   height: 210mm;
@@ -468,6 +474,20 @@
     box-shadow: none;
     display: flex;
     flex-direction: column;
+  }
+
+  .geometry-preview-pages {
+    gap: 0;
+  }
+
+  .geometry-preview-pages .geometry-preview-sheet.a5 {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .geometry-preview-pages .geometry-preview-sheet.a5:last-child {
+    break-after: auto;
+    page-break-after: auto;
   }
 
   .geometry-preview-number {

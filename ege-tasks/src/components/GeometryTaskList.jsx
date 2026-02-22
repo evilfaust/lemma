@@ -119,7 +119,7 @@ export default function GeometryTaskList() {
       ? [singleTask]
       : (selectedRowKeys.length > 0
           ? tasks.filter((t) => selectedRowKeys.includes(t.id))
-          : tasks.slice(0, 6));
+          : tasks);
 
     if (selectedTasks.length === 0) {
       message.warning('Нет задач для просмотра');
@@ -155,13 +155,13 @@ export default function GeometryTaskList() {
       const test = await api.getGeometryPrintTest(testId);
       const expandedTasks = Array.isArray(test?.expand?.tasks) ? test.expand.tasks : [];
       const byId = new Map(expandedTasks.map((task) => [task.id, task]));
-      const orderedIds = Array.isArray(test?.task_order) && test.task_order.length === 6
+      const orderedIds = Array.isArray(test?.task_order) && test.task_order.length > 0
         ? test.task_order
         : (Array.isArray(test?.tasks) ? test.tasks : []);
       const orderedTasks = orderedIds.map((id) => byId.get(id)).filter(Boolean);
 
-      if (orderedTasks.length !== 6) {
-        message.error('В сохранённом листе не удалось восстановить все 6 задач');
+      if (orderedTasks.length === 0) {
+        message.error('В сохранённом листе не удалось восстановить задачи');
         return;
       }
 
@@ -444,7 +444,7 @@ export default function GeometryTaskList() {
             Листы A5
           </Button>
           <Button icon={<EyeOutlined />} onClick={() => openPreview()}>
-            Просмотр ({selectedRowKeys.length > 0 ? `выбрано ${selectedRowKeys.length}` : 'первые 6'})
+            Просмотр ({selectedRowKeys.length > 0 ? `выбрано ${selectedRowKeys.length}` : `все ${tasks.length}`})
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
             Создать задачу
@@ -460,6 +460,7 @@ export default function GeometryTaskList() {
         rowSelection={{
           selectedRowKeys,
           onChange: setSelectedRowKeys,
+          preserveSelectedRowKeys: true,
         }}
         loading={loading}
         size="small"
