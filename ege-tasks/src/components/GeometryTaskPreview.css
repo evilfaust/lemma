@@ -291,7 +291,7 @@
 .geometry-preview-drawing-placeholder {
   border: 2px dashed #bbb;
   width: 100%;
-  height: 390px;
+  height: 100%;
   display: grid;
   place-items: center;
   color: #999;
@@ -311,7 +311,6 @@
 
 .geometry-preview-image {
   width: 100%;
-  max-height: 220px;
   height: 100%;
   object-fit: contain;
   display: block;
@@ -333,12 +332,9 @@
   max-height: 100%;
 }
 
-.geometry-preview-grid.a5 .geometry-preview-image {
-  max-height: 45mm;
-}
+/* max-height на изображении убрана: слой уже задаёт высоту через % от stage */
 
 .geometry-preview-grid.a5 .geometry-preview-drawing-placeholder {
-  height: 45mm;
   font-size: 2.6mm;
 }
 

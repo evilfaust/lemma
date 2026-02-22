@@ -6,7 +6,6 @@ import {
   Card,
   Modal,
   Popconfirm,
-  Segmented,
   Select,
   Space,
   Switch,
@@ -62,7 +61,6 @@ export default function GeometryTaskList() {
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
   const [quickPreviewTask, setQuickPreviewTask] = useState(null);
   const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
-  const [quickPreviewDrawingMode, setQuickPreviewDrawingMode] = useState('task');
   const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
   const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(false);
   const [quickPreviewSaving, setQuickPreviewSaving] = useState(false);
@@ -558,22 +556,10 @@ export default function GeometryTaskList() {
               <Switch checked={quickPreviewEditMode} onChange={setQuickPreviewEditMode} />
               <Text>Редактировать макет</Text>
             </Space>
-            {quickPreviewEditMode && (
-              <>
-                <Segmented
-                  value={quickPreviewDrawingMode}
-                  onChange={setQuickPreviewDrawingMode}
-                  options={[
-                    { label: 'По задаче', value: 'task' },
-                    { label: 'Картинка', value: 'image' },
-                  ]}
-                />
-                <Space size={8}>
-                  <Switch checked={quickPreviewShowAnswers} onChange={setQuickPreviewShowAnswers} />
-                  <Text>Показывать ответ</Text>
-                </Space>
-              </>
-            )}
+            <Space size={8}>
+              <Switch checked={quickPreviewShowAnswers} onChange={setQuickPreviewShowAnswers} />
+              <Text>Показывать ответ</Text>
+            </Space>
             <Tag>Карточка A5</Tag>
           </Space>
 
@@ -593,8 +579,8 @@ export default function GeometryTaskList() {
                   task={quickPreviewTask}
                   index={0}
                   showAnswers={quickPreviewShowAnswers}
-                  mode="print"
-                  drawingMode={quickPreviewDrawingMode}
+                  mode="student"
+                  drawingMode="task"
                   editable={quickPreviewEditMode}
                   layout={quickPreviewLayout}
                   onLayoutChange={handleQuickLayoutChange}
