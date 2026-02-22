@@ -51,6 +51,7 @@ export default function GeometryTaskList() {
   // Редактор: null = скрыт, объект = редактирование, 'new' = создание
   const [editingTask, setEditingTask] = useState(null);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [editorLoadingId, setEditorLoadingId] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTasks, setPreviewTasks] = useState([]);
   const [previewPrintTest, setPreviewPrintTest] = useState(null);
@@ -106,9 +107,19 @@ export default function GeometryTaskList() {
     setEditorOpen(true);
   };
 
-  const openEdit = (task) => {
-    setEditingTask(task);
-    setEditorOpen(true);
+  const openEdit = async (task) => {
+    // Загружаем полную запись: LIGHT_FIELDS не включает geogebra_base64 и solution_md,
+    // поэтому редактор должен получить задачу через getGeometryTask().
+    setEditorLoadingId(task.id);
+    try {
+      const fullTask = await api.getGeometryTask(task.id);
+      setEditingTask(fullTask);
+      setEditorOpen(true);
+    } catch {
+      message.error('Не удалось загрузить задачу для редактирования');
+    } finally {
+      setEditorLoadingId(null);
+    }
   };
 
   const handleEditorClose = () => {
@@ -343,15 +354,16 @@ export default function GeometryTaskList() {
     },
     {
       title: 'Чертёж',
-      dataIndex: 'geogebra_base64',
       key: 'has_drawing',
       width: 80,
       align: 'center',
-      render: (v, record) => {
+      render: (_, record) => {
         const appLabels = { geometry: 'Геом.', graphing: 'Граф.', classic: 'Класс.', '3d': '3D' };
-        // После миграции: PNG хранится как файл в drawing_image
-        const hasImage = Boolean(record.drawing_image || record.geogebra_image_base64 || isImageDrawing(v || ''));
-        const hasGgb = Boolean(v && !isImageDrawing(v || ''));
+        // PNG хранится как файл drawing_image (после миграции)
+        const hasImage = Boolean(record.drawing_image || record.geogebra_image_base64);
+        // GGB-состояние: drawing_view='geogebra' означает, что GeoGebra-объект используется как основной
+        // (geogebra_base64 нет в LIGHT_FIELDS, но drawing_view — надёжный индикатор)
+        const hasGgb = record.drawing_view === 'geogebra';
 
         if (!hasImage && !hasGgb) return <Text type="secondary">—</Text>;
 
@@ -363,7 +375,7 @@ export default function GeometryTaskList() {
               </Tooltip>
             )}
             {hasGgb && (
-              <Tooltip title={`${appLabels[record.geogebra_appname] || 'GeoGebra'} — объект сохранён`}>
+              <Tooltip title={`${appLabels[record.geogebra_appname] || 'GeoGebra'} — объект показывается`}>
                 <Tag color="blue" style={{ margin: 0 }}>GGB</Tag>
               </Tooltip>
             )}
@@ -398,6 +410,8 @@ export default function GeometryTaskList() {
               type="text"
               icon={<EditOutlined />}
               size="small"
+              loading={editorLoadingId === record.id}
+              disabled={editorLoadingId !== null && editorLoadingId !== record.id}
               onClick={() => openEdit(record)}
             />
           </Tooltip>

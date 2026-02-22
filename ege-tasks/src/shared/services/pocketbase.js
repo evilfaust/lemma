@@ -1412,10 +1412,13 @@ export const api = {
       // geogebra_base64 (XML состояние, ~30-100KB) нужен только в редакторе → getGeometryTask().
       const LIGHT_FIELDS = [
         'id', 'code', 'title', 'topic', 'subtopic', 'difficulty', 'task_type',
+        'statement_md',  // нужен для быстрого предпросмотра
         'answer', 'hints', 'geogebra_appname', 'drawing_view', 'source', 'year',
         'preview_layout', 'drawing_image', 'created', 'updated',
         'expand.topic.id', 'expand.topic.title',
         'expand.subtopic.id', 'expand.subtopic.title',
+        // geogebra_base64 (XML состояние, ~30-100KB) только в редакторе → getGeometryTask()
+        // solution_md только в редакторе → getGeometryTask()
       ].join(',');
 
       return await pb.collection('geometry_tasks').getFullList({
