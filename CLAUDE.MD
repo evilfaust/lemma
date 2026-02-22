@@ -250,7 +250,7 @@ generation-test/
 
 **geometry_subtopics** - `{ id, title, topic: relation→geometry_topics, order }`
 
-**geometry_tasks** - `{ id, code, title, topic: relation→geometry_topics, subtopic: relation→geometry_subtopics, difficulty: number(1-3), task_type: "ready"|"build"|"mixed", statement_md, answer, solution_md, geogebra_base64: text (XML/.ggb состояние), geogebra_appname: "geometry"|"graphing"|"classic"|"3d", drawing_view: "image"|"geogebra", drawing_image: file (PNG, max 10MB), hints: json([{order, text_md}]), preview_layout: json({print:{image,text}, student:{image,text}}), source, year }`
+**geometry_tasks** - `{ id, code, title, topic: relation→geometry_topics, subtopic: relation→geometry_subtopics, difficulty: number(1-3), statement_md, answer, solution_md, geogebra_base64: text (XML/.ggb состояние), geogebra_appname: "geometry"|"graphing"|"classic"|"3d", drawing_view: "image"|"geogebra", drawing_image: file (PNG, max 10MB), hints: json([{order, text_md}]), preview_layout: json({print:{image,text}, student:{image,text}}), source, year }`
 - **ВАЖНО**: `geogebra_base64` — base64-кодированное содержимое `.ggb` файла. При открытии редактора задачу нужно загружать через `getGeometryTask(id)` (полная запись), а не из кеша списка (LIGHT_FIELDS не включает это поле).
 - `drawing_image` хранит PNG-чертёж как файл PocketBase; URL: `{PB_URL}/api/files/geometry_tasks/{id}/{drawing_image}`
 

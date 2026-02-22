@@ -30,15 +30,8 @@ import './GeometryTaskPreview.css';
 
 const { Text } = Typography;
 
-const TASK_TYPE_LABELS = {
-  ready: { label: 'Готовый чертёж', color: 'blue' },
-  build: { label: 'Построение', color: 'green' },
-  mixed: { label: 'Смешанный', color: 'purple' },
-};
-
 const DIFFICULTY_COLORS = { 1: '#52c41a', 2: '#faad14', 3: '#ff4d4f' };
 const DIFFICULTY_LABELS = { 1: 'Базовый', 2: 'Средний', 3: 'Сложный' };
-const isImageDrawing = (value = '') => value.startsWith('data:image/');
 
 export default function GeometryTaskList() {
   const { message } = App.useApp();
@@ -312,16 +305,6 @@ export default function GeometryTaskList() {
       },
     },
     {
-      title: 'Тип',
-      dataIndex: 'task_type',
-      key: 'task_type',
-      width: 150,
-      render: (type) => {
-        const t = TASK_TYPE_LABELS[type] || { label: type, color: 'default' };
-        return <Tag color={t.color}>{t.label}</Tag>;
-      },
-    },
-    {
       title: 'Сл.',
       dataIndex: 'difficulty',
       key: 'difficulty',
@@ -468,18 +451,6 @@ export default function GeometryTaskList() {
               ? geoSubtopics.filter((s) => s.topic === filters.topic)
               : geoSubtopics
             ).map((s) => ({ value: s.id, label: s.title }))}
-          />
-          <Select
-            placeholder="Тип задачи"
-            allowClear
-            style={{ width: 160 }}
-            value={filters.task_type}
-            onChange={(v) => setFilters((f) => ({ ...f, task_type: v }))}
-            options={[
-              { value: 'ready', label: 'Готовый чертёж' },
-              { value: 'build', label: 'Построение' },
-              { value: 'mixed', label: 'Смешанный' },
-            ]}
           />
           <Select
             placeholder="Сложность"

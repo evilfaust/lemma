@@ -1397,9 +1397,6 @@ export const api = {
       if (filters.subtopic) {
         filterArr.push(`subtopic = "${escapeFilter(filters.subtopic)}"`);
       }
-      if (filters.task_type) {
-        filterArr.push(`task_type = "${escapeFilter(filters.task_type)}"`);
-      }
       if (filters.difficulty) {
         filterArr.push(`difficulty = ${Number(filters.difficulty)}`);
       }
@@ -1411,7 +1408,7 @@ export const api = {
       // Исключаем тяжёлые base64-поля из списка — они перенесены в файловое поле drawing_image.
       // geogebra_base64 (XML состояние, ~30-100KB) нужен только в редакторе → getGeometryTask().
       const LIGHT_FIELDS = [
-        'id', 'code', 'title', 'topic', 'subtopic', 'difficulty', 'task_type',
+        'id', 'code', 'title', 'topic', 'subtopic', 'difficulty',
         'statement_md',  // нужен для быстрого предпросмотра
         'answer', 'hints', 'geogebra_appname', 'drawing_view', 'source', 'year',
         'preview_layout', 'drawing_image', 'created', 'updated',

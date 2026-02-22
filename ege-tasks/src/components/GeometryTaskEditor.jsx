@@ -32,12 +32,6 @@ import MathRenderer from './MathRenderer';
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 
-const TASK_TYPE_OPTIONS = [
-  { value: 'ready', label: 'Готовый чертёж — студент видит построение' },
-  { value: 'build', label: 'Построение — студент строит сам' },
-  { value: 'mixed', label: 'Смешанный — частичный шаблон' },
-];
-
 const APPNAME_OPTIONS = [
   { value: 'geometry', label: 'Геометрия' },
   { value: 'graphing', label: 'Графики функций' },
@@ -269,14 +263,9 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     setSaving(true);
     try {
       const normalizedCode = (values.code || '').trim();
-      const normalizedTaskType = values.task_type || '';
 
       if (!normalizedCode) {
         message.error('Укажите код задачи');
-        return;
-      }
-      if (!normalizedTaskType) {
-        message.error('Выберите тип задачи');
         return;
       }
 
@@ -301,7 +290,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         topic: values.topic || null,
         subtopic: values.subtopic || null,
         difficulty: values.difficulty || null,
-        task_type: normalizedTaskType,
         statement_md: values.statement_md || '',
         answer: values.answer || '',
         solution_md: values.solution_md || '',
@@ -363,7 +351,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     topic: task?.topic || null,
     subtopic: task?.subtopic || null,
     difficulty: task?.difficulty || undefined,
-    task_type: task?.task_type || 'ready',
     statement_md: task?.statement_md || '',
     answer: task?.answer || '',
     solution_md: task?.solution_md || '',
@@ -530,17 +517,13 @@ function TabCondition({
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Form.Item
           name="code"
           label="Код задачи"
           rules={[{ required: true, message: 'Укажите код' }]}
         >
           <Input placeholder="GEO-001" />
-        </Form.Item>
-
-        <Form.Item name="task_type" label="Тип задачи" rules={[{ required: true }]}>
-          <Select options={TASK_TYPE_OPTIONS} />
         </Form.Item>
 
         <Form.Item name="difficulty" label="Сложность">
