@@ -6,28 +6,10 @@
 ```bash
 ./start.sh
 ```
-Без PDF сервиса:
-```bash
-./start.sh
-```
-
-С локальным PDF сервисом:
-```bash
-./start.sh --local-pdf
-```
 
 ### Вариант 2: NPM команда
 ```bash
 npm run dev
-```
-Без PDF сервиса:
-```bash
-npm run dev
-```
-
-С локальным PDF сервисом:
-```bash
-npm run dev:local-pdf
 ```
 
 ### Вариант 3: С установкой зависимостей
@@ -45,7 +27,7 @@ npm run dev          # Запустить все сервисы
 | Сервис | URL | Описание |
 |--------|-----|----------|
 | **PocketBase (VPS)** | https://task-ege.oipav.ru | Backend + Database |
-| **PDF Service** | http://localhost:3001 | PDF генерация (Puppeteer) |
+| **PDF Service (VPS)** | https://task-ege.oipav.ru/pdf | PDF генерация (Puppeteer) |
 | **Frontend** | http://localhost:5173 | React приложение |
 
 ---
@@ -87,16 +69,9 @@ http://localhost:5173
 
 ### Корневые команды (из корня проекта):
 ```bash
-npm run dev              # Frontend (VPS backend)
-npm run dev:local-pdf    # Frontend + локальный PDF сервис
+npm run dev              # Frontend (VPS backend/PDF)
 npm run install:all      # Установить зависимости везде
 npm start                # Alias для npm run dev
-```
-
-### Запуск отдельных сервисов:
-```bash
-npm run dev:pdf          # Только PDF Service
-npm run dev:frontend     # Только Frontend
 ```
 
 ---
@@ -108,8 +83,8 @@ npm run dev:frontend     # Только Frontend
 - **Admin**: https://task-ege.oipav.ru/_/
 
 ### PDF Service
-- **Health**: http://localhost:3001/health
-- **Generate**: POST http://localhost:3001/generate
+- **Health**: https://task-ege.oipav.ru/pdf/health
+- **Generate**: POST https://task-ege.oipav.ru/pdf/generate
 
 ### Frontend
 - **App**: http://localhost:5173
@@ -139,7 +114,6 @@ npm -v    # должно быть >= 8.0.0
 **Решение**:
 ```bash
 ./stop.sh               # Остановить все процессы
-lsof -i :3001
 lsof -i :5173
 ```
 
@@ -156,16 +130,7 @@ npm run install:all
 
 **Проверить**:
 ```bash
-curl http://localhost:3001/health
-```
-
-**Должен вернуть**:
-```json
-{
-  "status": "ok",
-  "service": "puppeteer-pdf",
-  "puppeteer": "installed"
-}
+curl https://task-ege.oipav.ru/pdf/health
 ```
 
 ---

@@ -244,16 +244,6 @@ generation-test/
 │   ├── package.json
 │   └── vite.config.js
 │
-├── pocketbase/                   # Backend
-│   ├── pocketbase                # Исполняемый файл PocketBase
-│   ├── pb_migrations/            # Миграции схемы/коллекций
-│   ├── pb_hooks/
-│   │   └── pdf.pb.js             # PDF-хук для PocketBase
-│   ├── pdf-service.js            # Standalone PDF-сервис (Puppeteer)
-│   ├── code.js                   # Генерация кодов задач
-│   ├── package.json
-│   └── start-all.sh
-│
 ├── source/                       # Исходные Markdown-файлы задач
 │   ├── *.md                      # Задачи из Решу ЕГЭ
 │   └── mordkovich/               # Задачи из учебника Мордковича
@@ -471,7 +461,6 @@ echo "VITE_PB_URL=https://task-ege.oipav.ru" > ege-tasks/.env
 Или через npm:
 ```bash
 npm run dev          # Frontend (VPS backend)
-npm run dev:local-pdf # Frontend + локальный PDF-сервис
 npm run migrate:task-images # Перенос внешних image_url в files tasks.image (требует PB_SUPERUSER_EMAIL/PASSWORD)
 ```
 
@@ -696,7 +685,7 @@ Block:  $$\frac{a}{b}$$
 |----------|---------|
 | CORS ошибки | Проверить, что VPS PocketBase доступен и URL в `.env` верный |
 | LaTeX не рендерится | Проверить `import 'katex/dist/katex.min.css'`; формулы в `$...$` или `$$...$$` |
-| PDF сервис недоступен | `cd pocketbase && npm run pdf`; проверить порт 3001 |
+| PDF сервис недоступен | Проверить доступность `https://task-ege.oipav.ru/pdf/health` |
 | Карточки некорректно печатаются | Chrome/Firefox, масштаб 100%, A4, без колонтитулов |
 | Дубликаты при импорте | Парсер проверяет по `statement_md`; дубли пропускаются |
 | Ученик не видит тест | Проверить, что сессия открыта (`is_open: true`) |

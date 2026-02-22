@@ -9,14 +9,8 @@ NC='\033[0m'
 echo -e "${YELLOW}🛑 Остановка локальных сервисов EGE Tasks Manager...${NC}"
 echo ""
 
-echo "Остановка PDF Service (если запущен)..."
-pkill -f "node pdf-service" 2>/dev/null
-
 echo "Остановка Frontend (Vite)..."
 pkill -f "vite" 2>/dev/null
-
-echo "Остановка Concurrently..."
-pkill -f "concurrently" 2>/dev/null
 
 sleep 1
 

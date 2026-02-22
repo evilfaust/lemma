@@ -5,15 +5,10 @@
   "private": true,
   "scripts": {
     "dev": "cd ege-tasks && npm run dev",
-    "dev:local-pdf": "concurrently -n \"PDF,FRONTEND\" -c \"bgMagenta.bold,bgGreen.bold\" \"npm run dev:pdf\" \"npm run dev:frontend\"",
-    "dev:pdf": "cd pocketbase && node pdf-service.js",
     "dev:frontend": "cd ege-tasks && npm run dev",
     "migrate:task-images": "node migrate_task_images_to_pb.js",
-    "install:all": "cd pocketbase && npm install && cd ../ege-tasks && npm install",
+    "install:all": "cd ege-tasks && npm install",
     "start": "npm run dev"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
   },
   "engines": {
     "node": ">=18.0.0"

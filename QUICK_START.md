@@ -7,22 +7,17 @@
 ```bash
 ./start.sh
 ```
-С локальным PDF сервисом:
-```bash
-./start.sh --local-pdf
-```
 
 Или через NPM:
 
 ```bash
 npm run dev          # только frontend (backend на VPS)
-npm run dev:local-pdf
 ```
 
 **Запускается:**
 - Backend (PocketBase): https://task-ege.oipav.ru (VPS)
 - Frontend: http://localhost:5173
-- PDF Service: http://localhost:3001 (опционально, в режиме `--local-pdf`)
+- PDF Service: https://task-ege.oipav.ru/pdf (VPS)
 
 ### Первый запуск (с установкой зависимостей):
 
@@ -60,11 +55,6 @@ Ctrl+C              # в терминале
 
 ```
 generation-test/
-├── pocketbase/           # Backend
-│   ├── pocketbase        # Исполняемый файл
-│   ├── pdf-service.js    # PDF генерация (Node.js)
-│   ├── pb_hooks/         # PocketBase hooks
-│   └── start-all.sh      # Скрипт запуска
 ├── ege-tasks/            # Frontend (React)
 │   ├── src/
 │   │   ├── components/   # React компоненты
@@ -80,13 +70,7 @@ generation-test/
 
 ### Корень проекта
 ```bash
-npm run dev           # Frontend (VPS backend)
-npm run dev:local-pdf # Frontend + локальный PDF сервис
-```
-
-### Backend
-```bash
-npm run pdf       # Только PDF сервис
+npm run dev           # Frontend (VPS backend/PDF)
 ```
 
 ### Frontend
@@ -115,4 +99,4 @@ python pb_parser_theory.py       # Загрузить теорию
 
 ---
 
-**Быстрая помощь:** Если что-то не работает, проверьте доступность VPS backend `https://task-ege.oipav.ru/api/health` и локального PDF сервиса `http://localhost:3001/health` (если используете локальный PDF).
+**Быстрая помощь:** Если что-то не работает, проверьте доступность VPS backend `https://task-ege.oipav.ru/api/health` и PDF `https://task-ege.oipav.ru/pdf/health`.

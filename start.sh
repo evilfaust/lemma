@@ -23,56 +23,21 @@ fi
 echo -e "${GREEN}✓${NC} Node.js: $(node -v)"
 echo ""
 
-# Режим запуска
-MODE="frontend"
-if [[ "$1" == "--local-pdf" || "$1" == "-p" ]]; then
-    MODE="local-pdf"
-fi
-
 # Установка зависимостей
 if [ ! -d "ege-tasks/node_modules" ]; then
     echo -e "${YELLOW}📦 Установка frontend зависимостей...${NC}"
     cd ege-tasks && npm install && cd ..
 fi
 
-if [[ "$MODE" == "local-pdf" ]]; then
-    if [ ! -d "node_modules" ]; then
-        echo -e "${YELLOW}📦 Установка корневых зависимостей...${NC}"
-        npm install
-    fi
-    if [ ! -d "pocketbase/node_modules" ]; then
-        echo -e "${YELLOW}📦 Установка backend зависимостей...${NC}"
-        cd pocketbase && npm install && cd ..
-    fi
-fi
-
 echo ""
 echo -e "${GREEN}🚀 Запуск сервисов...${NC}"
 echo ""
-
-case $MODE in
-    "frontend")
-        echo -e "${BLUE}┌─────────────────────────────────────────────────┐${NC}"
-        echo -e "${BLUE}│ Backend:     https://task-ege.oipav.ru (VPS)    │${NC}"
-        echo -e "${BLUE}│ PDF:         https://task-ege.oipav.ru/pdf (VPS)│${NC}"
-        echo -e "${BLUE}│ Frontend:    http://localhost:5173 (local)       │${NC}"
-        echo -e "${BLUE}└─────────────────────────────────────────────────┘${NC}"
-        echo ""
-        echo -e "${YELLOW}Нажмите Ctrl+C для остановки${NC}"
-        echo -e "${YELLOW}Другой режим: --local-pdf${NC}"
-        echo ""
-        cd ege-tasks && npm run dev
-        ;;
-
-    "local-pdf")
-        echo -e "${BLUE}┌──────────────────────────────────────────────────┐${NC}"
-        echo -e "${BLUE}│ Backend:     https://task-ege.oipav.ru (VPS)     │${NC}"
-        echo -e "${BLUE}│ PDF Service: http://localhost:3001 (local)        │${NC}"
-        echo -e "${BLUE}│ Frontend:    http://localhost:5173 (local)        │${NC}"
-        echo -e "${BLUE}└──────────────────────────────────────────────────┘${NC}"
-        echo ""
-        npx concurrently -n "PDF,FRONTEND" -c "bgMagenta.bold,bgGreen.bold" \
-            "npm run dev:pdf" \
-            "npm run dev:frontend"
-        ;;
-esac
+echo -e "${BLUE}┌─────────────────────────────────────────────────┐${NC}"
+echo -e "${BLUE}│ Backend:     https://task-ege.oipav.ru (VPS)    │${NC}"
+echo -e "${BLUE}│ PDF:         https://task-ege.oipav.ru/pdf (VPS)│${NC}"
+echo -e "${BLUE}│ Frontend:    http://localhost:5173 (local)      │${NC}"
+echo -e "${BLUE}└─────────────────────────────────────────────────┘${NC}"
+echo ""
+echo -e "${YELLOW}Нажмите Ctrl+C для остановки${NC}"
+echo ""
+cd ege-tasks && npm run dev

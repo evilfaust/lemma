@@ -308,7 +308,7 @@ export default function TaskImporter() {
 
     } catch (e) {
       if (e.message.includes('Failed to fetch') || e.message.includes('NetworkError')) {
-        setSdamgiaError(`PDF-сервис недоступен (${PDF_SERVICE_URL}). Проверьте соединение или запустите локально: cd pocketbase && npm run pdf`);
+        setSdamgiaError(`PDF-сервис недоступен (${PDF_SERVICE_URL}). Проверьте соединение с VPS или обратитесь к администратору сервера.`);
       } else {
         setSdamgiaError(e.message);
       }
