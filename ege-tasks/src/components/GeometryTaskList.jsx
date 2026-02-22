@@ -6,13 +6,14 @@ import {
   Card,
   Modal,
   Popconfirm,
+  Segmented,
   Select,
   Space,
+  Switch,
   Table,
   Tag,
   Tooltip,
   Typography,
-  message,
 } from 'antd';
 import {
   DeleteOutlined,
@@ -24,8 +25,9 @@ import {
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import GeometryTaskEditor from './GeometryTaskEditor';
-import GeometryTaskPreview from './GeometryTaskPreview';
+import GeometryTaskPreview, { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout } from './GeometryTaskPreview';
 import LoadGeometryPrintModal from './geometry/LoadGeometryPrintModal';
+import './GeometryTaskPreview.css';
 
 const { Text } = Typography;
 
@@ -57,6 +59,13 @@ export default function GeometryTaskList() {
   const [savedSheetsOpen, setSavedSheetsOpen] = useState(false);
   const [savedSheetsLoading, setSavedSheetsLoading] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
+  const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
+  const [quickPreviewTask, setQuickPreviewTask] = useState(null);
+  const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
+  const [quickPreviewDrawingMode, setQuickPreviewDrawingMode] = useState('task');
+  const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
+  const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(false);
+  const [quickPreviewSaving, setQuickPreviewSaving] = useState(false);
 
   // Загружаем справочники один раз
   useEffect(() => {
@@ -134,6 +143,55 @@ export default function GeometryTaskList() {
     setPreviewOpen(false);
     setPreviewTasks([]);
     setPreviewPrintTest(null);
+  };
+
+  const openQuickPreview = (task) => {
+    if (!task) return;
+    const parsedLayout = safeParseLayout(task.preview_layout);
+    const printLayout = parsedLayout?.print || null;
+    setQuickPreviewTask(task);
+    setQuickPreviewLayout(normalizeLayout(printLayout, 'print'));
+    setQuickPreviewEditMode(false);
+    setQuickPreviewOpen(true);
+  };
+
+  const closeQuickPreview = () => {
+    setQuickPreviewOpen(false);
+    setQuickPreviewTask(null);
+  };
+
+  const handleQuickLayoutChange = (layerName, patch) => {
+    setQuickPreviewLayout((prev) => normalizeLayout({
+      ...prev,
+      [layerName]: {
+        ...prev[layerName],
+        ...patch,
+      },
+    }, 'print'));
+  };
+
+  const handleQuickSaveLayout = async () => {
+    if (!quickPreviewTask?.id) return;
+    setQuickPreviewSaving(true);
+    try {
+      const existing = safeParseLayout(quickPreviewTask.preview_layout) || {};
+      const nextPreviewLayout = {
+        ...existing,
+        print: normalizeLayout(quickPreviewLayout, 'print'),
+      };
+      await api.updateGeometryTask(quickPreviewTask.id, { preview_layout: nextPreviewLayout });
+      setTasks((prev) => prev.map((item) => (
+        item.id === quickPreviewTask.id
+          ? { ...item, preview_layout: nextPreviewLayout }
+          : item
+      )));
+      setQuickPreviewTask((prev) => prev ? { ...prev, preview_layout: nextPreviewLayout } : prev);
+      message.success('Макет задачи сохранён');
+    } catch {
+      message.error('Не удалось сохранить макет задачи');
+    } finally {
+      setQuickPreviewSaving(false);
+    }
   };
 
   const openSavedSheets = async () => {
@@ -349,7 +407,7 @@ export default function GeometryTaskList() {
               type="text"
               icon={<EyeOutlined />}
               size="small"
-              onClick={() => openPreview(record)}
+              onClick={() => openQuickPreview(record)}
             />
           </Tooltip>
           <Popconfirm
@@ -480,6 +538,72 @@ export default function GeometryTaskList() {
         onLoad={handleOpenSavedSheet}
         onDelete={handleDeleteSavedSheet}
       />
+
+      <Modal
+        title={quickPreviewTask ? `Быстрый просмотр: ${quickPreviewTask.code}` : 'Быстрый просмотр'}
+        open={quickPreviewOpen}
+        onCancel={closeQuickPreview}
+        width={760}
+        okText={quickPreviewEditMode ? 'Сохранить макет' : 'Закрыть'}
+        onOk={quickPreviewEditMode ? handleQuickSaveLayout : closeQuickPreview}
+        okButtonProps={{
+          loading: quickPreviewSaving,
+          disabled: quickPreviewEditMode && !quickPreviewTask,
+        }}
+        cancelText="Закрыть"
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Space size={8}>
+              <Switch checked={quickPreviewEditMode} onChange={setQuickPreviewEditMode} />
+              <Text>Редактировать макет</Text>
+            </Space>
+            {quickPreviewEditMode && (
+              <>
+                <Segmented
+                  value={quickPreviewDrawingMode}
+                  onChange={setQuickPreviewDrawingMode}
+                  options={[
+                    { label: 'По задаче', value: 'task' },
+                    { label: 'Картинка', value: 'image' },
+                  ]}
+                />
+                <Space size={8}>
+                  <Switch checked={quickPreviewShowAnswers} onChange={setQuickPreviewShowAnswers} />
+                  <Text>Показывать ответ</Text>
+                </Space>
+              </>
+            )}
+            <Tag>Карточка A5</Tag>
+          </Space>
+
+          <div style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
+            <div
+              className="geometry-preview-grid a5"
+              style={{
+                gridTemplateColumns: '1fr',
+                gridTemplateRows: '1fr',
+                aspectRatio: String(PRINT_CELL_ASPECT_RATIO),
+                border: '1.5px solid #c0c0c0',
+                background: '#fff',
+              }}
+            >
+              {quickPreviewTask && (
+                <GeometryPreviewCard
+                  task={quickPreviewTask}
+                  index={0}
+                  showAnswers={quickPreviewShowAnswers}
+                  mode="print"
+                  drawingMode={quickPreviewDrawingMode}
+                  editable={quickPreviewEditMode}
+                  layout={quickPreviewLayout}
+                  onLayoutChange={handleQuickLayoutChange}
+                />
+              )}
+            </div>
+          </div>
+        </Space>
+      </Modal>
     </Space>
   );
 }

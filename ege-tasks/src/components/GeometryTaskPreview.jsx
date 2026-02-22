@@ -16,12 +16,15 @@ const DRAWING_OPTIONS = [
   { label: 'По задаче', value: 'task' },
   { label: 'Картинка', value: 'image' },
 ];
-const PRINT_TASKS_PER_PAGE = 6;
+export const PRINT_TASKS_PER_PAGE = 6;
+// A5 sheet 148x210mm with 5mm paddings -> content 138x200mm.
+// Grid is 2x3, so one cell is 69 x (200/3) mm.
+export const PRINT_CELL_ASPECT_RATIO = 69 / (200 / 3);
 const isImageDrawing = (value = '') => value.startsWith('data:image/');
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
 const getMinY = (layerType) => (layerType === 'text' ? -24 : -10);
 
-const safeParseLayout = (value) => {
+export const safeParseLayout = (value) => {
   if (!value) return null;
   if (typeof value === 'object') return value;
   if (typeof value === 'string') {
@@ -35,7 +38,7 @@ const safeParseLayout = (value) => {
   return null;
 };
 
-const getDefaultLayout = (mode) => {
+export const getDefaultLayout = (mode) => {
   if (mode === 'student') {
     return {
       image: { x: 4, y: 14, w: 88, h: 73 },
@@ -69,7 +72,7 @@ const normalizeLayer = (layer, type) => {
   return { x, y, w, h };
 };
 
-const normalizeLayout = (layout, mode) => {
+export const normalizeLayout = (layout, mode) => {
   const base = layout || getDefaultLayout(mode);
   return {
     image: normalizeLayer(base.image, 'image'),
@@ -100,7 +103,7 @@ function toLayerStyle(layer, zIndex) {
   };
 }
 
-function GeometryPreviewCard({
+export function GeometryPreviewCard({
   task,
   index,
   showAnswers,
