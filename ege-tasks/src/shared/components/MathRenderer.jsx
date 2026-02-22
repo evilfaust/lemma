@@ -12,8 +12,10 @@ import remarkGfm from 'remark-gfm';
 const MathRenderer = ({ text, inline = true }) => {
   if (!text) return null;
   const katexSettings = {
-    strict: (errorCode) => (errorCode === 'unicodeTextInMathMode' ? 'ignore' : 'warn'),
+    strict: 'ignore',
   };
+  const hasCyrillic = (value = '') => /[А-Яа-яЁё]/.test(value);
+  const normalizeMathExpr = (value = '') => String(value).replace(/\u2014/g, '-');
 
   // Функция для обработки LaTeX в тексте
   const processLatex = (content) => {
@@ -66,15 +68,22 @@ const MathRenderer = ({ text, inline = true }) => {
       }
 
       // Добавляем формулу
+      const mathContent = normalizeMathExpr(match.content);
+      if (hasCyrillic(mathContent)) {
+        parts.push(mathContent);
+        lastIndex = match.end;
+        return;
+      }
+
       if (match.type === 'block') {
         parts.push(
           <div key={`block-${index}`} style={{ margin: '10px 0' }}>
-            <BlockMath math={match.content} settings={katexSettings} />
+            <BlockMath math={mathContent} settings={katexSettings} />
           </div>
         );
       } else {
         parts.push(
-          <InlineMath key={`inline-${index}`} math={match.content} settings={katexSettings} />
+          <InlineMath key={`inline-${index}`} math={mathContent} settings={katexSettings} />
         );
       }
 

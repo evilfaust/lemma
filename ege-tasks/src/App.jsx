@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, FunctionOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, FunctionOutlined, CompassOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -17,6 +17,7 @@ import WorkEditorPage from './components/WorkEditorPage';
 import StudentProgressDashboard from './components/StudentProgressDashboard';
 import AchievementManager from './components/AchievementManager';
 import GeoGebraLab from './components/GeoGebraLab';
+import GeometryTaskList from './components/GeometryTaskList';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
@@ -96,9 +97,13 @@ function AppContent() {
       label: 'Импорт задач',
     },
     {
-      key: 'geogebra',
-      icon: <FunctionOutlined />,
-      label: 'GeoGebra',
+      key: 'geometry',
+      icon: <CompassOutlined />,
+      label: 'Геометрия',
+      children: [
+        { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
+        { key: 'geogebra', icon: <FunctionOutlined />, label: 'GeoGebra Lab' },
+      ],
     },
     {
       key: 'theory',
@@ -192,6 +197,8 @@ function AppContent() {
         return <AchievementManager />;
       case 'import':
         return <TaskImporter />;
+      case 'geometry-tasks':
+        return <GeometryTaskList />;
       case 'geogebra':
         return <GeoGebraLab />;
       case 'theory-browser':
@@ -245,7 +252,8 @@ function AppContent() {
       case 'students': return 'Прогресс учеников';
       case 'achievements': return 'Управление достижениями';
       case 'import': return 'Импорт задач';
-      case 'geogebra': return 'GeoGebra';
+      case 'geometry-tasks': return 'Геометрические задачи';
+      case 'geogebra': return 'GeoGebra Lab';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
       case 'theory-view': return 'Теория — Просмотр';

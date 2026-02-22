@@ -1,0 +1,420 @@
+.geometry-preview-root {
+  --ink: #151515;
+  --paper: #ffffff;
+  --line: #1f1f1f;
+  --soft: #f7f7f7;
+  color: var(--ink);
+  max-width: 100%;
+}
+
+.geometry-preview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.geometry-preview-sheet {
+  background: var(--paper);
+  border: 2px solid var(--line);
+  box-shadow: 0 10px 28px rgba(20, 20, 20, 0.08);
+}
+
+.geometry-preview-sheet.a5 {
+  width: 148mm;
+  height: 210mm;
+  padding: 5mm;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+.geometry-preview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.geometry-preview-grid.a5 {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, 1fr);
+  width: 100%;
+  height: 100%;
+}
+
+.geometry-preview-grid.student {
+  grid-template-columns: 1fr;
+}
+
+.geometry-preview-cell {
+  position: relative;
+  border-right: 2px solid var(--line);
+  border-bottom: 2px solid var(--line);
+  min-height: 430px;
+  padding: 26px 20px 16px;
+  background: var(--paper);
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  overflow: hidden;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-cell {
+  min-height: 0;
+  padding: 7mm 2mm 1.8mm;
+}
+
+.geometry-preview-grid .geometry-preview-cell:nth-child(2n) {
+  border-right: 0;
+}
+
+.geometry-preview-grid.student .geometry-preview-cell {
+  border-right: 0;
+}
+
+.geometry-preview-cell:last-child,
+.geometry-preview-grid .geometry-preview-cell:nth-last-child(2):nth-child(odd) {
+  border-bottom: 0;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-cell:nth-child(n + 5) {
+  border-bottom: 0;
+}
+
+.geometry-preview-number {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  min-width: 82px;
+  height: 62px;
+  border: 2px solid var(--line);
+  border-top: 0;
+  border-left: 0;
+  background: var(--paper);
+  display: grid;
+  place-items: center;
+  font-size: 52px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-number {
+  min-width: 12.5mm;
+  height: 9.8mm;
+  font-size: 5.2mm;
+  letter-spacing: 0.1mm;
+}
+
+.geometry-preview-stage {
+  position: relative;
+  height: 100%;
+  min-height: 360px;
+  isolation: isolate;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-stage {
+  min-height: 0;
+}
+
+.geometry-preview-layer {
+  position: absolute;
+  border-radius: 3px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.geometry-preview-layer-image {
+  background: #fff;
+}
+
+.geometry-preview-layer-text {
+  background: transparent;
+  box-shadow: none;
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  font-weight: 400;
+  line-height: 1.08;
+}
+
+.geometry-preview-text-content {
+  width: 100%;
+  height: 100%;
+  padding: 1.2mm 1.1mm 0.8mm;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.geometry-preview-text-content p {
+  margin: 0 0 0.8mm;
+}
+
+.geometry-preview-text-content p:first-child {
+  font-weight: 400;
+}
+
+.geometry-preview-text-content strong {
+  font-weight: 400;
+}
+
+.geometry-preview-text-content .katex {
+  font-size: 0.76em;
+}
+
+.geometry-preview-layer.editable {
+  outline: 1.5px dashed rgba(34, 34, 34, 0.45);
+  cursor: grab;
+}
+
+.geometry-preview-layer.editable:active {
+  cursor: grabbing;
+}
+
+.geometry-preview-stage.is-editing .geometry-preview-layer:hover {
+  outline-color: #1677ff;
+}
+
+.geometry-preview-layer-tag {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  z-index: 3;
+  font-size: 11px;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  pointer-events: none;
+}
+
+.geometry-preview-resize-handle {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #1677ff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+  cursor: nwse-resize;
+}
+
+.geometry-preview-resize-handle-x {
+  right: 4px;
+  bottom: 50%;
+  transform: translateY(50%);
+  cursor: ew-resize;
+  background: #13c2c2;
+}
+
+.geometry-preview-resize-handle-y {
+  right: 50%;
+  bottom: 4px;
+  transform: translateX(50%);
+  cursor: ns-resize;
+  background: #722ed1;
+}
+
+.geometry-preview-drawing {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 0.8mm 0.2mm 0 0.2mm;
+  min-width: 0;
+}
+
+.geometry-preview-drawing-placeholder {
+  border: 2px dashed #bbb;
+  width: 100%;
+  height: 390px;
+  display: grid;
+  place-items: center;
+  color: #999;
+  font-size: 18px;
+  background: var(--soft);
+}
+
+.geometry-preview-svg {
+  width: 100%;
+  height: 220px;
+  max-height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.geometry-preview-image {
+  width: 100%;
+  max-height: 220px;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.geometry-preview-svg svg {
+  width: 100%;
+  height: auto;
+  max-height: 100%;
+  display: block;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-svg {
+  height: 45mm;
+  max-height: 45mm;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-svg svg {
+  max-height: 100%;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-image {
+  max-height: 45mm;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-drawing-placeholder {
+  height: 45mm;
+  font-size: 2.6mm;
+}
+
+.geometry-preview-text {
+  font-size: 19px;
+  line-height: 1.15;
+  font-weight: 400;
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  padding-top: 6px;
+  min-width: 0;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-text {
+  font-size: 2.05mm;
+  line-height: 1.08;
+  padding-top: 0;
+  max-height: 45mm;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-weight: 400;
+  letter-spacing: 0.01mm;
+  text-wrap: pretty;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-text p {
+  margin: 0 0 0.8mm;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-text .katex {
+  font-size: 0.76em;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-text p:first-child {
+  font-weight: 400;
+}
+
+.geometry-preview-text p {
+  margin: 0 0 4px;
+}
+
+.geometry-preview-answer {
+  margin-top: 10px;
+  font-size: 18px;
+  border-top: 1px solid #b9b9b9;
+  padding-top: 6px;
+}
+
+.geometry-preview-grid.a5 .geometry-preview-answer {
+  margin-top: 1.6mm;
+  font-size: 2.35mm;
+  padding-top: 1.2mm;
+}
+
+@media (max-width: 1300px) {
+  .geometry-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .geometry-preview-grid .geometry-preview-cell {
+    border-right: 0;
+  }
+
+  .geometry-preview-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .geometry-preview-drawing {
+    align-items: center;
+  }
+
+  .geometry-preview-text {
+    font-size: 18px;
+  }
+
+  .geometry-preview-grid.a5 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, 1fr);
+  }
+
+  .geometry-preview-grid.a5 .geometry-preview-cell {
+    border-right: 2px solid var(--line);
+  }
+
+  .geometry-preview-grid.a5 .geometry-preview-cell:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .geometry-preview-stage { min-height: 300px; }
+}
+
+@media print {
+  @page {
+    size: A5 portrait;
+    margin: 5mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .geometry-preview-root,
+  .geometry-preview-root * {
+    visibility: visible;
+  }
+
+  .geometry-preview-toolbar {
+    display: none !important;
+  }
+
+  .geometry-preview-root {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+  }
+
+  .geometry-preview-sheet.a5 {
+    width: auto;
+    height: auto;
+    margin: 0;
+    border: 2px solid #000;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  .geometry-preview-grid.a5 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(3, 1fr);
+    height: calc(210mm - 10mm);
+  }
+
+  .geometry-preview-grid.a5 .geometry-preview-cell {
+    min-height: 0;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .geometry-preview-stage.is-editing .geometry-preview-layer.editable {
+    outline: none;
+  }
+}

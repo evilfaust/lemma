@@ -1,0 +1,582 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { App, Button, Segmented, Space, Switch, Tag, Typography } from 'antd';
+import { ArrowLeftOutlined, PrinterOutlined, UndoOutlined } from '@ant-design/icons';
+import { api } from '../shared/services/pocketbase';
+import GeoGebraApplet from './GeoGebraApplet';
+import MathRenderer from './MathRenderer';
+import SaveGeometryPrintModal from './geometry/SaveGeometryPrintModal';
+import './GeometryTaskPreview.css';
+
+const { Text } = Typography;
+
+const MODE_OPTIONS = [
+  { label: 'Печать A5 (6)', value: 'print' },
+  { label: 'Вид ученика', value: 'student' },
+];
+const DRAWING_OPTIONS = [
+  { label: 'По задаче', value: 'task' },
+  { label: 'Картинка', value: 'image' },
+  { label: 'GeoGebra', value: 'geogebra' },
+];
+const isImageDrawing = (value = '') => value.startsWith('data:image/');
+const clamp = (value, min, max) => Math.max(min, Math.min(max, Number(value) || 0));
+const getMinY = (layerType) => (layerType === 'text' ? -24 : -10);
+
+const safeParseLayout = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+const getDefaultLayout = (mode) => {
+  if (mode === 'student') {
+    return {
+      image: { x: 4, y: 14, w: 88, h: 73 },
+      text: { x: 56, y: 6, w: 40, h: 35, fontScale: 2.16 },
+    };
+  }
+  return {
+    image: { x: 4, y: 16, w: 90, h: 76 },
+    text: { x: 55, y: 6, w: 41, h: 35, fontScale: 2 },
+  };
+};
+
+const normalizeLayer = (layer, type) => {
+  const minW = type === 'text' ? 16 : 22;
+  const minH = type === 'text' ? 12 : 18;
+  const w = clamp(layer?.w, minW, 100);
+  const h = clamp(layer?.h, minH, 100);
+  const x = clamp(layer?.x, 0, 100 - w);
+  const y = clamp(layer?.y, getMinY(type), 100 - h);
+
+  if (type === 'text') {
+    return {
+      x,
+      y,
+      w,
+      h,
+      fontScale: clamp(layer?.fontScale, 0.65, 2.3),
+    };
+  }
+
+  return { x, y, w, h };
+};
+
+const normalizeLayout = (layout, mode) => {
+  const base = layout || getDefaultLayout(mode);
+  return {
+    image: normalizeLayer(base.image, 'image'),
+    text: normalizeLayer(base.text, 'text'),
+  };
+};
+
+function getTaskNumber(task, index) {
+  const code = String(task?.code || '');
+  const m = code.match(/(\d+)/);
+  if (m) return Number(m[1]);
+  return index + 1;
+}
+
+function normalizeStatement(task) {
+  const statement = (task?.statement_md || '').trim();
+  if (!statement) return 'Дано: $\\triangle ABC$\nНайдите искомую величину.';
+  return statement;
+}
+
+function toLayerStyle(layer, zIndex) {
+  return {
+    left: `${layer.x}%`,
+    top: `${layer.y}%`,
+    width: `${layer.w}%`,
+    height: `${layer.h}%`,
+    zIndex,
+  };
+}
+
+function GeometryPreviewCard({
+  task,
+  index,
+  showAnswers,
+  mode,
+  drawingMode,
+  isPlaceholder = false,
+  editable = false,
+  layout,
+  onLayoutChange,
+}) {
+  const imageValue = task?.geogebra_image_base64 || (isImageDrawing(task?.geogebra_base64 || '') ? task.geogebra_base64 : '');
+  const ggbValue = isImageDrawing(task?.geogebra_base64 || '') ? '' : (task?.geogebra_base64 || '');
+  const preferred = task?.drawing_view === 'geogebra' ? 'geogebra' : 'image';
+  const showImage = drawingMode === 'image' || (drawingMode === 'task' && preferred === 'image');
+  const showGgb = drawingMode === 'geogebra' || (drawingMode === 'task' && preferred === 'geogebra');
+
+  const stageRef = useRef(null);
+  const interactionRef = useRef(null);
+
+  const stopInteraction = useCallback(() => {
+    window.removeEventListener('pointermove', interactionRef.current?.onMove);
+    window.removeEventListener('pointerup', interactionRef.current?.onUp);
+    interactionRef.current = null;
+  }, []);
+
+  useEffect(() => () => stopInteraction(), [stopInteraction]);
+
+  const handlePointerMove = useCallback((event) => {
+    const state = interactionRef.current;
+    if (!state) return;
+
+    const dxPct = ((event.clientX - state.startX) / state.rect.width) * 100;
+    const dyPct = ((event.clientY - state.startY) / state.rect.height) * 100;
+
+    if (state.action === 'move') {
+      onLayoutChange(state.layer, {
+        x: clamp(state.origin.x + dxPct, 0, 100 - state.origin.w),
+        y: clamp(state.origin.y + dyPct, getMinY(state.layer), 100 - state.origin.h),
+      });
+      return;
+    }
+
+    if (state.action === 'resize-x') {
+      const minW = state.layer === 'text' ? 16 : 22;
+      const nextW = clamp(state.origin.w + dxPct, minW, 100 - state.origin.x);
+      onLayoutChange(state.layer, { w: nextW });
+      return;
+    }
+
+    if (state.action === 'resize-y') {
+      const minH = state.layer === 'text' ? 12 : 18;
+      const nextH = clamp(state.origin.h + dyPct, minH, 100 - state.origin.y);
+      onLayoutChange(state.layer, { h: nextH });
+      return;
+    }
+
+    const ratio = state.origin.w / state.origin.h || 1;
+    const majorDelta = Math.abs(dxPct) >= Math.abs(dyPct) ? dxPct : dyPct * ratio;
+
+    const minW = state.layer === 'text' ? 16 : 22;
+    let nextW = clamp(state.origin.w + majorDelta, minW, 100 - state.origin.x);
+    let nextH = nextW / ratio;
+
+    if (nextH > 100 - state.origin.y) {
+      nextH = 100 - state.origin.y;
+      nextW = nextH * ratio;
+    }
+
+    const patch = {
+      w: clamp(nextW, minW, 100),
+      h: clamp(nextH, state.layer === 'text' ? 12 : 18, 100),
+    };
+
+    if (state.layer === 'text') {
+      const scaleK = patch.w / state.origin.w;
+      patch.fontScale = clamp(state.origin.fontScale * scaleK, 0.65, 2.3);
+    }
+
+    onLayoutChange(state.layer, patch);
+  }, [onLayoutChange]);
+
+  const startInteraction = useCallback((event, layer, action) => {
+    if (!editable || isPlaceholder) return;
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect || rect.width < 10 || rect.height < 10) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const origin = layout[layer];
+    const onMove = (e) => handlePointerMove(e);
+    const onUp = () => stopInteraction();
+
+    interactionRef.current = {
+      layer,
+      action,
+      startX: event.clientX,
+      startY: event.clientY,
+      rect,
+      origin,
+      onMove,
+      onUp,
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp, { once: true });
+  }, [editable, handlePointerMove, isPlaceholder, layout, stopInteraction]);
+
+  const textFontSize = useMemo(() => {
+    if (mode === 'print') return `${(2.05 * layout.text.fontScale).toFixed(2)}mm`;
+    return `${Math.round(17 * layout.text.fontScale)}px`;
+  }, [layout.text.fontScale, mode]);
+
+  const previewHeight = mode === 'student' ? 440 : 180;
+
+  return (
+    <article className="geometry-preview-cell">
+      <div className="geometry-preview-number">{getTaskNumber(task, index)}</div>
+
+      <div
+        ref={stageRef}
+        className={`geometry-preview-stage ${editable ? 'is-editing' : ''}`}
+      >
+        <div
+          className={`geometry-preview-layer geometry-preview-layer-image ${editable ? 'editable' : ''}`}
+          style={toLayerStyle(layout.image, 1)}
+          onPointerDown={(e) => startInteraction(e, 'image', 'move')}
+        >
+          {isPlaceholder ? (
+            <div className="geometry-preview-drawing-placeholder">Пустая карточка</div>
+          ) : showImage && imageValue ? (
+            <img
+              className="geometry-preview-image"
+              src={imageValue}
+              alt={`Чертёж ${task.code || index + 1}`}
+            />
+          ) : showGgb && ggbValue ? (
+            <GeoGebraApplet
+              appName={task?.geogebra_appname || 'geometry'}
+              readOnly
+              initialBase64={ggbValue}
+              height={previewHeight}
+            />
+          ) : imageValue ? (
+            <img
+              className="geometry-preview-image"
+              src={imageValue}
+              alt={`Чертёж ${task.code || index + 1}`}
+            />
+          ) : ggbValue ? (
+            <GeoGebraApplet
+              appName={task?.geogebra_appname || 'geometry'}
+              readOnly
+              initialBase64={ggbValue}
+              height={previewHeight}
+            />
+          ) : (
+            <div className="geometry-preview-drawing-placeholder">Чертёж не задан</div>
+          )}
+
+          {editable && !isPlaceholder && (
+            <>
+              <div className="geometry-preview-layer-tag">Чертёж</div>
+              <div
+                className="geometry-preview-resize-handle"
+                onPointerDown={(e) => startInteraction(e, 'image', 'resize')}
+              />
+              <div
+                className="geometry-preview-resize-handle geometry-preview-resize-handle-x"
+                onPointerDown={(e) => startInteraction(e, 'image', 'resize-x')}
+              />
+              <div
+                className="geometry-preview-resize-handle geometry-preview-resize-handle-y"
+                onPointerDown={(e) => startInteraction(e, 'image', 'resize-y')}
+              />
+            </>
+          )}
+        </div>
+
+        <div
+          className={`geometry-preview-layer geometry-preview-layer-text ${editable ? 'editable' : ''}`}
+          style={{ ...toLayerStyle(layout.text, 3), fontSize: textFontSize }}
+          onPointerDown={(e) => startInteraction(e, 'text', 'move')}
+        >
+          <div className="geometry-preview-text-content">
+            <MathRenderer text={isPlaceholder ? 'Пустая карточка' : normalizeStatement(task)} />
+            {showAnswers && task?.answer && (
+              <div className="geometry-preview-answer">
+                <strong>Ответ:</strong> {task.answer}
+              </div>
+            )}
+          </div>
+
+          {editable && !isPlaceholder && (
+            <>
+              <div className="geometry-preview-layer-tag">Дано</div>
+              <div
+                className="geometry-preview-resize-handle"
+                onPointerDown={(e) => startInteraction(e, 'text', 'resize')}
+              />
+              <div
+                className="geometry-preview-resize-handle geometry-preview-resize-handle-x"
+                onPointerDown={(e) => startInteraction(e, 'text', 'resize-x')}
+              />
+              <div
+                className="geometry-preview-resize-handle geometry-preview-resize-handle-y"
+                onPointerDown={(e) => startInteraction(e, 'text', 'resize-y')}
+              />
+            </>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = null }) {
+  const { message } = App.useApp();
+  const [mode, setMode] = useState('print');
+  const [showAnswers, setShowAnswers] = useState(false);
+  const [drawingMode, setDrawingMode] = useState('task');
+  const [layoutEdit, setLayoutEdit] = useState(false);
+  const [layoutOverrides, setLayoutOverrides] = useState({ print: {}, student: {} });
+  const [savingLayout, setSavingLayout] = useState(false);
+  const [saveModalVisible, setSaveModalVisible] = useState(false);
+  const [savingPrintTest, setSavingPrintTest] = useState(false);
+  const [currentPrintTest, setCurrentPrintTest] = useState(initialPrintTest);
+  const [taskLayouts, setTaskLayouts] = useState(() => {
+    const initial = {};
+    tasks.forEach((task, idx) => {
+      if (!task) return;
+      const key = task.id || task.code || `slot-${idx}`;
+      initial[key] = safeParseLayout(task.preview_layout);
+    });
+    return initial;
+  });
+
+  useEffect(() => {
+    setCurrentPrintTest(initialPrintTest || null);
+  }, [initialPrintTest]);
+
+  useEffect(() => {
+    const next = {};
+    tasks.forEach((task, idx) => {
+      if (!task) return;
+      const key = task.id || task.code || `slot-${idx}`;
+      next[key] = safeParseLayout(task.preview_layout);
+    });
+    setTaskLayouts(next);
+    setLayoutOverrides({ print: {}, student: {} });
+  }, [tasks]);
+
+  const visibleTasks = mode === 'print'
+    ? Array.from({ length: 6 }, (_, i) => tasks[i] || null)
+    : tasks;
+  const pendingCount = Object.keys(layoutOverrides[mode] || {}).length;
+  const snapshotLayouts = useMemo(() => {
+    const raw = safeParseLayout(currentPrintTest?.layout_snapshot);
+    return raw && typeof raw === 'object' ? raw : {};
+  }, [currentPrintTest?.layout_snapshot]);
+
+  const getTaskLayout = useCallback((task, idx) => {
+    const taskKey = task?.id || task?.code || `slot-${idx}`;
+    const override = layoutOverrides[mode]?.[taskKey];
+    if (override) return normalizeLayout(override, mode);
+    if (mode === 'print' && task?.id && snapshotLayouts[task.id]) {
+      return normalizeLayout(snapshotLayouts[task.id], mode);
+    }
+    const persisted = taskLayouts[taskKey]?.[mode];
+    return normalizeLayout(persisted, mode);
+  }, [layoutOverrides, mode, snapshotLayouts, taskLayouts]);
+
+  const handleLayoutChange = useCallback((taskKey, layerName, patch) => {
+    setLayoutOverrides((prev) => {
+      const currentTaskLayout = normalizeLayout(prev[mode]?.[taskKey], mode);
+      const nextTaskLayout = normalizeLayout({
+        ...currentTaskLayout,
+        [layerName]: {
+          ...currentTaskLayout[layerName],
+          ...patch,
+        },
+      }, mode);
+      return {
+        ...prev,
+        [mode]: {
+          ...(prev[mode] || {}),
+          [taskKey]: nextTaskLayout,
+        },
+      };
+    });
+  }, [mode]);
+
+  const resetLayout = useCallback(() => {
+    setLayoutOverrides((prev) => ({
+      ...prev,
+      [mode]: {},
+    }));
+  }, [mode]);
+
+  const handleSaveLayout = useCallback(async () => {
+    const modeOverrides = layoutOverrides[mode] || {};
+    const entries = Object.entries(modeOverrides);
+    if (entries.length === 0) return;
+
+    setSavingLayout(true);
+    let okCount = 0;
+    let failCount = 0;
+    try {
+      for (const [taskKey, layoutForMode] of entries) {
+        const task = tasks.find((t, idx) => (t?.id || t?.code || `slot-${idx}`) === taskKey);
+        if (!task?.id) continue;
+        try {
+          const existing = safeParseLayout(taskLayouts[taskKey]) || {};
+          const nextPreviewLayout = {
+            ...existing,
+            [mode]: normalizeLayout(layoutForMode, mode),
+          };
+          await api.updateGeometryTask(task.id, { preview_layout: nextPreviewLayout });
+          okCount += 1;
+        } catch {
+          failCount += 1;
+        }
+      }
+
+      if (okCount > 0) {
+        setTaskLayouts((prev) => {
+          const next = { ...prev };
+          entries.forEach(([taskKey, layoutForMode]) => {
+            const existing = safeParseLayout(next[taskKey]) || {};
+            next[taskKey] = {
+              ...existing,
+              [mode]: normalizeLayout(layoutForMode, mode),
+            };
+          });
+          return next;
+        });
+        setLayoutOverrides((prev) => ({ ...prev, [mode]: {} }));
+      }
+      if (okCount > 0 && failCount === 0) {
+        message.success(`Макет сохранён для ${okCount} задач`);
+      } else if (okCount > 0 && failCount > 0) {
+        message.warning(`Сохранено: ${okCount}, с ошибкой: ${failCount}`);
+      } else {
+        message.error('Не удалось сохранить макет');
+      }
+    } finally {
+      setSavingLayout(false);
+    }
+  }, [layoutOverrides, mode, taskLayouts, tasks]);
+
+  const handleSaveAsPrintTest = useCallback(async (values) => {
+    const printTasks = visibleTasks.filter(Boolean);
+    if (printTasks.length !== 6) {
+      message.error('Для печатного теста нужно ровно 6 задач на листе A5');
+      return;
+    }
+    const title = String(values?.title || '').trim();
+    if (!title) return;
+
+    const taskIds = printTasks.map((t) => t.id).filter(Boolean);
+    if (taskIds.length !== 6) {
+      message.error('Не удалось определить id всех 6 задач');
+      return;
+    }
+
+    const layoutSnapshot = {};
+    printTasks.forEach((task, idx) => {
+      const key = task?.id || task?.code || `slot-${idx}`;
+      layoutSnapshot[task.id] = getTaskLayout(task, idx);
+      const unsaved = layoutOverrides.print?.[key];
+      if (unsaved) {
+        layoutSnapshot[task.id] = normalizeLayout(unsaved, 'print');
+      }
+    });
+
+    setSavingPrintTest(true);
+    try {
+      const saved = await api.createGeometryPrintTest({
+        title,
+        tasks: taskIds,
+        task_order: taskIds,
+        layout_snapshot: layoutSnapshot,
+        page_size: 'A5',
+        tasks_per_page: 6,
+      });
+      setCurrentPrintTest(saved);
+      setSaveModalVisible(false);
+      message.success('Печатный тест сохранён');
+    } catch (error) {
+      message.error(`Ошибка сохранения теста: ${error?.message || 'неизвестная ошибка'}`);
+    } finally {
+      setSavingPrintTest(false);
+    }
+  }, [getTaskLayout, layoutOverrides.print, visibleTasks]);
+
+  return (
+    <div className="geometry-preview-root">
+      <div className="geometry-preview-toolbar">
+        <Space wrap>
+          <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
+            Назад к списку
+          </Button>
+          <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} />
+          <Segmented options={DRAWING_OPTIONS} value={drawingMode} onChange={setDrawingMode} />
+          <Space size={8}>
+            <Switch checked={layoutEdit} onChange={setLayoutEdit} />
+            <Text>Редактировать макет</Text>
+          </Space>
+          {layoutEdit && (
+            <>
+              <Button icon={<UndoOutlined />} onClick={resetLayout}>
+                Сбросить макет
+              </Button>
+            </>
+          )}
+          <Space size={8}>
+            <Switch checked={showAnswers} onChange={setShowAnswers} />
+            <Text>Показывать ответы</Text>
+          </Space>
+          {mode === 'print' && <Tag>Лист A5: 6 задач, поля 5 мм</Tag>}
+        </Space>
+        <Space>
+          <Button
+            onClick={() => setSaveModalVisible(true)}
+            disabled={mode !== 'print'}
+          >
+            Сохранить лист A5
+          </Button>
+          <Button
+            type="primary"
+            onClick={handleSaveLayout}
+            loading={savingLayout}
+            disabled={pendingCount === 0}
+          >
+            Сохранить макет{pendingCount > 0 ? ` (${pendingCount})` : ''}
+          </Button>
+          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+            Печать
+          </Button>
+        </Space>
+      </div>
+
+      <div className={`geometry-preview-sheet ${mode === 'print' ? 'a5' : ''}`}>
+        <div className={`geometry-preview-grid ${mode === 'student' ? 'student' : ''} ${mode === 'print' ? 'a5' : ''}`}>
+          {visibleTasks.map((task, idx) => {
+            const taskKey = task?.id || task?.code || `slot-${idx}`;
+            const layout = getTaskLayout(task, idx);
+            return (
+            <GeometryPreviewCard
+              key={taskKey}
+              task={task || {}}
+              index={idx}
+              isPlaceholder={!task}
+              showAnswers={showAnswers}
+              mode={mode}
+              drawingMode={drawingMode}
+              editable={layoutEdit}
+              layout={layout}
+              onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
+            />
+            );
+          })}
+        </div>
+      </div>
+      <SaveGeometryPrintModal
+        visible={saveModalVisible}
+        onCancel={() => setSaveModalVisible(false)}
+        onSave={handleSaveAsPrintTest}
+        saving={savingPrintTest}
+        tasksCount={visibleTasks.filter(Boolean).length}
+        initialTitle={
+          currentPrintTest?.title
+            || `Геометрия A5 · ${new Date().toLocaleDateString('ru-RU')}`
+        }
+      />
+    </div>
+  );
+}

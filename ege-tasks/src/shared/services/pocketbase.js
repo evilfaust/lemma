@@ -1291,6 +1291,113 @@ export const api = {
       return [];
     }
   },
+
+  // ─── Geometry Tasks ───────────────────────────────────────────────────────
+
+  async getGeometryTasks(filters = {}) {
+    try {
+      const filterArr = [];
+
+      if (filters.subtopic) {
+        filterArr.push(`subtopic ~ "${escapeFilter(filters.subtopic)}"`);
+      }
+      if (filters.task_type) {
+        filterArr.push(`task_type = "${escapeFilter(filters.task_type)}"`);
+      }
+      if (filters.difficulty) {
+        filterArr.push(`difficulty = ${Number(filters.difficulty)}`);
+      }
+      if (filters.search) {
+        const s = escapeFilter(filters.search);
+        filterArr.push(`(code ~ "${s}" || title ~ "${s}" || statement_md ~ "${s}")`);
+      }
+
+      return await pb.collection('geometry_tasks').getFullList({
+        filter: filterArr.join(' && '),
+        sort: 'code',
+      });
+    } catch (error) {
+      console.error('Error fetching geometry tasks:', error);
+      return [];
+    }
+  },
+
+  async getGeometryTask(id) {
+    try {
+      return await pb.collection('geometry_tasks').getOne(id);
+    } catch (error) {
+      console.error('Error fetching geometry task:', error);
+      throw error;
+    }
+  },
+
+  async createGeometryTask(data) {
+    try {
+      return await pb.collection('geometry_tasks').create(data);
+    } catch (error) {
+      console.error('Error creating geometry task:', error);
+      throw error;
+    }
+  },
+
+  async updateGeometryTask(id, data) {
+    try {
+      return await pb.collection('geometry_tasks').update(id, data);
+    } catch (error) {
+      console.error('Error updating geometry task:', error);
+      throw error;
+    }
+  },
+
+  async deleteGeometryTask(id) {
+    try {
+      return await pb.collection('geometry_tasks').delete(id);
+    } catch (error) {
+      console.error('Error deleting geometry task:', error);
+      throw error;
+    }
+  },
+
+  async createGeometryPrintTest(data) {
+    try {
+      return await pb.collection('geometry_print_tests').create(data);
+    } catch (error) {
+      console.error('Error creating geometry print test:', error);
+      throw error;
+    }
+  },
+
+  async getGeometryPrintTests() {
+    try {
+      return await pb.collection('geometry_print_tests').getFullList({
+        sort: '-created',
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching geometry print tests:', error);
+      return [];
+    }
+  },
+
+  async getGeometryPrintTest(id) {
+    try {
+      return await pb.collection('geometry_print_tests').getOne(id, {
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching geometry print test:', error);
+      throw error;
+    }
+  },
+
+  async deleteGeometryPrintTest(id) {
+    try {
+      return await pb.collection('geometry_print_tests').delete(id);
+    } catch (error) {
+      console.error('Error deleting geometry print test:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;
