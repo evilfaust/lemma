@@ -20,6 +20,8 @@ import {
   ArrowLeftOutlined,
   BulbOutlined,
   DeleteOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
   PlusOutlined,
   SaveOutlined,
 } from '@ant-design/icons';
@@ -603,6 +605,50 @@ function TabDrawing({
   onCloseCropModal,
   onClearDrawing,
 }) {
+  const drawingContainerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(
+    typeof window !== 'undefined' ? window.innerHeight : 900,
+  );
+
+  useEffect(() => {
+    const onResize = () => setViewportHeight(window.innerHeight);
+    const onFullscreenChange = () => {
+      if (!drawingContainerRef.current) {
+        setIsFullscreen(false);
+        return;
+      }
+      setIsFullscreen(document.fullscreenElement === drawingContainerRef.current);
+    };
+
+    window.addEventListener('resize', onResize);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        if (drawingContainerRef.current?.requestFullscreen) {
+          await drawingContainerRef.current.requestFullscreen();
+        }
+        return;
+      }
+      if (document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      message.warning('Не удалось переключить полноэкранный режим.');
+    }
+  }, []);
+
+  const appletHeight = isFullscreen
+    ? Math.max(680, viewportHeight - 96)
+    : 680;
+
   const normalizedCrop = normalizeCrop(cropMargins);
   const setCropEdge = (edge, value) => {
     onCropMarginsChange((prev) => normalizeCrop({ ...prev, [edge]: value }));
@@ -656,6 +702,13 @@ function TabDrawing({
             Обрезать PNG
           </Button>
 
+          <Button
+            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+            onClick={toggleFullscreen}
+          >
+            {isFullscreen ? 'Свернуть' : 'На весь экран'}
+          </Button>
+
           <Button onClick={onClearDrawing} danger>
             Очистить
           </Button>
@@ -701,13 +754,23 @@ function TabDrawing({
       )}
 
       {/* GeoGebra апплет */}
-      <GeoGebraApplet
-        appName={appName}
-        readOnly={false}
-        initialBase64={initialBase64}
-        onApiReady={onApiReady}
-        height={560}
-      />
+      <div
+        ref={drawingContainerRef}
+        style={{
+          width: '100%',
+          background: '#fff',
+          borderRadius: 10,
+          padding: isFullscreen ? 10 : 0,
+        }}
+      >
+        <GeoGebraApplet
+          appName={appName}
+          readOnly={false}
+          initialBase64={initialBase64}
+          onApiReady={onApiReady}
+          height={appletHeight}
+        />
+      </div>
 
       <Modal
         title="Обрезка PNG"

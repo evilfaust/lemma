@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, AppstoreOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, FunctionOutlined, CompassOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -16,7 +16,6 @@ import WorkManager from './components/WorkManager';
 import WorkEditorPage from './components/WorkEditorPage';
 import StudentProgressDashboard from './components/StudentProgressDashboard';
 import AchievementManager from './components/AchievementManager';
-import GeoGebraLab from './components/GeoGebraLab';
 import GeometryTaskList from './components/GeometryTaskList';
 import GeometryTopicManager from './components/geometry/GeometryTopicManager';
 import { api } from './services/pocketbase';
@@ -56,12 +55,7 @@ function AppContent() {
     {
       key: 'stats',
       icon: <PieChartOutlined />,
-      label: 'Статистика',
-    },
-    {
-      key: 'catalog',
-      icon: <AppstoreOutlined />,
-      label: 'Каталог',
+      label: 'Аналитика',
     },
     {
       key: 'generator',
@@ -104,7 +98,6 @@ function AppContent() {
       children: [
         { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
         { key: 'geometry-topics', icon: <FolderOutlined />, label: 'Темы и подтемы' },
-        { key: 'geogebra', icon: <FunctionOutlined />, label: 'GeoGebra Lab' },
       ],
     },
     {
@@ -163,12 +156,14 @@ function AppContent() {
         return (
           <TaskStatsDashboard
             onOpenTasks={openTasksWithFilters}
+            onOpenCatalog={() => setCurrentView('catalog')}
           />
         );
       case 'catalog':
         return (
           <TaskCatalogManager
             onOpenTasks={openTasksWithFilters}
+            onBackToAnalytics={() => setCurrentView('stats')}
           />
         );
       case 'generator':
@@ -203,8 +198,6 @@ function AppContent() {
         return <GeometryTaskList />;
       case 'geometry-topics':
         return <GeometryTopicManager />;
-      case 'geogebra':
-        return <GeoGebraLab />;
       case 'theory-browser':
         return (
           <TheoryBrowser
@@ -247,7 +240,7 @@ function AppContent() {
   const getHeaderTitle = () => {
     switch (currentView) {
       case 'tasks': return 'Все задачи';
-      case 'stats': return 'Статистика задач';
+      case 'stats': return 'Аналитика задач';
       case 'catalog': return 'Каталог задач';
       case 'generator': return 'Генератор';
       case 'test-generator': return 'Контрольные работы';
@@ -258,7 +251,6 @@ function AppContent() {
       case 'import': return 'Импорт задач';
       case 'geometry-tasks': return 'Геометрические задачи';
       case 'geometry-topics': return 'Геометрия — Темы и подтемы';
-      case 'geogebra': return 'GeoGebra Lab';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
       case 'theory-view': return 'Теория — Просмотр';

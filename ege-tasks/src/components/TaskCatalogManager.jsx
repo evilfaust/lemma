@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Tabs, Space, Button, Spin } from 'antd';
-import { ReloadOutlined, AppstoreOutlined, TagsOutlined, CopyOutlined, BookOutlined } from '@ant-design/icons';
+import { ReloadOutlined, AppstoreOutlined, TagsOutlined, CopyOutlined, BookOutlined, BarChartOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { normalizeLabel, normalizeStatementStrict, normalizeStatementLoose } from '../utils/normalize';
@@ -13,7 +13,7 @@ import DuplicateTab from './catalog/DuplicateTab';
 import MergeModal from './catalog/MergeModal';
 import './TaskCatalogManager.css';
 
-const TaskCatalogManager = ({ onOpenTasks }) => {
+const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
   const { topics, subtopics, tags, sources, years, reloadData } = useReferenceData();
   const [loading, setLoading] = useState(true);
   const [tasksSnapshot, setTasksSnapshot] = useState([]);
@@ -208,6 +208,9 @@ const TaskCatalogManager = ({ onOpenTasks }) => {
           Каталог и справочники
         </h2>
         <Space>
+          <Button icon={<BarChartOutlined />} onClick={onBackToAnalytics}>
+            Аналитика
+          </Button>
           <Button icon={<ReloadOutlined />} onClick={loadSnapshot}>Обновить статистику</Button>
           <Button onClick={reloadData}>Обновить справочники</Button>
         </Space>

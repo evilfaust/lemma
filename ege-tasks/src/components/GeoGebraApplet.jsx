@@ -83,6 +83,34 @@ export default function GeoGebraApplet({
         await loadGeoGebraScript();
         if (disposed || !containerRef.current || !window.GGBApplet) return;
 
+        const waitForVisibleWidth = async () => {
+          if (width) return width;
+          return new Promise((resolve) => {
+            let attempts = 0;
+            const tick = () => {
+              if (disposed) {
+                resolve(0);
+                return;
+              }
+              const measured = containerRef.current?.offsetWidth || 0;
+              if (measured > 0) {
+                resolve(measured);
+                return;
+              }
+              attempts += 1;
+              if (attempts > 180) {
+                resolve(0);
+                return;
+              }
+              requestAnimationFrame(tick);
+            };
+            tick();
+          });
+        };
+
+        const measuredWidth = await waitForVisibleWidth();
+        if (disposed || !containerRef.current) return;
+
         // Очищаем предыдущий апплет если был (при смене appName/readOnly)
         if (containerRef.current) {
           containerRef.current.innerHTML = '';
@@ -90,11 +118,11 @@ export default function GeoGebraApplet({
 
         const params = {
           appName,
-          width: width || containerRef.current?.offsetWidth || 980,
+          width: measuredWidth || containerRef.current?.offsetWidth || 1280,
           height,
           showToolBar: !readOnly,
           showMenuBar: !readOnly,
-          showAlgebraInput: !readOnly,
+          showAlgebraInput: false,
           enableLabelDrags: !readOnly,
           enableShiftDragZoom: true,
           enableRightClick: !readOnly,

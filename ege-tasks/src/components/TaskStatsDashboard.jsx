@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import { Row, Col, Progress, Space, Button, Tag, Empty, Collapse, Tooltip, Alert, Table } from 'antd';
 import {
   ReloadOutlined,
+  AppstoreOutlined,
   BarChartOutlined,
   TagsOutlined,
   BookOutlined,
@@ -50,7 +51,7 @@ const getHeatBarColor = (value, max) => {
   return '#ff7a45';
 };
 
-const TaskStatsDashboard = ({ onOpenTasks, onTagClick }) => {
+const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
   const { topics, tags, subtopics, sources, loading: refLoading } = useReferenceData();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -264,9 +265,14 @@ const TaskStatsDashboard = ({ onOpenTasks, onTagClick }) => {
         <h2 className="stats-dashboard-title">
           <BarChartOutlined /> Аналитика
         </h2>
-        <Button icon={<ReloadOutlined />} onClick={loadStats} type="text">
-          Обновить
-        </Button>
+        <Space>
+          <Button icon={<AppstoreOutlined />} onClick={onOpenCatalog} type="text">
+            Каталог
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={loadStats} type="text">
+            Обновить
+          </Button>
+        </Space>
       </div>
 
       {/* Hero Metrics */}

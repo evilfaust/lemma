@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { App, Button, Input, Segmented, Space, Switch, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined, UndoOutlined } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
-import GeoGebraApplet from './GeoGebraApplet';
 import MathRenderer from './MathRenderer';
 import SaveGeometryPrintModal from './geometry/SaveGeometryPrintModal';
 import './GeometryTaskPreview.css';
@@ -16,7 +15,6 @@ const MODE_OPTIONS = [
 const DRAWING_OPTIONS = [
   { label: 'По задаче', value: 'task' },
   { label: 'Картинка', value: 'image' },
-  { label: 'GeoGebra', value: 'geogebra' },
 ];
 const PRINT_TASKS_PER_PAGE = 6;
 const isImageDrawing = (value = '') => value.startsWith('data:image/');
@@ -114,10 +112,7 @@ function GeometryPreviewCard({
   onLayoutChange,
 }) {
   const imageValue = task?.geogebra_image_base64 || (isImageDrawing(task?.geogebra_base64 || '') ? task.geogebra_base64 : '');
-  const ggbValue = isImageDrawing(task?.geogebra_base64 || '') ? '' : (task?.geogebra_base64 || '');
-  const preferred = task?.drawing_view === 'geogebra' ? 'geogebra' : 'image';
-  const showImage = drawingMode === 'image' || (drawingMode === 'task' && preferred === 'image');
-  const showGgb = drawingMode === 'geogebra' || (drawingMode === 'task' && preferred === 'geogebra');
+  const showImage = drawingMode === 'image' || drawingMode === 'task';
 
   const stageRef = useRef(null);
   const interactionRef = useRef(null);
@@ -216,8 +211,6 @@ function GeometryPreviewCard({
     return `${Math.round(17 * layout.text.fontScale)}px`;
   }, [layout.text.fontScale, mode]);
 
-  const previewHeight = mode === 'student' ? 440 : 180;
-
   return (
     <article className="geometry-preview-cell">
       <div className="geometry-preview-number">{getTaskNumber(task, index)}</div>
@@ -239,26 +232,6 @@ function GeometryPreviewCard({
               className="geometry-preview-image"
               src={imageValue}
               alt={`Чертёж ${task.code || index + 1}`}
-            />
-          ) : showGgb && ggbValue ? (
-            <GeoGebraApplet
-              appName={task?.geogebra_appname || 'geometry'}
-              readOnly
-              initialBase64={ggbValue}
-              height={previewHeight}
-            />
-          ) : imageValue ? (
-            <img
-              className="geometry-preview-image"
-              src={imageValue}
-              alt={`Чертёж ${task.code || index + 1}`}
-            />
-          ) : ggbValue ? (
-            <GeoGebraApplet
-              appName={task?.geogebra_appname || 'geometry'}
-              readOnly
-              initialBase64={ggbValue}
-              height={previewHeight}
             />
           ) : (
             <div className="geometry-preview-drawing-placeholder">Чертёж не задан</div>

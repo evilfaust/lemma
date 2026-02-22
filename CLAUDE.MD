@@ -248,8 +248,8 @@ generation-test/
 | View Key | Label | Component |
 |----------|-------|-----------|
 | `tasks` | Все задачи | TaskList |
-| `stats` | Статистика | TaskStatsDashboard |
-| `catalog` | Каталог | TaskCatalogManager |
+| `stats` | Аналитика | TaskStatsDashboard |
+| `catalog` | Каталог (переход из аналитики) | TaskCatalogManager |
 | `generator` | Устный счёт | OralWorksheetGenerator |
 | `test-generator` | Контрольные работы | TestWorkGenerator |
 | `work-manager` | Работы | WorkManager |
