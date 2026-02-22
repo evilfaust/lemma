@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { App, Button, Segmented, Space, Switch, Tag, Typography } from 'antd';
+import { App, Button, Input, Segmented, Space, Switch, Tag, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined, UndoOutlined } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import GeoGebraApplet from './GeoGebraApplet';
@@ -220,6 +220,9 @@ function GeometryPreviewCard({
   return (
     <article className="geometry-preview-cell">
       <div className="geometry-preview-number">{getTaskNumber(task, index)}</div>
+      {!isPlaceholder && task?.code && (
+        <div className="geometry-preview-code">{task.code}</div>
+      )}
 
       <div
         ref={stageRef}
@@ -329,6 +332,11 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [savingPrintTest, setSavingPrintTest] = useState(false);
   const [currentPrintTest, setCurrentPrintTest] = useState(initialPrintTest);
+
+  // Заголовок листа — редактируется прямо в тулбаре, отображается сразу
+  const [headerTopic, setHeaderTopic] = useState(initialPrintTest?.sheet_topic || '');
+  const [headerSubtopic, setHeaderSubtopic] = useState(initialPrintTest?.sheet_subtopic || '');
+
   const [taskLayouts, setTaskLayouts] = useState(() => {
     const initial = {};
     tasks.forEach((task, idx) => {
@@ -341,6 +349,8 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
 
   useEffect(() => {
     setCurrentPrintTest(initialPrintTest || null);
+    setHeaderTopic(initialPrintTest?.sheet_topic || '');
+    setHeaderSubtopic(initialPrintTest?.sheet_subtopic || '');
   }, [initialPrintTest]);
 
   useEffect(() => {
@@ -479,23 +489,38 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
 
     setSavingPrintTest(true);
     try {
-      const saved = await api.createGeometryPrintTest({
+      const sheetTopic = String(values?.sheet_topic || '').trim();
+      const sheetSubtopic = String(values?.sheet_subtopic || '').trim();
+      const payload = {
         title,
+        sheet_topic: sheetTopic,
+        sheet_subtopic: sheetSubtopic,
         tasks: taskIds,
         task_order: taskIds,
         layout_snapshot: layoutSnapshot,
         page_size: 'A5',
         tasks_per_page: 6,
-      });
+      };
+
+      let saved;
+      if (currentPrintTest?.id) {
+        saved = await api.updateGeometryPrintTest(currentPrintTest.id, payload);
+        message.success('Лист обновлён');
+      } else {
+        saved = await api.createGeometryPrintTest(payload);
+        message.success('Лист сохранён');
+      }
+
       setCurrentPrintTest(saved);
+      setHeaderTopic(sheetTopic);
+      setHeaderSubtopic(sheetSubtopic);
       setSaveModalVisible(false);
-      message.success('Печатный тест сохранён');
     } catch (error) {
-      message.error(`Ошибка сохранения теста: ${error?.message || 'неизвестная ошибка'}`);
+      message.error(`Ошибка сохранения: ${error?.message || 'неизвестная ошибка'}`);
     } finally {
       setSavingPrintTest(false);
     }
-  }, [getTaskLayout, layoutOverrides.print, visibleTasks]);
+  }, [currentPrintTest, getTaskLayout, layoutOverrides.print, visibleTasks]);
 
   return (
     <div className="geometry-preview-root">
@@ -511,24 +536,22 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
             <Text>Редактировать макет</Text>
           </Space>
           {layoutEdit && (
-            <>
-              <Button icon={<UndoOutlined />} onClick={resetLayout}>
-                Сбросить макет
-              </Button>
-            </>
+            <Button icon={<UndoOutlined />} onClick={resetLayout}>
+              Сбросить макет
+            </Button>
           )}
           <Space size={8}>
             <Switch checked={showAnswers} onChange={setShowAnswers} />
             <Text>Показывать ответы</Text>
           </Space>
-          {mode === 'print' && <Tag>Лист A5: 6 задач, поля 5 мм</Tag>}
+          {mode === 'print' && <Tag>Лист A5: 6 задач</Tag>}
         </Space>
         <Space>
           <Button
             onClick={() => setSaveModalVisible(true)}
             disabled={mode !== 'print'}
           >
-            Сохранить лист A5
+            {currentPrintTest?.id ? 'Обновить лист A5' : 'Сохранить лист A5'}
           </Button>
           <Button
             type="primary"
@@ -544,7 +567,36 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
         </Space>
       </div>
 
+      {mode === 'print' && (
+        <div className="geometry-preview-header-inputs">
+          <Input
+            placeholder="Тема (заголовок листа)"
+            value={headerTopic}
+            onChange={(e) => setHeaderTopic(e.target.value)}
+            style={{ maxWidth: 320 }}
+            allowClear
+          />
+          <Input
+            placeholder="Подтема (подзаголовок)"
+            value={headerSubtopic}
+            onChange={(e) => setHeaderSubtopic(e.target.value)}
+            style={{ maxWidth: 320 }}
+            allowClear
+          />
+        </div>
+      )}
+
       <div className={`geometry-preview-sheet ${mode === 'print' ? 'a5' : ''}`}>
+        {mode === 'print' && (headerTopic || headerSubtopic) && (
+          <div className="geometry-preview-sheet-header">
+            {headerTopic && (
+              <div className="geometry-preview-sheet-topic">{headerTopic}</div>
+            )}
+            {headerSubtopic && (
+              <div className="geometry-preview-sheet-subtopic">{headerSubtopic}</div>
+            )}
+          </div>
+        )}
         <div className={`geometry-preview-grid ${mode === 'student' ? 'student' : ''} ${mode === 'print' ? 'a5' : ''}`}>
           {visibleTasks.map((task, idx) => {
             const taskKey = task?.id || task?.code || `slot-${idx}`;
@@ -571,11 +623,14 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
         onCancel={() => setSaveModalVisible(false)}
         onSave={handleSaveAsPrintTest}
         saving={savingPrintTest}
+        isUpdate={!!currentPrintTest?.id}
         tasksCount={visibleTasks.filter(Boolean).length}
         initialTitle={
           currentPrintTest?.title
             || `Геометрия A5 · ${new Date().toLocaleDateString('ru-RU')}`
         }
+        initialSheetTopic={headerTopic}
+        initialSheetSubtopic={headerSubtopic}
       />
     </div>
   );

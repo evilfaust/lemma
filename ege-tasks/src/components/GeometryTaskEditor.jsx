@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -124,6 +124,20 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
   // ── Состояние сохранения/удаления ─────────────────────────────────────────
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // ── Темы и подтемы из справочника ────────────────────────────────────────
+  const [geoTopics, setGeoTopics] = useState([]);
+  const [geoSubtopics, setGeoSubtopics] = useState([]);
+  const [selectedTopicId, setSelectedTopicId] = useState(task?.topic || null);
+
+  useEffect(() => {
+    Promise.all([api.getGeometryTopics(), api.getGeometrySubtopics()])
+      .then(([topics, subtopics]) => {
+        setGeoTopics(topics);
+        setGeoSubtopics(subtopics);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Сохранить чертёж из GeoGebra API ─────────────────────────────────────
   const handleSaveDrawing = useCallback(() => {
@@ -261,7 +275,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       payload = {
         code: normalizedCode,
         title: values.title || '',
-        subtopic: values.subtopic || '',
+        topic: values.topic || null,
+        subtopic: values.subtopic || null,
         difficulty: values.difficulty || null,
         task_type: normalizedTaskType,
         statement_md: values.statement_md || '',
@@ -317,7 +332,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
   const initialValues = {
     code: task?.code || generateCode(),
     title: task?.title || '',
-    subtopic: task?.subtopic || '',
+    topic: task?.topic || null,
+    subtopic: task?.subtopic || null,
     difficulty: task?.difficulty || undefined,
     task_type: task?.task_type || 'ready',
     statement_md: task?.statement_md || '',
@@ -338,6 +354,13 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         initialValues={initialValues}
         previewStatement={previewStatement}
         onStatementChange={setPreviewStatement}
+        geoTopics={geoTopics}
+        geoSubtopics={geoSubtopics}
+        selectedTopicId={selectedTopicId}
+        onTopicChange={(id) => {
+          setSelectedTopicId(id);
+          form.setFieldValue('subtopic', null);
+        }}
       />,
     },
     {
@@ -469,7 +492,14 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
 }
 
 // ── Вкладка 1: Условие ────────────────────────────────────────────────────
-function TabCondition({ form, initialValues, previewStatement, onStatementChange }) {
+function TabCondition({
+  form, initialValues, previewStatement, onStatementChange,
+  geoTopics, geoSubtopics, selectedTopicId, onTopicChange,
+}) {
+  const filteredSubtopics = selectedTopicId
+    ? geoSubtopics.filter((s) => s.topic === selectedTopicId)
+    : geoSubtopics;
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
@@ -490,9 +520,23 @@ function TabCondition({ form, initialValues, previewStatement, onStatementChange
         </Form.Item>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
+        <Form.Item name="topic" label="Тема">
+          <Select
+            placeholder="Выберите тему"
+            allowClear
+            options={geoTopics.map((t) => ({ value: t.id, label: t.title }))}
+            onChange={onTopicChange}
+          />
+        </Form.Item>
+
         <Form.Item name="subtopic" label="Подтема">
-          <Input placeholder="Средняя линия треугольника" />
+          <Select
+            placeholder={selectedTopicId ? 'Выберите подтему' : 'Сначала выберите тему'}
+            allowClear
+            disabled={!selectedTopicId && filteredSubtopics.length === 0}
+            options={filteredSubtopics.map((s) => ({ value: s.id, label: s.title }))}
+          />
         </Form.Item>
 
         <Form.Item name="source" label="Источник">

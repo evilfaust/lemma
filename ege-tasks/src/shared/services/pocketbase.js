@@ -1292,14 +1292,98 @@ export const api = {
     }
   },
 
+  // ─── Geometry Topics ──────────────────────────────────────────────────────
+
+  async getGeometryTopics() {
+    try {
+      return await pb.collection('geometry_topics').getFullList({ sort: 'order,title' });
+    } catch (error) {
+      console.error('Error fetching geometry topics:', error);
+      return [];
+    }
+  },
+
+  async createGeometryTopic(data) {
+    try {
+      return await pb.collection('geometry_topics').create(data);
+    } catch (error) {
+      console.error('Error creating geometry topic:', error);
+      throw error;
+    }
+  },
+
+  async updateGeometryTopic(id, data) {
+    try {
+      return await pb.collection('geometry_topics').update(id, data);
+    } catch (error) {
+      console.error('Error updating geometry topic:', error);
+      throw error;
+    }
+  },
+
+  async deleteGeometryTopic(id) {
+    try {
+      return await pb.collection('geometry_topics').delete(id);
+    } catch (error) {
+      console.error('Error deleting geometry topic:', error);
+      throw error;
+    }
+  },
+
+  // ─── Geometry Subtopics ───────────────────────────────────────────────────
+
+  async getGeometrySubtopics(topicId = null) {
+    try {
+      const filter = topicId ? `topic = "${escapeFilter(topicId)}"` : '';
+      return await pb.collection('geometry_subtopics').getFullList({
+        filter,
+        sort: 'order,title',
+        expand: 'topic',
+      });
+    } catch (error) {
+      console.error('Error fetching geometry subtopics:', error);
+      return [];
+    }
+  },
+
+  async createGeometrySubtopic(data) {
+    try {
+      return await pb.collection('geometry_subtopics').create(data);
+    } catch (error) {
+      console.error('Error creating geometry subtopic:', error);
+      throw error;
+    }
+  },
+
+  async updateGeometrySubtopic(id, data) {
+    try {
+      return await pb.collection('geometry_subtopics').update(id, data);
+    } catch (error) {
+      console.error('Error updating geometry subtopic:', error);
+      throw error;
+    }
+  },
+
+  async deleteGeometrySubtopic(id) {
+    try {
+      return await pb.collection('geometry_subtopics').delete(id);
+    } catch (error) {
+      console.error('Error deleting geometry subtopic:', error);
+      throw error;
+    }
+  },
+
   // ─── Geometry Tasks ───────────────────────────────────────────────────────
 
   async getGeometryTasks(filters = {}) {
     try {
       const filterArr = [];
 
+      if (filters.topic) {
+        filterArr.push(`topic = "${escapeFilter(filters.topic)}"`);
+      }
       if (filters.subtopic) {
-        filterArr.push(`subtopic ~ "${escapeFilter(filters.subtopic)}"`);
+        filterArr.push(`subtopic = "${escapeFilter(filters.subtopic)}"`);
       }
       if (filters.task_type) {
         filterArr.push(`task_type = "${escapeFilter(filters.task_type)}"`);
@@ -1315,6 +1399,7 @@ export const api = {
       return await pb.collection('geometry_tasks').getFullList({
         filter: filterArr.join(' && '),
         sort: 'code',
+        expand: 'topic,subtopic',
       });
     } catch (error) {
       console.error('Error fetching geometry tasks:', error);
@@ -1386,6 +1471,15 @@ export const api = {
       });
     } catch (error) {
       console.error('Error fetching geometry print test:', error);
+      throw error;
+    }
+  },
+
+  async updateGeometryPrintTest(id, data) {
+    try {
+      return await pb.collection('geometry_print_tests').update(id, data);
+    } catch (error) {
+      console.error('Error updating geometry print test:', error);
       throw error;
     }
   },

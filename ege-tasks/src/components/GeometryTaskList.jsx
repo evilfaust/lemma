@@ -44,7 +44,8 @@ export default function GeometryTaskList() {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({});
-  const [subtopics, setSubtopics] = useState([]);
+  const [geoTopics, setGeoTopics] = useState([]);
+  const [geoSubtopics, setGeoSubtopics] = useState([]);
 
   // Редактор: null = скрыт, объект = редактирование, 'new' = создание
   const [editingTask, setEditingTask] = useState(null);
@@ -57,15 +58,21 @@ export default function GeometryTaskList() {
   const [savedSheetsLoading, setSavedSheetsLoading] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
 
+  // Загружаем справочники один раз
+  useEffect(() => {
+    Promise.all([api.getGeometryTopics(), api.getGeometrySubtopics()])
+      .then(([topics, subtopics]) => {
+        setGeoTopics(topics);
+        setGeoSubtopics(subtopics);
+      })
+      .catch(() => {});
+  }, []);
+
   const loadTasks = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.getGeometryTasks(filters);
       setTasks(data);
-
-      // Собираем уникальные подтемы для фильтра
-      const unique = [...new Set(data.map((t) => t.subtopic).filter(Boolean))].sort();
-      setSubtopics(unique);
     } catch {
       message.error('Ошибка загрузки задач');
     } finally {
@@ -222,11 +229,20 @@ export default function GeometryTaskList() {
       render: (code) => <Text code style={{ fontSize: 13 }}>{code}</Text>,
     },
     {
-      title: 'Подтема',
-      dataIndex: 'subtopic',
-      key: 'subtopic',
+      title: 'Тема / Подтема',
+      key: 'topic_subtopic',
       ellipsis: true,
-      render: (v) => v || <Text type="secondary">—</Text>,
+      render: (_, record) => {
+        const topic = record.expand?.topic?.title;
+        const subtopic = record.expand?.subtopic?.title;
+        if (!topic && !subtopic) return <Text type="secondary">—</Text>;
+        return (
+          <Space direction="vertical" size={0}>
+            {topic && <Text style={{ fontSize: 12 }}>{topic}</Text>}
+            {subtopic && <Text type="secondary" style={{ fontSize: 11 }}>{subtopic}</Text>}
+          </Space>
+        );
+      },
     },
     {
       title: 'Тип',
@@ -364,12 +380,23 @@ export default function GeometryTaskList() {
       <Card size="small">
         <Space wrap>
           <Select
-            placeholder="Подтема"
+            placeholder="Тема"
             allowClear
             style={{ width: 200 }}
+            value={filters.topic}
+            onChange={(v) => setFilters((f) => ({ ...f, topic: v, subtopic: undefined }))}
+            options={geoTopics.map((t) => ({ value: t.id, label: t.title }))}
+          />
+          <Select
+            placeholder="Подтема"
+            allowClear
+            style={{ width: 220 }}
             value={filters.subtopic}
             onChange={(v) => setFilters((f) => ({ ...f, subtopic: v }))}
-            options={subtopics.map((s) => ({ value: s, label: s }))}
+            options={(filters.topic
+              ? geoSubtopics.filter((s) => s.topic === filters.topic)
+              : geoSubtopics
+            ).map((s) => ({ value: s.id, label: s.title }))}
           />
           <Select
             placeholder="Тип задачи"

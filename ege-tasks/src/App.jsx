@@ -18,6 +18,7 @@ import StudentProgressDashboard from './components/StudentProgressDashboard';
 import AchievementManager from './components/AchievementManager';
 import GeoGebraLab from './components/GeoGebraLab';
 import GeometryTaskList from './components/GeometryTaskList';
+import GeometryTopicManager from './components/geometry/GeometryTopicManager';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import 'katex/dist/katex.min.css';
@@ -102,6 +103,7 @@ function AppContent() {
       label: 'Геометрия',
       children: [
         { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
+        { key: 'geometry-topics', icon: <FolderOutlined />, label: 'Темы и подтемы' },
         { key: 'geogebra', icon: <FunctionOutlined />, label: 'GeoGebra Lab' },
       ],
     },
@@ -199,6 +201,8 @@ function AppContent() {
         return <TaskImporter />;
       case 'geometry-tasks':
         return <GeometryTaskList />;
+      case 'geometry-topics':
+        return <GeometryTopicManager />;
       case 'geogebra':
         return <GeoGebraLab />;
       case 'theory-browser':
@@ -253,6 +257,7 @@ function AppContent() {
       case 'achievements': return 'Управление достижениями';
       case 'import': return 'Импорт задач';
       case 'geometry-tasks': return 'Геометрические задачи';
+      case 'geometry-topics': return 'Геометрия — Темы и подтемы';
       case 'geogebra': return 'GeoGebra Lab';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
