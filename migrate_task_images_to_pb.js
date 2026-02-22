@@ -2,7 +2,7 @@
 const fs = require('fs/promises');
 const path = require('path');
 
-const PB_URL = (process.env.PB_URL || 'http://127.0.0.1:8090').replace(/\/+$/, '');
+const PB_URL = (process.env.PB_URL || process.env.VITE_PB_URL || 'https://task-ege.oipav.ru').replace(/\/+$/, '');
 const PB_EMAIL = process.env.PB_SUPERUSER_EMAIL || '';
 const PB_PASSWORD = process.env.PB_SUPERUSER_PASSWORD || '';
 const CACHE_DIR = process.env.TASK_IMAGE_CACHE_DIR || path.resolve(process.cwd(), 'task-image-cache');

@@ -7,26 +7,22 @@
 ```bash
 ./start.sh
 ```
-Без PDF сервиса:
+С локальным PDF сервисом:
 ```bash
-./start.sh --no-pdf
+./start.sh --local-pdf
 ```
 
 Или через NPM:
 
 ```bash
-npm run dev
-```
-Без PDF сервиса:
-```bash
-npm run dev:no-pdf
+npm run dev          # только frontend (backend на VPS)
+npm run dev:local-pdf
 ```
 
-**Всё! Три сервиса запустятся автоматически:**
-- PocketBase: http://127.0.0.1:8090
-- PDF Service: http://localhost:3001
+**Запускается:**
+- Backend (PocketBase): https://task-ege.oipav.ru (VPS)
 - Frontend: http://localhost:5173
-**Без PDF** запускаются только PocketBase и Frontend.
+- PDF Service: http://localhost:3001 (опционально, в режиме `--local-pdf`)
 
 ### Первый запуск (с установкой зависимостей):
 
@@ -34,11 +30,6 @@ npm run dev:no-pdf
 npm run install:all  # Установить все зависимости
 npm run dev          # Запустить всё
 ```
-Без PDF:
-```bash
-npm run dev:no-pdf
-```
-
 ### Остановка:
 
 ```bash
@@ -73,7 +64,6 @@ generation-test/
 │   ├── pocketbase        # Исполняемый файл
 │   ├── pdf-service.js    # PDF генерация (Node.js)
 │   ├── pb_hooks/         # PocketBase hooks
-│   ├── pb_data/          # База данных
 │   └── start-all.sh      # Скрипт запуска
 ├── ege-tasks/            # Frontend (React)
 │   ├── src/
@@ -90,15 +80,13 @@ generation-test/
 
 ### Корень проекта
 ```bash
-npm run dev        # Все сервисы
-npm run dev:no-pdf # Без PDF сервиса
+npm run dev           # Frontend (VPS backend)
+npm run dev:local-pdf # Frontend + локальный PDF сервис
 ```
 
 ### Backend
 ```bash
-npm run start     # Только PocketBase
 npm run pdf       # Только PDF сервис
-npm run dev       # Оба сервиса
 ```
 
 ### Frontend
@@ -127,4 +115,4 @@ python pb_parser_theory.py       # Загрузить теорию
 
 ---
 
-**Быстрая помощь:** Если что-то не работает, проверьте что оба сервиса запущены (PocketBase на :8090 и PDF на :3001)
+**Быстрая помощь:** Если что-то не работает, проверьте доступность VPS backend `https://task-ege.oipav.ru/api/health` и локального PDF сервиса `http://localhost:3001/health` (если используете локальный PDF).

@@ -9,11 +9,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Database
-pocketbase/pb_data/*.db
-pocketbase/pb_data/*.db-shm
-pocketbase/pb_data/*.db-wal
-pocketbase/pb_data/storage/
+# Local PocketBase data (do not store DB locally in this repo)
+pocketbase/pb_data/
 
 # Backups
 backups/

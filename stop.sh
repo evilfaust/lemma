@@ -9,9 +9,6 @@ NC='\033[0m'
 echo -e "${YELLOW}🛑 Остановка локальных сервисов EGE Tasks Manager...${NC}"
 echo ""
 
-echo "Остановка PocketBase (если запущен)..."
-pkill -f "pocketbase serve" 2>/dev/null
-
 echo "Остановка PDF Service (если запущен)..."
 pkill -f "node pdf-service" 2>/dev/null
 

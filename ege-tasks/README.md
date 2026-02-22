@@ -62,14 +62,14 @@ ege-tasks/
 Создайте файл `.env` в корне проекта:
 
 ```env
-VITE_PB_URL=http://127.0.0.1:8090
+VITE_PB_URL=https://task-ege.oipav.ru
 ```
 
 ## 5. Настройка PocketBase (ВАЖНО!)
 
 ### Включить анонимный доступ:
 
-1. Откройте админ-панель PocketBase: `http://127.0.0.1:8090/_/`
+1. Откройте админ-панель PocketBase: `https://task-ege.oipav.ru/_/`
 2. Перейдите в **Settings** → **API Rules**
 3. Для коллекций `tasks`, `topics`, `subtopics`, `tags`, `cards`:
    - **List/Search**: включите анонимный доступ
@@ -90,18 +90,13 @@ VITE_PB_URL=http://127.0.0.1:8090
 
 ## 6. Запуск
 
-### Терминал 1 - PocketBase:
-```bash
-./pocketbase serve
-```
-
-### Терминал 2 - React приложение:
+### React приложение:
 ```bash
 cd ege-tasks
 npm run dev
 ```
 
-Приложение откроется на `http://localhost:5173`
+Приложение откроется на `http://localhost:5173` и будет использовать PocketBase на VPS из `VITE_PB_URL`.
 
 ## ✨ Возможности приложения
 

@@ -27,8 +27,6 @@ echo ""
 MODE="frontend"
 if [[ "$1" == "--local-pdf" || "$1" == "-p" ]]; then
     MODE="local-pdf"
-elif [[ "$1" == "--full" || "$1" == "-f" ]]; then
-    MODE="full"
 fi
 
 # Установка зависимостей
@@ -37,7 +35,7 @@ if [ ! -d "ege-tasks/node_modules" ]; then
     cd ege-tasks && npm install && cd ..
 fi
 
-if [[ "$MODE" == "local-pdf" || "$MODE" == "full" ]]; then
+if [[ "$MODE" == "local-pdf" ]]; then
     if [ ! -d "node_modules" ]; then
         echo -e "${YELLOW}📦 Установка корневых зависимостей...${NC}"
         npm install
@@ -61,7 +59,7 @@ case $MODE in
         echo -e "${BLUE}└─────────────────────────────────────────────────┘${NC}"
         echo ""
         echo -e "${YELLOW}Нажмите Ctrl+C для остановки${NC}"
-        echo -e "${YELLOW}Другие режимы: --local-pdf | --full${NC}"
+        echo -e "${YELLOW}Другой режим: --local-pdf${NC}"
         echo ""
         cd ege-tasks && npm run dev
         ;;
@@ -74,21 +72,6 @@ case $MODE in
         echo -e "${BLUE}└──────────────────────────────────────────────────┘${NC}"
         echo ""
         npx concurrently -n "PDF,FRONTEND" -c "bgMagenta.bold,bgGreen.bold" \
-            "npm run dev:pdf" \
-            "npm run dev:frontend"
-        ;;
-
-    "full")
-        echo -e "${BLUE}┌──────────────────────────────────────────────────┐${NC}"
-        echo -e "${BLUE}│ PocketBase:  http://127.0.0.1:8090 (local)       │${NC}"
-        echo -e "${BLUE}│ PDF Service: http://localhost:3001 (local)        │${NC}"
-        echo -e "${BLUE}│ Frontend:    http://localhost:5173 (local)        │${NC}"
-        echo -e "${BLUE}└──────────────────────────────────────────────────┘${NC}"
-        echo ""
-        echo -e "${YELLOW}⚠️  Полностью локальный режим. Убедитесь, что VITE_PB_URL=http://127.0.0.1:8090${NC}"
-        echo ""
-        npx concurrently -n "BACKEND,PDF,FRONTEND" -c "bgBlue.bold,bgMagenta.bold,bgGreen.bold" \
-            "npm run dev:backend" \
             "npm run dev:pdf" \
             "npm run dev:frontend"
         ;;

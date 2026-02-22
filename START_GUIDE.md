@@ -8,7 +8,12 @@
 ```
 Без PDF сервиса:
 ```bash
-./start.sh --no-pdf
+./start.sh
+```
+
+С локальным PDF сервисом:
+```bash
+./start.sh --local-pdf
 ```
 
 ### Вариант 2: NPM команда
@@ -17,7 +22,12 @@ npm run dev
 ```
 Без PDF сервиса:
 ```bash
-npm run dev:no-pdf
+npm run dev
+```
+
+С локальным PDF сервисом:
+```bash
+npm run dev:local-pdf
 ```
 
 ### Вариант 3: С установкой зависимостей
@@ -30,11 +40,11 @@ npm run dev          # Запустить все сервисы
 
 ## Что запускается
 
-Одна команда запускает **3 сервиса одновременно** (без PDF — только 2):
+В стандартном режиме запускается frontend, backend используется на VPS:
 
 | Сервис | URL | Описание |
 |--------|-----|----------|
-| **PocketBase** | http://127.0.0.1:8090 | Backend + Database |
+| **PocketBase (VPS)** | https://task-ege.oipav.ru | Backend + Database |
 | **PDF Service** | http://localhost:3001 | PDF генерация (Puppeteer) |
 | **Frontend** | http://localhost:5173 | React приложение |
 
@@ -77,15 +87,14 @@ http://localhost:5173
 
 ### Корневые команды (из корня проекта):
 ```bash
-npm run dev              # Запустить все сервисы
-npm run dev:no-pdf       # Без PDF сервиса
+npm run dev              # Frontend (VPS backend)
+npm run dev:local-pdf    # Frontend + локальный PDF сервис
 npm run install:all      # Установить зависимости везде
 npm start                # Alias для npm run dev
 ```
 
 ### Запуск отдельных сервисов:
 ```bash
-npm run dev:backend      # Только PocketBase
 npm run dev:pdf          # Только PDF Service
 npm run dev:frontend     # Только Frontend
 ```
@@ -95,8 +104,8 @@ npm run dev:frontend     # Только Frontend
 ## Доступные эндпоинты
 
 ### PocketBase (Backend)
-- **API**: http://127.0.0.1:8090/api/
-- **Admin**: http://127.0.0.1:8090/_/
+- **API**: https://task-ege.oipav.ru/api/
+- **Admin**: https://task-ege.oipav.ru/_/
 
 ### PDF Service
 - **Health**: http://localhost:3001/health
@@ -130,7 +139,6 @@ npm -v    # должно быть >= 8.0.0
 **Решение**:
 ```bash
 ./stop.sh               # Остановить все процессы
-lsof -i :8090           # Проверить кто занял порт
 lsof -i :3001
 lsof -i :5173
 ```
@@ -167,14 +175,12 @@ curl http://localhost:3001/health
 ### Логи в реальном времени
 
 Concurrently показывает логи всех сервисов с цветовой маркировкой:
-- 🔵 **Синий** - Backend (PocketBase)
 - 🟣 **Фиолетовый** - PDF Service
 - 🟢 **Зелёный** - Frontend
 
 ### Hot Reload
 
 - **Frontend** - автоматическая перезагрузка при изменении файлов
-- **Backend** - требует перезапуска (Ctrl+C, затем `npm run dev`)
 - **PDF Service** - требует перезапуска
 
 ---

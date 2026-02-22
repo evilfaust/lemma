@@ -246,11 +246,7 @@ generation-test/
 │
 ├── pocketbase/                   # Backend
 │   ├── pocketbase                # Исполняемый файл PocketBase
-│   ├── pb_data/                  # БД и хранилище файлов
-│   │   ├── data.db               # SQLite основная
-│   │   ├── auxiliary.db          # SQLite системная
-│   │   └── storage/              # Файлы (изображения)
-│   ├── pb_migrations/            # Миграции (48 файлов)
+│   ├── pb_migrations/            # Миграции схемы/коллекций
 │   ├── pb_hooks/
 │   │   └── pdf.pb.js             # PDF-хук для PocketBase
 │   ├── pdf-service.js            # Standalone PDF-сервис (Puppeteer)
@@ -466,7 +462,7 @@ theory_categories ←── theory_articles.category
 npm run install:all
 
 # 2. Создать .env файл
-echo "VITE_PB_URL=http://127.0.0.1:8090" > ege-tasks/.env
+echo "VITE_PB_URL=https://task-ege.oipav.ru" > ege-tasks/.env
 
 # 3. Запустить все сервисы
 ./start.sh
@@ -474,8 +470,8 @@ echo "VITE_PB_URL=http://127.0.0.1:8090" > ege-tasks/.env
 
 Или через npm:
 ```bash
-npm run dev          # Все сервисы
-npm run dev:no-pdf   # Без PDF-сервиса
+npm run dev          # Frontend (VPS backend)
+npm run dev:local-pdf # Frontend + локальный PDF-сервис
 npm run migrate:task-images # Перенос внешних image_url в files tasks.image (требует PB_SUPERUSER_EMAIL/PASSWORD)
 ```
 
@@ -483,8 +479,8 @@ npm run migrate:task-images # Перенос внешних image_url в files t
 
 | Сервис | URL | Описание |
 |--------|-----|----------|
-| PocketBase | http://127.0.0.1:8090 | Backend API |
-| PocketBase Admin | http://127.0.0.1:8090/_/ | Админ-панель |
+| PocketBase | https://task-ege.oipav.ru | Backend API |
+| PocketBase Admin | https://task-ege.oipav.ru/_/ | Админ-панель |
 | PDF Service | http://localhost:3001 | Генерация PDF |
 | Frontend | http://localhost:5173 | Учительский интерфейс |
 | Student | http://localhost:5173/student/{id} | Ученический интерфейс |
@@ -698,7 +694,7 @@ Block:  $$\frac{a}{b}$$
 
 | Проблема | Решение |
 |----------|---------|
-| CORS ошибки | Проверить, что PocketBase запущен и URL в `.env` верный |
+| CORS ошибки | Проверить, что VPS PocketBase доступен и URL в `.env` верный |
 | LaTeX не рендерится | Проверить `import 'katex/dist/katex.min.css'`; формулы в `$...$` или `$$...$$` |
 | PDF сервис недоступен | `cd pocketbase && npm run pdf`; проверить порт 3001 |
 | Карточки некорректно печатаются | Chrome/Firefox, масштаб 100%, A4, без колонтитулов |
