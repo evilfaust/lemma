@@ -37,7 +37,7 @@
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 
-Текущая версия: **3.6.0** (февраль 2026)
+Текущая версия: **3.6.2** (февраль 2026)
 
 ## Tech Stack
 
@@ -146,6 +146,14 @@ generation-test/
 - `TheoryCategoryManager.jsx` - Manage theory categories
 - `TheoryPrintBuilder.jsx` - Print builder for theory summaries
 
+**Geometry Module:**
+- `GeometryTaskList.jsx` - List of geometry tasks with filters, quick preview modal (drag+resize layout editing), editor
+- `GeometryTaskEditor.jsx` - Geometry task editor: GeoGebra applet, PNG export+crop, hints, markdown condition/solution
+- `GeometryTaskPreview.jsx` - A5 print preview (6 tasks/page) + student view; exports `GeometryPreviewCard`, `normalizeLayout`, etc.
+- `GeometryTaskPreview.css` - Styles for geometry preview (absolute-% layer positioning)
+- `GeoGebraApplet.jsx` - GeoGebra applet wrapper (geometry/graphing/classic/3d)
+- `geometry/SaveGeometryPrintModal.jsx` / `LoadGeometryPrintModal.jsx` - Save/load A5 print sheets
+
 **Student Progress:**
 - `StudentProgressDashboard.jsx` - Teacher view of all students (attempts, scores, class)
 
@@ -236,6 +244,18 @@ generation-test/
 
 **achievements** - `{ id, code(unique), title, description, icon, type: "random"|"condition", rarity: "common"|"rare"|"legendary", condition_type: "score"|"speed"|"count"|"special", condition_value: json, order }`
 
+### Geometry Collections
+
+**geometry_topics** - `{ id, title, order }`
+
+**geometry_subtopics** - `{ id, title, topic: relation→geometry_topics, order }`
+
+**geometry_tasks** - `{ id, code, title, topic: relation→geometry_topics, subtopic: relation→geometry_subtopics, difficulty: number(1-3), task_type: "ready"|"build"|"mixed", statement_md, answer, solution_md, geogebra_base64: text (XML/.ggb состояние), geogebra_appname: "geometry"|"graphing"|"classic"|"3d", drawing_view: "image"|"geogebra", drawing_image: file (PNG, max 10MB), hints: json([{order, text_md}]), preview_layout: json({print:{image,text}, student:{image,text}}), source, year }`
+- **ВАЖНО**: `geogebra_base64` — base64-кодированное содержимое `.ggb` файла. При открытии редактора задачу нужно загружать через `getGeometryTask(id)` (полная запись), а не из кеша списка (LIGHT_FIELDS не включает это поле).
+- `drawing_image` хранит PNG-чертёж как файл PocketBase; URL: `{PB_URL}/api/files/geometry_tasks/{id}/{drawing_image}`
+
+**geometry_print_tests** - `{ id, title, tasks: relation[]→geometry_tasks, task_order: json([id,...]) }`
+
 ### Access Control
 - tasks, topics, tags, subtopics, works, variants, cards: Superuser only
 - achievements: Public read, Superuser write
@@ -261,6 +281,7 @@ generation-test/
 | `theory-view` | Просмотр | TheoryArticleView |
 | `theory-print` | Конспекты | TheoryPrintBuilder |
 | `theory-categories` | Категории | TheoryCategoryManager |
+| `geometry` | Геометрия | GeometryTaskList |
 
 ## Student Flow
 
@@ -376,6 +397,7 @@ Key function groups:
 - **Students:** registerStudent, loginStudent, logoutStudent, isStudentAuthenticated, getAuthStudent, getStudents, updateStudent, getAttemptsByStudent, getAttemptsForRegisteredStudents
 - **Theory:** getTheoryCategories, createTheoryCategory, updateTheoryCategory, deleteTheoryCategory, getTheoryArticles, getTheoryArticle, createTheoryArticle, updateTheoryArticle, deleteTheoryArticle, getTheoryArticleCountByCategory
 - **Stats:** getUniqueYears, getUniqueSources, getTasksStatsSnapshot
+- **Geometry:** getGeometryTopics, createGeometryTopic, updateGeometryTopic, deleteGeometryTopic, getGeometrySubtopics, createGeometrySubtopic, updateGeometrySubtopic, deleteGeometrySubtopic, **getGeometryTasks** (LIGHT_FIELDS — без geogebra_base64/solution_md), **getGeometryTask** (полная запись — для редактора), createGeometryTask, updateGeometryTask, deleteGeometryTask, **getGeometryImageUrl(task)** (URL файла drawing_image или legacy base64), getGeometryPrintTests, createGeometryPrintTest, updateGeometryPrintTest, deleteGeometryPrintTest
 
 ## PDF Export System
 
@@ -428,12 +450,14 @@ Key function groups:
 - Task replacement: exclude duplicates within variant, filter by topic/subtopic
 - Distribution sorting: tag distribution preserves grouping, difficulty preserves order
 - Variant order: stored as JSON `[{taskId, position}]`
+- **Geometry LIGHT_FIELDS pattern**: `getGeometryTasks()` использует `fields` param — исключает тяжёлые поля (geogebra_base64 ~30-100KB, solution_md). Для редактирования **всегда** вызывать `getGeometryTask(id)`, а не брать объект из списка — иначе редактор получит пустые поля и затрёт данные при сохранении.
+- **GeoGebra .ggb формат**: `geogebra_base64` хранит base64-кодированный XML (это и есть `.ggb` файл). `ggbApi.getBase64(cb)` → сохранить; `initialBase64` prop в `GeoGebraApplet` → восстановить.
 
 ## Related Documentation
 
 - `README.MD` - Полное руководство пользователя
 - `ARCHITECTURE.md` - Архитектура проекта
-- `CHANGELOG.md` - История изменений (v1.0 → v3.5)
+- `CHANGELOG.md` - История изменений (v1.0 → v3.6.2)
 - `DATABASE_SAFETY.md` - Правила безопасности БД
 - `BACKUP_GUIDE.md` - Руководство по бэкапам
 - `PDF_EXPORT_UPGRADE.md` - PDF экспорт через Puppeteer
