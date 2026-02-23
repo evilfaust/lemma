@@ -57,6 +57,7 @@ export default function GeometryTaskList() {
   const [savedSheets, setSavedSheets] = useState([]);
   const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
   const [quickPreviewTask, setQuickPreviewTask] = useState(null);
+  const [quickPreviewLoadingId, setQuickPreviewLoadingId] = useState(null);
   const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
   const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
   const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(true);
@@ -159,14 +160,25 @@ export default function GeometryTaskList() {
     setPreviewPrintTest(null);
   };
 
-  const openQuickPreview = (task) => {
+  const openQuickPreview = async (task) => {
     if (!task) return;
-    const parsedLayout = safeParseLayout(task.preview_layout);
-    const printLayout = parsedLayout?.print || null;
-    setQuickPreviewTask(task);
-    setQuickPreviewLayout(normalizeLayout(printLayout, 'print'));
-    setQuickPreviewEditMode(false);
-    setQuickPreviewOpen(true);
+    setQuickPreviewLoadingId(task.id);
+    try {
+      // Если у задачи нет drawing_image (файлового поля) — нужна полная запись,
+      // т.к. легаси PNG хранится в geogebra_base64, которого нет в LIGHT_FIELDS
+      const fullTask = task.drawing_image
+        ? task
+        : await api.getGeometryTask(task.id);
+      const parsedLayout = safeParseLayout(fullTask.preview_layout);
+      setQuickPreviewTask(fullTask);
+      setQuickPreviewLayout(normalizeLayout(parsedLayout?.print ?? null, 'print'));
+      setQuickPreviewEditMode(false);
+      setQuickPreviewOpen(true);
+    } catch {
+      message.error('Не удалось загрузить задачу для просмотра');
+    } finally {
+      setQuickPreviewLoadingId(null);
+    }
   };
 
   const closeQuickPreview = () => {
@@ -420,6 +432,7 @@ export default function GeometryTaskList() {
               type="text"
               icon={<EyeOutlined />}
               size="small"
+              loading={quickPreviewLoadingId === record.id}
               onClick={() => openQuickPreview(record)}
             />
           </Tooltip>

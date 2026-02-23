@@ -1383,8 +1383,9 @@ export const api = {
     if (task?.id && task?.drawing_image) {
       return `${PB_BASE_URL}/api/files/geometry_tasks/${task.id}/${task.drawing_image}`;
     }
-    // Legacy fallback: base64 (до выполнения миграции или для загруженного нового изображения)
-    return task?.geogebra_image_base64 || '';
+    // Legacy fallback: PNG хранился прямо в поле geogebra_base64 до миграции на file-поле
+    const legacy = task?.geogebra_base64 || '';
+    return legacy.startsWith('data:image/') ? legacy : '';
   },
 
   async getGeometryTasks(filters = {}) {
