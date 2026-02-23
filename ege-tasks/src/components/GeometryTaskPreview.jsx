@@ -20,7 +20,6 @@ export const PRINT_TASKS_PER_PAGE = 6;
 // A5 sheet 148x210mm with 5mm paddings -> content 138x200mm.
 // Grid is 2x3, so one cell is 69 x (200/3) mm.
 export const PRINT_CELL_ASPECT_RATIO = 69 / (200 / 3);
-const isImageDrawing = (value = '') => value.startsWith('data:image/');
 
 /** URL изображения задачи: файловое поле → legacy base64 → пусто */
 function getTaskImageSrc(task) {
@@ -86,9 +85,6 @@ export const normalizeLayout = (layout, mode) => {
 };
 
 function getTaskNumber(task, index) {
-  const code = String(task?.code || '');
-  const m = code.match(/(\d+)/);
-  if (m) return Number(m[1]);
   return index + 1;
 }
 
@@ -118,6 +114,12 @@ export function GeometryPreviewCard({
   editable = false,
   layout,
   onLayoutChange,
+  draggable = false,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+  highlightDrop = false,
 }) {
   // Приоритет: файловое поле (drawing_image) → legacy base64 → пусто
   const imageValue = getTaskImageSrc(task);
@@ -221,7 +223,15 @@ export function GeometryPreviewCard({
   }, [layout.text.fontScale, mode]);
 
   return (
-    <article className="geometry-preview-cell">
+    <article
+      className="geometry-preview-cell"
+      draggable={draggable}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onDragEnd={onDragEnd}
+      style={highlightDrop ? { outline: '2px dashed #1677ff', outlineOffset: -2 } : undefined}
+    >
       <div className="geometry-preview-number">{getTaskNumber(task, index)}</div>
       {!isPlaceholder && task?.code && (
         <div className="geometry-preview-code">{task.code}</div>
@@ -304,6 +314,7 @@ export function GeometryPreviewCard({
 
 export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = null }) {
   const { message } = App.useApp();
+  const [orderedTasks, setOrderedTasks] = useState(tasks);
   const [mode, setMode] = useState('print');
   const [showAnswers, setShowAnswers] = useState(false);
   const [drawingMode, setDrawingMode] = useState('task');
@@ -314,13 +325,15 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [savingPrintTest, setSavingPrintTest] = useState(false);
   const [currentPrintTest, setCurrentPrintTest] = useState(initialPrintTest);
+  const [dragTaskIndex, setDragTaskIndex] = useState(null);
+  const [dropTaskIndex, setDropTaskIndex] = useState(null);
 
   // Refs для доступа к актуальным данным внутри setTimeout без stale closures
   const autosaveTimerRef = useRef(null);
   const layoutOverridesRef = useRef(layoutOverrides);
   const taskLayoutsRef = useRef(null);
-  const tasksRef = useRef(tasks);
-  tasksRef.current = tasks;
+  const tasksRef = useRef(orderedTasks);
+  tasksRef.current = orderedTasks;
 
   // Заголовок листа — редактируется прямо в тулбаре, отображается сразу
   const [headerTopic, setHeaderTopic] = useState(initialPrintTest?.sheet_topic || '');
@@ -400,6 +413,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   }, [initialPrintTest]);
 
   useEffect(() => {
+    setOrderedTasks(tasks);
     const next = {};
     tasks.forEach((task, idx) => {
       if (!task) return;
@@ -412,14 +426,14 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
 
   const printPages = useMemo(() => {
     const pages = [];
-    for (let i = 0; i < tasks.length; i += PRINT_TASKS_PER_PAGE) {
-      pages.push(tasks.slice(i, i + PRINT_TASKS_PER_PAGE));
+    for (let i = 0; i < orderedTasks.length; i += PRINT_TASKS_PER_PAGE) {
+      pages.push(orderedTasks.slice(i, i + PRINT_TASKS_PER_PAGE));
     }
     if (pages.length === 0) pages.push([]);
     return pages.map((pageTasks) =>
       Array.from({ length: PRINT_TASKS_PER_PAGE }, (_, i) => pageTasks[i] || null));
-  }, [tasks]);
-  const visibleTasks = mode === 'print' ? printPages.flat() : tasks;
+  }, [orderedTasks]);
+  const visibleTasks = mode === 'print' ? printPages.flat() : orderedTasks;
   const pendingCount = Object.keys(layoutOverrides[mode] || {}).length;
   const snapshotLayouts = useMemo(() => {
     const raw = safeParseLayout(currentPrintTest?.layout_snapshot);
@@ -477,7 +491,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     let failCount = 0;
     try {
       for (const [taskKey, layoutForMode] of entries) {
-        const task = tasks.find((t, idx) => (t?.id || t?.code || `slot-${idx}`) === taskKey);
+        const task = orderedTasks.find((t, idx) => (t?.id || t?.code || `slot-${idx}`) === taskKey);
         if (!task?.id) continue;
         try {
           const existing = safeParseLayout(taskLayouts[taskKey]) || {};
@@ -516,10 +530,10 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     } finally {
       setSavingLayout(false);
     }
-  }, [layoutOverrides, mode, taskLayouts, tasks]);
+  }, [layoutOverrides, mode, taskLayouts, orderedTasks]);
 
   const handleSaveAsPrintTest = useCallback(async (values) => {
-    const printTasks = tasks.filter(Boolean);
+    const printTasks = orderedTasks.filter(Boolean);
     if (printTasks.length !== 6) {
       message.error('Для печатного теста нужно ровно 6 задач на листе A5');
       return;
@@ -576,7 +590,20 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     } finally {
       setSavingPrintTest(false);
     }
-  }, [currentPrintTest, getTaskLayout, layoutOverrides.print, tasks]);
+  }, [currentPrintTest, getTaskLayout, layoutOverrides.print, orderedTasks]);
+
+  const reorderTasks = useCallback((fromIndex, toIndex) => {
+    if (fromIndex === null || toIndex === null || fromIndex === toIndex) return;
+    setOrderedTasks((prev) => {
+      if (fromIndex < 0 || fromIndex >= prev.length) return prev;
+      const target = Math.max(0, Math.min(toIndex, prev.length - 1));
+      if (target === fromIndex) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(target, 0, moved);
+      return next;
+    });
+  }, []);
 
   return (
     <div className="geometry-preview-root">
@@ -591,6 +618,9 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
             <Switch checked={layoutEdit} onChange={setLayoutEdit} />
             <Text>Редактировать макет</Text>
           </Space>
+          {!layoutEdit && (
+            <Tag color="blue">Перетаскивайте карточки для смены порядка</Tag>
+          )}
           {layoutEdit && (
             <Button icon={<UndoOutlined />} onClick={resetLayout}>
               Сбросить макет
@@ -677,6 +707,25 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
                       editable={layoutEdit}
                       layout={layout}
                       onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
+                      draggable={!layoutEdit && !!task}
+                      onDragStart={() => setDragTaskIndex(globalIndex)}
+                      onDragOver={(e) => {
+                        if (layoutEdit || dragTaskIndex === null || dragTaskIndex === globalIndex) return;
+                        e.preventDefault();
+                        setDropTaskIndex(globalIndex);
+                      }}
+                      onDrop={(e) => {
+                        if (layoutEdit) return;
+                        e.preventDefault();
+                        reorderTasks(dragTaskIndex, globalIndex);
+                        setDragTaskIndex(null);
+                        setDropTaskIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDragTaskIndex(null);
+                        setDropTaskIndex(null);
+                      }}
+                      highlightDrop={dropTaskIndex === globalIndex}
                     />
                   );
                 })}
@@ -702,6 +751,25 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
                   editable={layoutEdit}
                   layout={layout}
                   onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
+                  draggable={!layoutEdit && !!task}
+                  onDragStart={() => setDragTaskIndex(idx)}
+                  onDragOver={(e) => {
+                    if (layoutEdit || dragTaskIndex === null || dragTaskIndex === idx) return;
+                    e.preventDefault();
+                    setDropTaskIndex(idx);
+                  }}
+                  onDrop={(e) => {
+                    if (layoutEdit) return;
+                    e.preventDefault();
+                    reorderTasks(dragTaskIndex, idx);
+                    setDragTaskIndex(null);
+                    setDropTaskIndex(null);
+                  }}
+                  onDragEnd={() => {
+                    setDragTaskIndex(null);
+                    setDropTaskIndex(null);
+                  }}
+                  highlightDrop={dropTaskIndex === idx}
                 />
               );
             })}

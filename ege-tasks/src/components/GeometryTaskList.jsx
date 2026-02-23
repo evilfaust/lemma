@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   App,
   Badge,
   Button,
   Card,
+  Checkbox,
   Modal,
+  Pagination,
   Popconfirm,
   Select,
+  Segmented,
   Space,
   Switch,
   Table,
@@ -20,6 +23,7 @@ import {
   EyeOutlined,
   EditOutlined,
   FolderOpenOutlined,
+  HolderOutlined,
   LoadingOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -29,6 +33,7 @@ import { api } from '../shared/services/pocketbase';
 import GeometryTaskEditor from './GeometryTaskEditor';
 import GeometryTaskPreview, { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout } from './GeometryTaskPreview';
 import LoadGeometryPrintModal from './geometry/LoadGeometryPrintModal';
+import MathRenderer from './MathRenderer';
 import './GeometryTaskPreview.css';
 
 const { Text } = Typography;
@@ -61,6 +66,11 @@ export default function GeometryTaskList() {
   const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
   const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
   const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(true);
+  const [draggingTaskId, setDraggingTaskId] = useState(null);
+  const [dropTargetTaskId, setDropTargetTaskId] = useState(null);
+  const [viewMode, setViewMode] = useState('table');
+  const [cardsPage, setCardsPage] = useState(1);
+  const [cardsPageSize, setCardsPageSize] = useState(20);
   // null | 'saving' | 'saved' | 'error'
   const [autosaveStatus, setAutosaveStatus] = useState(null);
   // Реф нужен чтобы не ловить stale closure в setTimeout — quickPreviewTask может меняться
@@ -160,17 +170,12 @@ export default function GeometryTaskList() {
     setPreviewPrintTest(null);
   };
 
-  const openQuickPreview = async (task) => {
+  const openQuickPreview = (task) => {
     if (!task) return;
     setQuickPreviewLoadingId(task.id);
     try {
-      // Если у задачи нет drawing_image (файлового поля) — нужна полная запись,
-      // т.к. легаси PNG хранится в geogebra_base64, которого нет в LIGHT_FIELDS
-      const fullTask = task.drawing_image
-        ? task
-        : await api.getGeometryTask(task.id);
-      const parsedLayout = safeParseLayout(fullTask.preview_layout);
-      setQuickPreviewTask(fullTask);
+      const parsedLayout = safeParseLayout(task.preview_layout);
+      setQuickPreviewTask(task);
       setQuickPreviewLayout(normalizeLayout(parsedLayout?.print ?? null, 'print'));
       setQuickPreviewEditMode(false);
       setQuickPreviewOpen(true);
@@ -285,6 +290,41 @@ export default function GeometryTaskList() {
     });
   };
 
+  const moveTaskBefore = useCallback((fromId, toId) => {
+    if (!fromId || !toId || fromId === toId) return;
+
+    setTasks((prev) => {
+      const fromIndex = prev.findIndex((t) => t.id === fromId);
+      const toIndex = prev.findIndex((t) => t.id === toId);
+      if (fromIndex < 0 || toIndex < 0) return prev;
+
+      const next = [...prev];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  }, []);
+
+  const pagedCardTasks = useMemo(() => {
+    const start = (cardsPage - 1) * cardsPageSize;
+    return tasks.slice(start, start + cardsPageSize);
+  }, [cardsPage, cardsPageSize, tasks]);
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(tasks.length / cardsPageSize));
+    if (cardsPage > maxPage) setCardsPage(maxPage);
+  }, [cardsPage, cardsPageSize, tasks.length]);
+
+  const toggleTaskSelection = useCallback((taskId, checked) => {
+    setSelectedRowKeys((prev) => {
+      if (checked) {
+        if (prev.includes(taskId)) return prev;
+        return [...prev, taskId];
+      }
+      return prev.filter((id) => id !== taskId);
+    });
+  }, []);
+
   // ── Если редактор открыт — показываем его вместо списка ──────────────────
   if (editorOpen) {
     return (
@@ -309,6 +349,39 @@ export default function GeometryTaskList() {
 
   // ── Колонки таблицы ───────────────────────────────────────────────────────
   const columns = [
+    {
+      title: '',
+      key: 'drag',
+      width: 42,
+      align: 'center',
+      render: (_, record) => (
+        <Tooltip title="Перетащите для смены порядка">
+          <span
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation();
+              e.dataTransfer.effectAllowed = 'move';
+              setDraggingTaskId(record.id);
+            }}
+            onDragEnd={() => {
+              setDraggingTaskId(null);
+              setDropTargetTaskId(null);
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'grab',
+              color: '#8c8c8c',
+              width: 18,
+              height: 18,
+            }}
+          >
+            <HolderOutlined />
+          </span>
+        </Tooltip>
+      ),
+    },
     {
       title: 'Код',
       dataIndex: 'code',
@@ -359,7 +432,7 @@ export default function GeometryTaskList() {
       width: 120,
       render: (v) =>
         v ? (
-          <Text style={{ fontFamily: 'monospace' }}>{v}</Text>
+          <MathRenderer text={String(v)} />
         ) : (
           <Text type="secondary">—</Text>
         ),
@@ -369,44 +442,40 @@ export default function GeometryTaskList() {
       key: 'has_drawing',
       width: 80,
       align: 'center',
-      render: (_, record) => {
-        const appLabels = { geometry: 'Геом.', graphing: 'Граф.', classic: 'Класс.', '3d': '3D' };
-        // PNG хранится как файл drawing_image (после миграции)
-        const hasImage = Boolean(record.drawing_image || record.geogebra_image_base64);
-        // GGB-состояние: drawing_view='geogebra' означает, что GeoGebra-объект используется как основной
-        // (geogebra_base64 нет в LIGHT_FIELDS, но drawing_view — надёжный индикатор)
-        const hasGgb = record.drawing_view === 'geogebra';
-
-        if (!hasImage && !hasGgb) return <Text type="secondary">—</Text>;
-
-        return (
-          <Space size={4}>
-            {hasImage && (
-              <Tooltip title="PNG-картинка сохранена">
-                <Tag color="gold" style={{ margin: 0 }}>IMG</Tag>
-              </Tooltip>
-            )}
-            {hasGgb && (
-              <Tooltip title={`${appLabels[record.geogebra_appname] || 'GeoGebra'} — объект показывается`}>
-                <Tag color="blue" style={{ margin: 0 }}>GGB</Tag>
-              </Tooltip>
-            )}
-          </Space>
-        );
-      },
+      render: (_, record) => (
+        api.getGeometryImageUrl(record)
+          ? (
+            <Tooltip title="PNG-картинка сохранена">
+              <Tag color="gold" style={{ margin: 0 }}>IMG</Tag>
+            </Tooltip>
+          )
+          : <Text type="secondary">—</Text>
+      ),
     },
     {
-      title: 'Подсказки',
-      dataIndex: 'hints',
-      key: 'hints',
-      width: 90,
+      title: 'Превью',
+      key: 'drawing_preview',
+      width: 120,
       align: 'center',
-      render: (hints) => {
-        const count = Array.isArray(hints) ? hints.length : 0;
-        return count > 0 ? (
-          <Tag>{count} шт.</Tag>
-        ) : (
-          <Text type="secondary">—</Text>
+      render: (_, record) => {
+        const imageUrl = api.getGeometryImageUrl(record);
+        if (!imageUrl) return <Text type="secondary">—</Text>;
+
+        return (
+          <img
+            src={imageUrl}
+            alt={`Превью ${record.code || ''}`}
+            style={{
+              width: 72,
+              height: 48,
+              objectFit: 'contain',
+              border: '1px solid #f0f0f0',
+              borderRadius: 6,
+              background: '#fff',
+              display: 'block',
+              margin: '0 auto',
+            }}
+          />
         );
       },
     },
@@ -512,6 +581,14 @@ export default function GeometryTaskList() {
           Всего задач: <strong>{tasks.length}</strong>
         </Text>
         <Space>
+          <Segmented
+            value={viewMode}
+            onChange={(v) => setViewMode(v)}
+            options={[
+              { label: 'Таблица', value: 'table' },
+              { label: 'Карточки', value: 'cards' },
+            ]}
+          />
           <Button icon={<FolderOpenOutlined />} onClick={openSavedSheets}>
             Листы A5
           </Button>
@@ -524,25 +601,191 @@ export default function GeometryTaskList() {
         </Space>
       </div>
 
-      {/* ── Таблица ───────────────────────────────────────────────────── */}
-      <Table
-        dataSource={tasks}
-        columns={columns}
-        rowKey="id"
-        rowSelection={{
-          selectedRowKeys,
-          onChange: setSelectedRowKeys,
-          preserveSelectedRowKeys: true,
-        }}
-        loading={loading}
-        size="small"
-        pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
-        onRow={(record) => ({
-          onDoubleClick: () => openEdit(record),
-          style: { cursor: 'pointer' },
-        })}
-        locale={{ emptyText: 'Нет задач. Создайте первую!' }}
-      />
+      {/* ── Таблица / Карточки ───────────────────────────────────────── */}
+      {viewMode === 'table' ? (
+        <Table
+          dataSource={tasks}
+          columns={columns}
+          rowKey="id"
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
+            preserveSelectedRowKeys: true,
+          }}
+          loading={loading}
+          size="small"
+          pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
+          onRow={(record) => ({
+            onDoubleClick: () => openEdit(record),
+            onDragOver: (e) => {
+              if (!draggingTaskId || draggingTaskId === record.id) return;
+              e.preventDefault();
+              if (dropTargetTaskId !== record.id) setDropTargetTaskId(record.id);
+            },
+            onDrop: (e) => {
+              e.preventDefault();
+              if (!draggingTaskId || draggingTaskId === record.id) return;
+              moveTaskBefore(draggingTaskId, record.id);
+              setDraggingTaskId(null);
+              setDropTargetTaskId(null);
+            },
+            style: {
+              cursor: 'pointer',
+              background: dropTargetTaskId === record.id ? '#e6f4ff' : undefined,
+            },
+          })}
+          locale={{ emptyText: 'Нет задач. Создайте первую!' }}
+        />
+      ) : (
+        <Card size="small" loading={loading}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {pagedCardTasks.map((record) => {
+              const imageUrl = api.getGeometryImageUrl(record);
+              const topic = record.expand?.topic?.title;
+              const subtopic = record.expand?.subtopic?.title;
+              const isSelected = selectedRowKeys.includes(record.id);
+
+              return (
+                <Card
+                  key={record.id}
+                  size="small"
+                  title={(
+                    <Space align="center">
+                      <Checkbox
+                        checked={isSelected}
+                        onChange={(e) => toggleTaskSelection(record.id, e.target.checked)}
+                      />
+                      <Text code style={{ fontSize: 13 }}>{record.code}</Text>
+                    </Space>
+                  )}
+                  extra={(
+                    <Space size={4}>
+                      <Tooltip title="Редактировать">
+                        <Button
+                          type="text"
+                          icon={<EditOutlined />}
+                          size="small"
+                          loading={editorLoadingId === record.id}
+                          disabled={editorLoadingId !== null && editorLoadingId !== record.id}
+                          onClick={() => openEdit(record)}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Просмотр">
+                        <Button
+                          type="text"
+                          icon={<EyeOutlined />}
+                          size="small"
+                          loading={quickPreviewLoadingId === record.id}
+                          onClick={() => openQuickPreview(record)}
+                        />
+                      </Tooltip>
+                      <Popconfirm
+                        title="Удалить задачу?"
+                        description="Это действие необратимо."
+                        okText="Удалить"
+                        cancelText="Отмена"
+                        okButtonProps={{ danger: true }}
+                        onConfirm={() => handleDelete(record.id)}
+                      >
+                        <Tooltip title="Удалить">
+                          <Button
+                            type="text"
+                            icon={<DeleteOutlined />}
+                            size="small"
+                            danger
+                          />
+                        </Tooltip>
+                      </Popconfirm>
+                    </Space>
+                  )}
+                >
+                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Space size={8}>
+                      {record.difficulty ? (
+                        <Tooltip title={DIFFICULTY_LABELS[record.difficulty]}>
+                          <Badge
+                            count={record.difficulty}
+                            style={{ backgroundColor: DIFFICULTY_COLORS[record.difficulty] }}
+                          />
+                        </Tooltip>
+                      ) : (
+                        <Text type="secondary">Сложность: —</Text>
+                      )}
+                      {imageUrl ? (
+                        <Tag color="gold" style={{ margin: 0 }}>IMG</Tag>
+                      ) : (
+                        <Tag style={{ margin: 0 }}>Без чертежа</Tag>
+                      )}
+                    </Space>
+
+                    <div>
+                      {topic && <Text style={{ fontSize: 12 }}>{topic}</Text>}
+                      <br />
+                      {subtopic
+                        ? <Text type="secondary" style={{ fontSize: 11 }}>{subtopic}</Text>
+                        : <Text type="secondary">—</Text>}
+                    </div>
+
+                    {imageUrl && (
+                      <div
+                        style={{
+                          border: '1px solid #f0f0f0',
+                          borderRadius: 8,
+                          background: '#fff',
+                          padding: 8,
+                        }}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`Превью ${record.code || ''}`}
+                          style={{
+                            width: '100%',
+                            height: 140,
+                            objectFit: 'contain',
+                            display: 'block',
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <div>
+                      <Text type="secondary" style={{ fontSize: 11 }}>Ответ:</Text>
+                      <div style={{ minHeight: 24 }}>
+                        {record.answer ? (
+                          <MathRenderer text={String(record.answer)} />
+                        ) : (
+                          <Text type="secondary">—</Text>
+                        )}
+                      </div>
+                    </div>
+                  </Space>
+                </Card>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+            <Pagination
+              current={cardsPage}
+              pageSize={cardsPageSize}
+              total={tasks.length}
+              showSizeChanger
+              pageSizeOptions={['10', '20', '50']}
+              onChange={(page, size) => {
+                setCardsPage(page);
+                if (size !== cardsPageSize) setCardsPageSize(size);
+              }}
+              showTotal={(total, range) => `${range[0]}-${range[1]} из ${total}`}
+            />
+          </div>
+        </Card>
+      )}
 
       <LoadGeometryPrintModal
         visible={savedSheetsOpen}

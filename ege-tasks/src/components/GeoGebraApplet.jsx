@@ -3,21 +3,41 @@ import { Alert, Button, Spin, Typography } from 'antd';
 
 const DEPLOY_SCRIPT_URL = 'https://www.geogebra.org/apps/deployggb.js';
 const DEPLOY_SCRIPT_ID = 'geogebra-deployggb-script';
+let geogebraScriptPromise = null;
 
 function loadGeoGebraScript() {
-  return new Promise((resolve, reject) => {
-    if (window.GGBApplet) {
-      resolve();
-      return;
-    }
+  if (window.GGBApplet) {
+    return Promise.resolve();
+  }
+  if (geogebraScriptPromise) {
+    return geogebraScriptPromise;
+  }
+
+  geogebraScriptPromise = new Promise((resolve, reject) => {
+    const done = () => {
+      if (window.GGBApplet) {
+        resolve();
+        return;
+      }
+      reject(
+        new Error('Не удалось инициализировать GeoGebra script.'),
+      );
+    };
 
     const existing = document.getElementById(DEPLOY_SCRIPT_ID);
-    if (existing && existing.getAttribute('data-loaded') === 'true') {
-      resolve();
+    if (existing) {
+      if (existing.getAttribute('data-loaded') === 'true') {
+        done();
+        return;
+      }
+      existing.addEventListener('load', done, { once: true });
+      existing.addEventListener(
+        'error',
+        () => reject(new Error('Не удалось загрузить GeoGebra (проверьте доступ к geogebra.org).')),
+        { once: true },
+      );
       return;
     }
-
-    if (existing) existing.remove();
 
     const script = document.createElement('script');
     script.id = DEPLOY_SCRIPT_ID;
@@ -25,7 +45,7 @@ function loadGeoGebraScript() {
     script.async = true;
     script.onload = () => {
       script.setAttribute('data-loaded', 'true');
-      resolve();
+      done();
     };
     script.onerror = () =>
       reject(
@@ -35,6 +55,12 @@ function loadGeoGebraScript() {
       );
     document.body.appendChild(script);
   });
+
+  geogebraScriptPromise.catch(() => {
+    geogebraScriptPromise = null;
+  });
+
+  return geogebraScriptPromise;
 }
 
 /**

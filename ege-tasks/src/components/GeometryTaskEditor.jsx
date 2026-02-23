@@ -11,6 +11,7 @@ import {
   Select,
   Slider,
   Space,
+  Switch,
   Tabs,
   Tag,
   Typography,
@@ -27,7 +28,7 @@ import {
 import { api } from '../shared/services/pocketbase';
 import GeoGebraApplet from './GeoGebraApplet';
 import MathRenderer from './MathRenderer';
-import { GeometryPreviewCard, normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
+import { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout } from './GeometryTaskPreview';
 import './GeometryTaskPreview.css';
 
 const { TextArea } = Input;
@@ -83,6 +84,24 @@ const cropPngByMargins = async (dataUrl, crop) => {
   return canvas.toDataURL('image/png');
 };
 
+const getGeoGebraBase64 = (ggbApi) => new Promise((resolve) => {
+  if (!ggbApi || typeof ggbApi.getBase64 !== 'function') {
+    resolve('');
+    return;
+  }
+  try {
+    ggbApi.getBase64((value) => resolve(value || ''));
+  } catch {
+    resolve('');
+  }
+});
+
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
+const getValidationData = (err) => {
+  if (!err || typeof err !== 'object') return {};
+  return err?.data?.data || err?.data || err?.response?.data || {};
+};
+
 /**
  * Редактор геометрической задачи.
  *
@@ -98,13 +117,14 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
 
   // ── Состояние чертежа ─────────────────────────────────────────────────────
   const ggbApiRef = useRef(null);
-  // Legacy: старые задачи могли хранить PNG прямо в geogebra_base64
-  const initialLegacyImage = isImageDrawing(task?.geogebra_base64 || '') ? task?.geogebra_base64 : '';
+  // Legacy: старые задачи могли хранить PNG в geogebra_base64 или geogebra_image_base64
+  const legacyImage = task?.geogebra_image_base64 || task?.geogebra_base64 || '';
+  const initialLegacyImage = isImageDrawing(legacyImage) ? legacyImage : '';
   const [ggbBase64, setGgbBase64] = useState(initialLegacyImage ? '' : (task?.geogebra_base64 || ''));
   // ggbImageBase64 — PNG в памяти (только после экспорта из GeoGebra в текущей сессии).
-  // Существующий чертёж отображается через URL файлового поля drawing_image.
+  // Существующий чертёж отображается через URL файлового поля geogebra_image_base64.
   const [ggbImageBase64, setGgbImageBase64] = useState(initialLegacyImage || '');
-  // Чертёж считается сохранённым если есть файл drawing_image, XML-состояние или legacy base64
+  // Чертёж считается сохранённым если есть PNG-файл или legacy/base64-данные.
   const [ggbSaved, setGgbSaved] = useState(!!(task?.drawing_image || task?.geogebra_base64 || task?.geogebra_image_base64));
   // URL существующего файла-чертежа (после миграции)
   const existingDrawingUrl = api.getGeometryImageUrl(task);
@@ -271,7 +291,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       }
 
       // Конвертируем in-memory PNG в File для загрузки в PocketBase file storage.
-      // Если новый чертёж не генерировался — drawing_image не включаем (сохраняется существующий файл).
+      // Если новый чертёж не генерировался — поле файла не включаем (сохраняется существующий файл).
       let drawingImageFile = null;
       if (ggbImageBase64) {
         try {
@@ -285,18 +305,28 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         }
       }
 
+      // Всегда берём актуальное состояние GeoGebra из апплета при сохранении задачи,
+      // чтобы при следующем редактировании чертёж сразу восстановился.
+      const liveGgbBase64 = await getGeoGebraBase64(ggbApiRef.current);
+      const finalGgbBase64 = liveGgbBase64 || ggbBase64 || '';
+      if (finalGgbBase64 !== ggbBase64) {
+        setGgbBase64(finalGgbBase64);
+      }
+
       payload = {
         code: normalizedCode,
         title: values.title || '',
+        // В текущей схеме PB поле task_type валидируется на update.
+        // Сохраняем существующее значение (или пустую строку как в текущих данных).
+        task_type: task?.task_type ?? '',
         topic: values.topic || null,
         subtopic: values.subtopic || null,
         difficulty: values.difficulty || null,
         statement_md: values.statement_md || '',
         answer: values.answer || '',
         solution_md: values.solution_md || '',
-        geogebra_base64: ggbBase64 || '',
-        // geogebra_image_base64 не пишем — изображение хранится в файловом поле drawing_image
-        geogebra_svg: '',
+        geogebra_base64: finalGgbBase64,
+        // PNG храним файлом в file field коллекции.
         geogebra_appname: appName,
         drawing_view: drawingView,
         source: values.source || '',
@@ -307,21 +337,96 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         },
       };
 
-      // Добавляем файл только если в этой сессии был экспортирован новый PNG
-      if (drawingImageFile) {
-        payload.drawing_image = drawingImageFile;
+      const saveWithPayload = async (p) => {
+        if (isCreate) {
+          await api.createGeometryTask(p);
+          return;
+        }
+        await api.updateGeometryTask(task.id, p);
+      };
+
+      const saveWithTaskTypeFallback = async (basePayload) => {
+        const typeCandidates = [
+          basePayload?.task_type,
+          'ready',
+          'build',
+          'mixed',
+        ]
+          .map((v) => (typeof v === 'string' ? v.trim() : v))
+          .filter((v) => typeof v === 'string' && v.length > 0);
+
+        const uniqueTypes = Array.from(new Set(typeCandidates));
+        const variants = [
+          ...uniqueTypes.map((taskType) => ({ ...basePayload, task_type: taskType })),
+          { ...basePayload, task_type: null },
+          (() => {
+            const next = { ...basePayload };
+            delete next.task_type;
+            return next;
+          })(),
+        ];
+
+        let lastError = null;
+        for (const candidate of variants) {
+          try {
+            await saveWithPayload(candidate);
+            return;
+          } catch (err) {
+            lastError = err;
+            const validation = getValidationData(err);
+            if (!validation?.task_type) {
+              throw err;
+            }
+          }
+        }
+        throw lastError;
+      };
+
+      if (!drawingImageFile) {
+        await saveWithTaskTypeFallback(payload);
+      } else {
+        const candidateFields = [];
+        if (hasOwn(task, 'geogebra_image_base64')) candidateFields.push('geogebra_image_base64');
+        if (hasOwn(task, 'drawing_image')) candidateFields.push('drawing_image');
+        if (candidateFields.length === 0) {
+          candidateFields.push('geogebra_image_base64', 'drawing_image');
+        }
+
+        let saved = false;
+        let lastError = null;
+
+        for (const fileField of candidateFields) {
+          const payloadWithFile = { ...payload };
+          payloadWithFile[fileField] = drawingImageFile;
+          if (fileField !== 'geogebra_image_base64') delete payloadWithFile.geogebra_image_base64;
+          if (fileField !== 'drawing_image') delete payloadWithFile.drawing_image;
+
+          try {
+            await saveWithTaskTypeFallback(payloadWithFile);
+            saved = true;
+            break;
+          } catch (err) {
+            lastError = err;
+            const validation = getValidationData(err);
+            const hasFieldValidationError = Boolean(
+              validation?.[fileField] || validation?.geogebra_image_base64 || validation?.drawing_image,
+            );
+            if (!hasFieldValidationError) {
+              throw err;
+            }
+          }
+        }
+
+        if (!saved && lastError) {
+          throw lastError;
+        }
       }
 
-      if (isCreate) {
-        await api.createGeometryTask(payload);
-        message.success('Задача создана');
-      } else {
-        await api.updateGeometryTask(task.id, payload);
-        message.success('Задача сохранена');
-      }
+      message.success(isCreate ? 'Задача создана' : 'Задача сохранена');
       onSaved();
     } catch (error) {
       console.error('Save error details:', error?.data);
+      console.dir(error?.data, { depth: 6 });
       console.error('Save payload was:', payload);
       const details = error?.data
         ? Object.entries(error.data)
@@ -891,12 +996,15 @@ function TabDrawing({
 
 // ── Вкладка 3: Макет ──────────────────────────────────────────────────────
 function TabLayout({ task, previewStatement, ggbImageBase64, layout, onLayoutChange, onReset }) {
+  const [layoutEditMode, setLayoutEditMode] = useState(true);
+  const [showAnswers, setShowAnswers] = useState(false);
+
   // Создаём mock-задачу для предпросмотра с актуальными данными из редактора
   const previewTask = useMemo(() => ({
     ...(task || {}),
     statement_md: previewStatement || task?.statement_md || '',
     // Если в этой сессии был экспортирован новый PNG — показываем его
-    ...(ggbImageBase64 ? { drawing_image: null, geogebra_image_base64: ggbImageBase64 } : {}),
+    ...(ggbImageBase64 ? { geogebra_image_base64: ggbImageBase64 } : {}),
   }), [task, previewStatement, ggbImageBase64]);
 
   return (
@@ -907,33 +1015,46 @@ function TabLayout({ task, previewStatement, ggbImageBase64, layout, onLayoutCha
         message="Расположение чертежа и условия для печатного листа A5. Перетаскивайте блоки мышью, тяните за угловые маркеры для изменения размера. Макет сохраняется вместе с задачей."
       />
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+        <Space wrap>
+          <Space size={8}>
+            <Switch checked={layoutEditMode} onChange={setLayoutEditMode} />
+            <Text>Редактировать макет</Text>
+          </Space>
+          <Space size={8}>
+            <Switch checked={showAnswers} onChange={setShowAnswers} />
+            <Text>Показывать ответ</Text>
+          </Space>
+          <Tag>Карточка A5</Tag>
+        </Space>
         <Button icon={<UndoOutlined />} onClick={onReset}>
           Сбросить по умолчанию
         </Button>
       </div>
 
       {/* Ячейка предпросмотра — масштаб как у одной ячейки на студенческом листе */}
-      <div
-        style={{
-          background: '#f0f5ff',
-          border: '1px solid #adc6ff',
-          borderRadius: 8,
-          padding: 16,
-          maxWidth: 520,
-          margin: '0 auto',
-        }}
-      >
-        <GeometryPreviewCard
-          task={previewTask}
-          index={0}
-          showAnswers={false}
-          mode="student"
-          drawingMode="task"
-          editable={true}
-          layout={layout}
-          onLayoutChange={onLayoutChange}
-        />
+      <div style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
+        <div
+          className="geometry-preview-grid a5"
+          style={{
+            gridTemplateColumns: '1fr',
+            gridTemplateRows: '1fr',
+            aspectRatio: String(PRINT_CELL_ASPECT_RATIO),
+            border: '1.5px solid #c0c0c0',
+            background: '#fff',
+          }}
+        >
+          <GeometryPreviewCard
+            task={previewTask}
+            index={0}
+            showAnswers={showAnswers}
+            mode="student"
+            drawingMode="task"
+            editable={layoutEditMode}
+            layout={layout}
+            onLayoutChange={onLayoutChange}
+          />
+        </div>
       </div>
 
       <Card

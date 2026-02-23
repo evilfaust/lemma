@@ -1376,16 +1376,16 @@ export const api = {
   // ─── Geometry Tasks ───────────────────────────────────────────────────────
 
   /**
-   * Возвращает URL файла-чертежа задачи (drawing_image).
-   * Если файлового поля нет — отдаёт legacy base64 (переходный период).
+   * Возвращает URL PNG-чертежа задачи (файл из PocketBase storage).
    */
   getGeometryImageUrl(task) {
-    if (task?.id && task?.drawing_image) {
-      return `${PB_BASE_URL}/api/files/geometry_tasks/${task.id}/${task.drawing_image}`;
+    const fileName = task?.geogebra_image_base64 || task?.drawing_image || '';
+
+    if (task?.id && fileName && !String(fileName).startsWith('data:image/')) {
+      return `${PB_BASE_URL}/api/files/geometry_tasks/${task.id}/${fileName}`;
     }
-    // Legacy fallback: PNG хранился прямо в поле geogebra_base64 до миграции на file-поле
-    const legacy = task?.geogebra_base64 || '';
-    return legacy.startsWith('data:image/') ? legacy : '';
+    // Для in-memory предпросмотра (до сохранения файла) допускаем data:image только из PNG-поля.
+    return String(fileName).startsWith('data:image/') ? fileName : '';
   },
 
   async getGeometryTasks(filters = {}) {
@@ -1412,7 +1412,7 @@ export const api = {
         'id', 'code', 'title', 'topic', 'subtopic', 'difficulty',
         'statement_md',  // нужен для быстрого предпросмотра
         'answer', 'hints', 'geogebra_appname', 'drawing_view', 'source', 'year',
-        'preview_layout', 'drawing_image', 'created', 'updated',
+        'preview_layout', 'geogebra_image_base64', 'drawing_image', 'created', 'updated',
         'expand.topic.id', 'expand.topic.title',
         'expand.subtopic.id', 'expand.subtopic.title',
         // geogebra_base64 (XML состояние, ~30-100KB) только в редакторе → getGeometryTask()

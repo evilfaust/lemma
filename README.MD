@@ -20,6 +20,14 @@
 - Создание задач через UI
 - Уникальные коды задач (формат: `14-001`, `M17-003`)
 
+### Модуль геометрии
+- Отдельный раздел задач геометрии с фильтрами по теме/подтеме/сложности
+- Два режима списка: `Таблица` и `Карточки` (переключатель в интерфейсе)
+- Быстрый просмотр задачи в модальном окне с редактированием макета (`Дано` и `Чертёж`)
+- Редактор GeoGebra: сохранение состояния `.ggb` + экспорт PNG-чертежа с кропом
+- PNG-чертеж хранится в PocketBase storage как file field (`geogebra_image_base64`)
+- Просмотр листа A5 (6 задач): ручная компоновка, drag&drop смены порядка задач, сквозная нумерация
+
 ### Генератор карточек
 - Случайная выборка задач по критериям
 - Три формата печати: A6 (4 на лист), A5 (2 на лист), A4 (1 на лист)
@@ -307,6 +315,46 @@ generation-test/
   image: file, has_image: boolean
 }
 ```
+
+### Коллекции геометрии (актуально для `task-ege.oipav.ru`)
+
+Подробная и проверенная схема production: **`SCHEMA_GEOMETRY.md`**.
+
+#### geometry_topics — Темы геометрии
+```javascript
+{
+  id, title, order
+}
+```
+
+#### geometry_subtopics — Подтемы геометрии
+```javascript
+{
+  id, title, topic: relation -> geometry_topics, order
+}
+```
+
+#### geometry_tasks — Геометрические задачи
+```javascript
+{
+  id, code, title,
+  topic: relation -> geometry_topics,
+  subtopic: relation -> geometry_subtopics,
+  difficulty: number(1-3),
+  task_type: "ready" | "build" | "mixed",   // optional
+  statement_md, answer, solution_md,
+  geogebra_base64: text,                     // .ggb состояние для повторного редактирования
+  geogebra_appname: "geometry"|"graphing"|"classic"|"3d",
+  geogebra_image_base64: file,               // PNG-чертеж (хранится в PocketBase storage)
+  drawing_view: "image" | "geogebra",
+  preview_layout: json,                      // например: { print: { image, text }, student?: { ... } }
+  hints: json,                               // обычно [] если подсказки не заполнялись
+  source, year, created, updated
+}
+```
+
+PNG URL:
+`{PB_URL}/api/files/geometry_tasks/{id}/{geogebra_image_base64}`
 
 #### cards — Сохранённые карточки
 ```javascript
@@ -658,6 +706,7 @@ Content-Type: application/json
 | Students | `registerStudent`, `loginStudent`, `logoutStudent`, `getStudents`, `updateStudent` |
 | Theory | `getTheoryCategories`, `getTheoryArticles`, `getTheoryArticle`, `createTheoryArticle`, `updateTheoryArticle`, `deleteTheoryArticle` |
 | Stats | `getUniqueYears`, `getUniqueSources`, `getTasksStatsSnapshot` |
+| Geometry | `getGeometryTopics`, `getGeometrySubtopics`, `getGeometryTasks`, `getGeometryTask`, `createGeometryTask`, `updateGeometryTask`, `deleteGeometryTask`, `getGeometryImageUrl`, `getGeometryPrintTests`, `createGeometryPrintTest`, `updateGeometryPrintTest`, `deleteGeometryPrintTest` |
 
 ## LaTeX справка
 
