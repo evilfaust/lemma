@@ -310,9 +310,17 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   const [layoutEdit, setLayoutEdit] = useState(false);
   const [layoutOverrides, setLayoutOverrides] = useState({ print: {}, student: {} });
   const [savingLayout, setSavingLayout] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState(null); // 'saving' | 'saved' | 'error' | null
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [savingPrintTest, setSavingPrintTest] = useState(false);
   const [currentPrintTest, setCurrentPrintTest] = useState(initialPrintTest);
+
+  // Refs для доступа к актуальным данным внутри setTimeout без stale closures
+  const autosaveTimerRef = useRef(null);
+  const layoutOverridesRef = useRef(layoutOverrides);
+  const taskLayoutsRef = useRef(null);
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
 
   // Заголовок листа — редактируется прямо в тулбаре, отображается сразу
   const [headerTopic, setHeaderTopic] = useState(initialPrintTest?.sheet_topic || '');
@@ -327,6 +335,63 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     });
     return initial;
   });
+
+  // Синхронизируем рефы с актуальным состоянием
+  layoutOverridesRef.current = layoutOverrides;
+  taskLayoutsRef.current = taskLayouts;
+
+  // Автосохранение layoutOverrides в БД после 800мс без изменений
+  const scheduleAutosave = useCallback((currentMode) => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setAutosaveStatus('saving');
+    autosaveTimerRef.current = setTimeout(async () => {
+      const modeOverrides = layoutOverridesRef.current[currentMode] || {};
+      const entries = Object.entries(modeOverrides);
+      if (entries.length === 0) { setAutosaveStatus(null); return; }
+
+      let okCount = 0;
+      let failCount = 0;
+      const allTasks = tasksRef.current;
+      const currentTaskLayouts = taskLayoutsRef.current;
+
+      for (const [taskKey, layoutForMode] of entries) {
+        const task = allTasks.find((t, idx) => (t?.id || t?.code || `slot-${idx}`) === taskKey);
+        if (!task?.id) continue;
+        try {
+          const existing = safeParseLayout(currentTaskLayouts[taskKey]) || {};
+          const nextPreviewLayout = {
+            ...existing,
+            [currentMode]: normalizeLayout(layoutForMode, currentMode),
+          };
+          await api.updateGeometryTask(task.id, { preview_layout: nextPreviewLayout });
+          okCount += 1;
+        } catch {
+          failCount += 1;
+        }
+      }
+
+      if (okCount > 0) {
+        setTaskLayouts((prev) => {
+          const next = { ...prev };
+          entries.forEach(([taskKey, layoutForMode]) => {
+            const existing = safeParseLayout(next[taskKey]) || {};
+            next[taskKey] = {
+              ...existing,
+              [currentMode]: normalizeLayout(layoutForMode, currentMode),
+            };
+          });
+          return next;
+        });
+        setLayoutOverrides((prev) => ({ ...prev, [currentMode]: {} }));
+        setAutosaveStatus('saved');
+        setTimeout(() => setAutosaveStatus((s) => (s === 'saved' ? null : s)), 3000);
+      } else if (failCount > 0) {
+        setAutosaveStatus('error');
+      } else {
+        setAutosaveStatus(null);
+      }
+    }, 800);
+  }, []);
 
   useEffect(() => {
     setCurrentPrintTest(initialPrintTest || null);
@@ -390,9 +455,12 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
         },
       };
     });
-  }, [mode]);
+    scheduleAutosave(mode);
+  }, [mode, scheduleAutosave]);
 
   const resetLayout = useCallback(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setAutosaveStatus(null);
     setLayoutOverrides((prev) => ({
       ...prev,
       [mode]: {},
@@ -541,14 +609,18 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
           >
             {currentPrintTest?.id ? 'Обновить лист A5' : 'Сохранить лист A5'}
           </Button>
-          <Button
-            type="primary"
-            onClick={handleSaveLayout}
-            loading={savingLayout}
-            disabled={pendingCount === 0}
-          >
-            Сохранить макет{pendingCount > 0 ? ` (${pendingCount})` : ''}
-          </Button>
+          {autosaveStatus === 'saving' && <Tag color="processing">Сохранение макета…</Tag>}
+          {autosaveStatus === 'saved' && <Tag color="success">Макет сохранён ✓</Tag>}
+          {autosaveStatus === 'error' && (
+            <Button
+              type="primary"
+              onClick={handleSaveLayout}
+              loading={savingLayout}
+              disabled={pendingCount === 0}
+            >
+              Сохранить макет{pendingCount > 0 ? ` (${pendingCount})` : ''}
+            </Button>
+          )}
           <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
             Печать
           </Button>

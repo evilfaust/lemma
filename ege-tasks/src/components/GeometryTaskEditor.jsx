@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -18,16 +18,17 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined,
-  BulbOutlined,
   DeleteOutlined,
   FullscreenExitOutlined,
   FullscreenOutlined,
-  PlusOutlined,
   SaveOutlined,
+  UndoOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import GeoGebraApplet from './GeoGebraApplet';
 import MathRenderer from './MathRenderer';
+import { GeometryPreviewCard, normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
+import './GeometryTaskPreview.css';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
@@ -114,10 +115,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
   const [cropMargins, setCropMargins] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
   const [croppingImage, setCroppingImage] = useState(false);
 
-  // ── Состояние подсказок ───────────────────────────────────────────────────
-  const [hints, setHints] = useState(
-    Array.isArray(task?.hints) ? task.hints : [],
-  );
+  // ── Состояние макета (для печатного листа A5) ─────────────────────────────
+  const [layoutPrint, setLayoutPrint] = useState(() => {
+    const persisted = safeParseLayout(task?.preview_layout)?.print ?? null;
+    return normalizeLayout(persisted, 'print');
+  });
 
   // ── Предпросмотры текстов ─────────────────────────────────────────────────
   const [previewStatement, setPreviewStatement] = useState(task?.statement_md || '');
@@ -230,18 +232,17 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     }
   }, [cropMargins, ggbImageBase64]);
 
-  // ── Управление подсказками ─────────────────────────────────────────────────
-  const addHint = () => {
-    setHints((prev) => [...prev, { order: prev.length + 1, text_md: '' }]);
-  };
+  // ── Управление макетом ────────────────────────────────────────────────────
+  const handleEditorLayoutChange = useCallback((layerName, patch) => {
+    setLayoutPrint((prev) => normalizeLayout({
+      ...prev,
+      [layerName]: { ...prev[layerName], ...patch },
+    }, 'print'));
+  }, []);
 
-  const removeHint = (index) => {
-    setHints((prev) => prev.filter((_, i) => i !== index).map((h, i) => ({ ...h, order: i + 1 })));
-  };
-
-  const updateHint = (index, text_md) => {
-    setHints((prev) => prev.map((h, i) => (i === index ? { ...h, text_md } : h)));
-  };
+  const handleEditorLayoutReset = useCallback(() => {
+    setLayoutPrint(normalizeLayout(null, 'print'));
+  }, []);
 
   // ── Генерация кода ────────────────────────────────────────────────────────
   const generateCode = () => {
@@ -298,9 +299,12 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         geogebra_svg: '',
         geogebra_appname: appName,
         drawing_view: drawingView,
-        hints: hints.filter((h) => h.text_md.trim()),
         source: values.source || '',
         year: values.year || null,
+        preview_layout: {
+          ...(safeParseLayout(task?.preview_layout) || {}),
+          print: layoutPrint,
+        },
       };
 
       // Добавляем файл только если в этой сессии был экспортирован новый PNG
@@ -410,21 +414,16 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       />,
     },
     {
-      key: 'hints',
+      key: 'layout',
       forceRender: true,
-      label: (
-        <span>
-          Подсказки{' '}
-          {hints.length > 0 && (
-            <Tag style={{ marginLeft: 4, fontSize: 11 }}>{hints.length}</Tag>
-          )}
-        </span>
-      ),
-      children: <TabHints
-        hints={hints}
-        onAdd={addHint}
-        onRemove={removeHint}
-        onChange={updateHint}
+      label: 'Макет',
+      children: <TabLayout
+        task={task}
+        previewStatement={previewStatement}
+        ggbImageBase64={ggbImageBase64}
+        layout={layoutPrint}
+        onLayoutChange={handleEditorLayoutChange}
+        onReset={handleEditorLayoutReset}
       />,
     },
     {
@@ -890,71 +889,61 @@ function TabDrawing({
   );
 }
 
-// ── Вкладка 3: Подсказки ─────────────────────────────────────────────────
-function TabHints({ hints, onAdd, onRemove, onChange }) {
+// ── Вкладка 3: Макет ──────────────────────────────────────────────────────
+function TabLayout({ task, previewStatement, ggbImageBase64, layout, onLayoutChange, onReset }) {
+  // Создаём mock-задачу для предпросмотра с актуальными данными из редактора
+  const previewTask = useMemo(() => ({
+    ...(task || {}),
+    statement_md: previewStatement || task?.statement_md || '',
+    // Если в этой сессии был экспортирован новый PNG — показываем его
+    ...(ggbImageBase64 ? { drawing_image: null, geogebra_image_base64: ggbImageBase64 } : {}),
+  }), [task, previewStatement, ggbImageBase64]);
+
   return (
-    <Space direction="vertical" size={12} style={{ width: '100%', padding: '16px 0' }}>
+    <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
       <Alert
         type="info"
         showIcon
-        icon={<BulbOutlined />}
-        message="Подсказки показываются по одной. Студент сам решает, когда раскрывать следующую."
+        message="Расположение чертежа и условия для печатного листа A5. Перетаскивайте блоки мышью, тяните за угловые маркеры для изменения размера. Макет сохраняется вместе с задачей."
       />
 
-      {hints.map((hint, index) => (
-        <Card
-          key={index}
-          size="small"
-          title={
-            <Space>
-              <BulbOutlined style={{ color: '#faad14' }} />
-              <span>Подсказка {index + 1}</span>
-            </Space>
-          }
-          extra={
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              size="small"
-              onClick={() => onRemove(index)}
-            />
-          }
-        >
-          <TextArea
-            value={hint.text_md}
-            onChange={(e) => onChange(index, e.target.value)}
-            rows={3}
-            placeholder="Подсказка в Markdown + LaTeX. Например: Воспользуйтесь теоремой о средней линии: $KL = \frac{MN}{2}$"
-          />
-          {hint.text_md && (
-            <div
-              style={{
-                marginTop: 8,
-                padding: '8px 12px',
-                background: '#fffbe6',
-                borderRadius: 6,
-                borderLeft: '3px solid #faad14',
-              }}
-            >
-              <MathRenderer text={hint.text_md} />
-            </div>
-          )}
-        </Card>
-      ))}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <Button icon={<UndoOutlined />} onClick={onReset}>
+          Сбросить по умолчанию
+        </Button>
+      </div>
 
-      {hints.length === 0 && (
-        <Card
-          size="small"
-          styles={{ body: { textAlign: 'center', padding: 24, color: '#aaa' } }}
-        >
-          Подсказок пока нет. Добавьте первую.
-        </Card>
-      )}
+      {/* Ячейка предпросмотра — масштаб как у одной ячейки на студенческом листе */}
+      <div
+        style={{
+          background: '#f0f5ff',
+          border: '1px solid #adc6ff',
+          borderRadius: 8,
+          padding: 16,
+          maxWidth: 520,
+          margin: '0 auto',
+        }}
+      >
+        <GeometryPreviewCard
+          task={previewTask}
+          index={0}
+          showAnswers={false}
+          mode="student"
+          drawingMode="task"
+          editable={true}
+          layout={layout}
+          onLayoutChange={onLayoutChange}
+        />
+      </div>
 
-      <Button icon={<PlusOutlined />} onClick={onAdd} block>
-        Добавить подсказку
-      </Button>
+      <Card
+        size="small"
+        styles={{ body: { padding: '10px 16px', color: '#888', fontSize: 12, lineHeight: 1.6 } }}
+      >
+        <strong>Как это работает:</strong> здесь задаётся расположение блоков на ячейке листа A5.
+        При формировании листа позиции берутся из этого макета автоматически — ничего не нужно
+        настраивать заново. При необходимости тонкую настройку можно сделать прямо на листе A5.
+      </Card>
     </Space>
   );
 }
