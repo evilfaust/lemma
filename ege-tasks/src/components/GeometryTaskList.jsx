@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   App,
   Badge,
@@ -15,12 +15,15 @@ import {
   Typography,
 } from 'antd';
 import {
+  CheckCircleOutlined,
   DeleteOutlined,
   EyeOutlined,
   EditOutlined,
   FolderOpenOutlined,
+  LoadingOutlined,
   PlusOutlined,
   ReloadOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import GeometryTaskEditor from './GeometryTaskEditor';
@@ -56,8 +59,17 @@ export default function GeometryTaskList() {
   const [quickPreviewTask, setQuickPreviewTask] = useState(null);
   const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
   const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
-  const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(false);
-  const [quickPreviewSaving, setQuickPreviewSaving] = useState(false);
+  const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(true);
+  // null | 'saving' | 'saved' | 'error'
+  const [autosaveStatus, setAutosaveStatus] = useState(null);
+  // Реф нужен чтобы не ловить stale closure в setTimeout — quickPreviewTask может меняться
+  const quickPreviewTaskRef = useRef(null);
+  const autosaveTimerRef = useRef(null);
+
+  // Синхронизируем реф с актуальным quickPreviewTask чтобы автосохранение всегда видело свежий объект
+  useEffect(() => {
+    quickPreviewTaskRef.current = quickPreviewTask;
+  }, [quickPreviewTask]);
 
   // Загружаем справочники один раз
   useEffect(() => {
@@ -158,43 +170,48 @@ export default function GeometryTaskList() {
   };
 
   const closeQuickPreview = () => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     setQuickPreviewOpen(false);
     setQuickPreviewTask(null);
+    setAutosaveStatus(null);
   };
 
-  const handleQuickLayoutChange = (layerName, patch) => {
-    setQuickPreviewLayout((prev) => normalizeLayout({
-      ...prev,
-      [layerName]: {
-        ...prev[layerName],
-        ...patch,
-      },
-    }, 'print'));
-  };
+  // Автосохраняет макет в БД через 800ms после последнего изменения.
+  // Принимает готовый nextLayout чтобы не зависеть от stale state.
+  const scheduleAutosave = useCallback((nextLayout) => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    setAutosaveStatus('saving');
+    autosaveTimerRef.current = setTimeout(async () => {
+      const task = quickPreviewTaskRef.current;
+      if (!task?.id) { setAutosaveStatus(null); return; }
+      try {
+        const existing = safeParseLayout(task.preview_layout) || {};
+        const nextPreviewLayout = { ...existing, print: nextLayout };
+        await api.updateGeometryTask(task.id, { preview_layout: nextPreviewLayout });
+        // Обновляем список задач и сам объект предпросмотра с новым layout
+        setTasks((prev) => prev.map((t) => (
+          t.id === task.id ? { ...t, preview_layout: nextPreviewLayout } : t
+        )));
+        setQuickPreviewTask((prev) => prev ? { ...prev, preview_layout: nextPreviewLayout } : prev);
+        setAutosaveStatus('saved');
+        // Гасим статус через 2.5с
+        setTimeout(() => setAutosaveStatus((s) => (s === 'saved' ? null : s)), 2500);
+      } catch {
+        setAutosaveStatus('error');
+      }
+    }, 800);
+  }, []);
 
-  const handleQuickSaveLayout = async () => {
-    if (!quickPreviewTask?.id) return;
-    setQuickPreviewSaving(true);
-    try {
-      const existing = safeParseLayout(quickPreviewTask.preview_layout) || {};
-      const nextPreviewLayout = {
-        ...existing,
-        print: normalizeLayout(quickPreviewLayout, 'print'),
-      };
-      await api.updateGeometryTask(quickPreviewTask.id, { preview_layout: nextPreviewLayout });
-      setTasks((prev) => prev.map((item) => (
-        item.id === quickPreviewTask.id
-          ? { ...item, preview_layout: nextPreviewLayout }
-          : item
-      )));
-      setQuickPreviewTask((prev) => prev ? { ...prev, preview_layout: nextPreviewLayout } : prev);
-      message.success('Макет задачи сохранён');
-    } catch {
-      message.error('Не удалось сохранить макет задачи');
-    } finally {
-      setQuickPreviewSaving(false);
-    }
-  };
+  const handleQuickLayoutChange = useCallback((layerName, patch) => {
+    setQuickPreviewLayout((prev) => {
+      const next = normalizeLayout(
+        { ...prev, [layerName]: { ...prev[layerName], ...patch } },
+        'print',
+      );
+      scheduleAutosave(next);
+      return next;
+    });
+  }, [scheduleAutosave]);
 
   const openSavedSheets = async () => {
     setSavedSheetsOpen(true);
@@ -528,26 +545,36 @@ export default function GeometryTaskList() {
         open={quickPreviewOpen}
         onCancel={closeQuickPreview}
         width={760}
-        okText={quickPreviewEditMode ? 'Сохранить макет' : 'Закрыть'}
-        onOk={quickPreviewEditMode ? handleQuickSaveLayout : closeQuickPreview}
-        okButtonProps={{
-          loading: quickPreviewSaving,
-          disabled: quickPreviewEditMode && !quickPreviewTask,
-        }}
-        cancelText="Закрыть"
+        footer={[
+          <Button key="close" onClick={closeQuickPreview}>Закрыть</Button>,
+        ]}
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Space wrap>
-            <Space size={8}>
-              <Switch checked={quickPreviewEditMode} onChange={setQuickPreviewEditMode} />
-              <Text>Редактировать макет</Text>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+            <Space wrap>
+              <Space size={8}>
+                <Switch checked={quickPreviewEditMode} onChange={setQuickPreviewEditMode} />
+                <Text>Редактировать макет</Text>
+              </Space>
+              <Space size={8}>
+                <Switch checked={quickPreviewShowAnswers} onChange={setQuickPreviewShowAnswers} />
+                <Text>Показывать ответ</Text>
+              </Space>
+              <Tag>Карточка A5</Tag>
             </Space>
-            <Space size={8}>
-              <Switch checked={quickPreviewShowAnswers} onChange={setQuickPreviewShowAnswers} />
-              <Text>Показывать ответ</Text>
-            </Space>
-            <Tag>Карточка A5</Tag>
-          </Space>
+            {/* Индикатор автосохранения */}
+            <span style={{ fontSize: 12, minWidth: 110, textAlign: 'right' }}>
+              {autosaveStatus === 'saving' && (
+                <Text type="secondary"><LoadingOutlined style={{ marginRight: 4 }} />Сохраняется…</Text>
+              )}
+              {autosaveStatus === 'saved' && (
+                <Text style={{ color: '#52c41a' }}><CheckCircleOutlined style={{ marginRight: 4 }} />Сохранено</Text>
+              )}
+              {autosaveStatus === 'error' && (
+                <Text type="danger"><WarningOutlined style={{ marginRight: 4 }} />Ошибка сохранения</Text>
+              )}
+            </span>
+          </div>
 
           <div style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
             <div
