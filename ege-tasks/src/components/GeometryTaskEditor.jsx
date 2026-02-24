@@ -96,12 +96,6 @@ const getGeoGebraBase64 = (ggbApi) => new Promise((resolve) => {
   }
 });
 
-const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj || {}, key);
-const getValidationData = (err) => {
-  if (!err || typeof err !== 'object') return {};
-  return err?.data?.data || err?.data || err?.response?.data || {};
-};
-
 /**
  * Редактор геометрической задачи.
  *
@@ -316,9 +310,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       payload = {
         code: normalizedCode,
         title: values.title || '',
-        // В текущей схеме PB поле task_type валидируется на update.
-        // Сохраняем существующее значение (или пустую строку как в текущих данных).
-        task_type: task?.task_type ?? '',
+        // task_type: select field, допустимые значения: "ready"|"build"|"mixed" или пустая строка
+        task_type: task?.task_type || '',
         topic: values.topic || null,
         subtopic: values.subtopic || null,
         difficulty: values.difficulty || null,
@@ -326,7 +319,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         answer: values.answer || '',
         solution_md: values.solution_md || '',
         geogebra_base64: finalGgbBase64,
-        // PNG храним файлом в file field коллекции.
         geogebra_appname: appName,
         drawing_view: drawingView,
         source: values.source || '',
@@ -337,89 +329,15 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         },
       };
 
-      const saveWithPayload = async (p) => {
-        if (isCreate) {
-          await api.createGeometryTask(p);
-          return;
-        }
-        await api.updateGeometryTask(task.id, p);
-      };
+      // Файл чертежа — единственное файловое поле: geogebra_image_base64
+      if (drawingImageFile) {
+        payload.geogebra_image_base64 = drawingImageFile;
+      }
 
-      const saveWithTaskTypeFallback = async (basePayload) => {
-        const typeCandidates = [
-          basePayload?.task_type,
-          'ready',
-          'build',
-          'mixed',
-        ]
-          .map((v) => (typeof v === 'string' ? v.trim() : v))
-          .filter((v) => typeof v === 'string' && v.length > 0);
-
-        const uniqueTypes = Array.from(new Set(typeCandidates));
-        const variants = [
-          ...uniqueTypes.map((taskType) => ({ ...basePayload, task_type: taskType })),
-          { ...basePayload, task_type: null },
-          (() => {
-            const next = { ...basePayload };
-            delete next.task_type;
-            return next;
-          })(),
-        ];
-
-        let lastError = null;
-        for (const candidate of variants) {
-          try {
-            await saveWithPayload(candidate);
-            return;
-          } catch (err) {
-            lastError = err;
-            const validation = getValidationData(err);
-            if (!validation?.task_type) {
-              throw err;
-            }
-          }
-        }
-        throw lastError;
-      };
-
-      if (!drawingImageFile) {
-        await saveWithTaskTypeFallback(payload);
+      if (isCreate) {
+        await api.createGeometryTask(payload);
       } else {
-        const candidateFields = [];
-        if (hasOwn(task, 'geogebra_image_base64')) candidateFields.push('geogebra_image_base64');
-        if (hasOwn(task, 'drawing_image')) candidateFields.push('drawing_image');
-        if (candidateFields.length === 0) {
-          candidateFields.push('geogebra_image_base64', 'drawing_image');
-        }
-
-        let saved = false;
-        let lastError = null;
-
-        for (const fileField of candidateFields) {
-          const payloadWithFile = { ...payload };
-          payloadWithFile[fileField] = drawingImageFile;
-          if (fileField !== 'geogebra_image_base64') delete payloadWithFile.geogebra_image_base64;
-          if (fileField !== 'drawing_image') delete payloadWithFile.drawing_image;
-
-          try {
-            await saveWithTaskTypeFallback(payloadWithFile);
-            saved = true;
-            break;
-          } catch (err) {
-            lastError = err;
-            const validation = getValidationData(err);
-            const hasFieldValidationError = Boolean(
-              validation?.[fileField] || validation?.geogebra_image_base64 || validation?.drawing_image,
-            );
-            if (!hasFieldValidationError) {
-              throw err;
-            }
-          }
-        }
-
-        if (!saved && lastError) {
-          throw lastError;
-        }
+        await api.updateGeometryTask(task.id, payload);
       }
 
       message.success(isCreate ? 'Задача создана' : 'Задача сохранена');

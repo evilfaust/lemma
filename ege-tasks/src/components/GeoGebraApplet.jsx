@@ -109,28 +109,31 @@ export default function GeoGebraApplet({
         await loadGeoGebraScript();
         if (disposed || !containerRef.current || !window.GGBApplet) return;
 
-        const waitForVisibleWidth = async () => {
-          if (width) return width;
+        const waitForVisibleWidth = () => {
+          if (width) return Promise.resolve(width);
+          const el = containerRef.current;
+          if (el?.offsetWidth > 0) return Promise.resolve(el.offsetWidth);
+
           return new Promise((resolve) => {
-            let attempts = 0;
-            const tick = () => {
+            const observer = new ResizeObserver((entries) => {
               if (disposed) {
+                observer.disconnect();
                 resolve(0);
                 return;
               }
-              const measured = containerRef.current?.offsetWidth || 0;
-              if (measured > 0) {
-                resolve(measured);
-                return;
+              const w = entries[0]?.contentRect?.width || 0;
+              if (w > 0) {
+                observer.disconnect();
+                resolve(w);
               }
-              attempts += 1;
-              if (attempts > 180) {
-                resolve(0);
-                return;
-              }
-              requestAnimationFrame(tick);
-            };
-            tick();
+            });
+            observer.observe(el);
+
+            // Fallback — если элемент так и не появится
+            setTimeout(() => {
+              observer.disconnect();
+              resolve(el?.offsetWidth || 0);
+            }, 5000);
           });
         };
 
