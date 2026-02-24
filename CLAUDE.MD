@@ -37,7 +37,7 @@
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 
-Текущая версия: **3.6.4** (февраль 2026)
+Текущая версия: **3.6.5** (февраль 2026)
 
 ## Tech Stack
 
@@ -84,7 +84,7 @@ generation-test/
 │   │   │   └── student/          # Student-facing components (7)
 │   │   ├── hooks/                # Custom React hooks (12)
 │   │   ├── services/             # API services (pocketbase.js)
-│   │   ├── utils/                # Utility functions (9)
+│   │   ├── utils/                # Utility functions (10)
 │   │   ├── contexts/             # React contexts (ReferenceDataContext)
 │   │   ├── App.jsx               # Teacher interface + routing
 │   │   └── main.jsx              # Entry point (dual routing)
@@ -117,7 +117,7 @@ generation-test/
 - `TaskList.jsx` - Main task list with filtering, sorting, bulk operations, external filter support
 - `TaskCard.jsx` - Individual task card display
 - `TaskFilters.jsx` - Filter panel (topic, subtopic, tag, difficulty, year, source, image)
-- `TaskEditModal.jsx` - Task editing modal with metadata
+- `TaskEditModal.jsx` - Task editing modal with metadata, image support (URL / file upload / GeoGebra drawing with crop)
 - `TaskReplaceModal.jsx` - Modal for replacing tasks in variants (with duplicate exclusion)
 - `TaskSelectModal.jsx` - Modal for selecting tasks from catalog
 - `TaskImporter.jsx` - Import tasks from markdown/YAML/sdamgia.ru
@@ -152,6 +152,7 @@ generation-test/
 - `GeometryTaskPreview.jsx` - A5 print preview (6 tasks/page) + student view; drag&drop reordering in preview mode, continuous numbering; exports `GeometryPreviewCard`, `normalizeLayout`, etc.
 - `GeometryTaskPreview.css` - Styles for geometry preview (absolute-% layer positioning)
 - `GeoGebraApplet.jsx` - GeoGebra applet wrapper (geometry/graphing/classic/3d)
+- `GeoGebraDrawingPanel.jsx` - Simplified GeoGebra drawing panel (PNG export + crop, no state saving; used in TaskEditModal)
 - `geometry/SaveGeometryPrintModal.jsx` / `LoadGeometryPrintModal.jsx` - Save/load A5 print sheets
 
 **Student Progress:**
@@ -207,6 +208,7 @@ generation-test/
 - `shuffle.js` - Fisher-Yates shuffle
 - `escapeFilter.js` - Escape PocketBase filter strings
 - `normalize.js` - Text normalization
+- `cropImage.js` - PNG crop utilities (clamp, normalizeCrop, loadImage, cropPngByMargins, dataUrlToFile)
 
 ## Database Collections (PocketBase)
 
@@ -459,7 +461,7 @@ Key function groups:
 
 - `README.MD` - Полное руководство пользователя
 - `ARCHITECTURE.md` - Архитектура проекта
-- `CHANGELOG.md` - История изменений (v1.0 → v3.6.2)
+- `CHANGELOG.md` - История изменений (v1.0 → v3.6.5)
 - `DATABASE_SAFETY.md` - Правила безопасности БД
 - `BACKUP_GUIDE.md` - Руководство по бэкапам
 - `PDF_EXPORT_UPGRADE.md` - PDF экспорт через Puppeteer

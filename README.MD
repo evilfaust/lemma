@@ -14,6 +14,8 @@
 - Просмотр и фильтрация задач по темам, подтемам, тегам, сложности, источникам, годам, наличию изображений
 - Поддержка LaTeX (KaTeX) и Markdown (GFM) для математических формул и форматирования
 - Редактирование задач в интерфейсе (условие, ответ, решение, пояснение, метаданные)
+- Три способа добавления изображений: по ссылке, загрузка с компьютера, рисование в GeoGebra
+- Обрезка изображений (слайдеры по 4 сторонам, визуальный предпросмотр)
 - Система тегов с цветовой маркировкой
 - Массовые операции: добавление/замена тегов, изменение сложности, источника, темы, подтем, удаление
 - Импорт задач из Markdown-файлов и sdamgia.ru
@@ -166,11 +168,11 @@
 generation-test/
 ├── ege-tasks/                    # Frontend (React + Vite)
 │   ├── src/
-│   │   ├── components/           # React компоненты
+│   │   ├── components/           # React компоненты (29)
 │   │   │   ├── TaskList.jsx              # Список задач с фильтрацией
 │   │   │   ├── TaskCard.jsx              # Карточка задачи
 │   │   │   ├── TaskFilters.jsx           # Панель фильтров
-│   │   │   ├── TaskEditModal.jsx         # Редактирование задачи
+│   │   │   ├── TaskEditModal.jsx         # Редактирование задачи (3 режима изображений)
 │   │   │   ├── TaskReplaceModal.jsx      # Замена задачи в варианте
 │   │   │   ├── TaskSelectModal.jsx       # Выбор задачи из каталога
 │   │   │   ├── TaskStatsDashboard.jsx    # Дашборд статистики
@@ -185,12 +187,19 @@ generation-test/
 │   │   │   ├── WorkManager.jsx           # Менеджер сохранённых работ
 │   │   │   ├── PrintableWorksheet.jsx    # Печатная форма
 │   │   │   ├── StudentProgressDashboard.jsx # Прогресс учеников (учитель)
+│   │   │   ├── AchievementManager.jsx    # Управление достижениями
+│   │   │   ├── GeometryTaskList.jsx      # Список задач геометрии
+│   │   │   ├── GeometryTaskEditor.jsx    # Редактор задач геометрии (GeoGebra)
+│   │   │   ├── GeometryTaskPreview.jsx   # A5-печать геометрии + drag&drop
+│   │   │   ├── GeometryTaskPreview.css   # Стили геометрии (absolute-% layout)
+│   │   │   ├── GeoGebraApplet.jsx        # Обёртка GeoGebra (geometry/graphing/classic/3d)
+│   │   │   ├── GeoGebraDrawingPanel.jsx  # Упрощённая панель рисования (PNG only)
 │   │   │   ├── TheoryBrowser.jsx         # Просмотр теории
 │   │   │   ├── TheoryEditor.jsx          # Редактор теории (Monaco)
 │   │   │   ├── TheoryArticleView.jsx     # Просмотр статьи
 │   │   │   ├── TheoryCategoryManager.jsx # Категории теории
 │   │   │   ├── TheoryPrintBuilder.jsx    # Конструктор конспектов
-│   │   │   ├── catalog/                  # Подкомпоненты каталога
+│   │   │   ├── catalog/                  # Подкомпоненты каталога (7)
 │   │   │   │   ├── TopicTab.jsx
 │   │   │   │   ├── SubtopicTab.jsx
 │   │   │   │   ├── TagTab.jsx
@@ -198,7 +207,11 @@ generation-test/
 │   │   │   │   ├── OtherTab.jsx
 │   │   │   │   ├── DuplicateTab.jsx
 │   │   │   │   └── MergeModal.jsx
-│   │   │   ├── worksheet/                # Переиспользуемые компоненты
+│   │   │   ├── geometry/                 # Подкомпоненты геометрии (3)
+│   │   │   │   ├── SaveGeometryPrintModal.jsx  # Сохранение листа A5
+│   │   │   │   ├── LoadGeometryPrintModal.jsx  # Загрузка листа A5
+│   │   │   │   └── GeometryTopicManager.jsx    # Управление темами геометрии
+│   │   │   ├── worksheet/                # Переиспользуемые компоненты (12)
 │   │   │   │   ├── FilterBlock.jsx       # Блок фильтров
 │   │   │   │   ├── VariantSettings.jsx   # Настройки вариантов
 │   │   │   │   ├── FormatSettings.jsx    # Настройки форматирования
@@ -211,15 +224,15 @@ generation-test/
 │   │   │   │   ├── LoadWorkModal.jsx     # Загрузка работы
 │   │   │   │   ├── SessionPanel.jsx      # Панель сессии
 │   │   │   │   └── TeacherResultsDashboard.jsx # Результаты учеников
-│   │   │   └── student/                  # Компоненты ученика
+│   │   │   └── student/                  # Компоненты ученика (7)
+│   │   │       ├── StudentApp.jsx        # Корневой компонент ученика
 │   │   │       ├── StudentAuthPage.jsx   # Авторизация
 │   │   │       ├── StudentEntryPage.jsx  # Стартовая страница теста
 │   │   │       ├── StudentTestPage.jsx   # Прохождение теста
 │   │   │       ├── StudentResultPage.jsx # Результаты
 │   │   │       ├── AchievementBadge.jsx  # Бейдж достижения
-│   │   │       ├── AchievementGallery.jsx # Галерея достижений
-│   │   │       └── StudentApp.jsx        # Корневой компонент ученика
-│   │   ├── hooks/                # Custom React hooks (12)
+│   │   │       └── AchievementGallery.jsx # Галерея достижений
+│   │   ├── hooks/                # Custom React hooks (13)
 │   │   │   ├── useWorksheetGeneration.js # Генерация вариантов
 │   │   │   ├── useTaskDragDrop.js        # Drag & Drop
 │   │   │   ├── useWorksheetActions.js    # Печать, PDF, сохранение
@@ -231,13 +244,23 @@ generation-test/
 │   │   │   ├── useMarkdownProcessor.js   # Обработка Markdown
 │   │   │   ├── useAutosave.js            # Автосохранение
 │   │   │   ├── useKeyboardShortcuts.js   # Горячие клавиши
-│   │   │   └── useDocumentStats.js       # Статистика документа
-│   │   ├── services/
-│   │   │   ├── pocketbase.js             # API клиент (все запросы)
-│   │   │   └── pocketbaseUrl.js          # Базовый URL
-│   │   ├── utils/
+│   │   │   ├── useDocumentStats.js       # Статистика документа
+│   │   │   └── index.js                  # Реэкспорт хуков
+│   │   ├── shared/               # Общий код (teacher + student)
+│   │   │   ├── components/
+│   │   │   │   └── MathRenderer.jsx      # Рендерер LaTeX + Markdown
+│   │   │   ├── services/
+│   │   │   │   ├── pocketbase.js         # API клиент (все запросы)
+│   │   │   │   └── pocketbaseUrl.js      # Базовый URL
+│   │   │   └── utils/
+│   │   │       ├── shuffle.js            # Fisher-Yates shuffle
+│   │   │       └── escapeFilter.js       # Экранирование фильтров PB
+│   │   ├── services/             # Реэкспорт из shared (обратная совместимость)
+│   │   │   └── pocketbase.js
+│   │   ├── utils/                # Утилиты (10)
 │   │   │   ├── achievementEngine.js      # Движок достижений
 │   │   │   ├── answerChecker.js          # Проверка ответов
+│   │   │   ├── cropImage.js              # Обрезка PNG (canvas, слайдеры)
 │   │   │   ├── filterTaskText.js         # Фильтр префиксов задач
 │   │   │   ├── taskCodeGenerator.js      # Генератор кодов задач
 │   │   │   ├── markdownTaskParser.js     # Парсер Markdown
@@ -247,9 +270,12 @@ generation-test/
 │   │   │   └── normalize.js              # Нормализация текста
 │   │   ├── contexts/
 │   │   │   └── ReferenceDataContext.jsx   # Глобальные справочники
+│   │   ├── teacher/
+│   │   │   └── main.jsx          # Точка входа учителя (index.html)
+│   │   ├── student/
+│   │   │   └── main.jsx          # Точка входа ученика (student.html)
 │   │   ├── App.jsx               # Учительский интерфейс + роутинг
-│   │   ├── App.css               # Стили
-│   │   └── main.jsx              # Точка входа (dual routing)
+│   │   └── App.css               # Стили
 │   ├── package.json
 │   └── vite.config.js
 │
@@ -312,7 +338,8 @@ generation-test/
   solution_md: text,         // Решение
   explanation_md: text,      // Пояснение
   source: string, year: number,
-  image: file, has_image: boolean
+  image: file, image_url: string,
+  has_image: boolean
 }
 ```
 
@@ -515,13 +542,13 @@ npm run migrate:task-images # Перенос внешних image_url в files t
 
 ### Сервисы
 
-| Сервис | URL | Описание |
-|--------|-----|----------|
-| PocketBase | https://task-ege.oipav.ru | Backend API |
-| PocketBase Admin | https://task-ege.oipav.ru/_/ | Админ-панель |
-| PDF Service | http://localhost:3001 | Генерация PDF |
-| Frontend | http://localhost:5173 | Учительский интерфейс |
-| Student | http://localhost:5173/student/{id} | Ученический интерфейс |
+| Сервис | URL (Dev) | URL (Production) | Описание |
+|--------|-----------|-------------------|----------|
+| PocketBase | — | https://task-ege.oipav.ru | Backend API |
+| PocketBase Admin | — | https://task-ege.oipav.ru/_/ | Админ-панель |
+| PDF Service | http://localhost:3001 | https://task-ege.oipav.ru/pdf | Генерация PDF |
+| Frontend | http://localhost:5173 | — | Учительский интерфейс |
+| Student | http://localhost:5173/student/{sessionId} | https://student.oipav.ru/student/{sessionId} | Ученический интерфейс |
 
 ### Остановка
 ```bash
@@ -537,6 +564,7 @@ npm run migrate:task-images # Перенос внешних image_url в files t
 | Каталог (из аналитики) | TaskCatalogManager | CRUD тем/подтем/тегов, дубликаты |
 | Устный счёт | OralWorksheetGenerator | Генератор листов устного счёта |
 | Контрольные | TestWorkGenerator | Генератор контрольных работ |
+| Работы | WorkManager | Список работ с фильтрами и архивом |
 | Редактор работ | WorkEditor | Редактирование сохранённых работ |
 | Прогресс учеников | StudentProgressDashboard | Обзор результатов учеников |
 | Импорт | TaskImporter | Импорт из Markdown и sdamgia.ru |
@@ -544,6 +572,7 @@ npm run migrate:task-images # Перенос внешних image_url в files t
 | Редактор теории | TheoryEditor | Создание/редактирование статей |
 | Конспекты | TheoryPrintBuilder | Конструктор конспектов для печати |
 | Категории | TheoryCategoryManager | Управление категориями теории |
+| Геометрия | GeometryTaskList | Задачи геометрии, GeoGebra, A5-печать |
 
 ## Поток тестирования учеников
 
@@ -568,6 +597,39 @@ npm run migrate:task-images # Перенос внешних image_url в files t
 13. Может разрешить
     повторную попытку
 ```
+
+## Деплой на VPS (147.45.158.148)
+
+### Архитектура
+
+```
+nginx (443) → task-ege.oipav.ru
+  /api/, /_/    → PocketBase (:8095)   systemd: pocketbase-ege
+  /pdf/         → PDF Service (:3001)  systemd: pdf-service-ege
+  Telegram Bot                         systemd: telegram-bot-ege
+
+nginx (443) → student.oipav.ru
+  /            → /var/www/student-ege/student.html  (SPA)
+```
+
+### Управление сервисами
+```bash
+# Статус
+systemctl status pocketbase-ege pdf-service-ege telegram-bot-ege
+
+# Перезапуск
+systemctl restart pocketbase-ege
+
+# Логи
+journalctl -u pocketbase-ege -f
+```
+
+### Деплой ученического интерфейса на VPS
+```bash
+./raspberry/deploy-student-to-vps.sh
+```
+
+Скрипт собирает `student.html` + ассеты и загружает через rsync в `/var/www/student-ege/`.
 
 ## Парсеры задач
 
@@ -630,7 +692,13 @@ tags: [Тег1, Тег2, Тег3]
 
 Безопасная процедура с двойным подтверждением и аварийным бэкапом перед восстановлением.
 
-### Автоматическое резервное копирование (macOS)
+### Автоматическое резервное копирование (VPS)
+Cron-задача на VPS выполняет бэкап каждые 6 часов (хранит до 20 последних копий):
+```
+Директория бэкапов: /opt/pocketbase/backups/
+```
+
+### Автоматическое резервное копирование (macOS, dev)
 LaunchAgent запускает бэкап каждый день в 02:00:
 ```bash
 # Активировать
@@ -644,13 +712,13 @@ launchctl list | grep egetasks
 
 ### Health Check
 ```
-GET http://localhost:3001/health
+GET https://task-ege.oipav.ru/pdf/health
 → { status: "ok", puppeteer: true }
 ```
 
 ### Генерация PDF
 ```
-POST http://localhost:3001/generate
+POST https://task-ege.oipav.ru/pdf/generate
 Content-Type: application/json
 
 {
@@ -669,7 +737,7 @@ Content-Type: application/json
 
 ### Парсинг sdamgia.ru
 ```
-POST http://localhost:3001/parse-sdamgia
+POST https://task-ege.oipav.ru/pdf/parse-sdamgia
 Content-Type: application/json
 
 { "url": "https://math-ege.sdamgia.ru/..." }
@@ -678,7 +746,7 @@ Content-Type: application/json
 
 ### Прокси загрузки изображений
 ```
-POST http://localhost:3001/fetch-image
+POST https://task-ege.oipav.ru/pdf/fetch-image
 Content-Type: application/json
 
 { "url": "https://..." }
@@ -753,6 +821,7 @@ Block:  $$\frac{a}{b}$$
 | [QUICK_START.md](QUICK_START.md) | Быстрый старт |
 | [START_GUIDE.md](START_GUIDE.md) | Подробный запуск |
 | [TEST_AND_COMMIT.md](TEST_AND_COMMIT.md) | Тестирование и коммиты |
+| [SCHEMA_GEOMETRY.md](SCHEMA_GEOMETRY.md) | Схема коллекций геометрии (production) |
 | [SDAMGIA_TABLE_PARSING.md](SDAMGIA_TABLE_PARSING.md) | Парсинг таблиц sdamgia.ru |
 
 ## Лицензия
