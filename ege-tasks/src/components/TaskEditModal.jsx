@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, App } from 'antd';
-import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { Modal, Form, Select, Input, InputNumber, Button, Slider, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App } from 'antd';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
+import GeoGebraDrawingPanel from './GeoGebraDrawingPanel';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
+import { dataUrlToFile, normalizeCrop, cropPngByMargins } from '../utils/cropImage';
 import { api } from '../services/pocketbase';
 
 const { Option } = Select;
@@ -27,6 +29,13 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [creatingSubtopic, setCreatingSubtopic] = useState(false);
   const [newTopicNumber, setNewTopicNumber] = useState(null);
   const [newTopicTitle, setNewTopicTitle] = useState('');
+  const [imageSource, setImageSource] = useState('url'); // 'url' | 'drawing' | 'upload'
+  const [drawingImageDataUrl, setDrawingImageDataUrl] = useState(null);
+  const [uploadedFile, setUploadedFile] = useState(null);       // File object
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState(''); // data URL для превью
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropMargins, setCropMargins] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
+  const [croppingImage, setCroppingImage] = useState(false);
   const [newSubtopicName, setNewSubtopicName] = useState('');
 
   // Определяем режим работы: создание или редактирование
@@ -144,6 +153,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         });
         setPreviewStatement(task.statement_md || '');
         setPreviewAnswer(task.answer || '');
+        // Если у задачи есть файл-изображение (image), показать режим загрузки
+        if (task.image && !task.image_url) {
+          setImageSource('upload');
+        } else {
+          setImageSource('url');
+        }
+        setDrawingImageDataUrl(null);
+        setUploadedFile(null);
+        setUploadPreviewUrl('');
       } else {
         // Режим создания - пустая форма
         form.resetFields();
@@ -152,6 +170,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         setPreviewAnswer('');
         setSelectedTopic(null);
         setFilteredSubtopics([]);
+        setImageSource('url');
+        setDrawingImageDataUrl(null);
+        setUploadedFile(null);
+        setUploadPreviewUrl('');
       }
     }
   }, [task, visible, form, allTopics, allSubtopics]);
@@ -278,9 +300,25 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         source: values.source || '',
         year: values.year || null,
         tags: values.tags || [],
-        image_url: values.image_url || '',
-        has_image: !!values.image_url,
       };
+
+      // Изображение: GeoGebra-чертёж, загруженный файл или URL
+      if (imageSource === 'drawing' && drawingImageDataUrl) {
+        taskData.image = dataUrlToFile(drawingImageDataUrl);
+        taskData.image_url = '';
+        taskData.has_image = true;
+      } else if (imageSource === 'upload' && uploadedFile) {
+        taskData.image = uploadedFile;
+        taskData.image_url = '';
+        taskData.has_image = true;
+      } else if (imageSource === 'url') {
+        taskData.image_url = values.image_url || '';
+        taskData.has_image = !!values.image_url;
+      } else {
+        // Режим upload/drawing без нового файла — сохраняем текущее состояние
+        taskData.image_url = '';
+        taskData.has_image = !!(task?.image);
+      }
 
       // В режиме создания добавляем код
       if (isCreateMode) {
@@ -574,14 +612,87 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           </Select>
         </Form.Item>
 
-        {/* URL изображения */}
-        <Form.Item
-          name="image_url"
-          label="URL изображения (опционально)"
-        >
-          <Input
-            placeholder="https://example.com/image.png"
+        {/* Изображение */}
+        <Form.Item label="Изображение (опционально)">
+          <Segmented
+            value={imageSource}
+            onChange={(val) => setImageSource(val)}
+            options={[
+              { value: 'url', label: 'По ссылке', icon: <LinkOutlined /> },
+              { value: 'upload', label: 'Загрузить', icon: <UploadOutlined /> },
+              { value: 'drawing', label: 'Нарисовать', icon: <HighlightOutlined /> },
+            ]}
+            style={{ marginBottom: 12 }}
           />
+
+          {imageSource === 'url' && (
+            <Form.Item name="image_url" noStyle>
+              <Input placeholder="https://example.com/image.png" />
+            </Form.Item>
+          )}
+
+          {imageSource === 'upload' && (
+            <div>
+              {/* Превью существующего или только что загруженного */}
+              {(uploadPreviewUrl || (task?.image && !uploadedFile)) && (
+                <div style={{ marginBottom: 12, border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, textAlign: 'center' }}>
+                  <img
+                    src={uploadPreviewUrl || api.getTaskImageUrl(task)}
+                    alt="Изображение"
+                    style={{ maxWidth: '100%', maxHeight: 200, display: 'block', margin: '0 auto' }}
+                  />
+                </div>
+              )}
+              <Space wrap>
+                <Upload
+                  accept="image/*"
+                  maxCount={1}
+                  showUploadList={false}
+                  beforeUpload={(file) => {
+                    setUploadedFile(file);
+                    const reader = new FileReader();
+                    reader.onload = (e) => setUploadPreviewUrl(e.target.result);
+                    reader.readAsDataURL(file);
+                    return false;
+                  }}
+                >
+                  <Button icon={<UploadOutlined />}>Выбрать файл</Button>
+                </Upload>
+                <Button
+                  icon={<ScissorOutlined />}
+                  disabled={!uploadPreviewUrl}
+                  onClick={() => {
+                    setCropMargins({ left: 0, right: 0, top: 0, bottom: 0 });
+                    setCropModalOpen(true);
+                  }}
+                >
+                  Обрезать
+                </Button>
+              </Space>
+              {uploadedFile && (
+                <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>{uploadedFile.name}</div>
+              )}
+            </div>
+          )}
+
+          {imageSource === 'drawing' && (
+            <>
+              {task?.image && !drawingImageDataUrl && (
+                <div style={{ marginBottom: 12, border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, textAlign: 'center' }}>
+                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Текущий чертёж:</div>
+                  <img
+                    src={api.getTaskImageUrl(task)}
+                    alt="Текущий чертёж"
+                    style={{ maxWidth: '100%', maxHeight: 150, display: 'block', margin: '0 auto' }}
+                  />
+                </div>
+              )}
+              <GeoGebraDrawingPanel
+                imageDataUrl={drawingImageDataUrl}
+                onImageChange={setDrawingImageDataUrl}
+              />
+            </>
+          )}
         </Form.Item>
 
         {/* Текст задания */}
@@ -681,6 +792,59 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           • Скобки: <code>\left( ... \right)</code>
         </div>
       </Form>
+
+      {/* Crop модал для загруженных изображений */}
+      <Modal
+        title="Обрезка изображения"
+        open={cropModalOpen}
+        onCancel={() => setCropModalOpen(false)}
+        onOk={async () => {
+          if (!uploadPreviewUrl) return;
+          setCroppingImage(true);
+          try {
+            const cropped = await cropPngByMargins(uploadPreviewUrl, cropMargins);
+            setUploadPreviewUrl(cropped);
+            setUploadedFile(dataUrlToFile(cropped, uploadedFile?.name || 'image.png'));
+            setCropModalOpen(false);
+            message.success('Изображение обрезано');
+          } catch (err) {
+            message.error(`Ошибка обрезки: ${err?.message}`);
+          } finally {
+            setCroppingImage(false);
+          }
+        }}
+        okText="Применить"
+        cancelText="Отмена"
+        confirmLoading={croppingImage}
+        width={820}
+      >
+        {uploadPreviewUrl && (() => {
+          const nc = normalizeCrop(cropMargins);
+          return (
+            <Space direction="vertical" size={14} style={{ width: '100%' }}>
+              <div style={{ width: '100%', border: '1px solid #e8e8e8', borderRadius: 8, padding: 12, textAlign: 'center' }}>
+                <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0, maxWidth: '100%' }}>
+                  <img src={uploadPreviewUrl} alt="Предпросмотр" style={{ maxWidth: '100%', maxHeight: 360, display: 'block' }} />
+                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${nc.top}%`, background: 'rgba(0,0,0,0.28)' }} />
+                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${nc.bottom}%`, background: 'rgba(0,0,0,0.28)' }} />
+                    <div style={{ position: 'absolute', left: 0, top: `${nc.top}%`, bottom: `${nc.bottom}%`, width: `${nc.left}%`, background: 'rgba(0,0,0,0.28)' }} />
+                    <div style={{ position: 'absolute', right: 0, top: `${nc.top}%`, bottom: `${nc.bottom}%`, width: `${nc.right}%`, background: 'rgba(0,0,0,0.28)' }} />
+                    <div style={{ position: 'absolute', left: `${nc.left}%`, right: `${nc.right}%`, top: `${nc.top}%`, bottom: `${nc.bottom}%`, border: '2px solid #ff4d4f', boxShadow: '0 0 0 1px rgba(255,255,255,0.95) inset' }} />
+                  </div>
+                </div>
+              </div>
+              {[['left', 'Слева'], ['right', 'Справа'], ['top', 'Сверху'], ['bottom', 'Снизу']].map(([edge, label]) => (
+                <div key={edge} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 90px', gap: 10, alignItems: 'center' }}>
+                  <span>{label}</span>
+                  <Slider min={0} max={45} step={1} value={nc[edge]} onChange={(v) => setCropMargins((prev) => normalizeCrop({ ...prev, [edge]: v }))} />
+                  <InputNumber min={0} max={45} value={nc[edge]} onChange={(v) => setCropMargins((prev) => normalizeCrop({ ...prev, [edge]: v ?? 0 }))} addonAfter="%" style={{ width: '100%' }} />
+                </div>
+              ))}
+            </Space>
+          );
+        })()}
+      </Modal>
     </Modal>
   );
 };

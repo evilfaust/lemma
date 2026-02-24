@@ -26,6 +26,7 @@ import {
   UndoOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
+import { clamp, normalizeCrop, loadImage, cropPngByMargins } from '../utils/cropImage';
 import GeoGebraApplet from './GeoGebraApplet';
 import MathRenderer from './MathRenderer';
 import { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout } from './GeometryTaskPreview';
@@ -48,41 +49,6 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const isImageDrawing = (value = '') => value.startsWith('data:image/');
-const clamp = (value, min, max) => Math.min(max, Math.max(min, Number(value) || 0));
-const normalizeCrop = (crop = {}) => ({
-  left: clamp(crop.left, 0, 45),
-  right: clamp(crop.right, 0, 45),
-  top: clamp(crop.top, 0, 45),
-  bottom: clamp(crop.bottom, 0, 45),
-});
-
-const loadImage = (src) => new Promise((resolve, reject) => {
-  const img = new Image();
-  img.onload = () => resolve(img);
-  img.onerror = reject;
-  img.src = src;
-});
-
-const cropPngByMargins = async (dataUrl, crop) => {
-  const normalized = normalizeCrop(crop);
-  const img = await loadImage(dataUrl);
-  const sx = Math.round((normalized.left / 100) * img.width);
-  const sy = Math.round((normalized.top / 100) * img.height);
-  const sw = Math.round(img.width * (1 - (normalized.left + normalized.right) / 100));
-  const sh = Math.round(img.height * (1 - (normalized.top + normalized.bottom) / 100));
-
-  if (sw < 20 || sh < 20) {
-    throw new Error('Слишком сильная обрезка. Уменьшите поля.');
-  }
-
-  const canvas = document.createElement('canvas');
-  canvas.width = sw;
-  canvas.height = sh;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Не удалось создать canvas');
-  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-  return canvas.toDataURL('image/png');
-};
 
 const getGeoGebraBase64 = (ggbApi) => new Promise((resolve) => {
   if (!ggbApi || typeof ggbApi.getBase64 !== 'function') {
