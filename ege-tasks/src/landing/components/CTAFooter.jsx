@@ -7,10 +7,10 @@ const CTAFooter = () => (
           Начните прямо сейчас
         </h2>
         <p className="landing-cta-subtitle">
-          Бесплатно. Без регистрации. Просто откройте и работайте.
+          Бесплатно для учителя. Ученики подключаются по ссылке или QR-коду.
         </p>
         <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-white">
-          Открыть платформу &rarr;
+          Открыть учительский интерфейс &rarr;
         </a>
       </div>
     </section>

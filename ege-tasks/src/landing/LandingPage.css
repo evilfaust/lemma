@@ -709,15 +709,15 @@ body {
 .landing-achievement-mini {
   width: 80px;
   height: 80px;
-  border-radius: 50%;
+  border-radius: 18px;
   overflow: hidden;
   border: 3px solid;
-  transition: transform 0.3s;
+  transition: transform 0.3s, box-shadow 0.3s;
   background: rgba(255, 255, 255, 0.05);
 }
 
 .landing-achievement-mini:hover {
-  transform: scale(1.15);
+  transform: translateY(-2px) scale(1.08);
 }
 
 .landing-achievement-mini--common {
@@ -738,7 +738,8 @@ body {
 .landing-achievement-mini img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #fff;
 }
 
 .landing-rarity-legend {
@@ -1075,15 +1076,16 @@ body {
 .landing-achievement-card-icon {
   width: 72px;
   height: 72px;
-  border-radius: 50%;
+  border-radius: 16px;
   overflow: hidden;
   margin: 0 auto 14px;
+  background: #ffffff;
 }
 
 .landing-achievement-card-icon img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .landing-achievement-card-name {

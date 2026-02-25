@@ -14,7 +14,7 @@ const AchievementsShowcase = () => (
           Мотивация через <span className="landing-gradient-text">игру</span>
         </h2>
         <p className="landing-section-subtitle">
-          30 уникальных достижений трёх уровней редкости.
+          48+ достижений трёх уровней редкости.
           Ученики соревнуются за коллекцию.
         </p>
       </div>

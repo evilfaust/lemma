@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 const STATS = [
-  { value: 1000, suffix: '+', label: 'задач в базе' },
-  { value: 30, suffix: '+', label: 'достижений для учеников' },
+  { value: 7000, suffix: '+', label: 'задач в базе' },
+  { value: 48, suffix: '+', label: 'достижений для учеников' },
   { value: 8, suffix: '', label: 'генераторов и режимов' },
   { value: 3, suffix: '', label: 'минуты на работу' },
 ]

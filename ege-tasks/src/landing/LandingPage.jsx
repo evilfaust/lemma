@@ -59,7 +59,7 @@ const LandingPage = () => {
             <li><a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>Достижения</a></li>
             <li>
               <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-primary landing-nav-cta">
-                Открыть
+                Для учителя
               </a>
             </li>
           </ul>
@@ -79,7 +79,7 @@ const LandingPage = () => {
         <a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollTo('how-it-works') }}>Как работает</a>
         <a href="#students" onClick={(e) => { e.preventDefault(); scrollTo('students') }}>Для учеников</a>
         <a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>Достижения</a>
-        <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-primary">Открыть платформу</a>
+        <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-primary">Открыть для учителя</a>
       </div>
 
       {/* Sections */}

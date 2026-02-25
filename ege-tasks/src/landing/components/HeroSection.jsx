@@ -24,14 +24,14 @@ const HeroSection = () => (
       </h1>
 
       <p className="landing-hero-subtitle">
-        1000+ задач с LaTeX-формулами, генератор работ за секунды,
-        тестирование через QR-код и система достижений.
+        7000+ задач с LaTeX-формулами, генератор работ за секунды,
+        тестирование для учеников по ссылке и QR-коду, достижения и аналитика.
         Всё, что нужно учителю математики.
       </p>
 
       <div className="landing-hero-buttons">
         <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-primary">
-          Начать бесплатно
+          Открыть учителю
         </a>
         <a href="#features" className="landing-btn landing-btn-secondary"
            onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }) }}>
