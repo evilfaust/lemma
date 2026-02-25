@@ -33,11 +33,12 @@
 
 ## Project Overview
 
-**EGE Tasks Manager** — полнофункциональная веб-платформа для учителей математики. Два интерфейса:
+**EGE Tasks Manager** — полнофункциональная веб-платформа для учителей математики. Три интерфейса:
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
+- **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
-Текущая версия: **3.6.5** (февраль 2026)
+Текущая версия: **3.7.0** (февраль 2026)
 
 ## Tech Stack
 
@@ -82,6 +83,11 @@ generation-test/
 │   │   │   ├── catalog/          # Catalog sub-components (7)
 │   │   │   ├── worksheet/        # Reusable worksheet components (12)
 │   │   │   └── student/          # Student-facing components (7)
+│   │   ├── landing/              # Landing page (standalone, no Ant Design)
+│   │   │   ├── main.jsx          # Entry point
+│   │   │   ├── LandingPage.jsx   # Root component
+│   │   │   ├── LandingPage.css   # Full design system
+│   │   │   └── components/       # 8 section components
 │   │   ├── hooks/                # Custom React hooks (12)
 │   │   ├── services/             # API services (pocketbase.js)
 │   │   ├── utils/                # Utility functions (10)
@@ -179,6 +185,18 @@ generation-test/
 - `SaveWorkModal.jsx` / `LoadWorkModal.jsx` - Save/load work modals
 - `SessionPanel.jsx` - Session management (QR code, link, attempts)
 - `TeacherResultsDashboard.jsx` - Teacher results view with achievements
+
+**Landing Page (src/landing/):**
+- `LandingPage.jsx` - Root landing component (navbar, scroll-reveal, mobile menu)
+- `LandingPage.css` - Full CSS design system (variables, 10 animations, 4 breakpoints)
+- `components/HeroSection.jsx` - Dark hero with gradient blobs, floating math symbols
+- `components/StatsCounter.jsx` - 4 animated counters (requestAnimationFrame)
+- `components/FeaturesShowcase.jsx` - 3+1 feature cards with tags
+- `components/HowItWorks.jsx` - 4-step vertical timeline
+- `components/StudentExperience.jsx` - CSS phone mockup with student UI simulation
+- `components/AchievementsShowcase.jsx` - Dark section with real achievement icons
+- `components/TeacherTestimonials.jsx` - Author quote + feature checklist
+- `components/CTAFooter.jsx` - Gradient CTA + minimal footer
 
 ### Custom Hooks (ege-tasks/src/hooks/)
 - `useWorksheetGeneration.js` - Universal variant generation (multi-topic blocks, deduplication, 3 modes, progressive difficulty)
@@ -287,6 +305,8 @@ Source of truth for geometry schema and validation notes: `SCHEMA_GEOMETRY.md`.
 | `theory-categories` | Категории | TheoryCategoryManager |
 | `geometry` | Геометрия | GeometryTaskList |
 
+**Landing Page** (`/landing.html`) — отдельный entry point, 8 секций: Hero, Stats, Features, How It Works, Student Experience, Achievements, Testimonials, CTA+Footer. Полностью автономный (без Ant Design, PocketBase).
+
 ## Student Flow
 
 URL: `/student/{sessionId}`
@@ -351,6 +371,7 @@ URL: `/student/{sessionId}`
 - **Student App (VPS):** https://student.oipav.ru/student/{sessionId}
 - Teacher App (dev): http://localhost:5173
 - Student App (dev): http://localhost:5173/student/{sessionId} (via student.html)
+- Landing Page (dev): http://localhost:5173/landing.html
 
 ### VPS Deployment (147.45.158.148)
 ```
@@ -422,7 +443,8 @@ Key function groups:
 - Context: `ege-tasks/src/contexts/ReferenceDataContext.jsx`
 - Utils: `ege-tasks/src/utils/*.js`
 - Main apps: `ege-tasks/src/App.jsx`, `ege-tasks/src/StudentApp.jsx`
-- Entrypoints: `ege-tasks/src/teacher/main.jsx`, `ege-tasks/src/student/main.jsx`
+- Entrypoints: `ege-tasks/src/teacher/main.jsx`, `ege-tasks/src/student/main.jsx`, `ege-tasks/src/landing/main.jsx`
+- Landing page: `ege-tasks/src/landing/` (standalone, no Ant Design/PocketBase)
 - Shared code: `ege-tasks/src/shared/` (services, components, utils)
 - Styles: `ege-tasks/src/App.css`
 - Backend hooks: `pocketbase/pb_hooks/*.js`

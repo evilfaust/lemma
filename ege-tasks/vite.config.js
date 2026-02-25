@@ -20,6 +20,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         student: resolve(__dirname, 'student.html'),
+        landing: resolve(__dirname, 'landing.html'),
       },
       output: {
         manualChunks: {
