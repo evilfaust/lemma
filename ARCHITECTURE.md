@@ -417,12 +417,15 @@ checkUnlockedAchievements(achievements, attemptData, allAttempts, previouslyUnlo
 //   special → кастомная логика
 ```
 
-### 30 предустановленных достижений
+### 72 предустановленных достижения
 
-- **Common (10):** start, novice, student, explorer, thinker, solver, calculator, persistent, brave, diligent
-- **Rare (8):** smart, erudite, mathematician, genius_algebra, formula_master, logic_lord, quick_mind, problem_crusher
-- **Legendary (4):** legend, master, champion, absolute
-- **Condition (8):** perfect (100%), first_win, marathoner (10), veteran (50), speedster (5мин), night_owl, early_bird, excellent (90%+)
+- **Random badges (52):**
+  - Common (20), Rare (16), Legendary (16)
+- **Condition achievements (20):**
+  - Score: 100%, 90%+
+  - Speed: 5 мин, 3 мин
+  - Count: 1, 3, 10, 50, 100 попыток
+  - Special: night_owl, early_bird, weekend_warrior
 
 ---
 

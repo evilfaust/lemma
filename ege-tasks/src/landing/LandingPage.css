@@ -1061,16 +1061,19 @@ body {
 .landing-achievement-card--common {
   background: linear-gradient(135deg, rgba(76, 201, 240, 0.08), rgba(76, 201, 240, 0.02));
   border: 1px solid rgba(76, 201, 240, 0.15);
+  box-shadow: 0 0 20px rgba(76, 201, 240, 0.1);
 }
 
 .landing-achievement-card--rare {
   background: linear-gradient(135deg, rgba(123, 47, 247, 0.1), rgba(123, 47, 247, 0.02));
   border: 1px solid rgba(123, 47, 247, 0.2);
+  box-shadow: 0 0 20px rgba(123, 47, 247, 0.1);
 }
 
 .landing-achievement-card--legendary {
   background: linear-gradient(135deg, rgba(249, 168, 38, 0.12), rgba(249, 168, 38, 0.02));
   border: 1px solid rgba(249, 168, 38, 0.25);
+  box-shadow: 0 0 20px rgba(249, 168, 38, 0.14);
 }
 
 .landing-achievement-card-icon {
@@ -1080,12 +1083,29 @@ body {
   overflow: hidden;
   margin: 0 auto 14px;
   background: #ffffff;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .landing-achievement-card-icon img {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.landing-achievement-card:hover .landing-achievement-card-icon {
+  transform: translateY(-2px) scale(1.08);
+}
+
+.landing-achievement-card--common:hover .landing-achievement-card-icon {
+  box-shadow: 0 0 20px rgba(76, 201, 240, 0.2);
+}
+
+.landing-achievement-card--rare:hover .landing-achievement-card-icon {
+  box-shadow: 0 0 20px rgba(123, 47, 247, 0.2);
+}
+
+.landing-achievement-card--legendary:hover .landing-achievement-card-icon {
+  box-shadow: 0 0 20px rgba(249, 168, 38, 0.3);
 }
 
 .landing-achievement-card-name {

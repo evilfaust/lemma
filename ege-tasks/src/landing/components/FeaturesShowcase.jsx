@@ -68,7 +68,7 @@ const FeaturesShowcase = () => (
             </div>
             <h3 className="landing-feature-title">Система достижений</h3>
             <p className="landing-feature-desc">
-              48+ достижений трёх уровней редкости.
+              72+ достижения трёх уровней редкости.
               Ученики собирают коллекцию и возвращаются к тренировкам чаще.
             </p>
           </div>

@@ -8,6 +8,8 @@
 import PocketBase from 'pocketbase';
 
 const PB_URL = process.env.VITE_PB_URL || process.env.PB_URL || 'https://task-ege.oipav.ru';
+const PB_SUPERUSER_EMAIL = process.env.PB_SUPERUSER_EMAIL || '';
+const PB_SUPERUSER_PASSWORD = process.env.PB_SUPERUSER_PASSWORD || '';
 const pb = new PocketBase(PB_URL);
 
 const achievements = [
@@ -296,15 +298,246 @@ const achievements = [
     condition_value: { min: 90 },
     order: 30,
   },
+
+  // ============ ДОПОЛНИТЕЛЬНЫЕ ЗНАЧКИ (icon049..icon073) ============
+  // Common
+  {
+    code: 'navigator',
+    title: 'Навигатор',
+    description: 'Уверенно держишь курс в мире задач',
+    icon: 'icon049.png',
+    type: 'random',
+    rarity: 'common',
+    order: 49,
+  },
+  {
+    code: 'impulse',
+    title: 'Импульс',
+    description: 'Набираешь скорость в подготовке',
+    icon: 'icon050.png',
+    type: 'random',
+    rarity: 'common',
+    order: 50,
+  },
+  {
+    code: 'seeker',
+    title: 'Искатель',
+    description: 'Находишь верный путь к ответу',
+    icon: 'icon051.png',
+    type: 'random',
+    rarity: 'common',
+    order: 51,
+  },
+  {
+    code: 'steady',
+    title: 'Стабильный',
+    description: 'Держишь ровный темп и прогресс',
+    icon: 'icon052.png',
+    type: 'random',
+    rarity: 'common',
+    order: 52,
+  },
+  {
+    code: 'spark',
+    title: 'Искра',
+    description: 'Каждый тест зажигает интерес к математике',
+    icon: 'icon053.png',
+    type: 'random',
+    rarity: 'common',
+    order: 53,
+  },
+  {
+    code: 'guide',
+    title: 'Проводник',
+    description: 'Уверенно проходишь сложные темы',
+    icon: 'icon054.png',
+    type: 'random',
+    rarity: 'common',
+    order: 54,
+  },
+  {
+    code: 'rhythm',
+    title: 'Ритм',
+    description: 'Работаешь регулярно и без провалов',
+    icon: 'icon055.png',
+    type: 'random',
+    rarity: 'common',
+    order: 55,
+  },
+  {
+    code: 'pilot',
+    title: 'Пилот',
+    description: 'Управляешь своим прогрессом',
+    icon: 'icon056.png',
+    type: 'random',
+    rarity: 'common',
+    order: 56,
+  },
+  {
+    code: 'wanderer',
+    title: 'Путник',
+    description: 'Проходишь путь от простого к сложному',
+    icon: 'icon057.png',
+    type: 'random',
+    rarity: 'common',
+    order: 57,
+  },
+  {
+    code: 'progressor',
+    title: 'Прогрессор',
+    description: 'Становишься сильнее с каждой попыткой',
+    icon: 'icon058.png',
+    type: 'random',
+    rarity: 'common',
+    order: 58,
+  },
+
+  // Rare
+  {
+    code: 'architect',
+    title: 'Архитектор',
+    description: 'Строишь сильную стратегию решения',
+    icon: 'icon059.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 59,
+  },
+  {
+    code: 'analyst',
+    title: 'Аналитик',
+    description: 'Видишь закономерности и детали',
+    icon: 'icon060.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 60,
+  },
+  {
+    code: 'innovator',
+    title: 'Инноватор',
+    description: 'Ищешь нестандартные подходы',
+    icon: 'icon061.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 61,
+  },
+  {
+    code: 'tactician',
+    title: 'Тактик',
+    description: 'Выбираешь точные шаги к результату',
+    icon: 'icon062.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 62,
+  },
+  {
+    code: 'visionary',
+    title: 'Визионер',
+    description: 'Смотришь на задачу шире и глубже',
+    icon: 'icon063.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 63,
+  },
+  {
+    code: 'coordinator',
+    title: 'Координатор',
+    description: 'Точно соединяешь идеи и методы',
+    icon: 'icon064.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 64,
+  },
+  {
+    code: 'expert',
+    title: 'Эксперт',
+    description: 'Уверенно решаешь задачи повышенной сложности',
+    icon: 'icon065.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 65,
+  },
+  {
+    code: 'captain',
+    title: 'Капитан',
+    description: 'Ведёшь себя к высоким результатам',
+    icon: 'icon066.png',
+    type: 'random',
+    rarity: 'rare',
+    order: 66,
+  },
+
+  // Legendary
+  {
+    code: 'maestro',
+    title: 'Маэстро',
+    description: 'Блестяще владеешь математическим инструментарием',
+    icon: 'icon067.png',
+    type: 'random',
+    rarity: 'legendary',
+    order: 67,
+  },
+  {
+    code: 'titan',
+    title: 'Титан',
+    description: 'Покоряешь самые сложные задачи',
+    icon: 'icon068.png',
+    type: 'random',
+    rarity: 'legendary',
+    order: 68,
+  },
+  {
+    code: 'phoenix',
+    title: 'Феникс',
+    description: 'Возвращаешься и показываешь результат снова',
+    icon: 'icon069.png',
+    type: 'random',
+    rarity: 'legendary',
+    order: 69,
+  },
+  {
+    code: 'oracle',
+    title: 'Оракул',
+    description: 'Видишь решение раньше остальных',
+    icon: 'icon070.png',
+    type: 'random',
+    rarity: 'legendary',
+    order: 70,
+  },
+  {
+    code: 'cosmos',
+    title: 'Космос',
+    description: 'Выходишь на орбиту максимальных баллов',
+    icon: 'icon072.png',
+    type: 'random',
+    rarity: 'legendary',
+    order: 71,
+  },
+  {
+    code: 'emperor',
+    title: 'Император',
+    description: 'Абсолютный контроль над задачами',
+    icon: 'icon073.png',
+    type: 'random',
+    rarity: 'legendary',
+    order: 72,
+  },
 ];
 
 async function seed() {
   console.log('🌱 Seeding achievements...');
 
   try {
-    // Авторизоваться как админ (используем временный токен или создаем без auth)
-    // Для этого скрипта временно отключим проверку прав
     pb.autoCancellation(false);
+
+    if (PB_SUPERUSER_EMAIL && PB_SUPERUSER_PASSWORD) {
+      console.log(`🔐 Authenticating as superuser: ${PB_SUPERUSER_EMAIL}`);
+      await pb.collection('_superusers').authWithPassword(
+        PB_SUPERUSER_EMAIL,
+        PB_SUPERUSER_PASSWORD
+      );
+    } else {
+      console.log('ℹ️ Superuser credentials not provided; create operations may fail.');
+    }
 
     // Проверить существующие достижения
     const existing = await pb.collection('achievements').getFullList();

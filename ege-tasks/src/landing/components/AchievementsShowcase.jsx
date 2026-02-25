@@ -1,8 +1,8 @@
 const ACHIEVEMENTS = [
   { icon: '/achievements/icon005.png', name: 'Первый шаг', rarity: 'common' },
-  { icon: '/achievements/icon012.png', name: 'Знаток', rarity: 'common' },
-  { icon: '/achievements/icon025.png', name: 'Мастер', rarity: 'rare' },
   { icon: '/achievements/icon035.png', name: 'Виртуоз', rarity: 'rare' },
+  { icon: '/achievements/icon003.png', name: 'Железный человек', rarity: 'legendary' },
+  { icon: '/achievements/icon032.png', name: 'Джедай', rarity: 'legendary' },
   { icon: '/achievements/icon048.png', name: 'Легенда', rarity: 'legendary' },
 ]
 
@@ -14,7 +14,7 @@ const AchievementsShowcase = () => (
           Мотивация через <span className="landing-gradient-text">игру</span>
         </h2>
         <p className="landing-section-subtitle">
-          48+ достижений трёх уровней редкости.
+          72+ достижений трёх уровней редкости.
           Ученики соревнуются за коллекцию.
         </p>
       </div>
