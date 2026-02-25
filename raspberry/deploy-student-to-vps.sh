@@ -2,11 +2,11 @@
 
 # ============================================================================
 # deploy-student-to-vps.sh
-# Деплой студенческого приложения на VPS (task-ege.oipav.ru)
+# Деплой студенческого приложения на VPS (student.oipav.ru)
 #
 # Что делает:
-#   - Собирает оба бандла (teacher + student)
-#   - Копирует на VPS: student.html + assets/student-* + общие assets
+#   - Собирает фронтенд
+#   - Копирует на VPS: student.html + assets + achievements + vite.svg
 #   - Перезагружает Nginx на VPS
 #
 # Предварительно: убедитесь что ~/.ssh/config содержит Host для VPS
@@ -15,7 +15,7 @@
 set -e
 
 VPS_HOST="root@147.45.158.148"
-VPS_FRONTEND_DIR="/var/www/ege-app/student"
+VPS_FRONTEND_DIR="/var/www/student-ege"
 LOCAL_PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 echo "========================================"
@@ -34,7 +34,7 @@ echo "✅ SSH-соединение установлено"
 echo ""
 
 # ШАГ 1: Сборка
-echo "🔨 [1/3] Сборка фронтенда (оба приложения)..."
+echo "🔨 [1/3] Сборка фронтенда..."
 cd "$LOCAL_PROJECT_DIR/ege-tasks"
 if [ ! -d "node_modules" ]; then
     echo "📦 Установка зависимостей..."
@@ -61,6 +61,16 @@ rsync -avz --delete \
     "$LOCAL_PROJECT_DIR/ege-tasks/dist/assets/" \
     "$VPS_HOST:$VPS_FRONTEND_DIR/assets/"
 
+# Копируем иконки достижений для student gallery
+rsync -avz --delete \
+    "$LOCAL_PROJECT_DIR/ege-tasks/dist/achievements/" \
+    "$VPS_HOST:$VPS_FRONTEND_DIR/achievements/"
+
+# Копируем favicon, чтобы не было 404 в student.html
+rsync -avz \
+    "$LOCAL_PROJECT_DIR/ege-tasks/dist/vite.svg" \
+    "$VPS_HOST:$VPS_FRONTEND_DIR/"
+
 # Права
 ssh "$VPS_HOST" "chmod -R 755 $VPS_FRONTEND_DIR"
 
@@ -71,8 +81,5 @@ echo "========================================"
 echo "✅ Деплой студенческого приложения завершен!"
 echo "========================================"
 echo ""
-echo "🌐 URL для студентов: https://task-ege.oipav.ru/student/{sessionId}"
-echo ""
-echo "⚠️  Не забудьте обновить nginx конфиг на VPS если ещё не сделано:"
-echo "    Добавить location /student/ { try_files ... /student.html; }"
+echo "🌐 URL для студентов: https://student.oipav.ru/student/{sessionId}"
 echo ""

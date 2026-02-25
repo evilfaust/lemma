@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ConfigProvider, Button } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentEntryPage from './components/student/StudentEntryPage';
@@ -10,6 +10,59 @@ import AchievementGallery from './components/student/AchievementGallery';
 import { api } from './services/pocketbase';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
+
+function StudentHomeLanding() {
+  const [sessionCode, setSessionCode] = useState('');
+
+  const openSession = () => {
+    const code = sessionCode.trim();
+    if (!code) return;
+    window.location.href = `/student/${encodeURIComponent(code)}`;
+  };
+
+  return (
+    <div className="student-home">
+      <div className="student-home-card">
+        <div className="student-home-icon">
+          <QrcodeOutlined />
+        </div>
+        <h1 className="student-home-title">Тесты по математике</h1>
+        <p className="student-home-subtitle">
+          Отсканируйте QR-код с доски или введите код сессии, который дал учитель.
+        </p>
+
+        <div className="student-home-input-wrap">
+          <input
+            type="text"
+            value={sessionCode}
+            onChange={(e) => setSessionCode(e.target.value)}
+            placeholder="Например: fyiezxczetf40ul"
+            className="student-home-input"
+            autoCapitalize="off"
+            autoCorrect="off"
+            autoComplete="off"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') openSession();
+            }}
+          />
+          <Button
+            type="primary"
+            className="student-home-btn"
+            icon={<LinkOutlined />}
+            onClick={openSession}
+            disabled={!sessionCode.trim()}
+          >
+            Открыть тест
+          </Button>
+        </div>
+
+        <div className="student-home-hint">
+          На телефоне удобнее заходить по QR-коду.
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function StudentApp() {
   const generateDeviceId = () => {
@@ -84,6 +137,14 @@ function StudentApp() {
 
   if (currentView === 'loading') {
     return null; // Или спиннер
+  }
+
+  if (!sessionId) {
+    return (
+      <ConfigProvider theme={{ token: { colorPrimary: '#4361ee' } }}>
+        <StudentHomeLanding />
+      </ConfigProvider>
+    );
   }
 
   return (

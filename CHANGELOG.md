@@ -1,5 +1,15 @@
 # Changelog — История изменений
 
+## [3.7.2] - 2026-02-26
+
+### Изменено
+- **StudentApp (`student.oipav.ru`)**:
+  - добавлен компактный mobile-first лендинг для корневого адреса `/` (если `sessionId` отсутствует);
+  - добавлен быстрый переход в сессию по коду (`/student/{sessionId}`) через поле ввода.
+- **Деплой student frontend**:
+  - `raspberry/deploy-student-to-vps.sh` переведён на актуальный путь `/var/www/student-ege`;
+  - скрипт теперь синхронизирует не только `student.html` и `assets/`, но и `achievements/` + `vite.svg`.
+
 ## [3.7.1] - 2026-02-26
 
 ### Изменено

@@ -121,6 +121,102 @@
   font-weight: 600;
 }
 
+/* ============================================
+   STUDENT HOME LANDING (for /)
+   ============================================ */
+.student-home {
+  min-height: 100vh;
+  padding: 20px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(67, 97, 238, 0.15), transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(123, 47, 247, 0.12), transparent 45%),
+    linear-gradient(180deg, #f8f9ff 0%, #f0f2f5 100%);
+}
+
+.student-home-card {
+  width: 100%;
+  max-width: 420px;
+  border-radius: 24px;
+  padding: 28px 20px 22px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 18px 40px rgba(24, 32, 79, 0.14);
+  backdrop-filter: blur(8px);
+  animation: studentFadeInUp 0.45s ease-out;
+}
+
+.student-home-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 32px;
+  background: linear-gradient(135deg, #4361ee, #7b2ff7);
+  box-shadow: 0 12px 28px rgba(67, 97, 238, 0.35);
+}
+
+.student-home-title {
+  margin: 0 0 8px;
+  text-align: center;
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.7px;
+  color: #1a1a2e;
+}
+
+.student-home-subtitle {
+  margin: 0 0 18px;
+  text-align: center;
+  color: #6f7487;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.student-home-input-wrap {
+  display: grid;
+  gap: 10px;
+}
+
+.student-home-input {
+  width: 100%;
+  min-height: 46px;
+  border: 2px solid #e5e7f0;
+  border-radius: 14px;
+  padding: 0 14px;
+  font-size: 16px;
+  color: #222;
+  background: #fff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.student-home-input:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.12);
+}
+
+.student-home-btn {
+  width: 100%;
+  min-height: 48px !important;
+  border-radius: 14px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+}
+
+.student-home-hint {
+  margin-top: 12px;
+  text-align: center;
+  color: #8b90a3;
+  font-size: 13px;
+}
+
 .student-app .ant-btn-primary {
   background: linear-gradient(135deg, #4361ee, #3a0ca3);
   border: none;

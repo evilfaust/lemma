@@ -548,7 +548,7 @@ npm run migrate:task-images # Перенос внешних image_url в files t
 | PocketBase Admin | — | https://task-ege.oipav.ru/_/ | Админ-панель |
 | PDF Service | http://localhost:3001 | https://task-ege.oipav.ru/pdf | Генерация PDF |
 | Frontend | http://localhost:5173 | — | Учительский интерфейс |
-| Student | http://localhost:5173/student/{sessionId} | https://student.oipav.ru/student/{sessionId} | Ученический интерфейс |
+| Student | http://localhost:5173/ и /student/{sessionId} | https://student.oipav.ru/ и /student/{sessionId} | Ученический интерфейс |
 
 ### Остановка
 ```bash
@@ -629,7 +629,11 @@ journalctl -u pocketbase-ege -f
 ./raspberry/deploy-student-to-vps.sh
 ```
 
-Скрипт собирает `student.html` + ассеты и загружает через rsync в `/var/www/student-ege/`.
+Скрипт собирает и загружает в `/var/www/student-ege/`:
+- `student.html`
+- `assets/`
+- `achievements/` (иконки достижений)
+- `vite.svg`
 
 ## Парсеры задач
 
