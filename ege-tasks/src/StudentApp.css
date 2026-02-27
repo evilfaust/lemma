@@ -1499,3 +1499,337 @@
   background-size: 200% 100%;
   animation: studentShimmer 1.5s infinite;
 }
+
+
+/* ============================================
+   STUDENT PROGRESS PAGE
+   ============================================ */
+
+.student-progress {
+  padding: 20px 0 40px;
+  position: relative;
+  z-index: 1;
+  animation: studentFadeInUp 0.5s ease-out;
+}
+
+/* Header */
+.sp-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.sp-title {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  color: #1a1a2e !important;
+  letter-spacing: -0.5px;
+  margin: 0 0 4px !important;
+}
+
+.sp-subtitle {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+/* Loading */
+.sp-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  gap: 16px;
+}
+
+.sp-loading-text {
+  font-size: 15px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+.sp-loading-small {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px;
+  font-size: 14px;
+  color: #8c8c8c;
+}
+
+/* Stats grid 2x2 */
+.sp-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.sp-stat-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 16px;
+  text-align: center;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  transition: transform 0.2s ease;
+}
+
+.sp-stat-value {
+  font-size: 28px;
+  font-weight: 900;
+  background: linear-gradient(135deg, #4361ee, #7b2ff7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1.2;
+}
+
+.sp-stat-value--best {
+  background: linear-gradient(135deg, #52c41a, #13c2c2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sp-stat-label {
+  font-size: 13px;
+  color: #8c8c8c;
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Sections */
+.sp-section {
+  margin-bottom: 28px;
+}
+
+.sp-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  padding: 4px 0;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sp-section-title {
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  color: #1a1a2e !important;
+  margin: 0 0 14px !important;
+}
+
+.sp-section-title--clickable {
+  margin: 0 !important;
+}
+
+.sp-section-toggle {
+  font-size: 12px;
+  color: #8c8c8c;
+  transition: transform 0.2s ease;
+}
+
+/* Chart */
+.sp-chart-wrapper {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px 12px 8px;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.sp-chart {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Topic stats */
+.sp-topic-content {
+  margin-top: 14px;
+}
+
+.sp-topic-list {
+  background: #fff;
+  border-radius: 16px;
+  padding: 8px 16px;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.sp-topic-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.sp-topic-row + .sp-topic-row {
+  border-top: 1px solid #f5f5f5;
+}
+
+.sp-topic-name {
+  width: 110px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-topic-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.sp-topic-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease-out;
+  min-width: 2px;
+}
+
+.sp-topic-bar--good { background: linear-gradient(90deg, #52c41a, #73d13d); }
+.sp-topic-bar--ok   { background: linear-gradient(90deg, #faad14, #ffc53d); }
+.sp-topic-bar--bad  { background: linear-gradient(90deg, #ff4d4f, #ff7875); }
+
+.sp-topic-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+
+.sp-topic-pct {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sp-topic-pct--good { color: #52c41a; }
+.sp-topic-pct--ok   { color: #faad14; }
+.sp-topic-pct--bad  { color: #ff4d4f; }
+
+.sp-topic-count {
+  font-size: 11px;
+  color: #8c8c8c;
+  line-height: 1.2;
+}
+
+.sp-topic-empty {
+  font-size: 14px;
+  color: #8c8c8c;
+  text-align: center;
+  padding: 20px;
+}
+
+/* History */
+.sp-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sp-history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #f0f0f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  animation: studentFadeInUp 0.4s ease-out both;
+}
+
+.sp-history-indicator {
+  width: 4px;
+  height: 36px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.sp-history-indicator--good { background: #52c41a; }
+.sp-history-indicator--ok   { background: #faad14; }
+.sp-history-indicator--bad  { background: #ff4d4f; }
+
+.sp-history-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sp-history-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a2e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-history-meta {
+  font-size: 13px;
+  color: #8c8c8c;
+  margin-top: 2px;
+}
+
+.sp-history-score {
+  font-size: 20px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.sp-history-score--good { color: #52c41a; }
+.sp-history-score--ok   { color: #faad14; }
+.sp-history-score--bad  { color: #ff4d4f; }
+
+/* Empty state */
+.sp-empty {
+  text-align: center;
+  padding: 80px 20px;
+  animation: studentFadeInUp 0.5s ease-out;
+}
+
+.sp-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.sp-empty-title {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #1a1a2e !important;
+  margin: 0 0 8px !important;
+}
+
+.sp-empty-text {
+  font-size: 15px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+/* Mobile adjustments */
+@media (max-width: 380px) {
+  .sp-stat-value {
+    font-size: 24px;
+  }
+
+  .sp-topic-name {
+    width: 80px;
+    font-size: 12px;
+  }
+
+  .sp-history-score {
+    font-size: 18px;
+  }
+}

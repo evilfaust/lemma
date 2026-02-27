@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { ConfigProvider, Button } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentEntryPage from './components/student/StudentEntryPage';
 import StudentTestPage from './components/student/StudentTestPage';
 import StudentResultPage from './components/student/StudentResultPage';
 import AchievementGallery from './components/student/AchievementGallery';
+import StudentProgressPage from './components/student/StudentProgressPage';
 import { api } from './services/pocketbase';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
@@ -154,8 +155,8 @@ function StudentApp() {
         {student && currentView !== 'auth' && (
           <div className="student-top-bar">
             <div className="student-top-bar-left">
-              {/* Кнопка "Назад" на экране галереи */}
-              {currentView === 'gallery' && (
+              {/* Кнопка "Назад" на экранах галереи и прогресса */}
+              {(currentView === 'gallery' || currentView === 'progress') && (
                 <Button
                   className="student-top-bar-btn"
                   icon={<ArrowLeftOutlined />}
@@ -166,8 +167,18 @@ function StudentApp() {
               )}
             </div>
             <div className="student-top-bar-right">
+              {/* Кнопка "Мой прогресс" — доступна сразу после авторизации */}
+              {currentView !== 'progress' && currentView !== 'gallery' && (
+                <Button
+                  className="student-top-bar-btn"
+                  icon={<BarChartOutlined />}
+                  onClick={() => setViewOverride('progress')}
+                  title="Мой прогресс"
+                />
+              )}
+
               {/* Кнопка "Достижения" доступна после появления попытки */}
-              {canOpenAchievements && currentView !== 'gallery' && (
+              {canOpenAchievements && currentView !== 'gallery' && currentView !== 'progress' && (
                 <Button
                   type="primary"
                   className="student-top-bar-btn student-top-bar-btn--primary"
@@ -219,6 +230,12 @@ function StudentApp() {
 
         {currentView === 'gallery' && (
           <AchievementGallery
+            studentSession={studentSession}
+          />
+        )}
+
+        {currentView === 'progress' && (
+          <StudentProgressPage
             studentSession={studentSession}
           />
         )}

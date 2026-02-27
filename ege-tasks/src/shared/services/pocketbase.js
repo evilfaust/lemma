@@ -1060,6 +1060,51 @@ export const api = {
     }
   },
 
+  // Batch-загрузка ответов для нескольких попыток (для статистики по темам)
+  async getAttemptAnswersByAttempts(attemptIds) {
+    try {
+      if (!attemptIds || !attemptIds.length) return [];
+      const CHUNK = 30;
+      const results = [];
+      for (let i = 0; i < attemptIds.length; i += CHUNK) {
+        const chunk = attemptIds.slice(i, i + CHUNK);
+        const filter = chunk.map(id => `attempt = "${escapeFilter(id)}"`).join(' || ');
+        const records = await pb.collection('attempt_answers').getFullList({
+          filter,
+          expand: 'task.topic',
+          fields: 'id,attempt,task,is_correct,expand',
+        });
+        results.push(...records);
+      }
+      return results;
+    } catch (error) {
+      console.error('Error batch fetching attempt answers:', error);
+      return [];
+    }
+  },
+
+  // Детальная загрузка ответов с полными данными задачи (для анализа проблемных задач учителем)
+  async getAttemptAnswersByAttemptsDetailed(attemptIds) {
+    try {
+      if (!attemptIds || !attemptIds.length) return [];
+      const CHUNK = 30;
+      const results = [];
+      for (let i = 0; i < attemptIds.length; i += CHUNK) {
+        const chunk = attemptIds.slice(i, i + CHUNK);
+        const filter = chunk.map(id => `attempt = "${escapeFilter(id)}"`).join(' || ');
+        const records = await pb.collection('attempt_answers').getFullList({
+          filter,
+          expand: 'task,task.topic',
+        });
+        results.push(...records);
+      }
+      return results;
+    } catch (error) {
+      console.error('Error batch fetching detailed attempt answers:', error);
+      return [];
+    }
+  },
+
   async updateAttemptAnswer(id, data) {
     try {
       return await pb.collection('attempt_answers').update(id, data);
@@ -1245,6 +1290,20 @@ export const api = {
     }
   },
 
+  // Версия с expand session.work.topic — для экрана прогресса студента
+  async getAttemptsByStudentAllWithWorks(studentId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `student = "${escapeFilter(studentId)}"`,
+        expand: 'achievement,unlocked_achievements,session.work,session.work.topic',
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching all attempts with works by student:', error);
+      return [];
+    }
+  },
+
   async getAttemptsByDeviceAll(deviceId) {
     try {
       return await pb.collection('attempts').getFullList({
@@ -1254,6 +1313,20 @@ export const api = {
       });
     } catch (error) {
       console.error('Error fetching all attempts by device:', error);
+      return [];
+    }
+  },
+
+  // Версия с expand session.work.topic — для экрана прогресса студента
+  async getAttemptsByDeviceAllWithWorks(deviceId) {
+    try {
+      return await pb.collection('attempts').getFullList({
+        filter: `device_id = "${escapeFilter(deviceId)}"`,
+        expand: 'achievement,unlocked_achievements,session.work,session.work.topic',
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching all attempts with works by device:', error);
       return [];
     }
   },

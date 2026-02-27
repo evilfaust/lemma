@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Collapse, Empty, Modal, Popover, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
-import { ReloadOutlined, UserOutlined, TeamOutlined, TrophyOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { App, Button, Collapse, Empty, Popover, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
+import { ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import './StudentProgressDashboard.css';
 
@@ -59,22 +59,14 @@ const normalizeUnlockedIds = (value) => {
   return [];
 };
 
-const getAttemptAchievementIds = (attempt) => {
-  if (!attempt) return [];
-  return Array.from(new Set([
-    ...(attempt.achievement ? [attempt.achievement] : []),
-    ...normalizeUnlockedIds(attempt.unlocked_achievements),
-  ]));
-};
-
-const StudentProgressDashboard = ({ onOpenWork }) => {
+const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [works, setWorks] = useState([]);
   const [achievements, setAchievements] = useState([]);
-  const [selectedStudent, setSelectedStudent] = useState(null);
+
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -338,35 +330,12 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
       key: 'actions',
       width: 120,
       render: (_, record) => (
-        <Button size="small" onClick={() => setSelectedStudent(record)}>
+        <Button size="small" onClick={() => onOpenStudent?.(record.id)}>
           Детали
         </Button>
       ),
     },
   ];
-
-  const selectedStudentAttempts = useMemo(() => {
-    if (!selectedStudent) return [];
-    return (attemptsByStudentId.get(selectedStudent.id) || [])
-      .slice()
-      .sort((a, b) => new Date(b.created) - new Date(a.created));
-  }, [selectedStudent, attemptsByStudentId]);
-
-  const selectedStudentCompletedWorks = useMemo(() => {
-    if (!selectedStudent) return [];
-    const studentAttempts = attemptsByStudentId.get(selectedStudent.id) || [];
-    const ids = new Set();
-    studentAttempts.forEach((attempt) => {
-      if (attempt.status === 'started') return;
-      const workId = attempt.expand?.session?.work;
-      if (workId) ids.add(workId);
-    });
-
-    return Array.from(ids).map((id) => ({
-      id,
-      title: worksById.get(id)?.title || 'Работа',
-    }));
-  }, [selectedStudent, attemptsByStudentId, worksById]);
 
   // Колонки без колонки "Класс" для таблиц внутри Collapse
   const columnsWithoutClass = useMemo(() =>
@@ -461,150 +430,6 @@ const StudentProgressDashboard = ({ onOpenWork }) => {
         </div>
       )}
 
-      <Modal
-        open={!!selectedStudent}
-        title={selectedStudent ? `Прогресс: ${selectedStudent.name}` : 'Прогресс ученика'}
-        onCancel={() => setSelectedStudent(null)}
-        footer={null}
-        width={900}
-      >
-        {selectedStudent && (
-          <Space direction="vertical" size={16} style={{ width: '100%' }} className="spd-modal-content">
-            <Space wrap className="spd-modal-tags">
-              <Tag>Логин: @{selectedStudent.username}</Tag>
-              <Tag color="geekblue">Класс: {selectedStudent.studentClass || '—'}</Tag>
-              <Tag>Регистрация: {formatDateTime(selectedStudent.registeredAt)}</Tag>
-              <Tag color="blue">Попыток: {selectedStudent.attemptsCount}</Tag>
-              <Tag color="green">Решено: {selectedStudent.totalScore} / {selectedStudent.totalTasks}</Tag>
-              <Tag color="gold">Ачивок: {selectedStudent.achievementsCount}</Tag>
-            </Space>
-
-            {selectedStudent.achievementsCount > 0 && (
-              <div className="spd-modal-card">
-                <div className="spd-modal-card-header">
-                  <TrophyOutlined />
-                  <Text strong>Полученные ачивки</Text>
-                </div>
-                <Space wrap>
-                  {selectedStudent.achievementIds.map((achievementId) => {
-                    const title = achievementsById.get(achievementId)?.title || `ID: ${achievementId}`;
-                    return <Tag key={achievementId} color="gold">{title}</Tag>;
-                  })}
-                </Space>
-              </div>
-            )}
-
-            <div className="spd-modal-card">
-              <div className="spd-modal-card-header">
-                <CheckCircleOutlined />
-                <Text strong>Выполненные работы</Text>
-              </div>
-              <div>
-                {selectedStudentCompletedWorks.length === 0 ? (
-                  <Text type="secondary">Нет завершённых работ</Text>
-                ) : (
-                  <Space wrap className="spd-modal-works">
-                    {selectedStudentCompletedWorks.map((work) => (
-                      <Button
-                        key={work.id}
-                        size="small"
-                        onClick={() => onOpenWork?.(work.id)}
-                      >
-                        {work.title}
-                      </Button>
-                    ))}
-                  </Space>
-                )}
-              </div>
-            </div>
-
-            <div className="spd-modal-card">
-              <div className="spd-modal-card-header">
-                <TrophyOutlined />
-                <Text strong>История попыток</Text>
-              </div>
-              <Table
-                rowKey="id"
-                size="small"
-                dataSource={selectedStudentAttempts}
-                pagination={false}
-                locale={{ emptyText: 'Попыток пока нет' }}
-                columns={[
-                  {
-                    title: 'Дата',
-                    key: 'created',
-                    width: 180,
-                    render: (_, record) => formatDateTime(record.created),
-                  },
-                  {
-                    title: 'Работа',
-                    key: 'work',
-                    width: 220,
-                    render: (_, record) => {
-                      const workId = record.expand?.session?.work;
-                      if (!workId) return <Text type="secondary">—</Text>;
-                      return (
-                        <Space>
-                          <Text>{worksById.get(workId)?.title || workId}</Text>
-                          <Button size="small" type="link" onClick={() => onOpenWork?.(workId)}>
-                            Открыть
-                          </Button>
-                        </Space>
-                      );
-                    },
-                  },
-                  {
-                    title: 'Вариант',
-                    key: 'variant',
-                    width: 100,
-                    render: (_, record) => record.expand?.variant?.number || '—',
-                  },
-                  {
-                    title: 'Статус',
-                    key: 'status',
-                    width: 110,
-                    render: (_, record) => record.status || '—',
-                  },
-                  {
-                    title: 'Результат',
-                    key: 'score',
-                    width: 150,
-                    render: (_, record) => (
-                      <Text>{record.score || 0} / {record.total || 0} ({toPercent(record.score || 0, record.total || 0)}%)</Text>
-                    ),
-                  },
-                  {
-                    title: 'Ачивки',
-                    key: 'ach',
-                    width: 180,
-                    render: (_, record) => {
-                      const attemptAchievementIds = getAttemptAchievementIds(record);
-                      if (attemptAchievementIds.length === 0) return '—';
-
-                      return (
-                        <Popover
-                          trigger="click"
-                          title="Ачивки в попытке"
-                          content={
-                            <Space wrap style={{ maxWidth: 320 }}>
-                              {attemptAchievementIds.map((achievementId) => {
-                                const title = achievementsById.get(achievementId)?.title || `ID: ${achievementId}`;
-                                return <Tag key={achievementId} color="gold">{title}</Tag>;
-                              })}
-                            </Space>
-                          }
-                        >
-                          <Button size="small" type="link">{attemptAchievementIds.length}</Button>
-                        </Popover>
-                      );
-                    },
-                  },
-                ]}
-              />
-            </div>
-          </Space>
-        )}
-      </Modal>
     </div>
   );
 };

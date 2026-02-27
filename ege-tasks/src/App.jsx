@@ -15,6 +15,7 @@ import TaskImporter from './components/TaskImporter';
 import WorkManager from './components/WorkManager';
 import WorkEditorPage from './components/WorkEditorPage';
 import StudentProgressDashboard from './components/StudentProgressDashboard';
+import StudentDetailPage from './components/StudentDetailPage';
 import AchievementManager from './components/AchievementManager';
 import GeometryTaskList from './components/GeometryTaskList';
 import GeometryTopicManager from './components/geometry/GeometryTopicManager';
@@ -28,6 +29,7 @@ const { Header, Content, Sider } = Layout;
 function AppContent() {
   const [currentView, setCurrentView] = useState('tasks');
   const [selectedWorkIdForEditor, setSelectedWorkIdForEditor] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
   const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
 
@@ -188,6 +190,21 @@ function AppContent() {
               setSelectedWorkIdForEditor(workId);
               setCurrentView('work-editor');
             }}
+            onOpenStudent={(studentId) => {
+              setSelectedStudentId(studentId);
+              setCurrentView('student-detail');
+            }}
+          />
+        );
+      case 'student-detail':
+        return (
+          <StudentDetailPage
+            studentId={selectedStudentId}
+            onBack={() => setCurrentView('students')}
+            onOpenWork={(workId) => {
+              setSelectedWorkIdForEditor(workId);
+              setCurrentView('work-editor');
+            }}
           />
         );
       case 'achievements':
@@ -247,6 +264,7 @@ function AppContent() {
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
       case 'students': return 'Прогресс учеников';
+      case 'student-detail': return 'Детали ученика';
       case 'achievements': return 'Управление достижениями';
       case 'import': return 'Импорт задач';
       case 'geometry-tasks': return 'Геометрические задачи';
@@ -262,6 +280,7 @@ function AppContent() {
 
   const getSelectedKeys = () => {
     if (currentView === 'theory-view') return ['theory-browser'];
+    if (currentView === 'student-detail') return ['students'];
     return [currentView];
   };
 
