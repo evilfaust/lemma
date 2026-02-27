@@ -136,6 +136,20 @@
   display: block;
 }
 
+.sdp-section--chart {
+  padding: 14px 16px;
+}
+
+.sdp-section--chart .sdp-section-title {
+  margin-bottom: 10px !important;
+  font-size: 16px !important;
+}
+
+.sdp-section--chart .sdp-chart {
+  width: 78%;
+  margin: 0 auto;
+}
+
 /* Topic bars */
 .sdp-topic-list {
   display: flex;
@@ -208,40 +222,91 @@
   color: #8c8c8c;
 }
 
-/* Weak tasks */
-.sdp-weak-tasks .ant-table-wrapper {
-  border-radius: 12px;
+/* Weak tasks — card list */
+.sdp-weak-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sdp-weak-card {
+  border: 1px solid #eff1f7;
+  border-radius: 10px;
   overflow: hidden;
+  transition: border-color 0.2s;
 }
 
-.sdp-weak-task-statement {
-  padding: 12px 16px;
+.sdp-weak-card:hover {
+  border-color: #d0d5e4;
+}
+
+.sdp-weak-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
   background: #fafbff;
-  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.sdp-weak-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sdp-weak-card-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.sdp-weak-card-error-count {
+  white-space: nowrap;
+}
+
+.sdp-weak-card-body {
+  padding: 10px 12px 12px;
   font-size: 14px;
-  line-height: 1.7;
-  max-height: 300px;
-  overflow-y: auto;
+  line-height: 1.6;
+  border-top: 1px solid #eff1f7;
 }
 
-.sdp-error-rate-high {
-  color: #ff4d4f;
-  font-weight: 700;
+.sdp-weak-card-body .katex-display {
+  margin: 8px 0;
 }
 
-.sdp-error-rate-medium {
-  color: #faad14;
-  font-weight: 600;
+.sdp-weak-task-image {
+  display: block;
+  width: 100%;
+  max-width: 680px;
+  height: auto;
+  margin-top: 10px;
+  border-radius: 10px;
+  border: 1px solid #e8ebf4;
 }
 
-.sdp-error-rate-low {
-  color: #52c41a;
-  font-weight: 600;
+.sdp-weak-card-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 8px;
+  border-top: 1px dashed #edf0f6;
+  background: #fff;
 }
 
-.sdp-difficulty-1 { color: #52c41a; }
-.sdp-difficulty-2 { color: #faad14; }
-.sdp-difficulty-3 { color: #ff4d4f; }
+.sdp-weak-task-correct,
+.sdp-weak-task-wrong {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
 
 /* History */
 .sdp-history .ant-table-wrapper {
@@ -298,5 +363,9 @@
   .sdp-topic-name {
     width: 90px;
     font-size: 12px;
+  }
+
+  .sdp-section--chart .sdp-chart {
+    width: 100%;
   }
 }

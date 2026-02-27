@@ -16,8 +16,8 @@ const { Title, Text } = Typography;
 const ScoreChart = ({ data }) => {
   if (data.length < 2) return null;
 
-  const W = 700, H = 220;
-  const PAD = { top: 20, right: 20, bottom: 40, left: 44 };
+  const W = 640, H = 170;
+  const PAD = { top: 14, right: 16, bottom: 30, left: 36 };
   const plotW = W - PAD.left - PAD.right;
   const plotH = H - PAD.top - PAD.bottom;
 
@@ -32,6 +32,11 @@ const ScoreChart = ({ data }) => {
 
   const maxLabels = 8;
   const step = data.length > maxLabels ? Math.ceil(data.length / maxLabels) : 1;
+  const dayCountMap = data.reduce((acc, item) => {
+    const key = item.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+    acc.set(key, (acc.get(key) || 0) + 1);
+    return acc;
+  }, new Map());
 
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="sdp-chart" preserveAspectRatio="xMidYMid meet">
@@ -46,30 +51,29 @@ const ScoreChart = ({ data }) => {
         return (
           <g key={v}>
             <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#e8e8e8" strokeDasharray="4,4" />
-            <text x={PAD.left - 8} y={y + 4} textAnchor="end" fontSize="11" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">{v}%</text>
+            <text x={PAD.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">{v}%</text>
           </g>
         );
       })}
       <path d={areaPath} fill="url(#sdpChartGrad)" />
-      <path d={linePath} fill="none" stroke="#4361ee" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={linePath} fill="none" stroke="#4361ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
       {points.map((p, i) => {
         const color = p.percent >= 70 ? '#52c41a' : p.percent >= 40 ? '#faad14' : '#ff4d4f';
         return (
           <g key={i}>
-            <circle cx={p.x} cy={p.y} r="5" fill="#fff" stroke={color} strokeWidth="2.5" />
-            {data.length <= 12 && (
-              <text x={p.x} y={p.y - 10} textAnchor="middle" fontSize="10" fill="#333" fontWeight="600" fontFamily="Inter, -apple-system, sans-serif">
-                {p.percent}%
-              </text>
-            )}
+            <circle cx={p.x} cy={p.y} r="4" fill="#fff" stroke={color} strokeWidth="2" />
           </g>
         );
       })}
       {points.map((p, i) => {
         if (i % step !== 0 && i !== data.length - 1) return null;
-        const dateStr = p.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        const dayLabel = p.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+        const isDuplicateDay = (dayCountMap.get(dayLabel) || 0) > 1;
+        const dateStr = isDuplicateDay
+          ? `${dayLabel} ${p.date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+          : dayLabel;
         return (
-          <text key={`d${i}`} x={p.x} y={H - 8} textAnchor="middle" fontSize="10" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">
+          <text key={`d${i}`} x={p.x} y={H - 6} textAnchor="middle" fontSize="9" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">
             {dateStr}
           </text>
         );
@@ -115,6 +119,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
   const [achievements, setAchievements] = useState([]);
   const [allAnswers, setAllAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
+  const [expandedWeakTasks, setExpandedWeakTasks] = useState(() => new Set());
 
   // Загрузка основных данных
   useEffect(() => {
@@ -252,62 +257,16 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
     return ids;
   }, [attempts]);
 
-  // ============ COLUMNS ============
+  const toggleWeakTaskExpanded = (taskId) => {
+    setExpandedWeakTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
 
-  const weakTasksColumns = [
-    {
-      title: 'Задача',
-      dataIndex: ['task', 'code'],
-      key: 'code',
-      width: 100,
-      render: (code) => <Text strong style={{ fontFamily: 'monospace' }}>{code || '—'}</Text>,
-    },
-    {
-      title: 'Тема',
-      key: 'topic',
-      width: 150,
-      render: (_, record) => record.topic ? <Tag>{record.topic.title}</Tag> : '—',
-    },
-    {
-      title: 'Сложность',
-      key: 'difficulty',
-      width: 100,
-      render: (_, record) => {
-        const d = record.task.difficulty;
-        return d ? (
-          <span style={{ color: difficultyColors[d], fontWeight: 600 }}>
-            {difficultyLabels[d]}
-          </span>
-        ) : '—';
-      },
-    },
-    {
-      title: 'Ошибок',
-      key: 'errors',
-      width: 100,
-      sorter: (a, b) => b.errorRate - a.errorRate,
-      defaultSortOrder: 'descend',
-      render: (_, record) => (
-        <span>
-          <Text type="danger" strong>{record.wrongAttempts}</Text>
-          <Text type="secondary"> / {record.totalAttempts}</Text>
-        </span>
-      ),
-    },
-    {
-      title: 'Доля ошибок',
-      key: 'errorRate',
-      width: 130,
-      render: (_, record) => (
-        <Progress
-          percent={record.errorRate}
-          size="small"
-          strokeColor={record.errorRate >= 70 ? '#ff4d4f' : record.errorRate >= 40 ? '#faad14' : '#52c41a'}
-          format={(pct) => `${pct}%`}
-        />
-      ),
-    },
-  ];
+  // ============ COLUMNS ============
 
   const historyColumns = [
     {
@@ -449,7 +408,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
 
       {/* S3: Score Chart */}
       {chartData.length >= 2 && (
-        <div className="sdp-section">
+        <div className="sdp-section sdp-section--chart">
           <Title level={4} className="sdp-section-title">
             <LineChartOutlined /> Динамика результатов
           </Title>
@@ -491,36 +450,80 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
       <div className="sdp-section sdp-weak-tasks">
         <Title level={4} className="sdp-section-title">
           <WarningOutlined style={{ color: '#ff4d4f' }} /> Проблемные задачи
+          {weakTasks && weakTasks.length > 0 && (
+            <Text type="secondary" style={{ fontSize: 14, fontWeight: 400, marginLeft: 8 }}>
+              ({weakTasks.length})
+            </Text>
+          )}
         </Title>
         {answersLoading && <div className="sdp-answers-loading"><Spin size="small" /> Загрузка...</div>}
         {weakTasks && weakTasks.length > 0 && (
-          <Table
-            dataSource={weakTasks}
-            columns={weakTasksColumns}
-            pagination={{ pageSize: 10, showSizeChanger: false }}
-            size="small"
-            expandable={{
-              expandedRowRender: (record) => (
-                <div className="sdp-weak-task-statement">
-                  <MathRenderer content={record.task.statement_md || 'Нет условия'} />
-                  {record.task.answer && (
-                    <div style={{ marginTop: 8 }}>
-                      <Text type="secondary">Правильный ответ: </Text>
-                      <Text strong>{record.task.answer}</Text>
+          <div className="sdp-weak-list">
+            {weakTasks.map((record) => {
+              const d = record.task.difficulty;
+              const errorColor = record.errorRate >= 70 ? '#ff4d4f' : record.errorRate >= 40 ? '#faad14' : '#52c41a';
+              const isExpanded = expandedWeakTasks.has(record.key);
+              const uniqueWrongAnswers = [...new Set(record.studentAnswers)].slice(0, 4);
+              const taskStatement = record.task.statement_md || record.task.statement || record.task.condition || 'Нет условия';
+              const taskImageUrl = api.getTaskImageUrl(record.task);
+              return (
+                <div key={record.key} className="sdp-weak-card">
+                  <div className="sdp-weak-card-header">
+                    <div className="sdp-weak-card-meta">
+                      <Text strong style={{ fontFamily: 'monospace', fontSize: 15 }}>{record.task.code || '—'}</Text>
+                      {record.topic && <Tag>{record.topic.title}</Tag>}
+                      {d && (
+                        <span style={{ color: difficultyColors[d], fontWeight: 600, fontSize: 12 }}>
+                          {difficultyLabels[d]}
+                        </span>
+                      )}
                     </div>
-                  )}
-                  {record.studentAnswers.length > 0 && (
-                    <div style={{ marginTop: 4 }}>
-                      <Text type="secondary">Ответы ученика: </Text>
-                      {record.studentAnswers.map((a, i) => (
-                        <Tag key={i} color="red" style={{ marginTop: 2 }}>{a}</Tag>
-                      ))}
+                    <div className="sdp-weak-card-stats">
+                      <span className="sdp-weak-card-error-count">
+                        <Text type="danger" strong>{record.wrongAttempts}</Text>
+                        <Text type="secondary"> / {record.totalAttempts}</Text>
+                      </span>
+                      <Progress
+                        percent={record.errorRate}
+                        size="small"
+                        strokeColor={errorColor}
+                        style={{ width: 100 }}
+                        format={(pct) => `${pct}%`}
+                      />
+                      <Button size="small" type={isExpanded ? 'default' : 'link'} onClick={() => toggleWeakTaskExpanded(record.key)}>
+                        {isExpanded ? 'Скрыть условие' : 'Условие'}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="sdp-weak-card-footer">
+                    {uniqueWrongAnswers.length > 0 && (
+                      <span className="sdp-weak-task-wrong">
+                        <Text type="secondary">Ошибки ученика: </Text>
+                        {uniqueWrongAnswers.map((a, i) => (
+                          <Tag key={i} color="red">{a}</Tag>
+                        ))}
+                        {record.studentAnswers.length > uniqueWrongAnswers.length && (
+                          <Text type="secondary">+{record.studentAnswers.length - uniqueWrongAnswers.length}</Text>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  {isExpanded && (
+                    <div className="sdp-weak-card-body">
+                      <MathRenderer text={taskStatement} />
+                      {taskImageUrl && (
+                        <img
+                          src={taskImageUrl}
+                          alt={`Иллюстрация к задаче ${record.task.code || ''}`}
+                          className="sdp-weak-task-image"
+                        />
+                      )}
                     </div>
                   )}
                 </div>
-              ),
-            }}
-          />
+              );
+            })}
+          </div>
         )}
         {weakTasks && weakTasks.length === 0 && (
           <div className="sdp-empty-section">Нет ошибок — ученик отвечает на все задачи правильно!</div>
