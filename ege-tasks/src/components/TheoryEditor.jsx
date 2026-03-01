@@ -260,13 +260,15 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   useEffect(() => {
     if (!isGeoModalOpen) return;
     if (selectedGeoAppletId && geogebraAppletsById.has(selectedGeoAppletId)) {
-      setGeoDraft(geogebraAppletsById.get(selectedGeoAppletId));
+      const nextDraft = geogebraAppletsById.get(selectedGeoAppletId);
+      setGeoDraft((prev) => (prev === nextDraft ? prev : nextDraft));
       return;
     }
     if (geogebraApplets.length > 0) {
       syncDraftById(geogebraApplets[0].id);
       return;
     }
+    if (selectedGeoAppletId) return;
     handleCreateGeoApplet();
   }, [isGeoModalOpen, selectedGeoAppletId, geogebraAppletsById, geogebraApplets, syncDraftById, handleCreateGeoApplet]);
 
