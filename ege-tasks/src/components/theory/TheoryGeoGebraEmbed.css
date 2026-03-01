@@ -1,0 +1,51 @@
+.theory-ggb-block {
+  margin: 18px 0;
+}
+
+.theory-ggb-alert {
+  margin: 12px 0;
+}
+
+.theory-ggb-live {
+  border: 1px solid #ececec;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.theory-ggb-image {
+  display: none;
+  margin-top: 10px;
+  border: 1px solid #ececec;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+  text-align: center;
+}
+
+.theory-ggb-image img {
+  max-width: 100%;
+  height: auto;
+  display: inline-block;
+}
+
+.theory-ggb-caption {
+  margin-top: 8px;
+  color: #666;
+  font-size: 13px;
+  text-align: center;
+}
+
+@media print {
+  .theory-ggb-live {
+    display: none !important;
+  }
+
+  .theory-ggb-image {
+    display: block !important;
+  }
+
+  .theory-ggb-caption {
+    color: #000;
+  }
+}

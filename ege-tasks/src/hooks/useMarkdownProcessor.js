@@ -19,111 +19,210 @@ const DEBOUNCE_DELAY = 150
  *   ~~     → small space (0.5em)
  *   ~~~    → large space (2em)
  *
- * Strategy: replace custom syntax with unique text markers BEFORE markdown
- * parsing. Remark will wrap them in <p>. Then postprocess replaces
- * those <p> with proper divs.
+ * GeoGebra block:
+ *   :::geogebra
+ *   id: ggb-triangle-01
+ *   app: geometry
+ *   height: 520
+ *   caption: Треугольник ABC
+ *   :::
  */
 
 const MARKERS = {
-    colBreak:  'COLBREAK_7f3a9b',
-    vspace:    'VSPACE_7f3a9b',
-    vspaceSm:  'VSPACESM_7f3a9b',
-    vspaceLg:  'VSPACELG_7f3a9b',
+  colBreak: 'COLBREAK_7f3a9b',
+  vspace: 'VSPACE_7f3a9b',
+  vspaceSm: 'VSPACESM_7f3a9b',
+  vspaceLg: 'VSPACELG_7f3a9b',
+  geogebraPrefix: 'GGBLOCK_7f3a9b_',
+}
+
+function parseGeoGebraConfig(rawConfig = '') {
+  const allowedApps = new Set(['geometry', 'graphing', 'classic', '3d'])
+  const cfg = {
+    id: '',
+    app: 'geometry',
+    height: 520,
+    caption: '',
+  }
+
+  rawConfig
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .forEach((line) => {
+      const idx = line.indexOf(':')
+      if (idx === -1) return
+      const key = line.slice(0, idx).trim().toLowerCase()
+      const value = line.slice(idx + 1).trim()
+      if (!value) return
+
+      if (key === 'id') {
+        cfg.id = value
+        return
+      }
+      if (key === 'app') {
+        const normalized = value.toLowerCase()
+        if (allowedApps.has(normalized)) cfg.app = normalized
+        return
+      }
+      if (key === 'height') {
+        const num = Number(value)
+        if (Number.isFinite(num)) cfg.height = Math.min(900, Math.max(260, Math.round(num)))
+        return
+      }
+      if (key === 'caption') {
+        cfg.caption = value.replace(/^"(.*)"$/, '$1')
+      }
+    })
+
+  return cfg
 }
 
 function preprocess(md) {
-    return md.replace(/\r\n/g, '\n')
-        .replace(/^:::\s*$/gm, MARKERS.colBreak)
-        .replace(/^~~~\s*$/gm, MARKERS.vspaceLg)
-        .replace(/^~~\s*$/gm, MARKERS.vspaceSm)
-        .replace(/^~\s*$/gm, MARKERS.vspace)
-}
+  const normalized = md.replace(/\r\n/g, '\n')
+  const lines = normalized.split('\n')
+  const outLines = []
+  const geogebraBlocks = []
 
-function postprocess(html, columns) {
-    let result = html
-        .replace(new RegExp(`<p>\\s*${MARKERS.vspaceLg}\\s*</p>`, 'g'),
-            '<div class="vspace vspace-lg"></div>')
-        .replace(new RegExp(`<p>\\s*${MARKERS.vspaceSm}\\s*</p>`, 'g'),
-            '<div class="vspace vspace-sm"></div>')
-        .replace(new RegExp(`<p>\\s*${MARKERS.vspace}\\s*</p>`, 'g'),
-            '<div class="vspace"></div>')
-        .replace(new RegExp(MARKERS.vspaceLg, 'g'),
-            '<div class="vspace vspace-lg"></div>')
-        .replace(new RegExp(MARKERS.vspaceSm, 'g'),
-            '<div class="vspace vspace-sm"></div>')
-        .replace(new RegExp(MARKERS.vspace, 'g'),
-            '<div class="vspace"></div>')
-
-    const colBreakPattern = `<p>\\s*${MARKERS.colBreak}\\s*</p>|${MARKERS.colBreak}`
-    const hasColBreak = new RegExp(colBreakPattern).test(result)
-
-    if (columns > 1 && hasColBreak) {
-        const splitRegex = new RegExp(colBreakPattern, 'g')
-        const parts = result.split(splitRegex).filter(p => p.trim())
-        result = parts.map((part) =>
-            `<div class="col-section">${part}</div>`
-        ).join('')
-    } else {
-        result = result.replace(new RegExp(colBreakPattern, 'g'), '')
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].trim() !== ':::geogebra') {
+      outLines.push(lines[i])
+      continue
     }
 
-    return result
+    const startIndex = i
+    const blockLines = []
+    let closed = false
+    i += 1
+
+    for (; i < lines.length; i += 1) {
+      if (lines[i].trim() === ':::') {
+        closed = true
+        break
+      }
+      blockLines.push(lines[i])
+    }
+
+    if (!closed) {
+      outLines.push(lines[startIndex])
+      outLines.push(...blockLines)
+      i = startIndex + blockLines.length
+      continue
+    }
+
+    const marker = `${MARKERS.geogebraPrefix}${geogebraBlocks.length}`
+    geogebraBlocks.push({
+      marker,
+      config: parseGeoGebraConfig(blockLines.join('\n')),
+    })
+    outLines.push(marker)
+  }
+
+  const processed = outLines
+    .join('\n')
+    .replace(/^:::\s*$/gm, MARKERS.colBreak)
+    .replace(/^~~~\s*$/gm, MARKERS.vspaceLg)
+    .replace(/^~~\s*$/gm, MARKERS.vspaceSm)
+    .replace(/^~\s*$/gm, MARKERS.vspace)
+
+  return {
+    text: processed,
+    geogebraBlocks,
+  }
+}
+
+function escapeAttr(value = '') {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function postprocess(html, columns, geogebraBlocks = []) {
+  let result = html
+    .replace(new RegExp(`<p>\\s*${MARKERS.vspaceLg}\\s*</p>`, 'g'), '<div class="vspace vspace-lg"></div>')
+    .replace(new RegExp(`<p>\\s*${MARKERS.vspaceSm}\\s*</p>`, 'g'), '<div class="vspace vspace-sm"></div>')
+    .replace(new RegExp(`<p>\\s*${MARKERS.vspace}\\s*</p>`, 'g'), '<div class="vspace"></div>')
+    .replace(new RegExp(MARKERS.vspaceLg, 'g'), '<div class="vspace vspace-lg"></div>')
+    .replace(new RegExp(MARKERS.vspaceSm, 'g'), '<div class="vspace vspace-sm"></div>')
+    .replace(new RegExp(MARKERS.vspace, 'g'), '<div class="vspace"></div>')
+
+  const colBreakPattern = `<p>\\s*${MARKERS.colBreak}\\s*</p>|${MARKERS.colBreak}`
+  const hasColBreak = new RegExp(colBreakPattern).test(result)
+
+  if (columns > 1 && hasColBreak) {
+    const splitRegex = new RegExp(colBreakPattern, 'g')
+    const parts = result.split(splitRegex).filter((p) => p.trim())
+    result = parts.map((part) => `<div class="col-section">${part}</div>`).join('')
+  } else {
+    result = result.replace(new RegExp(colBreakPattern, 'g'), '')
+  }
+
+  geogebraBlocks.forEach((item) => {
+    const { id, app, height, caption } = item.config
+    const blockHtml = `<div class="geogebra-embed" data-geogebra-id="${escapeAttr(id)}" data-geogebra-app="${escapeAttr(app)}" data-geogebra-height="${escapeAttr(height)}" data-geogebra-caption="${escapeAttr(caption)}"></div>`
+    const markerPattern = new RegExp(`<p>\\s*${item.marker}\\s*</p>|${item.marker}`, 'g')
+    result = result.replace(markerPattern, blockHtml)
+  })
+
+  return result
 }
 
 export function useMarkdownProcessor(markdown, columns = 1) {
-    const [html, setHtml] = useState('')
-    const timeoutRef = useRef(null)
-    const processorRef = useRef(null)
-    const columnsRef = useRef(columns)
-    columnsRef.current = columns
+  const [html, setHtml] = useState('')
+  const timeoutRef = useRef(null)
+  const processorRef = useRef(null)
+  const columnsRef = useRef(columns)
+  columnsRef.current = columns
 
-    // Create processor once
-    if (!processorRef.current) {
-        processorRef.current = unified()
-            .use(remarkParse)
-            .use(remarkGfm)
-            .use(remarkMath)
-            .use(remarkRehype)
-            .use(rehypeKatex)
-            .use(rehypeStringify)
+  // Create processor once
+  if (!processorRef.current) {
+    processorRef.current = unified()
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkMath)
+      .use(remarkRehype)
+      .use(rehypeKatex)
+      .use(rehypeStringify)
+  }
+
+  const processMarkdown = useCallback(async (text) => {
+    try {
+      const { text: preprocessed, geogebraBlocks } = preprocess(text)
+      const result = await processorRef.current.process(preprocessed)
+      const withCustom = postprocess(String(result), columnsRef.current, geogebraBlocks)
+
+      const cleanHtml = DOMPurify.sanitize(withCustom, {
+        ADD_TAGS: ['math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub',
+          'mfrac', 'mroot', 'msqrt', 'munder', 'mover', 'mtable', 'mtr',
+          'mtd', 'annotation', 'div', 'table', 'thead', 'tbody', 'tr',
+          'th', 'td', 'caption', 'colgroup', 'col'],
+        ADD_ATTR: ['class', 'style', 'encoding', 'xmlns', 'aria-hidden'],
+        ALLOW_DATA_ATTR: true,
+      })
+      setHtml(cleanHtml)
+    } catch (error) {
+      console.error('Markdown processing error:', error)
+      setHtml('<p style="color: red;">Ошибка рендеринга</p>')
+    }
+  }, [])
+
+  useEffect(() => {
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current)
     }
 
-    const processMarkdown = useCallback(async (text) => {
-        try {
-            const preprocessed = preprocess(text)
-            const result = await processorRef.current.process(preprocessed)
-            const withCustom = postprocess(String(result), columnsRef.current)
+    timeoutRef.current = setTimeout(() => {
+      processMarkdown(markdown)
+    }, DEBOUNCE_DELAY)
 
-            const cleanHtml = DOMPurify.sanitize(withCustom, {
-                ADD_TAGS: ['math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub',
-                           'mfrac', 'mroot', 'msqrt', 'munder', 'mover', 'mtable', 'mtr',
-                           'mtd', 'annotation', 'div', 'table', 'thead', 'tbody', 'tr',
-                           'th', 'td', 'caption', 'colgroup', 'col'],
-                ADD_ATTR: ['class', 'style', 'encoding', 'xmlns', 'aria-hidden'],
-                ALLOW_DATA_ATTR: true
-            })
-            setHtml(cleanHtml)
-        } catch (error) {
-            console.error('Markdown processing error:', error)
-            setHtml('<p style="color: red;">Ошибка рендеринга</p>')
-        }
-    }, [])
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current)
+      }
+    }
+  }, [markdown, columns, processMarkdown])
 
-    useEffect(() => {
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current)
-        }
-
-        timeoutRef.current = setTimeout(() => {
-            processMarkdown(markdown)
-        }, DEBOUNCE_DELAY)
-
-        return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current)
-            }
-        }
-    }, [markdown, columns, processMarkdown])
-
-    return html
+  return html
 }

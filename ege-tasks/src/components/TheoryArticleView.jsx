@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button, Spin, Tag, Select, Tooltip, Drawer, App } from 'antd';
+import { createRoot } from 'react-dom/client';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined, FormatPainterOutlined, BookOutlined
@@ -12,6 +13,7 @@ import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import TheoryGeoGebraEmbed from './theory/TheoryGeoGebraEmbed';
 import './theory/TheoryArticleView.css';
 
 export default function TheoryArticleView({ articleId, onBack, onEdit }) {
@@ -30,6 +32,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const [themeDrawerOpen, setThemeDrawerOpen] = useState(false);
   const previewRef = useRef(null);
   const contentRef = useRef(null);
+  const geogebraRootsRef = useRef([]);
   const puppeteerPDF = usePuppeteerPDF();
 
   useEffect(() => {
@@ -103,6 +106,47 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     const headings = previewRef.current.querySelectorAll('h1, h2, h3');
     headings.forEach((h, i) => { h.id = `heading-${i}`; });
   }, [html]);
+
+  const geogebraAppletsById = useMemo(() => {
+    const applets = article?.theme_settings?.geogebra_applets;
+    if (!Array.isArray(applets)) return new Map();
+    return new Map(
+      applets
+        .filter(item => item?.id)
+        .map(item => [item.id, item]),
+    );
+  }, [article?.theme_settings]);
+
+  useEffect(() => {
+    geogebraRootsRef.current.forEach((root) => root.unmount());
+    geogebraRootsRef.current = [];
+    if (!previewRef.current) return undefined;
+
+    const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
+    embeds.forEach((node) => {
+      const blockId = node.getAttribute('data-geogebra-id') || '';
+      const fallbackApp = node.getAttribute('data-geogebra-app') || 'geometry';
+      const fallbackHeight = Number(node.getAttribute('data-geogebra-height') || 520);
+      const fallbackCaption = node.getAttribute('data-geogebra-caption') || '';
+      const applet = geogebraAppletsById.get(blockId) || null;
+      const root = createRoot(node);
+      root.render(
+        <TheoryGeoGebraEmbed
+          blockId={blockId}
+          fallbackApp={fallbackApp}
+          fallbackHeight={fallbackHeight}
+          fallbackCaption={fallbackCaption}
+          applet={applet}
+        />,
+      );
+      geogebraRootsRef.current.push(root);
+    });
+
+    return () => {
+      geogebraRootsRef.current.forEach((root) => root.unmount());
+      geogebraRootsRef.current = [];
+    };
+  }, [html, geogebraAppletsById]);
 
   // IntersectionObserver for active TOC item
   useEffect(() => {

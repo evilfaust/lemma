@@ -4,7 +4,7 @@ const AUTOSAVE_PREFIX = 'theory-editor-autosave'
 const AUTOSAVE_SETTINGS_PREFIX = 'theory-editor-settings'
 const AUTOSAVE_INTERVAL = 30000
 
-export function useAutosave(markdown, pageSettings, currentTheme, articleId = null) {
+export function useAutosave(markdown, pageSettings, currentTheme, articleId = null, extraSettings = {}) {
     const intervalRef = useRef(null)
     const key = articleId ? `${AUTOSAVE_PREFIX}-${articleId}` : AUTOSAVE_PREFIX
     const settingsKey = articleId ? `${AUTOSAVE_SETTINGS_PREFIX}-${articleId}` : AUTOSAVE_SETTINGS_PREFIX
@@ -14,7 +14,8 @@ export function useAutosave(markdown, pageSettings, currentTheme, articleId = nu
             localStorage.setItem(key, markdown)
             localStorage.setItem(settingsKey, JSON.stringify({
                 pageSettings,
-                currentTheme
+                currentTheme,
+                ...extraSettings
             }))
         }, AUTOSAVE_INTERVAL)
 
@@ -23,7 +24,7 @@ export function useAutosave(markdown, pageSettings, currentTheme, articleId = nu
                 clearInterval(intervalRef.current)
             }
         }
-    }, [markdown, pageSettings, currentTheme, key, settingsKey])
+    }, [markdown, pageSettings, currentTheme, key, settingsKey, extraSettings])
 
     useEffect(() => {
         localStorage.setItem(key, markdown)
