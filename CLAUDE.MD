@@ -246,8 +246,11 @@ generation-test/
 - `useTopicSubtopicCreation.js` - Topic/subtopic creation with duplicate detection
 
 ### Contexts (ege-tasks/src/contexts/)
-- `ReferenceDataContext.jsx` - Global reference data (topics, tags, subtopics, years, sources, theoryCategories)
-  - Hook: `useReferenceData()` - returns all reference data + `reloadData()`
+- `ReferenceDataContext.jsx` - Global reference data + tasks stats snapshot (cached)
+  - Hook: `useReferenceData()` - returns: topics, tags, years, sources, subtopics, theoryCategories, tasksSnapshot, withAnswerCount, withSolutionCount, loading, reloadData(), reloadSnapshot()
+  - **years/sources** вычисляются из `tasksSnapshot` через `useMemo` (не отдельные API-запросы)
+  - **tasksSnapshot** — лёгкий snapshot всех задач (id,topic,subtopic,tags,difficulty,has_image,source,year), без тяжёлых текстовых полей
+  - **reloadSnapshot()** — перезагрузить только snapshot + counts (для кнопок "Обновить" в Stats/Catalog)
 
 ### Utility Functions (ege-tasks/src/utils/)
 - `achievementEngine.js` - Achievement system engine (random badges + conditional unlocks)
@@ -459,7 +462,7 @@ Key function groups:
 - **Achievements:** getAchievements, getAchievement, getAchievementsByIds, createAchievement, updateAchievement, deleteAchievement
 - **Students:** registerStudent, loginStudent, logoutStudent, isStudentAuthenticated, getAuthStudent, getStudents, updateStudent, getAttemptsByStudent, getAttemptsForRegisteredStudents
 - **Theory:** getTheoryCategories, createTheoryCategory, updateTheoryCategory, deleteTheoryCategory, getTheoryArticles, getTheoryArticle, createTheoryArticle, updateTheoryArticle, deleteTheoryArticle, getTheoryArticleCountByCategory
-- **Stats:** getUniqueYears, getUniqueSources, getTasksStatsSnapshot
+- **Stats:** getUniqueYears (legacy), getUniqueSources (legacy), **getTasksStatsSnapshot** (лёгкий, без answer/solution_md, batch:500), **getWithAnswerCount**, **getWithSolutionCount**, **getTasksForDuplicateCheck** (lazy, только для вкладки дубликатов)
 - **Geometry:** getGeometryTopics, createGeometryTopic, updateGeometryTopic, deleteGeometryTopic, getGeometrySubtopics, createGeometrySubtopic, updateGeometrySubtopic, deleteGeometrySubtopic, **getGeometryTasks** (LIGHT_FIELDS — без geogebra_base64/solution_md, но с geogebra_image_base64/preview_layout), **getGeometryTask** (полная запись — для редактора), createGeometryTask, updateGeometryTask, deleteGeometryTask, **getGeometryImageUrl(task)** (URL файла `geogebra_image_base64`, fallback на legacy поля), getGeometryPrintTests, createGeometryPrintTest, updateGeometryPrintTest, deleteGeometryPrintTest
 
 ## PDF Export System
@@ -518,6 +521,7 @@ Key function groups:
 - Variant order: stored as JSON `[{taskId, position}]`
 - **Geometry LIGHT_FIELDS pattern**: `getGeometryTasks()` использует `fields` param — исключает тяжёлые поля (geogebra_base64 ~30-100KB, solution_md), но включает `geogebra_image_base64` и `preview_layout` для списка/быстрого предпросмотра. Для редактирования **всегда** вызывать `getGeometryTask(id)`.
 - **GeoGebra .ggb формат**: `geogebra_base64` хранит base64-кодированный XML (это и есть `.ggb` файл). `ggbApi.getBase64(cb)` → сохранить; `initialBase64` prop в `GeoGebraApplet` → восстановить.
+- **Stats snapshot pattern**: `getTasksStatsSnapshot()` возвращает лёгкие поля (без `answer`, `solution_md`, `statement_md`). Счётчики `withAnswer`/`withSolution` получаются отдельными count-запросами. `statement_md` загружается лениво через `getTasksForDuplicateCheck()` только при открытии вкладки "Дубли" в Каталоге. Snapshot кешируется в `ReferenceDataContext` и расшаривается между Stats и Catalog.
 
 ## Related Documentation
 
