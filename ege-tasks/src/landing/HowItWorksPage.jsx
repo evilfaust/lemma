@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { APP_VERSION } from '@shared/version/buildInfo'
+import { APP_VERSION, BUILD_DATE } from '@shared/version/buildInfo'
 
 /* ─── static data ─── */
 
-const DOC_BASELINE = { version: '3.7.4', date: '2026-03-01' }
+const formatDate = (iso) => iso ? iso.slice(0, 10) : ''
 
 const HERO_FACTS = [
   { value: '7 000+', label: 'Задач в базе по всем темам ЕГЭ', color: 'cyan' },
@@ -307,7 +307,7 @@ const HowItWorksPage = () => {
       <header className="v2-how-hero" id="overview">
         <div className="v2-how-hero-mesh" />
         <div className="v2-container" style={{ position: 'relative', zIndex: 2 }}>
-          <div className="v2-how-hero-badge">v{DOC_BASELINE.version} • {DOC_BASELINE.date}</div>
+          <div className="v2-how-hero-badge">v{APP_VERSION} • {formatDate(BUILD_DATE)}</div>
 
           <h1 className="v2-how-title">
             EGE Tasks Manager —<br />
