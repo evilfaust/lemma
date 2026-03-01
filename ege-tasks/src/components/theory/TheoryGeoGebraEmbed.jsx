@@ -2,20 +2,7 @@ import { Alert } from 'antd';
 import GeoGebraApplet from '../GeoGebraApplet';
 import './TheoryGeoGebraEmbed.css';
 
-export default function TheoryGeoGebraEmbed({
-  blockId = '',
-  fallbackApp = 'geometry',
-  fallbackHeight = 520,
-  fallbackCaption = '',
-  applet = null,
-}) {
-  const resolved = applet || {};
-  const appName = resolved.appName || fallbackApp || 'geometry';
-  const height = Number(resolved.height || fallbackHeight) || 520;
-  const caption = resolved.caption || fallbackCaption || '';
-  const geogebraBase64 = resolved.geogebraBase64 || '';
-  const previewImage = resolved.previewImage || '';
-
+export default function TheoryGeoGebraEmbed({ blockId = '', applet = null }) {
   if (!blockId) {
     return (
       <Alert
@@ -27,7 +14,7 @@ export default function TheoryGeoGebraEmbed({
     );
   }
 
-  if (!geogebraBase64) {
+  if (!applet?.geogebraBase64) {
     return (
       <Alert
         className="theory-ggb-alert"
@@ -38,6 +25,8 @@ export default function TheoryGeoGebraEmbed({
       />
     );
   }
+
+  const { appName = 'geometry', height = 520, caption = '', geogebraBase64, previewImage } = applet;
 
   return (
     <div className="theory-ggb-block">

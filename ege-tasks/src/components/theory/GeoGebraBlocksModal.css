@@ -1,0 +1,106 @@
+/* ===== GeoGebra Blocks Modal ===== */
+
+.ggb-modal {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.ggb-modal-sidebar {
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 420px;
+}
+
+.ggb-modal-sidebar-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ggb-modal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.ggb-modal-empty {
+  color: #8c8c8c;
+  font-size: 12px;
+  text-align: center;
+  padding: 16px 8px;
+}
+
+.ggb-modal-item {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.ggb-modal-item strong {
+  font-size: 12px;
+}
+
+.ggb-modal-item span {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.ggb-modal-item.active {
+  border-color: #1677ff;
+  background: #f0f7ff;
+}
+
+.ggb-modal-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.ggb-modal-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 180px 120px;
+  gap: 8px;
+}
+
+.ggb-modal-applet {
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fafafa;
+}
+
+.ggb-modal-preview {
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 8px;
+  background: #fafafa;
+  text-align: center;
+}
+
+.ggb-modal-preview img {
+  max-width: 100%;
+  max-height: 180px;
+  display: inline-block;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ggb-modal {
+    grid-template-columns: 1fr;
+  }
+
+  .ggb-modal-fields {
+    grid-template-columns: 1fr;
+  }
+}

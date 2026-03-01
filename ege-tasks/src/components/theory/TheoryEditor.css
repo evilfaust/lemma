@@ -329,99 +329,35 @@
   font-size: 14px;
 }
 
-/* GeoGebra modal */
-.theory-geogebra-modal {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 14px;
-}
-
-.theory-geogebra-sidebar {
-  border: 1px solid #f0f0f0;
+/* GeoGebra placeholder in editor preview */
+.theory-preview-content .geogebra-embed {
+  border: 2px dashed #b7c4ff;
   border-radius: 10px;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 420px;
-}
-
-.theory-geogebra-sidebar-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.theory-geogebra-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  overflow: auto;
-}
-
-.theory-geogebra-empty {
-  color: #8c8c8c;
-  font-size: 12px;
+  background: #f0f4ff;
+  padding: 24px 16px;
   text-align: center;
-  padding: 16px 8px;
+  color: #4361ee;
+  font-size: 13px;
+  font-weight: 500;
+  margin: 12px 0;
 }
 
-.theory-geogebra-item {
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  background: #fff;
-  text-align: left;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  cursor: pointer;
+.theory-preview-content .geogebra-embed::before {
+  content: 'GeoGebra';
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #8c9eff;
+  margin-bottom: 4px;
 }
 
-.theory-geogebra-item strong {
+.theory-preview-content .geogebra-embed::after {
+  content: attr(data-geogebra-id);
+  display: block;
+  font-family: monospace;
   font-size: 12px;
-}
-
-.theory-geogebra-item span {
-  color: #8c8c8c;
-  font-size: 12px;
-}
-
-.theory-geogebra-item.active {
-  border-color: #1677ff;
-  background: #f0f7ff;
-}
-
-.theory-geogebra-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.theory-geogebra-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px 120px;
-  gap: 8px;
-}
-
-.theory-geogebra-embed-editor {
-  border: 1px solid #f0f0f0;
-  border-radius: 10px;
-  padding: 8px;
-  background: #fafafa;
-}
-
-.theory-geogebra-preview-image {
-  border: 1px solid #f0f0f0;
-  border-radius: 10px;
-  padding: 8px;
-  background: #fafafa;
-  text-align: center;
-}
-
-.theory-geogebra-preview-image img {
-  max-width: 100%;
-  max-height: 180px;
-  display: inline-block;
+  color: #5c6bc0;
 }
 
 /* Responsive */
@@ -446,13 +382,5 @@
 
   .theory-title-input {
     max-width: 100%;
-  }
-
-  .theory-geogebra-modal {
-    grid-template-columns: 1fr;
-  }
-
-  .theory-geogebra-fields {
-    grid-template-columns: 1fr;
   }
 }

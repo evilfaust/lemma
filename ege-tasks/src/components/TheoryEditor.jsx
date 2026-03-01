@@ -3,14 +3,14 @@ import { Button, Select, Input, Modal, Spin, InputNumber, Radio, Tag, Space, Too
 import {
   SaveOutlined, SettingOutlined,
   FormatPainterOutlined, ColumnWidthOutlined, FilePdfOutlined,
-  ArrowLeftOutlined, TagsOutlined, CheckCircleOutlined, NodeIndexOutlined, PlusOutlined, DeleteOutlined, CameraOutlined
+  ArrowLeftOutlined, TagsOutlined, CheckCircleOutlined, NodeIndexOutlined
 } from '@ant-design/icons';
 import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave, usePuppeteerPDF } from '../hooks';
 import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import EditorToolbar from './theory/EditorToolbar';
-import GeoGebraApplet from './GeoGebraApplet';
+import GeoGebraBlocksModal from './theory/GeoGebraBlocksModal';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
@@ -41,22 +41,6 @@ $$
 $$
 `;
 
-const APPNAME_OPTIONS = [
-  { value: 'geometry', label: 'Геометрия' },
-  { value: 'graphing', label: 'Графики функций' },
-  { value: 'classic', label: 'Классик' },
-  { value: '3d', label: '3D' },
-];
-
-const createDefaultApplet = (suffix = Date.now().toString(36).slice(-5)) => ({
-  id: `ggb-${suffix}`,
-  appName: 'geometry',
-  height: 520,
-  caption: '',
-  geogebraBase64: '',
-  previewImage: '',
-});
-
 export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const { message } = App.useApp();
   const { theoryCategories: categories, reloadData } = useReferenceData();
@@ -82,9 +66,6 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const [articleLoading, setArticleLoading] = useState(!!articleId);
   const [splitPos, setSplitPos] = useState(50);
   const [isGeoModalOpen, setIsGeoModalOpen] = useState(false);
-  const [selectedGeoAppletId, setSelectedGeoAppletId] = useState('');
-  const [geoDraft, setGeoDraft] = useState(createDefaultApplet());
-  const [readingGeoState, setReadingGeoState] = useState(false);
 
   // Article metadata
   const [title, setTitle] = useState('');
@@ -95,7 +76,6 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const editorRef = useRef(null);
   const previewRef = useRef(null);
   const containerRef = useRef(null);
-  const geoModalApiRef = useRef(null);
   const puppeteerPDF = usePuppeteerPDF();
 
   // Process markdown
@@ -145,131 +125,14 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     }
   };
 
-  const geogebraAppletsById = useMemo(
-    () => new Map(geogebraApplets.filter(item => item?.id).map(item => [item.id, item])),
-    [geogebraApplets],
-  );
-
   const insertGeoBlockAtCursor = useCallback((applet) => {
     const editor = editorRef.current;
     if (!editor || !applet?.id) return;
-    const block = `\n:::geogebra\nid: ${applet.id}\napp: ${applet.appName || 'geometry'}\nheight: ${applet.height || 520}\ncaption: ${applet.caption || ''}\n:::\n`;
+    const block = `\n:::geogebra ${applet.id}:::\n`;
     const selection = editor.getSelection();
     editor.executeEdits('geogebra', [{ range: selection, text: block }]);
     editor.focus();
   }, []);
-
-  const syncDraftById = useCallback((id) => {
-    const found = geogebraApplets.find(item => item.id === id);
-    if (!found) {
-      const fresh = createDefaultApplet();
-      setSelectedGeoAppletId(fresh.id);
-      setGeoDraft(fresh);
-      return;
-    }
-    setSelectedGeoAppletId(id);
-    setGeoDraft({
-      ...createDefaultApplet(id.replace(/^ggb-/, '')),
-      ...found,
-      id,
-    });
-  }, [geogebraApplets]);
-
-  const handleCreateGeoApplet = useCallback(() => {
-    const fresh = createDefaultApplet();
-    setSelectedGeoAppletId(fresh.id);
-    setGeoDraft(fresh);
-  }, []);
-
-  const handleSaveGeoAppletMeta = useCallback(() => {
-    const normalized = {
-      ...geoDraft,
-      id: (geoDraft.id || '').trim(),
-      appName: geoDraft.appName || 'geometry',
-      height: Number(geoDraft.height || 520),
-      caption: geoDraft.caption || '',
-      geogebraBase64: geoDraft.geogebraBase64 || '',
-      previewImage: geoDraft.previewImage || '',
-    };
-
-    if (!normalized.id) {
-      message.warning('Укажите id GeoGebra-блока');
-      return;
-    }
-
-    if (geogebraApplets.some(item => item.id === normalized.id && item.id !== selectedGeoAppletId)) {
-      message.warning('Блок с таким id уже существует');
-      return;
-    }
-
-    setGeogebraApplets((prev) => {
-      const idx = prev.findIndex(item => item.id === selectedGeoAppletId);
-      if (idx === -1) return [...prev, normalized];
-      const next = [...prev];
-      next[idx] = normalized;
-      return next;
-    });
-    setSelectedGeoAppletId(normalized.id);
-    message.success('GeoGebra-блок сохранён');
-  }, [geoDraft, geogebraApplets, selectedGeoAppletId, message]);
-
-  const handleDeleteGeoApplet = useCallback(() => {
-    if (!selectedGeoAppletId) return;
-    const rest = geogebraApplets.filter(item => item.id !== selectedGeoAppletId);
-    setGeogebraApplets(rest);
-    if (rest.length > 0) {
-      syncDraftById(rest[0].id);
-      return;
-    }
-    handleCreateGeoApplet();
-  }, [selectedGeoAppletId, geogebraApplets, syncDraftById, handleCreateGeoApplet]);
-
-  const handleReadGeoFromApplet = useCallback(async () => {
-    const ggbApi = geoModalApiRef.current;
-    if (!ggbApi) {
-      message.warning('GeoGebra ещё не загружена');
-      return;
-    }
-
-    setReadingGeoState(true);
-    try {
-      const geogebraBase64 = await new Promise((resolve) => {
-        ggbApi.getBase64((base64) => resolve(base64 || ''));
-      });
-      const pngBase64 = ggbApi.getPNGBase64(2, false, 300);
-      const previewImage = pngBase64
-        ? (pngBase64.startsWith('data:image/') ? pngBase64 : `data:image/png;base64,${pngBase64}`)
-        : '';
-
-      setGeoDraft(prev => ({
-        ...prev,
-        geogebraBase64,
-        previewImage: previewImage || prev.previewImage,
-      }));
-      message.success('Состояние и PNG считаны из GeoGebra');
-    } catch (error) {
-      message.error('Не удалось считать состояние GeoGebra');
-    } finally {
-      setReadingGeoState(false);
-    }
-  }, [message]);
-
-  const handleOpenGeoModal = useCallback(() => {
-    if (selectedGeoAppletId && geogebraAppletsById.has(selectedGeoAppletId)) {
-      setGeoDraft(geogebraAppletsById.get(selectedGeoAppletId));
-      setIsGeoModalOpen(true);
-      return;
-    }
-    if (geogebraApplets.length > 0) {
-      syncDraftById(geogebraApplets[0].id);
-      setIsGeoModalOpen(true);
-      return;
-    }
-    const fresh = createDefaultApplet();
-    setSelectedGeoAppletId(fresh.id);
-    setGeoDraft(fresh);
-    setIsGeoModalOpen(true);
-  }, [selectedGeoAppletId, geogebraAppletsById, geogebraApplets, syncDraftById]);
 
   // Insert formula at cursor
   const insertFormula = useCallback((type) => {
@@ -481,7 +344,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
           </Tooltip>
           <Tooltip title="GeoGebra-блоки">
             <Badge count={geogebraApplets.length} size="small" offset={[-4, 0]}>
-              <Button type="text" size="small" icon={<NodeIndexOutlined />} onClick={handleOpenGeoModal} />
+              <Button type="text" size="small" icon={<NodeIndexOutlined />} onClick={() => setIsGeoModalOpen(true)} />
             </Badge>
           </Tooltip>
           <div className="toolbar-divider" />
@@ -627,108 +490,13 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
       </Modal>
 
       {/* GeoGebra blocks modal */}
-      <Modal
-        title="GeoGebra-блоки статьи"
+      <GeoGebraBlocksModal
         open={isGeoModalOpen}
-        onCancel={() => { setIsGeoModalOpen(false); geoModalApiRef.current = null; }}
-        footer={null}
-        width={980}
-      >
-        <div className="theory-geogebra-modal">
-          <div className="theory-geogebra-sidebar">
-            <div className="theory-geogebra-sidebar-actions">
-              <Button icon={<PlusOutlined />} onClick={handleCreateGeoApplet}>Новый блок</Button>
-            </div>
-            <div className="theory-geogebra-list">
-              {geogebraApplets.length === 0 && (
-                <div className="theory-geogebra-empty">Блоков пока нет</div>
-              )}
-              {geogebraApplets.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`theory-geogebra-item ${selectedGeoAppletId === item.id ? 'active' : ''}`}
-                  onClick={() => syncDraftById(item.id)}
-                >
-                  <strong>{item.id}</strong>
-                  <span>{item.caption || 'Без подписи'}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="theory-geogebra-editor">
-            <div className="theory-geogebra-fields">
-              <Input
-                value={geoDraft.id}
-                onChange={(e) => setGeoDraft(prev => ({ ...prev, id: e.target.value }))}
-                placeholder="ID блока (например ggb-triangle)"
-              />
-              <Select
-                value={geoDraft.appName}
-                onChange={(v) => setGeoDraft(prev => ({ ...prev, appName: v }))}
-                options={APPNAME_OPTIONS}
-                style={{ width: 180 }}
-              />
-              <InputNumber
-                min={260}
-                max={900}
-                value={geoDraft.height}
-                onChange={(v) => setGeoDraft(prev => ({ ...prev, height: Number(v || 520) }))}
-              />
-            </div>
-
-            <Input
-              value={geoDraft.caption}
-              onChange={(e) => setGeoDraft(prev => ({ ...prev, caption: e.target.value }))}
-              placeholder="Подпись блока (опционально)"
-            />
-
-            <div className="theory-geogebra-embed-editor">
-              <GeoGebraApplet
-                key={`${geoDraft.id}-${(geoDraft.geogebraBase64 || '').slice(0, 24)}-${geoDraft.appName}`}
-                appName={geoDraft.appName || 'geometry'}
-                readOnly={false}
-                initialBase64={geoDraft.geogebraBase64 || ''}
-                onApiReady={(apiRef) => { geoModalApiRef.current = apiRef; }}
-                height={Number(geoDraft.height || 520)}
-              />
-            </div>
-
-            <Space wrap>
-              <Button
-                type="primary"
-                icon={<CameraOutlined />}
-                onClick={handleReadGeoFromApplet}
-                loading={readingGeoState}
-              >
-                Считать из GeoGebra
-              </Button>
-              <Button onClick={handleSaveGeoAppletMeta}>Сохранить блок</Button>
-              <Button
-                onClick={() => insertGeoBlockAtCursor(geoDraft)}
-                disabled={!geoDraft.id}
-              >
-                Вставить блок в текст
-              </Button>
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={handleDeleteGeoApplet}
-                disabled={!selectedGeoAppletId}
-              >
-                Удалить
-              </Button>
-            </Space>
-
-            {geoDraft.previewImage && (
-              <div className="theory-geogebra-preview-image">
-                <img src={geoDraft.previewImage} alt="GeoGebra preview" />
-              </div>
-            )}
-          </div>
-        </div>
-      </Modal>
+        onClose={() => setIsGeoModalOpen(false)}
+        applets={geogebraApplets}
+        onAppletsChange={setGeogebraApplets}
+        onInsertBlock={insertGeoBlockAtCursor}
+      />
 
       {/* Theme Selector Modal */}
       <Modal

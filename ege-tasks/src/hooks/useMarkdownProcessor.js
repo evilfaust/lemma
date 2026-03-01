@@ -19,13 +19,19 @@ const DEBOUNCE_DELAY = 150
  *   ~~     → small space (0.5em)
  *   ~~~    → large space (2em)
  *
- * GeoGebra block:
+ * GeoGebra block (однострочный — основной формат):
+ *   :::geogebra ggb-triangle-01:::
+ *
+ * GeoGebra block (многострочный — обратная совместимость):
  *   :::geogebra
  *   id: ggb-triangle-01
  *   app: geometry
  *   height: 520
  *   caption: Треугольник ABC
  *   :::
+ *
+ * Все данные (app, height, caption, base64) берутся из theme_settings.geogebra_applets.
+ * В HTML остаётся только data-geogebra-id.
  */
 
 const MARKERS = {
@@ -78,6 +84,9 @@ function parseGeoGebraConfig(rawConfig = '') {
   return cfg
 }
 
+// Однострочный формат: :::geogebra ggb-id:::
+const INLINE_GEO_RE = /^:::geogebra\s+(\S+)\s*:::$/
+
 function preprocess(md) {
   const normalized = md.replace(/\r\n/g, '\n')
   const lines = normalized.split('\n')
@@ -85,7 +94,22 @@ function preprocess(md) {
   const geogebraBlocks = []
 
   for (let i = 0; i < lines.length; i += 1) {
-    if (lines[i].trim() !== ':::geogebra') {
+    const trimmed = lines[i].trim()
+
+    // Однострочный формат: :::geogebra ggb-id:::
+    const inlineMatch = trimmed.match(INLINE_GEO_RE)
+    if (inlineMatch) {
+      const marker = `${MARKERS.geogebraPrefix}${geogebraBlocks.length}`
+      geogebraBlocks.push({
+        marker,
+        config: { id: inlineMatch[1], app: 'geometry', height: 520, caption: '' },
+      })
+      outLines.push(marker)
+      continue
+    }
+
+    // Многострочный формат (обратная совместимость): :::geogebra\n...\n:::
+    if (trimmed !== ':::geogebra') {
       outLines.push(lines[i])
       continue
     }
@@ -160,8 +184,7 @@ function postprocess(html, columns, geogebraBlocks = []) {
   }
 
   geogebraBlocks.forEach((item) => {
-    const { id, app, height, caption } = item.config
-    const blockHtml = `<div class="geogebra-embed" data-geogebra-id="${escapeAttr(id)}" data-geogebra-app="${escapeAttr(app)}" data-geogebra-height="${escapeAttr(height)}" data-geogebra-caption="${escapeAttr(caption)}"></div>`
+    const blockHtml = `<div class="geogebra-embed" data-geogebra-id="${escapeAttr(item.config.id)}"></div>`
     const markerPattern = new RegExp(`<p>\\s*${item.marker}\\s*</p>|${item.marker}`, 'g')
     result = result.replace(markerPattern, blockHtml)
   })

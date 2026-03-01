@@ -118,27 +118,18 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   }, [article?.theme_settings]);
 
   useEffect(() => {
-    geogebraRootsRef.current.forEach((root) => root.unmount());
+    const prevRoots = geogebraRootsRef.current;
+    prevRoots.forEach((root) => root.unmount());
     geogebraRootsRef.current = [];
+
     if (!previewRef.current) return undefined;
 
     const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
     embeds.forEach((node) => {
       const blockId = node.getAttribute('data-geogebra-id') || '';
-      const fallbackApp = node.getAttribute('data-geogebra-app') || 'geometry';
-      const fallbackHeight = Number(node.getAttribute('data-geogebra-height') || 520);
-      const fallbackCaption = node.getAttribute('data-geogebra-caption') || '';
       const applet = geogebraAppletsById.get(blockId) || null;
       const root = createRoot(node);
-      root.render(
-        <TheoryGeoGebraEmbed
-          blockId={blockId}
-          fallbackApp={fallbackApp}
-          fallbackHeight={fallbackHeight}
-          fallbackCaption={fallbackCaption}
-          applet={applet}
-        />,
-      );
+      root.render(<TheoryGeoGebraEmbed blockId={blockId} applet={applet} />);
       geogebraRootsRef.current.push(root);
     });
 
