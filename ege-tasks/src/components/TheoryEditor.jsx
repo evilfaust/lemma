@@ -1,6 +1,5 @@
 import React, { useState, useRef, useCallback, useMemo, useEffect, lazy, Suspense } from 'react';
 import { Button, Select, Input, Modal, Spin, InputNumber, Radio, Tag, Space, Tooltip, Badge, App } from 'antd';
-import { createRoot } from 'react-dom/client';
 import {
   SaveOutlined, SettingOutlined,
   FormatPainterOutlined, ColumnWidthOutlined, FilePdfOutlined,
@@ -12,7 +11,6 @@ import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import EditorToolbar from './theory/EditorToolbar';
 import GeoGebraApplet from './GeoGebraApplet';
-import TheoryGeoGebraEmbed from './theory/TheoryGeoGebraEmbed';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
@@ -97,7 +95,6 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const editorRef = useRef(null);
   const previewRef = useRef(null);
   const containerRef = useRef(null);
-  const geogebraPreviewRootsRef = useRef([]);
   const geoModalApiRef = useRef(null);
   const puppeteerPDF = usePuppeteerPDF();
 
@@ -257,20 +254,22 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     }
   }, [message]);
 
-  useEffect(() => {
-    if (!isGeoModalOpen) return;
+  const handleOpenGeoModal = useCallback(() => {
     if (selectedGeoAppletId && geogebraAppletsById.has(selectedGeoAppletId)) {
-      const nextDraft = geogebraAppletsById.get(selectedGeoAppletId);
-      setGeoDraft((prev) => (prev === nextDraft ? prev : nextDraft));
+      setGeoDraft(geogebraAppletsById.get(selectedGeoAppletId));
+      setIsGeoModalOpen(true);
       return;
     }
     if (geogebraApplets.length > 0) {
       syncDraftById(geogebraApplets[0].id);
+      setIsGeoModalOpen(true);
       return;
     }
-    if (selectedGeoAppletId) return;
-    handleCreateGeoApplet();
-  }, [isGeoModalOpen, selectedGeoAppletId, geogebraAppletsById, geogebraApplets, syncDraftById, handleCreateGeoApplet]);
+    const fresh = createDefaultApplet();
+    setSelectedGeoAppletId(fresh.id);
+    setGeoDraft(fresh);
+    setIsGeoModalOpen(true);
+  }, [selectedGeoAppletId, geogebraAppletsById, geogebraApplets, syncDraftById]);
 
   // Insert formula at cursor
   const insertFormula = useCallback((type) => {
@@ -406,38 +405,6 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     editorRef.current?.layout();
   }, [splitPos]);
 
-  useEffect(() => {
-    geogebraPreviewRootsRef.current.forEach((root) => root.unmount());
-    geogebraPreviewRootsRef.current = [];
-    if (!previewRef.current) return undefined;
-
-    const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
-    embeds.forEach((node) => {
-      const blockId = node.getAttribute('data-geogebra-id') || '';
-      const fallbackApp = node.getAttribute('data-geogebra-app') || 'geometry';
-      const fallbackHeight = Number(node.getAttribute('data-geogebra-height') || 520);
-      const fallbackCaption = node.getAttribute('data-geogebra-caption') || '';
-      const applet = geogebraAppletsById.get(blockId) || null;
-
-      const root = createRoot(node);
-      root.render(
-        <TheoryGeoGebraEmbed
-          blockId={blockId}
-          fallbackApp={fallbackApp}
-          fallbackHeight={fallbackHeight}
-          fallbackCaption={fallbackCaption}
-          applet={applet}
-        />,
-      );
-      geogebraPreviewRootsRef.current.push(root);
-    });
-
-    return () => {
-      geogebraPreviewRootsRef.current.forEach((root) => root.unmount());
-      geogebraPreviewRootsRef.current = [];
-    };
-  }, [html, geogebraAppletsById]);
-
   // Preview styles
   const previewStyles = useMemo(() => {
     const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
@@ -514,7 +481,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
           </Tooltip>
           <Tooltip title="GeoGebra-блоки">
             <Badge count={geogebraApplets.length} size="small" offset={[-4, 0]}>
-              <Button type="text" size="small" icon={<NodeIndexOutlined />} onClick={() => setIsGeoModalOpen(true)} />
+              <Button type="text" size="small" icon={<NodeIndexOutlined />} onClick={handleOpenGeoModal} />
             </Badge>
           </Tooltip>
           <div className="toolbar-divider" />
@@ -663,7 +630,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
       <Modal
         title="GeoGebra-блоки статьи"
         open={isGeoModalOpen}
-        onCancel={() => setIsGeoModalOpen(false)}
+        onCancel={() => { setIsGeoModalOpen(false); geoModalApiRef.current = null; }}
         footer={null}
         width={980}
       >
