@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
-import { Row, Col, Progress, Space, Button, Tag, Empty, Collapse, Tooltip, Alert, Table } from 'antd';
+import { useMemo, useState, useCallback } from 'react';
+import { Progress, Space, Button, Tag, Empty, Tooltip, Table } from 'antd';
 import {
   ReloadOutlined,
   AppstoreOutlined,
@@ -12,13 +12,10 @@ import {
   BranchesOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
-  PictureOutlined,
-  SolutionOutlined,
   TableOutlined,
   DownOutlined,
   RightOutlined,
 } from '@ant-design/icons';
-import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './TaskStatsDashboard.css';
 
@@ -52,36 +49,15 @@ const getHeatBarColor = (value, max) => {
 };
 
 const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
-  const { topics, tags, subtopics, sources, loading: refLoading } = useReferenceData();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [tasksSnapshot, setTasksSnapshot] = useState([]);
+  const { topics, tags, subtopics, sources, tasksSnapshot, withAnswerCount, withSolutionCount, loading: refLoading, reloadSnapshot } = useReferenceData();
   const [showSubtopics, setShowSubtopics] = useState(false);
   const [topicsView, setTopicsView] = useState('grid'); // 'grid' | 'table'
   const [sourcesView, setSourcesView] = useState('chart'); // 'chart' | 'table'
 
-  const loadStats = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await api.getTasksStatsSnapshot();
-      setTasksSnapshot(data);
-    } catch (e) {
-      console.error('Error loading stats dashboard:', e);
-      setError('Не удалось загрузить статистику. Проверьте соединение с PocketBase.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadStats();
-  }, []);
-
   const stats = useMemo(() => {
     const total = tasksSnapshot.length;
-    const withAnswer = tasksSnapshot.filter(t => (t.answer || '').toString().trim().length > 0).length;
-    const withSolution = tasksSnapshot.filter(t => (t.solution_md || '').toString().trim().length > 0).length;
+    const withAnswer = withAnswerCount;
+    const withSolution = withSolutionCount;
     const withImage = tasksSnapshot.filter(t => !!t.has_image).length;
 
     const byTopic = new Map();
@@ -122,7 +98,7 @@ const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
     });
 
     return { total, withAnswer, withSolution, withImage, byTopic, bySubtopic, byTag, byDifficulty, bySource, byYear };
-  }, [tasksSnapshot]);
+  }, [tasksSnapshot, withAnswerCount, withSolutionCount]);
 
   // ---- Derived data ----
 
@@ -230,7 +206,7 @@ const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
   const maxYearCount = Math.max(...yearRows.map(y => y.count), 1);
 
   // ---- Loading state ----
-  if (loading || refLoading) {
+  if (refLoading) {
     return (
       <div className="stats-dashboard">
         <div className="stats-skeleton-grid">
@@ -245,16 +221,7 @@ const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
     );
   }
 
-  if (error) {
-    return (
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Alert type="error" showIcon message={error} />
-        <Button icon={<ReloadOutlined />} onClick={loadStats}>Повторить</Button>
-      </Space>
-    );
-  }
-
-  if (tasksSnapshot.length === 0) {
+  if (tasksSnapshot.length === 0 && !refLoading) {
     return <Empty description="Нет данных по задачам" />;
   }
 
@@ -269,7 +236,7 @@ const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
           <Button icon={<AppstoreOutlined />} onClick={onOpenCatalog} type="text">
             Каталог
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={loadStats} type="text">
+          <Button icon={<ReloadOutlined />} onClick={reloadSnapshot} type="text">
             Обновить
           </Button>
         </Space>

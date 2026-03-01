@@ -461,11 +461,12 @@ export const api = {
 
   // ============ МЕТАДАННЫЕ ============
 
-  // Получить уникальные годы из задач
+  // Получить уникальные годы из задач (legacy — используйте getTasksStatsSnapshot + extractYears)
   async getUniqueYears() {
     try {
       const records = await pb.collection('tasks').getFullList({
         fields: 'year',
+        batch: 500,
       });
       const years = [...new Set(records.map(r => r.year).filter(Boolean))];
       return years.sort((a, b) => b - a); // Сортируем по убыванию
@@ -475,11 +476,12 @@ export const api = {
     }
   },
 
-  // Получить уникальные источники из задач
+  // Получить уникальные источники из задач (legacy — используйте getTasksStatsSnapshot + extractSources)
   async getUniqueSources() {
     try {
       const records = await pb.collection('tasks').getFullList({
         fields: 'source',
+        batch: 500,
       });
       const sources = [...new Set(records.map(r => r.source).filter(Boolean))];
       return sources.sort();
@@ -489,15 +491,57 @@ export const api = {
     }
   },
 
-  // Получить минимальные поля задач для статистики
+  // Получить лёгкий snapshot задач для статистики (без тяжёлых текстовых полей)
   async getTasksStatsSnapshot() {
     try {
       const records = await pb.collection('tasks').getFullList({
-        fields: 'id,topic,subtopic,tags,difficulty,answer,solution_md,has_image,source,year',
+        fields: 'id,topic,subtopic,tags,difficulty,has_image,source,year',
+        batch: 500,
       });
       return records;
     } catch (error) {
       console.error('Error fetching tasks stats snapshot:', error);
+      return [];
+    }
+  },
+
+  // Количество задач с ответом (один лёгкий запрос вместо загрузки всех answer)
+  async getWithAnswerCount() {
+    try {
+      const result = await pb.collection('tasks').getList(1, 1, {
+        filter: 'answer != ""',
+      });
+      return result.totalItems;
+    } catch (error) {
+      console.error('Error fetching answer count:', error);
+      return 0;
+    }
+  },
+
+  // Количество задач с решением (один лёгкий запрос вместо загрузки всех solution_md)
+  async getWithSolutionCount() {
+    try {
+      const result = await pb.collection('tasks').getList(1, 1, {
+        filter: 'solution_md != ""',
+      });
+      return result.totalItems;
+    } catch (error) {
+      console.error('Error fetching solution count:', error);
+      return 0;
+    }
+  },
+
+  // Загрузить statement_md для поиска дубликатов (тяжёлый, вызывать лениво)
+  async getTasksForDuplicateCheck() {
+    try {
+      const records = await pb.collection('tasks').getFullList({
+        fields: 'id,code,statement_md',
+        filter: 'statement_md != ""',
+        batch: 500,
+      });
+      return records;
+    } catch (error) {
+      console.error('Error fetching tasks for duplicate check:', error);
       return [];
     }
   },

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Tabs, Space, Button, Spin } from 'antd';
 import { ReloadOutlined, AppstoreOutlined, TagsOutlined, CopyOutlined, BookOutlined, BarChartOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
@@ -14,27 +14,26 @@ import MergeModal from './catalog/MergeModal';
 import './TaskCatalogManager.css';
 
 const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
-  const { topics, subtopics, tags, sources, years, reloadData } = useReferenceData();
-  const [loading, setLoading] = useState(true);
-  const [tasksSnapshot, setTasksSnapshot] = useState([]);
+  const { topics, subtopics, tags, sources, years, tasksSnapshot, withAnswerCount, withSolutionCount, loading: refLoading, reloadData, reloadSnapshot } = useReferenceData();
 
   const [mergeModalOpen, setMergeModalOpen] = useState(false);
   const [mergeType, setMergeType] = useState(null);
   const [mergeFrom, setMergeFrom] = useState(null);
 
-  const loadSnapshot = async () => {
-    setLoading(true);
-    try {
-      const data = await api.getTasksStatsSnapshot();
-      setTasksSnapshot(data);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Ленивая загрузка statement_md для вкладки дубликатов
+  const [duplicateTasksData, setDuplicateTasksData] = useState(null);
+  const [duplicateTasksLoading, setDuplicateTasksLoading] = useState(false);
 
-  useEffect(() => {
-    loadSnapshot();
-  }, []);
+  const loadDuplicateTasks = useCallback(async () => {
+    if (duplicateTasksData !== null) return; // уже загружено
+    setDuplicateTasksLoading(true);
+    try {
+      const data = await api.getTasksForDuplicateCheck();
+      setDuplicateTasksData(data);
+    } finally {
+      setDuplicateTasksLoading(false);
+    }
+  }, [duplicateTasksData]);
 
   const stats = useMemo(() => {
     const byTopic = new Map();
@@ -43,8 +42,8 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
     const bySource = new Map();
     const byDifficulty = new Map();
     const byYear = new Map();
-    const hasAnswer = tasksSnapshot.filter(t => (t.answer || '').toString().trim().length > 0).length;
-    const hasSolution = tasksSnapshot.filter(t => (t.solution_md || '').toString().trim().length > 0).length;
+    const hasAnswer = withAnswerCount;
+    const hasSolution = withSolutionCount;
     const hasImage = tasksSnapshot.filter(t => !!t.has_image).length;
 
     tasksSnapshot.forEach(task => {
@@ -77,7 +76,7 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
     });
 
     return { byTopic, bySubtopic, byTag, bySource, byDifficulty, byYear, hasAnswer, hasSolution, hasImage };
-  }, [tasksSnapshot]);
+  }, [tasksSnapshot, withAnswerCount, withSolutionCount]);
 
   const topicRows = useMemo(() => topics.map(t => ({
     key: t.id, title: t.title, ege: t.ege_number, order: t.order,
@@ -139,33 +138,37 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
     const tagsDup = groupBy(tags, t => t.title);
     const sourcesDup = groupBy(sourceRows, s => s.source);
 
-    const tasksWithStatement = tasksSnapshot.filter(t => (t.statement_md || '').trim().length > 0);
-    const strictMap = new Map();
-    const looseMap = new Map();
+    // Дубликаты задач по statement_md — из лениво загруженных данных
+    let strictTasks = [];
+    let looseTasks = [];
+    if (duplicateTasksData) {
+      const strictMap = new Map();
+      const looseMap = new Map();
 
-    tasksWithStatement.forEach(task => {
-      const strictKey = normalizeStatementStrict(task.statement_md);
-      const looseKey = normalizeStatementLoose(task.statement_md);
-      if (strictKey) {
-        if (!strictMap.has(strictKey)) strictMap.set(strictKey, []);
-        strictMap.get(strictKey).push(task);
-      }
-      if (looseKey) {
-        if (!looseMap.has(looseKey)) looseMap.set(looseKey, []);
-        looseMap.get(looseKey).push(task);
-      }
-    });
+      duplicateTasksData.forEach(task => {
+        const strictKey = normalizeStatementStrict(task.statement_md);
+        const looseKey = normalizeStatementLoose(task.statement_md);
+        if (strictKey) {
+          if (!strictMap.has(strictKey)) strictMap.set(strictKey, []);
+          strictMap.get(strictKey).push(task);
+        }
+        if (looseKey) {
+          if (!looseMap.has(looseKey)) looseMap.set(looseKey, []);
+          looseMap.get(looseKey).push(task);
+        }
+      });
 
-    const strictTasks = Array.from(strictMap.entries())
-      .filter(([, list]) => list.length > 1)
-      .map(([key, list]) => ({ key, items: list }));
+      strictTasks = Array.from(strictMap.entries())
+        .filter(([, list]) => list.length > 1)
+        .map(([key, list]) => ({ key, items: list }));
 
-    const looseTasks = Array.from(looseMap.entries())
-      .filter(([, list]) => list.length > 1)
-      .map(([key, list]) => ({ key, items: list }));
+      looseTasks = Array.from(looseMap.entries())
+        .filter(([, list]) => list.length > 1)
+        .map(([key, list]) => ({ key, items: list }));
+    }
 
     return { topicsDup, subtopicsDup, tagsDup, sourcesDup, strictTasks, looseTasks };
-  }, [topics, subtopics, tags, sourceRows, tasksSnapshot]);
+  }, [topics, subtopics, tags, sourceRows, duplicateTasksData]);
 
   const handleOpenTasks = (filters) => onOpenTasks?.(filters);
 
@@ -175,7 +178,7 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
     setMergeModalOpen(true);
   };
 
-  if (loading) {
+  if (refLoading) {
     return (
       <div className="catalog-dashboard catalog-loading">
         <Spin size="large" />
@@ -183,13 +186,21 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
     );
   }
 
+  const handleTabChange = (key) => {
+    if (key === 'duplicates') {
+      loadDuplicateTasks();
+    }
+  };
+
+  const reloadAll = () => { reloadSnapshot(); setDuplicateTasksData(null); };
+
   const tabItems = [
-    { key: 'topics', label: 'Темы', children: <TopicTab topicRows={topicRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={loadSnapshot} /> },
-    { key: 'subtopics', label: 'Подтемы', children: <SubtopicTab subtopicRows={subtopicRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={loadSnapshot} /> },
-    { key: 'tags', label: 'Теги', children: <TagTab tagRows={tagRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={loadSnapshot} /> },
-    { key: 'sources', label: 'Источники', children: <SourceTab sourceRows={sourceRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={loadSnapshot} /> },
+    { key: 'topics', label: 'Темы', children: <TopicTab topicRows={topicRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={reloadAll} /> },
+    { key: 'subtopics', label: 'Подтемы', children: <SubtopicTab subtopicRows={subtopicRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={reloadAll} /> },
+    { key: 'tags', label: 'Теги', children: <TagTab tagRows={tagRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={reloadAll} /> },
+    { key: 'sources', label: 'Источники', children: <SourceTab sourceRows={sourceRows} tasksSnapshot={tasksSnapshot} onOpenTasks={handleOpenTasks} onMerge={openMerge} onReload={reloadAll} /> },
     { key: 'other', label: 'Прочее', children: <OtherTab difficultyRows={difficultyRows} yearRows={yearRows} stats={stats} onOpenTasks={handleOpenTasks} /> },
-    { key: 'duplicates', label: 'Дубли', children: <DuplicateTab duplicateGroups={duplicateGroups} onOpenTasks={handleOpenTasks} onMerge={openMerge} /> },
+    { key: 'duplicates', label: 'Дубли', children: duplicateTasksLoading ? <Spin /> : <DuplicateTab duplicateGroups={duplicateGroups} onOpenTasks={handleOpenTasks} onMerge={openMerge} /> },
   ];
 
   const totalDuplicates =
@@ -211,7 +222,7 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
           <Button icon={<BarChartOutlined />} onClick={onBackToAnalytics}>
             Аналитика
           </Button>
-          <Button icon={<ReloadOutlined />} onClick={loadSnapshot}>Обновить статистику</Button>
+          <Button icon={<ReloadOutlined />} onClick={() => { reloadSnapshot(); setDuplicateTasksData(null); }}>Обновить статистику</Button>
           <Button onClick={reloadData}>Обновить справочники</Button>
         </Space>
       </div>
@@ -236,7 +247,7 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
       </div>
 
       <div className="catalog-tabs-shell">
-        <Tabs defaultActiveKey="topics" items={tabItems} />
+        <Tabs defaultActiveKey="topics" items={tabItems} onChange={handleTabChange} />
       </div>
 
       <MergeModal
@@ -246,7 +257,7 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
         sourceRows={sourceRows}
         tasksSnapshot={tasksSnapshot}
         onClose={() => { setMergeModalOpen(false); setMergeType(null); setMergeFrom(null); }}
-        onReload={loadSnapshot}
+        onReload={reloadAll}
       />
     </div>
   );
