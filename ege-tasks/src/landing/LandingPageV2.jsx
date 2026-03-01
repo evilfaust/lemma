@@ -4,6 +4,7 @@ import StatsV2 from './components/v2/StatsV2'
 import FeaturesV2 from './components/v2/FeaturesV2'
 import TimelineV2 from './components/v2/TimelineV2'
 import StudentV2 from './components/v2/StudentV2'
+import ProgressInsightsV2 from './components/v2/ProgressInsightsV2'
 import AchievementsV2 from './components/v2/AchievementsV2'
 import TestimonialsV2 from './components/v2/TestimonialsV2'
 import FooterV2 from './components/v2/FooterV2'
@@ -52,9 +53,11 @@ const LandingPageV2 = () => {
 
           <ul className="v2-nav-links">
             <li><a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features') }}>{'\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438'}</a></li>
+            <li><a href="#progress" onClick={(e) => { e.preventDefault(); scrollTo('progress') }}>{'\u0410\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0430'}</a></li>
             <li><a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollTo('how-it-works') }}>{'\u041F\u0440\u043E\u0446\u0435\u0441\u0441'}</a></li>
             <li><a href="#students" onClick={(e) => { e.preventDefault(); scrollTo('students') }}>{'\u0423\u0447\u0435\u043D\u0438\u043A\u0438'}</a></li>
             <li><a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>{'\u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F'}</a></li>
+            <li><a href="/how-it-works.html">{'\u041A\u0430\u043A \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442'}</a></li>
             <li>
               <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary v2-nav-cta">
                 {'\u041E\u0442\u043A\u0440\u044B\u0442\u044C'}
@@ -74,9 +77,11 @@ const LandingPageV2 = () => {
           &times;
         </button>
         <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features') }}>{'\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438'}</a>
+        <a href="#progress" onClick={(e) => { e.preventDefault(); scrollTo('progress') }}>{'\u0410\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0430'}</a>
         <a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollTo('how-it-works') }}>{'\u041F\u0440\u043E\u0446\u0435\u0441\u0441'}</a>
         <a href="#students" onClick={(e) => { e.preventDefault(); scrollTo('students') }}>{'\u0423\u0447\u0435\u043D\u0438\u043A\u0438'}</a>
         <a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>{'\u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F'}</a>
+        <a href="/how-it-works.html">{'\u041A\u0430\u043A \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435'}</a>
         <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary">{'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443'}</a>
       </div>
 
@@ -84,6 +89,7 @@ const LandingPageV2 = () => {
       <HeroV2 />
       <StatsV2 />
       <FeaturesV2 />
+      <ProgressInsightsV2 />
       <TimelineV2 />
       <StudentV2 />
       <AchievementsV2 />

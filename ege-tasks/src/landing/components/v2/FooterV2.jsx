@@ -1,3 +1,5 @@
+import { APP_VERSION } from '@shared/version/buildInfo'
+
 const FooterV2 = () => (
   <>
     {/* CTA */}
@@ -11,13 +13,16 @@ const FooterV2 = () => (
         <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary">
           {'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443 \u2192'}
         </a>
+        <a href="/how-it-works.html" className="v2-btn v2-btn--outline">
+          Как работает приложение
+        </a>
       </div>
     </section>
 
     {/* Footer */}
     <footer className="v2-footer">
       <div className="v2-container v2-footer-inner">
-        <span>EGE Tasks Manager &copy; {new Date().getFullYear()}</span>
+        <span>EGE Tasks Manager &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
         <a href="https://task-ege.oipav.ru" className="v2-footer-link">
           task-ege.oipav.ru
         </a>

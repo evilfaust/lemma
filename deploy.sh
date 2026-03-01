@@ -113,6 +113,7 @@ ssh "${SSH_OPTS[@]}" "${REMOTE}" "echo connected: \$(hostname)"
 
 if [[ "${SKIP_BUILD}" -eq 0 ]]; then
   echo "[2/5] Building frontend locally"
+  export EGE_BUILD_ID="$(date -u +%Y%m%d%H%M%S)"
   npm --prefix "${SCRIPT_DIR}/ege-tasks" run build
 else
   echo "[2/5] Skipping local build (--skip-build)"

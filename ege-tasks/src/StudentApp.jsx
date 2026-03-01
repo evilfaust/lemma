@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { ConfigProvider, Button } from 'antd';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { ConfigProvider, Button, notification } from 'antd';
 import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
@@ -9,6 +9,7 @@ import StudentResultPage from './components/student/StudentResultPage';
 import AchievementGallery from './components/student/AchievementGallery';
 import StudentProgressPage from './components/student/StudentProgressPage';
 import { api } from './services/pocketbase';
+import { useVersionSync } from './shared/version/useVersionSync';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -102,6 +103,22 @@ function StudentApp() {
 
   const [student, setStudent] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+
+  const handleVersionUpdate = useCallback((payload) => {
+    notification.info({
+      message: 'Доступно обновление',
+      description: `Доступна новая версия интерфейса (${payload.version || payload.releaseId}).`,
+      duration: 0,
+      placement: 'bottomRight',
+      btn: (
+        <Button type="primary" size="small" onClick={() => window.location.reload()}>
+          Обновить
+        </Button>
+      ),
+    });
+  }, []);
+
+  useVersionSync(handleVersionUpdate);
 
   // Проверить авторизацию при загрузке
   useEffect(() => {

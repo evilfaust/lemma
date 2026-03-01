@@ -1,3 +1,5 @@
+import { APP_VERSION } from '@shared/version/buildInfo'
+
 const HeroV2 = () => (
   <section className="v2-hero" id="hero">
     <div className="v2-hero-mesh" />
@@ -13,11 +15,11 @@ const HeroV2 = () => (
       <div className="v2-hero-shape v2-shape-hex" />
     </div>
 
-    <div className="v2-hero-content">
-      <div className="v2-hero-eyebrow">
-        <span className="v2-hero-eyebrow-dot" />
-        v3.7 // open source // free
-      </div>
+      <div className="v2-hero-content">
+        <div className="v2-hero-eyebrow">
+          <span className="v2-hero-eyebrow-dot" />
+          v{APP_VERSION} // open source // free
+        </div>
 
       <h1 className="v2-hero-title">
         <span className="v2-hero-outline">{'\u041C\u0410\u0422\u0415\u041C\u0410\u0422\u0418\u041A\u0410'}</span>
@@ -38,6 +40,9 @@ const HeroV2 = () => (
         <a href="#features" className="v2-btn v2-btn--outline"
            onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }) }}>
           {'\u0423\u0437\u043D\u0430\u0442\u044C \u0431\u043E\u043B\u044C\u0448\u0435'}
+        </a>
+        <a href="/how-it-works.html" className="v2-btn v2-btn--outline">
+          Как работает
         </a>
       </div>
     </div>

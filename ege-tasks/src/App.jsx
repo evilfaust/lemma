@@ -1,5 +1,5 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
-import { Layout, Menu, ConfigProvider, theme, Spin } from 'antd';
+import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
+import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
 import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
@@ -21,6 +21,7 @@ import GeometryTaskList from './components/GeometryTaskList';
 import GeometryTopicManager from './components/geometry/GeometryTopicManager';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
+import { useVersionSync } from './shared/version/useVersionSync';
 import 'katex/dist/katex.min.css';
 import './App.css';
 
@@ -38,6 +39,22 @@ function AppContent() {
   const [viewingArticleId, setViewingArticleId] = useState(null);
 
   const { theoryCategories, reloadData } = useReferenceData();
+
+  const handleVersionUpdate = useCallback((payload) => {
+    notification.info({
+      message: 'Доступно обновление приложения',
+      description: `Новая версия уже развернута (${payload.version || payload.releaseId}).`,
+      duration: 0,
+      placement: 'bottomRight',
+      btn: (
+        <Button type="primary" size="small" onClick={() => window.location.reload()}>
+          Обновить
+        </Button>
+      ),
+    });
+  }, []);
+
+  useVersionSync(handleVersionUpdate);
 
   useEffect(() => {
     // Teacher UI must always work in unrestricted mode.
