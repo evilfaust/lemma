@@ -173,14 +173,14 @@ const PrintableWorksheet = forwardRef(({
     <div ref={ref} className="printable-worksheet">
       <style>{`
         @media print {
-          body * {
+          body:has(.printable-worksheet) * {
             visibility: hidden;
           }
-          .printable-worksheet,
-          .printable-worksheet * {
+          body:has(.printable-worksheet) .printable-worksheet,
+          body:has(.printable-worksheet) .printable-worksheet * {
             visibility: visible;
           }
-          .printable-worksheet {
+          body:has(.printable-worksheet) .printable-worksheet {
             position: absolute;
             left: 0;
             top: 0;

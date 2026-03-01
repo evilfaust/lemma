@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button, Spin, Tag, Select, Tooltip, Drawer, App } from 'antd';
-import { createRoot } from 'react-dom/client';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined, FormatPainterOutlined, BookOutlined
@@ -13,7 +12,7 @@ import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
-import TheoryGeoGebraEmbed from './theory/TheoryGeoGebraEmbed';
+import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryArticleView.css';
 
 export default function TheoryArticleView({ articleId, onBack, onEdit }) {
@@ -32,7 +31,6 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const [themeDrawerOpen, setThemeDrawerOpen] = useState(false);
   const previewRef = useRef(null);
   const contentRef = useRef(null);
-  const geogebraRootsRef = useRef([]);
   const puppeteerPDF = usePuppeteerPDF();
 
   useEffect(() => {
@@ -117,26 +115,34 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     );
   }, [article?.theme_settings]);
 
+  // Inject GeoGebra images into rendered HTML
   useEffect(() => {
-    const prevRoots = geogebraRootsRef.current;
-    prevRoots.forEach((root) => root.unmount());
-    geogebraRootsRef.current = [];
-
-    if (!previewRef.current) return undefined;
-
+    if (!previewRef.current) return;
     const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
     embeds.forEach((node) => {
       const blockId = node.getAttribute('data-geogebra-id') || '';
-      const applet = geogebraAppletsById.get(blockId) || null;
-      const root = createRoot(node);
-      root.render(<TheoryGeoGebraEmbed blockId={blockId} applet={applet} />);
-      geogebraRootsRef.current.push(root);
+      const applet = geogebraAppletsById.get(blockId);
+      node.innerHTML = '';
+      if (applet?.previewImage) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'theory-ggb-block';
+        const img = document.createElement('img');
+        img.className = 'theory-ggb-image';
+        img.src = applet.previewImage;
+        img.alt = applet.caption || blockId;
+        wrapper.appendChild(img);
+        if (applet.caption) {
+          const cap = document.createElement('div');
+          cap.className = 'theory-ggb-caption';
+          cap.textContent = applet.caption;
+          wrapper.appendChild(cap);
+        }
+        node.appendChild(wrapper);
+      } else {
+        node.textContent = `GeoGebra-блок "${blockId}" не настроен`;
+        node.style.cssText = 'padding:16px;background:#fff7e6;border:1px solid #ffd591;border-radius:8px;color:#d46b08;font-size:13px;text-align:center;margin:12px 0;';
+      }
     });
-
-    return () => {
-      geogebraRootsRef.current.forEach((root) => root.unmount());
-      geogebraRootsRef.current = [];
-    };
   }, [html, geogebraAppletsById]);
 
   // IntersectionObserver for active TOC item

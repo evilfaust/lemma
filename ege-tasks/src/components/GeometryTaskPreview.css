@@ -430,29 +430,25 @@
 }
 
 @media print {
-  @page {
-    size: A5 portrait;
-    margin: 5mm;
-  }
-
-  body * {
+  /* Scoped: only when geometry preview is in the DOM */
+  body:has(.geometry-preview-root) * {
     visibility: hidden;
   }
 
-  .geometry-preview-root,
-  .geometry-preview-root * {
+  body:has(.geometry-preview-root) .geometry-preview-root,
+  body:has(.geometry-preview-root) .geometry-preview-root * {
     visibility: visible;
   }
 
-  .geometry-preview-toolbar {
+  body:has(.geometry-preview-root) .geometry-preview-toolbar {
     display: none !important;
   }
 
-  .geometry-preview-header-inputs {
+  body:has(.geometry-preview-root) .geometry-preview-header-inputs {
     display: none !important;
   }
 
-  .geometry-preview-root {
+  body:has(.geometry-preview-root) .geometry-preview-root {
     position: absolute;
     left: 0;
     top: 0;

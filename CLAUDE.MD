@@ -82,7 +82,7 @@ generation-test/
 │   │   ├── components/           # React components (30)
 │   │   │   ├── catalog/          # Catalog sub-components (7)
 │   │   │   ├── geometry/         # Geometry sub-components (7: 3 original + 4 tabs)
-│   │   │   ├── theory/           # Theory sub-components (2 + CSS)
+│   │   │   ├── theory/           # Theory sub-components (4 + CSS)
 │   │   │   ├── shared/            # Shared components (CropModal)
 │   │   │   ├── worksheet/        # Reusable worksheet components (12)
 │   │   │   └── student/          # Student-facing components (7)
@@ -188,6 +188,8 @@ generation-test/
 **Theory Sub-Components (components/theory/):**
 - `theory/EditorToolbar.jsx` - Custom toolbar for TheoryEditor (formatting buttons, insert helpers)
 - `theory/TableInsertPopover.jsx` - Table insert popover for Markdown editor
+- `theory/GeoGebraBlocksModal.jsx` - Modal for managing GeoGebra applets in theory articles (extracted from TheoryEditor)
+- `theory/TheoryGeoGebraEmbed.jsx` - GeoGebra embed component for article view (live applet + print image)
 
 **Student Progress:**
 - `StudentProgressDashboard.jsx` - Teacher view of all students (attempts, scores, class)
@@ -522,6 +524,7 @@ Key function groups:
 - **Geometry LIGHT_FIELDS pattern**: `getGeometryTasks()` использует `fields` param — исключает тяжёлые поля (geogebra_base64 ~30-100KB, solution_md), но включает `geogebra_image_base64` и `preview_layout` для списка/быстрого предпросмотра. Для редактирования **всегда** вызывать `getGeometryTask(id)`.
 - **GeoGebra .ggb формат**: `geogebra_base64` хранит base64-кодированный XML (это и есть `.ggb` файл). `ggbApi.getBase64(cb)` → сохранить; `initialBase64` prop в `GeoGebraApplet` → восстановить.
 - **Stats snapshot pattern**: `getTasksStatsSnapshot()` возвращает лёгкие поля (без `answer`, `solution_md`, `statement_md`). Счётчики `withAnswer`/`withSolution` получаются отдельными count-запросами. `statement_md` загружается лениво через `getTasksForDuplicateCheck()` только при открытии вкладки "Дубли" в Каталоге. Snapshot кешируется в `ReferenceDataContext` и расшаривается между Stats и Catalog.
+- **Theory GeoGebra — только картинки**: В статьях теории GeoGebra используется только для рисования чертежей (в GeoGebraBlocksModal), результат сохраняется как PNG (`previewImage`). В просмотре/печати — только `<img>`, никаких живых аплетов. `TheoryArticleView` вставляет картинки через простую DOM-манипуляцию (без createRoot).
 
 ## Related Documentation
 

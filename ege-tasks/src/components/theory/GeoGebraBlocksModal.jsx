@@ -1,20 +1,11 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
-import { Modal, Button, Input, Select, InputNumber, Space, App } from 'antd';
+import { Modal, Button, Input, Space, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, CameraOutlined } from '@ant-design/icons';
 import GeoGebraApplet from '../GeoGebraApplet';
 import './GeoGebraBlocksModal.css';
 
-const APPNAME_OPTIONS = [
-  { value: 'geometry', label: 'Геометрия' },
-  { value: 'graphing', label: 'Графики функций' },
-  { value: 'classic', label: 'Классик' },
-  { value: '3d', label: '3D' },
-];
-
 const createDefaultApplet = (suffix = Date.now().toString(36).slice(-5)) => ({
   id: `ggb-${suffix}`,
-  appName: 'geometry',
-  height: 520,
   caption: '',
   geogebraBase64: '',
   previewImage: '',
@@ -55,8 +46,6 @@ export default function GeoGebraBlocksModal({
     const normalized = {
       ...draft,
       id: (draft.id || '').trim(),
-      appName: draft.appName || 'geometry',
-      height: Number(draft.height || 520),
       caption: draft.caption || '',
       geogebraBase64: draft.geogebraBase64 || '',
       previewImage: draft.previewImage || '',
@@ -180,34 +169,21 @@ export default function GeoGebraBlocksModal({
               onChange={(e) => setDraft(prev => ({ ...prev, id: e.target.value }))}
               placeholder="ID блока (например ggb-triangle)"
             />
-            <Select
-              value={draft.appName}
-              onChange={(v) => setDraft(prev => ({ ...prev, appName: v }))}
-              options={APPNAME_OPTIONS}
-              style={{ width: 180 }}
-            />
-            <InputNumber
-              min={260}
-              max={900}
-              value={draft.height}
-              onChange={(v) => setDraft(prev => ({ ...prev, height: Number(v || 520) }))}
+            <Input
+              value={draft.caption}
+              onChange={(e) => setDraft(prev => ({ ...prev, caption: e.target.value }))}
+              placeholder="Подпись (опционально)"
             />
           </div>
 
-          <Input
-            value={draft.caption}
-            onChange={(e) => setDraft(prev => ({ ...prev, caption: e.target.value }))}
-            placeholder="Подпись блока (опционально)"
-          />
-
           <div className="ggb-modal-applet">
             <GeoGebraApplet
-              key={`${draft.id}-${(draft.geogebraBase64 || '').slice(0, 24)}-${draft.appName}`}
-              appName={draft.appName || 'geometry'}
+              key={`${draft.id}-${(draft.geogebraBase64 || '').slice(0, 24)}`}
+              appName="geometry"
               readOnly={false}
               initialBase64={draft.geogebraBase64 || ''}
               onApiReady={(api) => { apiRef.current = api; }}
-              height={Number(draft.height || 520)}
+              height={480}
             />
           </div>
 

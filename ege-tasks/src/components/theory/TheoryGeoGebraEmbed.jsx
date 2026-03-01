@@ -1,5 +1,4 @@
 import { Alert } from 'antd';
-import GeoGebraApplet from '../GeoGebraApplet';
 import './TheoryGeoGebraEmbed.css';
 
 export default function TheoryGeoGebraEmbed({ blockId = '', applet = null }) {
@@ -14,42 +13,28 @@ export default function TheoryGeoGebraEmbed({ blockId = '', applet = null }) {
     );
   }
 
-  if (!applet?.geogebraBase64) {
+  if (!applet?.previewImage) {
     return (
       <Alert
         className="theory-ggb-alert"
         type="warning"
         showIcon
         message={`GeoGebra-блок "${blockId}" не настроен`}
-        description="Откройте редактор статьи и сохраните состояние чертежа для этого блока."
+        description="Откройте редактор статьи, нарисуйте чертёж и сохраните PNG."
       />
     );
   }
 
-  const { appName = 'geometry', height = 520, caption = '', geogebraBase64, previewImage } = applet;
+  const { caption = '' } = applet;
 
   return (
     <div className="theory-ggb-block">
-      <div className="theory-ggb-live no-print">
-        <GeoGebraApplet
-          appName={appName}
-          readOnly
-          initialBase64={geogebraBase64}
-          height={height}
-        />
-      </div>
-
-      {previewImage && (
-        <div className="theory-ggb-image print-friendly">
-          <img src={previewImage} alt={caption || `GeoGebra ${blockId}`} />
-        </div>
-      )}
-
-      {caption && (
-        <div className="theory-ggb-caption">
-          {caption}
-        </div>
-      )}
+      <img
+        className="theory-ggb-image"
+        src={applet.previewImage}
+        alt={caption || `GeoGebra ${blockId}`}
+      />
+      {caption && <div className="theory-ggb-caption">{caption}</div>}
     </div>
   );
 }

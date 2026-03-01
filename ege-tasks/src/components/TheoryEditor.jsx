@@ -268,6 +268,37 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     editorRef.current?.layout();
   }, [splitPos]);
 
+  // Map applets by id for preview injection
+  const geogebraAppletsById = useMemo(
+    () => new Map(geogebraApplets.filter(a => a?.id).map(a => [a.id, a])),
+    [geogebraApplets],
+  );
+
+  // Inject GeoGebra images into editor preview
+  useEffect(() => {
+    if (!previewRef.current) return;
+    const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
+    embeds.forEach((node) => {
+      const blockId = node.getAttribute('data-geogebra-id') || '';
+      const applet = geogebraAppletsById.get(blockId);
+      node.innerHTML = '';
+      if (applet?.previewImage) {
+        const img = document.createElement('img');
+        img.src = applet.previewImage;
+        img.alt = applet.caption || blockId;
+        img.style.cssText = 'max-width:100%;max-height:300px;border-radius:8px;display:block;margin:0 auto;';
+        node.appendChild(img);
+        if (applet.caption) {
+          const cap = document.createElement('div');
+          cap.style.cssText = 'text-align:center;color:#666;font-size:12px;margin-top:4px;';
+          cap.textContent = applet.caption;
+          node.appendChild(cap);
+        }
+        node.style.cssText = 'text-align:center;margin:12px 0;padding:8px;background:#f8f9ff;border-radius:10px;border:1px solid #e0e7ff;';
+      }
+    });
+  }, [html, geogebraAppletsById]);
+
   // Preview styles
   const previewStyles = useMemo(() => {
     const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
