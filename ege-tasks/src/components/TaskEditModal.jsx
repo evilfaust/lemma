@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, InputNumber, Button, Slider, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App } from 'antd';
+import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App } from 'antd';
 import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import GeoGebraDrawingPanel from './GeoGebraDrawingPanel';
+import CropModal from './shared/CropModal';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
-import { dataUrlToFile, normalizeCrop, cropPngByMargins } from '../utils/cropImage';
+import { dataUrlToFile } from '../utils/cropImage';
 import { api } from '../services/pocketbase';
+import { useImageUpload } from '../hooks';
 
 const { Option } = Select;
 const { TextArea } = Input;
@@ -29,39 +31,20 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [creatingSubtopic, setCreatingSubtopic] = useState(false);
   const [newTopicNumber, setNewTopicNumber] = useState(null);
   const [newTopicTitle, setNewTopicTitle] = useState('');
-  const [imageSource, setImageSource] = useState('url'); // 'url' | 'drawing' | 'upload'
-  const [drawingImageDataUrl, setDrawingImageDataUrl] = useState(null);
-  const [uploadedFile, setUploadedFile] = useState(null);       // File object
-  const [uploadPreviewUrl, setUploadPreviewUrl] = useState(''); // data URL для превью
-  const [cropModalOpen, setCropModalOpen] = useState(false);
-  const [cropMargins, setCropMargins] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
-  const [croppingImage, setCroppingImage] = useState(false);
   const [newSubtopicName, setNewSubtopicName] = useState('');
 
-  // Определяем режим работы: создание или редактирование
+  const img = useImageUpload('url');
+
   const isCreateMode = !task;
 
   // Функция генерации кода задачи
   const handleGenerateCode = async (topicId) => {
-    if (!topicId) {
-      console.warn('[TaskEditModal] topicId не указан');
-      return;
-    }
-
+    if (!topicId) return;
     setGeneratingCode(true);
     try {
-      // Ищем тему в allTopics (может быть undefined если темы не загружены)
       const topic = Array.isArray(allTopics) ? allTopics.find(t => t.id === topicId) : null;
-
-      if (!topic) {
-        console.warn('[TaskEditModal] Тема не найдена в allTopics, будет загружена из API');
-      }
-
-      // generateTaskCode автоматически загрузит тему если она не передана
       const code = await generateTaskCode(topicId, topic);
       setGeneratedCode(code);
-
-      console.log('[TaskEditModal] Код успешно сгенерирован:', code);
     } catch (error) {
       console.error('[TaskEditModal] Error generating code:', error);
       message.error(`Ошибка при генерации кода: ${error.message}`);
@@ -70,52 +53,28 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     }
   };
 
-  // Синхронизация списка тегов с props
-  useEffect(() => {
-    setTags(allTags);
-  }, [allTags]);
-
-  // Синхронизация списка тем и подтем с props
-  useEffect(() => {
-    setTopics(allTopics);
-  }, [allTopics]);
-
-  useEffect(() => {
-    setSubtopics(allSubtopics);
-  }, [allSubtopics]);
+  // Синхронизация списков с props
+  useEffect(() => { setTags(allTags); }, [allTags]);
+  useEffect(() => { setTopics(allTopics); }, [allTopics]);
+  useEffect(() => { setSubtopics(allSubtopics); }, [allSubtopics]);
 
   const normalizeTitle = (value) => (value || '').trim().toLowerCase();
 
-  // Функция создания нового тега
   const handleCreateTag = async (newTagTitle) => {
-    if (!newTagTitle || !newTagTitle.trim()) {
-      return;
-    }
-
+    if (!newTagTitle?.trim()) return;
     const trimmedTitle = newTagTitle.trim();
-
-    // Проверяем, не существует ли уже такой тег
     const existingTag = tags.find(t => t.title.toLowerCase() === trimmedTitle.toLowerCase());
     if (existingTag) {
       message.warning(`Тег "${trimmedTitle}" уже существует`);
       return existingTag.id;
     }
-
     setCreatingTag(true);
     try {
-      // Создаём тег с случайным цветом
       const colors = ['#f50', '#2db7f5', '#87d068', '#108ee9', '#faad14', '#722ed1', '#eb2f96', '#52c41a'];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
-
-      const newTag = await api.createTag({
-        title: trimmedTitle,
-        color: randomColor
-      });
-
-      // Добавляем новый тег в локальный список
+      const newTag = await api.createTag({ title: trimmedTitle, color: randomColor });
       setTags([...tags, newTag]);
       message.success(`Тег "${trimmedTitle}" создан`);
-
       return newTag.id;
     } catch (error) {
       console.error('Error creating tag:', error);
@@ -129,16 +88,11 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   useEffect(() => {
     if (visible) {
       if (task) {
-        // Режим редактирования - заполняем форму данными задачи
         const topicData = allTopics.find(t => t.id === task.topic);
         setSelectedTopic(topicData);
-
-        // Фильтруем подтемы по выбранной теме
         if (task.topic) {
-          const subtopicsForTopic = allSubtopics.filter(st => st.topic === task.topic);
-          setFilteredSubtopics(subtopicsForTopic);
+          setFilteredSubtopics(allSubtopics.filter(st => st.topic === task.topic));
         }
-
         form.setFieldsValue({
           topic: task.topic || undefined,
           subtopic: task.subtopic || undefined,
@@ -153,27 +107,22 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         });
         setPreviewStatement(task.statement_md || '');
         setPreviewAnswer(task.answer || '');
-        // Если у задачи есть файл-изображение (image), показать режим загрузки
         if (task.image && !task.image_url) {
-          setImageSource('upload');
+          img.setImageSource('upload');
         } else {
-          setImageSource('url');
+          img.setImageSource('url');
         }
-        setDrawingImageDataUrl(null);
-        setUploadedFile(null);
-        setUploadPreviewUrl('');
+        img.setDrawingImageDataUrl(null);
+        img.setUploadedFile(null);
+        img.setUploadPreviewUrl('');
       } else {
-        // Режим создания - пустая форма
         form.resetFields();
         setGeneratedCode('');
         setPreviewStatement('');
         setPreviewAnswer('');
         setSelectedTopic(null);
         setFilteredSubtopics([]);
-        setImageSource('url');
-        setDrawingImageDataUrl(null);
-        setUploadedFile(null);
-        setUploadPreviewUrl('');
+        img.resetImage();
       }
     }
   }, [task, visible, form, allTopics, allSubtopics]);
@@ -181,30 +130,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const handleTopicChange = (topicId) => {
     const topicData = topics.find(t => t.id === topicId);
     setSelectedTopic(topicData);
-
-    // Фильтруем подтемы по выбранной теме
-    const subtopicsForTopic = subtopics.filter(st => st.topic === topicId);
-    setFilteredSubtopics(subtopicsForTopic);
-
-    // Сбрасываем подтему при смене темы
+    setFilteredSubtopics(subtopics.filter(st => st.topic === topicId));
     form.setFieldValue('subtopic', undefined);
-
-    // Генерируем код для новой задачи
-    if (isCreateMode) {
-      handleGenerateCode(topicId);
-    }
+    if (isCreateMode) handleGenerateCode(topicId);
   };
 
   const handleCreateTopic = async () => {
     const trimmedTitle = (newTopicTitle || '').trim();
-    if (!trimmedTitle) {
-      message.warning('Введите название темы');
-      return;
-    }
-    if (newTopicNumber === null || newTopicNumber === undefined || newTopicNumber === '') {
-      message.warning('Укажите номер ЕГЭ');
-      return;
-    }
+    if (!trimmedTitle) { message.warning('Введите название темы'); return; }
+    if (newTopicNumber == null || newTopicNumber === '') { message.warning('Укажите номер ЕГЭ'); return; }
 
     const existingByNumber = topics.find(t => String(t.ege_number) === String(newTopicNumber));
     if (existingByNumber) {
@@ -213,7 +147,6 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       handleTopicChange(existingByNumber.id);
       return;
     }
-
     const existingByTitle = topics.find(t => normalizeTitle(t.title) === normalizeTitle(trimmedTitle));
     if (existingByTitle) {
       message.warning(`Тема "${trimmedTitle}" уже существует`);
@@ -224,13 +157,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
     setCreatingTopic(true);
     try {
-      const newTopic = await api.createTopic({
-        title: trimmedTitle,
-        ege_number: Number(newTopicNumber),
-        order: Number(newTopicNumber),
-      });
-      const updated = [...topics, newTopic];
-      setTopics(updated);
+      const newTopic = await api.createTopic({ title: trimmedTitle, ege_number: Number(newTopicNumber), order: Number(newTopicNumber) });
+      setTopics([...topics, newTopic]);
       message.success(`Тема "${trimmedTitle}" создана`);
       setNewTopicTitle('');
       setNewTopicNumber(null);
@@ -246,15 +174,9 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
   const handleCreateSubtopic = async () => {
     const topicId = form.getFieldValue('topic');
-    if (!topicId) {
-      message.warning('Сначала выберите тему');
-      return;
-    }
+    if (!topicId) { message.warning('Сначала выберите тему'); return; }
     const trimmedName = (newSubtopicName || '').trim();
-    if (!trimmedName) {
-      message.warning('Введите название подтемы');
-      return;
-    }
+    if (!trimmedName) { message.warning('Введите название подтемы'); return; }
 
     const existing = subtopics.find(st => st.topic === topicId && normalizeTitle(st.name) === normalizeTitle(trimmedName));
     if (existing) {
@@ -265,14 +187,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
     setCreatingSubtopic(true);
     try {
-      const newSubtopic = await api.createSubtopic({
-        name: trimmedName,
-        topic: topicId,
-      });
+      const newSubtopic = await api.createSubtopic({ name: trimmedName, topic: topicId });
       const updated = [...subtopics, newSubtopic];
       setSubtopics(updated);
-      const subtopicsForTopic = updated.filter(st => st.topic === topicId);
-      setFilteredSubtopics(subtopicsForTopic);
+      setFilteredSubtopics(updated.filter(st => st.topic === topicId));
       message.success(`Подтема "${trimmedName}" создана`);
       setNewSubtopicName('');
       form.setFieldValue('subtopic', newSubtopic.id);
@@ -289,7 +207,6 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       const values = await form.validateFields();
       setLoading(true);
 
-      // Данные для сохранения задачи
       const taskData = {
         topic: values.topic,
         subtopic: values.subtopic || null,
@@ -302,25 +219,22 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         tags: values.tags || [],
       };
 
-      // Изображение: GeoGebra-чертёж, загруженный файл или URL
-      if (imageSource === 'drawing' && drawingImageDataUrl) {
-        taskData.image = dataUrlToFile(drawingImageDataUrl);
+      if (img.imageSource === 'drawing' && img.drawingImageDataUrl) {
+        taskData.image = dataUrlToFile(img.drawingImageDataUrl);
         taskData.image_url = '';
         taskData.has_image = true;
-      } else if (imageSource === 'upload' && uploadedFile) {
-        taskData.image = uploadedFile;
+      } else if (img.imageSource === 'upload' && img.uploadedFile) {
+        taskData.image = img.uploadedFile;
         taskData.image_url = '';
         taskData.has_image = true;
-      } else if (imageSource === 'url') {
+      } else if (img.imageSource === 'url') {
         taskData.image_url = values.image_url || '';
         taskData.has_image = !!values.image_url;
       } else {
-        // Режим upload/drawing без нового файла — сохраняем текущее состояние
         taskData.image_url = '';
         taskData.has_image = !!(task?.image);
       }
 
-      // В режиме создания добавляем код
       if (isCreateMode) {
         if (!generatedCode) {
           message.error('Код задачи не сгенерирован. Выберите тему.');
@@ -330,9 +244,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         taskData.code = generatedCode;
       }
 
-      // Вызываем onSave с taskId (null для создания)
       await onSave(isCreateMode ? null : task.id, taskData);
-
       onClose();
     } catch (error) {
       console.error('Error saving task:', error);
@@ -343,7 +255,6 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
   const handleDelete = async () => {
     if (!onDelete) return;
-
     try {
       setDeleting(true);
       await onDelete(task.id);
@@ -357,12 +268,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     }
   };
 
-  const handleStatementChange = (e) => {
-    setPreviewStatement(e.target.value);
-  };
-
-  const handleAnswerChange = (e) => {
-    setPreviewAnswer(e.target.value);
+  const handleCropped = (croppedDataUrl) => {
+    img.setUploadPreviewUrl(croppedDataUrl);
+    img.setUploadedFile(dataUrlToFile(croppedDataUrl, img.uploadedFile?.name || 'image.png'));
+    img.setCropModalOpen(false);
   };
 
   return (
@@ -394,25 +303,12 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
               okButtonProps={{ danger: true }}
               icon={<ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />}
             >
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                loading={deleting}
-              >
-                Удалить
-              </Button>
+              <Button danger icon={<DeleteOutlined />} loading={deleting}>Удалить</Button>
             </Popconfirm>
           ) : <div />}
           <Space>
-            <Button onClick={onClose}>
-              Отмена
-            </Button>
-            <Button
-              type="primary"
-              icon={isCreateMode ? <PlusOutlined /> : <SaveOutlined />}
-              loading={loading}
-              onClick={handleSave}
-            >
+            <Button onClick={onClose}>Отмена</Button>
+            <Button type="primary" icon={isCreateMode ? <PlusOutlined /> : <SaveOutlined />} loading={loading} onClick={handleSave}>
               {isCreateMode ? 'Создать' : 'Сохранить'}
             </Button>
           </Space>
@@ -427,16 +323,9 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           style={{ marginBottom: 16 }}
         />
       )}
-      <Form
-        form={form}
-        layout="vertical"
-      >
+      <Form form={form} layout="vertical">
         {/* Уровень сложности */}
-        <Form.Item
-          name="difficulty"
-          label="Уровень сложности"
-          rules={[{ required: true, message: 'Выберите уровень сложности' }]}
-        >
+        <Form.Item name="difficulty" label="Уровень сложности" rules={[{ required: true, message: 'Выберите уровень сложности' }]}>
           <Select>
             <Option value="1">1 - Базовый</Option>
             <Option value="2">2 - Средний</Option>
@@ -447,11 +336,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         </Form.Item>
 
         {/* Тема */}
-        <Form.Item
-          name="topic"
-          label="Тема"
-          rules={[{ required: true, message: 'Выберите тему' }]}
-        >
+        <Form.Item name="topic" label="Тема" rules={[{ required: true, message: 'Выберите тему' }]}>
           <Select
             placeholder="Выберите тему"
             showSearch
@@ -463,44 +348,22 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 <Divider style={{ margin: '8px 0' }} />
                 <div style={{ padding: '0 8px 8px' }}>
                   <Space style={{ display: 'flex' }}>
-                    <InputNumber
-                      placeholder="№ ЕГЭ"
-                      min={0}
-                      style={{ width: 100 }}
-                      value={newTopicNumber}
-                      onChange={setNewTopicNumber}
-                    />
-                    <Input
-                      placeholder="Новая тема"
-                      value={newTopicTitle}
-                      onChange={(e) => setNewTopicTitle(e.target.value)}
-                    />
-                    <Button
-                      type="text"
-                      icon={<PlusOutlined />}
-                      loading={creatingTopic}
-                      onClick={handleCreateTopic}
-                    >
-                      Добавить
-                    </Button>
+                    <InputNumber placeholder="№ ЕГЭ" min={0} style={{ width: 100 }} value={newTopicNumber} onChange={setNewTopicNumber} />
+                    <Input placeholder="Новая тема" value={newTopicTitle} onChange={(e) => setNewTopicTitle(e.target.value)} />
+                    <Button type="text" icon={<PlusOutlined />} loading={creatingTopic} onClick={handleCreateTopic}>Добавить</Button>
                   </Space>
                 </div>
               </>
             )}
           >
             {topics.map(topic => (
-              <Option key={topic.id} value={topic.id}>
-                №{topic.ege_number} - {topic.title}
-              </Option>
+              <Option key={topic.id} value={topic.id}>№{topic.ege_number} - {topic.title}</Option>
             ))}
           </Select>
         </Form.Item>
 
         {/* Подтема */}
-        <Form.Item
-          name="subtopic"
-          label="Подтема"
-        >
+        <Form.Item name="subtopic" label="Подтема">
           <Select
             placeholder="Выберите подтему"
             allowClear
@@ -513,20 +376,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 <Divider style={{ margin: '8px 0' }} />
                 <div style={{ padding: '0 8px 8px' }}>
                   <Space style={{ display: 'flex' }}>
-                    <Input
-                      placeholder="Новая подтема"
-                      value={newSubtopicName}
-                      onChange={(e) => setNewSubtopicName(e.target.value)}
-                    />
-                    <Button
-                      type="text"
-                      icon={<PlusOutlined />}
-                      loading={creatingSubtopic}
-                      onClick={handleCreateSubtopic}
-                      disabled={!form.getFieldValue('topic')}
-                    >
-                      Добавить
-                    </Button>
+                    <Input placeholder="Новая подтема" value={newSubtopicName} onChange={(e) => setNewSubtopicName(e.target.value)} />
+                    <Button type="text" icon={<PlusOutlined />} loading={creatingSubtopic} onClick={handleCreateSubtopic} disabled={!form.getFieldValue('topic')}>Добавить</Button>
                   </Space>
                 </div>
               </>
@@ -539,45 +390,21 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         </Form.Item>
 
         {/* Источник */}
-        <Form.Item
-          name="source"
-          label="Источник"
-        >
-          <Select
-            placeholder="Выберите или введите источник"
-            allowClear
-            showSearch
-            mode="tags"
-            maxTagCount={1}
-          >
-            {allSources.map(s => (
-              <Option key={s} value={s}>{s}</Option>
-            ))}
+        <Form.Item name="source" label="Источник">
+          <Select placeholder="Выберите или введите источник" allowClear showSearch mode="tags" maxTagCount={1}>
+            {allSources.map(s => (<Option key={s} value={s}>{s}</Option>))}
           </Select>
         </Form.Item>
 
         {/* Год */}
-        <Form.Item
-          name="year"
-          label="Год"
-        >
-          <Select
-            placeholder="Выберите год"
-            allowClear
-            showSearch
-          >
-            {allYears.map(y => (
-              <Option key={y} value={y}>{y}</Option>
-            ))}
+        <Form.Item name="year" label="Год">
+          <Select placeholder="Выберите год" allowClear showSearch>
+            {allYears.map(y => (<Option key={y} value={y}>{y}</Option>))}
           </Select>
         </Form.Item>
 
         {/* Теги */}
-        <Form.Item
-          name="tags"
-          label="Теги"
-          help="Введите название нового тега и нажмите Enter для создания"
-        >
+        <Form.Item name="tags" label="Теги" help="Введите название нового тега и нажмите Enter для создания">
           <Select
             mode="tags"
             placeholder="Выберите или создайте теги"
@@ -586,37 +413,27 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             loading={creatingTag}
             optionFilterProp="children"
             onSelect={async (value) => {
-              // Если выбрано значение, которого нет в списке ID - это новый тег
               const isExistingTag = tags.some(t => t.id === value);
               if (!isExistingTag) {
-                // Создаём новый тег
                 const newTagId = await handleCreateTag(value);
+                const currentTags = form.getFieldValue('tags') || [];
                 if (newTagId) {
-                  // Заменяем временное значение на ID
-                  const currentTags = form.getFieldValue('tags') || [];
-                  const updatedTags = currentTags.map(t => t === value ? newTagId : t);
-                  form.setFieldValue('tags', updatedTags);
+                  form.setFieldValue('tags', currentTags.map(t => t === value ? newTagId : t));
                 } else {
-                  // Если создание не удалось - убираем временное значение
-                  const currentTags = form.getFieldValue('tags') || [];
                   form.setFieldValue('tags', currentTags.filter(t => t !== value));
                 }
               }
             }}
           >
-            {tags.map(tag => (
-              <Option key={tag.id} value={tag.id}>
-                {tag.title}
-              </Option>
-            ))}
+            {tags.map(tag => (<Option key={tag.id} value={tag.id}>{tag.title}</Option>))}
           </Select>
         </Form.Item>
 
         {/* Изображение */}
         <Form.Item label="Изображение (опционально)">
           <Segmented
-            value={imageSource}
-            onChange={(val) => setImageSource(val)}
+            value={img.imageSource}
+            onChange={img.setImageSource}
             options={[
               { value: 'url', label: 'По ссылке', icon: <LinkOutlined /> },
               { value: 'upload', label: 'Загрузить', icon: <UploadOutlined /> },
@@ -625,19 +442,18 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             style={{ marginBottom: 12 }}
           />
 
-          {imageSource === 'url' && (
+          {img.imageSource === 'url' && (
             <Form.Item name="image_url" noStyle>
               <Input placeholder="https://example.com/image.png" />
             </Form.Item>
           )}
 
-          {imageSource === 'upload' && (
+          {img.imageSource === 'upload' && (
             <div>
-              {/* Превью существующего или только что загруженного */}
-              {(uploadPreviewUrl || (task?.image && !uploadedFile)) && (
+              {(img.uploadPreviewUrl || (task?.image && !img.uploadedFile)) && (
                 <div style={{ marginBottom: 12, border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, textAlign: 'center' }}>
                   <img
-                    src={uploadPreviewUrl || api.getTaskImageUrl(task)}
+                    src={img.uploadPreviewUrl || api.getTaskImageUrl(task)}
                     alt="Изображение"
                     style={{ maxWidth: '100%', maxHeight: 200, display: 'block', margin: '0 auto' }}
                   />
@@ -649,9 +465,9 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   maxCount={1}
                   showUploadList={false}
                   beforeUpload={(file) => {
-                    setUploadedFile(file);
+                    img.setUploadedFile(file);
                     const reader = new FileReader();
-                    reader.onload = (e) => setUploadPreviewUrl(e.target.result);
+                    reader.onload = (e) => img.setUploadPreviewUrl(e.target.result);
                     reader.readAsDataURL(file);
                     return false;
                   }}
@@ -660,24 +476,21 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 </Upload>
                 <Button
                   icon={<ScissorOutlined />}
-                  disabled={!uploadPreviewUrl}
-                  onClick={() => {
-                    setCropMargins({ left: 0, right: 0, top: 0, bottom: 0 });
-                    setCropModalOpen(true);
-                  }}
+                  disabled={!img.uploadPreviewUrl}
+                  onClick={() => img.setCropModalOpen(true)}
                 >
                   Обрезать
                 </Button>
               </Space>
-              {uploadedFile && (
-                <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>{uploadedFile.name}</div>
+              {img.uploadedFile && (
+                <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>{img.uploadedFile.name}</div>
               )}
             </div>
           )}
 
-          {imageSource === 'drawing' && (
+          {img.imageSource === 'drawing' && (
             <>
-              {task?.image && !drawingImageDataUrl && (
+              {task?.image && !img.drawingImageDataUrl && (
                 <div style={{ marginBottom: 12, border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, textAlign: 'center' }}>
                   <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Текущий чертёж:</div>
                   <img
@@ -688,8 +501,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 </div>
               )}
               <GeoGebraDrawingPanel
-                imageDataUrl={drawingImageDataUrl}
-                onImageChange={setDrawingImageDataUrl}
+                imageDataUrl={img.drawingImageDataUrl}
+                onImageChange={img.setDrawingImageDataUrl}
               />
             </>
           )}
@@ -699,91 +512,37 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         <Form.Item
           name="statement_md"
           label="Текст задания (поддерживает LaTeX: $x^2$)"
-          rules={[{
-            required: isCreateMode,
-            message: 'Введите текст задания'
-          }]}
+          rules={[{ required: isCreateMode, message: 'Введите текст задания' }]}
         >
-          <TextArea
-            rows={4}
-            placeholder="Введите текст задания..."
-            onChange={handleStatementChange}
-          />
+          <TextArea rows={4} placeholder="Введите текст задания..." onChange={(e) => setPreviewStatement(e.target.value)} />
         </Form.Item>
 
-        {/* Предпросмотр задания */}
         {previewStatement && (
-          <div style={{ 
-            marginBottom: 16, 
-            padding: 12, 
-            background: '#f5f5f5',
-            borderRadius: 4,
-            border: '1px solid #d9d9d9'
-          }}>
-            <div style={{ 
-              fontSize: 12, 
-              color: '#666', 
-              marginBottom: 8,
-              fontWeight: 'bold'
-            }}>
-              Предпросмотр задания:
-            </div>
+          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4, border: '1px solid #d9d9d9' }}>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр задания:</div>
             <MathRenderer text={previewStatement} />
           </div>
         )}
 
         {/* Ответ */}
-        <Form.Item
-          name="answer"
-          label="Ответ (поддерживает LaTeX)"
-        >
-          <Input 
-            placeholder="Введите ответ..."
-            onChange={handleAnswerChange}
-          />
+        <Form.Item name="answer" label="Ответ (поддерживает LaTeX)">
+          <Input placeholder="Введите ответ..." onChange={(e) => setPreviewAnswer(e.target.value)} />
         </Form.Item>
 
-        {/* Предпросмотр ответа */}
         {previewAnswer && (
-          <div style={{ 
-            marginBottom: 16, 
-            padding: 12, 
-            background: '#e6f7ff',
-            borderRadius: 4,
-            border: '1px solid #91d5ff'
-          }}>
-            <div style={{ 
-              fontSize: 12, 
-              color: '#666', 
-              marginBottom: 8,
-              fontWeight: 'bold'
-            }}>
-              Предпросмотр ответа:
-            </div>
+          <div style={{ marginBottom: 16, padding: 12, background: '#e6f7ff', borderRadius: 4, border: '1px solid #91d5ff' }}>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр ответа:</div>
             <MathRenderer text={previewAnswer} />
           </div>
         )}
 
         {/* Решение */}
-        <Form.Item
-          name="solution_md"
-          label="Решение (опционально, поддерживает LaTeX)"
-        >
-          <TextArea 
-            rows={4}
-            placeholder="Введите решение задачи..."
-          />
+        <Form.Item name="solution_md" label="Решение (опционально, поддерживает LaTeX)">
+          <TextArea rows={4} placeholder="Введите решение задачи..." />
         </Form.Item>
 
         {/* Подсказка по LaTeX */}
-        <div style={{ 
-          fontSize: 12, 
-          color: '#666',
-          background: '#fff7e6',
-          padding: 8,
-          borderRadius: 4,
-          border: '1px solid #ffd591'
-        }}>
+        <div style={{ fontSize: 12, color: '#666', background: '#fff7e6', padding: 8, borderRadius: 4, border: '1px solid #ffd591' }}>
           <strong>Примеры LaTeX:</strong><br />
           • Степени: <code>x^2</code>, <code>a^{10}</code><br />
           • Дроби: <code>\frac{'{'}a{'}'}{'{'} b{'}'}</code><br />
@@ -793,58 +552,14 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         </div>
       </Form>
 
-      {/* Crop модал для загруженных изображений */}
-      <Modal
+      <CropModal
+        open={img.cropModalOpen}
+        onCancel={() => img.setCropModalOpen(false)}
+        onCropped={handleCropped}
+        imageUrl={img.uploadPreviewUrl}
         title="Обрезка изображения"
-        open={cropModalOpen}
-        onCancel={() => setCropModalOpen(false)}
-        onOk={async () => {
-          if (!uploadPreviewUrl) return;
-          setCroppingImage(true);
-          try {
-            const cropped = await cropPngByMargins(uploadPreviewUrl, cropMargins);
-            setUploadPreviewUrl(cropped);
-            setUploadedFile(dataUrlToFile(cropped, uploadedFile?.name || 'image.png'));
-            setCropModalOpen(false);
-            message.success('Изображение обрезано');
-          } catch (err) {
-            message.error(`Ошибка обрезки: ${err?.message}`);
-          } finally {
-            setCroppingImage(false);
-          }
-        }}
-        okText="Применить"
-        cancelText="Отмена"
-        confirmLoading={croppingImage}
-        width={820}
-      >
-        {uploadPreviewUrl && (() => {
-          const nc = normalizeCrop(cropMargins);
-          return (
-            <Space direction="vertical" size={14} style={{ width: '100%' }}>
-              <div style={{ width: '100%', border: '1px solid #e8e8e8', borderRadius: 8, padding: 12, textAlign: 'center' }}>
-                <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0, maxWidth: '100%' }}>
-                  <img src={uploadPreviewUrl} alt="Предпросмотр" style={{ maxWidth: '100%', maxHeight: 360, display: 'block' }} />
-                  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                    <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: `${nc.top}%`, background: 'rgba(0,0,0,0.28)' }} />
-                    <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: `${nc.bottom}%`, background: 'rgba(0,0,0,0.28)' }} />
-                    <div style={{ position: 'absolute', left: 0, top: `${nc.top}%`, bottom: `${nc.bottom}%`, width: `${nc.left}%`, background: 'rgba(0,0,0,0.28)' }} />
-                    <div style={{ position: 'absolute', right: 0, top: `${nc.top}%`, bottom: `${nc.bottom}%`, width: `${nc.right}%`, background: 'rgba(0,0,0,0.28)' }} />
-                    <div style={{ position: 'absolute', left: `${nc.left}%`, right: `${nc.right}%`, top: `${nc.top}%`, bottom: `${nc.bottom}%`, border: '2px solid #ff4d4f', boxShadow: '0 0 0 1px rgba(255,255,255,0.95) inset' }} />
-                  </div>
-                </div>
-              </div>
-              {[['left', 'Слева'], ['right', 'Справа'], ['top', 'Сверху'], ['bottom', 'Снизу']].map(([edge, label]) => (
-                <div key={edge} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 90px', gap: 10, alignItems: 'center' }}>
-                  <span>{label}</span>
-                  <Slider min={0} max={45} step={1} value={nc[edge]} onChange={(v) => setCropMargins((prev) => normalizeCrop({ ...prev, [edge]: v }))} />
-                  <InputNumber min={0} max={45} value={nc[edge]} onChange={(v) => setCropMargins((prev) => normalizeCrop({ ...prev, [edge]: v ?? 0 }))} addonAfter="%" style={{ width: '100%' }} />
-                </div>
-              ))}
-            </Space>
-          );
-        })()}
-      </Modal>
+        messageApi={message}
+      />
     </Modal>
   );
 };

@@ -38,7 +38,7 @@
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 - **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
-Текущая версия: **3.7.0** (февраль 2026)
+Текущая версия: **3.7.3** (февраль 2026)
 
 ## Tech Stack
 
@@ -79,39 +79,55 @@
 generation-test/
 ├── ege-tasks/                    # Frontend (React + Vite)
 │   ├── src/
-│   │   ├── components/           # React components (25+)
+│   │   ├── components/           # React components (30)
 │   │   │   ├── catalog/          # Catalog sub-components (7)
+│   │   │   ├── geometry/         # Geometry sub-components (7: 3 original + 4 tabs)
+│   │   │   ├── theory/           # Theory sub-components (2 + CSS)
+│   │   │   ├── shared/            # Shared components (CropModal)
 │   │   │   ├── worksheet/        # Reusable worksheet components (12)
 │   │   │   └── student/          # Student-facing components (7)
 │   │   ├── landing/              # Landing page (standalone, no Ant Design)
 │   │   │   ├── main.jsx          # Entry point
-│   │   │   ├── LandingPage.jsx   # Root component
-│   │   │   ├── LandingPage.css   # Full design system
-│   │   │   └── components/       # 8 section components
-│   │   ├── hooks/                # Custom React hooks (12)
-│   │   ├── services/             # API services (pocketbase.js)
+│   │   │   ├── LandingApp.jsx    # Root app (router V1/V2)
+│   │   │   ├── LandingPage.jsx   # V1 root component
+│   │   │   ├── LandingPageV2.jsx # V2 root component
+│   │   │   ├── LandingPage.css   # V1 design system
+│   │   │   ├── LandingPageV2.css # V2 design system
+│   │   │   └── components/       # 8 V1 + 8 V2 section components
+│   │   ├── teacher/              # Teacher entry point
+│   │   │   └── main.jsx          # → App.jsx
+│   │   ├── student/              # Student entry point
+│   │   │   └── main.jsx          # → StudentApp.jsx
+│   │   ├── shared/               # Shared code across all apps
+│   │   │   ├── services/         # pocketbase.js, pocketbaseUrl.js
+│   │   │   ├── components/       # MathRenderer.jsx
+│   │   │   └── utils/            # shuffle.js, escapeFilter.js
+│   │   ├── hooks/                # Custom React hooks (17)
+│   │   ├── services/             # Reexports from shared/ (backward compat)
 │   │   ├── utils/                # Utility functions (10)
 │   │   ├── contexts/             # React contexts (ReferenceDataContext)
 │   │   ├── App.jsx               # Teacher interface + routing
-│   │   └── main.jsx              # Entry point (dual routing)
+│   │   └── StudentApp.jsx        # Student interface + routing
 │   ├── package.json
 │   └── vite.config.js
-├── pocketbase/                   # Backend
+├── pocketbase/                   # Backend (на VPS, локально может отсутствовать)
 │   ├── pocketbase                # Executable
 │   ├── pb_data/                  # Database and storage
-│   ├── pb_migrations/            # Database migrations (48 files)
+│   ├── pb_migrations/            # Database migrations
 │   ├── pb_hooks/                 # PocketBase JS hooks (pdf.pb.js)
 │   ├── pdf-service.js            # Standalone PDF + sdamgia service
 │   ├── code.js                   # Task code generator
 │   └── package.json
 ├── source/                       # Source markdown files for tasks
 │   └── mordkovich/               # Mordkovich textbook tasks
+├── _archive/                     # Archived parsers and scripts
+│   ├── pb_parser.py              # Main task parser
+│   ├── pb_parser_mordkovich.py   # Mordkovich parser
+│   └── pb_parser_theory.py       # Theory articles parser
+├── raspberry/                    # Deploy scripts for Raspberry Pi and VPS
 ├── backups/                      # Database backups
 ├── start.sh / stop.sh            # Start/stop all services
 ├── backup.sh / restore.sh        # Backup/restore database
-├── pb_parser.py                  # Main task parser
-├── pb_parser_mordkovich.py       # Mordkovich parser
-├── pb_parser_theory.py           # Theory articles parser
 └── package.json                  # Root (concurrently)
 ```
 
@@ -160,9 +176,25 @@ generation-test/
 - `GeoGebraApplet.jsx` - GeoGebra applet wrapper (geometry/graphing/classic/3d)
 - `GeoGebraDrawingPanel.jsx` - Simplified GeoGebra drawing panel (PNG export + crop, no state saving; used in TaskEditModal)
 - `geometry/SaveGeometryPrintModal.jsx` / `LoadGeometryPrintModal.jsx` - Save/load A5 print sheets
+- `geometry/GeometryTopicManager.jsx` - CRUD for geometry topics and subtopics
+- `geometry/TabCondition.jsx` - Tab: task condition fields + preview (extracted from GeometryTaskEditor)
+- `geometry/TabDrawing.jsx` - Tab: GeoGebra applet + PNG export/crop (extracted from GeometryTaskEditor)
+- `geometry/TabLayout.jsx` - Tab: A5 print layout editor (extracted from GeometryTaskEditor)
+- `geometry/TabSolution.jsx` - Tab: solution editor + preview (extracted from GeometryTaskEditor)
+
+**Shared Components (components/shared/):**
+- `shared/CropModal.jsx` - Universal image crop modal (4 margins, slider+input, preview overlay)
+
+**Theory Sub-Components (components/theory/):**
+- `theory/EditorToolbar.jsx` - Custom toolbar for TheoryEditor (formatting buttons, insert helpers)
+- `theory/TableInsertPopover.jsx` - Table insert popover for Markdown editor
 
 **Student Progress:**
 - `StudentProgressDashboard.jsx` - Teacher view of all students (attempts, scores, class)
+- `StudentDetailPage.jsx` - Detailed view of individual student (attempts history, score dynamics chart, weak tasks)
+
+**Achievement Management:**
+- `AchievementManager.jsx` - CRUD for achievements (create, edit, delete achievement badges)
 
 **Student-Facing (components/student/):**
 - `StudentApp.jsx` - Root student component (dual routing entry)
@@ -172,6 +204,7 @@ generation-test/
 - `StudentResultPage.jsx` - View results + achievements
 - `AchievementBadge.jsx` - Single badge with animation
 - `AchievementGallery.jsx` - All achievements collection
+- `StudentProgressPage.jsx` - Student's own progress view (history, stats across all sessions)
 
 **Reusable Worksheet Components (components/worksheet/):**
 - `FilterBlock.jsx` - Universal filter block
@@ -187,16 +220,11 @@ generation-test/
 - `TeacherResultsDashboard.jsx` - Teacher results view with achievements
 
 **Landing Page (src/landing/):**
-- `LandingPage.jsx` - Root landing component (navbar, scroll-reveal, mobile menu)
-- `LandingPage.css` - Full CSS design system (variables, 10 animations, 4 breakpoints)
-- `components/HeroSection.jsx` - Dark hero with gradient blobs, floating math symbols
-- `components/StatsCounter.jsx` - 4 animated counters (requestAnimationFrame)
-- `components/FeaturesShowcase.jsx` - 3+1 feature cards with tags
-- `components/HowItWorks.jsx` - 4-step vertical timeline
-- `components/StudentExperience.jsx` - CSS phone mockup with student UI simulation
-- `components/AchievementsShowcase.jsx` - Dark section with real achievement icons
-- `components/TeacherTestimonials.jsx` - Author quote + feature checklist
-- `components/CTAFooter.jsx` - Gradient CTA + minimal footer
+- `LandingApp.jsx` - Root app (router between V1 and V2)
+- `LandingPage.jsx` / `LandingPage.css` - V1: navbar, scroll-reveal, mobile menu
+- `LandingPageV2.jsx` / `LandingPageV2.css` - V2: обновлённый дизайн
+- **V1 components:** `HeroSection`, `StatsCounter`, `FeaturesShowcase`, `HowItWorks`, `StudentExperience`, `AchievementsShowcase`, `TeacherTestimonials`, `CTAFooter`
+- **V2 components (components/v2/):** `HeroV2`, `StatsV2`, `FeaturesV2`, `TimelineV2`, `StudentV2`, `AchievementsV2`, `TestimonialsV2`, `FooterV2`
 
 ### Custom Hooks (ege-tasks/src/hooks/)
 - `useWorksheetGeneration.js` - Universal variant generation (multi-topic blocks, deduplication, 3 modes, progressive difficulty)
@@ -211,6 +239,11 @@ generation-test/
 - `useKeyboardShortcuts.js` - Keyboard shortcuts
 - `useDocumentStats.js` - Document statistics
 - `useAutosave.js` - Autosave and restore
+- `useAvailableTags.js` - Load available tags by topic/subtopic (used in OralWorksheetGenerator)
+- `useTaskCounter.js` - Debounced task count by form filters (used in OralWorksheetGenerator)
+- `useImageUpload.js` - Image source/upload/drawing state management (used in TaskEditModal)
+- `useGeoGebraOperations.js` - GeoGebra save/clear/export operations
+- `useTopicSubtopicCreation.js` - Topic/subtopic creation with duplicate detection
 
 ### Contexts (ege-tasks/src/contexts/)
 - `ReferenceDataContext.jsx` - Global reference data (topics, tags, subtopics, years, sources, theoryCategories)
@@ -291,21 +324,24 @@ Source of truth for geometry schema and validation notes: `SCHEMA_GEOMETRY.md`.
 |----------|-------|-----------|
 | `tasks` | Все задачи | TaskList |
 | `stats` | Аналитика | TaskStatsDashboard |
-| `catalog` | Каталог (переход из аналитики) | TaskCatalogManager |
+| `catalog` | Каталог | TaskCatalogManager |
 | `generator` | Устный счёт | OralWorksheetGenerator |
 | `test-generator` | Контрольные работы | TestWorkGenerator |
 | `work-manager` | Работы | WorkManager |
 | `work-editor` | Редактор работ | WorkEditorPage |
 | `students` | Прогресс учеников | StudentProgressDashboard |
+| `student-detail` | Детали ученика | StudentDetailPage |
+| `achievements` | Достижения | AchievementManager |
 | `import` | Импорт задач | TaskImporter |
+| `geometry-tasks` | Геометрия — задачи | GeometryTaskList |
+| `geometry-topics` | Геометрия — темы | GeometryTopicManager |
 | `theory-browser` | Библиотека | TheoryBrowser |
 | `theory-editor` | Редактор | TheoryEditor |
 | `theory-view` | Просмотр | TheoryArticleView |
 | `theory-print` | Конспекты | TheoryPrintBuilder |
 | `theory-categories` | Категории | TheoryCategoryManager |
-| `geometry` | Геометрия | GeometryTaskList |
 
-**Landing Page** (`/landing.html`) — отдельный entry point, 8 секций: Hero, Stats, Features, How It Works, Student Experience, Achievements, Testimonials, CTA+Footer. Полностью автономный (без Ant Design, PocketBase).
+**Landing Page** (`/landing.html`) — отдельный entry point, 2 версии дизайна (V1 + V2). Полностью автономный (без Ant Design, PocketBase).
 
 ## Student Flow
 
@@ -325,7 +361,7 @@ URL: `/student/{sessionId}`
 
 ## Achievement System
 
-- 30 predefined achievements (common/rare/legendary + condition-based)
+- 72 predefined achievements (common/rare/legendary + condition-based)
 - Random badges: one per attempt based on score (90%+→legendary, 70-89%→rare, 40-69%→common)
 - Conditional: score≥100%, score≥90%, speed≤5min, count≥1/10/50, night_owl, early_bird
 - Engine: `utils/achievementEngine.js`
@@ -405,19 +441,21 @@ nginx (443) → student.oipav.ru
 cd ege-tasks && npm run build
 ```
 
-## API Service (ege-tasks/src/services/pocketbase.js)
+## API Service (ege-tasks/src/shared/services/pocketbase.js)
+
+~104 API методов. Реэкспорт через `src/services/pocketbase.js` для обратной совместимости.
 
 Key function groups:
 - **Topics:** getTopics, getTopic, createTopic, updateTopic
 - **Subtopics:** getSubtopics, createSubtopic, updateSubtopic, deleteSubtopic
 - **Tags:** getTags, createTag, updateTag, deleteTag, findTagByTitle
-- **Tasks:** getTasks, getTask, createTask, updateTask, deleteTask, getRandomTasks, getRandomTasksWithoutRepetition, getTasksWithProgressiveDifficulty, getTaskStatementsAndCodes
+- **Tasks:** getTasks, getTask, getTasksPage, createTask, updateTask, deleteTask, getRandomTasks, getRandomTasksWithoutRepetition, getTasksWithProgressiveDifficulty, getTaskStatementsAndCodes
 - **Cards:** getCards, getCard, createCard, updateCard, deleteCard
 - **Works:** getWorks, getWork, createWork, updateWork, deleteWork, archiveWork, unarchiveWork
 - **Variants:** getVariantsByWork, getVariant, createVariant, updateVariant, deleteVariant
 - **Sessions:** createSession, getSession, getSessionByWork, getSessionsByWork, getSessionsByWorks, updateSession
-- **Attempts:** createAttempt, getAttemptByDevice, getAttemptsByDevice, getAttemptsBySession, getAttemptsByStudent, updateAttempt, deleteAttempt, getAttemptsBySessions, getAttemptsCountByWork
-- **Answers:** createAttemptAnswer, getAttemptAnswers, updateAttemptAnswer, batchCreateAttemptAnswers, batchUpdateAttemptAnswers
+- **Attempts:** createAttempt, getAttemptByDevice, getAttemptsByDevice, getAttemptsByDeviceAll, getAttemptsByDeviceAllWithWorks, getAttemptsBySession, getAttemptsBySessions, getAttemptsByStudent, getAttemptsByStudentAll, getAttemptsByStudentAllWithWorks, updateAttempt, deleteAttempt, getAttemptsCountByWork, getAttemptsWithAchievements
+- **Answers:** createAttemptAnswer, getAttemptAnswers, getAttemptAnswersByAttempts, getAttemptAnswersByAttemptsDetailed, updateAttemptAnswer, batchCreateAttemptAnswers, batchUpdateAttemptAnswers
 - **Achievements:** getAchievements, getAchievement, getAchievementsByIds, createAchievement, updateAchievement, deleteAchievement
 - **Students:** registerStudent, loginStudent, logoutStudent, isStudentAuthenticated, getAuthStudent, getStudents, updateStudent, getAttemptsByStudent, getAttemptsForRegisteredStudents
 - **Theory:** getTheoryCategories, createTheoryCategory, updateTheoryCategory, deleteTheoryCategory, getTheoryArticles, getTheoryArticle, createTheoryArticle, updateTheoryArticle, deleteTheoryArticle, getTheoryArticleCountByCategory
@@ -450,7 +488,9 @@ Key function groups:
 - Backend hooks: `pocketbase/pb_hooks/*.js`
 - PDF service: `pocketbase/pdf-service.js`
 - Migrations: `pocketbase/pb_migrations/*.js`
-- Config: `ege-tasks/.env` (VITE_PB_URL), `ege-tasks/vite.config.js`
+- Geometry components: `ege-tasks/src/components/geometry/*.jsx`
+- Theory components: `ege-tasks/src/components/theory/*.jsx`
+- Config: `ege-tasks/.env` (VITE_PB_URL, VITE_PDF_SERVICE_URL, VITE_STUDENT_URL), `ege-tasks/vite.config.js`
 
 ## Development Notes
 
@@ -483,7 +523,7 @@ Key function groups:
 
 - `README.MD` - Полное руководство пользователя
 - `ARCHITECTURE.md` - Архитектура проекта
-- `CHANGELOG.md` - История изменений (v1.0 → v3.6.5)
+- `CHANGELOG.md` - История изменений (v1.0 → v3.7.3)
 - `DATABASE_SAFETY.md` - Правила безопасности БД
 - `BACKUP_GUIDE.md` - Руководство по бэкапам
 - `PDF_EXPORT_UPGRADE.md` - PDF экспорт через Puppeteer

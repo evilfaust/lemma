@@ -1,17 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
-  Card,
   Form,
-  Input,
-  InputNumber,
-  Modal,
   Popconfirm,
-  Select,
-  Slider,
   Space,
-  Switch,
   Tabs,
   Tag,
   Typography,
@@ -20,33 +13,16 @@ import {
 import {
   ArrowLeftOutlined,
   DeleteOutlined,
-  FullscreenExitOutlined,
-  FullscreenOutlined,
   SaveOutlined,
-  UndoOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
-import { clamp, normalizeCrop, loadImage, cropPngByMargins } from '../utils/cropImage';
-import GeoGebraApplet from './GeoGebraApplet';
-import MathRenderer from './MathRenderer';
-import { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout } from './GeometryTaskPreview';
-import './GeometryTaskPreview.css';
+import { normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
+import TabCondition from './geometry/TabCondition';
+import TabDrawing from './geometry/TabDrawing';
+import TabLayout from './geometry/TabLayout';
+import TabSolution from './geometry/TabSolution';
 
-const { TextArea } = Input;
-const { Text, Title } = Typography;
-
-const APPNAME_OPTIONS = [
-  { value: 'geometry', label: 'Геометрия' },
-  { value: 'graphing', label: 'Графики функций' },
-  { value: 'classic', label: 'Классик (все инструменты)' },
-  { value: '3d', label: '3D — стереометрия' },
-];
-
-const DIFFICULTY_OPTIONS = [
-  { value: 1, label: '1 — Базовый' },
-  { value: 2, label: '2 — Средний' },
-  { value: 3, label: '3 — Сложный' },
-];
+const { Title } = Typography;
 
 const isImageDrawing = (value = '') => value.startsWith('data:image/');
 
@@ -77,25 +53,17 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
 
   // ── Состояние чертежа ─────────────────────────────────────────────────────
   const ggbApiRef = useRef(null);
-  // Legacy: старые задачи могли хранить PNG в geogebra_base64 или geogebra_image_base64
   const legacyImage = task?.geogebra_image_base64 || task?.geogebra_base64 || '';
   const initialLegacyImage = isImageDrawing(legacyImage) ? legacyImage : '';
   const [ggbBase64, setGgbBase64] = useState(initialLegacyImage ? '' : (task?.geogebra_base64 || ''));
-  // ggbImageBase64 — PNG в памяти (только после экспорта из GeoGebra в текущей сессии).
-  // Существующий чертёж отображается через URL файлового поля geogebra_image_base64.
   const [ggbImageBase64, setGgbImageBase64] = useState(initialLegacyImage || '');
-  // Чертёж считается сохранённым если есть PNG-файл или legacy/base64-данные.
   const [ggbSaved, setGgbSaved] = useState(!!(task?.drawing_image || task?.geogebra_base64 || task?.geogebra_image_base64));
-  // URL существующего файла-чертежа (после миграции)
   const existingDrawingUrl = api.getGeometryImageUrl(task);
   const [savingDrawing, setSavingDrawing] = useState(false);
   const [appName, setAppName] = useState(task?.geogebra_appname || 'geometry');
   const [drawingView, setDrawingView] = useState(task?.drawing_view === 'geogebra' ? 'geogebra' : 'image');
-  const [cropModalOpen, setCropModalOpen] = useState(false);
-  const [cropMargins, setCropMargins] = useState({ left: 0, right: 0, top: 0, bottom: 0 });
-  const [croppingImage, setCroppingImage] = useState(false);
 
-  // ── Состояние макета (для печатного листа A5) ─────────────────────────────
+  // ── Состояние макета ─────────────────────────────────────────────────────
   const [layoutPrint, setLayoutPrint] = useState(() => {
     const persisted = safeParseLayout(task?.preview_layout)?.print ?? null;
     return normalizeLayout(persisted, 'print');
@@ -123,7 +91,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       .catch(() => {});
   }, []);
 
-  // ── Сохранить чертёж из GeoGebra API ─────────────────────────────────────
+  // ── GeoGebra операции ───────────────────────────────────────────────────
   const handleSaveDrawing = useCallback(() => {
     if (!ggbApiRef.current) {
       message.warning('GeoGebra ещё не загружена');
@@ -131,9 +99,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     }
     setSavingDrawing(true);
     ggbApiRef.current.getBase64(async (base64) => {
-      const normalizedGgb = base64 || '';
-      setGgbBase64(normalizedGgb);
-
+      setGgbBase64(base64 || '');
       try {
         const pngBase64 = ggbApiRef.current.getPNGBase64(2, false, 300);
         if (pngBase64) {
@@ -145,7 +111,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       } catch {
         // ignore
       }
-
       setGgbSaved(true);
       setSavingDrawing(false);
       message.success('Чертёж сохранён (GeoGebra + PNG)');
@@ -164,18 +129,13 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       message.warning('GeoGebra ещё не загружена');
       return;
     }
-
     setSavingDrawing(true);
     try {
       const pngBase64 = ggbApiRef.current.getPNGBase64(2, false, 300);
-      if (!pngBase64) {
-        throw new Error('GeoGebra не вернула изображение');
-      }
-
+      if (!pngBase64) throw new Error('GeoGebra не вернула изображение');
       const imageData = pngBase64.startsWith('data:image/')
         ? pngBase64
         : `data:image/png;base64,${pngBase64}`;
-
       setGgbImageBase64(imageData);
       setGgbSaved(true);
       message.success('PNG обновлён');
@@ -186,31 +146,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     }
   }, []);
 
-  const handleOpenCropModal = useCallback(() => {
-    if (!ggbImageBase64) {
-      message.warning('Сначала сохраните PNG');
-      return;
-    }
-    setCropMargins({ left: 0, right: 0, top: 0, bottom: 0 });
-    setCropModalOpen(true);
-  }, [ggbImageBase64]);
-
-  const handleApplyCrop = useCallback(async () => {
-    if (!ggbImageBase64) return;
-    setCroppingImage(true);
-    try {
-      const cropped = await cropPngByMargins(ggbImageBase64, cropMargins);
-      setGgbImageBase64(cropped);
-      setDrawingView('image');
-      setGgbSaved(true);
-      setCropModalOpen(false);
-      message.success('PNG обрезан и обновлён');
-    } catch (error) {
-      message.error(`Не удалось обрезать PNG: ${error?.message || 'неизвестная ошибка'}`);
-    } finally {
-      setCroppingImage(false);
-    }
-  }, [cropMargins, ggbImageBase64]);
+  const handleCropApplied = useCallback((croppedDataUrl) => {
+    setGgbImageBase64(croppedDataUrl);
+    setDrawingView('image');
+    setGgbSaved(true);
+  }, []);
 
   // ── Управление макетом ────────────────────────────────────────────────────
   const handleEditorLayoutChange = useCallback((layerName, patch) => {
@@ -244,14 +184,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     setSaving(true);
     try {
       const normalizedCode = (values.code || '').trim();
-
       if (!normalizedCode) {
         message.error('Укажите код задачи');
         return;
       }
 
-      // Конвертируем in-memory PNG в File для загрузки в PocketBase file storage.
-      // Если новый чертёж не генерировался — поле файла не включаем (сохраняется существующий файл).
       let drawingImageFile = null;
       if (ggbImageBase64) {
         try {
@@ -265,18 +202,13 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         }
       }
 
-      // Всегда берём актуальное состояние GeoGebra из апплета при сохранении задачи,
-      // чтобы при следующем редактировании чертёж сразу восстановился.
       const liveGgbBase64 = await getGeoGebraBase64(ggbApiRef.current);
       const finalGgbBase64 = liveGgbBase64 || ggbBase64 || '';
-      if (finalGgbBase64 !== ggbBase64) {
-        setGgbBase64(finalGgbBase64);
-      }
+      if (finalGgbBase64 !== ggbBase64) setGgbBase64(finalGgbBase64);
 
       payload = {
         code: normalizedCode,
         title: values.title || '',
-        // task_type: select field, допустимые значения: "ready"|"build"|"mixed" или пустая строка
         task_type: task?.task_type || '',
         topic: values.topic || null,
         subtopic: values.subtopic || null,
@@ -295,10 +227,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         },
       };
 
-      // Файл чертежа — единственное файловое поле: geogebra_image_base64
-      if (drawingImageFile) {
-        payload.geogebra_image_base64 = drawingImageFile;
-      }
+      if (drawingImageFile) payload.geogebra_image_base64 = drawingImageFile;
 
       if (isCreate) {
         await api.createGeometryTask(payload);
@@ -385,20 +314,14 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         onAppNameChange={(v) => { setAppName(v); setGgbSaved(false); }}
         initialBase64={ggbBase64}
         imageBase64={ggbImageBase64 || existingDrawingUrl}
-        onApiReady={(api) => { ggbApiRef.current = api; }}
+        onApiReady={(apiObj) => { ggbApiRef.current = apiObj; }}
         ggbSaved={ggbSaved}
         drawingView={drawingView}
         onDrawingViewChange={setDrawingView}
         savingDrawing={savingDrawing}
         onSaveDrawing={handleSaveDrawing}
         onSaveDrawingAsImage={handleSaveDrawingAsImage}
-        onOpenCropModal={handleOpenCropModal}
-        cropModalOpen={cropModalOpen}
-        cropMargins={cropMargins}
-        onCropMarginsChange={setCropMargins}
-        croppingImage={croppingImage}
-        onApplyCrop={handleApplyCrop}
-        onCloseCropModal={() => setCropModalOpen(false)}
+        onCropApplied={handleCropApplied}
         onClearDrawing={handleClearDrawing}
       />,
     },
@@ -431,7 +354,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
   // ── Рендер ────────────────────────────────────────────────────────────────
   return (
     <Space direction="vertical" size={0} style={{ width: '100%' }}>
-      {/* Заголовок с кнопкой назад */}
       <div
         style={{
           display: 'flex',
@@ -449,7 +371,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
           </Title>
         </Space>
 
-        {/* Кнопки действий */}
         <Space>
           {!isCreate && (
             <Popconfirm
@@ -476,7 +397,6 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         </Space>
       </div>
 
-      {/* Предупреждение в режиме редактирования */}
       {!isCreate && (
         <Alert
           type="info"
@@ -486,499 +406,9 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         />
       )}
 
-      {/* Форма + вкладки */}
       <Form form={form} layout="vertical" initialValues={initialValues}>
         <Tabs items={tabItems} type="card" />
       </Form>
-    </Space>
-  );
-}
-
-// ── Вкладка 1: Условие ────────────────────────────────────────────────────
-function TabCondition({
-  form, initialValues, previewStatement, onStatementChange,
-  geoTopics, geoSubtopics, selectedTopicId, onTopicChange,
-}) {
-  const filteredSubtopics = selectedTopicId
-    ? geoSubtopics.filter((s) => s.topic === selectedTopicId)
-    : geoSubtopics;
-
-  return (
-    <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Form.Item
-          name="code"
-          label="Код задачи"
-          rules={[{ required: true, message: 'Укажите код' }]}
-        >
-          <Input placeholder="GEO-001" />
-        </Form.Item>
-
-        <Form.Item name="difficulty" label="Сложность">
-          <Select options={DIFFICULTY_OPTIONS} allowClear placeholder="Не указана" />
-        </Form.Item>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16 }}>
-        <Form.Item name="topic" label="Тема">
-          <Select
-            placeholder="Выберите тему"
-            allowClear
-            options={geoTopics.map((t) => ({ value: t.id, label: t.title }))}
-            onChange={onTopicChange}
-          />
-        </Form.Item>
-
-        <Form.Item name="subtopic" label="Подтема">
-          <Select
-            placeholder={selectedTopicId ? 'Выберите подтему' : 'Сначала выберите тему'}
-            allowClear
-            disabled={!selectedTopicId && filteredSubtopics.length === 0}
-            options={filteredSubtopics.map((s) => ({ value: s.id, label: s.title }))}
-          />
-        </Form.Item>
-
-        <Form.Item name="source" label="Источник">
-          <Input placeholder="Атанасян, §7" />
-        </Form.Item>
-
-        <Form.Item name="year" label="Год">
-          <InputNumber
-            style={{ width: '100%' }}
-            placeholder="2024"
-            min={1990}
-            max={2030}
-          />
-        </Form.Item>
-      </div>
-
-      <Form.Item
-        name="statement_md"
-        label="Условие задачи (Markdown + LaTeX)"
-      >
-        <TextArea
-          rows={5}
-          placeholder="Дано: $\triangle MEN$, $MN - KL = 6$. Найдите $MN$."
-          onChange={(e) => onStatementChange(e.target.value)}
-        />
-      </Form.Item>
-
-      {previewStatement && (
-        <Card
-          size="small"
-          title={<Text type="secondary" style={{ fontSize: 12 }}>Предпросмотр условия</Text>}
-          styles={{ body: { padding: '12px 16px' } }}
-        >
-          <MathRenderer text={previewStatement} />
-        </Card>
-      )}
-
-      <Form.Item name="answer" label="Ответ">
-        <Input placeholder="12 (числовой ответ; для нескольких вариантов: 3|3.0)" style={{ maxWidth: 300 }} />
-      </Form.Item>
-    </Space>
-  );
-}
-
-// ── Вкладка 2: Чертёж ─────────────────────────────────────────────────────
-function TabDrawing({
-  appName,
-  onAppNameChange,
-  initialBase64,
-  imageBase64,
-  onApiReady,
-  ggbSaved,
-  drawingView,
-  onDrawingViewChange,
-  savingDrawing,
-  onSaveDrawing,
-  onSaveDrawingAsImage,
-  onOpenCropModal,
-  cropModalOpen,
-  cropMargins,
-  onCropMarginsChange,
-  croppingImage,
-  onApplyCrop,
-  onCloseCropModal,
-  onClearDrawing,
-}) {
-  const drawingContainerRef = useRef(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [viewportHeight, setViewportHeight] = useState(
-    typeof window !== 'undefined' ? window.innerHeight : 900,
-  );
-
-  useEffect(() => {
-    const onResize = () => setViewportHeight(window.innerHeight);
-    const onFullscreenChange = () => {
-      if (!drawingContainerRef.current) {
-        setIsFullscreen(false);
-        return;
-      }
-      setIsFullscreen(document.fullscreenElement === drawingContainerRef.current);
-    };
-
-    window.addEventListener('resize', onResize);
-    document.addEventListener('fullscreenchange', onFullscreenChange);
-    return () => {
-      window.removeEventListener('resize', onResize);
-      document.removeEventListener('fullscreenchange', onFullscreenChange);
-    };
-  }, []);
-
-  const toggleFullscreen = useCallback(async () => {
-    try {
-      if (!document.fullscreenElement) {
-        if (drawingContainerRef.current?.requestFullscreen) {
-          await drawingContainerRef.current.requestFullscreen();
-        }
-        return;
-      }
-      if (document.exitFullscreen) {
-        await document.exitFullscreen();
-      }
-    } catch {
-      message.warning('Не удалось переключить полноэкранный режим.');
-    }
-  }, []);
-
-  const appletHeight = isFullscreen
-    ? Math.max(680, viewportHeight - 96)
-    : 680;
-
-  const normalizedCrop = normalizeCrop(cropMargins);
-  const setCropEdge = (edge, value) => {
-    onCropMarginsChange((prev) => normalizeCrop({ ...prev, [edge]: value }));
-  };
-
-  return (
-    <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      {/* Панель управления */}
-      <Card size="small">
-        <Space wrap>
-          <div>
-            <Text type="secondary" style={{ marginRight: 8 }}>Режим:</Text>
-            <Select
-              value={appName}
-              onChange={onAppNameChange}
-              options={APPNAME_OPTIONS}
-              style={{ width: 220 }}
-            />
-          </div>
-
-          <div>
-            <Text type="secondary" style={{ marginRight: 8 }}>Показывать:</Text>
-            <Select
-              value={drawingView}
-              onChange={onDrawingViewChange}
-              style={{ width: 220 }}
-              options={[
-                { value: 'image', label: 'Картинку (PNG)' },
-                { value: 'geogebra', label: 'GeoGebra объект' },
-              ]}
-            />
-          </div>
-
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={savingDrawing}
-            onClick={onSaveDrawing}
-          >
-            Сохранить чертёж (GeoGebra + PNG)
-          </Button>
-
-          <Button
-            loading={savingDrawing}
-            onClick={onSaveDrawingAsImage}
-          >
-            Сохранить как картинку (PNG)
-          </Button>
-
-          <Button onClick={onOpenCropModal} disabled={!imageBase64}>
-            Обрезать PNG
-          </Button>
-
-          <Button
-            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-            onClick={toggleFullscreen}
-          >
-            {isFullscreen ? 'Свернуть' : 'На весь экран'}
-          </Button>
-
-          <Button onClick={onClearDrawing} danger>
-            Очистить
-          </Button>
-
-          {ggbSaved && (
-            <Tag color="success" style={{ fontSize: 13, padding: '4px 10px' }}>
-              ✓ Чертёж сохранён
-            </Tag>
-          )}
-          {!ggbSaved && (
-            <Tag color="warning" style={{ fontSize: 13, padding: '4px 10px' }}>
-              Чертёж не сохранён
-            </Tag>
-          )}
-        </Space>
-      </Card>
-
-      <Alert
-        type="info"
-        showIcon
-        message={
-          <span>
-            Нарисуйте чертёж в поле ниже. Можно сохранить в формате GeoGebra
-            кнопкой <strong>«Сохранить чертёж (GeoGebra + PNG)»</strong> или обновить только картинку
-            кнопкой <strong>«Сохранить как картинку (PNG)»</strong>.
-            После этого можно обрезать лишние поля кнопкой <strong>«Обрезать PNG»</strong>.
-          </span>
-        }
-      />
-
-      {!!imageBase64 && (
-        <Card
-          size="small"
-          title="Текущая сохранённая картинка (PNG)"
-          styles={{ body: { padding: 12 } }}
-        >
-          <img
-            src={imageBase64}
-            alt="Чертёж"
-            style={{ width: '100%', maxHeight: 320, objectFit: 'contain', display: 'block' }}
-          />
-        </Card>
-      )}
-
-      {/* GeoGebra апплет */}
-      <div
-        ref={drawingContainerRef}
-        style={{
-          width: '100%',
-          background: '#fff',
-          borderRadius: 10,
-          padding: isFullscreen ? 10 : 0,
-        }}
-      >
-        <GeoGebraApplet
-          appName={appName}
-          readOnly={false}
-          initialBase64={initialBase64}
-          onApiReady={onApiReady}
-          height={appletHeight}
-        />
-      </div>
-
-      <Modal
-        title="Обрезка PNG"
-        open={cropModalOpen}
-        onCancel={onCloseCropModal}
-        onOk={onApplyCrop}
-        okText="Применить"
-        cancelText="Отмена"
-        confirmLoading={croppingImage}
-        width={820}
-      >
-        {!imageBase64 ? (
-          <Alert type="warning" showIcon message="Сначала сохраните PNG из GeoGebra" />
-        ) : (
-          <Space direction="vertical" size={14} style={{ width: '100%' }}>
-            <div style={{ width: '100%', border: '1px solid #e8e8e8', borderRadius: 8, padding: 12, textAlign: 'center' }}>
-              <div style={{ position: 'relative', display: 'inline-block', lineHeight: 0, maxWidth: '100%' }}>
-                <img
-                  src={imageBase64}
-                  alt="Предпросмотр обрезки"
-                  style={{ maxWidth: '100%', maxHeight: 360, width: 'auto', height: 'auto', display: 'block' }}
-                />
-                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      top: 0,
-                      height: `${normalizedCrop.top}%`,
-                      background: 'rgba(0, 0, 0, 0.28)',
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      height: `${normalizedCrop.bottom}%`,
-                      background: 'rgba(0, 0, 0, 0.28)',
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: 0,
-                      top: `${normalizedCrop.top}%`,
-                      bottom: `${normalizedCrop.bottom}%`,
-                      width: `${normalizedCrop.left}%`,
-                      background: 'rgba(0, 0, 0, 0.28)',
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      right: 0,
-                      top: `${normalizedCrop.top}%`,
-                      bottom: `${normalizedCrop.bottom}%`,
-                      width: `${normalizedCrop.right}%`,
-                      background: 'rgba(0, 0, 0, 0.28)',
-                    }}
-                  />
-                  <div
-                    style={{
-                      position: 'absolute',
-                      left: `${normalizedCrop.left}%`,
-                      right: `${normalizedCrop.right}%`,
-                      top: `${normalizedCrop.top}%`,
-                      bottom: `${normalizedCrop.bottom}%`,
-                      border: '2px solid #ff4d4f',
-                      boxShadow: '0 0 0 1px rgba(255,255,255,0.95) inset',
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {[
-              ['left', 'Слева'],
-              ['right', 'Справа'],
-              ['top', 'Сверху'],
-              ['bottom', 'Снизу'],
-            ].map(([edge, label]) => (
-              <div key={edge} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 90px', gap: 10, alignItems: 'center' }}>
-                <Text>{label}</Text>
-                <Slider
-                  min={0}
-                  max={45}
-                  step={1}
-                  value={normalizedCrop[edge]}
-                  onChange={(v) => setCropEdge(edge, v)}
-                />
-                <InputNumber
-                  min={0}
-                  max={45}
-                  value={normalizedCrop[edge]}
-                  onChange={(v) => setCropEdge(edge, v ?? 0)}
-                  addonAfter="%"
-                  style={{ width: '100%' }}
-                />
-              </div>
-            ))}
-          </Space>
-        )}
-      </Modal>
-    </Space>
-  );
-}
-
-// ── Вкладка 3: Макет ──────────────────────────────────────────────────────
-function TabLayout({ task, previewStatement, ggbImageBase64, layout, onLayoutChange, onReset }) {
-  const [layoutEditMode, setLayoutEditMode] = useState(true);
-  const [showAnswers, setShowAnswers] = useState(false);
-
-  // Создаём mock-задачу для предпросмотра с актуальными данными из редактора
-  const previewTask = useMemo(() => ({
-    ...(task || {}),
-    statement_md: previewStatement || task?.statement_md || '',
-    // Если в этой сессии был экспортирован новый PNG — показываем его
-    ...(ggbImageBase64 ? { geogebra_image_base64: ggbImageBase64 } : {}),
-  }), [task, previewStatement, ggbImageBase64]);
-
-  return (
-    <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      <Alert
-        type="info"
-        showIcon
-        message="Расположение чертежа и условия для печатного листа A5. Перетаскивайте блоки мышью, тяните за угловые маркеры для изменения размера. Макет сохраняется вместе с задачей."
-      />
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <Space wrap>
-          <Space size={8}>
-            <Switch checked={layoutEditMode} onChange={setLayoutEditMode} />
-            <Text>Редактировать макет</Text>
-          </Space>
-          <Space size={8}>
-            <Switch checked={showAnswers} onChange={setShowAnswers} />
-            <Text>Показывать ответ</Text>
-          </Space>
-          <Tag>Карточка A5</Tag>
-        </Space>
-        <Button icon={<UndoOutlined />} onClick={onReset}>
-          Сбросить по умолчанию
-        </Button>
-      </div>
-
-      {/* Ячейка предпросмотра — масштаб как у одной ячейки на студенческом листе */}
-      <div style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
-        <div
-          className="geometry-preview-grid a5"
-          style={{
-            gridTemplateColumns: '1fr',
-            gridTemplateRows: '1fr',
-            aspectRatio: String(PRINT_CELL_ASPECT_RATIO),
-            border: '1.5px solid #c0c0c0',
-            background: '#fff',
-          }}
-        >
-          <GeometryPreviewCard
-            task={previewTask}
-            index={0}
-            showAnswers={showAnswers}
-            mode="student"
-            drawingMode="task"
-            editable={layoutEditMode}
-            layout={layout}
-            onLayoutChange={onLayoutChange}
-          />
-        </div>
-      </div>
-
-      <Card
-        size="small"
-        styles={{ body: { padding: '10px 16px', color: '#888', fontSize: 12, lineHeight: 1.6 } }}
-      >
-        <strong>Как это работает:</strong> здесь задаётся расположение блоков на ячейке листа A5.
-        При формировании листа позиции берутся из этого макета автоматически — ничего не нужно
-        настраивать заново. При необходимости тонкую настройку можно сделать прямо на листе A5.
-      </Card>
-    </Space>
-  );
-}
-
-// ── Вкладка 4: Решение ───────────────────────────────────────────────────
-function TabSolution({ form, previewSolution, onSolutionChange }) {
-  return (
-    <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      <Form.Item
-        name="solution_md"
-        label="Подробное решение (Markdown + LaTeX)"
-      >
-        <TextArea
-          rows={10}
-          placeholder={
-            'Пример:\n\nПо теореме о средней линии треугольника $KL \\parallel MN$ и $KL = \\dfrac{MN}{2}$.\n\nЗначит $MN - KL = MN - \\dfrac{MN}{2} = \\dfrac{MN}{2} = 6$.\n\nОтсюда $MN = 12$.'
-          }
-          onChange={(e) => onSolutionChange(e.target.value)}
-        />
-      </Form.Item>
-
-      {previewSolution && (
-        <Card
-          size="small"
-          title={<Text type="secondary" style={{ fontSize: 12 }}>Предпросмотр решения</Text>}
-          styles={{ body: { padding: '12px 16px' } }}
-        >
-          <MathRenderer text={previewSolution} />
-        </Card>
-      )}
     </Space>
   );
 }

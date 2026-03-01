@@ -120,6 +120,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
   const [allAnswers, setAllAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
   const [expandedWeakTasks, setExpandedWeakTasks] = useState(() => new Set());
+  const [isWeakTasksOpen, setIsWeakTasksOpen] = useState(false);
 
   // Загрузка основных данных
   useEffect(() => {
@@ -455,9 +456,17 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
               ({weakTasks.length})
             </Text>
           )}
+          <Button
+            size="small"
+            type={isWeakTasksOpen ? 'default' : 'link'}
+            onClick={() => setIsWeakTasksOpen(v => !v)}
+            style={{ marginLeft: 'auto' }}
+          >
+            {isWeakTasksOpen ? 'Скрыть' : 'Показать'}
+          </Button>
         </Title>
-        {answersLoading && <div className="sdp-answers-loading"><Spin size="small" /> Загрузка...</div>}
-        {weakTasks && weakTasks.length > 0 && (
+        {isWeakTasksOpen && answersLoading && <div className="sdp-answers-loading"><Spin size="small" /> Загрузка...</div>}
+        {isWeakTasksOpen && weakTasks && weakTasks.length > 0 && (
           <div className="sdp-weak-list">
             {weakTasks.map((record) => {
               const d = record.task.difficulty;
@@ -525,7 +534,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
             })}
           </div>
         )}
-        {weakTasks && weakTasks.length === 0 && (
+        {isWeakTasksOpen && weakTasks && weakTasks.length === 0 && (
           <div className="sdp-empty-section">Нет ошибок — ученик отвечает на все задачи правильно!</div>
         )}
       </div>

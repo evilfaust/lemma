@@ -47,6 +47,7 @@ const FORMAT_TAG = {
 };
 
 export default function TaskImporter() {
+  const { message } = App.useApp();
   const { topics: ctxTopics, tags, subtopics: ctxSubtopics, reloadData } = useReferenceData();
   const [currentStep, setCurrentStep] = useState(0);
   const [inputMode, setInputMode] = useState('file'); // 'file' | 'text' | 'sdamgia'
@@ -108,7 +109,6 @@ export default function TaskImporter() {
 
   // Подтемы для выбранной темы (шаг 2 — предпросмотр)
   const filteredSubtopics = useMemo(() => {
-  const { message } = App.useApp();
     if (!topicId) return [];
     return localSubtopics.filter(st => st.topic === topicId);
   }, [topicId, localSubtopics]);

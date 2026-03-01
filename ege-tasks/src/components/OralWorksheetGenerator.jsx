@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { Card, Form, Select, Space, Row, Col, Switch, Radio, InputNumber, Input, Spin, Tag, Divider, Collapse, Badge, Alert, App } from 'antd';
 import {
   FilterOutlined,
@@ -14,13 +14,14 @@ import AnswersPage from './worksheet/AnswersPage';
 import VariantStats from './worksheet/VariantStats';
 import ActionButtons from './worksheet/ActionButtons';
 import DistributionPanel from './worksheet/DistributionPanel';
-import { api } from '../services/pocketbase';
 import {
   useWorksheetGeneration,
   useTaskDragDrop,
   useTaskEditing,
   useWorksheetActions,
   useDistribution,
+  useAvailableTags,
+  useTaskCounter,
 } from '../hooks';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import './TaskWorksheet.css';
@@ -66,9 +67,8 @@ const TaskSheetGenerator = () => {
     itemLabel: 'уровень сложности',
   });
 
-  // Состояния для тегов
-  const [availableTags, setAvailableTags] = useState([]);
-  const [loadingTags, setLoadingTags] = useState(false);
+  // Доступные теги (по выбранной теме/подтеме)
+  const { availableTags, loadingTags } = useAvailableTags(selectedTopic, selectedSubtopic, tags);
 
   // Модальные окна сохранения/загрузки
   const [saveModalVisible, setSaveModalVisible] = useState(false);
@@ -78,108 +78,9 @@ const TaskSheetGenerator = () => {
   const [currentWork, setCurrentWork] = useState(null);
   const [progressiveDifficulty, setProgressiveDifficulty] = useState(false);
 
-  // Счётчик доступных задач
-  const [availableTasksCount, setAvailableTasksCount] = useState(0);
-  const [loadingTasksCount, setLoadingTasksCount] = useState(false);
+  // Счётчик доступных задач (дебаунс 500мс)
   const watchedValues = Form.useWatch([], form);
-
-  // Загружаем доступные теги при изменении темы/подтем (только если тема выбрана)
-  useEffect(() => {
-    if (!selectedTopic) {
-      setAvailableTags([]);
-      return;
-    }
-    loadAvailableTags();
-  }, [selectedTopic, selectedSubtopic]);
-
-  // Пересчитываем количество задач по всем фильтрам (только если выбрана тема)
-  useEffect(() => {
-    if (!watchedValues) return;
-
-    // Без темы счётчик не показываем — запрос всех задач слишком тяжёлый
-    if (!watchedValues.topic) {
-      setAvailableTasksCount(0);
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      setLoadingTasksCount(true);
-      try {
-        const filters = {};
-        if (watchedValues.topic) filters.topic = watchedValues.topic;
-        if (watchedValues.subtopic) filters.subtopic = watchedValues.subtopic;
-        if (watchedValues.difficulty) filters.difficulty = watchedValues.difficulty;
-        if (watchedValues.source) filters.source = watchedValues.source;
-        if (watchedValues.year) filters.year = watchedValues.year;
-        if (watchedValues.filterTags && watchedValues.filterTags.length > 0) filters.tags = watchedValues.filterTags;
-        if (watchedValues.hasAnswer !== undefined && watchedValues.hasAnswer !== null) {
-          filters.hasAnswer = watchedValues.hasAnswer === 'yes';
-        }
-        if (watchedValues.hasSolution !== undefined && watchedValues.hasSolution !== null) {
-          filters.hasSolution = watchedValues.hasSolution === 'yes';
-        }
-
-        let tasks = await api.getTasks(filters);
-
-        if (watchedValues.search) {
-          const searchLower = watchedValues.search.toLowerCase();
-          tasks = tasks.filter(task =>
-            task.code?.toLowerCase().includes(searchLower) ||
-            task.statement_md?.toLowerCase().includes(searchLower)
-          );
-        }
-
-        setAvailableTasksCount(tasks.length);
-      } catch (error) {
-        console.error('Error loading tasks count:', error);
-        setAvailableTasksCount(0);
-      } finally {
-        setLoadingTasksCount(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [watchedValues]);
-
-  const loadAvailableTags = async () => {
-    setLoadingTags(true);
-    try {
-      const filters = {};
-      if (selectedTopic) {
-        filters.topic = selectedTopic;
-      }
-
-      if (selectedSubtopic) {
-        filters.subtopic = selectedSubtopic;
-      }
-
-      // Получаем задачи для текущих фильтров (или все если фильтров нет)
-      const tasks = await api.getTasks(Object.keys(filters).length > 0 ? filters : {});
-
-      // Собираем уникальные теги
-      const tagSet = new Set();
-      tasks.forEach(task => {
-        if (task.tags) {
-          if (Array.isArray(task.tags)) {
-            task.tags.forEach(tagId => {
-              if (tagId) tagSet.add(tagId);
-            });
-          } else if (typeof task.tags === 'string' && task.tags.length > 0) {
-            tagSet.add(task.tags);
-          }
-        }
-      });
-
-      // Фильтруем доступные теги
-      const filteredTags = tags.filter(tag => tagSet.has(tag.id));
-      setAvailableTags(filteredTags);
-
-    } catch (error) {
-      console.error('Error loading available tags:', error);
-    } finally {
-      setLoadingTags(false);
-    }
-  };
+  const { availableTasksCount, loadingTasksCount } = useTaskCounter(watchedValues);
 
   // Опции сложности для DistributionPanel
   const difficultyOptions = [
