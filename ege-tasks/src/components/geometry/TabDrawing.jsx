@@ -4,6 +4,7 @@ import {
   FullscreenExitOutlined,
   FullscreenOutlined,
   SaveOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
 import GeoGebraApplet from '../GeoGebraApplet';
 import CropModal from '../shared/CropModal';
@@ -33,6 +34,7 @@ export default function TabDrawing({
   onClearDrawing,
 }) {
   const drawingContainerRef = useRef(null);
+  const fileInputRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [viewportHeight, setViewportHeight] = useState(
     typeof window !== 'undefined' ? window.innerHeight : 900,
@@ -77,6 +79,22 @@ export default function TabDrawing({
     ? Math.max(680, viewportHeight - 96)
     : 680;
 
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      message.error('Пожалуйста, выберите файл изображения');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      onCropApplied(ev.target.result);
+      message.success('Изображение загружено');
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const handleOpenCrop = () => {
     if (!imageBase64) {
       message.warning('Сначала сохраните PNG');
@@ -93,6 +111,14 @@ export default function TabDrawing({
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
       {/* Панель управления */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+
       <Card size="small">
         <Space wrap>
           <div>
@@ -132,6 +158,13 @@ export default function TabDrawing({
             onClick={onSaveDrawingAsImage}
           >
             Сохранить как картинку (PNG)
+          </Button>
+
+          <Button
+            icon={<UploadOutlined />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Загрузить из файла
           </Button>
 
           <Button onClick={handleOpenCrop} disabled={!imageBase64}>

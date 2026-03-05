@@ -29,6 +29,7 @@ Thumbs.db
 # Build
 ege-tasks/dist/
 ege-tasks/.vite/
+ege-tasks/tts-server/
 
 # Environment
 .env

@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CustomerServiceOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -19,6 +19,7 @@ import StudentDetailPage from './components/StudentDetailPage';
 import AchievementManager from './components/AchievementManager';
 import GeometryTaskList from './components/GeometryTaskList';
 import GeometryTopicManager from './components/geometry/GeometryTopicManager';
+import EnglishTTS from './components/EnglishTTS';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -129,6 +130,11 @@ function AppContent() {
         { key: 'theory-print', icon: <SnippetsOutlined />, label: 'Конспекты' },
         { key: 'theory-categories', icon: <FolderOutlined />, label: 'Категории' },
       ],
+    },
+    {
+      key: 'english',
+      icon: <CustomerServiceOutlined />,
+      label: 'Английский',
     },
   ];
 
@@ -266,6 +272,8 @@ function AppContent() {
         );
       case 'theory-categories':
         return <TheoryCategoryManager />;
+      case 'english':
+        return <EnglishTTS />;
       default:
         return null;
     }
@@ -291,6 +299,7 @@ function AppContent() {
       case 'theory-view': return 'Теория — Просмотр';
       case 'theory-print': return 'Теория — Конспекты';
       case 'theory-categories': return 'Теория — Категории';
+      case 'english': return 'Английский — Аудирование';
       default: return '';
     }
   };

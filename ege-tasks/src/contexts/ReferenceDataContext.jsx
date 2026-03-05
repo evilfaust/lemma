@@ -4,6 +4,58 @@ import { api } from '../services/pocketbase';
 
 const ReferenceDataContext = createContext(null);
 
+const CACHE_KEY = 'ege_ref_data_v2';
+const CACHE_TTL = 5 * 60 * 1000; // 5 минут
+
+function loadFromCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw);
+    if (Date.now() - timestamp > CACHE_TTL) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function saveToCache(data) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch {}
+}
+
+async function fetchAllData() {
+  const [topicsData, tagsData, subtopicsData, theoryCatsData, snapshotData, answerCnt, solutionCnt] = await Promise.all([
+    api.getTopics(),
+    api.getTags(),
+    api.getSubtopics(),
+    api.getTheoryCategories(),
+    api.getTasksStatsSnapshot(),
+    api.getWithAnswerCount(),
+    api.getWithSolutionCount(),
+  ]);
+  return {
+    topics: topicsData,
+    tags: tagsData,
+    subtopics: subtopicsData,
+    theoryCategories: theoryCatsData,
+    tasksSnapshot: snapshotData,
+    withAnswerCount: answerCnt,
+    withSolutionCount: solutionCnt,
+  };
+}
+
+function applyData(data, setters) {
+  setters.setTopics(data.topics);
+  setters.setTags(data.tags);
+  setters.setSubtopics(data.subtopics);
+  setters.setTheoryCategories(data.theoryCategories);
+  setters.setTasksSnapshot(data.tasksSnapshot);
+  setters.setWithAnswerCount(data.withAnswerCount);
+  setters.setWithSolutionCount(data.withSolutionCount);
+}
+
 export function ReferenceDataProvider({ children }) {
   const { message } = App.useApp();
   const [topics, setTopics] = useState([]);
@@ -15,6 +67,8 @@ export function ReferenceDataProvider({ children }) {
   const [withSolutionCount, setWithSolutionCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  const setters = { setTopics, setTags, setSubtopics, setTheoryCategories, setTasksSnapshot, setWithAnswerCount, setWithSolutionCount };
+
   // Извлекаем years и sources из snapshot (вместо двух отдельных getFullList)
   const years = useMemo(() => {
     return [...new Set(tasksSnapshot.map(r => r.year).filter(Boolean))].sort((a, b) => b - a);
@@ -24,34 +78,22 @@ export function ReferenceDataProvider({ children }) {
     return [...new Set(tasksSnapshot.map(r => r.source).filter(Boolean))].sort();
   }, [tasksSnapshot]);
 
+  // Явная перезагрузка (кнопка «Обновить» или после мутаций) — всегда идёт в сеть
   const reloadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [topicsData, tagsData, subtopicsData, theoryCatsData, snapshotData, answerCnt, solutionCnt] = await Promise.all([
-        api.getTopics(),
-        api.getTags(),
-        api.getSubtopics(),
-        api.getTheoryCategories(),
-        api.getTasksStatsSnapshot(),
-        api.getWithAnswerCount(),
-        api.getWithSolutionCount(),
-      ]);
-      setTopics(topicsData);
-      setTags(tagsData);
-      setSubtopics(subtopicsData);
-      setTheoryCategories(theoryCatsData);
-      setTasksSnapshot(snapshotData);
-      setWithAnswerCount(answerCnt);
-      setWithSolutionCount(solutionCnt);
+      const data = await fetchAllData();
+      applyData(data, setters);
+      saveToCache(data);
     } catch (error) {
       console.error('Error loading reference data:', error);
       message.error('Ошибка при загрузке данных');
     } finally {
       setLoading(false);
     }
-  }, [message]);
+  }, [message]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Перезагрузить только snapshot (для кнопок "Обновить" в Stats/Catalog)
+  // Перезагрузить только snapshot (для кнопок «Обновить» в Stats/Catalog)
   const reloadSnapshot = useCallback(async () => {
     try {
       const [snapshotData, answerCnt, solutionCnt] = await Promise.all([
@@ -62,15 +104,55 @@ export function ReferenceDataProvider({ children }) {
       setTasksSnapshot(snapshotData);
       setWithAnswerCount(answerCnt);
       setWithSolutionCount(solutionCnt);
+      // Обновляем кэш частично
+      try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (raw) {
+          const cached = JSON.parse(raw);
+          cached.data.tasksSnapshot = snapshotData;
+          cached.data.withAnswerCount = answerCnt;
+          cached.data.withSolutionCount = solutionCnt;
+          cached.timestamp = Date.now();
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+        }
+      } catch {}
     } catch (error) {
       console.error('Error reloading snapshot:', error);
       message.error('Ошибка при обновлении статистики');
     }
   }, [message]);
 
+  // При монтировании: stale-while-revalidate
+  // 1. Если кэш свежий → рендерим сразу, обновляем в фоне без loading
+  // 2. Если кэш устарел/отсутствует → показываем loading, грузим данные
   useEffect(() => {
-    reloadData();
-  }, [reloadData]);
+    const cached = loadFromCache();
+    if (cached) {
+      // Мгновенно показываем кэшированные данные
+      applyData(cached, setters);
+      setLoading(false);
+      // Тихое фоновое обновление
+      fetchAllData()
+        .then(data => {
+          applyData(data, setters);
+          saveToCache(data);
+        })
+        .catch(err => console.warn('Background refresh failed:', err));
+    } else {
+      // Нет кэша — грузим с индикатором
+      setLoading(true);
+      fetchAllData()
+        .then(data => {
+          applyData(data, setters);
+          saveToCache(data);
+        })
+        .catch(error => {
+          console.error('Error loading reference data:', error);
+          message.error('Ошибка при загрузке данных');
+        })
+        .finally(() => setLoading(false));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ReferenceDataContext.Provider value={{
