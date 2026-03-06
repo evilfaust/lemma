@@ -251,6 +251,7 @@ export function GeometryPreviewCard({
               className="geometry-preview-image"
               src={imageValue}
               alt={`Чертёж ${task.code || index + 1}`}
+              draggable={false}
             />
           ) : (
             <div className="geometry-preview-drawing-placeholder">Чертёж не задан</div>
@@ -605,6 +606,26 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     });
   }, []);
 
+  const handlePrintA5 = useCallback(() => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const styleId = 'geometry-print-page-size';
+    document.getElementById(styleId)?.remove();
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = '@media print { @page { size: A5 portrait; margin: 0; } }';
+    document.head.appendChild(style);
+
+    const cleanup = () => {
+      style.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
+  }, []);
+
   return (
     <div className="geometry-preview-root">
       <div className="geometry-preview-toolbar">
@@ -651,7 +672,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
               Сохранить макет{pendingCount > 0 ? ` (${pendingCount})` : ''}
             </Button>
           )}
-          <Button icon={<PrinterOutlined />} onClick={() => window.print()}>
+          <Button icon={<PrinterOutlined />} onClick={handlePrintA5}>
             Печать
           </Button>
         </Space>
@@ -708,24 +729,24 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
                       layout={layout}
                       onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
                       draggable={!layoutEdit && !!task}
-                      onDragStart={() => setDragTaskIndex(globalIndex)}
-                      onDragOver={(e) => {
+                      onDragStart={!layoutEdit && !!task ? () => setDragTaskIndex(globalIndex) : undefined}
+                      onDragOver={!layoutEdit ? (e) => {
                         if (layoutEdit || dragTaskIndex === null || dragTaskIndex === globalIndex) return;
                         e.preventDefault();
                         setDropTaskIndex(globalIndex);
-                      }}
-                      onDrop={(e) => {
+                      } : undefined}
+                      onDrop={!layoutEdit ? (e) => {
                         if (layoutEdit) return;
                         e.preventDefault();
                         reorderTasks(dragTaskIndex, globalIndex);
                         setDragTaskIndex(null);
                         setDropTaskIndex(null);
-                      }}
-                      onDragEnd={() => {
+                      } : undefined}
+                      onDragEnd={!layoutEdit ? () => {
                         setDragTaskIndex(null);
                         setDropTaskIndex(null);
-                      }}
-                      highlightDrop={dropTaskIndex === globalIndex}
+                      } : undefined}
+                      highlightDrop={!layoutEdit && dropTaskIndex === globalIndex}
                     />
                   );
                 })}
@@ -752,24 +773,24 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
                   layout={layout}
                   onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
                   draggable={!layoutEdit && !!task}
-                  onDragStart={() => setDragTaskIndex(idx)}
-                  onDragOver={(e) => {
+                  onDragStart={!layoutEdit && !!task ? () => setDragTaskIndex(idx) : undefined}
+                  onDragOver={!layoutEdit ? (e) => {
                     if (layoutEdit || dragTaskIndex === null || dragTaskIndex === idx) return;
                     e.preventDefault();
                     setDropTaskIndex(idx);
-                  }}
-                  onDrop={(e) => {
+                  } : undefined}
+                  onDrop={!layoutEdit ? (e) => {
                     if (layoutEdit) return;
                     e.preventDefault();
                     reorderTasks(dragTaskIndex, idx);
                     setDragTaskIndex(null);
                     setDropTaskIndex(null);
-                  }}
-                  onDragEnd={() => {
+                  } : undefined}
+                  onDragEnd={!layoutEdit ? () => {
                     setDragTaskIndex(null);
                     setDropTaskIndex(null);
-                  }}
-                  highlightDrop={dropTaskIndex === idx}
+                  } : undefined}
+                  highlightDrop={!layoutEdit && dropTaskIndex === idx}
                 />
               );
             })}

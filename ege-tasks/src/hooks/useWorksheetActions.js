@@ -19,6 +19,22 @@ export const useWorksheetActions = () => {
    * Печать листа
    */
   const handlePrint = () => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const styleId = 'worksheet-print-page-size';
+    document.getElementById(styleId)?.remove();
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = '@media print { @page { size: A4 portrait; margin: 10mm 0 0 0; } }';
+    document.head.appendChild(style);
+
+    const cleanup = () => {
+      style.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+
+    window.addEventListener('afterprint', cleanup, { once: true });
     window.print();
   };
 
