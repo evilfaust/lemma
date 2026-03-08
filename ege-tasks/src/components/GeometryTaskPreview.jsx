@@ -354,6 +354,15 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   layoutOverridesRef.current = layoutOverrides;
   taskLayoutsRef.current = taskLayouts;
 
+  // Задаём формат страницы A5 при печати и убираем при демонтировании,
+  // чтобы не ломать @page других разделов приложения.
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = '@page { size: A5 portrait; margin: 0; }';
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, []);
+
   // Автосохранение layoutOverrides в БД после 800мс без изменений
   const scheduleAutosave = useCallback((currentMode) => {
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);

@@ -1,0 +1,309 @@
+/* ===== Geometry Worksheet Print ===== */
+
+.geo-worksheet-root {
+  --ink: #151515;
+  --paper: #ffffff;
+  --accent: #3b82f6;
+  --grid-color: #c4cedf;
+  color: var(--ink);
+  max-width: 100%;
+}
+
+/* ── Toolbar ─────────────────────────────────────── */
+
+.geo-worksheet-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+/* ── Страницы ────────────────────────────────────── */
+
+.geo-worksheet-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Лист A5 ─────────────────────────────────────── */
+
+.geo-worksheet-sheet {
+  width: 148mm;
+  height: 210mm;
+  padding: 6mm 8mm;
+  box-sizing: border-box;
+  background: var(--paper);
+  border: 1.5px solid #c0c0c0;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  overflow: hidden;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Шапка листа ─────────────────────────────────── */
+
+.geo-worksheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: 2mm;
+  border-bottom: 1pt solid var(--ink);
+  margin-bottom: 2.5mm;
+  flex-shrink: 0;
+}
+
+.geo-worksheet-header-topic {
+  font-size: 3mm;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.geo-worksheet-header-part {
+  font-size: 3mm;
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ink);
+  white-space: nowrap;
+  margin-left: 4mm;
+}
+
+.geo-worksheet-header-compact {
+  padding-bottom: 1.5mm;
+  margin-bottom: 2mm;
+  flex-shrink: 0;
+}
+
+/* ── Поля для заполнения ─────────────────────────── */
+
+.geo-worksheet-fields {
+  display: flex;
+  gap: 6mm;
+  margin-bottom: 2.5mm;
+  flex-shrink: 0;
+}
+
+.geo-worksheet-field {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5mm;
+  flex: 1;
+}
+
+.geo-worksheet-field-label {
+  font-size: 2.6mm;
+  white-space: nowrap;
+  color: #555;
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+}
+
+.geo-worksheet-field-line {
+  flex: 1;
+  border-bottom: 0.5pt solid #666;
+  min-width: 12mm;
+}
+
+/* ── Разделитель между задачами ──────────────────── */
+
+.geo-worksheet-divider {
+  height: 1px;
+  background: #dde3ee;
+  margin: 2mm 0;
+  flex-shrink: 0;
+}
+
+/* ── Задача ──────────────────────────────────────── */
+
+.geo-worksheet-task {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Строка с номером и условием */
+
+.geo-worksheet-task-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 2.5mm;
+  margin-bottom: 2mm;
+  flex-shrink: 0;
+}
+
+.geo-worksheet-task-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 3mm;
+  font-weight: 700;
+  border-radius: 1.2mm;
+  padding: 0.8mm 2.2mm;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  line-height: 1.4;
+}
+
+.geo-worksheet-task-statement {
+  font-size: 3.2mm;
+  line-height: 1.35;
+  font-style: italic;
+  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  flex: 1;
+  text-wrap: pretty;
+  overflow: hidden;
+}
+
+.geo-worksheet-task-statement p {
+  margin: 0 0 0.8mm;
+}
+
+.geo-worksheet-task-statement .katex {
+  font-size: 0.9em;
+}
+
+/* Тело задачи: сетка на весь блок, чертёж поверх */
+
+.geo-worksheet-task-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+/* Клетка для решения — занимает весь блок */
+
+.geo-worksheet-task-grid {
+  position: absolute;
+  inset: 0;
+  border: 0.5pt solid #a8b4cc;
+  border-radius: 1mm;
+  overflow: hidden;
+}
+
+/* Чертёж — плавает в левом верхнем углу поверх сетки */
+
+.geo-worksheet-task-drawing {
+  position: absolute;
+  top: 2mm;
+  left: 2mm;
+  width: 42%;
+  max-height: 55mm;
+  background: #fff;
+  border-radius: 0.8mm;
+  padding: 1mm;
+  z-index: 1;
+}
+
+.geo-worksheet-task-drawing img {
+  width: 100%;
+  height: auto;
+  max-height: 53mm;
+  object-fit: contain;
+  display: block;
+}
+
+.geo-worksheet-task-drawing-placeholder {
+  width: 100%;
+  height: 35mm;
+  border: 1pt dashed #c0c8d8;
+  background: #f6f8fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #aab2c8;
+  font-size: 2.5mm;
+  border-radius: 1mm;
+}
+
+.geo-worksheet-grid-svg {
+  display: block;
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ═══════════════════════════════════════════════════
+   Печать
+═══════════════════════════════════════════════════ */
+
+@media print {
+  body:has(.geo-worksheet-root) * {
+    visibility: hidden;
+  }
+
+  body:has(.geo-worksheet-root) {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.geo-worksheet-root) .geo-worksheet-root,
+  body:has(.geo-worksheet-root) .geo-worksheet-root * {
+    visibility: visible;
+  }
+
+  body:has(.geo-worksheet-root) .geo-worksheet-toolbar,
+  body:has(.geo-worksheet-root) .ant-card {
+    display: none !important;
+  }
+
+  body:has(.geo-worksheet-root) .geo-worksheet-root {
+    position: static;
+    width: 148mm;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+  }
+
+  .geo-worksheet-pages {
+    gap: 0;
+  }
+
+  .geo-worksheet-sheet {
+    width: 148mm;
+    height: 210mm;
+    min-height: 210mm;
+    margin: 0 auto;
+    border: 0;
+    padding: 6mm 8mm;
+    box-sizing: border-box;
+    box-shadow: none;
+  }
+
+  .geo-worksheet-pages .geo-worksheet-sheet {
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .geo-worksheet-pages .geo-worksheet-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .geo-worksheet-task-badge {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .geo-worksheet-grid-svg {
+    display: block;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+}

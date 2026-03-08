@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Card, Tag, Space, Typography, Divider, Image, Button, Select, Badge, Checkbox, App } from 'antd';
-import { 
-  CheckCircleOutlined, 
+import {
+  CheckCircleOutlined,
   CloseCircleOutlined,
+  CopyOutlined,
   FileTextOutlined,
   CalendarOutlined,
   EditOutlined,
@@ -18,6 +19,7 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
   const { message } = App.useApp();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [changingDifficulty, setChangingDifficulty] = useState(false);
+  const [duplicating, setDuplicating] = useState(false);
   const taskImageUrl = api.getTaskImageUrl(task);
 
   const getDifficultyColor = (difficulty) => {
@@ -67,6 +69,33 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
       }
     } catch (error) {
       throw error;
+    }
+  };
+
+  const handleDuplicate = async () => {
+    setDuplicating(true);
+    try {
+      await api.createTask({
+        code: `${task.code}-copy`,
+        topic: task.topic,
+        subtopic: task.subtopic || [],
+        tags: task.tags || [],
+        difficulty: task.difficulty,
+        statement_md: task.statement_md,
+        answer: task.answer,
+        solution_md: task.solution_md,
+        explanation_md: task.explanation_md,
+        source: task.source,
+        year: task.year,
+        has_image: false,
+      });
+      message.success(`Дубликат создан: ${task.code}-copy`);
+      if (onUpdate) onUpdate();
+    } catch (error) {
+      console.error('Error duplicating task:', error);
+      message.error('Ошибка при дублировании задачи');
+    } finally {
+      setDuplicating(false);
     }
   };
 
@@ -145,7 +174,15 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
                 </Select>
               }
             />
-            <Button 
+            <Button
+              type="text"
+              size="small"
+              icon={<CopyOutlined />}
+              loading={duplicating}
+              onClick={(e) => { e.stopPropagation(); handleDuplicate(); }}
+              title="Создать дубликат"
+            />
+            <Button
               type="text"
               size="small"
               icon={<EditOutlined />}

@@ -5,7 +5,7 @@ import {
   FormatPainterOutlined, ColumnWidthOutlined, FilePdfOutlined,
   ArrowLeftOutlined, TagsOutlined, CheckCircleOutlined, NodeIndexOutlined
 } from '@ant-design/icons';
-import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave, usePuppeteerPDF } from '../hooks';
+import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave, usePuppeteerPDF, useGeoGebraInjection } from '../hooks';
 import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
@@ -14,6 +14,7 @@ import GeoGebraBlocksModal from './theory/GeoGebraBlocksModal';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
+import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryEditor.css';
 
 const MonacoEditor = lazy(() => import('@monaco-editor/react'));
@@ -275,29 +276,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   );
 
   // Inject GeoGebra images into editor preview
-  useEffect(() => {
-    if (!previewRef.current) return;
-    const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
-    embeds.forEach((node) => {
-      const blockId = node.getAttribute('data-geogebra-id') || '';
-      const applet = geogebraAppletsById.get(blockId);
-      node.innerHTML = '';
-      if (applet?.previewImage) {
-        const img = document.createElement('img');
-        img.src = applet.previewImage;
-        img.alt = applet.caption || blockId;
-        img.style.cssText = 'max-width:100%;max-height:300px;border-radius:8px;display:block;margin:0 auto;';
-        node.appendChild(img);
-        if (applet.caption) {
-          const cap = document.createElement('div');
-          cap.style.cssText = 'text-align:center;color:#666;font-size:12px;margin-top:4px;';
-          cap.textContent = applet.caption;
-          node.appendChild(cap);
-        }
-        node.style.cssText = 'text-align:center;margin:12px 0;padding:8px;background:#f8f9ff;border-radius:10px;border:1px solid #e0e7ff;';
-      }
-    });
-  }, [html, geogebraAppletsById]);
+  useGeoGebraInjection(previewRef, html, geogebraAppletsById);
 
   // Preview styles
   const previewStyles = useMemo(() => {

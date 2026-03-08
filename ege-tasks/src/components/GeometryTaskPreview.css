@@ -457,9 +457,7 @@
   }
 
   body:has(.geometry-preview-root) .geometry-preview-root {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static;
     width: 148mm;
     padding: 0;
     margin: 0;

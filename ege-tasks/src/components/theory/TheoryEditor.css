@@ -329,8 +329,8 @@
   font-size: 14px;
 }
 
-/* GeoGebra placeholder in editor preview */
-.theory-preview-content .geogebra-embed {
+/* GeoGebra placeholder — только пока div пустой (до инжекции хуком) */
+.theory-preview-content .geogebra-embed:empty {
   border: 2px dashed #b7c4ff;
   border-radius: 10px;
   background: #f0f4ff;
@@ -342,7 +342,7 @@
   margin: 12px 0;
 }
 
-.theory-preview-content .geogebra-embed::before {
+.theory-preview-content .geogebra-embed:empty::before {
   content: 'GeoGebra';
   display: block;
   font-size: 11px;
@@ -352,7 +352,7 @@
   margin-bottom: 4px;
 }
 
-.theory-preview-content .geogebra-embed::after {
+.theory-preview-content .geogebra-embed:empty::after {
   content: attr(data-geogebra-id);
   display: block;
   font-family: monospace;

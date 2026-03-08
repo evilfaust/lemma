@@ -38,7 +38,7 @@
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 - **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
-Текущая версия: **3.7.3** (февраль 2026)
+Текущая версия: **3.7.5** (март 2026)
 
 ## Tech Stack
 
@@ -173,6 +173,7 @@ generation-test/
 - `GeometryTaskEditor.jsx` - Geometry task editor: GeoGebra applet, PNG export+crop, hints, markdown condition/solution
 - `GeometryTaskPreview.jsx` - A5 print preview (6 tasks/page) + student view; drag&drop reordering in preview mode, continuous numbering; exports `GeometryPreviewCard`, `normalizeLayout`, etc.
 - `GeometryTaskPreview.css` - Styles for geometry preview (absolute-% layer positioning)
+- `GeometryWorksheetPrint.jsx` - Рабочий лист из задач геометрии: генерация + печать; открывается из GeometryTaskList по выбранным (или всем) задачам
 - `GeoGebraApplet.jsx` - GeoGebra applet wrapper (geometry/graphing/classic/3d)
 - `GeoGebraDrawingPanel.jsx` - Simplified GeoGebra drawing panel (PNG export + crop, no state saving; used in TaskEditModal)
 - `geometry/SaveGeometryPrintModal.jsx` / `LoadGeometryPrintModal.jsx` - Save/load A5 print sheets
@@ -246,6 +247,7 @@ generation-test/
 - `useImageUpload.js` - Image source/upload/drawing state management (used in TaskEditModal)
 - `useGeoGebraOperations.js` - GeoGebra save/clear/export operations
 - `useTopicSubtopicCreation.js` - Topic/subtopic creation with duplicate detection
+- `useGeoGebraInjection.js` - Inject GeoGebra PNG images into rendered HTML (shared by TheoryEditor + TheoryArticleView)
 
 ### Contexts (ege-tasks/src/contexts/)
 - `ReferenceDataContext.jsx` - Global reference data + tasks stats snapshot (cached)

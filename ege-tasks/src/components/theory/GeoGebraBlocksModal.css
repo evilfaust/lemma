@@ -1,106 +1,190 @@
-/* ===== GeoGebra Blocks Modal ===== */
+/* ===== GeoGebra Drawer — единый стиль с TheoryBrowser ===== */
 
-.ggb-modal {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 14px;
+/* Drawer header */
+.ggb-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
 }
 
-.ggb-modal-sidebar {
-  border: 1px solid #f0f0f0;
-  border-radius: 10px;
-  padding: 10px;
+.ggb-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #1a1a2e;
+}
+
+.ggb-drawer-title-icon {
+  color: #4361ee;
+  font-size: 16px;
+}
+
+/* Горизонтальная лента блоков */
+.ggb-drawer-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  flex-shrink: 0;
+  min-height: 72px;
+  align-items: center;
+}
+
+.ggb-drawer-strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.ggb-drawer-strip::-webkit-scrollbar-thumb {
+  background: #d9d9d9;
+  border-radius: 2px;
+}
+
+.ggb-drawer-strip-empty {
+  font-size: 12px;
+  color: #bfbfbf;
+  padding: 8px 0;
+}
+
+/* Элемент ленты */
+.ggb-strip-item {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  min-height: 420px;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
 }
 
-.ggb-modal-sidebar-actions {
+.ggb-strip-item:hover {
+  border-color: #c7d5ff;
+  background: #f8f9ff;
+  transform: translateY(-1px);
+}
+
+.ggb-strip-item.active {
+  border-color: #4361ee;
+  background: #f0f4ff;
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.15);
+}
+
+.ggb-strip-thumb {
+  width: 52px;
+  height: 38px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #f0f0f0;
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0e0e0;
+  flex-shrink: 0;
 }
 
-.ggb-modal-list {
+.ggb-strip-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.ggb-strip-placeholder {
+  font-size: 9px;
+  font-weight: 700;
+  color: #bfbfbf;
+  letter-spacing: 0.5px;
+}
+
+.ggb-strip-label {
+  font-size: 10px;
+  font-family: 'Consolas', 'Monaco', monospace;
+  color: #595959;
+  max-width: 64px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Поля */
+.ggb-drawer-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  flex-shrink: 0;
+  background: #fafafa;
+  border-radius: 8px;
+  padding: 10px 12px;
+  border: 1px solid #f0f0f0;
+}
+
+.ggb-drawer-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ggb-field-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #8c8c8c;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+/* GeoGebra — занимает всё доступное пространство */
+.ggb-drawer-applet {
+  flex: 1;
+  min-height: 0;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Нижняя панель */
+.ggb-drawer-bottom {
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  overflow: auto;
 }
 
-.ggb-modal-empty {
-  color: #8c8c8c;
-  font-size: 12px;
+.ggb-drawer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ggb-btn-save.ant-btn-primary {
+  background: linear-gradient(135deg, #4361ee, #3a0ca3);
+  border: none;
+  font-weight: 600;
+}
+
+.ggb-btn-save.ant-btn-primary:hover {
+  opacity: 0.9;
+}
+
+/* Превью PNG — компактное */
+.ggb-drawer-preview {
   text-align: center;
-  padding: 16px 8px;
-}
-
-.ggb-modal-item {
   border: 1px solid #e8e8e8;
   border-radius: 8px;
-  background: #fff;
-  text-align: left;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  cursor: pointer;
-}
-
-.ggb-modal-item strong {
-  font-size: 12px;
-}
-
-.ggb-modal-item span {
-  color: #8c8c8c;
-  font-size: 12px;
-}
-
-.ggb-modal-item.active {
-  border-color: #1677ff;
-  background: #f0f7ff;
-}
-
-.ggb-modal-editor {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.ggb-modal-fields {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 180px 120px;
-  gap: 8px;
-}
-
-.ggb-modal-applet {
-  border: 1px solid #f0f0f0;
-  border-radius: 10px;
-  padding: 8px;
+  padding: 6px;
   background: #fafafa;
 }
 
-.ggb-modal-preview {
-  border: 1px solid #f0f0f0;
-  border-radius: 10px;
-  padding: 8px;
-  background: #fafafa;
-  text-align: center;
-}
-
-.ggb-modal-preview img {
+.ggb-drawer-preview img {
   max-width: 100%;
-  max-height: 180px;
+  max-height: 100px;
+  border-radius: 6px;
   display: inline-block;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-  .ggb-modal {
-    grid-template-columns: 1fr;
-  }
-
-  .ggb-modal-fields {
-    grid-template-columns: 1fr;
-  }
 }

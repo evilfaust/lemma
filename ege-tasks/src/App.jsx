@@ -175,6 +175,10 @@ function AppContent() {
           <TaskList
             initialFilters={taskListInitialFilters}
             initialFiltersToken={taskListFiltersToken}
+            onOpenWorkEditor={(workId) => {
+              setSelectedWorkIdForEditor(workId);
+              setCurrentView('work-editor');
+            }}
           />
         );
       case 'stats':

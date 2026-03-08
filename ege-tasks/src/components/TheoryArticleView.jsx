@@ -4,7 +4,7 @@ import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined, FormatPainterOutlined, BookOutlined
 } from '@ant-design/icons';
-import { useMarkdownProcessor, usePuppeteerPDF } from '../hooks';
+import { useMarkdownProcessor, usePuppeteerPDF, useGeoGebraInjection } from '../hooks';
 import { getPageDimensions, DEFAULT_SETTINGS, THEME_NAMES } from '../utils/theoryThemes';
 import { api } from '../services/pocketbase';
 import MathRenderer from './MathRenderer';
@@ -116,34 +116,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   }, [article?.theme_settings]);
 
   // Inject GeoGebra images into rendered HTML
-  useEffect(() => {
-    if (!previewRef.current) return;
-    const embeds = previewRef.current.querySelectorAll('.geogebra-embed');
-    embeds.forEach((node) => {
-      const blockId = node.getAttribute('data-geogebra-id') || '';
-      const applet = geogebraAppletsById.get(blockId);
-      node.innerHTML = '';
-      if (applet?.previewImage) {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'theory-ggb-block';
-        const img = document.createElement('img');
-        img.className = 'theory-ggb-image';
-        img.src = applet.previewImage;
-        img.alt = applet.caption || blockId;
-        wrapper.appendChild(img);
-        if (applet.caption) {
-          const cap = document.createElement('div');
-          cap.className = 'theory-ggb-caption';
-          cap.textContent = applet.caption;
-          wrapper.appendChild(cap);
-        }
-        node.appendChild(wrapper);
-      } else {
-        node.textContent = `GeoGebra-блок "${blockId}" не настроен`;
-        node.style.cssText = 'padding:16px;background:#fff7e6;border:1px solid #ffd591;border-radius:8px;color:#d46b08;font-size:13px;text-align:center;margin:12px 0;';
-      }
-    });
-  }, [html, geogebraAppletsById]);
+  useGeoGebraInjection(previewRef, html, geogebraAppletsById);
 
   // IntersectionObserver for active TOC item
   useEffect(() => {

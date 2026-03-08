@@ -22,6 +22,7 @@ import {
   DeleteOutlined,
   EyeOutlined,
   EditOutlined,
+  FileTextOutlined,
   FolderOpenOutlined,
   HolderOutlined,
   LoadingOutlined,
@@ -32,6 +33,7 @@ import {
 import { api } from '../shared/services/pocketbase';
 import GeometryTaskEditor from './GeometryTaskEditor';
 import GeometryTaskPreview, { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout } from './GeometryTaskPreview';
+import GeometryWorksheetPrint from './GeometryWorksheetPrint';
 import LoadGeometryPrintModal from './geometry/LoadGeometryPrintModal';
 import MathRenderer from './MathRenderer';
 import './GeometryTaskPreview.css';
@@ -66,6 +68,9 @@ export default function GeometryTaskList() {
   const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
   const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
   const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(true);
+  const [worksheetOpen, setWorksheetOpen] = useState(false);
+  const [worksheetTasks, setWorksheetTasks] = useState([]);
+  const [worksheetTopicLabel, setWorksheetTopicLabel] = useState('');
   const [draggingTaskId, setDraggingTaskId] = useState(null);
   const [dropTargetTaskId, setDropTargetTaskId] = useState(null);
   const [viewMode, setViewMode] = useState('table');
@@ -146,6 +151,27 @@ export default function GeometryTaskList() {
   const handleEditorSaved = () => {
     handleEditorClose();
     loadTasks();
+  };
+
+  const openWorksheet = () => {
+    const selected = selectedRowKeys.length > 0
+      ? tasks.filter((t) => selectedRowKeys.includes(t.id))
+      : tasks;
+
+    if (selected.length === 0) {
+      message.warning('Нет задач для рабочего листа');
+      return;
+    }
+
+    // Автоматически подставляем тему из первой задачи
+    const firstTask = selected[0];
+    const topicTitle = firstTask?.expand?.topic?.title || '';
+    const subtopicTitle = firstTask?.expand?.subtopic?.title || '';
+    const autoLabel = subtopicTitle ? `${topicTitle} — ${subtopicTitle}` : topicTitle;
+
+    setWorksheetTasks(selected);
+    setWorksheetTopicLabel(autoLabel);
+    setWorksheetOpen(true);
   };
 
   const openPreview = (singleTask = null) => {
@@ -333,6 +359,16 @@ export default function GeometryTaskList() {
         onSaved={handleEditorSaved}
         onCancel={handleEditorClose}
         totalTasks={tasks.length}
+      />
+    );
+  }
+
+  if (worksheetOpen) {
+    return (
+      <GeometryWorksheetPrint
+        tasks={worksheetTasks}
+        onBack={() => setWorksheetOpen(false)}
+        initialTopicLabel={worksheetTopicLabel}
       />
     );
   }
@@ -591,6 +627,9 @@ export default function GeometryTaskList() {
           />
           <Button icon={<FolderOpenOutlined />} onClick={openSavedSheets}>
             Листы A5
+          </Button>
+          <Button icon={<FileTextOutlined />} onClick={openWorksheet}>
+            Рабочий лист ({selectedRowKeys.length > 0 ? `выбрано ${selectedRowKeys.length}` : `все ${tasks.length}`})
           </Button>
           <Button icon={<EyeOutlined />} onClick={() => openPreview()}>
             Просмотр ({selectedRowKeys.length > 0 ? `выбрано ${selectedRowKeys.length}` : `все ${tasks.length}`})
