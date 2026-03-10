@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Spin } from 'antd';
-import { LoadingOutlined, RightOutlined, DownOutlined } from '@ant-design/icons';
+import { LoadingOutlined, RightOutlined, DownOutlined, ArrowLeftOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
+import MathRenderer from '../MathRenderer';
 
 // ==========================================
 // SVG Line Chart (чистый SVG, без библиотек)
@@ -120,6 +121,109 @@ const formatDurationShort = (seconds) => {
 };
 
 // ==========================================
+// Детальный просмотр одной попытки
+// ==========================================
+const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
+  const pct = attempt.total ? Math.round((attempt.score / attempt.total) * 100) : 0;
+  const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
+  const workTitle = attempt.expand?.session?.expand?.work?.title || 'Тест';
+  const date = new Date(attempt.submitted_at || attempt.created);
+  const correctCount = answers.filter(a => a.is_correct).length;
+  const wrongCount = answers.filter(a => !a.is_correct).length;
+
+  return (
+    <div className="student-progress" style={{ animation: 'studentFadeInUp 0.3s ease-out' }}>
+      {/* Шапка */}
+      <div className="sp-detail-header">
+        <button className="sp-back-btn" onClick={onBack}>
+          <ArrowLeftOutlined /> Назад
+        </button>
+        <div className="sp-detail-info">
+          <h2 className="sp-detail-title">{workTitle}</h2>
+          <p className="sp-detail-meta">
+            {date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+            {attempt.duration_seconds > 0 && ` · ${formatDuration(attempt.duration_seconds)}`}
+          </p>
+        </div>
+        <div className={`sp-detail-score sp-detail-score--${scoreClass}`}>
+          <span className="sp-detail-score-pct">{pct}%</span>
+          <span className="sp-detail-score-raw">{attempt.score}/{attempt.total}</span>
+        </div>
+      </div>
+
+      {/* Мини-сводка */}
+      {!loading && answers.length > 0 && (
+        <div className="sp-detail-summary">
+          <div className="sp-detail-summary-item sp-detail-summary-item--correct">
+            <CheckOutlined />
+            <span>{correctCount} верно</span>
+          </div>
+          <div className="sp-detail-summary-sep" />
+          <div className="sp-detail-summary-item sp-detail-summary-item--wrong">
+            <CloseOutlined />
+            <span>{wrongCount} ошибок</span>
+          </div>
+        </div>
+      )}
+
+      {/* Список ответов */}
+      {loading ? (
+        <div className="sp-loading">
+          <Spin indicator={<LoadingOutlined style={{ fontSize: 28, color: '#4361ee' }} spin />} />
+          <p className="sp-loading-text">Загрузка ответов...</p>
+        </div>
+      ) : answers.length === 0 ? (
+        <div className="sp-empty">
+          <div className="sp-empty-icon">📭</div>
+          <p className="sp-empty-text">Ответы не найдены</p>
+        </div>
+      ) : (
+        <div className="sp-answers-list">
+          {answers.map((answer, idx) => {
+            const task = answer.expand?.task;
+            return (
+              <div
+                key={answer.id}
+                className={`sp-answer-item sp-answer-item--${answer.is_correct ? 'correct' : 'wrong'}`}
+                style={{ animationDelay: `${Math.min(idx * 0.04, 0.4)}s` }}
+              >
+                <div className="sp-answer-num">
+                  <span className={`sp-answer-badge sp-answer-badge--${answer.is_correct ? 'correct' : 'wrong'}`}>
+                    {idx + 1}
+                  </span>
+                </div>
+                <div className="sp-answer-body">
+                  {task?.statement_md ? (
+                    <div className="sp-answer-statement">
+                      <MathRenderer content={task.statement_md} />
+                    </div>
+                  ) : (
+                    <div className="sp-answer-statement sp-answer-statement--empty">
+                      Задача #{task?.code || (idx + 1)}
+                    </div>
+                  )}
+                  <div className="sp-answer-responses">
+                    <span className={`sp-answer-user-answer sp-answer-user-answer--${answer.is_correct ? 'correct' : 'wrong'}`}>
+                      {answer.is_correct ? <CheckOutlined /> : <CloseOutlined />}
+                      {' '}Ваш ответ: <strong>{answer.answer_raw || '—'}</strong>
+                    </span>
+                    {!answer.is_correct && task?.answer && (
+                      <span className="sp-answer-correct-answer">
+                        Правильно: <strong>{task.answer}</strong>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ==========================================
 // MAIN COMPONENT
 // ==========================================
 function StudentProgressPage({ studentSession }) {
@@ -128,6 +232,11 @@ function StudentProgressPage({ studentSession }) {
   const [topicStats, setTopicStats] = useState(null);
   const [topicStatsLoading, setTopicStatsLoading] = useState(false);
   const [topicStatsOpen, setTopicStatsOpen] = useState(false);
+
+  // Детальный просмотр попытки
+  const [selectedAttemptId, setSelectedAttemptId] = useState(null);
+  const [attemptAnswers, setAttemptAnswers] = useState([]);
+  const [answersLoading, setAnswersLoading] = useState(false);
 
   // Загрузка всех попыток при mount
   useEffect(() => {
@@ -164,6 +273,26 @@ function StudentProgressPage({ studentSession }) {
     load();
   }, []);
 
+  // Открыть детальный просмотр попытки
+  const openAttemptDetail = useCallback(async (attempt) => {
+    setSelectedAttemptId(attempt.id);
+    setAttemptAnswers([]);
+    setAnswersLoading(true);
+    try {
+      const answers = await api.getAttemptAnswers(attempt.id);
+      setAttemptAnswers(answers);
+    } catch (err) {
+      console.error('Error loading attempt answers:', err);
+      setAttemptAnswers([]);
+    }
+    setAnswersLoading(false);
+  }, []);
+
+  const closeAttemptDetail = useCallback(() => {
+    setSelectedAttemptId(null);
+    setAttemptAnswers([]);
+  }, []);
+
   // Вычисляем сводную статистику
   const stats = useMemo(() => {
     if (!allAttempts.length) return null;
@@ -188,12 +317,22 @@ function StudentProgressPage({ studentSession }) {
       ? Math.round(withTime.reduce((s, a) => s + a.duration_seconds, 0) / withTime.length)
       : 0;
 
+    // Текущая серия (streak) — подряд ≥70% с конца
+    const sorted = [...allAttempts].sort((a, b) => new Date(a.submitted_at || a.created) - new Date(b.submitted_at || b.created));
+    let streak = 0;
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      const pct = sorted[i].total ? (sorted[i].score / sorted[i].total) * 100 : 0;
+      if (pct >= 70) streak++;
+      else break;
+    }
+
     return {
       totalWorks: workIds.size,
       totalAttempts: allAttempts.length,
       avgPercent,
       bestPercent,
       avgTime,
+      streak,
     };
   }, [allAttempts]);
 
@@ -276,6 +415,21 @@ function StudentProgressPage({ studentSession }) {
     );
   }
 
+  // Детальный просмотр попытки
+  if (selectedAttemptId) {
+    const selectedAttempt = allAttempts.find(a => a.id === selectedAttemptId);
+    if (selectedAttempt) {
+      return (
+        <AttemptDetailView
+          attempt={selectedAttempt}
+          answers={attemptAnswers}
+          loading={answersLoading}
+          onBack={closeAttemptDetail}
+        />
+      );
+    }
+  }
+
   return (
     <div className="student-progress">
       {/* Заголовок */}
@@ -285,6 +439,13 @@ function StudentProgressPage({ studentSession }) {
           {stats.totalAttempts} {stats.totalAttempts === 1 ? 'попытка' : stats.totalAttempts < 5 ? 'попытки' : 'попыток'} за всё время
         </p>
       </div>
+
+      {/* Серия (streak) */}
+      {stats.streak >= 2 && (
+        <div className="sp-streak-banner">
+          🔥 Серия {stats.streak} {stats.streak < 5 ? 'теста' : 'тестов'} подряд с результатом ≥ 70%!
+        </div>
+      )}
 
       {/* Сводка 2x2 */}
       <div className="sp-stats-grid">
@@ -360,6 +521,7 @@ function StudentProgressPage({ studentSession }) {
       {/* История попыток */}
       <div className="sp-section">
         <h3 className="sp-section-title">История</h3>
+        <p className="sp-history-hint">Нажмите на работу, чтобы увидеть разбор ответов</p>
         <div className="sp-history-list">
           {allAttempts.map((a, idx) => {
             const pct = a.total ? Math.round((a.score / a.total) * 100) : 0;
@@ -371,8 +533,9 @@ function StudentProgressPage({ studentSession }) {
             return (
               <div
                 key={a.id}
-                className="sp-history-item"
+                className="sp-history-item sp-history-item--clickable"
                 style={{ animationDelay: `${Math.min(idx * 0.05, 0.5)}s` }}
+                onClick={() => openAttemptDetail(a)}
               >
                 <div className={`sp-history-indicator sp-history-indicator--${scoreClass}`} />
                 <div className="sp-history-content">
@@ -385,6 +548,9 @@ function StudentProgressPage({ studentSession }) {
                 </div>
                 <div className={`sp-history-score sp-history-score--${scoreClass}`}>
                   {pct}%
+                </div>
+                <div className="sp-history-arrow">
+                  <RightOutlined />
                 </div>
               </div>
             );
