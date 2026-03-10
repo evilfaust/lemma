@@ -17,6 +17,7 @@ const AchievementGallery = ({ studentSession }) => {
   const [allUserAttempts, setAllUserAttempts] = useState([]);
   const [filterType, setFilterType] = useState('all');
   const [filterRarity, setFilterRarity] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
 
   useEffect(() => {
     const load = async () => {
@@ -79,8 +80,10 @@ const AchievementGallery = ({ studentSession }) => {
     let filtered = allAchievements;
     if (filterType !== 'all') filtered = filtered.filter(a => a.type === filterType);
     if (filterRarity !== 'all') filtered = filtered.filter(a => a.type === 'random' && a.rarity === filterRarity);
+    if (filterStatus === 'earned') filtered = filtered.filter(a => totalEarnedIds.has(a.id));
+    if (filterStatus === 'locked') filtered = filtered.filter(a => !totalEarnedIds.has(a.id));
     return filtered;
-  }, [allAchievements, filterType, filterRarity]);
+  }, [allAchievements, filterType, filterRarity, filterStatus, totalEarnedIds]);
 
   const totalCount = allAchievements.length;
   const earnedCountTotal = totalEarnedIds.size;
@@ -183,6 +186,19 @@ const AchievementGallery = ({ studentSession }) => {
 
       {/* Filters */}
       <div className="achievement-gallery-filters">
+        <div className="achievement-gallery-filter-row">
+          <span className="achievement-gallery-filter-label">Статус:</span>
+          <Segmented
+            options={[
+              { label: 'Все', value: 'all' },
+              { label: `Получено (${earnedCountTotal})`, value: 'earned' },
+              { label: `Не получено (${totalCount - earnedCountTotal})`, value: 'locked' },
+            ]}
+            value={filterStatus}
+            onChange={setFilterStatus}
+          />
+        </div>
+
         <div className="achievement-gallery-filter-row">
           <span className="achievement-gallery-filter-label">Тип:</span>
           <Segmented
