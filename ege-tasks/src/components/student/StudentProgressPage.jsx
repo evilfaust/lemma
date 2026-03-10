@@ -207,11 +207,6 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
                       {answer.is_correct ? <CheckOutlined /> : <CloseOutlined />}
                       {' '}Ваш ответ: <strong>{answer.answer_raw || '—'}</strong>
                     </span>
-                    {!answer.is_correct && task?.answer && (
-                      <span className="sp-answer-correct-answer">
-                        Правильно: <strong>{task.answer}</strong>
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -279,8 +274,43 @@ function StudentProgressPage({ studentSession }) {
     setAttemptAnswers([]);
     setAnswersLoading(true);
     try {
-      const answers = await api.getAttemptAnswers(attempt.id);
-      setAttemptAnswers(answers);
+      // Параллельно: ответы + вариант (задачи из варианта доступны студентам)
+      const [answers, variantData] = await Promise.all([
+        api.getAttemptAnswers(attempt.id),
+        attempt.variant ? api.getVariant(attempt.variant) : Promise.resolve(null),
+      ]);
+
+      // Строим карту taskId → task из варианта (доступ к tasks через variant)
+      const taskMap = new Map();
+      if (variantData?.expand?.tasks) {
+        variantData.expand.tasks.forEach(t => taskMap.set(t.id, t));
+      }
+
+      // Определяем порядок задач из варианта
+      let taskOrder = [];
+      if (variantData?.order && Array.isArray(variantData.order)) {
+        // order: [{taskId, position}]
+        taskOrder = [...variantData.order].sort((a, b) => a.position - b.position).map(o => o.taskId);
+      } else if (variantData?.tasks && Array.isArray(variantData.tasks)) {
+        taskOrder = variantData.tasks;
+      }
+
+      // Обогащаем ответы данными задач и сортируем по порядку варианта
+      const enrichedAnswers = answers.map(a => ({
+        ...a,
+        expand: { ...a.expand, task: taskMap.get(a.task) || a.expand?.task || null },
+      }));
+
+      if (taskOrder.length > 0) {
+        const orderIndex = new Map(taskOrder.map((id, i) => [id, i]));
+        enrichedAnswers.sort((a, b) => {
+          const ia = orderIndex.has(a.task) ? orderIndex.get(a.task) : 999;
+          const ib = orderIndex.has(b.task) ? orderIndex.get(b.task) : 999;
+          return ia - ib;
+        });
+      }
+
+      setAttemptAnswers(enrichedAnswers);
     } catch (err) {
       console.error('Error loading attempt answers:', err);
       setAttemptAnswers([]);

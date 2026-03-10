@@ -2033,12 +2033,6 @@
   font-style: italic;
 }
 
-/* Ограничиваем высоту длинных условий */
-.sp-answer-statement > * {
-  max-height: 200px;
-  overflow: hidden;
-}
-
 .sp-answer-responses {
   display: flex;
   flex-wrap: wrap;
@@ -2066,19 +2060,6 @@
   background: #fff2f0;
   color: #cf1322;
   border: 1px solid #ffccc7;
-}
-
-.sp-answer-correct-answer {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: #f6ffed;
-  color: #389e0d;
-  border: 1px solid #b7eb8f;
 }
 
 /* Mobile adjustments */
