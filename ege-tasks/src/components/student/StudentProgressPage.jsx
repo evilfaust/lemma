@@ -195,7 +195,7 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
                 <div className="sp-answer-body">
                   {task?.statement_md ? (
                     <div className="sp-answer-statement">
-                      <MathRenderer content={task.statement_md} />
+                      <MathRenderer text={task.statement_md} />
                     </div>
                   ) : (
                     <div className="sp-answer-statement sp-answer-statement--empty">
@@ -287,10 +287,10 @@ function StudentProgressPage({ studentSession }) {
       }
 
       // Определяем порядок задач из варианта
+      // order хранится как массив строк [taskId1, taskId2, ...]
       let taskOrder = [];
       if (variantData?.order && Array.isArray(variantData.order)) {
-        // order: [{taskId, position}]
-        taskOrder = [...variantData.order].sort((a, b) => a.position - b.position).map(o => o.taskId);
+        taskOrder = variantData.order;
       } else if (variantData?.tasks && Array.isArray(variantData.tasks)) {
         taskOrder = variantData.tasks;
       }
