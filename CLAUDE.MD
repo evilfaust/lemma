@@ -38,7 +38,7 @@
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 - **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
-Текущая версия: **3.7.5** (март 2026)
+Текущая версия: **3.7.7** (март 2026)
 
 ## Tech Stack
 
@@ -206,8 +206,14 @@ generation-test/
 - `StudentTestPage.jsx` - Answer questions (auto-save to localStorage)
 - `StudentResultPage.jsx` - View results + achievements
 - `AchievementBadge.jsx` - Single badge with animation
-- `AchievementGallery.jsx` - All achievements collection
+- `AchievementGallery.jsx` - All achievements collection; фильтры: Статус (Все/Получено/Не получено), Тип, Редкость
 - `StudentProgressPage.jsx` - Student's own progress view (history, stats across all sessions)
+  - Сводка 2×2 (работ, средний балл, лучший результат, среднее время)
+  - График динамики результатов (SVG, без библиотек)
+  - Статистика по темам (ленивая загрузка, коллапс)
+  - Серия (streak) — баннер 🔥 при ≥2 подряд тестах с результатом ≥70%
+  - История: клик на работу → детальный разбор ответов (задача + чертёж + ответ ученика ✓/✗)
+  - **Данные задач в разборе** берутся через `api.getVariant()` (tasks коллекция Superuser only, через variant доступна студентам)
 
 **Reusable Worksheet Components (components/worksheet/):**
 - `FilterBlock.jsx` - Universal filter block
