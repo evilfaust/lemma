@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Button, Table, Tag, Progress, Space, Spin, Typography, Popover } from 'antd';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Button, Table, Tag, Progress, Space, Spin, Typography, Popover, Segmented, Modal, Input, Checkbox, message } from 'antd';
+import { CheckCircleOutlined, CopyOutlined, FileAddOutlined } from '@ant-design/icons';
 import {
   ArrowLeftOutlined, LineChartOutlined, BookOutlined,
   WarningOutlined, HistoryOutlined, TrophyOutlined, LoadingOutlined,
@@ -11,9 +12,80 @@ import './StudentDetailPage.css';
 const { Title, Text } = Typography;
 
 // ============================================
-// SVG Line Chart (дублируем из StudentProgressPage с адаптацией)
+// Attempt Details — expandable row content
 // ============================================
-const ScoreChart = ({ data }) => {
+const AttemptDetails = ({ answers }) => {
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+
+  const toggle = (id) => setExpandedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+
+  if (!answers || !answers.length) {
+    return <div className="sdp-attempt-empty">Нет данных об ответах</div>;
+  }
+  return (
+    <div className="sdp-attempt-details">
+      {answers.map((ans) => {
+        const task = ans.expand?.task;
+        const topic = task?.expand?.topic;
+        const isExpanded = expandedIds.has(ans.id);
+        const hasStatement = !!(task?.statement_md || task?.statement);
+        const taskImageUrl = task ? api.getTaskImageUrl(task) : null;
+        return (
+          <div
+            key={ans.id}
+            className={`sdp-attempt-row ${ans.is_correct ? 'sdp-attempt-row--ok' : 'sdp-attempt-row--err'}`}
+          >
+            <div className="sdp-attempt-row-main">
+              <span className="sdp-attempt-status">{ans.is_correct ? '✓' : '✗'}</span>
+              {task?.code && <span className="sdp-attempt-code">{task.code}</span>}
+              {topic && <span className="sdp-attempt-topic">{topic.title}</span>}
+              <span className="sdp-attempt-answers">
+                <span className={ans.is_correct ? 'sdp-ans-ok' : 'sdp-ans-err'}>
+                  {ans.answer_raw || '—'}
+                </span>
+                {!ans.is_correct && task?.answer && (
+                  <span className="sdp-ans-right">→ {task.answer}</span>
+                )}
+              </span>
+              {(hasStatement || taskImageUrl) && (
+                <Button
+                  size="small"
+                  type={isExpanded ? 'default' : 'link'}
+                  onClick={() => toggle(ans.id)}
+                  className="sdp-attempt-stmt-btn"
+                >
+                  {isExpanded ? 'Скрыть' : 'Условие'}
+                </Button>
+              )}
+            </div>
+            {isExpanded && (
+              <div className="sdp-attempt-statement">
+                {hasStatement && (
+                  <MathRenderer text={task.statement_md || task.statement} />
+                )}
+                {taskImageUrl && (
+                  <img src={taskImageUrl} alt="" className="sdp-attempt-stmt-img" />
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ============================================
+// SVG Line Chart with tooltip + click
+// ============================================
+const ScoreChart = ({ data, onPointClick }) => {
+  const [tooltip, setTooltip] = useState(null);
+
   if (data.length < 2) return null;
 
   const W = 640, H = 170;
@@ -38,47 +110,94 @@ const ScoreChart = ({ data }) => {
     return acc;
   }, new Map());
 
+  const getColor = (pct) => pct >= 70 ? '#52c41a' : pct >= 40 ? '#faad14' : '#ff4d4f';
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="sdp-chart" preserveAspectRatio="xMidYMid meet">
-      <defs>
-        <linearGradient id="sdpChartGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#4361ee" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#4361ee" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      {[0, 25, 50, 75, 100].map(v => {
-        const y = PAD.top + plotH - (v / 100) * plotH;
-        return (
-          <g key={v}>
-            <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#e8e8e8" strokeDasharray="4,4" />
-            <text x={PAD.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">{v}%</text>
-          </g>
-        );
-      })}
-      <path d={areaPath} fill="url(#sdpChartGrad)" />
-      <path d={linePath} fill="none" stroke="#4361ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      {points.map((p, i) => {
-        const color = p.percent >= 70 ? '#52c41a' : p.percent >= 40 ? '#faad14' : '#ff4d4f';
-        return (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r="4" fill="#fff" stroke={color} strokeWidth="2" />
-          </g>
-        );
-      })}
-      {points.map((p, i) => {
-        if (i % step !== 0 && i !== data.length - 1) return null;
-        const dayLabel = p.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
-        const isDuplicateDay = (dayCountMap.get(dayLabel) || 0) > 1;
-        const dateStr = isDuplicateDay
-          ? `${dayLabel} ${p.date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
-          : dayLabel;
-        return (
-          <text key={`d${i}`} x={p.x} y={H - 6} textAnchor="middle" fontSize="9" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">
-            {dateStr}
-          </text>
-        );
-      })}
-    </svg>
+    <div className="sdp-chart-wrap" onMouseLeave={() => setTooltip(null)}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="sdp-chart"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        <defs>
+          <linearGradient id="sdpChartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#4361ee" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#4361ee" stopOpacity="0.02" />
+          </linearGradient>
+        </defs>
+        {[0, 25, 50, 75, 100].map(v => {
+          const y = PAD.top + plotH - (v / 100) * plotH;
+          return (
+            <g key={v}>
+              <line x1={PAD.left} y1={y} x2={W - PAD.right} y2={y} stroke="#e8e8e8" strokeDasharray="4,4" />
+              <text x={PAD.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">{v}%</text>
+            </g>
+          );
+        })}
+        <path d={areaPath} fill="url(#sdpChartGrad)" />
+        <path d={linePath} fill="none" stroke="#4361ee" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Invisible hit areas for easy hover */}
+        {points.map((p, i) => (
+          <circle
+            key={`hit-${i}`}
+            cx={p.x} cy={p.y} r="14"
+            fill="transparent"
+            style={{ cursor: 'pointer' }}
+            onMouseEnter={() => setTooltip({ xPct: p.x / W, yPct: p.y / H, point: p })}
+            onClick={() => onPointClick?.(p)}
+          />
+        ))}
+        {/* Visible dots */}
+        {points.map((p, i) => {
+          const color = getColor(p.percent);
+          const isHovered = tooltip?.point === p;
+          return (
+            <circle
+              key={`dot-${i}`}
+              cx={p.x} cy={p.y}
+              r={isHovered ? 6 : 4}
+              fill="#fff"
+              stroke={color}
+              strokeWidth={isHovered ? 2.5 : 2}
+              style={{ pointerEvents: 'none' }}
+            />
+          );
+        })}
+        {/* X axis labels */}
+        {points.map((p, i) => {
+          if (i % step !== 0 && i !== data.length - 1) return null;
+          const dayLabel = p.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+          const isDuplicateDay = (dayCountMap.get(dayLabel) || 0) > 1;
+          const dateStr = isDuplicateDay
+            ? `${dayLabel} ${p.date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+            : dayLabel;
+          return (
+            <text key={`d-${i}`} x={p.x} y={H - 6} textAnchor="middle" fontSize="9" fill="#8c8c8c" fontFamily="Inter, -apple-system, sans-serif">
+              {dateStr}
+            </text>
+          );
+        })}
+      </svg>
+      {tooltip && (
+        <div
+          className="sdp-chart-tooltip"
+          style={{
+            left: `${tooltip.xPct * 100}%`,
+            top: `${tooltip.yPct * 100}%`,
+          }}
+        >
+          <div className="sdp-chart-tooltip-title">{tooltip.point.title}</div>
+          <div className="sdp-chart-tooltip-date">
+            {tooltip.point.date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </div>
+          <div className="sdp-chart-tooltip-score" style={{ color: getColor(tooltip.point.percent) }}>
+            {tooltip.point.percent}%
+            {tooltip.point.score !== undefined && ` (${tooltip.point.score}/${tooltip.point.total})`}
+          </div>
+          <div className="sdp-chart-tooltip-hint">Нажмите, чтобы выделить</div>
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -109,6 +228,14 @@ const normalizeUnlockedIds = (value) => {
   return [];
 };
 
+const PERIOD_OPTIONS = [
+  { value: 'all', label: 'Всё время' },
+  { value: '3months', label: '3 месяца' },
+  { value: 'month', label: 'Месяц' },
+];
+
+const SECTION_ORDER = ['Алгебра', 'Геометрия'];
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -121,6 +248,22 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
   const [answersLoading, setAnswersLoading] = useState(false);
   const [expandedWeakTasks, setExpandedWeakTasks] = useState(() => new Set());
   const [isWeakTasksOpen, setIsWeakTasksOpen] = useState(false);
+  const [periodFilter, setPeriodFilter] = useState('all');
+  const [highlightedAttemptId, setHighlightedAttemptId] = useState(null);
+
+  const [isErrorWorkModalOpen, setIsErrorWorkModalOpen] = useState(false);
+  const [selectedWeakTaskIds, setSelectedWeakTaskIds] = useState(() => new Set());
+  const [errorWorkTitle, setErrorWorkTitle] = useState('');
+  const [errorWorkCreating, setErrorWorkCreating] = useState(false);
+  const [errorWorkResult, setErrorWorkResult] = useState(null); // { work, session }
+
+  const historySectionRef = useRef(null);
+  const highlightTimerRef = useRef(null);
+
+  const buildStudentUrl = (sessionId) => {
+    const base = import.meta.env.VITE_STUDENT_URL || `${window.location.origin}/student`;
+    return `${base}/${sessionId}`;
+  };
 
   // Загрузка основных данных
   useEffect(() => {
@@ -149,7 +292,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
     load();
   }, [studentId]);
 
-  // Автозагрузка ответов через 300ms (для тем + слабых задач)
+  // Автозагрузка ответов через 300ms
   useEffect(() => {
     if (!attempts.length) return;
     const timer = setTimeout(async () => {
@@ -167,47 +310,101 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
     return () => clearTimeout(timer);
   }, [attempts]);
 
+  useEffect(() => () => clearTimeout(highlightTimerRef.current), []);
+
   // ============ COMPUTED ============
 
-  const stats = useMemo(() => {
-    if (!attempts.length) return null;
-    const workIds = new Set();
-    attempts.forEach(a => {
-      const workId = a.expand?.session?.expand?.work?.id || a.expand?.session?.work;
-      if (workId) workIds.add(typeof workId === 'string' ? workId : workId);
+  const filteredAttempts = useMemo(() => {
+    if (periodFilter === 'all') return attempts;
+    const cutoff = new Date();
+    if (periodFilter === 'month') cutoff.setMonth(cutoff.getMonth() - 1);
+    else if (periodFilter === '3months') cutoff.setMonth(cutoff.getMonth() - 3);
+    return attempts.filter(a => new Date(a.submitted_at || a.created) >= cutoff);
+  }, [attempts, periodFilter]);
+
+  const filteredAnswers = useMemo(() => {
+    if (!allAnswers) return null;
+    if (periodFilter === 'all') return allAnswers;
+    const ids = new Set(filteredAttempts.map(a => a.id));
+    return allAnswers.filter(ans => ids.has(ans.attempt));
+  }, [allAnswers, filteredAttempts, periodFilter]);
+
+  // Для expandable rows — все ответы сгруппированы по попытке (без фильтра периода)
+  const allAnswersByAttempt = useMemo(() => {
+    if (!allAnswers) return new Map();
+    const map = new Map();
+    allAnswers.forEach(ans => {
+      const aid = ans.attempt;
+      if (!map.has(aid)) map.set(aid, []);
+      map.get(aid).push(ans);
     });
-    const totalScore = attempts.reduce((s, a) => s + (a.score || 0), 0);
-    const totalTasks = attempts.reduce((s, a) => s + (a.total || 0), 0);
+    return map;
+  }, [allAnswers]);
+
+  const stats = useMemo(() => {
+    if (!filteredAttempts.length) return null;
+    const workIds = new Set();
+    filteredAttempts.forEach(a => {
+      const workId = a.expand?.session?.expand?.work?.id || a.expand?.session?.work;
+      if (workId) workIds.add(workId);
+    });
+    const totalScore = filteredAttempts.reduce((s, a) => s + (a.score || 0), 0);
+    const totalTasks = filteredAttempts.reduce((s, a) => s + (a.total || 0), 0);
     const avgPercent = totalTasks > 0 ? Math.round((totalScore / totalTasks) * 100) : 0;
-    const bestPercent = attempts.reduce((best, a) => {
+    const bestPercent = filteredAttempts.reduce((best, a) => {
       const pct = a.total ? Math.round((a.score / a.total) * 100) : 0;
       return Math.max(best, pct);
     }, 0);
-    const withTime = attempts.filter(a => a.duration_seconds > 0);
+    const withTime = filteredAttempts.filter(a => a.duration_seconds > 0);
     const avgTime = withTime.length > 0
       ? Math.round(withTime.reduce((s, a) => s + a.duration_seconds, 0) / withTime.length)
       : 0;
-    return { totalWorks: workIds.size, totalAttempts: attempts.length, avgPercent, bestPercent, avgTime };
-  }, [attempts]);
+
+    // Тренд: последние 3 попытки vs предыдущие 3
+    const sorted = [...filteredAttempts]
+      .filter(a => a.total > 0)
+      .sort((a, b) => new Date(a.submitted_at || a.created) - new Date(b.submitted_at || b.created));
+    const recent = sorted.slice(-3);
+    const prev = sorted.slice(-6, -3);
+    let trend = null;
+    if (recent.length >= 1 && prev.length >= 1) {
+      const recentAvg = Math.round(recent.reduce((s, a) => s + (a.score / a.total) * 100, 0) / recent.length);
+      const prevAvg = Math.round(prev.reduce((s, a) => s + (a.score / a.total) * 100, 0) / prev.length);
+      trend = recentAvg - prevAvg;
+    }
+
+    return { totalWorks: workIds.size, totalAttempts: filteredAttempts.length, avgPercent, bestPercent, avgTime, trend };
+  }, [filteredAttempts]);
 
   const chartData = useMemo(() => {
-    return attempts
+    return filteredAttempts
       .filter(a => a.total > 0)
       .map(a => ({
+        id: a.id,
         date: new Date(a.submitted_at || a.created),
         percent: Math.round((a.score / a.total) * 100),
         title: a.expand?.session?.expand?.work?.title || 'Тест',
+        score: a.score,
+        total: a.total,
       }))
       .sort((a, b) => a.date - b.date);
-  }, [attempts]);
+  }, [filteredAttempts]);
 
   const topicStats = useMemo(() => {
-    if (!allAnswers) return null;
+    if (!filteredAnswers) return null;
     const byTopic = new Map();
-    allAnswers.forEach(answer => {
+    filteredAnswers.forEach(answer => {
       const topic = answer.expand?.task?.expand?.topic;
       if (!topic) return;
-      if (!byTopic.has(topic.id)) byTopic.set(topic.id, { id: topic.id, title: topic.title, correct: 0, total: 0 });
+      if (!byTopic.has(topic.id)) {
+        byTopic.set(topic.id, {
+          id: topic.id,
+          title: topic.title,
+          section: topic.section || '',
+          correct: 0,
+          total: 0,
+        });
+      }
       const entry = byTopic.get(topic.id);
       entry.total++;
       if (answer.is_correct) entry.correct++;
@@ -215,12 +412,66 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
     return Array.from(byTopic.values())
       .map(t => ({ ...t, percent: t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0 }))
       .sort((a, b) => a.percent - b.percent);
-  }, [allAnswers]);
+  }, [filteredAnswers]);
+
+  const openErrorWorkModal = () => {
+    if (!weakTasks?.length) return;
+    setSelectedWeakTaskIds(new Set(weakTasks.map(t => t.key)));
+    setErrorWorkTitle(`Работа над ошибками — ${student.name || student.username}`);
+    setErrorWorkResult(null);
+    setIsErrorWorkModalOpen(true);
+  };
+
+  const handleCreateErrorWork = async () => {
+    const taskIds = [...selectedWeakTaskIds];
+    if (!taskIds.length) return;
+    setErrorWorkCreating(true);
+    try {
+      const work = await api.createWork({
+        title: errorWorkTitle || 'Работа над ошибками',
+        ...(student.student_class ? { class: student.student_class } : {}),
+      });
+      const order = taskIds.map((id, idx) => ({ taskId: id, position: idx }));
+      await api.createVariant({
+        work: work.id,
+        number: 1,
+        tasks: taskIds,
+        order,
+      });
+      const session = await api.createSession({
+        work: work.id,
+        is_open: true,
+        achievements_enabled: true,
+        student_title: 'Работа над ошибками',
+      });
+      setErrorWorkResult({ work, session });
+    } catch (err) {
+      console.error('Error creating error work:', err);
+      message.error('Не удалось создать работу. Попробуйте ещё раз.');
+    }
+    setErrorWorkCreating(false);
+  };
+
+  const topicsBySection = useMemo(() => {
+    if (!topicStats || !topicStats.length) return null;
+    const groups = {};
+    topicStats.forEach(t => {
+      const s = SECTION_ORDER.includes(t.section) ? t.section : 'Другое';
+      if (!groups[s]) groups[s] = [];
+      groups[s].push(t);
+    });
+    return groups;
+  }, [topicStats]);
+
+  const sectionKeys = useMemo(() => {
+    if (!topicsBySection) return [];
+    return [...SECTION_ORDER, 'Другое'].filter(s => topicsBySection[s]);
+  }, [topicsBySection]);
 
   const weakTasks = useMemo(() => {
-    if (!allAnswers) return null;
+    if (!filteredAnswers) return null;
     const byTaskId = new Map();
-    allAnswers.forEach(answer => {
+    filteredAnswers.forEach(answer => {
       const task = answer.expand?.task;
       if (!task) return;
       const taskId = answer.task;
@@ -245,7 +496,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
       .filter(t => t.wrongAttempts > 0)
       .map(t => ({ ...t, errorRate: Math.round((t.wrongAttempts / t.totalAttempts) * 100) }))
       .sort((a, b) => b.errorRate !== a.errorRate ? b.errorRate - a.errorRate : b.wrongAttempts - a.wrongAttempts);
-  }, [allAnswers]);
+  }, [filteredAnswers]);
 
   const achievementsById = useMemo(() => new Map(achievements.map(a => [a.id, a])), [achievements]);
 
@@ -259,12 +510,19 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
   }, [attempts]);
 
   const toggleWeakTaskExpanded = (taskId) => {
-    setExpandedWeakTasks((prev) => {
+    setExpandedWeakTasks(prev => {
       const next = new Set(prev);
       if (next.has(taskId)) next.delete(taskId);
       else next.add(taskId);
       return next;
     });
+  };
+
+  const handleChartPointClick = (point) => {
+    setHighlightedAttemptId(point.id);
+    clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => setHighlightedAttemptId(null), 3000);
+    historySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   // ============ COLUMNS ============
@@ -361,6 +619,8 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
     );
   }
 
+  const noDataInPeriod = filteredAttempts.length === 0 && periodFilter !== 'all';
+
   return (
     <div className="sdp-page">
       {/* S1: Header */}
@@ -375,11 +635,31 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
               Регистрация: {new Date(student.created).toLocaleDateString('ru-RU')}
             </Text>
             <Text type="secondary">
-              Попыток: {stats?.totalAttempts || 0}
+              Попыток: {attempts.length}
             </Text>
           </div>
         </div>
       </div>
+
+      {/* Period Filter */}
+      <div className="sdp-period-bar">
+        <Text type="secondary" className="sdp-period-label">Период анализа:</Text>
+        <Segmented
+          value={periodFilter}
+          onChange={setPeriodFilter}
+          options={PERIOD_OPTIONS}
+          size="small"
+        />
+      </div>
+
+      {noDataInPeriod && (
+        <div className="sdp-empty-period">
+          Нет попыток за выбранный период.{' '}
+          <Button type="link" size="small" style={{ padding: 0 }} onClick={() => setPeriodFilter('all')}>
+            Показать всё время
+          </Button>
+        </div>
+      )}
 
       {/* S2: Hero Stats */}
       {stats && (
@@ -393,6 +673,17 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
             <div className="sdp-hero-label">Средний балл</div>
             <div className="sdp-hero-value">{stats.avgPercent}%</div>
             <div className="sdp-hero-suffix">по всем работам</div>
+            {stats.trend !== null && (
+              <div className={`sdp-hero-trend ${
+                stats.trend > 0 ? 'sdp-hero-trend--up'
+                : stats.trend < 0 ? 'sdp-hero-trend--down'
+                : 'sdp-hero-trend--flat'
+              }`}>
+                {stats.trend > 0 ? '▲' : stats.trend < 0 ? '▼' : '—'}
+                {' '}{Math.abs(stats.trend)}%
+                <span className="sdp-hero-trend-sub"> vs пред. 3</span>
+              </div>
+            )}
           </div>
           <div className="sdp-hero-card sdp-hero-card--best">
             <div className="sdp-hero-label">Лучший результат</div>
@@ -413,7 +704,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
           <Title level={4} className="sdp-section-title">
             <LineChartOutlined /> Динамика результатов
           </Title>
-          <ScoreChart data={chartData} />
+          <ScoreChart data={chartData} onPointClick={handleChartPointClick} />
         </div>
       )}
 
@@ -423,23 +714,30 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
           <BookOutlined /> Результаты по темам
         </Title>
         {answersLoading && <div className="sdp-answers-loading"><Spin size="small" /> Загрузка...</div>}
-        {topicStats && topicStats.length > 0 && (
+        {topicsBySection && sectionKeys.length > 0 && (
           <div className="sdp-topic-list">
-            {topicStats.map(topic => {
-              const level = topic.percent >= 70 ? 'good' : topic.percent >= 40 ? 'ok' : 'bad';
-              return (
-                <div key={topic.id} className="sdp-topic-row">
-                  <div className="sdp-topic-name" title={topic.title}>{topic.title}</div>
-                  <div className="sdp-topic-bar-wrap">
-                    <div className={`sdp-topic-bar sdp-topic-bar--${level}`} style={{ width: `${topic.percent}%` }} />
-                  </div>
-                  <div className="sdp-topic-info">
-                    <span className={`sdp-topic-pct sdp-topic-pct--${level}`}>{topic.percent}%</span>
-                    <span className="sdp-topic-count">{topic.correct}/{topic.total}</span>
-                  </div>
-                </div>
-              );
-            })}
+            {sectionKeys.map(section => (
+              <div key={section} className="sdp-topic-section">
+                {sectionKeys.length > 1 && (
+                  <div className="sdp-topic-section-header">{section}</div>
+                )}
+                {topicsBySection[section].map(topic => {
+                  const level = topic.percent >= 70 ? 'good' : topic.percent >= 40 ? 'ok' : 'bad';
+                  return (
+                    <div key={topic.id} className="sdp-topic-row">
+                      <div className="sdp-topic-name" title={topic.title}>{topic.title}</div>
+                      <div className="sdp-topic-bar-wrap">
+                        <div className={`sdp-topic-bar sdp-topic-bar--${level}`} style={{ width: `${topic.percent}%` }} />
+                      </div>
+                      <div className="sdp-topic-info">
+                        <span className={`sdp-topic-pct sdp-topic-pct--${level}`}>{topic.percent}%</span>
+                        <span className="sdp-topic-count">{topic.correct}/{topic.total}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
           </div>
         )}
         {topicStats && topicStats.length === 0 && (
@@ -456,14 +754,24 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
               ({weakTasks.length})
             </Text>
           )}
-          <Button
-            size="small"
-            type={isWeakTasksOpen ? 'default' : 'link'}
-            onClick={() => setIsWeakTasksOpen(v => !v)}
-            style={{ marginLeft: 'auto' }}
-          >
-            {isWeakTasksOpen ? 'Скрыть' : 'Показать'}
-          </Button>
+          <Space style={{ marginLeft: 'auto' }}>
+            {isWeakTasksOpen && weakTasks && weakTasks.length > 0 && (
+              <Button
+                size="small"
+                icon={<FileAddOutlined />}
+                onClick={openErrorWorkModal}
+              >
+                Создать работу над ошибками
+              </Button>
+            )}
+            <Button
+              size="small"
+              type={isWeakTasksOpen ? 'default' : 'link'}
+              onClick={() => setIsWeakTasksOpen(v => !v)}
+            >
+              {isWeakTasksOpen ? 'Скрыть' : 'Показать'}
+            </Button>
+          </Space>
         </Title>
         {isWeakTasksOpen && answersLoading && <div className="sdp-answers-loading"><Spin size="small" /> Загрузка...</div>}
         {isWeakTasksOpen && weakTasks && weakTasks.length > 0 && (
@@ -507,13 +815,19 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
                   <div className="sdp-weak-card-footer">
                     {uniqueWrongAnswers.length > 0 && (
                       <span className="sdp-weak-task-wrong">
-                        <Text type="secondary">Ошибки ученика: </Text>
+                        <Text type="secondary">Ошибки: </Text>
                         {uniqueWrongAnswers.map((a, i) => (
                           <Tag key={i} color="red">{a}</Tag>
                         ))}
                         {record.studentAnswers.length > uniqueWrongAnswers.length && (
                           <Text type="secondary">+{record.studentAnswers.length - uniqueWrongAnswers.length}</Text>
                         )}
+                      </span>
+                    )}
+                    {record.task.answer && (
+                      <span className="sdp-weak-task-answer">
+                        <Text type="secondary">Правильный ответ: </Text>
+                        <Tag color="green">{record.task.answer}</Tag>
                       </span>
                     )}
                   </div>
@@ -540,7 +854,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
       </div>
 
       {/* S6: Attempt History */}
-      <div className="sdp-section sdp-history">
+      <div className="sdp-section sdp-history" ref={historySectionRef}>
         <Title level={4} className="sdp-section-title">
           <HistoryOutlined /> История попыток ({attempts.length})
         </Title>
@@ -550,6 +864,20 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
           rowKey="id"
           pagination={attempts.length > 15 ? { pageSize: 15 } : false}
           size="small"
+          rowClassName={(record) => record.id === highlightedAttemptId ? 'sdp-row-highlighted' : ''}
+          expandable={{
+            expandedRowRender: (record) => (
+              answersLoading ? (
+                <div style={{ padding: '12px 16px', textAlign: 'center' }}>
+                  <Spin size="small" />
+                  <Text type="secondary" style={{ marginLeft: 8 }}>Загрузка ответов...</Text>
+                </div>
+              ) : (
+                <AttemptDetails answers={allAnswersByAttempt.get(record.id) || []} />
+              )
+            ),
+            rowExpandable: () => true,
+          }}
         />
       </div>
 
@@ -572,6 +900,128 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
           </div>
         </div>
       )}
+      {/* Error Work Modal */}
+      <Modal
+        open={isErrorWorkModalOpen}
+        onCancel={() => setIsErrorWorkModalOpen(false)}
+        title="Создать работу над ошибками"
+        width={520}
+        footer={
+          errorWorkResult ? (
+            <Space>
+              <Button onClick={() => setIsErrorWorkModalOpen(false)}>Закрыть</Button>
+              <Button
+                type="primary"
+                onClick={() => {
+                  setIsErrorWorkModalOpen(false);
+                  onOpenWork?.(errorWorkResult.work.id);
+                }}
+              >
+                Открыть работу
+              </Button>
+            </Space>
+          ) : (
+            <Space>
+              <Button onClick={() => setIsErrorWorkModalOpen(false)}>Отмена</Button>
+              <Button
+                type="primary"
+                loading={errorWorkCreating}
+                disabled={selectedWeakTaskIds.size === 0}
+                onClick={handleCreateErrorWork}
+              >
+                Создать ({selectedWeakTaskIds.size} задач)
+              </Button>
+            </Space>
+          )
+        }
+      >
+        {errorWorkResult ? (
+          <div className="sdp-ewm-success">
+            <CheckCircleOutlined className="sdp-ewm-success-icon" />
+            <div className="sdp-ewm-success-title">Работа создана!</div>
+            <div className="sdp-ewm-success-name">{errorWorkResult.work.title}</div>
+            <div className="sdp-ewm-url-row">
+              <Input
+                readOnly
+                value={buildStudentUrl(errorWorkResult.session.id)}
+                className="sdp-ewm-url-input"
+              />
+              <Button
+                icon={<CopyOutlined />}
+                onClick={() => {
+                  navigator.clipboard.writeText(buildStudentUrl(errorWorkResult.session.id));
+                  message.success('Ссылка скопирована');
+                }}
+              >
+                Копировать
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="sdp-ewm-body">
+            <div className="sdp-ewm-field">
+              <label className="sdp-ewm-label">Название работы</label>
+              <Input
+                value={errorWorkTitle}
+                onChange={e => setErrorWorkTitle(e.target.value)}
+                placeholder="Название работы"
+              />
+            </div>
+            <div className="sdp-ewm-field">
+              <div className="sdp-ewm-label-row">
+                <label className="sdp-ewm-label">
+                  Задачи ({selectedWeakTaskIds.size} из {weakTasks?.length})
+                </label>
+                <Space size={4}>
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0 }}
+                    onClick={() => setSelectedWeakTaskIds(new Set(weakTasks.map(t => t.key)))}
+                  >
+                    Все
+                  </Button>
+                  <span style={{ color: '#d9d9d9' }}>|</span>
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ padding: 0 }}
+                    onClick={() => setSelectedWeakTaskIds(new Set())}
+                  >
+                    Сбросить
+                  </Button>
+                </Space>
+              </div>
+              <div className="sdp-ewm-task-list">
+                {weakTasks?.map(record => (
+                  <label key={record.key} className="sdp-ewm-task-row">
+                    <Checkbox
+                      checked={selectedWeakTaskIds.has(record.key)}
+                      onChange={e => {
+                        setSelectedWeakTaskIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(record.key);
+                          else next.delete(record.key);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span className="sdp-ewm-task-code">{record.task.code || '—'}</span>
+                    {record.topic && (
+                      <span className="sdp-ewm-task-topic">{record.topic.title}</span>
+                    )}
+                    <span className="sdp-ewm-task-rate" style={{
+                      color: record.errorRate >= 70 ? '#ff4d4f' : record.errorRate >= 40 ? '#faad14' : '#52c41a'
+                    }}>
+                      {record.errorRate}% ошибок
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
