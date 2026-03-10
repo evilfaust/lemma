@@ -2,7 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Spin } from 'antd';
 import { LoadingOutlined, RightOutlined, DownOutlined, ArrowLeftOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
+import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import MathRenderer from '../MathRenderer';
+
+const PB_URL = PB_BASE_URL;
 
 // ==========================================
 // SVG Line Chart (чистый SVG, без библиотек)
@@ -201,6 +204,13 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
                     <div className="sp-answer-statement sp-answer-statement--empty">
                       Задача #{task?.code || (idx + 1)}
                     </div>
+                  )}
+                  {task && (task.image_url || task.image) && (
+                    <img
+                      src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`}
+                      alt=""
+                      className="sp-answer-image"
+                    />
                   )}
                   <div className="sp-answer-responses">
                     <span className={`sp-answer-user-answer sp-answer-user-answer--${answer.is_correct ? 'correct' : 'wrong'}`}>
