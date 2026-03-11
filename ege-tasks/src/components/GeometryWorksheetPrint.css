@@ -33,7 +33,7 @@
 .geo-worksheet-sheet {
   width: 148mm;
   height: 210mm;
-  padding: 6mm 8mm;
+  padding: 3mm 4mm;
   box-sizing: border-box;
   background: var(--paper);
   border: 1.5px solid #c0c0c0;
@@ -53,9 +53,9 @@
   display: flex;
   justify-content: space-between;
   align-items: baseline;
-  padding-bottom: 2mm;
+  padding-bottom: 1mm;
   border-bottom: 1pt solid var(--ink);
-  margin-bottom: 2.5mm;
+  margin-bottom: 1.5mm;
   flex-shrink: 0;
 }
 
@@ -80,8 +80,8 @@
 }
 
 .geo-worksheet-header-compact {
-  padding-bottom: 1.5mm;
-  margin-bottom: 2mm;
+  padding-bottom: 0.8mm;
+  margin-bottom: 1mm;
   flex-shrink: 0;
 }
 
@@ -90,7 +90,7 @@
 .geo-worksheet-fields {
   display: flex;
   gap: 6mm;
-  margin-bottom: 2.5mm;
+  margin-bottom: 1.5mm;
   flex-shrink: 0;
 }
 
@@ -119,7 +119,7 @@
 .geo-worksheet-divider {
   height: 1px;
   background: #dde3ee;
-  margin: 2mm 0;
+  margin: 1mm 0;
   flex-shrink: 0;
 }
 
@@ -137,8 +137,8 @@
 .geo-worksheet-task-header {
   display: flex;
   align-items: flex-start;
-  gap: 2.5mm;
-  margin-bottom: 2mm;
+  gap: 2mm;
+  margin-bottom: 1mm;
   flex-shrink: 0;
 }
 
@@ -157,7 +157,7 @@
 
 .geo-worksheet-task-statement {
   font-size: 3.2mm;
-  line-height: 1.35;
+  line-height: 1.25;
   font-style: italic;
   font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
   flex: 1;
@@ -166,7 +166,7 @@
 }
 
 .geo-worksheet-task-statement p {
-  margin: 0 0 0.8mm;
+  margin: 0 0 0.3mm;
 }
 
 .geo-worksheet-task-statement .katex {
@@ -279,7 +279,7 @@
     min-height: 210mm;
     margin: 0 auto;
     border: 0;
-    padding: 6mm 8mm;
+    padding: 3mm 4mm;
     box-sizing: border-box;
     box-shadow: none;
   }
