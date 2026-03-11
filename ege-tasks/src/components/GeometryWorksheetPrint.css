@@ -294,6 +294,37 @@
     page-break-after: auto;
   }
 
+  .geo-worksheet-header {
+    padding-bottom: 1mm !important;
+    margin-bottom: 1.5mm !important;
+  }
+
+  .geo-worksheet-header-compact {
+    padding-bottom: 0.8mm !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .geo-worksheet-fields {
+    margin-bottom: 1.5mm !important;
+  }
+
+  .geo-worksheet-divider {
+    margin: 1mm 0 !important;
+  }
+
+  .geo-worksheet-task-header {
+    gap: 2mm !important;
+    margin-bottom: 1mm !important;
+  }
+
+  .geo-worksheet-task-statement {
+    line-height: 1.25 !important;
+  }
+
+  .geo-worksheet-task-statement p {
+    margin: 0 0 0.3mm !important;
+  }
+
   .geo-worksheet-task-badge {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
