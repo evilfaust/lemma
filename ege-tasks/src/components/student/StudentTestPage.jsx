@@ -27,7 +27,7 @@ const StudentTestPage = ({ studentSession }) => {
   );
 
   useEffect(() => {
-    if (!storageKey) return;
+    if (!storageKey || !tasks.length) return;
 
     try {
       const savedRaw = localStorage.getItem(storageKey);
@@ -51,7 +51,7 @@ const StudentTestPage = ({ studentSession }) => {
   }, [storageKey, tasks]);
 
   useEffect(() => {
-    if (!storageKey) return;
+    if (!storageKey || !tasks.length) return;
 
     try {
       const hasAnyAnswer = Object.values(answers).some(v => (v || '').trim().length > 0);
@@ -63,7 +63,7 @@ const StudentTestPage = ({ studentSession }) => {
     } catch (err) {
       console.error('Error saving student answers draft:', err);
     }
-  }, [answers, storageKey]);
+  }, [answers, storageKey, tasks.length]);
 
   const updateAnswer = (taskId, value) => {
     setAnswers(prev => ({ ...prev, [taskId]: value }));
