@@ -3,6 +3,7 @@ import {
   ReloadOutlined,
   PrinterOutlined,
   FilePdfOutlined,
+  FileMarkdownOutlined,
   SaveOutlined,
   FolderOpenOutlined,
   RocketOutlined,
@@ -28,6 +29,7 @@ import {
  * @param {boolean} generateDisabled - кнопка генерации отключена
  * @param {string} saveLabel - текст кнопки сохранения
  * @param {string} loadLabel - текст кнопки загрузки
+ * @param {Function} onExportMD - экспорт в Markdown
  */
 const ActionButtons = ({
   hasVariants = false,
@@ -37,6 +39,7 @@ const ActionButtons = ({
   onSave,
   onPrint,
   onExportPDF,
+  onExportMD,
   onReset,
   pdfMethod = 'puppeteer',
   setPdfMethod,
@@ -117,6 +120,18 @@ const ActionButtons = ({
                   Сохранить PDF
                 </Button>
               </Badge>
+            </Tooltip>
+          )}
+
+          {onExportMD && (
+            <Tooltip title="Экспорт вариантов в Markdown для Obsidian">
+              <Button
+                icon={<FileMarkdownOutlined />}
+                onClick={onExportMD}
+                size="large"
+              >
+                Экспорт MD
+              </Button>
             </Tooltip>
           )}
 

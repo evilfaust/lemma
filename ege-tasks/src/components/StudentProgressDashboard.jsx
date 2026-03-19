@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Button, Collapse, Empty, Popover, Progress, Space, Spin, Table, Tag, Typography } from 'antd';
-import { ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
+import { App, Alert, Button, Collapse, Empty, Modal, Popover, Progress, Select, Space, Spin, Table, Tag, Typography } from 'antd';
+import { MergeCellsOutlined, ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import './StudentProgressDashboard.css';
 
@@ -60,12 +60,18 @@ const normalizeUnlockedIds = (value) => {
 };
 
 const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [attempts, setAttempts] = useState([]);
   const [works, setWorks] = useState([]);
   const [achievements, setAchievements] = useState([]);
+
+  // Состояние объединения аккаунтов
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergeSource, setMergeSource] = useState(null); // старый аккаунт (удалить)
+  const [mergeTarget, setMergeTarget] = useState(null); // основной аккаунт (сохранить)
+  const [merging, setMerging] = useState(false);
 
 
   const loadData = useCallback(async () => {
@@ -91,6 +97,41 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  const handleMerge = useCallback(async () => {
+    if (!mergeSource || !mergeTarget || mergeSource === mergeTarget) return;
+    const sourceStudent = students.find(s => s.id === mergeSource);
+    const targetStudent = students.find(s => s.id === mergeTarget);
+    const sourceAttempts = attempts.filter(a => a.student === mergeSource);
+
+    modal.confirm({
+      title: 'Подтвердите объединение аккаунтов',
+      content: (
+        <div>
+          <p>Все попытки (<strong>{sourceAttempts.length}</strong>) от аккаунта <strong>@{sourceStudent?.username}</strong> будут перенесены на <strong>@{targetStudent?.username}</strong>.</p>
+          <p style={{ color: '#ff4d4f' }}>Аккаунт <strong>@{sourceStudent?.username}</strong> будет удалён. Это действие необратимо.</p>
+        </div>
+      ),
+      okText: 'Объединить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        setMerging(true);
+        try {
+          const result = await api.mergeStudents(mergeSource, mergeTarget);
+          message.success(`Перенесено ${result.moved} попыток. Аккаунт @${result.deletedUsername} удалён.`);
+          setMergeOpen(false);
+          setMergeSource(null);
+          setMergeTarget(null);
+          await loadData();
+        } catch (err) {
+          message.error(`Ошибка объединения: ${err.message}`);
+        } finally {
+          setMerging(false);
+        }
+      },
+    });
+  }, [mergeSource, mergeTarget, students, attempts, modal, message, loadData]);
 
   const worksById = useMemo(() => {
     const map = new Map();
@@ -358,10 +399,83 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
           <UserOutlined />
           Прогресс учеников
         </h2>
-        <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-          Обновить
-        </Button>
+        <Space>
+          <Button
+            icon={<MergeCellsOutlined />}
+            onClick={() => setMergeOpen(true)}
+            disabled={students.length < 2}
+          >
+            Объединить аккаунты
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+            Обновить
+          </Button>
+        </Space>
       </div>
+
+      <Modal
+        title={<Space><MergeCellsOutlined />Объединить аккаунты учеников</Space>}
+        open={mergeOpen}
+        onCancel={() => { setMergeOpen(false); setMergeSource(null); setMergeTarget(null); }}
+        onOk={handleMerge}
+        okText="Продолжить"
+        cancelText="Отмена"
+        okButtonProps={{ disabled: !mergeSource || !mergeTarget || mergeSource === mergeTarget, loading: merging }}
+        destroyOnHidden
+      >
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Используйте, когда ученик случайно зарегистрировал два аккаунта. Все попытки будут перенесены на основной аккаунт, дублирующий — удалён."
+        />
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Старый / дублирующий аккаунт <span style={{ color: '#ff4d4f' }}>(удалить)</span></div>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="Выберите аккаунт для удаления"
+            value={mergeSource}
+            onChange={setMergeSource}
+            showSearch
+            optionFilterProp="label"
+            options={students
+              .filter(s => s.id !== mergeTarget)
+              .map(s => ({
+                value: s.id,
+                label: `${s.name || '—'} (@${s.username}) ${s.student_class ? `· ${s.student_class}` : ''}`,
+              }))}
+          />
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Основной аккаунт <span style={{ color: '#52c41a' }}>(сохранить)</span></div>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="Выберите основной аккаунт"
+            value={mergeTarget}
+            onChange={setMergeTarget}
+            showSearch
+            optionFilterProp="label"
+            options={students
+              .filter(s => s.id !== mergeSource)
+              .map(s => ({
+                value: s.id,
+                label: `${s.name || '—'} (@${s.username}) ${s.student_class ? `· ${s.student_class}` : ''}`,
+              }))}
+          />
+        </div>
+        {mergeSource && mergeTarget && mergeSource !== mergeTarget && (() => {
+          const src = students.find(s => s.id === mergeSource);
+          const tgt = students.find(s => s.id === mergeTarget);
+          const srcAttempts = attempts.filter(a => a.student === mergeSource).length;
+          return (
+            <Alert
+              type="info"
+              showIcon
+              message={`${srcAttempts} попыток @${src?.username} → @${tgt?.username}. Аккаунт @${src?.username} будет удалён.`}
+            />
+          );
+        })()}
+      </Modal>
 
       <div className="spd-hero-grid">
         <div className="spd-hero-card spd-hero-card--students">

@@ -9,6 +9,7 @@ import MathRenderer from './MathRenderer';
 import { useTaskImport } from '../hooks/useTaskImport';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import { SDAMGIA_SOURCE_LABELS } from '../utils/markdownTaskParser';
 
 const { Dragger } = Upload;
 const { TextArea } = Input;
@@ -43,8 +44,10 @@ const DIFFICULTY_LABELS = {
 const FORMAT_TAG = {
   ege: { color: 'blue', label: 'ЕГЭ' },
   mordkovich: { color: 'purple', label: 'Мордкович' },
-  sdamgia: { color: 'green', label: 'РЕШУ ЕГЭ' },
+  sdamgia: { color: 'green', label: 'РЕШУ' },
 };
+
+const SDAMGIA_SOURCE_OPTIONS = Object.entries(SDAMGIA_SOURCE_LABELS).map(([value, label]) => ({ value, label }));
 
 export default function TaskImporter() {
   const { message } = App.useApp();
@@ -80,6 +83,7 @@ export default function TaskImporter() {
   const [newSubtopicContext, setNewSubtopicContext] = useState(null); // 'sdamgia' | 'preview'
 
   // Состояние для sdamgia
+  const [sdamgiaSourceType, setSdamgiaSourceType] = useState('ege_base');
   const [sdamgiaUrl, setSdamgiaUrl] = useState('');
   const [sdamgiaTopicId, setSdamgiaTopicId] = useState(null);
   const [sdamgiaSubtopic, setSdamgiaSubtopic] = useState('');
@@ -279,7 +283,8 @@ export default function TaskImporter() {
       }
 
       // Конвертируем через хук
-      setFileName(`РЕШУ ЕГЭ (${data.count} задач)`);
+      const sourceLabel = SDAMGIA_SOURCE_LABELS[sdamgiaSourceType] || 'РЕШУ';
+      setFileName(`${sourceLabel} (${data.count} задач)`);
       // Находим тему для передачи названия в metadata
       const selectedTopic = localTopics.find(t => t.id === sdamgiaTopicId);
       const topicName = selectedTopic
@@ -290,6 +295,7 @@ export default function TaskImporter() {
         subtopic: sdamgiaSubtopic,
         difficulty: sdamgiaDifficulty,
         tagsStr: sdamgiaTags,
+        sourceType: sdamgiaSourceType,
       });
       // Устанавливаем тему и подтему напрямую (перезаписываем автоматический маппинг)
       if (sdamgiaTopicId) {
@@ -341,6 +347,7 @@ export default function TaskImporter() {
     setTextInput('');
     setFileName('');
     setSdamgiaError('');
+    setSdamgiaUrl('');
   };
 
   // Обработка смены темы — сбрасываем подтему
@@ -415,20 +422,36 @@ export default function TaskImporter() {
                   type="info"
                   showIcon
                   style={{ marginBottom: 16 }}
-                  message="Импорт задач с РЕШУ ЕГЭ (sdamgia.ru)"
+                  message="Импорт задач с сайтов РЕШУ (sdamgia.ru)"
                   description={
                     <span>
-                      Откройте нужную категорию задач на сайте, в URL добавьте <Text code>&print=true</Text> и вставьте ссылку ниже.
-                      Требуется запущенный PDF-сервис на порту 3001.
+                      Выберите тип работы, откройте нужную категорию на сайте, в URL добавьте <Text code>&print=true</Text> и вставьте ссылку ниже.
+                      Требуется запущенный PDF-сервис.
                     </span>
                   }
                 />
 
                 <div style={{ marginBottom: 16 }}>
+                  <div style={{ marginBottom: 4, fontWeight: 500 }}>Тип работы</div>
+                  <Select
+                    style={{ width: '100%' }}
+                    value={sdamgiaSourceType}
+                    onChange={setSdamgiaSourceType}
+                    options={SDAMGIA_SOURCE_OPTIONS}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 16 }}>
                   <div style={{ marginBottom: 4, fontWeight: 500 }}>URL страницы</div>
                   <Input
                     size="large"
-                    placeholder="https://mathb-ege.sdamgia.ru/test?category_id=12&filter=all_a&print=true"
+                    placeholder={
+                      sdamgiaSourceType.startsWith('vpr')
+                        ? `https://math${sdamgiaSourceType.replace('vpr', '')}-vpr.sdamgia.ru/test?category_id=25&filter=all&print=true`
+                        : sdamgiaSourceType === 'oge'
+                        ? 'https://mathoge.sdamgia.ru/test?category_id=1&filter=all&print=true'
+                        : 'https://mathb-ege.sdamgia.ru/test?category_id=12&filter=all_a&print=true'
+                    }
                     value={sdamgiaUrl}
                     onChange={(e) => setSdamgiaUrl(e.target.value)}
                     prefix={<GlobalOutlined style={{ color: '#999' }} />}

@@ -31,10 +31,15 @@
   box-sizing: border-box;
 }
 
+/* Поля для всех страниц, включая 2-ю и далее */
+@page {
+  margin: 10mm 8mm;
+}
+
 @media print {
   .printable-worksheet {
     margin: 0;
-    padding: 7mm;
+    padding: 2mm;
     box-shadow: none;
     max-width: 100%;
     page-break-after: always;
@@ -770,6 +775,79 @@
   .compact-variants-grid {
     column-gap: 6mm !important;
     page-break-inside: avoid;
+  }
+}
+
+/* ============ SHEET PAGE PREVIEW (Лист задач) ============ */
+
+.sheet-pages-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 16px;
+  background: #dcdcdc;
+}
+
+.sheet-page {
+  background: white;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.18);
+  box-sizing: border-box;
+  position: relative;
+}
+
+.sheet-page-a4 {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 8mm;
+}
+
+.sheet-page-a5 {
+  width: 148mm;
+  min-height: 210mm;
+  padding: 6mm;
+}
+
+.sheet-page-label {
+  position: absolute;
+  bottom: 4mm;
+  right: 6mm;
+  font-size: 8pt;
+  color: #ccc;
+  user-select: none;
+}
+
+@media print {
+  .sheet-pages-preview {
+    display: block;
+    padding: 0;
+    background: none;
+  }
+
+  .sheet-page {
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .sheet-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .sheet-page-a4,
+  .sheet-page-a5 {
+    min-height: 0;
+    width: 100%;
+    padding: 4mm;
+  }
+
+  .sheet-page .variant-container {
+    padding-top: 0 !important;
+  }
+
+  .sheet-page-label {
+    display: none;
   }
 }
 

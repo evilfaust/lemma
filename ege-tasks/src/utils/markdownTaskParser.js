@@ -473,10 +473,20 @@ export function parseMarkdownFile(text) {
   };
 }
 
+export const SDAMGIA_SOURCE_LABELS = {
+  ege_base: 'РЕШУ ЕГЭ — математика базовая',
+  ege_prof: 'РЕШУ ЕГЭ — математика профильная',
+  oge:      'РЕШУ ОГЭ — математика',
+  vpr5:     'РЕШУ ВПР — математика 5 класс',
+  vpr6:     'РЕШУ ВПР — математика 6 класс',
+  vpr7:     'РЕШУ ВПР — математика 7 класс',
+  vpr8:     'РЕШУ ВПР — математика 8 класс',
+};
+
 /**
  * Конвертирует результат парсинга sdamgia.ru в формат, совместимый с useTaskImport.
  * @param {Array} problems — массив от сервера: [{ id, condition, answer, images }]
- * @param {Object} metadata — метаданные из формы UI: { taskNumber, subtopic, difficulty, tagsStr }
+ * @param {Object} metadata — метаданные из формы UI: { taskNumber, subtopic, difficulty, tagsStr, sourceType }
  */
 export function parseSdamgiaResult(problems, metadata = {}) {
   const errors = [];
@@ -484,7 +494,10 @@ export function parseSdamgiaResult(problems, metadata = {}) {
   const difficulty = String(metadata.difficulty || '1');
   const globalTags = parseTags(metadata.tagsStr);
   const taskNumber = metadata.taskNumber || '';
-  const topicName = taskNumber ? `ЕГЭ-База №${taskNumber}` : '';
+  const sourceType = metadata.sourceType || 'ege_base';
+  const sourceLabel = SDAMGIA_SOURCE_LABELS[sourceType] || SDAMGIA_SOURCE_LABELS.ege_base;
+  const isVpr = sourceType.startsWith('vpr') || sourceType === 'oge';
+  const topicName = !isVpr && taskNumber ? `ЕГЭ-База №${taskNumber}` : '';
   const normalizeSdamgiaText = (text) => String(text || '')
     .replace(/___BR___/g, '\n')
     .replace(/\u00AD/g, '') // soft hyphen
@@ -535,7 +548,7 @@ export function parseSdamgiaResult(problems, metadata = {}) {
       topic: topicName,
       subtopic: metadata.subtopic || '',
       difficulty,
-      source: 'РЕШУ ЕГЭ — математика базовая',
+      source: sourceLabel,
       year: new Date().getFullYear(),
       tags: globalTags,
     },

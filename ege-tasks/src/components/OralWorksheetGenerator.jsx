@@ -46,6 +46,7 @@ const TaskSheetGenerator = () => {
   const [compactMode, setCompactMode] = useState(false);
   const [hideTaskPrefixes, setHideTaskPrefixes] = useState(false);
   const [outputMode, setOutputMode] = useState('sheet'); // 'sheet' | 'cards'
+  const [sheetFormat, setSheetFormat] = useState('A4'); // 'A4' | 'A5'
   const [cardFormat, setCardFormat] = useState('А6');
   const [showCardAnswers, setShowCardAnswers] = useState(false);
   const [showCardSolutions, setShowCardSolutions] = useState(false);
@@ -194,9 +195,47 @@ const TaskSheetGenerator = () => {
     setSavedWorks(savedWorks.filter(w => w.id !== workId));
   };
 
+  const handleExportMD = () => {
+    const title = form.getFieldValue('workTitle') || 'Лист задач';
+    let md = `# ${title}\n\n`;
+    variants.forEach(variant => {
+      md += `## ${variantLabel} ${variant.number}\n\n`;
+      (variant.tasks || []).forEach((task, idx) => {
+        md += `**${idx + 1}.** \`${task.code}\`\n\n${task.statement_md}\n\n`;
+        if (task.answer) md += `> **Ответ:** ${task.answer}\n\n`;
+        md += `---\n\n`;
+      });
+    });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${title}.md`;
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+    message.success('Markdown успешно сохранён');
+  };
+
   /**
    * Рендеринг варианта через переиспользуемый компонент
    */
+  const handleSheetPrint = () => {
+    const styleId = 'sheet-print-page-style';
+    document.getElementById(styleId)?.remove();
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `@media print { @page { size: ${sheetFormat} portrait; margin: 8mm 5mm; } }`;
+    document.head.appendChild(style);
+    const cleanup = () => {
+      document.getElementById(styleId)?.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
+    window.print();
+  };
+
   const renderVariant = (variant, workTitle, variantIndex) => (
     <VariantRenderer
       key={variant.number}
@@ -637,6 +676,19 @@ const TaskSheetGenerator = () => {
 
               <Row gutter={16}>
                 <Col xs={24} md={6}>
+                  <Form.Item label="Формат листа">
+                    <Radio.Group
+                      value={sheetFormat}
+                      onChange={(e) => setSheetFormat(e.target.value)}
+                      buttonStyle="solid"
+                    >
+                      <Radio.Button value="A4">A4</Radio.Button>
+                      <Radio.Button value="A5">A5</Radio.Button>
+                    </Radio.Group>
+                  </Form.Item>
+                </Col>
+
+                <Col xs={24} md={6}>
                   <Form.Item label="Лист с ответами">
                     <Switch checked={showAnswersPage} onChange={setShowAnswersPage} />
                   </Form.Item>
@@ -729,8 +781,31 @@ const TaskSheetGenerator = () => {
               onGenerate
               onOpenLoad={handleOpenLoadModal}
               onSave={() => setSaveModalVisible(true)}
-              onPrint={worksheetActions.handlePrint}
-              onExportPDF={() => worksheetActions.handleExportPDF(printRef, form.getFieldValue('workTitle') || 'Лист задач')}
+              onPrint={outputMode === 'sheet' ? handleSheetPrint : worksheetActions.handlePrint}
+              onExportPDF={() => worksheetActions.handleExportPDF(
+                printRef,
+                form.getFieldValue('workTitle') || 'Лист задач',
+                outputMode === 'sheet'
+                  ? {
+                      format: sheetFormat,
+                      marginTop: '5mm', marginBottom: '5mm', marginLeft: '5mm', marginRight: '5mm',
+                      extraCSS: '.sheet-pages-preview { display: block !important; padding: 0 !important; background: none !important; } .sheet-page { box-shadow: none !important; break-after: avoid !important; page-break-after: avoid !important; border-bottom: 0.3mm solid #ccc; padding-bottom: 3mm !important; margin-bottom: 3mm !important; } .sheet-page:last-child { border-bottom: none !important; } .sheet-page-a4, .sheet-page-a5 { min-height: 0 !important; width: 100% !important; padding: 0 !important; } .sheet-page-label { display: none !important; } .sheet-page .variant-container { padding-top: 0 !important; } .variant-header { padding: 3px 5px !important; } .task-item { margin-bottom: 4px !important; }',
+                    }
+                  : {
+                      marginTop: '5mm', marginBottom: '5mm', marginLeft: '5mm', marginRight: '5mm',
+                      extraCSS: `
+                        .printable-worksheet { min-height: 0 !important; padding: 0 !important; }
+                        .title-page { min-height: 0 !important; }
+                        .variant-container { padding-top: 0 !important; margin-bottom: 6px !important; }
+                        .variant-header { padding: 4px 8px !important; margin-bottom: 4px !important; }
+                        .tasks-content { margin-top: 6px !important; }
+                        .task-item { margin-bottom: 8px !important; padding-bottom: 6px !important; }
+                        .answers-page { padding: 8px !important; }
+                        .variant-answers { margin-bottom: 12px !important; }
+                      `,
+                    }
+              )}
+              onExportMD={handleExportMD}
               onReset={handleReset}
               pdfMethod={worksheetActions.pdfMethod}
               setPdfMethod={worksheetActions.setPdfMethod}
@@ -746,38 +821,55 @@ const TaskSheetGenerator = () => {
         <VariantStats variants={variants} showAnswersPage={showAnswersPage} />
       </Card>
 
-      {/* Печатный лист */}
-      {variants.length > 0 && outputMode === 'sheet' && (
-        <div ref={printRef} className="printable-worksheet">
-          {compactMode && columns > 1 ? (
-            // Группируем варианты по страницам (по columns штук на страницу)
-            (() => {
-              const pages = [];
-              for (let i = 0; i < variants.length; i += columns) {
-                const pageVariants = variants.slice(i, i + columns);
-                pages.push(
-                  <div key={i} className="variants-page">
-                    <div
-                      className="compact-variants-grid"
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: `repeat(${columns}, 1fr)`,
-                        columnGap: '10px',
-                      }}
-                    >
-                      {pageVariants.map((variant, idx) => renderVariant(variant, form.getFieldValue('workTitle'), i + idx))}
-                    </div>
-                  </div>
-                );
-              }
-              return pages;
-            })()
-          ) : (
-            variants.map((variant, index) => renderVariant(variant, form.getFieldValue('workTitle'), index))
-          )}
-          {<AnswersPage variants={variants} variantLabel={variantLabel} show={showAnswersPage} />}
-        </div>
-      )}
+      {/* Лист задач — постраничный предпросмотр */}
+      {variants.length > 0 && outputMode === 'sheet' && (() => {
+        const workTitle = form.getFieldValue('workTitle');
+        const pageClass = `sheet-page sheet-page-${sheetFormat.toLowerCase()}`;
+        const pageContents = [];
+
+        if (compactMode && columns > 1) {
+          for (let i = 0; i < variants.length; i += columns) {
+            const pageVariants = variants.slice(i, i + columns);
+            pageContents.push({
+              key: `page-${i}`,
+              content: (
+                <div
+                  className="compact-variants-grid"
+                  style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, columnGap: '10px' }}
+                >
+                  {pageVariants.map((variant, idx) => renderVariant(variant, workTitle, i + idx))}
+                </div>
+              ),
+            });
+          }
+        } else {
+          variants.forEach((variant, index) => {
+            pageContents.push({
+              key: `variant-${variant.number}`,
+              content: renderVariant(variant, workTitle, index),
+            });
+          });
+        }
+
+        if (showAnswersPage) {
+          pageContents.push({
+            key: 'answers',
+            content: <AnswersPage variants={variants} variantLabel={variantLabel} show={true} />,
+          });
+        }
+
+        const total = pageContents.length;
+        return (
+          <div ref={printRef} className="sheet-pages-preview">
+            {pageContents.map(({ key, content }, pageIdx) => (
+              <div key={key} className={pageClass}>
+                {content}
+                <div className="sheet-page-label no-print">{pageIdx + 1} / {total}</div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Режим карточек */}
       {variants.length > 0 && outputMode === 'cards' && (

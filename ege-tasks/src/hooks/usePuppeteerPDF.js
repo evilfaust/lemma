@@ -41,7 +41,7 @@ export const usePuppeteerPDF = () => {
   /**
    * Подготовка HTML со всеми встроенными стилями
    */
-  const prepareHTML = useCallback((element) => {
+  const prepareHTML = useCallback((element, extraCSS = '') => {
     // Собираем все стили из документа
     const styles = [];
 
@@ -105,6 +105,7 @@ export const usePuppeteerPDF = () => {
             }
 
             ${styles.join('\n')}
+            ${extraCSS}
           </style>
         </head>
         <body>
@@ -136,7 +137,7 @@ export const usePuppeteerPDF = () => {
       }
 
       // Подготавливаем HTML
-      const html = prepareHTML(printRef.current);
+      const html = prepareHTML(printRef.current, options.extraCSS || '');
 
       // Отправляем на сервер
       const response = await fetch(`${PDF_SERVICE_URL}/generate`, {

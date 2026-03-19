@@ -249,6 +249,37 @@ const TestWorkGenerator = () => {
   };
 
   /**
+   * Экспорт вариантов в Markdown (для Obsidian)
+   */
+  const handleExportMD = () => {
+    if (!variants.length) return;
+    const workTitle = form.getFieldValue('workTitle') || 'Контрольная работа';
+
+    let md = `# ${workTitle}\n\n`;
+    variants.forEach(variant => {
+      md += `## ${variantLabel} ${variant.number}\n\n`;
+      variant.tasks.forEach((task, idx) => {
+        md += `**${idx + 1}.** \`${task.code}\`\n\n${task.statement_md}\n\n`;
+        if (task.answer) {
+          md += `> **Ответ:** ${task.answer}\n\n`;
+        }
+        md += `---\n\n`;
+      });
+    });
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${workTitle}.md`;
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+    message.success('Markdown успешно сохранён');
+  };
+
+  /**
    * Рендеринг варианта через переиспользуемый компонент
    */
   const renderVariant = (variant, variantIndex) => (
@@ -409,7 +440,20 @@ const TestWorkGenerator = () => {
               onOpenLoad={handleOpenLoadModal}
               onSave={() => setSaveModalVisible(true)}
               onPrint={handlePrint}
-              onExportPDF={() => handleExportPDF(printRef, form.getFieldValue('workTitle'))}
+              onExportPDF={() => handleExportPDF(printRef, form.getFieldValue('workTitle'), {
+                marginTop: '5mm', marginBottom: '5mm', marginLeft: '5mm', marginRight: '5mm',
+                extraCSS: `
+                  .printable-worksheet { min-height: 0 !important; padding: 0 !important; }
+                  .title-page { min-height: 0 !important; }
+                  .variant-container { padding-top: 0 !important; margin-bottom: 6px !important; }
+                  .variant-header { padding: 4px 8px !important; margin-bottom: 4px !important; }
+                  .tasks-content { margin-top: 6px !important; }
+                  .task-item { margin-bottom: 8px !important; padding-bottom: 6px !important; }
+                  .answers-page { padding: 8px !important; }
+                  .variant-answers { margin-bottom: 12px !important; }
+                `,
+              })}
+              onExportMD={handleExportMD}
               onReset={handleReset}
               pdfMethod={pdfMethod}
               setPdfMethod={setPdfMethod}

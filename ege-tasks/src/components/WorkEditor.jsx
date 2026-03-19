@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Card, Tabs, Form, Input, InputNumber, Select, Button, Space, Typography, Tooltip, Alert, Empty, Tag, Popconfirm, Modal, App } from 'antd';
-import { SaveOutlined, CopyOutlined, EditOutlined, SwapOutlined, DeleteOutlined, PlusOutlined, ExportOutlined } from '@ant-design/icons';
+import { SaveOutlined, CopyOutlined, EditOutlined, SwapOutlined, DeleteOutlined, PlusOutlined, ExportOutlined, FileMarkdownOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
@@ -161,6 +161,29 @@ const WorkEditor = ({
     await onSaveAsNew(values);
   };
 
+  const handleExportMD = () => {
+    const title = work?.title || 'Контрольная работа';
+    let md = `# ${title}\n\n`;
+    variants.forEach(variant => {
+      md += `## Вариант ${variant.number}\n\n`;
+      (variant.tasks || []).forEach((task, idx) => {
+        md += `**${idx + 1}.** \`${task.code}\`\n\n${task.statement_md}\n\n`;
+        if (task.answer) md += `> **Ответ:** ${task.answer}\n\n`;
+        md += `---\n\n`;
+      });
+    });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${title}.md`;
+    document.body.appendChild(link);
+    link.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+    message.success('Markdown успешно сохранён');
+  };
+
   if (!work) {
     return (
       <Card>
@@ -189,6 +212,13 @@ const WorkEditor = ({
           <Button icon={<CopyOutlined />} onClick={handleSaveAsNewClick}>
             Копия
           </Button>
+          {variants.length > 0 && (
+            <Tooltip title="Экспорт вариантов в Markdown для Obsidian">
+              <Button icon={<FileMarkdownOutlined />} onClick={handleExportMD}>
+                Экспорт MD
+              </Button>
+            </Tooltip>
+          )}
         </Space>
       }
       styles={{ body: { paddingTop: 12 } }}

@@ -1396,6 +1396,22 @@ export const api = {
     }
   },
 
+  // Объединяет два аккаунта: переносит все попытки fromStudentId → toStudentId,
+  // затем удаляет fromStudentId. Выполняется через серверный hook с правами суперпользователя.
+  // Возвращает { moved, deletedUsername, targetUsername }.
+  async mergeStudents(fromStudentId, toStudentId) {
+    const response = await fetch(`${PB_BASE_URL}/api/students/merge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromStudentId, toStudentId }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP ${response.status}`);
+    }
+    return data;
+  },
+
   async getAttemptsForRegisteredStudents() {
     try {
       return await pb.collection('attempts').getFullList({

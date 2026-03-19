@@ -38,7 +38,7 @@
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 - **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
-Текущая версия: **3.7.7** (март 2026)
+Текущая версия: **3.7.8** (март 2026)
 
 ## Tech Stack
 
@@ -470,7 +470,7 @@ Key function groups:
 - **Attempts:** createAttempt, getAttemptByDevice, getAttemptsByDevice, getAttemptsByDeviceAll, getAttemptsByDeviceAllWithWorks, getAttemptsBySession, getAttemptsBySessions, getAttemptsByStudent, getAttemptsByStudentAll, getAttemptsByStudentAllWithWorks, updateAttempt, deleteAttempt, getAttemptsCountByWork, getAttemptsWithAchievements
 - **Answers:** createAttemptAnswer, getAttemptAnswers, getAttemptAnswersByAttempts, getAttemptAnswersByAttemptsDetailed, updateAttemptAnswer, batchCreateAttemptAnswers, batchUpdateAttemptAnswers
 - **Achievements:** getAchievements, getAchievement, getAchievementsByIds, createAchievement, updateAchievement, deleteAchievement
-- **Students:** registerStudent, loginStudent, logoutStudent, isStudentAuthenticated, getAuthStudent, getStudents, updateStudent, getAttemptsByStudent, getAttemptsForRegisteredStudents
+- **Students:** registerStudent, loginStudent, logoutStudent, isStudentAuthenticated, getAuthStudent, getStudents, updateStudent, getAttemptsByStudent, getAttemptsForRegisteredStudents, **mergeStudents(fromId, toId)** — перенос попыток + удаление аккаунта через серверный hook `POST /api/students/merge`
 - **Theory:** getTheoryCategories, createTheoryCategory, updateTheoryCategory, deleteTheoryCategory, getTheoryArticles, getTheoryArticle, createTheoryArticle, updateTheoryArticle, deleteTheoryArticle, getTheoryArticleCountByCategory
 - **Stats:** getUniqueYears (legacy), getUniqueSources (legacy), **getTasksStatsSnapshot** (лёгкий, без answer/solution_md, batch:500), **getWithAnswerCount**, **getWithSolutionCount**, **getTasksForDuplicateCheck** (lazy, только для вкладки дубликатов)
 - **Geometry:** getGeometryTopics, createGeometryTopic, updateGeometryTopic, deleteGeometryTopic, getGeometrySubtopics, createGeometrySubtopic, updateGeometrySubtopic, deleteGeometrySubtopic, **getGeometryTasks** (LIGHT_FIELDS — без geogebra_base64/solution_md, но с geogebra_image_base64/preview_layout), **getGeometryTask** (полная запись — для редактора), createGeometryTask, updateGeometryTask, deleteGeometryTask, **getGeometryImageUrl(task)** (URL файла `geogebra_image_base64`, fallback на legacy поля), getGeometryPrintTests, createGeometryPrintTest, updateGeometryPrintTest, deleteGeometryPrintTest
