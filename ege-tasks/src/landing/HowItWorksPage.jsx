@@ -297,7 +297,7 @@ const HowItWorksPage = () => {
             <li><a onClick={() => scrollTo('tech')}>Технологии</a></li>
             <li><a onClick={() => scrollTo('versions')}>Версии</a></li>
             <li>
-              <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary v2-nav-cta">
+              <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary v2-nav-cta">
                 Открыть платформу
               </a>
             </li>
@@ -324,7 +324,7 @@ const HowItWorksPage = () => {
           </p>
 
           <div className="v2-how-hero-actions">
-            <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary">Открыть платформу</a>
+            <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary">Открыть платформу</a>
             <a href="/landing.html" className="v2-btn v2-btn--outline">← На главную</a>
           </div>
 
@@ -863,7 +863,7 @@ const HowItWorksPage = () => {
                 Бесплатная платформа. Ученики подключаются по ссылке или QR-коду. Учитель контролирует всё — от создания задач до анализа результатов. Три генератора, 72 достижения, автопроверка ответов.
               </p>
               <div className="v2-how-highlight-actions">
-                <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary">Открыть платформу →</a>
+                <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary">Открыть платформу →</a>
                 <a href="/landing.html" className="v2-btn v2-btn--outline">← На главную</a>
               </div>
             </div>
@@ -874,7 +874,7 @@ const HowItWorksPage = () => {
       <footer className="v2-footer">
         <div className="v2-container v2-footer-inner">
           <span>Lemma &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
-          <a href="https://task-ege.oipav.ru" className="v2-footer-link">task-ege.oipav.ru</a>
+          <a href="https://github.com/evilfaust/lemma" className="v2-footer-link">github.com/evilfaust/lemma</a>
         </div>
       </footer>
     </div>

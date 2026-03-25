@@ -34,7 +34,7 @@ const HeroV2 = () => (
       </p>
 
       <div className="v2-hero-actions">
-        <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary">
+        <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary">
           {'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443'}
         </a>
         <a href="#features" className="v2-btn v2-btn--outline"

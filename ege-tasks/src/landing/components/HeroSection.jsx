@@ -30,7 +30,7 @@ const HeroSection = () => (
       </p>
 
       <div className="landing-hero-buttons">
-        <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-primary">
+        <a href="https://github.com/evilfaust/lemma" className="landing-btn landing-btn-primary">
           Открыть учителю
         </a>
         <a href="#features" className="landing-btn landing-btn-secondary"

@@ -9,7 +9,7 @@ const CTAFooter = () => (
         <p className="landing-cta-subtitle">
           Бесплатно для учителя. Ученики подключаются по ссылке или QR-коду.
         </p>
-        <a href="https://task-ege.oipav.ru" className="landing-btn landing-btn-white">
+        <a href="https://github.com/evilfaust/lemma" className="landing-btn landing-btn-white">
           Открыть учительский интерфейс &rarr;
         </a>
       </div>
@@ -19,8 +19,8 @@ const CTAFooter = () => (
     <footer className="landing-footer">
       <div className="landing-container landing-footer-inner">
         <span>Lemma &copy; {new Date().getFullYear()}</span>
-        <a href="https://task-ege.oipav.ru" className="landing-footer-link">
-          task-ege.oipav.ru
+        <a href="https://github.com/evilfaust/lemma" className="landing-footer-link">
+          github.com/evilfaust/lemma
         </a>
       </div>
     </footer>

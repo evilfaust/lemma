@@ -59,7 +59,7 @@ const LandingPageV2 = () => {
             <li><a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>{'\u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F'}</a></li>
             <li><a href="/how-it-works.html">{'\u041A\u0430\u043A \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442'}</a></li>
             <li>
-              <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary v2-nav-cta">
+              <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary v2-nav-cta">
                 {'\u041E\u0442\u043A\u0440\u044B\u0442\u044C'}
               </a>
             </li>
@@ -82,7 +82,7 @@ const LandingPageV2 = () => {
         <a href="#students" onClick={(e) => { e.preventDefault(); scrollTo('students') }}>{'\u0423\u0447\u0435\u043D\u0438\u043A\u0438'}</a>
         <a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>{'\u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F'}</a>
         <a href="/how-it-works.html">{'\u041A\u0430\u043A \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435'}</a>
-        <a href="https://task-ege.oipav.ru" className="v2-btn v2-btn--primary">{'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443'}</a>
+        <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary">{'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443'}</a>
       </div>
 
       {/* Sections */}
