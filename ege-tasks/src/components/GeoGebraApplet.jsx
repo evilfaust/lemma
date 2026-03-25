@@ -30,13 +30,9 @@ function loadGeoGebraScript() {
         done();
         return;
       }
-      existing.addEventListener('load', done, { once: true });
-      existing.addEventListener(
-        'error',
-        () => reject(new Error('Не удалось загрузить GeoGebra (проверьте доступ к geogebra.org).')),
-        { once: true },
-      );
-      return;
+      // Скрипт присутствует в DOM, но не загружен (возможно, ранее упал).
+      // Удаляем его, чтобы добавить заново — иначе события load/error уже не придут.
+      existing.remove();
     }
 
     const script = document.createElement('script');

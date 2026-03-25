@@ -1,7 +1,7 @@
 {
-  "name": "ege-tasks-manager",
+  "name": "lemma",
   "version": "3.7.9",
-  "description": "EGE Tasks Manager - Full Stack Application",
+  "description": "Lemma — платформа для учителя математики",
   "private": true,
   "scripts": {
     "dev": "cd ege-tasks && npm run dev",

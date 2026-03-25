@@ -47,8 +47,8 @@ const LandingPageV2 = () => {
       <nav className={`v2-nav ${navScrolled ? 'v2-nav--scrolled' : ''}`}>
         <div className="v2-container v2-nav-inner">
           <a href="#" className="v2-nav-logo">
-            <span className="v2-nav-logo-mark">E</span>
-            EGE Tasks
+            <span className="v2-nav-logo-mark">L</span>
+            Lemma
           </a>
 
           <ul className="v2-nav-links">

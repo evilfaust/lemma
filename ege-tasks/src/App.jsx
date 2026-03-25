@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CustomerServiceOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CustomerServiceOutlined, FormOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -19,6 +19,9 @@ import StudentDetailPage from './components/StudentDetailPage';
 import AchievementManager from './components/AchievementManager';
 import GeometryTaskList from './components/GeometryTaskList';
 import GeometryTopicManager from './components/geometry/GeometryTopicManager';
+import TDFManager from './components/tdf/TDFManager';
+import TDFEditor from './components/tdf/TDFEditor';
+import TDFVariantBuilder from './components/tdf/TDFVariantBuilder';
 import EnglishTTS from './components/EnglishTTS';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
@@ -38,6 +41,9 @@ function AppContent() {
   // State for theory navigation
   const [editingArticleId, setEditingArticleId] = useState(null);
   const [viewingArticleId, setViewingArticleId] = useState(null);
+
+  // State for TDF navigation
+  const [tdfSetId, setTdfSetId] = useState(null);
 
   const { theoryCategories, reloadData } = useReferenceData();
 
@@ -118,6 +124,7 @@ function AppContent() {
       children: [
         { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
         { key: 'geometry-topics', icon: <FolderOutlined />, label: 'Темы и подтемы' },
+        { key: 'tdf', icon: <FormOutlined />, label: 'ТДФ' },
       ],
     },
     {
@@ -242,6 +249,27 @@ function AppContent() {
         return <GeometryTaskList />;
       case 'geometry-topics':
         return <GeometryTopicManager />;
+      case 'tdf':
+        return (
+          <TDFManager
+            onOpenEditor={(id) => { setTdfSetId(id); setCurrentView('tdf-editor'); }}
+            onOpenVariants={(id) => { setTdfSetId(id); setCurrentView('tdf-variants'); }}
+          />
+        );
+      case 'tdf-editor':
+        return (
+          <TDFEditor
+            setId={tdfSetId}
+            onBack={() => setCurrentView('tdf')}
+          />
+        );
+      case 'tdf-variants':
+        return (
+          <TDFVariantBuilder
+            setId={tdfSetId}
+            onBack={() => setCurrentView('tdf')}
+          />
+        );
       case 'theory-browser':
         return (
           <TheoryBrowser
@@ -298,6 +326,9 @@ function AppContent() {
       case 'import': return 'Импорт задач';
       case 'geometry-tasks': return 'Геометрические задачи';
       case 'geometry-topics': return 'Геометрия — Темы и подтемы';
+      case 'tdf': return 'ТДФ — Теоремы, Определения, Формулы';
+      case 'tdf-editor': return 'ТДФ — Редактор конспекта';
+      case 'tdf-variants': return 'ТДФ — Варианты';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
       case 'theory-view': return 'Теория — Просмотр';
@@ -311,6 +342,7 @@ function AppContent() {
   const getSelectedKeys = () => {
     if (currentView === 'theory-view') return ['theory-browser'];
     if (currentView === 'student-detail') return ['students'];
+    if (currentView === 'tdf-editor' || currentView === 'tdf-variants') return ['tdf'];
     return [currentView];
   };
 

@@ -22,7 +22,7 @@ const FooterV2 = () => (
     {/* Footer */}
     <footer className="v2-footer">
       <div className="v2-container v2-footer-inner">
-        <span>EGE Tasks Manager &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
+        <span>Lemma &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
         <a href="https://task-ege.oipav.ru" className="v2-footer-link">
           task-ege.oipav.ru
         </a>

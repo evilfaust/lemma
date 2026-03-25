@@ -1,4 +1,4 @@
-# Развертывание EGE Tasks Manager на Raspberry Pi
+# Развертывание Lemma на Raspberry Pi
 
 ## Обзор
 
@@ -143,7 +143,7 @@ cd /Users/evilfaust/Documents/APP/generation-test
 
 ```
 ========================================
-  EGE Tasks Manager - Deploy to RPi
+  Lemma - Deploy to RPi
 ========================================
 
 📡 Проверка SSH-соединения...
@@ -189,7 +189,7 @@ cd /Users/evilfaust/Documents/APP/generation-test
 2. **Найдите раздел Port Forwarding / NAT / Virtual Servers**
 
 3. **Создайте правило:**
-   - **Название:** EGE Tasks Manager
+   - **Название:** Lemma
    - **Внешний порт:** 80 (или любой другой, например 8080)
    - **Внутренний IP:** 192.168.1.68
    - **Внутренний порт:** 80

@@ -285,8 +285,8 @@ const HowItWorksPage = () => {
       <nav className={`v2-nav ${navScrolled ? 'v2-nav--scrolled' : ''}`}>
         <div className="v2-container v2-nav-inner">
           <a href="/landing.html" className="v2-nav-logo">
-            <span className="v2-nav-logo-mark">E</span>
-            EGE Tasks
+            <span className="v2-nav-logo-mark">L</span>
+            Lemma
           </a>
           <ul className={`v2-nav-links ${mobileOpen ? 'v2-nav-links--open' : ''}`}>
             <li><a onClick={() => scrollTo('overview')}>Обзор</a></li>
@@ -315,12 +315,12 @@ const HowItWorksPage = () => {
           <div className="v2-how-hero-badge">v{APP_VERSION} • {formatDate(BUILD_DATE)}</div>
 
           <h1 className="v2-how-title">
-            EGE Tasks Manager —<br />
+            Lemma —<br />
             <span className="v2-gradient-text">полный обзор платформы</span>
           </h1>
 
           <p className="v2-how-subtitle">
-            Веб-платформа для учителей математики: управление базой задач ЕГЭ, автоматическая генерация вариантов, онлайн-тестирование с проверкой ответов и система мотивации через достижения. Три изолированных интерфейса — учитель, ученик и промо-лендинг.
+            Веб-платформа для учителя математики: база задач, автоматическая генерация вариантов, модуль геометрии с GeoGebra, ТДФ-конспекты, онлайн-тестирование и система достижений. Три изолированных интерфейса — учитель, ученик и промо-лендинг.
           </p>
 
           <div className="v2-how-hero-actions">
@@ -873,7 +873,7 @@ const HowItWorksPage = () => {
 
       <footer className="v2-footer">
         <div className="v2-container v2-footer-inner">
-          <span>EGE Tasks Manager &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
+          <span>Lemma &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
           <a href="https://task-ege.oipav.ru" className="v2-footer-link">task-ege.oipav.ru</a>
         </div>
       </footer>

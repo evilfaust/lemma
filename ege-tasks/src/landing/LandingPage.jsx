@@ -48,8 +48,8 @@ const LandingPage = () => {
       <nav className={`landing-nav ${navScrolled ? 'landing-nav--scrolled' : ''}`}>
         <div className="landing-container landing-nav-inner">
           <a href="#" className="landing-nav-logo">
-            <span className="landing-nav-logo-icon">E</span>
-            EGE Tasks
+            <span className="landing-nav-logo-icon">L</span>
+            Lemma
           </a>
 
           <ul className="landing-nav-links">

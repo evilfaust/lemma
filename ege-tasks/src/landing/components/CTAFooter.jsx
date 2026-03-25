@@ -18,7 +18,7 @@ const CTAFooter = () => (
     {/* Footer */}
     <footer className="landing-footer">
       <div className="landing-container landing-footer-inner">
-        <span>EGE Tasks Manager &copy; {new Date().getFullYear()}</span>
+        <span>Lemma &copy; {new Date().getFullYear()}</span>
         <a href="https://task-ege.oipav.ru" className="landing-footer-link">
           task-ege.oipav.ru
         </a>

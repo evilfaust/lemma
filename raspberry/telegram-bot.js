@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Telegram Bot для мониторинга VPS (EGE Tasks Manager)
+ * Telegram Bot для мониторинга VPS (Lemma)
  * Мониторит сервисы, БД, бэкапы. Работает на VPS.
  *
  * Режимы: startup (уведомление при запуске) | daemon (long polling)

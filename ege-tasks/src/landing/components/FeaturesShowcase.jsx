@@ -35,7 +35,7 @@ const FeaturesShowcase = () => (
     <div className="landing-container">
       <div className="landing-section-header landing-animate">
         <h2 className="landing-section-title">
-          Всё для подготовки к <span className="landing-gradient-text">ЕГЭ</span>
+          Всё для работы <span className="landing-gradient-text">учителя математики</span>
         </h2>
         <p className="landing-section-subtitle">
           Полный набор инструментов учителя математики — от базы задач до аналитики

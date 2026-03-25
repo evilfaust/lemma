@@ -1,6 +1,6 @@
 # Raspberry Pi Deployment
 
-Скрипты и конфигурации для развертывания EGE Tasks Manager на Raspberry Pi.
+Скрипты и конфигурации для развертывания Lemma на Raspberry Pi.
 
 ## 📁 Файлы
 
