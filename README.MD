@@ -30,6 +30,19 @@
 - PNG-чертеж хранится в PocketBase storage как file field (`geogebra_image_base64`)
 - Просмотр листа A5 (6 задач): ручная компоновка, drag&drop смены порядка задач, сквозная нумерация
 
+### Модуль ТДФ (Теоремы, Определения, Формулы)
+Отдельный инструмент для работы с теоретическим материалом геометрии в форме структурированных конспектов и опросников.
+
+- **Наборы ТДФ** — организация по классам (8, 9, 10, 11 и т.д.), CRUD через TDFManager
+- **Редактор конспекта** (TDFEditor) — список пунктов с drag&drop, секции-заголовки для группировки
+- **Типы пунктов** (7): Теорема, Определение, Формула, Аксиома, Свойство, Признак, Следствие — с цветовой маркировкой
+- **Редактор пункта** (TDFItemModal) — название, вопрос (MD+LaTeX), формулировка (MD+LaTeX), краткая запись, чертёж (PNG или GeoGebra)
+- **Варианты опросников** (TDFVariantBuilder) — выбор пунктов из набора, нумерация вариантов
+- **Печать** (TDFPrintView) — A4 landscape, два режима:
+  - `etalon` — полный конспект со всеми формулировками (5 колонок: №+тип, Тема/Формулировка, Вопрос, Чертёж, Краткая запись)
+  - `blank` — бланк ученика с пустыми линиями для ответов
+- Экспорт в PDF через Puppeteer-сервис
+
 ### Генератор карточек
 - Случайная выборка задач по критериям
 - Три формата печати: A6 (4 на лист), A5 (2 на лист), A4 (1 на лист)
@@ -383,6 +396,34 @@ generation-test/
 
 PNG URL:
 `{PB_URL}/api/files/geometry_tasks/{id}/{geogebra_image_base64}`
+
+#### tdf_sets — Наборы ТДФ
+```javascript
+{
+  id, title, description, class_number: number, created, updated
+}
+```
+
+#### tdf_items — Пункты ТДФ
+```javascript
+{
+  id, tdf_set: relation → tdf_sets,
+  order: number, is_section_header: bool, section_title: text,
+  type: "theorem"|"definition"|"formula"|"axiom"|"property"|"criterion"|"corollary",
+  name: text, question_md: text, formulation_md: text, short_notation_md: text,
+  drawing_image: file, geogebra_base64: text, geogebra_appname: text,
+  created, updated
+}
+```
+
+#### tdf_variants — Варианты опросников
+```javascript
+{
+  id, tdf_set: relation → tdf_sets, number: number, title: text,
+  item_ids: json,  // [id1, id2, ...]
+  created, updated
+}
+```
 
 #### cards — Сохранённые карточки
 ```javascript

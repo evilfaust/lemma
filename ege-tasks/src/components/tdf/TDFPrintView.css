@@ -1,0 +1,224 @@
+/* ТДФ — Печатный вид */
+
+.tdf-print-wrapper {
+  background: #f5f5f5;
+  min-height: 100vh;
+}
+
+.tdf-print-controls {
+  padding: 12px 24px;
+  background: #fff;
+  border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.tdf-print-page {
+  background: #fff;
+  margin: 16px auto;
+  padding: 12mm 12mm 10mm;
+  width: 297mm;
+  min-height: 210mm;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+  font-size: 11pt;
+  font-family: 'Times New Roman', serif;
+}
+
+/* Шапка */
+.tdf-header {
+  margin-bottom: 8px;
+  border-bottom: 1.5px solid #333;
+  padding-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+
+.tdf-header-title {
+  font-size: 13pt;
+  font-weight: 700;
+}
+
+.tdf-header-class {
+  font-weight: 400;
+}
+
+.tdf-header-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 10pt;
+  align-items: baseline;
+}
+
+.tdf-header-name-field {
+  white-space: nowrap;
+}
+
+/* Таблица */
+.tdf-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tdf-thead-row th.tdf-th {
+  background: #f0f0f0;
+  border: 1px solid #888;
+  padding: 5px 6px;
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Заголовок раздела */
+.tdf-section-header-row .tdf-section-header-cell {
+  background: #e8e8e8;
+  border: 1px solid #888;
+  padding: 4px 8px;
+  font-weight: 700;
+  font-size: 11pt;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+/* Пункт */
+.tdf-item-row .tdf-cell {
+  border: 1px solid #888;
+  padding: 5px 6px;
+  vertical-align: top;
+  min-height: 40px;
+}
+
+.tdf-cell-num {
+  text-align: center;
+  font-weight: 600;
+  font-size: 10pt;
+}
+
+.tdf-num-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.tdf-num-value {
+  font-weight: 700;
+}
+
+.tdf-type-vertical {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 7pt;
+  color: #555;
+  font-style: italic;
+  white-space: nowrap;
+  letter-spacing: 0.03em;
+}
+
+/* Объединённый столбец: тема + формулировка */
+.tdf-cell-name-formulation {
+  font-size: 10pt;
+}
+
+.tdf-item-name {
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+
+.tdf-formulation-content {
+  font-weight: 400;
+  font-size: 10pt;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed #ccc;
+}
+
+.tdf-cell-question,
+.tdf-cell-drawing,
+.tdf-cell-notation {
+  font-size: 10.5pt;
+}
+
+.tdf-math-content {
+  word-break: break-word;
+}
+
+.tdf-drawing-img {
+  max-width: 100%;
+  max-height: 90px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.tdf-empty {
+  color: #aaa;
+}
+
+/* Пустые строки для бланка */
+.tdf-blank-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 52px;
+}
+
+.tdf-question-text {
+  font-size: 10pt;
+  color: #333;
+  margin-bottom: 2px;
+}
+
+.tdf-write-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.tdf-line {
+  border-bottom: 1px solid #aaa;
+  height: 12px;
+}
+
+.tdf-blank-area {
+  min-height: 60px;
+  width: 100%;
+}
+
+/* Подвал */
+.tdf-footer {
+  margin-top: 10px;
+  font-size: 11pt;
+  text-align: right;
+}
+
+/* Печать */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .tdf-print-wrapper {
+    background: transparent;
+  }
+
+  .tdf-print-page {
+    margin: 0;
+    padding: 10mm 10mm 8mm;
+    width: 100%;
+    box-shadow: none;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+}

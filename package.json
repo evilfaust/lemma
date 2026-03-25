@@ -1,6 +1,6 @@
 {
   "name": "ege-tasks-manager",
-  "version": "3.7.4",
+  "version": "3.7.9",
   "description": "EGE Tasks Manager - Full Stack Application",
   "private": true,
   "scripts": {

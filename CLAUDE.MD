@@ -38,7 +38,7 @@
 - **Ученический** (`/student/{sessionId}`) — прохождение тестов, результаты, достижения
 - **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
-Текущая версия: **3.7.8** (март 2026)
+Текущая версия: **3.7.9** (март 2026)
 
 ## Tech Stack
 
@@ -82,6 +82,7 @@ generation-test/
 │   │   ├── components/           # React components (30)
 │   │   │   ├── catalog/          # Catalog sub-components (7)
 │   │   │   ├── geometry/         # Geometry sub-components (7: 3 original + 4 tabs)
+│   │   │   ├── tdf/              # ТДФ sub-components (5: Manager, Editor, ItemModal, VariantBuilder, PrintView+CSS)
 │   │   │   ├── theory/           # Theory sub-components (4 + CSS)
 │   │   │   ├── shared/            # Shared components (CropModal)
 │   │   │   ├── worksheet/        # Reusable worksheet components (12)
@@ -182,6 +183,17 @@ generation-test/
 - `geometry/TabDrawing.jsx` - Tab: GeoGebra applet + PNG export/crop (extracted from GeometryTaskEditor)
 - `geometry/TabLayout.jsx` - Tab: A5 print layout editor (extracted from GeometryTaskEditor)
 - `geometry/TabSolution.jsx` - Tab: solution editor + preview (extracted from GeometryTaskEditor)
+
+**ТДФ — Теоремы, Определения, Формулы (components/tdf/):**
+- `tdf/TDFManager.jsx` - Список наборов ТДФ с фильтром по классу, CRUD наборов, переходы к редактору и вариантам
+- `tdf/TDFEditor.jsx` - Редактор конспекта: список пунктов с drag&drop, секции-заголовки, кнопка печати эталона
+- `tdf/TDFItemModal.jsx` - Модал создания/редактирования пункта: тип (7 видов), название, вопрос MD, формулировка MD, краткая запись, чертёж (PNG или GeoGebra)
+- `tdf/TDFVariantBuilder.jsx` - Конструктор вариантов опросников: выбор пунктов, нумерация, печать бланков
+- `tdf/TDFPrintView.jsx` - Печать A4 landscape: `mode="etalon"` (полный конспект) / `mode="blank"` (бланк ученика); 5 колонок: №+тип-вертикально, Тема/Формулировка, Вопрос/задание, Чертёж, Краткая запись
+- `tdf/TDFPrintView.css` - Стили печатного вида ТДФ
+
+**Типы пунктов ТДФ** (7): `theorem` · `definition` · `formula` · `axiom` · `property` · `criterion` · `corollary`
+**Цвета** (Ant Design tags): blue · green · purple · orange · cyan · magenta · gold
 
 **Shared Components (components/shared/):**
 - `shared/CropModal.jsx` - Universal image crop modal (4 margins, slider+input, preview overlay)
@@ -324,6 +336,17 @@ generation-test/
 
 Source of truth for geometry schema and validation notes: `SCHEMA_GEOMETRY.md`.
 
+### ТДФ Collections
+
+**tdf_sets** - `{ id, title, description, class_number: number }`
+
+**tdf_items** - `{ id, tdf_set: relation→tdf_sets, order: number, is_section_header: bool, section_title, type: "theorem"|"definition"|"formula"|"axiom"|"property"|"criterion"|"corollary", name, question_md, formulation_md, short_notation_md, drawing_image: file, geogebra_base64: text, geogebra_appname: text }`
+
+**tdf_variants** - `{ id, tdf_set: relation→tdf_sets, number: number, title, item_ids: json([id,...]) }`
+
+- Access: Superuser only (все три коллекции)
+- `drawing_image` хранит PNG/JPEG/WebP (5MB max); URL: `{PB_URL}/api/files/tdf_items/{id}/{drawing_image}`
+
 ### Access Control
 - tasks, topics, tags, subtopics, works, variants, cards: Superuser only
 - achievements: Public read, Superuser write
@@ -348,6 +371,9 @@ Source of truth for geometry schema and validation notes: `SCHEMA_GEOMETRY.md`.
 | `import` | Импорт задач | TaskImporter |
 | `geometry-tasks` | Геометрия — задачи | GeometryTaskList |
 | `geometry-topics` | Геометрия — темы | GeometryTopicManager |
+| `tdf` | ТДФ | TDFManager |
+| `tdf-editor` | ТДФ — Редактор конспекта | TDFEditor |
+| `tdf-variants` | ТДФ — Варианты | TDFVariantBuilder |
 | `theory-browser` | Библиотека | TheoryBrowser |
 | `theory-editor` | Редактор | TheoryEditor |
 | `theory-view` | Просмотр | TheoryArticleView |
@@ -474,6 +500,7 @@ Key function groups:
 - **Theory:** getTheoryCategories, createTheoryCategory, updateTheoryCategory, deleteTheoryCategory, getTheoryArticles, getTheoryArticle, createTheoryArticle, updateTheoryArticle, deleteTheoryArticle, getTheoryArticleCountByCategory
 - **Stats:** getUniqueYears (legacy), getUniqueSources (legacy), **getTasksStatsSnapshot** (лёгкий, без answer/solution_md, batch:500), **getWithAnswerCount**, **getWithSolutionCount**, **getTasksForDuplicateCheck** (lazy, только для вкладки дубликатов)
 - **Geometry:** getGeometryTopics, createGeometryTopic, updateGeometryTopic, deleteGeometryTopic, getGeometrySubtopics, createGeometrySubtopic, updateGeometrySubtopic, deleteGeometrySubtopic, **getGeometryTasks** (LIGHT_FIELDS — без geogebra_base64/solution_md, но с geogebra_image_base64/preview_layout), **getGeometryTask** (полная запись — для редактора), createGeometryTask, updateGeometryTask, deleteGeometryTask, **getGeometryImageUrl(task)** (URL файла `geogebra_image_base64`, fallback на legacy поля), getGeometryPrintTests, createGeometryPrintTest, updateGeometryPrintTest, deleteGeometryPrintTest
+- **TDF:** getTdfSets, getTdfSet, createTdfSet, updateTdfSet, deleteTdfSet, getTdfItems, createTdfItem, updateTdfItem, deleteTdfItem, **getTdfItemDrawingUrl(item)** (`{PB_URL}/api/files/tdf_items/{id}/{drawing_image}`), getTdfVariants, getTdfVariant, createTdfVariant, updateTdfVariant, deleteTdfVariant
 
 ## PDF Export System
 

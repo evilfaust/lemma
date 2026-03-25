@@ -67,14 +67,16 @@ const CORE_MODULES = [
   {
     num: '05', color: 'cyan',
     title: 'Модуль геометрии',
-    desc: 'Отдельный раздел с полной интеграцией GeoGebra.',
+    desc: 'Отдельный раздел с полной интеграцией GeoGebra и системой ТДФ.',
     details: [
       'Сохранение состояния .ggb + экспорт PNG с обрезкой',
       'Два режима списка: таблица и карточки',
       'Визуальное A5-макетирование: drag&resize «Дано» и «Чертёж»',
       'Печатные листы A5 (6 задач/страница) с drag&drop порядка',
+      'ТДФ — конспекты Теорем, Определений, Формул (7 типов: Теорема, Определение, Формула, Аксиома, Свойство, Признак, Следствие)',
+      'Печать ТДФ A4: эталонный конспект + бланки вариантов для учеников',
     ],
-    tags: ['GeoGebra', 'A5 Print', 'PNG Export'],
+    tags: ['GeoGebra', 'A5 Print', 'PNG Export', 'ТДФ'],
   },
   {
     num: '06', color: 'pink',
@@ -229,6 +231,8 @@ const VERSION_MILESTONES = [
   { ver: '3.4', date: 'Февраль 2026', title: 'VPS миграция', desc: 'PocketBase на VPS (task-ege.oipav.ru), nginx, SSL, автобэкапы каждые 6 часов, Telegram-бот', color: 'cyan' },
   { ver: '3.6', date: 'Февраль 2026', title: 'Геометрия + Лендинг', desc: 'GeoGebra-интеграция, A5-макетирование, student.oipav.ru, лендинг (V1 → V2 neon)', color: 'purple' },
   { ver: '3.7', date: 'Март 2026', title: 'Рефакторинг', desc: 'CropModal, decomposition хуков, оптимизация загрузки (snapshot, lazy duplicate check), 72 ачивки', color: 'orange' },
+  { ver: '3.8', date: 'Март 2026', title: 'ТДФ + Экспорт MD', desc: 'Модуль ТДФ (Теоремы, Определения, Формулы) с конспектами и вариантами, экспорт в Markdown, объединение аккаунтов учеников', color: 'cyan' },
+  { ver: '3.9', date: 'Март 2026', title: 'ТДФ — улучшения', desc: 'Реструктуризация печатного вида (объединение Тема+Формулировка, вертикальная метка типа), новый тип «Следствие»', color: 'green' },
 ]
 
 const ANSWER_CHECKER_FEATURES = [
@@ -249,6 +253,7 @@ const TEACHER_NAV = [
   { key: 'achievements', label: 'Достижения', comp: 'AchievementManager' },
   { key: 'import', label: 'Импорт', comp: 'TaskImporter' },
   { key: 'geometry', label: 'Геометрия', comp: 'GeometryTaskList' },
+  { key: 'tdf', label: 'ТДФ (3 экрана)', comp: 'TDFManager / TDFEditor / TDFVariantBuilder' },
   { key: 'theory', label: 'Теория (4 экрана)', comp: 'Browser / Editor / View / Print' },
 ]
 
