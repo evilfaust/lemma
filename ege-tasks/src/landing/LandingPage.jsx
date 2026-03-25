@@ -48,8 +48,7 @@ const LandingPage = () => {
       <nav className={`landing-nav ${navScrolled ? 'landing-nav--scrolled' : ''}`}>
         <div className="landing-container landing-nav-inner">
           <a href="#" className="landing-nav-logo">
-            <span className="landing-nav-logo-icon">L</span>
-            Lemma
+            <img src="/lemma-logo.png" alt="Lemma" className="landing-nav-logo-img" />
           </a>
 
           <ul className="landing-nav-links">

@@ -362,11 +362,13 @@ function AppContent() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          fontSize: 18,
-          fontWeight: 600,
-          color: '#1890ff'
+          padding: '10px 16px',
         }}>
-          ЕГЭ Задачи
+          <img
+            src="/lemma-logo.png"
+            alt="Lemma"
+            style={{ height: 38, width: 'auto', borderRadius: 6 }}
+          />
         </div>
         <Menu
           mode="inline"
