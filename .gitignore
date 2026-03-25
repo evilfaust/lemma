@@ -1,37 +1,81 @@
-# Node modules
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
 ege-tasks/node_modules/
 
-# Logs
+# ── Build output ──────────────────────────────────────────────────────────────
+ege-tasks/dist/
+ege-tasks/.vite/
+ege-tasks/tts-server/
+
+# ── Environment variables ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+ege-tasks/.env
+ege-tasks/.env.local
+ege-tasks/.env.*.local
+
+# ── Internal documentation (kept locally only) ────────────────────────────────
+ARCHITECTURE.md
+BACKUP_GUIDE.md
+CLAUDE.MD
+DATABASE_SAFETY.md
+PDF_EXPORT_UPGRADE.md
+QUICK_START.md
+RASPBERRY_SERVICE.md
+SCHEMA_GEOMETRY.md
+SDAMGIA_TABLE_PARSING.md
+START_GUIDE.md
+TEST_AND_COMMIT.md
+
+# ── Deployment & infrastructure (internal) ───────────────────────────────────
+raspberry/
+backup.sh
+restore.sh
+deploy.sh
+
+# ── Source content (task markdown files) ─────────────────────────────────────
+source/
+
+# ── One-off migration / utility scripts ──────────────────────────────────────
+scripts/
+ege-tasks/check-*.js
+ege-tasks/delete-*.js
+ege-tasks/fix-*.js
+ege-tasks/link-*.js
+ege-tasks/migrate-*.js
+migrate_task_images_to_pb.js
+
+# ── PocketBase runtime data ───────────────────────────────────────────────────
+pocketbase/pb_data/
+backups/
+task-image-cache/
+
+# ── Archive ───────────────────────────────────────────────────────────────────
+_archive/
+
+# ── IDE & editors ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.claude/
+ege-tasks/.claude/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Backups
-backups/
-task-image-cache/
-
-# Archive (одноразовые скрипты, не нужны в репозитории)
-_archive/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# Build
-ege-tasks/dist/
-ege-tasks/.vite/
-ege-tasks/tts-server/
-
-# Environment
-.env
-.env.local
-.env.*.local
+# ── Misc junk ────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+test-frontend.html
+ege-tasks/EGE_Tasks_presentation.pptx
+ege-tasks/README.md
