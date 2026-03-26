@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Card, Button, Space, Alert, Spin, Row, Col, Statistic,
-  Table, Select, Tag, Tooltip, Typography, App, InputNumber,
+  Table, Select, Tag, Tooltip, Typography, App, InputNumber, Switch,
 } from 'antd';
 import {
   ThunderboltOutlined,
@@ -56,6 +56,7 @@ const EgeVariantGenerator = () => {
   const [columns] = useState(1);
   const [fontSize, setFontSize] = useState(13);
   const [solutionSpace, setSolutionSpace] = useState('medium');
+  const [showSolutionSpace, setShowSolutionSpace] = useState(true);
   const [compactMode] = useState(false);
 
   // Модальные окна
@@ -161,7 +162,7 @@ const EgeVariantGenerator = () => {
     await generateFromStructure(structure, {
       variantsMode,
       variantsCount,
-      sortType: 'random',
+      sortType: 'structured', // не перемешивать — порядок блоков = порядок номеров ЕГЭ
       progressiveDifficulty: false,
     });
 
@@ -443,6 +444,16 @@ const EgeVariantGenerator = () => {
                   <Option value="same">Одинаковые варианты</Option>
                 </Select>
               </Col>
+              <Col>
+                <Space>
+                  <Text strong>Место для решения:</Text>
+                  <Switch
+                    checked={showSolutionSpace}
+                    onChange={setShowSolutionSpace}
+                    size="small"
+                  />
+                </Space>
+              </Col>
               <Col flex="auto" />
               <Col>
                 <Space>
@@ -541,7 +552,7 @@ const EgeVariantGenerator = () => {
                   columns={columns}
                   showStudentInfo={true}
                   showAnswersInline={false}
-                  solutionSpace={solutionSpace}
+                  solutionSpace={showSolutionSpace ? solutionSpace : 'none'}
                   variantLabel="Вариант"
                   hideTaskPrefixes={false}
                   dragDropHandlers={dragDropHandlers}
