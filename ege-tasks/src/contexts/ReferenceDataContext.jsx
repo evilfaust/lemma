@@ -78,6 +78,13 @@ export function ReferenceDataProvider({ children }) {
     return [...new Set(tasksSnapshot.map(r => r.source).filter(Boolean))].sort();
   }, [tasksSnapshot]);
 
+  // Темы ЕГЭ базового уровня, отсортированные по номеру задания
+  const egeBaseTopics = useMemo(() => {
+    return topics
+      .filter(t => t.exam_type === 'ege_base')
+      .sort((a, b) => a.ege_number - b.ege_number);
+  }, [topics]);
+
   // Явная перезагрузка (кнопка «Обновить» или после мутаций) — всегда идёт в сеть
   const reloadData = useCallback(async () => {
     setLoading(true);
@@ -157,6 +164,7 @@ export function ReferenceDataProvider({ children }) {
   return (
     <ReferenceDataContext.Provider value={{
       topics,
+      egeBaseTopics,
       tags,
       years,
       sources,

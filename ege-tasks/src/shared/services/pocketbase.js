@@ -9,15 +9,31 @@ const pb = new PocketBase(PB_BASE_URL);
 pb.autoCancellation(false);
 
 export const api = {
-  // Получить все темы
-  async getTopics() {
+  // Получить все темы (опционально фильтр по exam_type)
+  async getTopics(examType = null) {
     try {
-      const records = await pb.collection('topics').getFullList({
-        sort: 'order,ege_number',
-      });
+      const options = { sort: 'order,ege_number' };
+      if (examType) {
+        options.filter = `exam_type = "${examType}"`;
+      }
+      const records = await pb.collection('topics').getFullList(options);
       return records;
     } catch (error) {
       console.error('Error fetching topics:', error);
+      return [];
+    }
+  },
+
+  // Получить темы ЕГЭ базового уровня, отсортированные по ege_number
+  async getEgeBaseTopics() {
+    try {
+      const records = await pb.collection('topics').getFullList({
+        filter: 'exam_type = "ege_base"',
+        sort: 'ege_number',
+      });
+      return records;
+    } catch (error) {
+      console.error('Error fetching ege_base topics:', error);
       return [];
     }
   },

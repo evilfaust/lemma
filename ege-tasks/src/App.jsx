@@ -4,6 +4,7 @@ import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, Up
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
+import EgeVariantGenerator from './components/EgeVariantGenerator';
 import TaskStatsDashboard from './components/TaskStatsDashboard';
 import TaskCatalogManager from './components/TaskCatalogManager';
 import TheoryBrowser from './components/TheoryBrowser';
@@ -89,8 +90,13 @@ function AppContent() {
       label: 'Генератор',
     },
     {
-      key: 'test-generator',
+      key: 'ege-variant',
       icon: <FileAddOutlined />,
+      label: 'Варианты ЕГЭ',
+    },
+    {
+      key: 'test-generator',
+      icon: <SnippetsOutlined />,
       label: 'Контрольные работы',
     },
     {
@@ -204,6 +210,8 @@ function AppContent() {
         );
       case 'generator':
         return <TaskSheetGenerator />;
+      case 'ege-variant':
+        return <EgeVariantGenerator />;
       case 'test-generator':
         return <TestWorkGenerator />;
       case 'work-manager':
@@ -317,6 +325,7 @@ function AppContent() {
       case 'stats': return 'Аналитика задач';
       case 'catalog': return 'Каталог задач';
       case 'generator': return 'Генератор';
+      case 'ege-variant': return 'Варианты ЕГЭ (базовый уровень)';
       case 'test-generator': return 'Контрольные работы';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
