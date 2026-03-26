@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
 import {
   Card, Button, Space, Alert, Spin, Row, Col, Statistic,
-  Table, Select, Tag, Tooltip, Typography, Divider, App, Form, InputNumber,
+  Table, Select, Tag, Tooltip, Typography, App, InputNumber,
 } from 'antd';
 import {
   ThunderboltOutlined,
@@ -43,7 +43,6 @@ const EgeVariantGenerator = () => {
   const { message } = App.useApp();
   const { egeBaseTopics, subtopics, tags } = useReferenceData();
   const printRef = useRef();
-  const [form] = Form.useForm();
 
   // Настройки каждого слота (21 строка)
   // { topicId, pinnedTask, subtopics: [], difficulty: [], tags: [] }
