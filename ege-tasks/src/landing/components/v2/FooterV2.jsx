@@ -23,9 +23,10 @@ const FooterV2 = () => (
     <footer className="v2-footer">
       <div className="v2-container v2-footer-inner">
         <span>Lemma &copy; {new Date().getFullYear()} • v{APP_VERSION}</span>
-        <a href="https://github.com/evilfaust/lemma" className="v2-footer-link">
-          github.com/evilfaust/lemma
-        </a>
+        <div style={{ display: 'flex', gap: '1.5rem' }}>
+          <a href="https://oipav.ru" className="v2-footer-link">oipav.ru</a>
+          <a href="https://github.com/evilfaust/lemma" className="v2-footer-link">github.com/evilfaust/lemma</a>
+        </div>
       </div>
     </footer>
   </>
