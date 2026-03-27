@@ -21,7 +21,7 @@ jobs:
         run: cd ege-tasks && npm ci
 
       - name: Build landing page
-        run: cd ege-tasks && npx vite build --base=/projects/lemma/
+        run: cd ege-tasks && npx vite build --config vite.config.js
 
       - name: Rename landing.html to index.html
         run: mv ege-tasks/dist/landing.html ege-tasks/dist/index.html
