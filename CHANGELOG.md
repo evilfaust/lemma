@@ -1,5 +1,13 @@
 # Changelog — История изменений
 
+## [3.7.9] - 2026-03-28
+
+### Деплой лендинга на VPS
+
+- Лендинг доступен по адресу **https://lemma.oipav.ru**
+- Настроен автоматический деплой через GitHub Actions (`.github/workflows/deploy-landing.yml`): сборка Vite → rename `landing.html` → `index.html` → rsync на VPS в `/var/www/landings/lemma/`
+- Деплой запускается автоматически при каждом push в ветку `main`, а также вручную через `workflow_dispatch`
+
 ## [3.7.9] - 2026-03-27
 
 ### Генератор вариантов ЕГЭ — КИМ-формат (EgeVariantGenerator)
