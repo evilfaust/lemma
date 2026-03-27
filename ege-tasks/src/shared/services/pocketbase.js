@@ -511,7 +511,7 @@ export const api = {
   async getTasksStatsSnapshot() {
     try {
       const records = await pb.collection('tasks').getFullList({
-        fields: 'id,topic,subtopic,tags,difficulty,has_image,source,year',
+        fields: 'id,topic,subtopic,tags,difficulty,has_image,source,year,success_rate',
         batch: 500,
       });
       return records;

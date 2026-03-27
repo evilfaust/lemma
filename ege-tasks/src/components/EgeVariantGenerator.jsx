@@ -1,7 +1,7 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
 import {
   Card, Button, Space, Alert, Spin, Row, Col, Statistic,
-  Table, Select, Tag, Tooltip, Typography, App, InputNumber, Switch,
+  Table, Select, Tag, Tooltip, Typography, App, InputNumber, Switch, Progress,
 } from 'antd';
 import {
   ThunderboltOutlined,
@@ -10,9 +10,10 @@ import {
   PushpinFilled,
   SwapOutlined,
   DeleteOutlined,
-  PrinterOutlined,
   SaveOutlined,
   FolderOpenOutlined,
+  FileTextOutlined,
+  PrinterOutlined,
 } from '@ant-design/icons';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import {
@@ -21,9 +22,9 @@ import {
   useWorksheetActions,
   useTaskEditing,
 } from '../hooks';
+import MathRenderer from './MathRenderer';
 import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
-import VariantStats from './worksheet/VariantStats';
 import ActionButtons from './worksheet/ActionButtons';
 import SaveWorkModal from './worksheet/SaveWorkModal';
 import LoadWorkModal from './worksheet/LoadWorkModal';
@@ -31,21 +32,243 @@ import SessionPanel from './worksheet/SessionPanel';
 import TaskSelectModal from './TaskSelectModal';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
+import { api } from '../services/pocketbase';
 import './TaskWorksheet.css';
+import './EgeVariantGenerator.css';
 
 const { Text } = Typography;
 const { Option } = Select;
+const APP_BRAND = '© Лемма 2025–2026 уч. г.';
+
+
+// Размеры в px (при 96dpi: 1mm ≈ 3.78px)
+const MM_TO_PX = 3.78;
+const KIM_GAP_PX = 3 * MM_TO_PX; // 3mm gap
+
+/**
+ * Разбивает задачи по страницам на основе реальных DOM-измерений.
+ * Простой жадный алгоритм: кладём задачу на текущую страницу если влезает,
+ * иначе — на следующую.
+ *
+ * Размеры A5-страницы (148.5mm × 210mm):
+ *   padding: 7mm top/bottom, 8mm left/right
+ *   content area: 132.5mm × 196mm
+ *
+ * Вычет "служебных" зон:
+ *   header (text 3.5mm + line-height + margin-bottom 6mm) ≈ 10mm
+ *   footer (padding-top 3mm + text 3mm) ≈ 6mm
+ *   → для задач: 196 - 10 - 6 = 180mm
+ *
+ * Первая страница задач (стр.2) дополнительно имеет note-box:
+ *   padding 4mm + text 11px×3 lines×1.18 ≈ 13mm + margin-bottom 4mm ≈ 21mm
+ *   → для задач: 180 - 21 = 159mm
+ */
+const paginateKimByHeight = (tasks, heights) => {
+  const withNumbers = tasks.map((task, i) => ({ ...task, kimNumber: i + 1 }));
+  if (withNumbers.length === 0) return [];
+
+  const PAGE_HEIGHT_PX = 180 * MM_TO_PX;
+  const FIRST_PAGE_HEIGHT_PX = 159 * MM_TO_PX;
+
+  const pages = [];
+  let current = [];
+  let usedPx = 0;
+
+  for (const task of withNumbers) {
+    const h = heights.get(task.id) || 60; // fallback
+    const capacity = pages.length === 0 ? FIRST_PAGE_HEIGHT_PX : PAGE_HEIGHT_PX;
+    const gapCost = current.length > 0 ? KIM_GAP_PX : 0;
+
+    if (current.length > 0 && usedPx + gapCost + h > capacity) {
+      pages.push(current);
+      current = [];
+      usedPx = 0;
+    }
+
+    if (current.length > 0) usedPx += KIM_GAP_PX;
+    current.push(task);
+    usedPx += h;
+  }
+  if (current.length > 0) pages.push(current);
+
+  return pages;
+};
+
+const KimCoverPage = ({ variant }) => (
+  <div className="kim-page kim-page-cover">
+    <div className="kim-cover-body">
+      <div className="kim-cover-title">Тренировочная работа по МАТЕМАТИКЕ</div>
+      <div className="kim-cover-class">11 класс</div>
+      <div className="kim-cover-date">{new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).replace(' г.', ' года')}</div>
+      <div className="kim-cover-variant">Вариант {variant.number}</div>
+      <div className="kim-cover-level">(базовый уровень)</div>
+
+      <div className="kim-cover-student-row">
+        <span>Выполнена: ФИО</span>
+        <span className="kim-cover-line kim-cover-line-name" />
+        <span>класс</span>
+        <span className="kim-cover-line kim-cover-line-class" />
+      </div>
+
+      <div className="kim-cover-instruction-title">Инструкция по выполнению работы</div>
+
+      <div className="kim-cover-text">
+        <p>Работа по математике включает в себя 21 задание.</p>
+        <p>На выполнение работы отводится 3 часа (180 минут).</p>
+        <p>Ответы к заданиям записываются в виде числа или последовательности цифр в поле ответа в тексте работы.</p>
+        <p>При выполнении заданий можно пользоваться черновиком. Записи в черновике не учитываются при оценивании работы. Баллы, полученные Вами за выполненные задания, суммируются. Постарайтесь выполнить как можно больше заданий и набрать наибольшее количество баллов.</p>
+      </div>
+
+      <div className="kim-cover-wish">Желаем успеха!</div>
+    </div>
+    <div className="kim-page-footer">{APP_BRAND}</div>
+  </div>
+);
+
+const KimTaskPage = ({ variant, pageNumber, tasks }) => (
+  <div className="kim-page kim-page-task">
+    <div className="kim-page-header">
+      <span>Математика. 11 класс. Вариант {variant.number}</span>
+      <span>{pageNumber}</span>
+    </div>
+
+    {pageNumber === 2 && (
+      <div className="kim-page-note">
+        <em>Ответом к каждому заданию является конечная десятичная дробь,
+        целое число или последовательность цифр. Запишите ответы
+        к заданиям в поле ответа в тексте работы.</em>
+      </div>
+    )}
+
+    <div className="kim-book-tasks">
+      {tasks.map((task) => {
+        const taskImageUrl = api.getTaskImageUrl(task);
+        return (
+          <div key={task.id} className="kim-book-task">
+            <div className="kim-book-task-number">{task.kimNumber}</div>
+            <div className="kim-book-task-main">
+              <div className="kim-book-task-content">
+                <MathRenderer text={task.statement_md} />
+                {task.has_image && taskImageUrl && (
+                  <div className="kim-book-task-image">
+                    <img src={taskImageUrl} alt="" />
+                  </div>
+                )}
+              </div>
+              <div className="kim-book-answer">
+                <span>Ответ:</span>
+                <span className="kim-book-answer-line" />
+                <span className="kim-book-answer-dot">.</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+    <div className="kim-page-footer">{APP_BRAND}</div>
+  </div>
+);
+
+/**
+ * Печатный КИМ — плоский список A5-страниц.
+ *
+ * Двухфазный рендер:
+ *  1. "measure": задачи рендерятся в скрытый блок внутри React-дерева,
+ *     CSS применяется корректно (таблицы, KaTeX и т.д.)
+ *  2. useLayoutEffect синхронно снимает offsetHeight, вычисляет пагинацию
+ *  3. "render": плоский список A5-страниц (cover + task pages)
+ *
+ * Для печати: браузер сам разбивает по @page { size: A5; }.
+ * Чтобы получить два листа на одном A4 — выбрать "2 страницы на листе" в диалоге печати.
+ */
+const KimVariantPrint = ({ variant }) => {
+  const tasks = variant.tasks || [];
+  const [state, setState] = useState({ taskKey: null, pages: null });
+  const taskRefs = useRef([]);
+
+  const taskKey = tasks.map((t) => t.id).join(',');
+  const needsMeasure = state.taskKey !== taskKey;
+
+  useLayoutEffect(() => {
+    if (!needsMeasure) return;
+    if (tasks.length === 0) { setState({ taskKey, pages: [] }); return; }
+
+    const heights = new Map();
+    tasks.forEach((task, index) => {
+      const el = taskRefs.current[index];
+      if (el) heights.set(task.id, el.offsetHeight);
+    });
+    setState({ taskKey, pages: paginateKimByHeight(tasks, heights) });
+  });
+
+  // ── Фаза 1: скрытый рендер для измерения ──
+  if (needsMeasure) {
+    return (
+      <div className="kim-measure-root">
+        <div className="kim-measure-page">
+          <div className="kim-measure-tasks">
+            {tasks.map((task, index) => {
+              const taskImageUrl = api.getTaskImageUrl(task);
+              return (
+                <div
+                  key={task.id}
+                  ref={(el) => { taskRefs.current[index] = el; }}
+                  className="kim-book-task"
+                >
+                  <div className="kim-book-task-number">{index + 1}</div>
+                  <div className="kim-book-task-main">
+                    <div className="kim-book-task-content">
+                      <MathRenderer text={task.statement_md} />
+                      {task.has_image && taskImageUrl && (
+                        <div className="kim-book-task-image">
+                          <img src={taskImageUrl} alt="" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="kim-book-answer">
+                      <span>Ответ:</span>
+                      <span className="kim-book-answer-line" />
+                      <span className="kim-book-answer-dot">.</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Фаза 2: плоский список A5-страниц ──
+  const taskPages = state.pages || [];
+  if (taskPages.length === 0) return null;
+
+  return (
+    <div className="kim-booklet">
+      <KimCoverPage variant={variant} />
+      {taskPages.map((pageTasks, index) => (
+        <KimTaskPage
+          key={index}
+          variant={variant}
+          pageNumber={index + 2}
+          tasks={pageTasks}
+        />
+      ))}
+    </div>
+  );
+};
 
 /**
  * Генератор полных вариантов ЕГЭ базового уровня (21 задание)
  */
 const EgeVariantGenerator = () => {
   const { message } = App.useApp();
-  const { egeBaseTopics, subtopics, tags } = useReferenceData();
+  const { egeBaseTopics, subtopics, tags, topics, years, sources, tasksSnapshot } = useReferenceData();
   const printRef = useRef();
 
   // Настройки каждого слота (21 строка)
-  // { topicId, pinnedTask, subtopics: [], difficulty: [], tags: [] }
   const [slots, setSlots] = useState([]);
 
   // Настройки генерации
@@ -58,6 +281,7 @@ const EgeVariantGenerator = () => {
   const [solutionSpace, setSolutionSpace] = useState('medium');
   const [showSolutionSpace, setShowSolutionSpace] = useState(true);
   const [compactMode] = useState(false);
+  const [kimStyle, setKimStyle] = useState(false);
 
   // Модальные окна
   const [saveModalVisible, setSaveModalVisible] = useState(false);
@@ -91,7 +315,7 @@ const EgeVariantGenerator = () => {
   // Инициализируем слоты как только загрузятся egeBaseTopics
   useEffect(() => {
     if (egeBaseTopics.length === 0) return;
-    if (slots.length > 0) return; // уже инициализированы
+    if (slots.length > 0) return;
     setSlots(
       egeBaseTopics.map(topic => ({
         topicId: topic.id,
@@ -113,10 +337,28 @@ const EgeVariantGenerator = () => {
     return map;
   }, [subtopics]);
 
+  // Средний success_rate по каждому слоту (из tasksSnapshot)
+  // -1 = нет данных (задача никогда не выдавалась)
+  const successRateByTopic = useMemo(() => {
+    const map = {};
+    egeBaseTopics.forEach(topic => {
+      // Только задачи с реальными данными (success_rate >= 0)
+      const tested = tasksSnapshot.filter(
+        t => t.topic === topic.id && t.success_rate != null && t.success_rate >= 0
+      );
+      if (tested.length === 0) {
+        map[topic.id] = null;
+      } else {
+        const avg = tested.reduce((s, t) => s + t.success_rate, 0) / tested.length;
+        map[topic.id] = avg;
+      }
+    });
+    return map;
+  }, [egeBaseTopics, tasksSnapshot]);
+
   // Подсчёт зафиксированных слотов
   const pinnedCount = useMemo(() => slots.filter(s => s.pinnedTask).length, [slots]);
 
-  // Обновить один слот
   const updateSlot = (index, field, value) => {
     setSlots(prev => {
       const next = [...prev];
@@ -125,12 +367,8 @@ const EgeVariantGenerator = () => {
     });
   };
 
-  // Открыть модал выбора задачи для фиксации
-  const openPinModal = (slotIndex) => {
-    setPinModalSlotIndex(slotIndex);
-  };
+  const openPinModal = (slotIndex) => setPinModalSlotIndex(slotIndex);
 
-  // Зафиксировать задачу в слоте
   const handlePinTask = (task) => {
     if (pinModalSlotIndex === null) return;
     updateSlot(pinModalSlotIndex, 'pinnedTask', task);
@@ -138,19 +376,13 @@ const EgeVariantGenerator = () => {
     message.success(`Задача ${task.code} зафиксирована в слоте №${egeBaseTopics[pinModalSlotIndex]?.ege_number}`);
   };
 
-  // Снять фиксацию
-  const unpinSlot = (index) => {
-    updateSlot(index, 'pinnedTask', null);
-  };
+  const unpinSlot = (index) => updateSlot(index, 'pinnedTask', null);
 
-  // Генерация вариантов
   const handleGenerate = async () => {
     if (slots.length === 0) {
       message.warning('Темы ЕГЭ ещё загружаются...');
       return;
     }
-
-    // Строим структуру блоков: 21 блок, по 1 задаче
     const structure = slots.map(slot => ({
       topic: slot.topicId,
       subtopics: slot.subtopics,
@@ -158,16 +390,12 @@ const EgeVariantGenerator = () => {
       tags: slot.tags,
       count: 1,
     }));
-
     await generateFromStructure(structure, {
       variantsMode,
       variantsCount,
-      sortType: 'structured', // не перемешивать — порядок блоков = порядок номеров ЕГЭ
+      sortType: 'structured',
       progressiveDifficulty: false,
     });
-
-    // После генерации применяем зафиксированные задачи
-    // (делается через useEffect ниже чтобы иметь доступ к новым variants)
   };
 
   // Применяем pinnedTask после генерации
@@ -175,7 +403,6 @@ const EgeVariantGenerator = () => {
     if (variants.length === 0) return;
     const hasPinned = slots.some(s => s.pinnedTask);
     if (!hasPinned) return;
-
     setVariants(prev => prev.map(variant => ({
       ...variant,
       tasks: variant.tasks.map((task, idx) => {
@@ -185,9 +412,23 @@ const EgeVariantGenerator = () => {
     })));
   }, [variants.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleReset = () => {
-    reset();
-    setCurrentWork(null);
+  const handleReset = () => { reset(); setCurrentWork(null); };
+
+  // Печать КИМ-варианта с правильными полями A4
+  const handleKimPrint = () => {
+    const styleId = 'kim-print-page-style';
+    document.getElementById(styleId)?.remove();
+    const style = document.createElement('style');
+    style.id = styleId;
+    // A5 portrait — поля внутри .kim-page (padding: 7mm 8mm)
+    style.textContent = '@page { size: A5 portrait; margin: 0; }';
+    document.head.appendChild(style);
+    const cleanup = () => {
+      style.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    window.print();
   };
 
   const handleSave = async (values) => {
@@ -229,9 +470,31 @@ const EgeVariantGenerator = () => {
     setSavedWorks(prev => prev.filter(w => w.id !== workId));
   };
 
-  // Получить конкретную тему для слота
-  const topicForSlot = (slot) =>
-    egeBaseTopics.find(t => t.id === slot.topicId);
+  const topicForSlot = (slot) => egeBaseTopics.find(t => t.id === slot.topicId);
+
+  // Рендер индикатора success_rate
+  const renderSuccessRate = (topicId) => {
+    const rate = successRateByTopic[topicId];
+    if (rate === null || rate === undefined) {
+      return <Text type="secondary" style={{ fontSize: 11 }}>нет данных</Text>;
+    }
+    const pct = Math.round(rate * 100);
+    const color = pct >= 70 ? '#52c41a' : pct >= 40 ? '#faad14' : '#ff4d4f';
+    return (
+      <Tooltip title={`Средний процент правильных ответов по задачам этой темы: ${pct}%`}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Progress
+            percent={pct}
+            size="small"
+            strokeColor={color}
+            showInfo={false}
+            style={{ width: 60, margin: 0 }}
+          />
+          <Text style={{ fontSize: 12, color, fontWeight: 600 }}>{pct}%</Text>
+        </div>
+      </Tooltip>
+    );
+  };
 
   // Колонки таблицы структуры
   const tableColumns = [
@@ -251,23 +514,27 @@ const EgeVariantGenerator = () => {
     {
       title: 'Тема',
       dataIndex: 'topic',
-      width: 280,
+      width: 260,
       render: (_, __, index) => {
         const topic = topicForSlot(slots[index]);
         if (!topic) return null;
-        // Убираем префикс "ЕГЭ-База. №N " для компактности
         const shortTitle = topic.title.replace(/^ЕГЭ-База\. №\d+\s+/, '');
-        return (
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {shortTitle}
-          </Text>
-        );
+        return <Text type="secondary" style={{ fontSize: 12 }}>{shortTitle}</Text>;
+      },
+    },
+    {
+      title: 'Успеваемость',
+      dataIndex: 'stats',
+      width: 120,
+      render: (_, __, index) => {
+        const slot = slots[index];
+        return renderSuccessRate(slot.topicId);
       },
     },
     {
       title: 'Подтема',
       dataIndex: 'subtopics',
-      width: 200,
+      width: 190,
       render: (_, __, index) => {
         const slot = slots[index];
         const topic = topicForSlot(slot);
@@ -283,9 +550,7 @@ const EgeVariantGenerator = () => {
             style={{ width: '100%' }}
             maxTagCount={1}
           >
-            {topicSubs.map(s => (
-              <Option key={s.id} value={s.id}>{s.name}</Option>
-            ))}
+            {topicSubs.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
           </Select>
         );
       },
@@ -331,9 +596,7 @@ const EgeVariantGenerator = () => {
               </Tag>
               <Tooltip title="Снять фиксацию">
                 <Button
-                  size="small"
-                  type="text"
-                  danger
+                  size="small" type="text" danger
                   icon={<DeleteOutlined />}
                   onClick={() => unpinSlot(index)}
                 />
@@ -343,9 +606,7 @@ const EgeVariantGenerator = () => {
         }
         return (
           <Button
-            size="small"
-            type="dashed"
-            icon={<PushpinOutlined />}
+            size="small" type="dashed" icon={<PushpinOutlined />}
             onClick={() => openPinModal(index)}
           >
             Выбрать
@@ -355,8 +616,7 @@ const EgeVariantGenerator = () => {
     },
   ];
 
-  const tableData = slots.map((slot, index) => ({ key: index }));
-
+  const tableData = slots.map((_, index) => ({ key: index }));
   const hasVariants = variants.length > 0;
 
   return (
@@ -366,9 +626,9 @@ const EgeVariantGenerator = () => {
         description={
           <div>
             <div>📋 Полный вариант ЕГЭ — 21 задание с кратким ответом</div>
-            <div>🎲 Разные задачи в каждом варианте, без повторений</div>
+            <div>📊 Колонка «Успеваемость» показывает % правильных ответов учеников по теме</div>
             <div>📌 Фиксация конкретных задач по любому номеру</div>
-            <div>🖨️ Распечатка вариантов для класса + онлайн-выдача</div>
+            <div>🖨️ Обычная печать или в стиле КИМ (официальный бланк)</div>
           </div>
         }
         type="info"
@@ -387,11 +647,7 @@ const EgeVariantGenerator = () => {
             <Text type="secondary" style={{ fontSize: 12 }}>
               {pinnedCount > 0 && `📌 Зафиксировано: ${pinnedCount}`}
             </Text>
-            <Button
-              icon={<FolderOpenOutlined />}
-              onClick={handleOpenLoadModal}
-              size="small"
-            >
+            <Button icon={<FolderOpenOutlined />} onClick={handleOpenLoadModal} size="small">
               Загрузить
             </Button>
           </Space>
@@ -403,7 +659,7 @@ const EgeVariantGenerator = () => {
         ) : (
           <>
             <Alert
-              message="Для каждого номера задания ЕГЭ можно ограничить подтему, сложность или зафиксировать конкретную задачу. Оставьте поля пустыми — задача выберется случайно из всех доступных."
+              message="Для каждого номера задания ЕГЭ можно ограничить подтему, сложность или зафиксировать конкретную задачу. Оставьте поля пустыми — задача выберется случайно."
               type="info"
               showIcon
               style={{ marginBottom: 12 }}
@@ -415,16 +671,15 @@ const EgeVariantGenerator = () => {
               size="small"
               bordered
               rowKey="key"
-              scroll={{ x: 700 }}
+              scroll={{ x: 900 }}
               style={{ marginBottom: 16 }}
             />
 
-            <Row gutter={16} align="middle">
+            <Row gutter={16} align="middle" wrap>
               <Col>
                 <Text strong>Вариантов:</Text>{' '}
                 <InputNumber
-                  min={1}
-                  max={30}
+                  min={1} max={30}
                   value={variantsCount}
                   onChange={v => setVariantsCount(v || 1)}
                   style={{ width: 70 }}
@@ -437,7 +692,7 @@ const EgeVariantGenerator = () => {
                   value={variantsMode}
                   onChange={setVariantsMode}
                   size="small"
-                  style={{ width: 200 }}
+                  style={{ width: 210 }}
                 >
                   <Option value="different">Разные задачи (рекомендовано)</Option>
                   <Option value="shuffled">Одни задачи, разный порядок</Option>
@@ -451,16 +706,28 @@ const EgeVariantGenerator = () => {
                     checked={showSolutionSpace}
                     onChange={setShowSolutionSpace}
                     size="small"
+                    disabled={kimStyle}
                   />
+                </Space>
+              </Col>
+              <Col>
+                <Space>
+                  <Text strong>Стиль КИМ:</Text>
+                  <Tooltip title="Печать в официальном формате: шапка с полями для ФИО, задания с ячейками ответов, лист ответов">
+                    <Switch
+                      checked={kimStyle}
+                      onChange={v => { setKimStyle(v); if (v) setShowSolutionSpace(false); }}
+                      size="small"
+                      checkedChildren={<FileTextOutlined />}
+                    />
+                  </Tooltip>
                 </Space>
               </Col>
               <Col flex="auto" />
               <Col>
                 <Space>
                   {hasVariants && (
-                    <Button onClick={handleReset} size="small">
-                      Сбросить
-                    </Button>
+                    <Button onClick={handleReset} size="small">Сбросить</Button>
                   )}
                   <Button
                     type="primary"
@@ -478,7 +745,7 @@ const EgeVariantGenerator = () => {
         )}
       </Card>
 
-      {/* Результат */}
+      {/* Ожидание генерации */}
       {loading && (
         <Card className="no-print">
           <Spin tip={`Подбираем задачи для ${variantsCount} варианта(-ов)...`} size="large">
@@ -504,37 +771,51 @@ const EgeVariantGenerator = () => {
                   value={variants.reduce((s, v) => s + v.tasks.length, 0)}
                 />
               </Col>
+              {kimStyle && (
+                <Col>
+                  <Statistic title="Формат" value="КИМ" valueStyle={{ color: '#1890ff' }} />
+                </Col>
+              )}
             </Row>
           </Card>
 
           {/* Кнопки действий */}
-          <div className="no-print" style={{ marginBottom: 16 }}>
+          <div className="no-print" style={{ marginBottom: 16, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <ActionButtons
-              variants={variants}
-              printRef={printRef}
-              onPrint={() => handlePrint(printRef)}
-              onExportPDF={() => handleExportPDF(printRef, 'Вариант ЕГЭ базовый уровень')}
+              hasVariants={hasVariants}
+              onPrint={kimStyle ? null : () => handlePrint(printRef)}
+              onExportPDF={kimStyle ? null : () => handleExportPDF(printRef, 'Вариант ЕГЭ базовый уровень')}
               onSave={() => setSaveModalVisible(true)}
               pdfMethod={pdfMethod}
-              setPdfMethod={setPdfMethod}
+              setPdfMethod={kimStyle ? null : setPdfMethod}
               puppeteerAvailable={puppeteerAvailable}
               saving={saving}
               exporting={exporting}
             />
+            {kimStyle && (
+              <Button
+                type="primary"
+                icon={<PrinterOutlined />}
+                size="large"
+                onClick={handleKimPrint}
+              >
+                Распечатать КИМ
+              </Button>
+            )}
           </div>
 
-          {/* Варианты для печати */}
+          {/* Область печати */}
           <div ref={printRef}>
             {variants.map((variant, vi) => (
               <div key={variant.number}>
-                {/* КИМ-шапка */}
+                {/* Заголовок на экране */}
                 <div className="no-print" style={{
                   borderBottom: '2px solid #1890ff',
                   marginBottom: 8,
                   paddingBottom: 4,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12
+                  gap: 12,
                 }}>
                   <Tag color="blue" style={{ fontSize: 14, padding: '2px 10px' }}>
                     Вариант {variant.number}
@@ -542,41 +823,67 @@ const EgeVariantGenerator = () => {
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     {variant.tasks.length} заданий
                   </Text>
+                  {kimStyle && <Tag color="geekblue" icon={<FileTextOutlined />}>КИМ</Tag>}
                 </div>
 
-                <VariantRenderer
-                  variant={variant}
-                  variantIndex={vi}
-                  compactMode={compactMode}
-                  fontSize={fontSize}
-                  columns={columns}
-                  showStudentInfo={true}
-                  showAnswersInline={false}
-                  solutionSpace={showSolutionSpace ? solutionSpace : 'none'}
-                  variantLabel="Вариант"
-                  hideTaskPrefixes={false}
-                  dragDropHandlers={dragDropHandlers}
-                  onEditTask={taskEditing.handleEditTask}
-                  onReplaceTask={taskEditing.handleReplaceTask}
-                />
-
-                {vi < variants.length - 1 && (
-                  <div className="page-break" />
+                {/* Обычный вид (экран + обычная печать) */}
+                {!kimStyle && (
+                  <VariantRenderer
+                    variant={variant}
+                    variantIndex={vi}
+                    compactMode={compactMode}
+                    fontSize={fontSize}
+                    columns={columns}
+                    showStudentInfo={true}
+                    showAnswersInline={false}
+                    solutionSpace={showSolutionSpace ? solutionSpace : 'none'}
+                    variantLabel="Вариант"
+                    hideTaskPrefixes={false}
+                    dragDropHandlers={dragDropHandlers}
+                    onEditTask={taskEditing.handleEditTask}
+                    onReplaceTask={taskEditing.handleReplaceTask}
+                  />
                 )}
+
+                {/* КИМ-стиль: экран — редактируемый вид, печать — официальный КИМ */}
+                {kimStyle && (
+                  <>
+                    {/* Экранный вид для редактирования */}
+                    <div className="no-print">
+                      <VariantRenderer
+                        variant={variant}
+                        variantIndex={vi}
+                        compactMode={compactMode}
+                        fontSize={fontSize}
+                        columns={columns}
+                        showStudentInfo={true}
+                        showAnswersInline={false}
+                        solutionSpace="none"
+                        variantLabel="Вариант"
+                        hideTaskPrefixes={false}
+                        dragDropHandlers={dragDropHandlers}
+                        onEditTask={taskEditing.handleEditTask}
+                        onReplaceTask={taskEditing.handleReplaceTask}
+                      />
+                    </div>
+                    {/* Печатный КИМ-вид */}
+                    <div className="print-only">
+                      <KimVariantPrint variant={variant} variantIndex={vi} />
+                    </div>
+                  </>
+                )}
+
+                {vi < variants.length - 1 && <div className="page-break" />}
               </div>
             ))}
 
-            {/* Страница ответов */}
-            <AnswersPage variants={variants} variantLabel="Вариант" />
+            {/* Страница ответов — только для обычного стиля */}
+            {!kimStyle && <AnswersPage variants={variants} variantLabel="Вариант" />}
           </div>
 
-          {/* Онлайн-выдача (только после сохранения) */}
+          {/* Онлайн-выдача */}
           {currentWork?.id && (
-            <Card
-              title="Онлайн-выдача варианта"
-              className="no-print"
-              style={{ marginTop: 16 }}
-            >
+            <Card title="Онлайн-выдача варианта" className="no-print" style={{ marginTop: 16 }}>
               <SessionPanel workId={currentWork.id} />
             </Card>
           )}
@@ -587,11 +894,7 @@ const EgeVariantGenerator = () => {
               style={{ marginTop: 16 }}
               message="Сохраните работу для онлайн-выдачи ученикам"
               description={
-                <Button
-                  icon={<SaveOutlined />}
-                  type="primary"
-                  onClick={() => setSaveModalVisible(true)}
-                >
+                <Button icon={<SaveOutlined />} type="primary" onClick={() => setSaveModalVisible(true)}>
                   Сохранить работу
                 </Button>
               }
@@ -611,7 +914,6 @@ const EgeVariantGenerator = () => {
         currentWork={currentWork}
         defaultTitle="Вариант ЕГЭ (база)"
       />
-
       <LoadWorkModal
         visible={loadModalVisible}
         onCancel={() => setLoadModalVisible(false)}
@@ -620,8 +922,6 @@ const EgeVariantGenerator = () => {
         works={savedWorks}
         loading={loadingWorks}
       />
-
-      {/* Выбор задачи для фиксации */}
       <TaskSelectModal
         visible={pinModalSlotIndex !== null}
         onCancel={() => setPinModalSlotIndex(null)}
@@ -632,24 +932,33 @@ const EgeVariantGenerator = () => {
         excludeIds={[]}
       />
 
-      {/* Редактирование задачи */}
-      {taskEditing.editModalVisible && (
-        <TaskEditModal
-          visible={taskEditing.editModalVisible}
-          task={taskEditing.editingTask}
-          onCancel={taskEditing.handleCancelEdit}
-          onSave={taskEditing.handleSaveEdit}
-        />
-      )}
+      <TaskReplaceModal
+        visible={taskEditing.replaceModalVisible}
+        taskToReplace={taskEditing.taskToReplace}
+        onConfirm={taskEditing.handleConfirmReplace}
+        onCancel={taskEditing.handleCancelReplace}
+        topics={topics}
+        subtopics={subtopics}
+        tags={tags}
+        currentVariantTasks={
+          taskEditing.taskToReplace
+            ? variants[taskEditing.taskToReplace.variantIndex]?.tasks || []
+            : []
+        }
+      />
 
-      {/* Замена задачи */}
-      {taskEditing.replaceModalVisible && (
-        <TaskReplaceModal
-          visible={taskEditing.replaceModalVisible}
-          task={taskEditing.replacingTask}
-          variantTasks={taskEditing.currentVariantTasks}
-          onCancel={taskEditing.handleCancelReplace}
-          onReplace={taskEditing.handleConfirmReplace}
+      {taskEditing.taskToEdit && (
+        <TaskEditModal
+          task={taskEditing.taskToEdit}
+          visible={taskEditing.editModalVisible}
+          onClose={taskEditing.handleCancelEdit}
+          onSave={taskEditing.handleSaveEdit}
+          onDelete={taskEditing.handleDeleteEdit}
+          allTags={tags || []}
+          allSources={sources || []}
+          allYears={years || []}
+          allSubtopics={subtopics || []}
+          allTopics={topics || []}
         />
       )}
     </div>

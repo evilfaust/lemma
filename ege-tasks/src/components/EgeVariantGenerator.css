@@ -1,0 +1,396 @@
+.print-only {
+  display: none;
+}
+
+@media print {
+  .print-only {
+    display: block !important;
+  }
+}
+
+/* @page на верхнем уровне — Chrome читает именно отсюда для диалога печати */
+@page {
+  size: A5 portrait;
+  margin: 0;
+}
+
+/* ─── КИМ Booklet ─── */
+
+.kim-booklet {
+  color: #111;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+/* Каждая страница — A5 (148.5mm × 210mm) */
+.kim-page {
+  width: 148.5mm;
+  min-height: 210mm;
+  padding: 7mm 8mm;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  position: relative;
+}
+
+/* ─── Cover page ─── */
+
+.kim-page-cover {
+  justify-content: space-between;
+}
+
+.kim-page-blank {
+  border: 0;
+}
+
+.kim-cover-body {
+  text-align: center;
+  padding-top: 18mm;
+}
+
+.kim-cover-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 0.5mm;
+}
+
+.kim-cover-class,
+.kim-cover-date,
+.kim-cover-variant,
+.kim-cover-level {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.kim-cover-student-row {
+  margin: 10mm auto 0;
+  width: 90%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.kim-cover-line {
+  border-bottom: 1px solid #222;
+  height: 14px;
+  display: inline-block;
+}
+
+.kim-cover-line-name {
+  flex: 1;
+}
+
+.kim-cover-line-class {
+  width: 15%;
+}
+
+.kim-cover-instruction-title {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 8mm 0 3mm;
+  text-align: center;
+}
+
+.kim-cover-text {
+  margin: 0 auto;
+  text-align: justify;
+  text-indent: 5mm;
+  font-size: 12.5px;
+  line-height: 1.22;
+  padding: 0 2mm;
+}
+
+.kim-cover-text p {
+  margin: 0 0 0.3mm;
+  text-indent: 5mm;
+}
+
+.kim-cover-text p:first-child {
+  text-indent: 5mm;
+}
+
+.kim-cover-wish {
+  margin-top: 8mm;
+  font-size: 15px;
+  font-style: italic;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* ─── Page header & footer ─── */
+
+.kim-page-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  line-height: 1.1;
+  margin-bottom: 6mm;
+  padding-bottom: 0;
+}
+
+.kim-page-note {
+  border: 1.5px solid #555;
+  padding: 2mm 3mm;
+  font-size: 11px;
+  line-height: 1.18;
+  font-style: italic;
+  font-weight: 700;
+  margin-bottom: 4mm;
+  text-align: justify;
+}
+
+.kim-page-footer {
+  margin-top: auto;
+  padding-top: 3mm;
+  font-size: 10px;
+  color: #4a4a4a;
+  text-align: center;
+  border-top: none;
+}
+
+/* ─── Tasks ─── */
+
+.kim-book-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  flex: 1;
+}
+
+.kim-book-task {
+  display: grid;
+  grid-template-columns: 7.5mm 1fr;
+  gap: 2.5mm;
+  align-items: start;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.kim-book-task-number {
+  width: 7.5mm;
+  min-height: 7.5mm;
+  border: 1.2px solid #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 0.3mm;
+}
+
+.kim-book-task-main {
+  min-width: 0;
+}
+
+.kim-book-task-content {
+  font-size: 12.5px;
+  line-height: 1.2;
+  text-align: justify;
+  hyphens: auto;
+  -webkit-hyphens: auto;
+}
+
+.kim-book-task-content p {
+  margin: 0 0 0.6mm;
+}
+
+.kim-book-task-content table {
+  width: auto !important;
+  margin: 1.5mm 0 !important;
+  border-collapse: collapse !important;
+  font-size: 11.5px;
+}
+
+.kim-book-task-content th,
+.kim-book-task-content td {
+  border: 1px solid #7d7d7d;
+  padding: 0.8mm 1.5mm;
+  vertical-align: top;
+  text-align: center;
+}
+
+.kim-book-task-content thead {
+  background: transparent !important;
+}
+
+.kim-book-task-content .katex {
+  font-size: 0.97em;
+}
+
+.kim-book-task-content .katex-display {
+  margin: 1.2mm 0;
+}
+
+.kim-book-task-image {
+  margin-top: 1.5mm;
+  text-align: right;
+}
+
+.kim-book-task-image img {
+  max-width: 55%;
+  max-height: 30mm;
+  object-fit: contain;
+}
+
+/* Image floated right for tasks with text + image */
+.kim-book-task-content-with-image {
+  position: relative;
+}
+
+.kim-book-task-image-float {
+  float: right;
+  margin: 0 0 1mm 3mm;
+  max-width: 35%;
+}
+
+.kim-book-task-image-float img {
+  max-width: 100%;
+  max-height: 28mm;
+  object-fit: contain;
+}
+
+/* ─── Answer line ─── */
+
+.kim-book-answer {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5mm;
+  font-size: 12.5px;
+  margin-top: 1.5mm;
+  clear: both;
+}
+
+.kim-book-answer-line {
+  display: inline-block;
+  height: 10px;
+  min-width: 38mm;
+  border-bottom: 1px solid #333;
+}
+
+.kim-book-answer-dot {
+  font-size: 12.5px;
+}
+
+/* ─── Answer table (matching tasks: А Б В Г) ─── */
+
+.kim-answer-table {
+  margin-top: 1.5mm;
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  font-size: 12.5px;
+}
+
+.kim-answer-table span {
+  font-size: 12.5px;
+}
+
+.kim-answer-table table {
+  border-collapse: collapse;
+}
+
+.kim-answer-table th,
+.kim-answer-table td {
+  border: 1.2px solid #333;
+  width: 7mm;
+  height: 6.5mm;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0;
+}
+
+.kim-answer-table td {
+  height: 7mm;
+  font-weight: 400;
+}
+
+/* ─── Measure (off-screen) ─── */
+
+.kim-measure-root {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.kim-measure-page {
+  /* Ширина контентной зоны A5-страницы:
+     148.5mm - 2×8mm (padding left+right) = 132.5mm */
+  width: 132.5mm;
+  min-height: 196mm;
+}
+
+.kim-measure-footer {
+  margin-top: 0;
+}
+
+.kim-measure-tasks {
+  display: block;
+}
+
+/* ─── Screen only ─── */
+
+@media screen {
+  .kim-booklet {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .kim-page {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
+    border-radius: 2px;
+    border: 1px solid #e0e0e0;
+  }
+}
+
+/* ─── Print ─── */
+
+@media print {
+  body > *:not(.ant-app):not(#root) {
+    display: none !important;
+  }
+
+  .kim-booklet {
+    display: block;
+  }
+
+  .kim-page {
+    width: 148.5mm;
+    height: 210mm;
+    min-height: 0;
+    border: none !important;
+    box-shadow: none !important;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid;
+    page-break-inside: avoid;
+    justify-content: flex-start;
+  }
+
+  .kim-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .kim-book-task,
+  .kim-book-task-main {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .kim-page-footer {
+    margin-top: auto;
+  }
+}
