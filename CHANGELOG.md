@@ -194,28 +194,6 @@
   - убраны карточки «Знаток» и «Мастер» из витрины;
   - hover-анимация карточек достижений синхронизирована с верхним блоком «Система достижений».
 
-## [3.7.0] - 2026-02-26
-
-### Добавлено
-- **Лендинг** — полноценная промо-страница приложения (`/landing.html`), третья точка входа Vite multi-page app:
-  - 8 секций: Hero, Stats, Features, How It Works, Student Experience, Achievements, Testimonials, CTA+Footer
-  - Тёмный Hero с gradient blobs, плавающими математическими символами, анимированным gradient-текстом
-  - Анимированные счётчики (requestAnimationFrame + IntersectionObserver)
-  - CSS phone mockup с имитацией студенческого интерфейса
-  - Витрина достижений с реальными иконками (common/rare/legendary)
-  - Scroll-reveal анимации, каскадный stagger-эффект
-  - Полностью адаптивный (desktop → tablet → mobile → small mobile)
-  - Мобильное бургер-меню
-  - **Полностью автономный** — без Ant Design, PocketBase, Monaco (16.2 KB JS gzip)
-
-### Файлы
-- `ege-tasks/landing.html` — HTML entry point с meta/OG-тегами, шрифт Inter
-- `ege-tasks/src/landing/main.jsx` — React bootstrap
-- `ege-tasks/src/landing/LandingPage.jsx` — корневой компонент (навбар, scroll-reveal)
-- `ege-tasks/src/landing/LandingPage.css` — CSS дизайн-система (переменные, 10 анимаций, 4 брейкпоинта)
-- `ege-tasks/src/landing/components/` — 8 подкомпонентов секций
-- `ege-tasks/vite.config.js` — добавлен `landing` в `rollupOptions.input`
-
 ## [3.6.5] - 2026-02-24
 
 ### Добавлено
