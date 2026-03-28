@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal, Card, Button, Spin, Empty, Form, Select, Row, Col, Input, Space } from 'antd';
+import { Modal, Card, Button, Spin, Empty, Form, Select, Row, Col, Input, Space, Tag } from 'antd';
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { api } from '../services/pocketbase';
@@ -206,6 +206,11 @@ const TaskSelectModal = ({
                     {task.code || 'Без кода'}
                   </div>
                   <MathRenderer text={task.statement_md} />
+                  {task.answer && (
+                    <div style={{ marginTop: 6 }}>
+                      <Tag color="green">Ответ: {task.answer}</Tag>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Button type="primary" onClick={() => onSelect(task)}>

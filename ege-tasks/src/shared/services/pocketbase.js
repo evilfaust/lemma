@@ -1820,6 +1820,47 @@ export const api = {
       throw error;
     }
   },
+
+  // --- qr_worksheets ---
+
+  async getQrWorksheets() {
+    try {
+      return await pb.collection('qr_worksheets').getFullList({
+        sort: '-created',
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching qr_worksheets:', error);
+      return [];
+    }
+  },
+
+  async createQrWorksheet(data) {
+    try {
+      return await pb.collection('qr_worksheets').create(data);
+    } catch (error) {
+      console.error('Error creating qr_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async updateQrWorksheet(id, data) {
+    try {
+      return await pb.collection('qr_worksheets').update(id, data);
+    } catch (error) {
+      console.error('Error updating qr_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async deleteQrWorksheet(id) {
+    try {
+      return await pb.collection('qr_worksheets').delete(id);
+    } catch (error) {
+      console.error('Error deleting qr_worksheet:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;

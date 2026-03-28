@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CustomerServiceOutlined, FormOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CustomerServiceOutlined, FormOutlined, QrcodeOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -24,6 +24,7 @@ import TDFManager from './components/tdf/TDFManager';
 import TDFEditor from './components/tdf/TDFEditor';
 import TDFVariantBuilder from './components/tdf/TDFVariantBuilder';
 import EnglishTTS from './components/EnglishTTS';
+import QRWorksheetGenerator from './components/QRWorksheetGenerator';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -98,6 +99,11 @@ function AppContent() {
       key: 'test-generator',
       icon: <SnippetsOutlined />,
       label: 'Контрольные работы',
+    },
+    {
+      key: 'qr-worksheet',
+      icon: <QrcodeOutlined />,
+      label: 'QR-листы',
     },
     {
       key: 'work-manager',
@@ -214,6 +220,8 @@ function AppContent() {
         return <EgeVariantGenerator />;
       case 'test-generator':
         return <TestWorkGenerator />;
+      case 'qr-worksheet':
+        return <QRWorksheetGenerator />;
       case 'work-manager':
         return (
           <WorkManager
@@ -327,6 +335,7 @@ function AppContent() {
       case 'generator': return 'Генератор';
       case 'ege-variant': return 'Варианты ЕГЭ (базовый уровень)';
       case 'test-generator': return 'Контрольные работы';
+      case 'qr-worksheet': return 'QR-листы';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
       case 'students': return 'Прогресс учеников';
