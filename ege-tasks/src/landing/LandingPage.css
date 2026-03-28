@@ -665,6 +665,56 @@ body {
   color: var(--landing-primary);
 }
 
+/* Wide analytics card */
+.landing-feature-card--analytics-wide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+  background: linear-gradient(135deg, rgba(67, 97, 238, 0.08) 0%, rgba(76, 201, 240, 0.06) 100%);
+  border: 1px solid rgba(67, 97, 238, 0.2);
+}
+
+.landing-feature-card--analytics-wide:hover {
+  transform: translateY(-4px);
+}
+
+.landing-analytics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.landing-analytics-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(67, 97, 238, 0.1);
+}
+
+.landing-analytics-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.landing-analytics-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--landing-text-primary);
+  margin-bottom: 4px;
+}
+
+.landing-analytics-desc {
+  font-size: 12px;
+  color: var(--landing-text-secondary);
+  line-height: 1.4;
+}
+
 /* Wide achievement card */
 .landing-feature-card--wide {
   grid-column: 1 / -1;
@@ -1288,7 +1338,8 @@ body {
     grid-template-columns: 1fr 1fr;
   }
 
-  .landing-feature-card--wide {
+  .landing-feature-card--wide,
+  .landing-feature-card--analytics-wide {
     grid-column: 1 / -1;
   }
 
@@ -1342,9 +1393,17 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .landing-feature-card--wide {
+  .landing-feature-card--wide,
+  .landing-feature-card--analytics-wide {
     grid-template-columns: 1fr;
+  }
+
+  .landing-feature-card--wide {
     text-align: center;
+  }
+
+  .landing-analytics-grid {
+    grid-template-columns: 1fr;
   }
 
   .landing-student-inner {

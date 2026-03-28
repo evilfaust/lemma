@@ -3,12 +3,12 @@ const FEATURES = [
     num: '01',
     numColor: 'cyan',
     cardColor: 'cyan',
-    title: '\u0411\u0430\u0437\u0430 \u0437\u0430\u0434\u0430\u0447',
-    desc: '7000+ \u0437\u0430\u0434\u0430\u0447 \u043F\u043E \u0442\u0435\u043C\u0430\u043C \u0415\u0413\u042D \u0441 LaTeX-\u0444\u043E\u0440\u043C\u0443\u043B\u0430\u043C\u0438, \u0438\u0437\u043E\u0431\u0440\u0430\u0436\u0435\u043D\u0438\u044F\u043C\u0438, \u0442\u0435\u0433\u0430\u043C\u0438 \u0438 \u0441\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u044C\u044E. \u041C\u043E\u0449\u043D\u044B\u0435 \u0444\u0438\u043B\u044C\u0442\u0440\u044B.',
+    title: 'База задач',
+    desc: '7000+ задач по темам ЕГЭ с LaTeX-формулами, изображениями, тегами и сложностью. Мощные фильтры.',
     tags: [
       { label: 'LaTeX', color: 'cyan' },
-      { label: '\u0424\u0438\u043B\u044C\u0442\u0440\u044B', color: 'cyan' },
-      { label: '3 \u0441\u043B\u043E\u0436\u043D\u043E\u0441\u0442\u0438', color: '' },
+      { label: 'Фильтры', color: 'cyan' },
+      { label: '3 сложности', color: '' },
     ],
   },
   {
@@ -47,6 +47,37 @@ const FEATURES = [
       { label: 'Картинки', color: '' },
     ],
   },
+  {
+    num: '05',
+    numColor: 'pink',
+    cardColor: 'pink',
+    title: 'Геометрия',
+    desc: 'Отдельный модуль для задач с чертежами. GeoGebra-редактор прямо в браузере, A5-листы для печати, сохранение наборов задач.',
+    tags: [
+      { label: 'GeoGebra', color: 'pink' },
+      { label: 'A5-печать', color: 'pink' },
+      { label: 'Чертежи', color: '' },
+    ],
+  },
+  {
+    num: '06',
+    numColor: 'purple',
+    cardColor: 'purple',
+    title: 'Теория и ТДФ',
+    desc: 'Библиотека статей с формулами и чертежами. Конспекты теорем, определений и формул (ТДФ) с GeoGebra, плюс бланки для устного опроса.',
+    tags: [
+      { label: 'Конспекты', color: 'purple' },
+      { label: 'Опросники', color: 'purple' },
+      { label: 'GeoGebra', color: '' },
+    ],
+  },
+]
+
+const ANALYTICS_ITEMS = [
+  { icon: '📈', title: 'Динамика результатов', desc: 'График по всем попыткам ученика' },
+  { icon: '⚠️', title: 'Слабые темы', desc: 'Задачи с низким процентом верных ответов' },
+  { icon: '🔥', title: 'Серия успехов', desc: 'Streak при результате ≥70% несколько раз подряд' },
+  { icon: '👥', title: 'Сводка класса', desc: 'Учитель видит всех учеников и их баллы' },
 ]
 
 const ACH_PREVIEW = [
@@ -61,11 +92,11 @@ const FeaturesV2 = () => (
   <section className="v2-features v2-section" id="features">
     <div className="v2-container">
       <div className="v2-section-header v2-reveal">
-        <span className="v2-label">{'\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438'}</span>
+        <span className="v2-label">{'Возможности'}</span>
         <h2 className="v2-heading" style={{ fontSize: 'clamp(32px, 5vw, 56px)' }}>
-          {'\u0412\u0441\u0451 \u0434\u043B\u044F '}<span className="v2-gradient-text">{'\u0415\u0413\u042D'}</span>{' \u0432 \u043E\u0434\u043D\u043E\u043C \u043C\u0435\u0441\u0442\u0435'}
+          {'Всё для '}<span className="v2-gradient-text">{'ЕГЭ'}</span>{' в одном месте'}
         </h2>
-        <p>{'\u041F\u043E\u043B\u043D\u044B\u0439 \u043D\u0430\u0431\u043E\u0440 \u0438\u043D\u0441\u0442\u0440\u0443\u043C\u0435\u043D\u0442\u043E\u0432 \u0443\u0447\u0438\u0442\u0435\u043B\u044F \u043C\u0430\u0442\u0435\u043C\u0430\u0442\u0438\u043A\u0438'}</p>
+        <p>{'Полный набор инструментов учителя математики'}</p>
       </div>
 
       <div className="v2-bento v2-reveal">
@@ -85,14 +116,35 @@ const FeaturesV2 = () => (
         ))}
       </div>
 
-      {/* Wide achievement card */}
+      {/* Analytics + Achievements row */}
       <div className="v2-bento v2-reveal" style={{ marginTop: 16 }}>
+        {/* Analytics card */}
+        <div className="v2-bento-card v2-bento-card--analytics">
+          <div className="v2-bento-num v2-bento-num--orange">07</div>
+          <h3 className="v2-bento-title">{'Аналитика и прогресс'}</h3>
+          <p className="v2-bento-desc">
+            {'Учитель видит полную картину класса. Ученик отслеживает прогресс и серию успехов.'}
+          </p>
+          <div className="v2-analytics-grid">
+            {ANALYTICS_ITEMS.map((item, i) => (
+              <div key={i} className="v2-analytics-item">
+                <span className="v2-analytics-icon">{item.icon}</span>
+                <div>
+                  <div className="v2-analytics-title">{item.title}</div>
+                  <div className="v2-analytics-desc">{item.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Wide achievement card */}
         <div className="v2-bento-card v2-bento-card--wide v2-bento-card--achievements">
           <div>
-            <div className="v2-bento-num v2-bento-num--orange">05</div>
+            <div className="v2-bento-num v2-bento-num--orange">08</div>
             <h3 className="v2-bento-title">{'Достижения'}</h3>
             <p className="v2-bento-desc">
-              {'72+ \u0434\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F \u0442\u0440\u0451\u0445 \u0443\u0440\u043E\u0432\u043D\u0435\u0439 \u0440\u0435\u0434\u043A\u043E\u0441\u0442\u0438. \u0423\u0447\u0435\u043D\u0438\u043A\u0438 \u0441\u043E\u0431\u0438\u0440\u0430\u044E\u0442 \u043A\u043E\u043B\u043B\u0435\u043A\u0446\u0438\u044E \u0438 \u0432\u043E\u0437\u0432\u0440\u0430\u0449\u0430\u044E\u0442\u0441\u044F \u043A \u0442\u0440\u0435\u043D\u0438\u0440\u043E\u0432\u043A\u0430\u043C \u0447\u0430\u0449\u0435.'}
+              {'72+ достижения трёх уровней редкости. Ученики собирают коллекцию и возвращаются к тренировкам чаще.'}
             </p>
           </div>
           <div>
@@ -107,15 +159,15 @@ const FeaturesV2 = () => (
             <div className="v2-bento-rarity-legend">
               <span className="v2-bento-rarity-item">
                 <span className="v2-bento-rarity-dot v2-bento-rarity-dot--common" />
-                {'\u041E\u0431\u044B\u0447\u043D\u044B\u0435'}
+                {'Обычные'}
               </span>
               <span className="v2-bento-rarity-item">
                 <span className="v2-bento-rarity-dot v2-bento-rarity-dot--rare" />
-                {'\u0420\u0435\u0434\u043A\u0438\u0435'}
+                {'Редкие'}
               </span>
               <span className="v2-bento-rarity-item">
                 <span className="v2-bento-rarity-dot v2-bento-rarity-dot--legendary" />
-                {'\u041B\u0435\u0433\u0435\u043D\u0434\u0430\u0440\u043D\u044B\u0435'}
+                {'Легендарные'}
               </span>
             </div>
           </div>

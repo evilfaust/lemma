@@ -3,30 +3,51 @@ const FEATURES = [
     icon: '\uD83C\uDFAF',
     iconClass: 'landing-feature-icon--blue',
     title: 'База задач',
-    desc: '7000+ задач по темам ЕГЭ с LaTeX-формулами, изображениями, сложностью и тегами. Мощные фильтры и поиск.',
-    tags: ['LaTeX', 'Фильтры', '3 сложности'],
+    desc: '7000+ задач по темам ЕГЭ с LaTeX-формулами, изображениями, тегами и тремя уровнями сложности. Быстрый импорт с sdamgia.ru.',
+    tags: ['LaTeX', 'Фильтры', 'Импорт sdamgia'],
   },
   {
     icon: '\uD83D\uDCDD',
     iconClass: 'landing-feature-icon--pink',
-    title: 'Генератор работ',
-    desc: 'Устный счёт, контрольные работы, карточки, полные варианты ЕГЭ в формате КИМ. Несколько вариантов за секунды. Экспорт в PDF.',
-    tags: ['PDF', 'КИМ ЕГЭ', 'Drag & Drop'],
+    title: 'Генераторы работ',
+    desc: 'Устный счёт, карточки А5/А4/А6, контрольные по нескольким темам и полные варианты ЕГЭ в официальном стиле КИМ (21 задание). PDF-экспорт.',
+    tags: ['КИМ ЕГЭ', 'PDF', 'Drag & Drop'],
   },
   {
-    icon: '\uD83D\uDCCA',
+    icon: '\uD83D\uDCBB',
     iconClass: 'landing-feature-icon--teal',
-    title: 'Тестирование',
-    desc: 'Ученики заходят по ссылке или QR-коду, входят в аккаунт и решают тест. Автоматическая проверка и результаты в реальном времени.',
-    tags: ['Ссылка + QR', 'Авто-проверка', 'Онлайн'],
+    title: 'Онлайн-тестирование',
+    desc: 'Ученики заходят по ссылке или QR-коду, входят в аккаунт и решают тест. Автоматическая проверка ответов, результаты в реальном времени.',
+    tags: ['QR-код', 'Авто-проверка', 'Онлайн'],
   },
   {
     icon: '\uD83D\uDD23',
-    iconClass: 'landing-feature-icon--pink',
+    iconClass: 'landing-feature-icon--blue',
     title: 'QR-листы',
-    desc: 'Ученик решает задачи, закрашивает числа-ответы в таблице — и из них складывается QR-код. Интерактивный и запоминающийся формат урока.',
+    desc: 'Ученик решает задачи, закрашивает числа-ответы в таблице — из них складывается QR-код. Нестандартный и запоминающийся формат урока.',
     tags: ['Печать A4', 'Сохранение', 'Картинки'],
   },
+  {
+    icon: '\uD83D\uDCD0',
+    iconClass: 'landing-feature-icon--pink',
+    title: 'Геометрия',
+    desc: 'Отдельный модуль для задач с чертежами. GeoGebra-редактор прямо в браузере, A5-листы для печати, сохранение наборов задач.',
+    tags: ['GeoGebra', 'A5-печать', 'Чертежи'],
+  },
+  {
+    icon: '\uD83D\uDCDA',
+    iconClass: 'landing-feature-icon--teal',
+    title: 'Теория и ТДФ',
+    desc: 'Библиотека статей с формулами и чертежами. Конспекты теорем, определений и формул (ТДФ) с GeoGebra, плюс бланки для устного опроса.',
+    tags: ['Конспекты', 'Опросники', 'GeoGebra'],
+  },
+]
+
+const ANALYTICS_ITEMS = [
+  { icon: '\uD83D\uDCC8', title: 'Динамика результатов', desc: 'График по всем попыткам ученика' },
+  { icon: '\u26A0\uFE0F', title: 'Слабые темы', desc: 'Задачи с низким процентом верных ответов' },
+  { icon: '\uD83D\uDD25', title: 'Серия успехов', desc: 'Streak при результате ≥70% несколько раз подряд' },
+  { icon: '\uD83D\uDC65', title: 'Сводка класса', desc: 'Учитель видит всех учеников и их баллы' },
 ]
 
 const ACHIEVEMENTS_PREVIEW = [
@@ -45,10 +66,11 @@ const FeaturesShowcase = () => (
           Всё для работы <span className="landing-gradient-text">учителя математики</span>
         </h2>
         <p className="landing-section-subtitle">
-          Полный набор инструментов учителя математики — от базы задач до аналитики
+          Полный набор инструментов — от базы задач до аналитики успеваемости
         </p>
       </div>
 
+      {/* Main feature cards — 2 rows × 3 */}
       <div className="landing-features-grid landing-animate">
         {FEATURES.map((f, i) => (
           <div key={i} className="landing-feature-card landing-stagger">
@@ -66,7 +88,40 @@ const FeaturesShowcase = () => (
         ))}
       </div>
 
-      {/* Wide achievement card */}
+      {/* Analytics wide card */}
+      <div className="landing-features-grid landing-animate">
+        <div className="landing-feature-card landing-feature-card--analytics-wide">
+          <div>
+            <div className="landing-feature-icon landing-feature-icon--gold">
+              {'\uD83D\uDCCA'}
+            </div>
+            <h3 className="landing-feature-title">Аналитика и прогресс</h3>
+            <p className="landing-feature-desc">
+              Учитель видит полную картину класса: успеваемость каждого ученика, динамику
+              результатов и проблемные темы. Ученик отслеживает свой прогресс, серию
+              успехов и историю всех попыток.
+            </p>
+            <div className="landing-feature-tags">
+              {['Прогресс учеников', 'Слабые места', 'Серия успехов 🔥', 'История попыток'].map((t, i) => (
+                <span key={i} className="landing-feature-tag">{t}</span>
+              ))}
+            </div>
+          </div>
+          <div className="landing-analytics-grid">
+            {ANALYTICS_ITEMS.map((item, i) => (
+              <div key={i} className="landing-analytics-item">
+                <span className="landing-analytics-icon">{item.icon}</span>
+                <div>
+                  <div className="landing-analytics-title">{item.title}</div>
+                  <div className="landing-analytics-desc">{item.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Achievements wide card */}
       <div className="landing-features-grid landing-animate">
         <div className="landing-feature-card landing-feature-card--wide">
           <div>
