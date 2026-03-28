@@ -22,7 +22,7 @@ jobs:
         run: cd ege-tasks && npm ci
 
       - name: Build landing page
-        run: cd ege-tasks && npx vite build --config vite.config.js
+        run: cd ege-tasks && npx vite build --config vite.config.landing.js
 
       - name: Deploy landing to nginx root
         run: |
