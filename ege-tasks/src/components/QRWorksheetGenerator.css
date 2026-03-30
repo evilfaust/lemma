@@ -24,9 +24,10 @@
 
 /* ── Печатные стили ── */
 @media print {
-  /* visibility позволяет дочернему элементу переопределить hidden у родителя,
-     в отличие от display:none, которое блокирует всё поддерево */
-  body { visibility: hidden; }
+  /* Скрываем body только когда .qr-print-root реально есть в DOM.
+     body:has() — scoped selector, не ломает печать других страниц
+     (по аналогии с GeometryWorksheetPrint.css и GeometryTaskPreview.css). */
+  body:has(.qr-print-root) { visibility: hidden; }
   .qr-print-root { visibility: visible; position: fixed; top: 0; left: 0; width: 100%; }
   .qr-print-root * { visibility: visible; }
 

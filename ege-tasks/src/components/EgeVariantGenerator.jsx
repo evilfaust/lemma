@@ -1,7 +1,9 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
+import dayjs from 'dayjs';
 import {
   Card, Button, Space, Alert, Spin, Row, Col, Statistic,
   Table, Select, Tag, Tooltip, Typography, App, InputNumber, Switch, Progress,
+  DatePicker, Input,
 } from 'antd';
 import {
   ThunderboltOutlined,
@@ -94,13 +96,13 @@ const paginateKimByHeight = (tasks, heights) => {
   return pages;
 };
 
-const KimCoverPage = ({ variant }) => (
+const KimCoverPage = ({ variant, kimMeta }) => (
   <div className="kim-page kim-page-cover">
     <div className="kim-cover-body">
       <div className="kim-cover-title">Тренировочная работа по МАТЕМАТИКЕ</div>
-      <div className="kim-cover-class">11 класс</div>
-      <div className="kim-cover-date">{new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }).replace(' г.', ' года')}</div>
-      <div className="kim-cover-variant">Вариант {variant.number}</div>
+      <div className="kim-cover-class">{kimMeta.classNum} класс</div>
+      <div className="kim-cover-date">{kimMeta.displayDate}</div>
+      <div className="kim-cover-variant">Вариант {kimMeta.variantNumberOverride || variant.number}</div>
       <div className="kim-cover-level">(базовый уровень)</div>
 
       <div className="kim-cover-student-row">
@@ -121,14 +123,14 @@ const KimCoverPage = ({ variant }) => (
 
       <div className="kim-cover-wish">Желаем успеха!</div>
     </div>
-    <div className="kim-page-footer">{APP_BRAND}</div>
+    <div className="kim-page-footer">{kimMeta.brand}</div>
   </div>
 );
 
-const KimTaskPage = ({ variant, pageNumber, tasks }) => (
+const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta }) => (
   <div className="kim-page kim-page-task">
     <div className="kim-page-header">
-      <span>Математика. 11 класс. Вариант {variant.number}</span>
+      <span>Математика. {kimMeta.classNum} класс. Вариант {kimMeta.variantNumberOverride || variant.number}</span>
       <span>{pageNumber}</span>
     </div>
 
@@ -166,7 +168,7 @@ const KimTaskPage = ({ variant, pageNumber, tasks }) => (
       })}
     </div>
 
-    <div className="kim-page-footer">{APP_BRAND}</div>
+    <div className="kim-page-footer">{kimMeta.brand}</div>
   </div>
 );
 
@@ -182,7 +184,7 @@ const KimTaskPage = ({ variant, pageNumber, tasks }) => (
  * Для печати: браузер сам разбивает по @page { size: A5; }.
  * Чтобы получить два листа на одном A4 — выбрать "2 страницы на листе" в диалоге печати.
  */
-const KimVariantPrint = ({ variant }) => {
+const KimVariantPrint = ({ variant, kimMeta }) => {
   const tasks = variant.tasks || [];
   const [state, setState] = useState({ taskKey: null, pages: null });
   const taskRefs = useRef([]);
@@ -247,13 +249,14 @@ const KimVariantPrint = ({ variant }) => {
 
   return (
     <div className="kim-booklet">
-      <KimCoverPage variant={variant} />
+      <KimCoverPage variant={variant} kimMeta={kimMeta} />
       {taskPages.map((pageTasks, index) => (
         <KimTaskPage
           key={index}
           variant={variant}
           pageNumber={index + 2}
           tasks={pageTasks}
+          kimMeta={kimMeta}
         />
       ))}
     </div>
@@ -282,6 +285,22 @@ const EgeVariantGenerator = () => {
   const [showSolutionSpace, setShowSolutionSpace] = useState(true);
   const [compactMode] = useState(false);
   const [kimStyle, setKimStyle] = useState(false);
+  const [kimVariantNumber, setKimVariantNumber] = useState('');
+  const [kimClass, setKimClass] = useState('11');
+  const [kimDate, setKimDate] = useState(null); // null = сегодня, dayjs-объект когда задана
+  const [kimShowYear, setKimShowYear] = useState(true);
+
+  // Вычисляемые значения для КИМ-печати
+  const kimDisplayDate = (kimDate ? kimDate.toDate() : new Date())
+    .toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
+    .replace(' г.', ' года');
+  const kimBrand = kimShowYear ? APP_BRAND : '© Лемма';
+  const kimMeta = {
+    variantNumberOverride: kimVariantNumber.trim(),
+    classNum: kimClass || '11',
+    displayDate: kimDisplayDate,
+    brand: kimBrand,
+  };
 
   // Модальные окна
   const [saveModalVisible, setSaveModalVisible] = useState(false);
@@ -741,6 +760,73 @@ const EgeVariantGenerator = () => {
                 </Space>
               </Col>
             </Row>
+
+            {/* Настройки КИМ — дополнительная строка */}
+            {kimStyle && (
+              <Row
+                gutter={16}
+                align="middle"
+                wrap
+                style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e8e8e8' }}
+              >
+                <Col>
+                  <Space size={6}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Вариант №</Text>
+                    <Input
+                      value={kimVariantNumber}
+                      onChange={e => setKimVariantNumber(e.target.value)}
+                      placeholder="авто"
+                      size="small"
+                      style={{ width: 72 }}
+                      maxLength={8}
+                    />
+                  </Space>
+                </Col>
+                <Col>
+                  <Space size={6}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Класс</Text>
+                    <Input
+                      value={kimClass}
+                      onChange={e => setKimClass(e.target.value)}
+                      size="small"
+                      style={{ width: 56 }}
+                      maxLength={4}
+                    />
+                  </Space>
+                </Col>
+                <Col>
+                  <Space size={6}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Дата</Text>
+                    <DatePicker
+                      value={kimDate}
+                      onChange={setKimDate}
+                      format="DD.MM.YYYY"
+                      placeholder="сегодня"
+                      size="small"
+                      allowClear
+                      style={{ width: 130 }}
+                    />
+                  </Space>
+                </Col>
+                <Col>
+                  <Space size={6}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>Год в подписи</Text>
+                    <Switch
+                      checked={kimShowYear}
+                      onChange={setKimShowYear}
+                      size="small"
+                    />
+                  </Space>
+                </Col>
+                {(kimVariantNumber || kimClass !== '11' || kimDate) && (
+                  <Col>
+                    <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
+                      → {kimDisplayDate} · {kimClass} кл. · Вар.&nbsp;{kimVariantNumber || '(авто)'}
+                    </Text>
+                  </Col>
+                )}
+              </Row>
+            )}
           </>
         )}
       </Card>
@@ -868,7 +954,7 @@ const EgeVariantGenerator = () => {
                     </div>
                     {/* Печатный КИМ-вид */}
                     <div className="print-only">
-                      <KimVariantPrint variant={variant} variantIndex={vi} />
+                      <KimVariantPrint variant={variant} kimMeta={kimMeta} />
                     </div>
                   </>
                 )}

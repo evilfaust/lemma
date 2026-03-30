@@ -1,20 +1,24 @@
 import MathRenderer from '../MathRenderer';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/pocketbase';
+import { buildZoneCache, getCellZone } from '../../utils/qrZones';
 
 /**
  * Печатная разметка А4.
- * Содержит: заголовок, условия задач, QR-сетку (для ученика).
- * В режиме teacher добавляется подложка-ответ рядом.
  *
  * Props:
- *   title         — string
- *   tasks[]       — задачи
- *   grid          — Cell[][] | null
- *   qrUrl         — string (для отображения QR рядом как подсказка учителю)
+ *   title           — string
+ *   tasks[]         — задачи
+ *   grid            — Cell[][] | null
+ *   qrUrl           — string
  *   getAnswerForTask(task) → string
- *   showTeacherKey — boolean (добавить страницу-ключ для учителя)
- *   className      — string (обязательно qr-print-root для print-скрытия остальных элементов)
+ *   showTeacherKey  — boolean
+ *   twoColumns      — boolean
+ *   matrix          — boolean[][] | null  (оригинальная QR-матрица)
+ *   preFillFinder   — boolean
+ *   preFillTiming   — boolean
+ *   preFillFormat   — boolean
+ *   className       — string
  */
 export default function QRPrintLayout({
   title,
@@ -24,15 +28,23 @@ export default function QRPrintLayout({
   getAnswerForTask,
   showTeacherKey = false,
   twoColumns = false,
+  matrix = null,
+  preFillFinder = false,
+  preFillTiming = false,
+  preFillFormat = false,
   className = 'qr-print-root',
 }) {
   if (!grid) return null;
 
   const size = grid.length;
+  const anyPreFill = preFillFinder || preFillTiming || preFillFormat;
 
-  // Размер ячейки в мм: под А4 170мм ширина рабочей области
-  // Для размеров 21-29 выбираем 6-8 мм
+  // Кеш зон (строится синхронно, только если нужен)
+  const zoneCache = anyPreFill ? buildZoneCache(size) : null;
+
+  // Размер ячейки в мм
   const cellMm = Math.max(5, Math.min(8, Math.floor(170 / size)));
+  const fontSize = `${Math.max(5, cellMm - 3)}pt`;
 
   const renderGrid = (highlightAnswers) => (
     <table
@@ -47,6 +59,29 @@ export default function QRPrintLayout({
         {grid.map((row, ri) => (
           <tr key={ri}>
             {row.map((cell, ci) => {
+              // Проверяем зону
+              const zone = zoneCache ? getCellZone(ri, ci, size, zoneCache) : null;
+              const isPreFilled =
+                (zone === 'finder' && preFillFinder) ||
+                (zone === 'timing' && preFillTiming) ||
+                (zone === 'format' && preFillFormat);
+
+              if (isPreFilled) {
+                const isBlack = matrix?.[ri]?.[ci] ?? false;
+                return (
+                  <td
+                    key={ci}
+                    style={{
+                      width: `${cellMm}mm`,
+                      height: `${cellMm}mm`,
+                      border: '0.4pt solid #999',
+                      padding: 0,
+                      background: isBlack ? '#1a1a1a' : '#e8e8e8',
+                    }}
+                  />
+                );
+              }
+
               const filled = highlightAnswers && cell.isAnswer;
               return (
                 <td
@@ -57,11 +92,11 @@ export default function QRPrintLayout({
                     border: '0.4pt solid #666',
                     textAlign: 'center',
                     verticalAlign: 'middle',
-                    fontSize: `${Math.max(5, cellMm - 3)}pt`,
+                    fontSize,
                     fontFamily: 'Arial, sans-serif',
                     fontWeight: 500,
                     background: filled ? '#000' : '#fff',
-                    color: filled ? '#000' : '#222', // в чёрных клетках текст не виден
+                    color: filled ? '#000' : '#222',
                     padding: 0,
                     lineHeight: 1,
                   }}
@@ -75,6 +110,11 @@ export default function QRPrintLayout({
       </tbody>
     </table>
   );
+
+  // Инструкция с учётом предзакрашенных зон
+  const instructionExtra = anyPreFill
+    ? ' Затемнённые клетки уже заполнены — это стандартные метки QR-кода.'
+    : '';
 
   return (
     <div className={className}>
@@ -109,6 +149,7 @@ export default function QRPrintLayout({
         }}>
           <b>Задание:</b> Реши задачи ниже. Найди в таблице все клетки с числами-ответами и закрась их.
           Если всё сделано верно — из закрашенных клеток получится QR-код. Отсканируй его!
+          {instructionExtra}
         </div>
 
         {/* Задачи */}
@@ -122,7 +163,6 @@ export default function QRPrintLayout({
         }}>
           {tasks.map((task, idx) => {
             const imageUrl = task.has_image ? api.getTaskImageUrl(task) : '';
-            // В двух колонках картинка занимает меньше — колонка ~90мм
             const imgMaxWidth = twoColumns ? '42%' : '38%';
             const imgMaxHeight = twoColumns ? '40mm' : '55mm';
             return (
@@ -194,7 +234,7 @@ export default function QRPrintLayout({
         </div>
       </div>
 
-      {/* ── СТРАНИЦА-КЛЮЧ ДЛЯ УЧИТЕЛЯ (если нужна) ── */}
+      {/* ── СТРАНИЦА-КЛЮЧ ДЛЯ УЧИТЕЛЯ ── */}
       {showTeacherKey && (
         <div className="qr-teacher-page" style={{ pageBreakBefore: 'always' }}>
           <div style={{
@@ -211,7 +251,6 @@ export default function QRPrintLayout({
           </div>
 
           <div style={{ display: 'flex', gap: 32, alignItems: 'flex-start', marginBottom: 16 }}>
-            {/* Ответы */}
             <div>
               <div style={{ fontWeight: 600, fontFamily: 'Arial, sans-serif', fontSize: 11, marginBottom: 8 }}>
                 Ответы:
@@ -223,7 +262,6 @@ export default function QRPrintLayout({
               ))}
             </div>
 
-            {/* QR-код */}
             {qrUrl && (
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontWeight: 600, fontFamily: 'Arial, sans-serif', fontSize: 11, marginBottom: 6 }}>
@@ -237,7 +275,6 @@ export default function QRPrintLayout({
             )}
           </div>
 
-          {/* Сетка с подсветкой */}
           <div style={{ pageBreakInside: 'avoid' }}>
             <div style={{
               textAlign: 'center',

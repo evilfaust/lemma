@@ -26,6 +26,9 @@ const QRWorksheetGenerator = () => {
   const printContainerRef = useRef(null);
   const [showTeacherKey, setShowTeacherKey] = useState(true);
   const [twoColumns, setTwoColumns] = useState(false);
+  const [preFillFinder, setPreFillFinder] = useState(false);
+  const [preFillTiming, setPreFillTiming] = useState(false);
+  const [preFillFormat, setPreFillFormat] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
@@ -372,6 +375,41 @@ const QRWorksheetGenerator = () => {
                 </div>
               )}
 
+              {/* Предзакрашенные служебные зоны */}
+              <Divider style={{ margin: '6px 0' }} />
+              <div style={{ marginBottom: 4 }}>
+                <Text style={{ fontSize: 12, fontWeight: 600 }}>
+                  Предзакрашенные зоны{' '}
+                  <Tooltip title="Служебные зоны QR-кода заранее напечатаны закрашенными. Ученик не тратит время на их заполнение. Это также снижает вероятность угадывания ответов по расположению.">
+                    <InfoCircleOutlined style={{ color: '#1890ff' }} />
+                  </Tooltip>
+                </Text>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 12 }}>Поисковые квадраты (углы)</Text>
+                <Switch
+                  checked={preFillFinder}
+                  onChange={setPreFillFinder}
+                  size="small"
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 12 }}>Тайминговые полосы</Text>
+                <Switch
+                  checked={preFillTiming}
+                  onChange={setPreFillTiming}
+                  size="small"
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 12 }}>Маска формата</Text>
+                <Switch
+                  checked={preFillFormat}
+                  onChange={setPreFillFormat}
+                  size="small"
+                />
+              </div>
+
               <Row gutter={8}>
                 <Col span={12}>
                   <Button
@@ -421,7 +459,15 @@ const QRWorksheetGenerator = () => {
             }
             size="small"
           >
-            <QRGridPreview grid={grid} mode={mode} loading={generating} />
+            <QRGridPreview
+              grid={grid}
+              mode={mode}
+              loading={generating}
+              matrix={matrix}
+              preFillFinder={preFillFinder}
+              preFillTiming={preFillTiming}
+              preFillFormat={preFillFormat}
+            />
 
             {error && (
               <Alert message={error} type="error" showIcon style={{ marginTop: 12 }} />
@@ -505,6 +551,10 @@ const QRWorksheetGenerator = () => {
           getAnswerForTask={getAnswerForTask}
           showTeacherKey={showTeacherKey}
           twoColumns={twoColumns}
+          matrix={matrix}
+          preFillFinder={preFillFinder}
+          preFillTiming={preFillTiming}
+          preFillFormat={preFillFormat}
         />
       )}
     </div>

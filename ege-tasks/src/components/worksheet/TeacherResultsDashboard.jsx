@@ -496,7 +496,7 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       }
       if (Array.isArray(order) && order.length > 0) {
         order.forEach(({ taskId, position }) => {
-          if (taskId) taskPositionMap[taskId] = position;
+          if (taskId) taskPositionMap[taskId] = position + 1; // position хранится 0-based
         });
       } else if (Array.isArray(variant.tasks) && variant.tasks.length > 0) {
         // Fallback: порядок из массива tasks
