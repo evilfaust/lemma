@@ -486,17 +486,41 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       return <Text type="secondary">Нет ответов</Text>;
     }
 
+    // Строим карту taskId → порядковый номер из варианта
+    const variant = record.expand?.variant;
+    const taskPositionMap = {};
+    if (variant) {
+      let order = variant.order;
+      if (typeof order === 'string') {
+        try { order = JSON.parse(order); } catch { order = null; }
+      }
+      if (Array.isArray(order) && order.length > 0) {
+        order.forEach(({ taskId, position }) => {
+          if (taskId) taskPositionMap[taskId] = position;
+        });
+      } else if (Array.isArray(variant.tasks) && variant.tasks.length > 0) {
+        // Fallback: порядок из массива tasks
+        variant.tasks.forEach((id, idx) => {
+          taskPositionMap[id] = idx + 1;
+        });
+      }
+    }
+
     const answerColumns = [
       {
         title: 'Задача',
         key: 'task',
-        width: 180,
+        width: 200,
         render: (_, a) => {
           const task = a.expand?.task;
           const hasContent = Boolean(task?.statement_md || task?.image || task?.image_url);
+          const pos = task ? taskPositionMap[task.id] : undefined;
 
           return (
             <Space size={6}>
+              {pos != null && (
+                <Tag style={{ minWidth: 28, textAlign: 'center', fontWeight: 600 }}>{pos}</Tag>
+              )}
               <Text>{task?.code || '—'}</Text>
               {hasContent && (
                 <Popover

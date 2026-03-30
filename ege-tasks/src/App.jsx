@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CustomerServiceOutlined, FormOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -23,7 +23,6 @@ import GeometryTopicManager from './components/geometry/GeometryTopicManager';
 import TDFManager from './components/tdf/TDFManager';
 import TDFEditor from './components/tdf/TDFEditor';
 import TDFVariantBuilder from './components/tdf/TDFVariantBuilder';
-import EnglishTTS from './components/EnglishTTS';
 import QRWorksheetGenerator from './components/QRWorksheetGenerator';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
@@ -149,11 +148,6 @@ function AppContent() {
         { key: 'theory-print', icon: <SnippetsOutlined />, label: 'Конспекты' },
         { key: 'theory-categories', icon: <FolderOutlined />, label: 'Категории' },
       ],
-    },
-    {
-      key: 'english',
-      icon: <CustomerServiceOutlined />,
-      label: 'Английский',
     },
   ];
 
@@ -320,8 +314,6 @@ function AppContent() {
         );
       case 'theory-categories':
         return <TheoryCategoryManager />;
-      case 'english':
-        return <EnglishTTS />;
       default:
         return null;
     }
@@ -352,7 +344,6 @@ function AppContent() {
       case 'theory-view': return 'Теория — Просмотр';
       case 'theory-print': return 'Теория — Конспекты';
       case 'theory-categories': return 'Теория — Категории';
-      case 'english': return 'Английский — Аудирование';
       default: return '';
     }
   };

@@ -3,7 +3,8 @@ import {
   Modal, Form, Input, Select, Switch, Tabs, Button, Space, Upload, message,
   Divider, Typography,
 } from 'antd';
-import { UploadOutlined, DeleteOutlined, CameraOutlined } from '@ant-design/icons';
+import { UploadOutlined, DeleteOutlined, CameraOutlined, ScissorOutlined } from '@ant-design/icons';
+import CropModal from '../shared/CropModal';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
 import GeoGebraDrawingPanel from '../GeoGebraDrawingPanel';
@@ -29,6 +30,7 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
   const [drawingDataUrl, setDrawingDataUrl] = useState(null); // preview PNG
   const [drawingFile, setDrawingFile] = useState(null); // File to upload
   const [drawingSource, setDrawingSource] = useState('none'); // 'none' | 'upload' | 'geogebra'
+  const [cropModalOpen, setCropModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('fields');
 
   // Preview state for formulation / short_notation
@@ -97,6 +99,13 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
     setDrawingDataUrl(null);
     setDrawingFile(null);
     setDrawingSource('none');
+  };
+
+  const handleCropped = async (croppedDataUrl) => {
+    setDrawingDataUrl(croppedDataUrl);
+    const f = await dataUrlToFile(croppedDataUrl, 'drawing.png');
+    setDrawingFile(f);
+    setCropModalOpen(false);
   };
 
   const handleSave = async () => {
@@ -224,9 +233,14 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
                 style={{ maxWidth: '100%', maxHeight: 200, border: '1px solid #f0f0f0', borderRadius: 4 }}
               />
               <div style={{ marginTop: 8 }}>
-                <Button danger icon={<DeleteOutlined />} onClick={handleRemoveDrawing}>
-                  Удалить чертёж
-                </Button>
+                <Space>
+                  <Button icon={<ScissorOutlined />} onClick={() => setCropModalOpen(true)}>
+                    Кадрировать
+                  </Button>
+                  <Button danger icon={<DeleteOutlined />} onClick={handleRemoveDrawing}>
+                    Удалить чертёж
+                  </Button>
+                </Space>
               </div>
             </div>
           )}
@@ -247,6 +261,16 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
             imageDataUrl={drawingSource === 'geogebra' ? drawingDataUrl : null}
             onImageChange={handleGeoGebraImage}
             height={520}
+          />
+
+          <CropModal
+            open={cropModalOpen}
+            onCancel={() => setCropModalOpen(false)}
+            onCropped={handleCropped}
+            imageUrl={drawingDataUrl}
+            title="Кадрирование чертежа"
+            emptyMessage="Нет изображения для кадрирования"
+            messageApi={message}
           />
         </div>
       ),

@@ -1190,6 +1190,9 @@ export const api = {
         results.push(result);
       } catch (error) {
         console.error('Error creating attempt answer:', error);
+        if (error?.data) {
+          console.error('PocketBase validation errors:', JSON.stringify(error.data));
+        }
         failed.push({ answer, error });
       }
     }
