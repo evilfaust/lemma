@@ -56,10 +56,25 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
       setFormulationPreview(item.formulation_md || '');
       setNotationPreview(item.short_notation_md || '');
 
-      // Drawing
+      // Drawing — конвертируем remote URL в data URL, чтобы canvas не был "tainted" при кадрировании
       if (item.drawing_image) {
-        setDrawingDataUrl(api.getTdfItemDrawingUrl(item));
-        setDrawingSource('upload');
+        const url = api.getTdfItemDrawingUrl(item);
+        fetch(url)
+          .then(r => r.blob())
+          .then(blob => new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(blob);
+          }))
+          .then(dataUrl => {
+            setDrawingDataUrl(dataUrl);
+            setDrawingSource('upload');
+          })
+          .catch(() => {
+            // Fallback: set remote URL (crop won't work but preview will)
+            setDrawingDataUrl(url);
+            setDrawingSource('upload');
+          });
       } else {
         setDrawingDataUrl(null);
         setDrawingSource('none');
