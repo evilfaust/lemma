@@ -31,7 +31,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
 
   const handlePrint = () => {
     const style = document.createElement('style');
-    style.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 10mm 12mm 8mm; }`;
+    style.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 7mm 8mm 6mm; }`;
     document.head.appendChild(style);
     window.print();
     setTimeout(() => document.head.removeChild(style), 1500);
