@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Button, Checkbox, Space, Typography } from 'antd';
+import { Button, Checkbox, Space, Typography, Segmented } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined, FilePdfOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
@@ -23,18 +23,25 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
   const printRef = useRef(null);
   const { exportToPDF, exporting } = usePuppeteerPDF();
   const [hideQuestionColumn, setHideQuestionColumn] = useState(false);
+  const [portrait, setPortrait] = useState(false);
 
   const isBlank = mode === 'blank';
   const today = new Date().toLocaleDateString('ru-RU');
   const showQuestionColumn = !hideQuestionColumn || isBlank;
 
-  const handlePrint = () => window.print();
+  const handlePrint = () => {
+    const style = document.createElement('style');
+    style.textContent = `@page { size: A4 ${portrait ? 'portrait' : 'landscape'}; margin: 10mm 12mm 8mm; }`;
+    document.head.appendChild(style);
+    window.print();
+    setTimeout(() => document.head.removeChild(style), 1500);
+  };
 
   const handleExportPDF = () => {
     const filename = isBlank
       ? `ТДФ_Вариант${variantNumber}_${tdfSet?.title || ''}.pdf`
       : `ТДФ_Конспект_${tdfSet?.title || ''}.pdf`;
-    exportToPDF(printRef, filename, { format: 'A4', landscape: true });
+    exportToPDF(printRef, filename, { format: 'A4', landscape: !portrait });
   };
 
   // Группировка пунктов по разделам (только для эталона)
@@ -125,6 +132,14 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
       <div className="tdf-print-controls no-print">
         <Space>
           <Button icon={<ArrowLeftOutlined />} onClick={onBack}>Назад</Button>
+          <Segmented
+            value={portrait ? 'portrait' : 'landscape'}
+            onChange={(v) => setPortrait(v === 'portrait')}
+            options={[
+              { label: 'Альбомная', value: 'landscape' },
+              { label: 'Книжная', value: 'portrait' },
+            ]}
+          />
           <Button icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>
           <Button icon={<FilePdfOutlined />} onClick={handleExportPDF} loading={exporting}>
             Скачать PDF
@@ -141,7 +156,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
       </div>
 
       {/* Печатаемый контент */}
-      <div ref={printRef} className="tdf-print-page">
+      <div ref={printRef} className={`tdf-print-page${portrait ? ' tdf-print-page--portrait' : ''}`}>
         {/* Шапка */}
         <div className="tdf-header">
           <div className="tdf-header-title">

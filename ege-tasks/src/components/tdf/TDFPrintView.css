@@ -28,6 +28,50 @@
   font-family: 'Times New Roman', serif;
 }
 
+/* Книжная ориентация — компактная версия */
+.tdf-print-page--portrait {
+  width: 210mm;
+  min-height: 297mm;
+  font-size: 9pt;
+}
+
+.tdf-print-page--portrait .tdf-thead-row th.tdf-th {
+  font-size: 8.5pt;
+  padding: 3px 4px;
+}
+
+.tdf-print-page--portrait .tdf-item-row .tdf-cell {
+  padding: 3px 4px;
+}
+
+.tdf-print-page--portrait .tdf-cell-name-formulation,
+.tdf-print-page--portrait .tdf-cell-question,
+.tdf-print-page--portrait .tdf-cell-drawing,
+.tdf-print-page--portrait .tdf-cell-notation {
+  font-size: 9pt;
+}
+
+.tdf-print-page--portrait .tdf-formulation-content {
+  font-size: 9pt;
+}
+
+.tdf-print-page--portrait .tdf-drawing-img {
+  max-height: 65px;
+}
+
+.tdf-print-page--portrait .tdf-type-vertical {
+  font-size: 6.5pt;
+}
+
+.tdf-print-page--portrait .tdf-section-header-row .tdf-section-header-cell {
+  font-size: 9.5pt;
+  padding: 3px 6px;
+}
+
+.tdf-print-page--portrait .tdf-header-title {
+  font-size: 11pt;
+}
+
 /* Шапка */
 .tdf-header {
   margin-bottom: 8px;
@@ -215,10 +259,5 @@
     padding: 0;
     width: 100%;
     box-shadow: none;
-  }
-
-  @page {
-    size: A4 landscape;
-    margin: 10mm 12mm 8mm;
   }
 }
