@@ -42,6 +42,24 @@
   z-index: 10;
 }
 
+/* Кнопка "Назад" с текстом — чуть шире */
+.student-top-bar-back {
+  width: auto !important;
+  padding: 0 12px !important;
+  gap: 6px;
+}
+
+.student-top-bar-back-label {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+}
+
+/* Кнопка "Достижения" — акцентный цвет */
+.student-theme-toggle--trophy {
+  color: #faad14 !important;
+}
+
 /* ---- Dark theme: toggle button ---- */
 .student-theme-dark .student-theme-toggle,
 .student-theme-dark.student-home .student-theme-toggle {
@@ -385,23 +403,9 @@
   color: #f0f0f0 !important;
 }
 
-/* Override Ant Design top-bar buttons in dark mode */
-.student-theme-dark .student-top-bar-btn {
-  background: rgba(255, 255, 255, 0.08) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  color: #e0e0e0 !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-}
-
-.student-theme-dark .student-top-bar-btn:hover {
-  background: rgba(255, 255, 255, 0.14) !important;
-  color: #fff !important;
-}
-
-.student-theme-dark .student-top-bar-btn--primary {
-  background: linear-gradient(135deg, #4361ee, #3a0ca3) !important;
-  border-color: transparent !important;
-  color: #fff !important;
+/* Trophy button in dark mode — keep gold accent */
+.student-theme-dark .student-theme-toggle--trophy {
+  color: #faad14 !important;
 }
 
 /* ---- Animations ---- */

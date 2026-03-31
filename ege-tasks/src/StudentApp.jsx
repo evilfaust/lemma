@@ -196,34 +196,37 @@ function StudentApp() {
             <div className="student-top-bar-left">
               {/* Кнопка "Назад" на экранах галереи и прогресса */}
               {(currentView === 'gallery' || currentView === 'progress') && (
-                <Button
-                  className="student-top-bar-btn"
-                  icon={<ArrowLeftOutlined />}
+                <button
+                  className="student-theme-toggle student-top-bar-back"
                   onClick={() => setViewOverride(null)}
+                  title="Назад"
                 >
-                  Назад
-                </Button>
+                  <ArrowLeftOutlined />
+                  <span className="student-top-bar-back-label">Назад</span>
+                </button>
               )}
             </div>
             <div className="student-top-bar-right">
-              {/* Кнопка "Мой прогресс" — доступна сразу после авторизации */}
+              {/* Кнопка "Мой прогресс" */}
               {currentView !== 'progress' && currentView !== 'gallery' && (
-                <Button
-                  className="student-top-bar-btn"
-                  icon={<BarChartOutlined />}
+                <button
+                  className="student-theme-toggle"
                   onClick={() => setViewOverride('progress')}
                   title="Мой прогресс"
-                />
+                >
+                  <BarChartOutlined />
+                </button>
               )}
 
-              {/* Кнопка "Достижения" доступна после появления попытки */}
+              {/* Кнопка "Достижения" */}
               {canOpenAchievements && currentView !== 'gallery' && currentView !== 'progress' && (
-                <Button
-                  type="primary"
-                  className="student-top-bar-btn student-top-bar-btn--primary"
-                  icon={<TrophyOutlined />}
+                <button
+                  className="student-theme-toggle student-theme-toggle--trophy"
                   onClick={() => setViewOverride('gallery')}
-                />
+                  title="Мои достижения"
+                >
+                  <TrophyOutlined />
+                </button>
               )}
 
               {/* Кнопка переключения темы */}
@@ -236,12 +239,13 @@ function StudentApp() {
               </button>
 
               {/* Кнопка выхода */}
-              <Button
-                className="student-top-bar-btn"
-                icon={<LogoutOutlined />}
+              <button
+                className="student-theme-toggle"
                 onClick={handleLogout}
                 title="Выйти"
-              />
+              >
+                <LogoutOutlined />
+              </button>
             </div>
           </div>
         )}
