@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { ConfigProvider, Button, notification } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined } from '@ant-design/icons';
+import { ConfigProvider, Button, notification, theme } from 'antd';
+import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentEntryPage from './components/student/StudentEntryPage';
@@ -13,7 +13,7 @@ import { useVersionSync } from './shared/version/useVersionSync';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
-function StudentHomeLanding() {
+function StudentHomeLanding({ isDark, onToggleTheme }) {
   const [sessionCode, setSessionCode] = useState('');
 
   const openSession = () => {
@@ -23,7 +23,14 @@ function StudentHomeLanding() {
   };
 
   return (
-    <div className="student-home">
+    <div className={`student-home${isDark ? ' student-theme-dark' : ''}`}>
+      <button
+        className="student-theme-toggle student-theme-toggle--home"
+        onClick={onToggleTheme}
+        title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+      >
+        {isDark ? <SunOutlined /> : <MoonOutlined />}
+      </button>
       <div className="student-home-card">
         <div className="student-home-icon">
           <QrcodeOutlined />
@@ -104,6 +111,16 @@ function StudentApp() {
   const [student, setStudent] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
+  // Тема: светлая / тёмная
+  const [isDark, setIsDark] = useState(() => localStorage.getItem('student-theme') === 'dark');
+  const toggleTheme = () => {
+    setIsDark(prev => {
+      const next = !prev;
+      localStorage.setItem('student-theme', next ? 'dark' : 'light');
+      return next;
+    });
+  };
+
   const handleVersionUpdate = useCallback((payload) => {
     notification.info({
       message: 'Доступно обновление',
@@ -157,17 +174,22 @@ function StudentApp() {
     return null; // Или спиннер
   }
 
+  const antdTheme = {
+    token: { colorPrimary: '#4361ee', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' },
+    algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
+  };
+
   if (!sessionId) {
     return (
-      <ConfigProvider theme={{ token: { colorPrimary: '#4361ee' } }}>
-        <StudentHomeLanding />
+      <ConfigProvider theme={antdTheme}>
+        <StudentHomeLanding isDark={isDark} onToggleTheme={toggleTheme} />
       </ConfigProvider>
     );
   }
 
   return (
-    <ConfigProvider theme={{ token: { colorPrimary: '#4361ee' } }}>
-      <div className="student-app">
+    <ConfigProvider theme={antdTheme}>
+      <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
         {/* Верхняя панель навигации */}
         {student && currentView !== 'auth' && (
           <div className="student-top-bar">
@@ -203,6 +225,15 @@ function StudentApp() {
                   onClick={() => setViewOverride('gallery')}
                 />
               )}
+
+              {/* Кнопка переключения темы */}
+              <button
+                className="student-theme-toggle"
+                onClick={toggleTheme}
+                title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+              >
+                {isDark ? <SunOutlined /> : <MoonOutlined />}
+              </button>
 
               {/* Кнопка выхода */}
               <Button

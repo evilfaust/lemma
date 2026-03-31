@@ -1,7 +1,408 @@
 /* ============================================
    STUDENT APP — Modern Editorial Design
-   Light theme, vibrant gradients, smooth animations
+   Light + Dark themes, vibrant gradients, smooth animations
    ============================================ */
+
+/* ---- Inter font for student app ---- */
+.student-app,
+.student-home {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ---- Theme toggle button ---- */
+.student-theme-toggle {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: all 0.25s ease;
+  background: rgba(255, 255, 255, 0.85);
+  color: #4361ee;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  flex-shrink: 0;
+}
+
+.student-theme-toggle:hover {
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 4px 14px rgba(67, 97, 238, 0.2);
+  transform: scale(1.05);
+}
+
+.student-theme-toggle--home {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 10;
+}
+
+/* ---- Dark theme: toggle button ---- */
+.student-theme-dark .student-theme-toggle,
+.student-theme-dark.student-home .student-theme-toggle {
+  background: rgba(255, 255, 255, 0.08);
+  color: #f9a826;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.student-theme-dark .student-theme-toggle:hover,
+.student-theme-dark.student-home .student-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 4px 14px rgba(249, 168, 38, 0.25);
+}
+
+/* ============================================
+   DARK THEME OVERRIDES
+   Applied via .student-theme-dark class on root
+   ============================================ */
+
+/* Root background */
+.student-theme-dark {
+  background: linear-gradient(180deg, #0d0d1a 0%, #0f0e17 100%) !important;
+}
+
+/* Body background fix for dark mode */
+.student-theme-dark::before {
+  background: radial-gradient(circle at 15% 15%, rgba(67, 97, 238, 0.08), transparent 45%),
+              radial-gradient(circle at 85% 80%, rgba(123, 47, 247, 0.06), transparent 45%) !important;
+}
+
+/* ---- Home page ---- */
+.student-theme-dark.student-home {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(67, 97, 238, 0.1), transparent 45%),
+    radial-gradient(circle at 85% 80%, rgba(123, 47, 247, 0.08), transparent 45%),
+    linear-gradient(180deg, #0d0d1a 0%, #0f0e17 100%) !important;
+}
+
+.student-theme-dark .student-home-card {
+  background: rgba(26, 26, 46, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+.student-theme-dark .student-home-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-home-subtitle {
+  color: #aaa !important;
+}
+
+.student-theme-dark .student-home-input {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-home-input::placeholder {
+  color: #666 !important;
+}
+
+.student-theme-dark .student-home-input:focus {
+  border-color: #4361ee !important;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2) !important;
+}
+
+.student-theme-dark .student-home-hint {
+  color: #666 !important;
+}
+
+/* ---- Auth page ---- */
+.student-theme-dark .student-auth-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-auth-subtitle {
+  color: #aaa !important;
+}
+
+.student-theme-dark .student-auth-footer {
+  background: rgba(67, 97, 238, 0.08) !important;
+}
+
+/* ---- Entry page ---- */
+.student-theme-dark .student-entry-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-entry-work-title {
+  color: #aaa !important;
+}
+
+.student-theme-dark .student-entry-student {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.student-theme-dark .student-entry-student-name {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-entry-student-icon {
+  background: rgba(67, 97, 238, 0.15) !important;
+}
+
+/* ---- Test page ---- */
+.student-theme-dark .student-test-header {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.student-theme-dark .student-test-variant-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-test-title {
+  color: #ccc !important;
+}
+
+.student-theme-dark .student-test-meta {
+  color: #888 !important;
+}
+
+.student-theme-dark .student-test-progress-bar {
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.student-theme-dark .student-test-progress-text {
+  color: #888 !important;
+}
+
+.student-theme-dark .task-item {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.student-theme-dark .task-item:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+}
+
+.student-theme-dark .task-statement {
+  color: #e0e0e0 !important;
+}
+
+.student-theme-dark .task-answer-input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .task-answer-input:focus {
+  border-color: #4361ee !important;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2) !important;
+}
+
+.student-theme-dark .task-item--filled {
+  border-color: rgba(82, 196, 26, 0.25) !important;
+}
+
+.student-theme-dark .submit-bar {
+  background: rgba(13, 13, 26, 0.92) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ---- Result page ---- */
+.student-theme-dark .student-result-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-result-test-title {
+  color: #ccc !important;
+}
+
+.student-theme-dark .student-result-meta {
+  color: #888 !important;
+}
+
+.student-theme-dark .student-result-score-card {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35) !important;
+}
+
+.student-theme-dark .student-result-score-bar {
+  background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.student-theme-dark .student-result-summary--perfect {
+  color: #73d13d !important;
+}
+
+.student-theme-dark .student-result-gallery-btn .ant-btn {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #aaa !important;
+}
+
+.student-theme-dark .student-result-gallery-btn .ant-btn:hover {
+  border-color: #4361ee !important;
+  color: #7b9fff !important;
+  background: rgba(67, 97, 238, 0.08) !important;
+}
+
+.student-theme-dark .student-result-errors-title {
+  color: #ff7875 !important;
+}
+
+.student-theme-dark .error-task {
+  background: rgba(255, 77, 79, 0.06) !important;
+  border-color: rgba(255, 77, 79, 0.25) !important;
+  border-left-color: #ff4d4f !important;
+}
+
+/* ---- Achievements ---- */
+.student-theme-dark .achievement-section {
+  background: linear-gradient(135deg, rgba(30, 15, 20, 0.9), rgba(25, 12, 18, 0.9)) !important;
+  border-color: rgba(245, 87, 108, 0.1) !important;
+}
+
+.student-theme-dark .unlocked-section {
+  background: linear-gradient(135deg, rgba(15, 20, 40, 0.9), rgba(12, 16, 35, 0.9)) !important;
+  border-color: rgba(102, 126, 234, 0.1) !important;
+}
+
+.student-theme-dark .achievement-badge {
+  background: rgba(26, 26, 46, 0.95) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4) !important;
+}
+
+.student-theme-dark .achievement-badge.common {
+  background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(15, 30, 20, 0.95) 100%) !important;
+  border-color: rgba(82, 196, 26, 0.2) !important;
+}
+
+.student-theme-dark .achievement-badge.rare {
+  background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(15, 20, 40, 0.95) 100%) !important;
+  border-color: rgba(67, 97, 238, 0.25) !important;
+}
+
+.student-theme-dark .achievement-badge.legendary {
+  background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(30, 25, 10, 0.95) 100%) !important;
+  border-color: rgba(255, 215, 0, 0.3) !important;
+}
+
+.student-theme-dark .achievement-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .achievement-description {
+  color: #aaa !important;
+}
+
+.student-theme-dark .achievement-stats {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.student-theme-dark .achievement-stats-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .achievement-stats-subtitle {
+  color: #aaa !important;
+}
+
+.student-theme-dark .achievement-stats-ring .ant-progress-text {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .achievement-stats-badge-icon {
+  background: rgba(255, 255, 255, 0.06) !important;
+}
+
+.student-theme-dark .achievement-stats-badge-icon--empty {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.student-theme-dark .rarity-bg-common    { background: rgba(82, 196, 26, 0.08) !important; }
+.student-theme-dark .rarity-bg-rare      { background: rgba(67, 97, 238, 0.1) !important; }
+.student-theme-dark .rarity-bg-legendary { background: rgba(255, 215, 0, 0.08) !important; }
+
+.student-theme-dark .rarity-tag-common    { background: rgba(255,255,255,0.08) !important; color: #aaa !important; }
+.student-theme-dark .rarity-tag-rare      { background: rgba(67, 97, 238, 0.15) !important; color: #7b9fff !important; }
+.student-theme-dark .rarity-tag-legendary { background: rgba(255, 215, 0, 0.1) !important; color: #ffd666 !important; }
+
+.student-theme-dark .achievement-stats-hint {
+  color: #555 !important;
+}
+
+.student-theme-dark .achievement-gallery-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .achievement-gallery-filter-label {
+  color: #ccc !important;
+}
+
+.student-theme-dark .achievement-legend-item {
+  color: #ccc !important;
+}
+
+.student-theme-dark .achievement-earned-lock {
+  background: rgba(30, 30, 50, 0.95) !important;
+  color: #888 !important;
+}
+
+/* ---- Skeleton ---- */
+.student-theme-dark .student-skeleton-circle,
+.student-theme-dark .student-skeleton-line,
+.student-theme-dark .student-skeleton-btn {
+  background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.06) 75%) !important;
+  background-size: 200% 100% !important;
+}
+
+/* ---- Progress page ---- */
+.student-theme-dark .sp-title {
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .sp-subtitle,
+.student-theme-dark .sp-loading-text,
+.student-theme-dark .sp-loading-small {
+  color: #888 !important;
+}
+
+.student-theme-dark .sp-stat-card {
+  background: rgba(26, 26, 46, 0.9) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.student-theme-dark .sp-stat-label {
+  color: #888 !important;
+}
+
+.student-theme-dark .sp-section-title {
+  color: #f0f0f0 !important;
+}
+
+/* Override Ant Design top-bar buttons in dark mode */
+.student-theme-dark .student-top-bar-btn {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  color: #e0e0e0 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.student-theme-dark .student-top-bar-btn:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+
+.student-theme-dark .student-top-bar-btn--primary {
+  background: linear-gradient(135deg, #4361ee, #3a0ca3) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
 
 /* ---- Animations ---- */
 @keyframes studentFadeInUp {
