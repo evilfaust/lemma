@@ -374,7 +374,7 @@ function AppContent() {
           padding: '10px 16px',
         }}>
           <img
-            src="/lemma-logo.png"
+            src="/lemma-logo-new.png"
             alt="Lemma"
             style={{ height: 38, width: 'auto', borderRadius: 6 }}
           />

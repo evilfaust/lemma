@@ -285,7 +285,7 @@ const HowItWorksPage = () => {
       <nav className={`v2-nav ${navScrolled ? 'v2-nav--scrolled' : ''}`}>
         <div className="v2-container v2-nav-inner">
           <a href="/landing.html" className="v2-nav-logo">
-            <img src="/lemma-logo.png" alt="Lemma" className="v2-nav-logo-img" />
+            <img src="/lemma-logo-new.png" alt="Lemma" className="v2-nav-logo-img" />
           </a>
           <ul className={`v2-nav-links ${mobileOpen ? 'v2-nav-links--open' : ''}`}>
             <li><a onClick={() => scrollTo('overview')}>Обзор</a></li>
