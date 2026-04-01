@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { ConfigProvider, Button, notification, theme } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined, SunOutlined, MoonOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined, SunOutlined, MoonOutlined, LoginOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentEntryPage from './components/student/StudentEntryPage';
@@ -13,8 +13,12 @@ import { useVersionSync } from './shared/version/useVersionSync';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
-function StudentHomeLanding({ isDark, onToggleTheme }) {
+function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAuthSuccess, onLogout }) {
   const [sessionCode, setSessionCode] = useState('');
+  const [homeView, setHomeView] = useState(null); // null | 'login' | 'register' | 'progress' | 'gallery'
+
+  // Минимальный псевдо-session для страниц прогресса/галереи
+  const homeStudentSession = useMemo(() => ({ student, attempt: null, session: null }), [student]);
 
   const openSession = () => {
     const code = sessionCode.trim();
@@ -22,6 +26,115 @@ function StudentHomeLanding({ isDark, onToggleTheme }) {
     window.location.href = `/student/${encodeURIComponent(code)}`;
   };
 
+  const handleAuthSuccess = (s) => {
+    onAuthSuccess(s);
+    setHomeView(null);
+  };
+
+  const themeToggleBtn = (
+    <button
+      className="student-theme-toggle"
+      onClick={onToggleTheme}
+      title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+    >
+      {isDark ? <SunOutlined /> : <MoonOutlined />}
+    </button>
+  );
+
+  // ---- Страница авторизации ----
+  if (homeView === 'login' || homeView === 'register') {
+    return (
+      <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
+        <div className="student-top-bar">
+          <div className="student-top-bar-left">
+            <button
+              className="student-theme-toggle student-top-bar-back"
+              onClick={() => setHomeView(null)}
+              title="Назад"
+            >
+              <ArrowLeftOutlined />
+              <span className="student-top-bar-back-label">Назад</span>
+            </button>
+          </div>
+          <div className="student-top-bar-right">
+            {themeToggleBtn}
+          </div>
+        </div>
+        <StudentAuthPage onAuthSuccess={handleAuthSuccess} initialTab={homeView} />
+      </div>
+    );
+  }
+
+  // ---- Страница прогресса ----
+  if (homeView === 'progress') {
+    return (
+      <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
+        <div className="student-top-bar">
+          <div className="student-top-bar-left">
+            <button
+              className="student-theme-toggle student-top-bar-back"
+              onClick={() => setHomeView(null)}
+              title="Назад"
+            >
+              <ArrowLeftOutlined />
+              <span className="student-top-bar-back-label">Назад</span>
+            </button>
+          </div>
+          <div className="student-top-bar-right">
+            <button
+              className="student-theme-toggle student-theme-toggle--trophy"
+              onClick={() => setHomeView('gallery')}
+              title="Мои достижения"
+            >
+              <TrophyOutlined />
+            </button>
+            {themeToggleBtn}
+            <button
+              className="student-theme-toggle"
+              onClick={onLogout}
+              title="Выйти"
+            >
+              <LogoutOutlined />
+            </button>
+          </div>
+        </div>
+        <StudentProgressPage studentSession={homeStudentSession} />
+      </div>
+    );
+  }
+
+  // ---- Страница достижений ----
+  if (homeView === 'gallery') {
+    return (
+      <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
+        <div className="student-top-bar">
+          <div className="student-top-bar-left">
+            <button
+              className="student-theme-toggle student-top-bar-back"
+              onClick={() => setHomeView(null)}
+              title="Назад"
+            >
+              <ArrowLeftOutlined />
+              <span className="student-top-bar-back-label">Назад</span>
+            </button>
+          </div>
+          <div className="student-top-bar-right">
+            {themeToggleBtn}
+            <button
+              className="student-theme-toggle"
+              onClick={onLogout}
+              title="Выйти"
+            >
+              <LogoutOutlined />
+            </button>
+          </div>
+        </div>
+        <AchievementGallery studentSession={homeStudentSession} />
+      </div>
+    );
+  }
+
+  // ---- Главная карточка ----
   return (
     <div className={`student-home${isDark ? ' student-theme-dark' : ''}`}>
       <button
@@ -32,6 +145,12 @@ function StudentHomeLanding({ isDark, onToggleTheme }) {
         {isDark ? <SunOutlined /> : <MoonOutlined />}
       </button>
       <div className="student-home-card">
+
+        {/* Логотип Леммы */}
+        <div className="student-home-logo">
+          <img src="/lemma-logo-new.png" alt="Лемма" />
+        </div>
+
         <div className="student-home-icon">
           <QrcodeOutlined />
         </div>
@@ -68,6 +187,63 @@ function StudentHomeLanding({ isDark, onToggleTheme }) {
         <div className="student-home-hint">
           На телефоне удобнее заходить по QR-коду.
         </div>
+
+        {/* Личный кабинет — не авторизован */}
+        {authChecked && !student && (
+          <div className="student-home-account-section">
+            <div className="student-home-section-divider">
+              <span>личный кабинет</span>
+            </div>
+            <div className="student-home-auth-btns">
+              <Button
+                className="student-home-auth-btn"
+                icon={<LoginOutlined />}
+                onClick={() => setHomeView('login')}
+              >
+                Войти
+              </Button>
+              <Button
+                className="student-home-auth-btn"
+                icon={<UserAddOutlined />}
+                onClick={() => setHomeView('register')}
+              >
+                Регистрация
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Личный кабинет — авторизован */}
+        {student && (
+          <div className="student-home-account-section">
+            <div className="student-home-section-divider">
+              <span>личный кабинет</span>
+            </div>
+            <div className="student-home-user-greeting">
+              <UserOutlined />
+              <span>{student.name}</span>
+            </div>
+            <div className="student-home-nav-btns">
+              <Button
+                className="student-home-nav-btn"
+                icon={<BarChartOutlined />}
+                onClick={() => setHomeView('progress')}
+              >
+                Мой прогресс
+              </Button>
+              <Button
+                className="student-home-nav-btn student-home-nav-btn--trophy"
+                icon={<TrophyOutlined />}
+                onClick={() => setHomeView('gallery')}
+              >
+                Достижения
+              </Button>
+            </div>
+            <button className="student-home-logout-btn" onClick={onLogout}>
+              <LogoutOutlined /> Выйти
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -182,7 +358,14 @@ function StudentApp() {
   if (!sessionId) {
     return (
       <ConfigProvider theme={antdTheme}>
-        <StudentHomeLanding isDark={isDark} onToggleTheme={toggleTheme} />
+        <StudentHomeLanding
+          isDark={isDark}
+          onToggleTheme={toggleTheme}
+          student={student}
+          authChecked={authChecked}
+          onAuthSuccess={handleAuthSuccess}
+          onLogout={handleLogout}
+        />
       </ConfigProvider>
     );
   }

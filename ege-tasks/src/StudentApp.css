@@ -622,6 +622,201 @@
   font-size: 13px;
 }
 
+/* ---- Логотип ---- */
+.student-home-logo {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.student-home-logo img {
+  height: 26px;
+  width: auto;
+  opacity: 0.6;
+  display: inline-block;
+  pointer-events: none;
+  user-select: none;
+}
+
+.student-theme-dark .student-home-logo img {
+  opacity: 0.35;
+  filter: brightness(4) saturate(0);
+}
+
+/* ---- Секция личного кабинета ---- */
+.student-home-account-section {
+  margin-top: 18px;
+}
+
+.student-home-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  color: #b0b5c4;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.student-home-section-divider::before,
+.student-home-section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #e8eaf0;
+}
+
+.student-theme-dark .student-home-section-divider {
+  color: #555a6e;
+}
+
+.student-theme-dark .student-home-section-divider::before,
+.student-theme-dark .student-home-section-divider::after {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Кнопки входа/регистрации ---- */
+.student-home-auth-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.student-home-auth-btn {
+  border-radius: 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  height: 40px !important;
+  border-color: #d0d5e8 !important;
+  color: #4361ee !important;
+}
+
+.student-home-auth-btn:hover {
+  border-color: #4361ee !important;
+  background: rgba(67, 97, 238, 0.06) !important;
+}
+
+.student-theme-dark .student-home-auth-btn {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #7b8fff !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.student-theme-dark .student-home-auth-btn:hover {
+  border-color: #7b8fff !important;
+  background: rgba(123, 143, 255, 0.12) !important;
+}
+
+/* ---- Приветствие авторизованного пользователя ---- */
+.student-home-user-greeting {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #3a3f5c;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  background: rgba(67, 97, 238, 0.06);
+  border-radius: 12px;
+}
+
+.student-home-user-greeting .anticon {
+  color: #4361ee;
+  font-size: 15px;
+}
+
+.student-theme-dark .student-home-user-greeting {
+  color: #d0d4f0;
+  background: rgba(67, 97, 238, 0.12);
+}
+
+.student-theme-dark .student-home-user-greeting .anticon {
+  color: #7b8fff;
+}
+
+/* ---- Навигационные кнопки ---- */
+.student-home-nav-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.student-home-nav-btn {
+  border-radius: 12px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  height: 40px !important;
+  border-color: #d0d5e8 !important;
+  color: #4361ee !important;
+}
+
+.student-home-nav-btn:hover {
+  border-color: #4361ee !important;
+  background: rgba(67, 97, 238, 0.06) !important;
+}
+
+.student-home-nav-btn--trophy {
+  color: #faad14 !important;
+}
+
+.student-home-nav-btn--trophy:hover {
+  border-color: #faad14 !important;
+  background: rgba(250, 173, 20, 0.08) !important;
+}
+
+.student-theme-dark .student-home-nav-btn {
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  color: #7b8fff !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+.student-theme-dark .student-home-nav-btn:hover {
+  border-color: #7b8fff !important;
+  background: rgba(123, 143, 255, 0.12) !important;
+}
+
+.student-theme-dark .student-home-nav-btn--trophy {
+  color: #f9a826 !important;
+}
+
+.student-theme-dark .student-home-nav-btn--trophy:hover {
+  border-color: #f9a826 !important;
+  background: rgba(249, 168, 38, 0.12) !important;
+}
+
+/* ---- Кнопка выхода ---- */
+.student-home-logout-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: #adb2c4;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 auto;
+  padding: 4px 8px;
+  border-radius: 8px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.student-home-logout-btn:hover {
+  color: #4361ee;
+  background: rgba(67, 97, 238, 0.06);
+}
+
+.student-theme-dark .student-home-logout-btn {
+  color: #555a6e;
+}
+
+.student-theme-dark .student-home-logout-btn:hover {
+  color: #7b8fff;
+  background: rgba(123, 143, 255, 0.1);
+}
+
 .student-app .ant-btn-primary {
   background: linear-gradient(135deg, #4361ee, #3a0ca3);
   border: none;

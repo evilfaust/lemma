@@ -8,10 +8,10 @@ const { Title, Text } = Typography;
 /**
  * Страница авторизации и регистрации для студентов
  */
-const StudentAuthPage = ({ onAuthSuccess, sessionTitle }) => {
+const StudentAuthPage = ({ onAuthSuccess, sessionTitle, initialTab = 'login' }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('login');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [loginForm] = Form.useForm();
   const [registerForm] = Form.useForm();
 
