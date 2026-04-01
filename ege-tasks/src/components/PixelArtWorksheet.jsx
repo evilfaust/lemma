@@ -7,7 +7,7 @@ import {
   PrinterOutlined, PictureOutlined, DeleteOutlined,
   SaveOutlined, FolderOpenOutlined,
 } from '@ant-design/icons';
-import api from '../services/pocketbase';
+import { api } from '../services/pocketbase';
 import { usePixelArt } from '../hooks/usePixelArt';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { suggestGridSize } from '../utils/imageToMatrix';
