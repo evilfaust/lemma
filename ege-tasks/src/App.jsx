@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -24,6 +24,7 @@ import TDFManager from './components/tdf/TDFManager';
 import TDFEditor from './components/tdf/TDFEditor';
 import TDFVariantBuilder from './components/tdf/TDFVariantBuilder';
 import QRWorksheetGenerator from './components/QRWorksheetGenerator';
+import PixelArtWorksheet from './components/PixelArtWorksheet';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -103,6 +104,11 @@ function AppContent() {
       key: 'qr-worksheet',
       icon: <QrcodeOutlined />,
       label: 'QR-листы',
+    },
+    {
+      key: 'pixel-art',
+      icon: <PictureOutlined />,
+      label: 'Пиксель-арт',
     },
     {
       key: 'work-manager',
@@ -216,6 +222,8 @@ function AppContent() {
         return <TestWorkGenerator />;
       case 'qr-worksheet':
         return <QRWorksheetGenerator />;
+      case 'pixel-art':
+        return <PixelArtWorksheet />;
       case 'work-manager':
         return (
           <WorkManager
@@ -328,6 +336,7 @@ function AppContent() {
       case 'ege-variant': return 'Варианты ЕГЭ (базовый уровень)';
       case 'test-generator': return 'Контрольные работы';
       case 'qr-worksheet': return 'QR-листы';
+      case 'pixel-art': return 'Пиксель-арт раскраска';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
       case 'students': return 'Прогресс учеников';

@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import {
   Card, Row, Col, Input, Button, Space, Alert, Switch,
-  Typography, Divider, App, Radio, Popconfirm,
+  Typography, Divider, App, Radio, Popconfirm, Modal, List,
 } from 'antd';
 import {
   PrinterOutlined, PictureOutlined, DeleteOutlined,
+  SaveOutlined, FolderOpenOutlined,
 } from '@ant-design/icons';
+import api from '../services/pocketbase';
 import { usePixelArt } from '../hooks/usePixelArt';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { suggestGridSize } from '../utils/imageToMatrix';
@@ -21,6 +23,10 @@ export default function PixelArtWorksheet() {
   const { message } = App.useApp();
   const { topics, subtopics, tags } = useReferenceData();
   const [twoColumns, setTwoColumns] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadModalOpen, setLoadModalOpen] = useState(false);
+  const [savedSheets, setSavedSheets] = useState([]);
+  const [loadingSheets, setLoadingSheets] = useState(false);
 
   const {
     imageFile, setImageFile,
@@ -36,7 +42,8 @@ export default function PixelArtWorksheet() {
     twoSheets, setTwoSheets,
     showTeacherKey, setShowTeacherKey,
     processing, error,
-    processImage, reset,
+    processImage, reset, loadFromSaved,
+    savedId, setSavedId,
   } = usePixelArt();
 
   // ── Загрузка изображения ──────────────────────────────────────────────────
@@ -71,6 +78,73 @@ export default function PixelArtWorksheet() {
   // Логика блокировки — в GridSizeControls, здесь просто сеттеры
   const handleColsChange = (val) => { if (val) setGridCols(val); };
   const handleRowsChange = (val) => { if (val) setGridRows(val); };
+
+  // ── Сохранение / загрузка ─────────────────────────────────────────────────
+  const handleSave = async () => {
+    if (!grid) {
+      message.warning('Добавьте задачи с числовыми ответами');
+      return;
+    }
+    setSaving(true);
+    try {
+      const data = {
+        title: title || 'Раскраска',
+        tasks: tasks.map(t => t.id),
+        custom_answers: customAnswers,
+        grid,
+        matrix,
+        grid_cols: gridCols,
+        grid_rows: gridRows,
+        threshold,
+        two_sheets: twoSheets,
+        show_teacher_key: showTeacherKey,
+        two_columns: twoColumns,
+      };
+      if (savedId) {
+        await api.updatePixelArtWorksheet(savedId, data);
+        message.success('Пиксель-арт обновлён');
+      } else {
+        const record = await api.createPixelArtWorksheet(data);
+        setSavedId(record.id);
+        message.success('Пиксель-арт сохранён');
+      }
+    } catch (e) {
+      message.error('Ошибка сохранения: ' + (e.message || e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleOpenLoad = async () => {
+    setLoadModalOpen(true);
+    setLoadingSheets(true);
+    try {
+      const sheets = await api.getPixelArtWorksheets();
+      setSavedSheets(sheets);
+    } catch (e) {
+      message.error('Ошибка загрузки списка');
+    } finally {
+      setLoadingSheets(false);
+    }
+  };
+
+  const handleLoad = (record) => {
+    loadFromSaved(record);
+    setTwoColumns(!!record.two_columns);
+    setLoadModalOpen(false);
+    message.success('Пиксель-арт загружен');
+  };
+
+  const handleDeleteSaved = async (id) => {
+    try {
+      await api.deletePixelArtWorksheet(id);
+      setSavedSheets(prev => prev.filter(s => s.id !== id));
+      if (savedId === id) setSavedId(null);
+      message.success('Удалено');
+    } catch (e) {
+      message.error('Ошибка удаления');
+    }
+  };
 
   // ── Печать ────────────────────────────────────────────────────────────────
   const handlePrint = () => {
@@ -211,6 +285,30 @@ export default function PixelArtWorksheet() {
 
             {error && <Alert type="error" message={error} showIcon closable />}
 
+            {/* Кнопки сохранения */}
+            <Row gutter={8}>
+              <Col span={12}>
+                <Button
+                  icon={<SaveOutlined />}
+                  onClick={handleSave}
+                  loading={saving}
+                  disabled={!grid}
+                  block
+                >
+                  {savedId ? 'Обновить' : 'Сохранить'}
+                </Button>
+              </Col>
+              <Col span={12}>
+                <Button
+                  icon={<FolderOpenOutlined />}
+                  onClick={handleOpenLoad}
+                  block
+                >
+                  Загрузить
+                </Button>
+              </Col>
+            </Row>
+
             {/* Кнопки */}
             <Button
               type="primary"
@@ -290,6 +388,47 @@ export default function PixelArtWorksheet() {
           className="pixel-art-print-root"
         />
       )}
+
+      {/* ── Модал загрузки ── */}
+      <Modal
+        title={<Space><FolderOpenOutlined /><span>Загрузить пиксель-арт</span></Space>}
+        open={loadModalOpen}
+        onCancel={() => setLoadModalOpen(false)}
+        footer={null}
+        width={560}
+      >
+        <List
+          loading={loadingSheets}
+          dataSource={savedSheets}
+          locale={{ emptyText: 'Нет сохранённых пиксель-артов' }}
+          renderItem={(sheet) => (
+            <List.Item
+              actions={[
+                <Button type="link" onClick={() => handleLoad(sheet)}>
+                  Загрузить
+                </Button>,
+                <Popconfirm
+                  title="Удалить этот пиксель-арт?"
+                  onConfirm={() => handleDeleteSaved(sheet.id)}
+                  okText="Да"
+                  cancelText="Нет"
+                >
+                  <Button type="link" danger icon={<DeleteOutlined />} />
+                </Popconfirm>,
+              ]}
+            >
+              <List.Item.Meta
+                title={sheet.title || 'Без названия'}
+                description={
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {(sheet.tasks?.length ?? 0)} задач · {sheet.grid_cols}×{sheet.grid_rows} · {new Date(sheet.created).toLocaleDateString('ru-RU')}
+                  </Text>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </Modal>
     </div>
   );
 }

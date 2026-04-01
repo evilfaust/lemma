@@ -1864,6 +1864,47 @@ export const api = {
       throw error;
     }
   },
+
+  // --- pixel_art_worksheets ---
+
+  async getPixelArtWorksheets() {
+    try {
+      return await pb.collection('pixel_art_worksheets').getFullList({
+        sort: '-created',
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching pixel_art_worksheets:', error);
+      return [];
+    }
+  },
+
+  async createPixelArtWorksheet(data) {
+    try {
+      return await pb.collection('pixel_art_worksheets').create(data);
+    } catch (error) {
+      console.error('Error creating pixel_art_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async updatePixelArtWorksheet(id, data) {
+    try {
+      return await pb.collection('pixel_art_worksheets').update(id, data);
+    } catch (error) {
+      console.error('Error updating pixel_art_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async deletePixelArtWorksheet(id) {
+    try {
+      return await pb.collection('pixel_art_worksheets').delete(id);
+    } catch (error) {
+      console.error('Error deleting pixel_art_worksheet:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;
