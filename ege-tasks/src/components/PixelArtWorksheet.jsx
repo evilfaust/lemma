@@ -100,7 +100,7 @@ export default function PixelArtWorksheet() {
 
   return (
     <div className="pixel-art-container">
-      <Row gutter={16} align="top">
+      <Row gutter={16} align="top" className="no-print">
 
         {/* ══ ЛЕВАЯ КОЛОНКА: настройки ══════════════════════════════════════ */}
         <Col xs={24} lg={10}>
@@ -252,6 +252,7 @@ export default function PixelArtWorksheet() {
           <div className="pixel-art-preview-wrapper">
             {grid ? (
               <div className="pixel-art-a4-paper">
+                {/* Превью — без print-класса, чтобы не триггерить @media print */}
                 <PixelArtPrintLayout
                   title={title}
                   tasks={tasks}
@@ -260,7 +261,7 @@ export default function PixelArtWorksheet() {
                   showTeacherKey={showTeacherKey}
                   twoSheets={twoSheets}
                   twoColumns={twoColumns}
-                  className="pixel-art-print-root"
+                  className=""
                 />
               </div>
             ) : (
@@ -275,6 +276,20 @@ export default function PixelArtWorksheet() {
         </Col>
 
       </Row>
+
+      {/* ── Скрытый печатный блок (вне превью, как в QRWorksheetGenerator) ── */}
+      {grid && (
+        <PixelArtPrintLayout
+          title={title}
+          tasks={tasks}
+          grid={grid}
+          getAnswerForTask={getAnswerForTask}
+          showTeacherKey={showTeacherKey}
+          twoSheets={twoSheets}
+          twoColumns={twoColumns}
+          className="pixel-art-print-root"
+        />
+      )}
     </div>
   );
 }
