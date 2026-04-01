@@ -1,0 +1,75 @@
+/* ── Экранные стили ─────────────────────────────────────────────────────── */
+
+.pixel-art-container {
+  max-width: 1400px;
+}
+
+.pixel-art-preview-wrapper {
+  background: #f0f0f0;
+  padding: 16px;
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow-x: auto;
+  min-height: 420px;
+}
+
+.pixel-art-a4-paper {
+  background: #fff;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+  box-sizing: border-box;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.pixel-art-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  width: 100%;
+}
+
+/* ── Печатные стили ──────────────────────────────────────────────────────── */
+
+@media print {
+  /*
+   * Scoped selector: скрываем body только когда .pixel-art-print-root в DOM.
+   * Не ломает печать из других разделов (по аналогии с QRWorksheetGenerator.css).
+   */
+  body:has(.pixel-art-print-root) {
+    visibility: hidden;
+  }
+
+  .pixel-art-print-root {
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+
+  .pixel-art-print-root * {
+    visibility: visible;
+  }
+
+  .pixel-art-a4-paper {
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  .pixel-art-tasks-page,
+  .pixel-art-grid-page,
+  .pixel-art-teacher-page {
+    width: 210mm;
+    padding: 10mm;
+    box-sizing: border-box;
+    font-size: 11pt;
+  }
+}
