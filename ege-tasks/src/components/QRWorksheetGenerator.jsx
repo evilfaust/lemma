@@ -356,12 +356,7 @@ const QRWorksheetGenerator = () => {
               </Row>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 12 }}>
-                  Сетка по центру, задачи по бокам&nbsp;
-                  <Tooltip title="Задачи делятся на две группы слева и справа, QR-сетка размещается по центру страницы.">
-                    <InfoCircleOutlined style={{ color: '#1890ff' }} />
-                  </Tooltip>
-                </Text>
+                <Text style={{ fontSize: 12 }}>Задачи в две колонки</Text>
                 <Switch
                   checked={twoColumns}
                   onChange={setTwoColumns}
