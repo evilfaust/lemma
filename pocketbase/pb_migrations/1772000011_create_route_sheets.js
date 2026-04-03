@@ -1,35 +1,53 @@
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
   const collection = new Collection({
-    name: "route_sheets",
-    type: "base",
-    fields: [
+    "createRule": null,
+    "deleteRule": null,
+    "fields": [
       {
-        name: "title",
-        type: "text",
-        required: true,
+        "autogeneratePattern": "",
+        "hidden": false,
+        "id": "text_rs_title",
+        "max": 300,
+        "min": 0,
+        "name": "title",
+        "pattern": "",
+        "presentable": true,
+        "primaryKey": false,
+        "required": true,
+        "system": false,
+        "type": "text"
       },
       {
-        name: "tasks",
-        type: "relation",
-        options: {
-          collectionId: "pbc_2602490748",
-          maxSelect: null,
-          cascadeDelete: false,
-        },
+        "cascadeDelete": false,
+        "collectionId": "pbc_2602490748",
+        "hidden": false,
+        "id": "relation_rs_tasks",
+        "maxSelect": 30,
+        "minSelect": 0,
+        "name": "tasks",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "relation"
       },
       {
-        name: "chain_links",
-        type: "json",
-        options: { maxSize: 100000 },
-      },
+        "hidden": false,
+        "id": "json_rs_chain_links",
+        "maxSize": 0,
+        "name": "chain_links",
+        "presentable": false,
+        "required": false,
+        "system": false,
+        "type": "json"
+      }
     ],
-    indexes: [],
-    listRule: null,
-    viewRule: null,
-    createRule: null,
-    updateRule: null,
-    deleteRule: null,
+    "indexes": [],
+    "listRule": null,
+    "name": "route_sheets",
+    "type": "base",
+    "updateRule": null,
+    "viewRule": null
   });
 
   app.save(collection);
