@@ -643,7 +643,7 @@ const TaskList = ({
         okText="Создать"
         cancelText="Отмена"
         confirmLoading={createWorkLoading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={workForm}

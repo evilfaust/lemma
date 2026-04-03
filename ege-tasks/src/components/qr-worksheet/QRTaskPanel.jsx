@@ -78,7 +78,7 @@ export default function QRTaskPanel({
                 key={task.id}
                 size="small"
                 style={{ border: isNumeric ? '1px solid #b7eb8f' : '1px solid #ffa39e' }}
-                bodyStyle={{ padding: '8px 12px' }}
+                styles={{ body: { padding: '8px 12px' } }}
               >
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   {/* Номер + кнопки перемещения */}

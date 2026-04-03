@@ -194,7 +194,7 @@ export default function GeoGebraBlocksModal({
         afterOpenChange={handleAfterOpenChange}
         width="min(1440px, 96vw)"
         placement="right"
-        destroyOnClose={false}
+        destroyOnHidden={false}
         className="ggb-drawer"
         styles={{ body: { display: 'flex', flexDirection: 'column', padding: '12px 16px', gap: 10, overflow: 'hidden' } }}
         footer={null}

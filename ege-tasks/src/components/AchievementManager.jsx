@@ -576,7 +576,7 @@ export default function AchievementManager() {
         okText="Сохранить"
         cancelText="Отмена"
         width={720}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
