@@ -1068,6 +1068,31 @@ export const api = {
     }
   },
 
+  // Попытки по сессиям с именем ученика (для тепловой карты)
+  async getAttemptsBySessionsWithStudent(sessionIds = []) {
+    try {
+      if (!sessionIds.length) return [];
+      const CHUNK_SIZE = 50;
+      const chunks = [];
+      for (let i = 0; i < sessionIds.length; i += CHUNK_SIZE) {
+        chunks.push(sessionIds.slice(i, i + CHUNK_SIZE));
+      }
+      const results = await Promise.all(
+        chunks.map(chunk => {
+          const filter = chunk.map(id => `session = "${escapeFilter(id)}"`).join(' || ');
+          return pb.collection('attempts').getFullList({
+            filter,
+            fields: 'id,session,student,student_name,status',
+          });
+        })
+      );
+      return results.flat();
+    } catch (error) {
+      console.error('Error fetching attempts by sessions (with student):', error);
+      return [];
+    }
+  },
+
   async getAttemptsCountByWork(workId) {
     try {
       const sessions = await this.getSessionsByWork(workId);
@@ -1902,6 +1927,47 @@ export const api = {
       return await pb.collection('pixel_art_worksheets').delete(id);
     } catch (error) {
       console.error('Error deleting pixel_art_worksheet:', error);
+      throw error;
+    }
+  },
+
+  // --- route_sheets ---
+
+  async getRouteSheets() {
+    try {
+      return await pb.collection('route_sheets').getFullList({
+        sort: '-created',
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching route_sheets:', error);
+      return [];
+    }
+  },
+
+  async createRouteSheet(data) {
+    try {
+      return await pb.collection('route_sheets').create(data);
+    } catch (error) {
+      console.error('Error creating route_sheet:', error);
+      throw error;
+    }
+  },
+
+  async updateRouteSheet(id, data) {
+    try {
+      return await pb.collection('route_sheets').update(id, data);
+    } catch (error) {
+      console.error('Error updating route_sheet:', error);
+      throw error;
+    }
+  },
+
+  async deleteRouteSheet(id) {
+    try {
+      return await pb.collection('route_sheets').delete(id);
+    } catch (error) {
+      console.error('Error deleting route_sheet:', error);
       throw error;
     }
   },

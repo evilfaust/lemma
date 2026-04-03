@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -23,8 +23,11 @@ import GeometryTopicManager from './components/geometry/GeometryTopicManager';
 import TDFManager from './components/tdf/TDFManager';
 import TDFEditor from './components/tdf/TDFEditor';
 import TDFVariantBuilder from './components/tdf/TDFVariantBuilder';
+import TDFFlashcards from './components/tdf/TDFFlashcards';
 import QRWorksheetGenerator from './components/QRWorksheetGenerator';
 import PixelArtWorksheet from './components/PixelArtWorksheet';
+import RouteSheetGenerator from './components/RouteSheetGenerator';
+import ErrorHeatmap from './components/ErrorHeatmap';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -111,6 +114,11 @@ function AppContent() {
       label: 'Пиксель-арт',
     },
     {
+      key: 'route-sheet',
+      icon: <BranchesOutlined />,
+      label: 'Маршрутный лист',
+    },
+    {
       key: 'work-manager',
       icon: <SolutionOutlined />,
       label: 'Мои работы',
@@ -126,6 +134,7 @@ function AppContent() {
       label: 'Ученики',
       children: [
         { key: 'students', icon: <BarChartOutlined />, label: 'Прогресс' },
+        { key: 'heatmap', icon: <HeatMapOutlined />, label: 'Тепловая карта' },
         { key: 'achievements', icon: <TrophyOutlined />, label: 'Достижения' },
       ],
     },
@@ -141,7 +150,15 @@ function AppContent() {
       children: [
         { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
         { key: 'geometry-topics', icon: <FolderOutlined />, label: 'Темы и подтемы' },
-        { key: 'tdf', icon: <FormOutlined />, label: 'ТДФ' },
+        {
+          key: 'tdf-group',
+          icon: <FormOutlined />,
+          label: 'ТДФ',
+          children: [
+            { key: 'tdf', icon: <FormOutlined />, label: 'Наборы' },
+            { key: 'tdf-flashcards', icon: <CreditCardOutlined />, label: 'Карточки' },
+          ],
+        },
       ],
     },
     {
@@ -272,6 +289,7 @@ function AppContent() {
           <TDFManager
             onOpenEditor={(id) => { setTdfSetId(id); setCurrentView('tdf-editor'); }}
             onOpenVariants={(id) => { setTdfSetId(id); setCurrentView('tdf-variants'); }}
+            onOpenFlashcards={(id) => { setTdfSetId(id); setCurrentView('tdf-flashcards'); }}
           />
         );
       case 'tdf-editor':
@@ -288,6 +306,17 @@ function AppContent() {
             onBack={() => setCurrentView('tdf')}
           />
         );
+      case 'tdf-flashcards':
+        return (
+          <TDFFlashcards
+            setId={tdfSetId}
+            onBack={() => setCurrentView('tdf')}
+          />
+        );
+      case 'route-sheet':
+        return <RouteSheetGenerator />;
+      case 'heatmap':
+        return <ErrorHeatmap />;
       case 'theory-browser':
         return (
           <TheoryBrowser
@@ -348,6 +377,9 @@ function AppContent() {
       case 'tdf': return 'ТДФ — Теоремы, Определения, Формулы';
       case 'tdf-editor': return 'ТДФ — Редактор конспекта';
       case 'tdf-variants': return 'ТДФ — Варианты';
+      case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
+      case 'route-sheet': return 'Маршрутный лист';
+      case 'heatmap': return 'Тепловая карта ошибок';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
       case 'theory-view': return 'Теория — Просмотр';
@@ -360,7 +392,7 @@ function AppContent() {
   const getSelectedKeys = () => {
     if (currentView === 'theory-view') return ['theory-browser'];
     if (currentView === 'student-detail') return ['students'];
-    if (currentView === 'tdf-editor' || currentView === 'tdf-variants') return ['tdf'];
+    if (currentView === 'tdf-editor' || currentView === 'tdf-variants' || currentView === 'tdf-flashcards') return ['tdf'];
     return [currentView];
   };
 

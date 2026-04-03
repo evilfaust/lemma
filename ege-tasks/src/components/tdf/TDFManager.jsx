@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined,
-  UnorderedListOutlined, PrinterOutlined,
+  UnorderedListOutlined, CreditCardOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 
@@ -21,7 +21,7 @@ const TYPE_LABELS = {
   corollary: { label: 'Следствие', color: 'gold' },
 };
 
-export default function TDFManager({ onOpenEditor, onOpenVariants }) {
+export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashcards }) {
   const [sets, setSets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -110,7 +110,7 @@ export default function TDFManager({ onOpenEditor, onOpenVariants }) {
     {
       title: 'Действия',
       key: 'actions',
-      width: 220,
+      width: 310,
       render: (_, record) => (
         <Space>
           <Tooltip title="Редактировать конспект">
@@ -127,6 +127,14 @@ export default function TDFManager({ onOpenEditor, onOpenVariants }) {
               onClick={() => onOpenVariants(record.id)}
             >
               Варианты
+            </Button>
+          </Tooltip>
+          <Tooltip title="Карточки-флипы для самопроверки">
+            <Button
+              icon={<CreditCardOutlined />}
+              onClick={() => onOpenFlashcards?.(record.id)}
+            >
+              Карточки
             </Button>
           </Tooltip>
           <Button icon={<EditOutlined />} onClick={() => openEdit(record)} />
