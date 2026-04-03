@@ -8,7 +8,7 @@
     visibility: visible;
   }
   body:has(.route-sheet-print-root) .route-sheet-print-root {
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;

@@ -28,7 +28,7 @@
      body:has() — scoped selector, не ломает печать других страниц
      (по аналогии с GeometryWorksheetPrint.css и GeometryTaskPreview.css). */
   body:has(.qr-print-root) { visibility: hidden; }
-  .qr-print-root { visibility: visible; position: fixed; top: 0; left: 0; width: 100%; }
+  .qr-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
   .qr-print-root * { visibility: visible; }
 
   .qr-student-page,
@@ -42,5 +42,6 @@
 
   .qr-teacher-page {
     page-break-before: always;
+    break-before: page;
   }
 }
