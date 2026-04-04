@@ -26,13 +26,11 @@
   perspective: 1200px;
   cursor: pointer;
   user-select: none;
-  height: 420px;
 }
 
 .tdf-flashcard-inner {
   position: relative;
   width: 100%;
-  height: 100%;
   transform-style: preserve-3d;
   transition: transform 0.4s ease;
 }
@@ -43,8 +41,6 @@
 
 .tdf-flashcard-front,
 .tdf-flashcard-back {
-  position: absolute;
-  inset: 0;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: 12px;
@@ -55,13 +51,34 @@
   border: 1.5px solid #e0e0e0;
   background: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  overflow-y: auto;
+  min-height: 200px;
+  box-sizing: border-box;
+}
+
+/* По умолчанию: фронт задаёт высоту, бек — абсолютный поверх */
+.tdf-flashcard-front {
+  position: relative;
+  width: 100%;
 }
 
 .tdf-flashcard-back {
+  position: absolute;
+  inset: 0;
   transform: rotateY(180deg);
   background: #f6ffed;
   border-color: #b7eb8f;
+}
+
+/* Флип: бек задаёт высоту, фронт — абсолютный поверх */
+.tdf-flashcard--flipped .tdf-flashcard-front {
+  position: absolute;
+  inset: 0;
+}
+
+.tdf-flashcard--flipped .tdf-flashcard-back {
+  position: relative;
+  inset: auto;
+  width: 100%;
 }
 
 .tdf-flashcard-type {
