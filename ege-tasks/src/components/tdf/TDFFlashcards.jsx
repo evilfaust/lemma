@@ -233,11 +233,54 @@ function ResultsScreen({ deck, results, onRestart, onRestartUnknown, onBack }) {
   );
 }
 
+// Экран выбора набора (когда setId не передан)
+function SetSelectorScreen({ onSelect }) {
+  const [sets, setSets] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.getTdfSets()
+      .then(setSets)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
+  }
+
+  if (sets.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: 48, color: '#888' }}>
+        Наборов ТДФ нет. Создайте набор в разделе «ТДФ — Наборы».
+      </div>
+    );
+  }
+
+  return (
+    <div className="tdf-flashcards-settings">
+      <Title level={4} style={{ marginBottom: 16 }}>Выберите набор</Title>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {sets.map(s => (
+          <Button key={s.id} block onClick={() => onSelect(s)} style={{ height: 'auto', padding: '10px 16px', textAlign: 'left' }}>
+            <div>
+              <span style={{ fontWeight: 500 }}>{s.title}</span>
+              {s.class_number && (
+                <Tag style={{ marginLeft: 8 }}>{s.class_number} класс</Tag>
+              )}
+            </div>
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Основной компонент
-export default function TDFFlashcards({ setId, onBack }) {
+export default function TDFFlashcards({ setId: initialSetId, onBack }) {
+  const [activeSetId, setActiveSetId] = useState(initialSetId || null);
   const [tdfSet, setTdfSet] = useState(null);
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!initialSetId);
 
   // Фазы: 'settings' | 'session' | 'results'
   const [phase, setPhase] = useState('settings');
@@ -248,16 +291,16 @@ export default function TDFFlashcards({ setId, onBack }) {
   const [progress, setProgress] = useState({}); // localStorage прогресс
 
   useEffect(() => {
-    if (!setId) return;
+    if (!activeSetId) return;
     setLoading(true);
-    Promise.all([api.getTdfSet(setId), api.getTdfItems(setId)])
+    Promise.all([api.getTdfSet(activeSetId), api.getTdfItems(activeSetId)])
       .then(([set, its]) => {
         setTdfSet(set);
         setItems(its);
-        setProgress(loadProgress(setId));
+        setProgress(loadProgress(activeSetId));
       })
       .finally(() => setLoading(false));
-  }, [setId]);
+  }, [activeSetId]);
 
   const handleStart = useCallback(({ filtered, shuffled }) => {
     let deck = [...filtered];
@@ -284,7 +327,7 @@ export default function TDFFlashcards({ setId, onBack }) {
     // Сохраняем в localStorage
     const newProgress = { ...progress, [item.id]: answer };
     setProgress(newProgress);
-    saveProgress(setId, newProgress);
+    saveProgress(activeSetId, newProgress);
 
     if (currentIndex + 1 >= deck.length) {
       setPhase('results');
@@ -292,7 +335,7 @@ export default function TDFFlashcards({ setId, onBack }) {
       setCurrentIndex(prev => prev + 1);
       setIsFlipped(false);
     }
-  }, [deck, currentIndex, results, progress, setId]);
+  }, [deck, currentIndex, results, progress, activeSetId]);
 
   const handleRestartUnknown = useCallback(() => {
     const unknown = deck.filter(item => results[item.id] !== 'know');
@@ -307,6 +350,19 @@ export default function TDFFlashcards({ setId, onBack }) {
     setPhase('settings');
   }, []);
 
+  if (!activeSetId) {
+    return (
+      <div className="tdf-flashcards-container">
+        <div className="tdf-flashcards-topbar">
+          <Button icon={<ArrowLeftOutlined />} type="text" onClick={onBack}>
+            Назад к ТДФ
+          </Button>
+        </div>
+        <SetSelectorScreen onSelect={(s) => { setActiveSetId(s.id); setPhase('settings'); }} />
+      </div>
+    );
+  }
+
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
   }
@@ -314,8 +370,8 @@ export default function TDFFlashcards({ setId, onBack }) {
   return (
     <div className="tdf-flashcards-container">
       <div className="tdf-flashcards-topbar">
-        <Button icon={<ArrowLeftOutlined />} type="text" onClick={onBack}>
-          Назад к ТДФ
+        <Button icon={<ArrowLeftOutlined />} type="text" onClick={initialSetId ? onBack : () => setActiveSetId(null)}>
+          {initialSetId ? 'Назад к ТДФ' : 'Выбрать другой набор'}
         </Button>
       </div>
 
