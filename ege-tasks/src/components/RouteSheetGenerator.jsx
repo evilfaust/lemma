@@ -11,6 +11,7 @@ import useRouteSheet, { circleNum } from '../hooks/useRouteSheet';
 import RouteSheetPrintLayout from './route-sheet/RouteSheetPrintLayout';
 import './route-sheet/RouteSheetPrintLayout.css';
 import TaskSelectModal from './TaskSelectModal';
+import RouteTaskEditor from './route-sheet/RouteTaskEditor';
 import MathRenderer from '../shared/components/MathRenderer';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
@@ -119,6 +120,7 @@ export default function RouteSheetGenerator() {
   } = useRouteSheet();
 
   const [selectModalOpen, setSelectModalOpen] = useState(false);
+  const [editorOpen, setEditorOpen] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
@@ -229,13 +231,23 @@ export default function RouteSheetGenerator() {
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <Text strong>Задачи цепочки ({tasks.length})</Text>
-          <Button
-            type="dashed"
-            icon={<PlusOutlined />}
-            onClick={() => setSelectModalOpen(true)}
-          >
-            Добавить задачу
-          </Button>
+          <Space>
+            <Button
+              type="dashed"
+              icon={<PlusOutlined />}
+              onClick={() => setSelectModalOpen(true)}
+            >
+              Из базы
+            </Button>
+            <Button
+              type="primary"
+              ghost
+              icon={<PlusOutlined />}
+              onClick={() => setEditorOpen(true)}
+            >
+              Создать задачу для маршрута
+            </Button>
+          </Space>
         </div>
 
         {tasks.length === 0 ? (
@@ -321,6 +333,15 @@ export default function RouteSheetGenerator() {
         subtopics={subtopics}
         tags={tags}
         excludeIds={tasks.map(t => t.id)}
+      />
+
+      {/* Редактор задачи для маршрута */}
+      <RouteTaskEditor
+        open={editorOpen}
+        onClose={() => setEditorOpen(false)}
+        onSaved={(task) => { addTask(task); setEditorOpen(false); message.success('Задача создана и добавлена в маршрут'); }}
+        previousTasks={tasks}
+        insertIndex={tasks.length}
       />
 
       {/* Модал загрузки */}
