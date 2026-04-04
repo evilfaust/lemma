@@ -92,7 +92,7 @@ function FlashCard({ item, isFlipped, onFlip }) {
           )}
           {drawingUrl && (
             <div className="tdf-flashcard-drawing">
-              <img src={drawingUrl} alt="Чертёж" style={{ maxWidth: '100%', maxHeight: 140, borderRadius: 4 }} />
+              <img src={drawingUrl} alt="Чертёж" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 4 }} />
             </div>
           )}
         </div>

@@ -26,13 +26,13 @@
   perspective: 1200px;
   cursor: pointer;
   user-select: none;
-  min-height: 280px;
+  height: 420px;
 }
 
 .tdf-flashcard-inner {
   position: relative;
   width: 100%;
-  min-height: 280px;
+  height: 100%;
   transform-style: preserve-3d;
   transition: transform 0.4s ease;
 }
@@ -55,7 +55,7 @@
   border: 1.5px solid #e0e0e0;
   background: #fff;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  min-height: 280px;
+  overflow-y: auto;
 }
 
 .tdf-flashcard-back {
