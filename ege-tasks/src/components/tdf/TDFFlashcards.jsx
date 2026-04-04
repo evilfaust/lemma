@@ -59,14 +59,21 @@ function FlashCard({ item, isFlipped, onFlip }) {
             </Tag>
             {item.name && <span className="tdf-flashcard-name">{item.name}</span>}
           </div>
-          <div className="tdf-flashcard-content">
-            {item.question_md ? (
+          {item.question_md && (
+            <div className="tdf-flashcard-content">
               <MathRenderer content={item.question_md} />
-            ) : (
-              <Text type="secondary">Нет вопроса</Text>
-            )}
-          </div>
-          <div className="tdf-flashcard-hint">нажмите, чтобы увидеть ответ</div>
+            </div>
+          )}
+          {item.formulation_md && (
+            <div className="tdf-flashcard-formulation">
+              <div className="tdf-flashcard-formulation-label">Формулировка:</div>
+              <MathRenderer content={item.formulation_md} />
+            </div>
+          )}
+          {!item.question_md && !item.formulation_md && (
+            <Text type="secondary">Нет вопроса</Text>
+          )}
+          <div className="tdf-flashcard-hint">нажмите, чтобы увидеть краткую запись и чертёж</div>
         </div>
 
         {/* Обратная сторона: ответ */}

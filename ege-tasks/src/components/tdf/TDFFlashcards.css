@@ -84,6 +84,24 @@
   overflow: auto;
 }
 
+.tdf-flashcard-formulation {
+  padding: 10px 12px;
+  background: #f0f7ff;
+  border: 1px solid #91caff;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.tdf-flashcard-formulation-label {
+  font-size: 11px;
+  color: #1677ff;
+  font-weight: 600;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .tdf-flashcard-hint {
   text-align: center;
   font-size: 11px;
