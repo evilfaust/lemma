@@ -13,6 +13,7 @@ import './route-sheet/RouteSheetPrintLayout.css';
 import TaskSelectModal from './TaskSelectModal';
 import MathRenderer from '../shared/components/MathRenderer';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 const { Title, Text } = Typography;
 
@@ -105,6 +106,7 @@ function ChainConnector({ fromIndex }) {
 
 export default function RouteSheetGenerator() {
   const { message } = App.useApp();
+  const { topics, subtopics, tags } = useReferenceData();
   const {
     title, setTitle,
     tasks,
@@ -312,9 +314,12 @@ export default function RouteSheetGenerator() {
 
       {/* Модал выбора задачи */}
       <TaskSelectModal
-        open={selectModalOpen}
-        onClose={() => setSelectModalOpen(false)}
+        visible={selectModalOpen}
+        onCancel={() => setSelectModalOpen(false)}
         onSelect={handleAddTask}
+        topics={topics}
+        subtopics={subtopics}
+        tags={tags}
         excludeIds={tasks.map(t => t.id)}
       />
 
