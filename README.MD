@@ -4,9 +4,10 @@
 
 **Lemma** — полнофункциональная веб-платформа для учителей математики: управление базой задач, генерация вариантов контрольных и самостоятельных работ, онлайн-тестирование учеников, аналитика результатов, модуль геометрии с GeoGebra, система ТДФ (теоремы, определения, формулы) и мотивация через достижения.
 
-Приложение состоит из **двух интерфейсов**:
+Приложение состоит из **трёх интерфейсов**:
 - **Учительский** — управление задачами, генерация работ, выдача тестов, просмотр результатов
-- **Ученический** — прохождение тестов, просмотр результатов, коллекция достижений
+- **Ученический** — прохождение тестов, личный кабинет, прогресс, коллекция достижений
+- **Лендинг** (`/landing.html`) — промо-страница с описанием возможностей платформы
 
 ## Основные возможности
 
@@ -74,6 +75,18 @@
 - Экспорт в PDF
 - Настройки: колонки (1–3), шрифт (10–20pt), компактный режим, место для решения, поля для ФИО, лист ответов
 
+### Генератор вариантов ЕГЭ (EgeVariantGenerator)
+Генератор полных вариантов ЕГЭ базового уровня (21 задание) в официальном стиле КИМ.
+
+- 21 слот по темам ЕГЭ — каждый можно настроить: подтема, сложность, теги
+- Возможность «закрепить» конкретную задачу в любой слот
+- **Два режима печати**: обычный вариант или официальный стиль КИМ
+- **КИМ-формат**: A5 portrait страницы, обложка с инструкцией, нумерация в квадратах, поле «Ответ:», футер «© Лемма»
+- **Двухфазный рендер** для точной пагинации: DOM-измерение высот задач → жадное размещение по A5-страницам
+- Для A4-буклета: «2 страницы на листе» в диалоге печати браузера
+- Колонка «Успеваемость» в слот-таблице: средний процент верных ответов по задачам темы
+- PDF-экспорт через Puppeteer-сервис
+
 ### QR-листы (QRWorksheetGenerator)
 Уникальный формат работы: ученик решает задачи, находит числа-ответы в числовой таблице и закрашивает соответствующие клетки — из них складывается QR-код, который ведёт на следующее задание или ресурс.
 
@@ -85,6 +98,18 @@
 - Печать A4: страница ученика (условия + числовая сетка) + страница-ключ учителя (ответы + QR-код + подсвеченная сетка)
 - Картинки к задачам: обтекание текстом (`float: right`)
 - Режим **двух колонок** для листов с большими изображениями
+
+### Пиксель-арты (PixelArtWorksheet)
+Нестандартный формат работы: ученик решает задачи и закрашивает клетки сетки по числовым ответам — из них складывается пиксельный рисунок.
+
+- Загрузка любого изображения → автоматическая бинаризация в пиксельную матрицу
+- Настройка размера сетки (столбцы × строки) с сохранением пропорций
+- Порог бинаризации (0–255) для тонкой настройки контраста
+- Выбор задач из базы, числовые ответы образуют «правильные» клетки рисунка
+- **Страница ученика**: сетка с числами + условия задач (опционально в 2 колонки)
+- **Страница-ключ учителя**: подсвеченная сетка + правильные ответы (опционально)
+- Режим печати на **половине листа** (2 рисунка на A4)
+- Сохранение/загрузка в базе данных (`pixel_art_worksheets`), кнопка «Обновить» при повторном сохранении
 
 ### Редактор работ (WorkEditor)
 - Список сохранённых работ с поиском и фильтрами (тема, статус: активные/архив)
@@ -99,6 +124,7 @@
 - Защита: при наличии попыток — только «Сохранить как новую»
 
 ### Система тестирования учеников
+- **Главная страница** (`/student/`) — личный кабинет: поле ввода кода сессии, кнопки «Войти» / «Зарегистрироваться», при входе — «Мой прогресс» / «Мои достижения»
 - Учитель создаёт сессию из работы и получает ссылку `/student/{sessionId}`
 - Ученик открывает ссылку, регистрируется или входит (логин/пароль)
 - Ученик получает вариант (round-robin распределение)
@@ -197,7 +223,7 @@
 generation-test/
 ├── ege-tasks/                    # Frontend (React + Vite)
 │   ├── src/
-│   │   ├── components/           # React компоненты (29)
+│   │   ├── components/           # React компоненты (33+)
 │   │   │   ├── TaskList.jsx              # Список задач с фильтрацией
 │   │   │   ├── TaskCard.jsx              # Карточка задачи
 │   │   │   ├── TaskFilters.jsx           # Панель фильтров
@@ -207,20 +233,24 @@ generation-test/
 │   │   │   ├── TaskStatsDashboard.jsx    # Дашборд статистики
 │   │   │   ├── TaskCatalogManager.jsx    # Каталог справочников
 │   │   │   ├── TaskImporter.jsx          # Импорт задач
-│   │   │   ├── MathRenderer.jsx          # Рендерер LaTeX + Markdown
 │   │   │   ├── WorksheetGenerator.jsx    # Генератор карточек (A5/A6/A4)
 │   │   │   ├── OralWorksheetGenerator.jsx # Генератор «Устный счёт»
 │   │   │   ├── TestWorkGenerator.jsx     # Генератор контрольных работ
+│   │   │   ├── EgeVariantGenerator.jsx   # Генератор вариантов ЕГЭ (КИМ, A5)
+│   │   │   ├── QRWorksheetGenerator.jsx  # QR-листы
+│   │   │   ├── PixelArtWorksheet.jsx     # Пиксель-арты
 │   │   │   ├── WorkEditor.jsx            # Редактор сохранённых работ
 │   │   │   ├── WorkEditorPage.jsx        # Страница редактора работ
 │   │   │   ├── WorkManager.jsx           # Менеджер сохранённых работ
 │   │   │   ├── PrintableWorksheet.jsx    # Печатная форма
 │   │   │   ├── StudentProgressDashboard.jsx # Прогресс учеников (учитель)
+│   │   │   ├── StudentDetailPage.jsx     # Детали ученика
 │   │   │   ├── AchievementManager.jsx    # Управление достижениями
 │   │   │   ├── GeometryTaskList.jsx      # Список задач геометрии
 │   │   │   ├── GeometryTaskEditor.jsx    # Редактор задач геометрии (GeoGebra)
 │   │   │   ├── GeometryTaskPreview.jsx   # A5-печать геометрии + drag&drop
 │   │   │   ├── GeometryTaskPreview.css   # Стили геометрии (absolute-% layout)
+│   │   │   ├── GeometryWorksheetPrint.jsx # Рабочий лист из задач геометрии
 │   │   │   ├── GeoGebraApplet.jsx        # Обёртка GeoGebra (geometry/graphing/classic/3d)
 │   │   │   ├── GeoGebraDrawingPanel.jsx  # Упрощённая панель рисования (PNG only)
 │   │   │   ├── TheoryBrowser.jsx         # Просмотр теории
@@ -236,10 +266,34 @@ generation-test/
 │   │   │   │   ├── OtherTab.jsx
 │   │   │   │   ├── DuplicateTab.jsx
 │   │   │   │   └── MergeModal.jsx
-│   │   │   ├── geometry/                 # Подкомпоненты геометрии (3)
+│   │   │   ├── geometry/                 # Подкомпоненты геометрии (7)
 │   │   │   │   ├── SaveGeometryPrintModal.jsx  # Сохранение листа A5
 │   │   │   │   ├── LoadGeometryPrintModal.jsx  # Загрузка листа A5
-│   │   │   │   └── GeometryTopicManager.jsx    # Управление темами геометрии
+│   │   │   │   ├── GeometryTopicManager.jsx    # Управление темами геометрии
+│   │   │   │   ├── TabCondition.jsx            # Вкладка: условие задачи
+│   │   │   │   ├── TabDrawing.jsx              # Вкладка: GeoGebra + PNG
+│   │   │   │   ├── TabLayout.jsx               # Вкладка: макет A5
+│   │   │   │   └── TabSolution.jsx             # Вкладка: решение
+│   │   │   ├── tdf/                      # Подкомпоненты ТДФ (5)
+│   │   │   │   ├── TDFManager.jsx        # Список наборов ТДФ
+│   │   │   │   ├── TDFEditor.jsx         # Редактор конспекта
+│   │   │   │   ├── TDFItemModal.jsx      # Создание/редактирование пункта
+│   │   │   │   ├── TDFVariantBuilder.jsx # Конструктор вариантов опросников
+│   │   │   │   └── TDFPrintView.jsx      # Печать A4 (эталон/бланк, альбомная/книжная)
+│   │   │   ├── qr-worksheet/             # Подкомпоненты QR-листов (3)
+│   │   │   │   ├── QRTaskPanel.jsx       # Панель выбора задач
+│   │   │   │   ├── QRGridPreview.jsx     # Экранный превью сетки
+│   │   │   │   └── QRPrintLayout.jsx     # Печатная вёрстка A4
+│   │   │   ├── pixel-art/               # Подкомпоненты пиксель-артов (2)
+│   │   │   │   ├── ImageUploader.jsx     # Загрузка и бинаризация изображения
+│   │   │   │   └── GridSizeControls.jsx  # Контроллеры размера сетки
+│   │   │   ├── shared/                   # Общие компоненты (1)
+│   │   │   │   └── CropModal.jsx         # Универсальный модал кадрирования PNG
+│   │   │   ├── theory/                   # Подкомпоненты теории (4)
+│   │   │   │   ├── EditorToolbar.jsx     # Тулбар редактора теории
+│   │   │   │   ├── TableInsertPopover.jsx # Вставка таблиц в MD
+│   │   │   │   ├── GeoGebraBlocksModal.jsx # Управление GeoGebra-чертежами
+│   │   │   │   └── TheoryGeoGebraEmbed.jsx # Встроенный GeoGebra в статью
 │   │   │   ├── worksheet/                # Переиспользуемые компоненты (12)
 │   │   │   │   ├── FilterBlock.jsx       # Блок фильтров
 │   │   │   │   ├── VariantSettings.jsx   # Настройки вариантов
@@ -260,8 +314,10 @@ generation-test/
 │   │   │       ├── StudentTestPage.jsx   # Прохождение теста
 │   │   │       ├── StudentResultPage.jsx # Результаты
 │   │   │       ├── AchievementBadge.jsx  # Бейдж достижения
-│   │   │       └── AchievementGallery.jsx # Галерея достижений
-│   │   ├── hooks/                # Custom React hooks (13)
+│   │   │       ├── AchievementGallery.jsx # Галерея достижений
+│   │   │       ├── StudentProgressPage.jsx # Личный прогресс ученика
+│   │   │       └── StudentHomeLanding.jsx  # Главная страница (личный кабинет)
+│   │   ├── hooks/                # Custom React hooks (19)
 │   │   │   ├── useWorksheetGeneration.js # Генерация вариантов
 │   │   │   ├── useTaskDragDrop.js        # Drag & Drop
 │   │   │   ├── useWorksheetActions.js    # Печать, PDF, сохранение
@@ -274,7 +330,13 @@ generation-test/
 │   │   │   ├── useAutosave.js            # Автосохранение
 │   │   │   ├── useKeyboardShortcuts.js   # Горячие клавиши
 │   │   │   ├── useDocumentStats.js       # Статистика документа
-│   │   │   └── index.js                  # Реэкспорт хуков
+│   │   │   ├── useAvailableTags.js       # Доступные теги по теме/подтеме
+│   │   │   ├── useTaskCounter.js         # Счётчик задач по фильтрам
+│   │   │   ├── useImageUpload.js         # Загрузка и управление изображениями
+│   │   │   ├── useGeoGebraOperations.js  # GeoGebra save/clear/export
+│   │   │   ├── useTopicSubtopicCreation.js # Создание тем/подтем
+│   │   │   ├── useQRWorksheet.js         # Управление состоянием QR-листа
+│   │   │   └── usePixelArt.js            # Управление состоянием пиксель-арта
 │   │   ├── shared/               # Общий код (teacher + student)
 │   │   │   ├── components/
 │   │   │   │   └── MathRenderer.jsx      # Рендерер LaTeX + Markdown
@@ -286,17 +348,20 @@ generation-test/
 │   │   │       └── escapeFilter.js       # Экранирование фильтров PB
 │   │   ├── services/             # Реэкспорт из shared (обратная совместимость)
 │   │   │   └── pocketbase.js
-│   │   ├── utils/                # Утилиты (10)
+│   │   ├── utils/                # Утилиты (13)
 │   │   │   ├── achievementEngine.js      # Движок достижений
 │   │   │   ├── answerChecker.js          # Проверка ответов
 │   │   │   ├── cropImage.js              # Обрезка PNG (canvas, слайдеры)
 │   │   │   ├── filterTaskText.js         # Фильтр префиксов задач
 │   │   │   ├── taskCodeGenerator.js      # Генератор кодов задач
-│   │   │   ├── markdownTaskParser.js     # Парсер Markdown
+│   │   │   ├── markdownTaskParser.js     # Парсер Markdown + sdamgia
 │   │   │   ├── theoryThemes.js           # Темы теории
 │   │   │   ├── shuffle.js                # Fisher-Yates shuffle
 │   │   │   ├── escapeFilter.js           # Экранирование фильтров PB
-│   │   │   └── normalize.js              # Нормализация текста
+│   │   │   ├── normalize.js              # Нормализация текста
+│   │   │   ├── qrMatrix.js               # Генерация QR-матрицы
+│   │   │   ├── qrGridFill.js             # Заполнение сетки числами-ответами
+│   │   │   └── imageToMatrix.js          # Бинаризация изображения в матрицу
 │   │   ├── contexts/
 │   │   │   └── ReferenceDataContext.jsx   # Глобальные справочники
 │   │   ├── teacher/
@@ -437,6 +502,34 @@ PNG URL:
   id, tdf_set: relation → tdf_sets, number: number, title: text,
   item_ids: json,  // [id1, id2, ...]
   created, updated
+}
+```
+
+#### qr_worksheets — QR-листы
+```javascript
+{
+  id, title,
+  qr_url: text,                  // URL для QR-кода
+  tasks: relation[] → tasks,
+  custom_answers: json,          // {taskId: string} — переопределённые ответы
+  grid: json,                    // Cell[][] — сетка с числами
+  qr_size: number                // сторона QR-матрицы (21-40)
+}
+```
+
+#### pixel_art_worksheets — Пиксель-арты
+```javascript
+{
+  id, title,
+  tasks: relation[] → tasks,
+  custom_answers: json,          // {taskId: string}
+  grid: json,                    // Cell[][] — сетка с числами-ответами
+  matrix: json,                  // boolean[][] — булевая матрица пикселей
+  grid_cols: number, grid_rows: number,
+  threshold: number,             // порог бинаризации (0-255)
+  two_sheets: bool,              // режим полулиста
+  show_teacher_key: bool,        // показывать страницу-ключ
+  two_columns: bool              // задачи в две колонки
 }
 ```
 
