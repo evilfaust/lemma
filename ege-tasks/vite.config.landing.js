@@ -26,6 +26,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         landing: resolve(__dirname, 'landing.html'),
+        howItWorks: resolve(__dirname, 'how-it-works.html'),
       },
     },
   },

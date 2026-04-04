@@ -16,10 +16,10 @@ const FEATURES = [
     numColor: 'pink',
     cardColor: 'pink',
     title: 'Генератор работ',
-    desc: 'Устный счёт, контрольные, карточки и полные варианты ЕГЭ в формате КИМ (21 задание, A5-печать). Несколько вариантов за секунды. PDF-экспорт.',
+    desc: 'Устный счёт, контрольные, карточки, маршрутные листы, QR-листы и pixel art worksheets. Несколько вариантов за секунды, печать и PDF-экспорт.',
     tags: [
       { label: 'PDF', color: 'pink' },
-      { label: 'КИМ ЕГЭ', color: 'pink' },
+      { label: 'Маршрутные листы', color: 'pink' },
       { label: 'Drag & Drop', color: '' },
     ],
   },
@@ -71,6 +71,18 @@ const FEATURES = [
       { label: 'GeoGebra', color: '' },
     ],
   },
+  {
+    num: '07',
+    numColor: 'cyan',
+    cardColor: 'cyan',
+    title: 'Пиксель-арт',
+    desc: 'Загрузи изображение — получи pixel art worksheet с сеткой и ключом учителя. Ученик закрашивает клетки по числам-ответам и проявляет рисунок.',
+    tags: [
+      { label: 'Печать A4', color: 'cyan' },
+      { label: 'Сохранение', color: 'cyan' },
+      { label: 'Ключ учителя', color: '' },
+    ],
+  },
 ]
 
 const ANALYTICS_ITEMS = [
@@ -120,7 +132,7 @@ const FeaturesV2 = () => (
       <div className="v2-bento v2-reveal" style={{ marginTop: 16 }}>
         {/* Analytics card */}
         <div className="v2-bento-card v2-bento-card--analytics">
-          <div className="v2-bento-num v2-bento-num--orange">07</div>
+          <div className="v2-bento-num v2-bento-num--orange">08</div>
           <h3 className="v2-bento-title">{'Аналитика и прогресс'}</h3>
           <p className="v2-bento-desc">
             {'Учитель видит полную картину класса. Ученик отслеживает прогресс и серию успехов.'}
@@ -141,7 +153,7 @@ const FeaturesV2 = () => (
         {/* Wide achievement card */}
         <div className="v2-bento-card v2-bento-card--wide v2-bento-card--achievements">
           <div>
-            <div className="v2-bento-num v2-bento-num--orange">08</div>
+            <div className="v2-bento-num v2-bento-num--orange">09</div>
             <h3 className="v2-bento-title">{'Достижения'}</h3>
             <p className="v2-bento-desc">
               {'72+ достижения трёх уровней редкости. Ученики собирают коллекцию и возвращаются к тренировкам чаще.'}
