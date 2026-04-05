@@ -67,6 +67,7 @@
     padding: 10mm;
     box-sizing: border-box;
     font-size: 11pt;
+    overflow: hidden;
   }
 
   .pixel-art-grid-page,

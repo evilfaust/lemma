@@ -38,18 +38,27 @@ export default function PixelArtPrintLayout({
   if (!rows || !cols) return null;
 
   // ── Размер клетки (квадратные, мм) ────────────────────────────────────────
-  const availW = 190; // A4 210mm − 2×10mm поля
-  // На отдельном листе для сетки высота ~240mm; на совместном листе ~120mm
-  const availH = twoSheets ? 240 : 120;
-  const cellMm = Math.max(3.5, Math.min(10, Math.min(availW / cols, availH / rows)));
-  const fontPt = Math.max(5, Math.round(cellMm * 2.2 - 1));
+  // A4 210mm − 2×10mm поля (CSS padding) = 190mm доступно; берём 186мм с запасом
+  const availW = 186;
+  // Для одного листа считаем availH динамически по кол-ву задач:
+  //   277mm контента A4 − 60mm (шапка+инструкция+подпись+футер) − taskRows×20mm
+  const taskRows = twoColumns ? Math.ceil(tasks.length / 2) : tasks.length;
+  const computedAvailH = 277 - 60 - taskRows * 20;
+  const availH = twoSheets ? 250 : Math.max(60, computedAvailH);
+  // Размер клетки = ограничен по ширине И по высоте, макс 10мм
+  const cellMm = Math.min(10, availW / cols, availH / rows);
+  // Явная ширина таблицы = cellMm * cols — таблица НИКОГДА не выходит за availW
+  const tableWidthMm = cellMm * cols;
+  const fontPt = Math.max(4, Math.round(cellMm * 2.2 - 1));
 
   // ── Рендер сетки ──────────────────────────────────────────────────────────
   const renderGrid = (highlightAnswers) => (
     <table
       style={{
         borderCollapse: 'collapse',
+        // Явная ширина на таблице — tableLayout:fixed распределит колонки равномерно
         tableLayout: 'fixed',
+        width: `${tableWidthMm}mm`,
         pageBreakInside: 'avoid',
         margin: '0 auto',
       }}
@@ -63,7 +72,7 @@ export default function PixelArtPrintLayout({
                 <td
                   key={ci}
                   style={{
-                    width: `${cellMm}mm`,
+                    // Ширину не задаём — browser берёт из tableWidth / cols
                     height: `${cellMm}mm`,
                     border: '0.4pt solid #666',
                     textAlign: 'center',
@@ -75,6 +84,7 @@ export default function PixelArtPrintLayout({
                     color: filled ? '#ffffff' : '#222',
                     padding: 0,
                     lineHeight: 1,
+                    overflow: 'hidden',
                   }}
                 >
                   {cell.value}

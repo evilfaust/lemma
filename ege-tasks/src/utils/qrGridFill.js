@@ -20,8 +20,9 @@ export function fillQRGrid(matrix, answers) {
   }
 
   const answerSet = new Set(answerNums);
-  const size = matrix.length;
-  const totalCells = size * size;
+  const matRows = matrix.length;
+  const matCols = matrix[0]?.length || matRows;
+  const totalCells = matRows * matCols;
 
   const noise = generateNoise(answerSet, totalCells);
   let noiseIdx = 0;
