@@ -72,7 +72,7 @@ export default function PixelArtPrintLayout({
                     fontFamily: 'Arial, sans-serif',
                     fontWeight: 500,
                     background: filled ? '#1a1a1a' : '#fff',
-                    color: filled ? '#1a1a1a' : '#222',
+                    color: filled ? '#ffffff' : '#222',
                     padding: 0,
                     lineHeight: 1,
                   }}

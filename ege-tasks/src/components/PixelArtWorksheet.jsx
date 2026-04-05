@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, PictureOutlined, DeleteOutlined,
-  SaveOutlined, FolderOpenOutlined,
+  SaveOutlined, FolderOpenOutlined, EditOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { usePixelArt } from '../hooks/usePixelArt';
@@ -15,6 +15,7 @@ import QRTaskPanel from './qr-worksheet/QRTaskPanel';
 import ImageUploader from './pixel-art/ImageUploader';
 import GridSizeControls from './pixel-art/GridSizeControls';
 import PixelArtPrintLayout from './pixel-art/PixelArtPrintLayout';
+import MatrixEditor from './pixel-art/MatrixEditor';
 import './PixelArtWorksheet.css';
 
 const { Text } = Typography;
@@ -23,6 +24,7 @@ export default function PixelArtWorksheet() {
   const { message } = App.useApp();
   const { topics, subtopics, tags } = useReferenceData();
   const [twoColumns, setTwoColumns] = useState(false);
+  const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
@@ -43,6 +45,7 @@ export default function PixelArtWorksheet() {
     showTeacherKey, setShowTeacherKey,
     processing, error,
     processImage, reset, loadFromSaved,
+    toggleCell, clearMatrix, fillMatrix, invertMatrix,
     savedId, setSavedId,
   } = usePixelArt();
 
@@ -201,6 +204,17 @@ export default function PixelArtWorksheet() {
               />
             </Card>
 
+            {/* Кнопка редактора пикселей */}
+            {matrix && (
+              <Button
+                icon={<EditOutlined />}
+                onClick={() => setEditorModalOpen(true)}
+                block
+              >
+                Редактор пикселей
+              </Button>
+            )}
+
             {/* Параметры сетки */}
             <Card size="small" title="Параметры сетки">
               <GridSizeControls
@@ -350,7 +364,6 @@ export default function PixelArtWorksheet() {
           <div className="pixel-art-preview-wrapper">
             {grid ? (
               <div className="pixel-art-a4-paper">
-                {/* Превью — без print-класса, чтобы не триггерить @media print */}
                 <PixelArtPrintLayout
                   title={title}
                   tasks={tasks}
@@ -374,6 +387,37 @@ export default function PixelArtWorksheet() {
         </Col>
 
       </Row>
+
+      {/* ── Полноэкранный редактор матрицы ── */}
+      <Modal
+        open={editorModalOpen}
+        onCancel={() => setEditorModalOpen(false)}
+        footer={null}
+        title="Редактор пикселей"
+        width="100vw"
+        style={{ top: 0, padding: 0, maxWidth: '100vw' }}
+        styles={{
+          body: {
+            padding: '12px 16px',
+            height: 'calc(100vh - 55px)',
+            overflow: 'auto',
+          },
+          content: { borderRadius: 0 },
+        }}
+        destroyOnClose={false}
+      >
+        {matrix && (
+          <MatrixEditor
+            matrix={matrix}
+            onToggleCell={toggleCell}
+            onClear={clearMatrix}
+            onFill={fillMatrix}
+            onInvert={invertMatrix}
+            availWidth={typeof window !== 'undefined' ? window.innerWidth - 48 : 800}
+            availHeight={typeof window !== 'undefined' ? window.innerHeight - 160 : 600}
+          />
+        )}
+      </Modal>
 
       {/* ── Скрытый печатный блок (вне превью, как в QRWorksheetGenerator) ── */}
       {grid && (

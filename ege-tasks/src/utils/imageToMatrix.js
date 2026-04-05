@@ -20,38 +20,70 @@ export async function imageToMatrix(file, cols, rows, threshold = 128) {
     img.onload = () => {
       URL.revokeObjectURL(url);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = cols;
-      canvas.height = rows;
-      const ctx = canvas.getContext('2d');
+      // Рисуем изображение в ПОЛНОМ разрешении — без потери качества
+      const fullCanvas = document.createElement('canvas');
+      fullCanvas.width = img.width;
+      fullCanvas.height = img.height;
+      const fullCtx = fullCanvas.getContext('2d');
 
-      // Белый фон (letterbox)
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, cols, rows);
+      // Белый фон (для PNG с прозрачностью)
+      fullCtx.fillStyle = '#ffffff';
+      fullCtx.fillRect(0, 0, img.width, img.height);
+      fullCtx.drawImage(img, 0, 0);
 
-      // Масштабируем с сохранением пропорций (fit inside)
+      const fullData = fullCtx.getImageData(0, 0, img.width, img.height).data;
+
+      // Вычисляем letterbox: как изображение вписывается в сетку cols×rows
       const scale = Math.min(cols / img.width, rows / img.height);
-      const drawW = img.width * scale;
-      const drawH = img.height * scale;
-      const offsetX = (cols - drawW) / 2;
+      const drawW = img.width * scale;   // ширина в единицах сетки
+      const drawH = img.height * scale;  // высота в единицах сетки
+      const offsetX = (cols - drawW) / 2; // отступ в единицах сетки
       const offsetY = (rows - drawH) / 2;
-
-      ctx.drawImage(img, offsetX, offsetY, drawW, drawH);
-
-      const imageData = ctx.getImageData(0, 0, cols, rows);
-      const pixels = imageData.data; // RGBA flat array
 
       const matrix = [];
       for (let r = 0; r < rows; r++) {
         const row = [];
         for (let c = 0; c < cols; c++) {
-          const idx = (r * cols + c) * 4;
-          const R = pixels[idx];
-          const G = pixels[idx + 1];
-          const B = pixels[idx + 2];
-          // Воспринимаемая яркость (человеческий глаз чувствительнее к зелёному)
-          const brightness = 0.299 * R + 0.587 * G + 0.114 * B;
-          row.push(brightness < threshold);
+          // Какой регион оригинального изображения соответствует ячейке [c, r]?
+          const imgX0 = (c - offsetX) / scale;
+          const imgX1 = (c + 1 - offsetX) / scale;
+          const imgY0 = (r - offsetY) / scale;
+          const imgY1 = (r + 1 - offsetY) / scale;
+
+          // Ячейка полностью в letterbox-зоне → белая (false)
+          if (imgX1 <= 0 || imgX0 >= img.width || imgY1 <= 0 || imgY0 >= img.height) {
+            row.push(false);
+            continue;
+          }
+
+          // Зажимаем координаты до границ изображения
+          const x0 = Math.max(0, Math.floor(imgX0));
+          const x1 = Math.min(img.width - 1, Math.ceil(imgX1 - 1e-9));
+          const y0 = Math.max(0, Math.floor(imgY0));
+          const y1 = Math.min(img.height - 1, Math.ceil(imgY1 - 1e-9));
+
+          // Усредняем яркость всех пикселей оригинала, попавших в ячейку (box filter)
+          let totalBrightness = 0;
+          let count = 0;
+          for (let py = y0; py <= y1; py++) {
+            for (let px = x0; px <= x1; px++) {
+              const idx = (py * img.width + px) * 4;
+              const R = fullData[idx];
+              const G = fullData[idx + 1];
+              const B = fullData[idx + 2];
+              const A = fullData[idx + 3] / 255;
+              // Смешиваем с белым фоном по альфа-каналу
+              const rF = R * A + 255 * (1 - A);
+              const gF = G * A + 255 * (1 - A);
+              const bF = B * A + 255 * (1 - A);
+              // Воспринимаемая яркость
+              totalBrightness += 0.299 * rF + 0.587 * gF + 0.114 * bF;
+              count++;
+            }
+          }
+
+          const avgBrightness = count > 0 ? totalBrightness / count : 255;
+          row.push(avgBrightness < threshold);
         }
         matrix.push(row);
       }

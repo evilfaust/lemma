@@ -90,6 +90,34 @@ export function usePixelArt() {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...vals } : t));
   }, []);
 
+  // ── Ручное редактирование матрицы ────────────────────────────────────────
+  const toggleCell = useCallback((r, c, value) => {
+    setMatrix(prev => {
+      if (!prev) return prev;
+      const next = prev.map(row => [...row]);
+      next[r][c] = value;
+      return next;
+    });
+  }, []);
+
+  const clearMatrix = useCallback(() => {
+    setMatrix(prev => prev ? prev.map(row => row.map(() => false)) : prev);
+  }, []);
+
+  const fillMatrix = useCallback(() => {
+    setMatrix(prev => prev ? prev.map(row => row.map(() => true)) : prev);
+  }, []);
+
+  const invertMatrix = useCallback(() => {
+    setMatrix(prev => prev ? prev.map(row => row.map(v => !v)) : prev);
+  }, []);
+
+  // ── Создать пустую матрицу нужного размера ────────────────────────────────
+  const createEmptyMatrix = useCallback((cols, rows) => {
+    setMatrix(Array.from({ length: rows }, () => Array(cols).fill(false)));
+    setGrid(null);
+  }, []);
+
   // ── Обработка изображения ─────────────────────────────────────────────────
   /**
    * Конвертирует изображение в матрицу. Grid пересчитается автоматически через useEffect.
@@ -171,6 +199,7 @@ export function usePixelArt() {
     showTeacherKey, setShowTeacherKey,
     // Действия
     processImage, reset, loadFromSaved,
+    toggleCell, clearMatrix, fillMatrix, invertMatrix, createEmptyMatrix,
     // Сохранение
     savedId, setSavedId,
   };
