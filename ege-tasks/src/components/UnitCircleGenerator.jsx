@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import katex from 'katex';
 import {
   Card, Button, Input, Select, Slider, Radio, Checkbox,
   Divider, Space, Tooltip, Modal, List, Typography, Tag, Popconfirm,
@@ -13,6 +14,13 @@ import UnitCirclePrintLayout from './trig/UnitCirclePrintLayout';
 import './UnitCircleGenerator.css';
 
 const { Text } = Typography;
+
+function MathInline({ latex }) {
+  let html;
+  try { html = katex.renderToString(latex, { throwOnError: false, displayMode: false }); }
+  catch { html = latex; }
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 const TASK_TYPE_OPTIONS = [
   { value: 'direct',  label: 'Прямая (подписать точки)' },
@@ -56,7 +64,7 @@ export default function UnitCircleGenerator() {
   const handlePrint = () => {
     const style = document.createElement('style');
     style.id = 'ucg-print-page-style';
-    style.textContent = '@page { size: A4 portrait; margin: 10mm; }';
+    style.textContent = '@page { size: A4 portrait; margin: 7mm; }';
     document.head.appendChild(style);
     window.print();
     setTimeout(() => {
@@ -276,7 +284,7 @@ export default function UnitCircleGenerator() {
                           <div className="ucg-angle-list-preview">
                             {task.points.map(p => (
                               <span key={p.id} style={{ marginRight: 8 }}>
-                                <b>{p.id}.</b> {p.display}
+                                <b>{p.id}.</b> <MathInline latex={p.display} />
                               </span>
                             ))}
                           </div>

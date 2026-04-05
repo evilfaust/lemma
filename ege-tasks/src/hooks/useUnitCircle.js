@@ -29,21 +29,26 @@ function gcd(a, b) {
   return a || 1;
 }
 
-// Форматирование угла: num/den * π + k*2π → строка типа "13π/6", "-11π/6"
-export function formatAngle(num, den, k = 0) {
+// Форматирование угла в LaTeX: num/den * π + k*2π → "\dfrac{13\pi}{6}", "-\pi", "0"
+export function formatAngleLatex(num, den, k = 0) {
   const totalNum = num + 2 * k * den;
   if (totalNum === 0) return '0';
   const g = gcd(Math.abs(totalNum), den);
   const n = totalNum / g;
   const d = den / g;
+  const sign = n < 0 ? '-' : '';
+  const absN = Math.abs(n);
   if (d === 1) {
-    if (n === 1)  return 'π';
-    if (n === -1) return '-π';
-    return `${n}π`;
+    if (absN === 1) return `${sign}\\pi`;
+    return `${sign}${absN}\\pi`;
   }
-  if (n === 1)  return `π/${d}`;
-  if (n === -1) return `-π/${d}`;
-  return `${n}π/${d}`;
+  if (absN === 1) return `${sign}\\dfrac{\\pi}{${d}}`;
+  return `${sign}\\dfrac{${absN}\\pi}{${d}}`;
+}
+
+// Устаревшая текстовая версия (оставлена для совместимости)
+export function formatAngle(num, den, k = 0) {
+  return formatAngleLatex(num, den, k);
 }
 
 // Тасование Фишера-Йейтса (не мутирует оригинал)
@@ -71,7 +76,7 @@ function generateTask(taskType, pointsCount, maxK) {
       num,
       den,
       k,
-      display: formatAngle(num, den, k),
+      display: formatAngleLatex(num, den, k),
     };
   });
 

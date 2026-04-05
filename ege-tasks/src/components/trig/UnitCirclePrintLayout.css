@@ -11,7 +11,7 @@
   .unit-circle-print-root {
     display: block !important;
     visibility: visible;
-    position: fixed;
+    position: absolute;
     top: 0;
     left: 0;
     width: 100%;
@@ -37,8 +37,8 @@
     justify-content: space-between;
     align-items: baseline;
     border-bottom: 1px solid #333;
-    padding-bottom: 1.5mm;
-    margin-bottom: 3mm;
+    padding-bottom: 1mm;
+    margin-bottom: 2mm;
     font-family: Arial, sans-serif;
     font-size: 9pt;
   }
@@ -57,9 +57,11 @@
   }
 
   /* ── Сетка заданий ── */
+  /* layout-2: 2 кружка рядом (1 строка × 2 колонки) */
+  /* layout-4: 4 кружка 2×2 (2 строки × 2 колонки)  */
   .ucw-tasks-grid {
     display: grid;
-    gap: 4mm;
+    gap: 3mm 5mm;
   }
   .ucw-tasks-grid.layout-2 {
     grid-template-columns: 1fr;
@@ -79,10 +81,10 @@
   /* ── Заголовок задания ── */
   .ucw-task-label {
     font-family: Arial, sans-serif;
-    font-size: 8.5pt;
+    font-size: 8pt;
     font-weight: bold;
     align-self: flex-start;
-    margin-bottom: 1mm;
+    margin-bottom: 0.5mm;
   }
 
   /* ── SVG окружность ── */
@@ -90,18 +92,18 @@
     flex-shrink: 0;
   }
   .layout-2 .ucw-circle-wrap {
-    width: 108mm;
-    height: 108mm;
+    width: 95mm;
+    height: 95mm;
   }
   .layout-4 .ucw-circle-wrap {
-    width: 82mm;
-    height: 82mm;
+    width: 84mm;
+    height: 84mm;
   }
 
   /* ── Область ответов / список углов ── */
   .ucw-answer-area {
     width: 100%;
-    margin-top: 2mm;
+    margin-top: 1mm;
     font-family: Arial, sans-serif;
   }
   .layout-2 .ucw-answer-area {
@@ -114,8 +116,8 @@
   .ucw-answer-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1mm 3mm;
-    margin-top: 1.5mm;
+    gap: 0.5mm 3mm;
+    margin-top: 1mm;
   }
   .layout-2 .ucw-answer-grid {
     grid-template-columns: repeat(4, 1fr);
@@ -150,13 +152,13 @@
   /* ── Список углов (обратная задача) ── */
   .ucw-angle-list-label {
     font-weight: bold;
-    margin-bottom: 1mm;
+    margin-bottom: 0.5mm;
   }
   .ucw-angle-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 1mm 3mm;
-    margin-top: 1mm;
+    gap: 0.5mm 3mm;
+    margin-top: 0.5mm;
   }
   .ucw-angle-item {
     font-family: 'Times New Roman', serif;

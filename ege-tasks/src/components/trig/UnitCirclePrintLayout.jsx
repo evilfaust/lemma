@@ -1,6 +1,17 @@
 import React from 'react';
+import katex from 'katex';
 import './UnitCirclePrintLayout.css';
 import UnitCircleSVG from './UnitCircleSVG';
+
+function MathInline({ latex }) {
+  let html;
+  try {
+    html = katex.renderToString(latex, { throwOnError: false, displayMode: false });
+  } catch {
+    html = latex;
+  }
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
 
 // Один блок с окружностью + область ответов
 function TaskBlock({ task, isAnswer, settings, taskNumber }) {
@@ -35,7 +46,7 @@ function TaskBlock({ task, isAnswer, settings, taskNumber }) {
                 <div key={p.id} className="ucw-answer-item">
                   <span className="ucw-answer-num">{p.id}.</span>
                   {isAnswer
-                    ? <span className="ucw-answer-value">{p.display}</span>
+                    ? <span className="ucw-answer-value"><MathInline latex={p.display} /></span>
                     : <span className="ucw-answer-blank" />
                   }
                 </div>
@@ -50,7 +61,7 @@ function TaskBlock({ task, isAnswer, settings, taskNumber }) {
             <div className="ucw-angle-grid">
               {task.points.map(p => (
                 <div key={p.id} className="ucw-angle-item">
-                  <b>{p.id}.</b> {p.display}
+                  <b>{p.id}.</b> <MathInline latex={p.display} />
                 </div>
               ))}
             </div>

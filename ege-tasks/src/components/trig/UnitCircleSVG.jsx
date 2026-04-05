@@ -1,5 +1,6 @@
 import React from 'react';
-import { formatAngle } from '../../hooks/useUnitCircle';
+import katex from 'katex';
+import { formatAngleLatex } from '../../hooks/useUnitCircle';
 
 // ─── Константы SVG ────────────────────────────────────────────────────────────
 const VB   = 380;   // viewBox size
@@ -39,16 +40,14 @@ const AXES_ONLY = [
 ];
 
 // ─── Утилиты ─────────────────────────────────────────────────────────────────
-// (num/den)*π → координаты SVG
 function toXY(num, den, radius) {
   const theta = (num / den) * Math.PI;
   return {
     x: CX + radius * Math.cos(theta),
-    y: CY - radius * Math.sin(theta), // SVG y перевёрнут
+    y: CY - radius * Math.sin(theta),
   };
 }
 
-// Выравнивание текста по позиции угла
 function textAlign(num, den) {
   const theta = (num / den) * Math.PI;
   const cos = Math.cos(theta);
@@ -59,16 +58,54 @@ function textAlign(num, den) {
   };
 }
 
+// ─── Рендер KaTeX внутри SVG через <foreignObject> ───────────────────────────
+function SvgMathLabel({ latex, x, y, textAnchor, dominantBaseline, fontSize, color }) {
+  const W = 72;
+  const H = 34;
+
+  // Позиционируем foreignObject так, чтобы содержимое выровнялось по (x, y)
+  let ox;
+  if (textAnchor === 'end')    ox = x - W;
+  else if (textAnchor === 'middle') ox = x - W / 2;
+  else                          ox = x;
+
+  let oy;
+  if (dominantBaseline === 'auto')    oy = y - H;       // текст выше y
+  else if (dominantBaseline === 'hanging') oy = y;       // текст ниже y
+  else                                 oy = y - H / 2;  // по центру
+
+  const justifyContent =
+    textAnchor === 'end' ? 'flex-end' :
+    textAnchor === 'middle' ? 'center' : 'flex-start';
+
+  let html;
+  try {
+    html = katex.renderToString(latex, { throwOnError: false, displayMode: false });
+  } catch {
+    html = latex;
+  }
+
+  return (
+    <foreignObject x={ox} y={oy} width={W} height={H}>
+      <div
+        xmlns="http://www.w3.org/1999/xhtml"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent,
+          width: '100%',
+          height: '100%',
+          fontSize: `${fontSize}px`,
+          color,
+          lineHeight: 1,
+        }}
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
+    </foreignObject>
+  );
+}
+
 // ─── Компонент ────────────────────────────────────────────────────────────────
-/**
- * props:
- *   points    [{id, num, den, k, display}]  — точки задания
- *   taskType  'direct' | 'inverse'
- *   isAnswer  bool — показывать ли ответы (версия учителя)
- *   showAxes  'none' | 'axes' | 'all'
- *   showDegrees bool
- *   showTicks   bool
- */
 export default function UnitCircleSVG({
   points = [],
   taskType = 'direct',
@@ -79,9 +116,7 @@ export default function UnitCircleSVG({
 }) {
   const showAll   = showAxes === 'all';
   const showAxesL = showAxes !== 'none';
-
-  // Какие точки рисовать на окружности
-  const showDots = taskType === 'direct' || (taskType === 'inverse' && isAnswer);
+  const showDots  = taskType === 'direct' || (taskType === 'inverse' && isAnswer);
 
   return (
     <svg
@@ -120,11 +155,12 @@ export default function UnitCircleSVG({
         const pos = toXY(num, den, LR);
         const { textAnchor, dominantBaseline } = textAlign(num, den);
         return (
-          <text key={i} x={pos.x} y={pos.y}
-            fontSize="9.5" fill="#444"
+          <SvgMathLabel key={i}
+            latex={formatAngleLatex(num, den, 0)}
+            x={pos.x} y={pos.y}
             textAnchor={textAnchor} dominantBaseline={dominantBaseline}
-            fontFamily="'Times New Roman', serif"
-          >{formatAngle(num, den, 0)}</text>
+            fontSize={9.5} color="#444"
+          />
         );
       })}
 
@@ -132,18 +168,18 @@ export default function UnitCircleSVG({
       {showAxesL && !showAll && AXES_ONLY.map(({ num, den, deg }, i) => {
         const pos = toXY(num, den, LR);
         const { textAnchor, dominantBaseline } = textAlign(num, den);
-        const label = formatAngle(num, den, 0);
         return (
           <g key={i}>
-            <text x={pos.x} y={pos.y}
-              fontSize="11" fill="#333"
+            <SvgMathLabel
+              latex={formatAngleLatex(num, den, 0)}
+              x={pos.x} y={pos.y}
               textAnchor={textAnchor} dominantBaseline={dominantBaseline}
-              fontFamily="'Times New Roman', serif"
-            >{label}</text>
+              fontSize={11} color="#333"
+            />
             {showDegrees && (
               <text
                 x={pos.x}
-                y={pos.y + (dominantBaseline === 'hanging' ? 13 : dominantBaseline === 'auto' ? -13 : 0)}
+                y={pos.y + (dominantBaseline === 'hanging' ? 38 : dominantBaseline === 'auto' ? -38 : 0)}
                 fontSize="8.5" fill="#888"
                 textAnchor={textAnchor} dominantBaseline={dominantBaseline}
                 fontFamily="Arial, sans-serif"
@@ -155,7 +191,7 @@ export default function UnitCircleSVG({
 
       {/* ── Подписи градусов для 'all' режима ── */}
       {showAll && showDegrees && AXES_ONLY.map(({ num, den, deg }, i) => {
-        const pos = toXY(num, den, LR + 14);
+        const pos = toXY(num, den, LR + 18);
         const { textAnchor, dominantBaseline } = textAlign(num, den);
         return (
           <text key={i} x={pos.x} y={pos.y}
@@ -190,11 +226,12 @@ export default function UnitCircleSVG({
         const pos = toXY(p.num, p.den, ALR);
         const { textAnchor, dominantBaseline } = textAlign(p.num, p.den);
         return (
-          <text key={p.id} x={pos.x} y={pos.y}
-            fontSize="9" fill="#c41d7f" fontStyle="italic"
+          <SvgMathLabel key={p.id}
+            latex={p.display}
+            x={pos.x} y={pos.y}
             textAnchor={textAnchor} dominantBaseline={dominantBaseline}
-            fontFamily="'Times New Roman', serif"
-          >{p.display}</text>
+            fontSize={9} color="#c41d7f"
+          />
         );
       })}
     </svg>
