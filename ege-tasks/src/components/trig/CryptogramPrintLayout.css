@@ -1,0 +1,164 @@
+/* Скрываем на экране — показываем только при печати */
+.cryptogram-print-root {
+  display: none;
+}
+
+@media print {
+  body:has(.cryptogram-print-root) {
+    visibility: hidden;
+  }
+  .cryptogram-print-root {
+    display: block !important;
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .cryptogram-print-root * {
+    visibility: visible;
+  }
+
+  /* Страница */
+  .crw-page {
+    width: 190mm;
+    margin: 0 auto;
+    padding: 0;
+    page-break-after: always;
+  }
+  .crw-page:last-child {
+    page-break-after: avoid;
+  }
+
+  /* Шапка варианта */
+  .crw-variant-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid #333;
+    padding-bottom: 1mm;
+    margin-bottom: 5mm;
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+  }
+  .crw-variant-title {
+    font-weight: bold;
+    font-size: 10pt;
+  }
+  .crw-name-line {
+    font-size: 9pt;
+  }
+  .crw-name-blank {
+    display: inline-block;
+    width: 40mm;
+    border-bottom: 1px solid #333;
+    margin-left: 2mm;
+    margin-right: 2mm;
+  }
+
+  /* Сетка заданий */
+  .crw-tasks-grid {
+    display: grid;
+  }
+  .crw-tasks-grid.layout-2 {
+    grid-template-columns: 1fr;
+    gap: 15mm;
+  }
+  .crw-tasks-grid.layout-4 {
+    grid-template-columns: 1fr 1fr;
+    gap: 8mm;
+  }
+
+  /* Одно задание */
+  .crw-task-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    page-break-inside: avoid;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5mm;
+  }
+  .crw-tasks-grid.layout-4 .crw-task-block {
+    border-bottom: none;
+    border-right: 1px solid #ccc;
+    padding-right: 3mm;
+  }
+
+  /* Заголовок задания */
+  .crw-task-label {
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+    font-weight: bold;
+    margin-bottom: 2mm;
+  }
+
+  .crw-task-content {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    align-items: flex-start;
+  }
+  .crw-tasks-grid.layout-4 .crw-task-content {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* SVG окружность */
+  .crw-circle-wrap {
+    flex-shrink: 0;
+  }
+  .layout-2 .crw-circle-wrap {
+    width: 100mm;
+    height: 100mm;
+    margin-right: 10mm;
+  }
+  .layout-4 .crw-circle-wrap {
+    width: 75mm;
+    height: 75mm;
+    margin-bottom: 5mm;
+  }
+
+  /* Таблица */
+  .crw-table-wrap {
+    flex-grow: 1;
+  }
+  .crw-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: Arial, sans-serif;
+  }
+  .crw-table th, .crw-table td {
+    border: 1px solid #333;
+    padding: 2mm 3mm;
+    text-align: center;
+    font-size: 10pt;
+  }
+  .crw-table th {
+    background-color: #f0f0f0;
+  }
+  .crw-td-angle {
+    font-family: 'Times New Roman', serif;
+    width: 60%;
+  }
+  .crw-td-letter {
+    width: 40%;
+    font-weight: bold;
+    vertical-align: middle;
+  }
+
+  .layout-4 .crw-table th, .layout-4 .crw-table td {
+    padding: 1.5mm;
+    font-size: 8.5pt;
+  }
+
+  /* Страница ответов учителя */
+  .crw-answer-page-title {
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 5mm;
+    border-bottom: 2px solid #333;
+    padding-bottom: 2mm;
+  }
+}

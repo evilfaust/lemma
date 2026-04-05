@@ -113,6 +113,7 @@ export default function UnitCircleSVG({
   showAxes = 'axes',
   showDegrees = false,
   showTicks = true,
+  cipherMap = null,
 }) {
   const showAll   = showAxes === 'all';
   const showAxesL = showAxes !== 'none';
@@ -232,6 +233,22 @@ export default function UnitCircleSVG({
             textAnchor={textAnchor} dominantBaseline={dominantBaseline}
             fontSize={9} color="#c41d7f"
           />
+        );
+      })}
+
+      {/* ── Буквы для шифровок (криптограмм) ── */}
+      {cipherMap && cipherMap.map((p, i) => {
+        const posDot = toXY(p.num, p.den, R);
+        const posText = toXY(p.num, p.den, R - 18);
+        return (
+          <g key={`cipher-${i}`}>
+            <circle cx={posDot.x} cy={posDot.y} r="3" fill="#333" />
+            <text x={posText.x} y={posText.y}
+              fontSize="12" fill="#000" fontWeight="bold"
+              textAnchor="middle" dominantBaseline="central"
+              fontFamily="Arial, sans-serif"
+            >{p.letter}</text>
+          </g>
         );
       })}
     </svg>
