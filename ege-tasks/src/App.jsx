@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -28,6 +28,7 @@ import QRWorksheetGenerator from './components/QRWorksheetGenerator';
 import PixelArtWorksheet from './components/PixelArtWorksheet';
 import RouteSheetGenerator from './components/RouteSheetGenerator';
 import ErrorHeatmap from './components/ErrorHeatmap';
+import UnitCircleGenerator from './components/UnitCircleGenerator';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -159,6 +160,14 @@ function AppContent() {
             { key: 'tdf-flashcards', icon: <CreditCardOutlined />, label: 'Карточки' },
           ],
         },
+      ],
+    },
+    {
+      key: 'trig',
+      icon: <RadarChartOutlined />,
+      label: 'Тригонометрия',
+      children: [
+        { key: 'unit-circle', icon: <RadarChartOutlined />, label: 'Единичная окружность' },
       ],
     },
     {
@@ -313,6 +322,8 @@ function AppContent() {
             onBack={() => setCurrentView('tdf')}
           />
         );
+      case 'unit-circle':
+        return <UnitCircleGenerator />;
       case 'route-sheet':
         return <RouteSheetGenerator />;
       case 'heatmap':
@@ -378,6 +389,7 @@ function AppContent() {
       case 'tdf-editor': return 'ТДФ — Редактор конспекта';
       case 'tdf-variants': return 'ТДФ — Варианты';
       case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
+      case 'unit-circle': return 'Тригонометрия — Единичная окружность';
       case 'route-sheet': return 'Маршрутный лист';
       case 'heatmap': return 'Тепловая карта ошибок';
       case 'theory-browser': return 'Теория — Библиотека';

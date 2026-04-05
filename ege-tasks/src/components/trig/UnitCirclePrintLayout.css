@@ -1,0 +1,185 @@
+/* ── Скрываем на экране — показываем только при печати ─────────────────────── */
+.unit-circle-print-root {
+  display: none;
+}
+
+@media print {
+  /* Скрываем всё приложение кроме нашего блока */
+  body:has(.unit-circle-print-root) {
+    visibility: hidden;
+  }
+  .unit-circle-print-root {
+    display: block !important;
+    visibility: visible;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .unit-circle-print-root * {
+    visibility: visible;
+  }
+
+  /* ── Страница ── */
+  .ucw-page {
+    width: 190mm;
+    margin: 0 auto;
+    padding: 0;
+    page-break-after: always;
+  }
+  .ucw-page:last-child {
+    page-break-after: avoid;
+  }
+
+  /* ── Шапка варианта ── */
+  .ucw-variant-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid #333;
+    padding-bottom: 1.5mm;
+    margin-bottom: 3mm;
+    font-family: Arial, sans-serif;
+    font-size: 9pt;
+  }
+  .ucw-variant-title {
+    font-weight: bold;
+    font-size: 10pt;
+  }
+  .ucw-name-line {
+    font-size: 9pt;
+  }
+  .ucw-name-blank {
+    display: inline-block;
+    width: 50mm;
+    border-bottom: 1px solid #333;
+    margin-left: 2mm;
+  }
+
+  /* ── Сетка заданий ── */
+  .ucw-tasks-grid {
+    display: grid;
+    gap: 4mm;
+  }
+  .ucw-tasks-grid.layout-2 {
+    grid-template-columns: 1fr;
+  }
+  .ucw-tasks-grid.layout-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  /* ── Одно задание ── */
+  .ucw-task-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    page-break-inside: avoid;
+  }
+
+  /* ── Заголовок задания ── */
+  .ucw-task-label {
+    font-family: Arial, sans-serif;
+    font-size: 8.5pt;
+    font-weight: bold;
+    align-self: flex-start;
+    margin-bottom: 1mm;
+  }
+
+  /* ── SVG окружность ── */
+  .ucw-circle-wrap {
+    flex-shrink: 0;
+  }
+  .layout-2 .ucw-circle-wrap {
+    width: 108mm;
+    height: 108mm;
+  }
+  .layout-4 .ucw-circle-wrap {
+    width: 82mm;
+    height: 82mm;
+  }
+
+  /* ── Область ответов / список углов ── */
+  .ucw-answer-area {
+    width: 100%;
+    margin-top: 2mm;
+    font-family: Arial, sans-serif;
+  }
+  .layout-2 .ucw-answer-area {
+    font-size: 9.5pt;
+  }
+  .layout-4 .ucw-answer-area {
+    font-size: 8pt;
+  }
+
+  .ucw-answer-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1mm 3mm;
+    margin-top: 1.5mm;
+  }
+  .layout-2 .ucw-answer-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .layout-4 .ucw-answer-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .ucw-answer-item {
+    display: flex;
+    align-items: baseline;
+    gap: 1mm;
+    white-space: nowrap;
+  }
+  .ucw-answer-num {
+    font-weight: bold;
+    min-width: 5mm;
+  }
+  .ucw-answer-blank {
+    flex: 1;
+    border-bottom: 1px solid #333;
+    min-width: 14mm;
+    height: 4mm;
+  }
+  .ucw-answer-value {
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    color: #c41d7f;
+    min-width: 14mm;
+  }
+
+  /* ── Список углов (обратная задача) ── */
+  .ucw-angle-list-label {
+    font-weight: bold;
+    margin-bottom: 1mm;
+  }
+  .ucw-angle-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1mm 3mm;
+    margin-top: 1mm;
+  }
+  .ucw-angle-item {
+    font-family: 'Times New Roman', serif;
+    font-size: 10pt;
+    white-space: nowrap;
+  }
+  .layout-4 .ucw-angle-item {
+    font-size: 8.5pt;
+  }
+  .ucw-angle-item b {
+    font-family: Arial, sans-serif;
+    font-size: 8pt;
+    margin-right: 1mm;
+  }
+
+  /* ── Страница ответов учителя ── */
+  .ucw-answer-page-title {
+    font-family: Arial, sans-serif;
+    font-size: 11pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 5mm;
+    border-bottom: 2px solid #333;
+    padding-bottom: 2mm;
+  }
+}

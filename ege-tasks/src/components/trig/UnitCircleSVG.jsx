@@ -1,0 +1,202 @@
+import React from 'react';
+import { formatAngle } from '../../hooks/useUnitCircle';
+
+// ─── Константы SVG ────────────────────────────────────────────────────────────
+const VB   = 380;   // viewBox size
+const CX   = 190;   // центр X
+const CY   = 190;   // центр Y
+const R    = 120;   // радиус окружности
+const LR   = 158;   // радиус для подписей стандартных углов
+const ALR  = 144;   // радиус для ответных подписей (ближе к кружку)
+const AXIS = R + 20; // длина осей от центра
+
+// Все 16 стандартных позиций
+const ALL_STANDARD = [
+  { num: 0,  den: 1  },
+  { num: 1,  den: 6  },
+  { num: 1,  den: 4  },
+  { num: 1,  den: 3  },
+  { num: 1,  den: 2  },
+  { num: 2,  den: 3  },
+  { num: 3,  den: 4  },
+  { num: 5,  den: 6  },
+  { num: 1,  den: 1  },
+  { num: 7,  den: 6  },
+  { num: 5,  den: 4  },
+  { num: 4,  den: 3  },
+  { num: 3,  den: 2  },
+  { num: 5,  den: 3  },
+  { num: 7,  den: 4  },
+  { num: 11, den: 6  },
+];
+
+// Только 4 оси
+const AXES_ONLY = [
+  { num: 0,  den: 1, deg: '0°'   },
+  { num: 1,  den: 2, deg: '90°'  },
+  { num: 1,  den: 1, deg: '180°' },
+  { num: 3,  den: 2, deg: '270°' },
+];
+
+// ─── Утилиты ─────────────────────────────────────────────────────────────────
+// (num/den)*π → координаты SVG
+function toXY(num, den, radius) {
+  const theta = (num / den) * Math.PI;
+  return {
+    x: CX + radius * Math.cos(theta),
+    y: CY - radius * Math.sin(theta), // SVG y перевёрнут
+  };
+}
+
+// Выравнивание текста по позиции угла
+function textAlign(num, den) {
+  const theta = (num / den) * Math.PI;
+  const cos = Math.cos(theta);
+  const sin = Math.sin(theta);
+  return {
+    textAnchor:       cos > 0.2 ? 'start' : cos < -0.2 ? 'end' : 'middle',
+    dominantBaseline: sin > 0.2 ? 'auto'  : sin < -0.2 ? 'hanging' : 'central',
+  };
+}
+
+// ─── Компонент ────────────────────────────────────────────────────────────────
+/**
+ * props:
+ *   points    [{id, num, den, k, display}]  — точки задания
+ *   taskType  'direct' | 'inverse'
+ *   isAnswer  bool — показывать ли ответы (версия учителя)
+ *   showAxes  'none' | 'axes' | 'all'
+ *   showDegrees bool
+ *   showTicks   bool
+ */
+export default function UnitCircleSVG({
+  points = [],
+  taskType = 'direct',
+  isAnswer = false,
+  showAxes = 'axes',
+  showDegrees = false,
+  showTicks = true,
+}) {
+  const showAll   = showAxes === 'all';
+  const showAxesL = showAxes !== 'none';
+
+  // Какие точки рисовать на окружности
+  const showDots = taskType === 'direct' || (taskType === 'inverse' && isAnswer);
+
+  return (
+    <svg
+      viewBox={`0 0 ${VB} ${VB}`}
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ display: 'block', width: '100%', height: '100%' }}
+    >
+      {/* ── Оси ── */}
+      <line x1={CX - AXIS} y1={CY} x2={CX + AXIS} y2={CY}
+        stroke="#333" strokeWidth="1" />
+      <line x1={CX} y1={CY - AXIS} x2={CX} y2={CY + AXIS}
+        stroke="#333" strokeWidth="1" />
+
+      {/* Стрелки осей */}
+      <polygon points={`${CX+AXIS},${CY} ${CX+AXIS-6},${CY-4} ${CX+AXIS-6},${CY+4}`}
+        fill="#333" />
+      <polygon points={`${CX},${CY-AXIS} ${CX-4},${CY-AXIS+6} ${CX+4},${CY-AXIS+6}`}
+        fill="#333" />
+
+      {/* ── Окружность ── */}
+      <circle cx={CX} cy={CY} r={R} fill="none" stroke="#333" strokeWidth="1.5" />
+
+      {/* ── Засечки на всех 16 позициях ── */}
+      {showTicks && ALL_STANDARD.map(({ num, den }, i) => {
+        const inner = toXY(num, den, R - 5);
+        const outer = toXY(num, den, R + 5);
+        return (
+          <line key={i}
+            x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
+            stroke="#999" strokeWidth="0.8" />
+        );
+      })}
+
+      {/* ── Подписи ВСЕХ стандартных углов (showAxes === 'all') ── */}
+      {showAll && ALL_STANDARD.map(({ num, den }, i) => {
+        const pos = toXY(num, den, LR);
+        const { textAnchor, dominantBaseline } = textAlign(num, den);
+        return (
+          <text key={i} x={pos.x} y={pos.y}
+            fontSize="9.5" fill="#444"
+            textAnchor={textAnchor} dominantBaseline={dominantBaseline}
+            fontFamily="'Times New Roman', serif"
+          >{formatAngle(num, den, 0)}</text>
+        );
+      })}
+
+      {/* ── Подписи только осей (showAxes === 'axes') ── */}
+      {showAxesL && !showAll && AXES_ONLY.map(({ num, den, deg }, i) => {
+        const pos = toXY(num, den, LR);
+        const { textAnchor, dominantBaseline } = textAlign(num, den);
+        const label = formatAngle(num, den, 0);
+        return (
+          <g key={i}>
+            <text x={pos.x} y={pos.y}
+              fontSize="11" fill="#333"
+              textAnchor={textAnchor} dominantBaseline={dominantBaseline}
+              fontFamily="'Times New Roman', serif"
+            >{label}</text>
+            {showDegrees && (
+              <text
+                x={pos.x}
+                y={pos.y + (dominantBaseline === 'hanging' ? 13 : dominantBaseline === 'auto' ? -13 : 0)}
+                fontSize="8.5" fill="#888"
+                textAnchor={textAnchor} dominantBaseline={dominantBaseline}
+                fontFamily="Arial, sans-serif"
+              >{deg}</text>
+            )}
+          </g>
+        );
+      })}
+
+      {/* ── Подписи градусов для 'all' режима ── */}
+      {showAll && showDegrees && AXES_ONLY.map(({ num, den, deg }, i) => {
+        const pos = toXY(num, den, LR + 14);
+        const { textAnchor, dominantBaseline } = textAlign(num, den);
+        return (
+          <text key={i} x={pos.x} y={pos.y}
+            fontSize="8" fill="#888"
+            textAnchor={textAnchor} dominantBaseline={dominantBaseline}
+            fontFamily="Arial, sans-serif"
+          >{deg}</text>
+        );
+      })}
+
+      {/* ── Центр ── */}
+      <circle cx={CX} cy={CY} r="2.5" fill="#333" />
+
+      {/* ── Точки задания ── */}
+      {showDots && points.map((p) => {
+        const pos = toXY(p.num, p.den, R);
+        return (
+          <g key={p.id}>
+            <circle cx={pos.x} cy={pos.y} r="7"
+              fill="#1677ff" stroke="white" strokeWidth="1.2" />
+            <text x={pos.x} y={pos.y}
+              fontSize="7.5" fill="white" fontWeight="bold"
+              textAnchor="middle" dominantBaseline="central"
+              fontFamily="Arial, sans-serif"
+            >{p.id}</text>
+          </g>
+        );
+      })}
+
+      {/* ── Ответные подписи углов (версия учителя, прямая задача) ── */}
+      {isAnswer && taskType === 'direct' && points.map((p) => {
+        const pos = toXY(p.num, p.den, ALR);
+        const { textAnchor, dominantBaseline } = textAlign(p.num, p.den);
+        return (
+          <text key={p.id} x={pos.x} y={pos.y}
+            fontSize="9" fill="#c41d7f" fontStyle="italic"
+            textAnchor={textAnchor} dominantBaseline={dominantBaseline}
+            fontFamily="'Times New Roman', serif"
+          >{p.display}</text>
+        );
+      })}
+    </svg>
+  );
+}

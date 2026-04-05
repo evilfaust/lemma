@@ -1,0 +1,167 @@
+.ucg-root {
+  padding: 16px;
+}
+
+.ucg-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ucg-title-input {
+  flex: 1;
+  max-width: 340px;
+}
+
+/* ── Основная раскладка ─────────────────────────────────────────────────────── */
+.ucg-layout {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+/* ── Настройки ──────────────────────────────────────────────────────────────── */
+.ucg-settings-card .ant-card-body {
+  padding: 14px;
+}
+.ucg-settings-section {
+  margin-bottom: 14px;
+}
+.ucg-settings-section:last-child {
+  margin-bottom: 0;
+}
+.ucg-settings-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+/* ── Превью ─────────────────────────────────────────────────────────────────── */
+.ucg-preview {
+  min-height: 300px;
+}
+
+.ucg-empty-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: #999;
+  gap: 8px;
+  font-size: 15px;
+}
+
+.ucg-variants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ucg-variant-card {}
+
+.ucg-variant-card .ant-card-head {
+  min-height: 36px;
+  padding: 0 12px;
+}
+.ucg-variant-card .ant-card-head-title {
+  font-size: 13px;
+  font-weight: bold;
+}
+.ucg-variant-card .ant-card-body {
+  padding: 12px;
+}
+
+/* Сетка кружков в превью */
+.ucg-circles-grid {
+  display: grid;
+  gap: 12px;
+}
+.ucg-circles-grid.layout-2 {
+  grid-template-columns: 1fr 1fr;
+}
+.ucg-circles-grid.layout-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.ucg-circle-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.ucg-circle-svg-wrap {
+  width: 160px;
+  height: 160px;
+  flex-shrink: 0;
+}
+
+.ucg-preview-label {
+  font-size: 11px;
+  font-weight: bold;
+  color: #555;
+  margin-bottom: 4px;
+  align-self: flex-start;
+}
+
+/* Список углов под кружком (обратная задача) */
+.ucg-angle-list-preview {
+  font-size: 11px;
+  margin-top: 4px;
+  line-height: 1.6;
+  font-family: 'Times New Roman', serif;
+  align-self: flex-start;
+}
+.ucg-angle-list-preview b {
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+}
+
+/* Сетка ответных строк (прямая задача) */
+.ucg-answers-preview {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px 8px;
+  font-size: 11px;
+  margin-top: 4px;
+  align-self: flex-start;
+  width: 100%;
+}
+.ucg-answer-preview-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  border-bottom: 1px solid #bbb;
+  padding-bottom: 1px;
+}
+.ucg-answer-preview-item b {
+  font-size: 10px;
+  min-width: 14px;
+}
+
+/* ── Кнопки действий ───────────────────────────────────────────────────────── */
+.ucg-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+/* ── Модал сохранённых ─────────────────────────────────────────────────────── */
+.ucg-saved-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.ucg-saved-item:last-child {
+  border-bottom: none;
+}
+.ucg-saved-meta {
+  font-size: 11px;
+  color: #888;
+  margin-top: 2px;
+}

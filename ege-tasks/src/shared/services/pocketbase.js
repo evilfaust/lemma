@@ -1971,6 +1971,46 @@ export const api = {
       throw error;
     }
   },
+
+  // --- unit_circle_worksheets ---
+
+  async getUnitCircleWorksheets() {
+    try {
+      return await pb.collection('unit_circle_worksheets').getFullList({
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching unit_circle_worksheets:', error);
+      return [];
+    }
+  },
+
+  async createUnitCircleWorksheet(data) {
+    try {
+      return await pb.collection('unit_circle_worksheets').create(data);
+    } catch (error) {
+      console.error('Error creating unit_circle_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async updateUnitCircleWorksheet(id, data) {
+    try {
+      return await pb.collection('unit_circle_worksheets').update(id, data);
+    } catch (error) {
+      console.error('Error updating unit_circle_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async deleteUnitCircleWorksheet(id) {
+    try {
+      return await pb.collection('unit_circle_worksheets').delete(id);
+    } catch (error) {
+      console.error('Error deleting unit_circle_worksheet:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;
