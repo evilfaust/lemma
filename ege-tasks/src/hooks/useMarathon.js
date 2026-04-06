@@ -177,7 +177,8 @@ export function useMarathon() {
   const loadMarathon = useCallback((item) => {
     setTitle(item.title || 'Марафон');
     setClassNumber(item.class_number || 8);
-    const expandedTasks = item.expand?.tasks || [];
+    const raw = item.expand?.tasks;
+    const expandedTasks = Array.isArray(raw) ? raw : raw ? [raw] : [];
     // Восстановить порядок из task_order
     const order = item.task_order || [];
     const taskMap = Object.fromEntries(expandedTasks.map(t => [t.id, t]));
