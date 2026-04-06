@@ -407,10 +407,25 @@
     display: none !important;
   }
 
-  .marathon-cards-print-root,
+  .marathon-cards-print-root {
+    display: block !important;
+  }
+
+  /* Лист учителя и рейтинг: позиционируем явно, чтобы не было пустой страницы */
   .marathon-teacher-print-root,
   .marathon-rating-print-root {
     display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    box-sizing: border-box;
+    visibility: visible !important;
+  }
+
+  .marathon-teacher-print-root *,
+  .marathon-rating-print-root * {
+    visibility: visible !important;
   }
 }
 

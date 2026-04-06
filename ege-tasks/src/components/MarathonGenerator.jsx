@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useMarathon } from '../hooks/useMarathon';
+import { api } from '../shared/services/pocketbase';
 import TaskSelectModal from './TaskSelectModal';
 import MarathonCardsPrint from './marathon/MarathonCardsPrint';
 import MarathonTeacherSheet from './marathon/MarathonTeacherSheet';
@@ -93,12 +94,44 @@ export default function MarathonGenerator() {
     try {
       // Загружаем полную запись через getOne — expand работает надёжнее, чем в списке
       const full = await api.getMarathon(item.id);
+
+      // --- RECOVERY FOR MISSING TASKS ---
+      // В старой схеме maxSelect мог быть 1, из-за чего PocketBase сохранял только 1 ID задачи в связях.
+      // Но в task_order сохранялся полный массив ID.
+      const order = full.task_order || [];
+      const raw = full.expand?.tasks;
+      const expandedTasks = Array.isArray(raw) ? raw : raw ? [raw] : [];
+      
+      if (order.length > expandedTasks.length && order.length > 0) {
+        // Загружаем задачи, которых не хватает
+        const missingIds = order.filter(id => !expandedTasks.find(t => t.id === id));
+        if (missingIds.length > 0) {
+          // Ищем задачи через API
+          // В api нет getTasksByIds, но мы можем использовать getTasks с фильтром
+          const idFilters = missingIds.map(id => `id="${id}"`);
+          const filterStr = idFilters.join(' || ');
+          
+          try {
+            const recoveredTasks = await Promise.all(
+              missingIds.map(id => api.getTask(id).catch(() => null))
+            );
+            
+            // Добавляем найденные
+            full.expand = full.expand || {};
+            full.expand.tasks = [...expandedTasks, ...recoveredTasks.filter(Boolean)];
+          } catch (e) {
+            console.error('Failed to recover missing tasks', e);
+          }
+        }
+      }
+
       loadMarathon(full);
       message.success('Марафон загружен');
-    } catch {
+    } catch (e) {
+      console.error(e);
       // Fallback на данные из списка
       loadMarathon(item);
-      message.success('Марафон загружен');
+      message.success('Марафон загружен (ошибка полной загрузки)');
     }
   };
 
