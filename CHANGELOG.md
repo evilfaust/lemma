@@ -1,5 +1,34 @@
 # Changelog — История изменений
 
+## [3.9.0] - 2026-04-06
+
+### Марафон — формат устной защиты задач
+
+**Новый раздел «Марафон»** в меню учителя:
+
+- **`MarathonGenerator.jsx`** — главный компонент, 4 вкладки: Настройка / Карточки учеников / Лист учителя / Рейтинг. Сохранение/загрузка марафонов в БД, кнопки «Новый» / «Сохранить» / «Загрузить».
+- **`marathon/MarathonCardsPrint.jsx`** — печать A6-карточек: 4 карточки на листе A4 (сетка 2×2), пунктирные линии разреза на 105mm и 148.5mm, цветная шапка по уровню сложности (зелёный / оранжевый / красный), условие задачи с KaTeX, поле для фамилии ученика.
+- **`marathon/MarathonTeacherSheet.jsx`** — компактный лист учителя с решениями: таблица (№ / условие / ответ / решение), пометка «Конфиденциальный документ».
+- **`marathon/MarathonRatingPrint.jsx`** — бумажный бланк рейтинга: строки = ученики, столбцы = задачи, в ячейке три кружочка (○○○) для отметки попыток, столбец «Итого».
+- **`marathon/MarathonTracker.jsx`** — цифровой интерактивный трекер: кнопки «✓ Верно» и «✗ Неверно» в каждой ячейке, до 3 попыток на задачу, при 3 провалах — ячейка блокируется (красный), при успехе — зелёный ✓. Автосохранение прогресса (`tracking_data`) в БД при каждом изменении. Сортировка учеников по убыванию баллов, бейдж 🥇 у лидера.
+
+**Хук `useMarathon`:**
+- Состояние: title, classNumber, tasks (полные объекты), students (имена), trackingData, savedId
+- Методы: addTasks, removeTask, moveTask (порядок = сложность), addStudent, removeStudent, saveMarathon (create/update), saveTracking (частичное обновление), loadMarathon, loadSavedList, deleteMarathon, reset, initTracking
+- `tracking_data` структура: `{ "Иванов Иван": { "0": { attempts: 0, solved: false, failed: false }, ... } }`
+
+**База данных:** новая коллекция `marathons` (миграция `1772000014`); поля: title, class_number, tasks(relation[]→tasks), task_order(json), students(json), tracking_data(json). Superuser only. Применена на VPS.
+
+**5 API методов:** getMarathons, getMarathon(id), createMarathon, updateMarathon, deleteMarathon.
+
+**Технические решения:**
+- **Печать через React Portal**: `createPortal(printBlock, document.body)` + `body > *:not(.marathon-*-print-root) { display: none !important }` — гарантирует изоляцию без пустых страниц от hidden-элементов
+- **@page inject**: `@page { size: A4 portrait; margin: 0; }` инжектируется перед `window.print()`, удаляется через 1500ms
+- **PocketBase expand надёжность**: при загрузке марафона всегда вызывается `getOne(id)`, а не берётся запись из списка — `getFullList` с expand ненадёжен для больших relations
+- **Нормализация expand**: PocketBase возвращает object (не array) при одном связанном record; нормализация: `Array.isArray(raw) ? raw : raw ? [raw] : []`
+
+---
+
 ## [3.8.4] - 2026-04-05
 
 ### Тригонометрия — генератор листов «Единичная окружность»
