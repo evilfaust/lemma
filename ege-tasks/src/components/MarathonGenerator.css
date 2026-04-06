@@ -140,13 +140,6 @@
   flex: 1;
 }
 
-.mg-card-preview__footer {
-  padding: 6px 12px;
-  font-size: 10px;
-  color: #999;
-  border-top: 1px dashed #eee;
-  font-style: italic;
-}
 
 /* Экранный превью таблицы учителя */
 .mg-teacher-preview {
@@ -392,231 +385,163 @@
    PRINT STYLES
    ================================================ */
 
-/* Скрываем все блоки печати в экранном режиме */
-.marathon-cards-print-root,
-.marathon-teacher-print-root,
-.marathon-rating-print-root {
-  display: none;
-}
+/* ================================================
+   PRINT STYLES — паттерн аналогичен QRWorksheetGenerator.css
+   ================================================ */
 
 @media print {
-  /* Portal-блоки рендерятся прямо в body — скрываем всё остальное */
-  body:has(.marathon-cards-print-root) > *:not(.marathon-cards-print-root),
-  body:has(.marathon-teacher-print-root) > *:not(.marathon-teacher-print-root),
-  body:has(.marathon-rating-print-root) > *:not(.marathon-rating-print-root) {
-    display: none !important;
-  }
+  /* Скрываем body целиком, показываем только нужный print-root.
+     body:has() — scoped, не ломает печать других разделов. */
+  body:has(.marathon-cards-print-root) { visibility: hidden; }
+  .marathon-cards-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
+  .marathon-cards-print-root * { visibility: visible; }
 
-  .marathon-cards-print-root {
-    display: block !important;
-  }
+  body:has(.marathon-teacher-print-root) { visibility: hidden; }
+  .marathon-teacher-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
+  .marathon-teacher-print-root * { visibility: visible; }
 
-  /* Лист учителя и рейтинг: позиционируем явно, чтобы не было пустой страницы */
-  .marathon-teacher-print-root,
-  .marathon-rating-print-root {
-    display: block !important;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    box-sizing: border-box;
-    visibility: visible !important;
-  }
-
-  .marathon-teacher-print-root *,
-  .marathon-rating-print-root * {
-    visibility: visible !important;
-  }
+  body:has(.marathon-rating-print-root) { visibility: hidden; }
+  .marathon-rating-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
+  .marathon-rating-print-root * { visibility: visible; }
 }
 
-/* === Карточки учеников (A6 × 4 на A4) === */
+/* === Карточки учеников (6 на A4, сетка 2×3) === */
 
-/* Страница A4 — ровно 4 карточки 2×2 */
-.marathon-cards-page {
+/* Страница A4 — сетка 2 колонки × 3 строки */
+.mcp-page {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: repeat(3, calc(297mm / 3));
   width: 210mm;
   height: 297mm;
-  position: relative;
-  overflow: hidden;
   page-break-after: always;
   break-after: page;
   box-sizing: border-box;
 }
 
-.marathon-cards-page:last-child {
+.mcp-page:last-child {
   page-break-after: auto;
   break-after: auto;
 }
 
-/* Линии разреза — горизонтальная и вертикальная по центру страницы */
-.marathon-cut-line {
-  position: absolute;
-  z-index: 10;
-  pointer-events: none;
-}
-
-.marathon-cut-line--h {
-  top: 148.5mm;
-  left: 4mm;
-  right: 4mm;
-  height: 0;
-  border-top: 1px dashed #aaa;
-}
-
-.marathon-cut-line--v {
-  left: 105mm;
-  top: 4mm;
-  bottom: 4mm;
-  width: 0;
-  border-left: 1px dashed #aaa;
-}
-
-/* Сетка 2×2 карточек */
-.marathon-cards-grid {
-  display: grid;
-  grid-template-columns: 105mm 105mm;
-  grid-template-rows: 148.5mm 148.5mm;
-  width: 210mm;
-  height: 297mm;
-}
-
-/* Одна карточка A6 */
-.marathon-card {
-  width: 105mm;
-  height: 148.5mm;
+/* Слот — ячейка сетки с отступами */
+.mcp-slot {
+  padding: 2.5mm;
   box-sizing: border-box;
+}
+
+.mcp-slot--empty {
+  /* пустой слот — просто место */
+}
+
+/* Карточка — белый прямоугольник с рамкой и скруглёнными углами */
+.mcp-card {
+  border: 1px solid #c8c8c8;
+  border-radius: 7px;
   display: flex;
   flex-direction: column;
-  position: relative;
+  height: 100%;
   overflow: hidden;
+  box-sizing: border-box;
+  background: #fff;
 }
 
-.marathon-card--empty {
-  background: transparent;
-}
-
-/* Угловые метки для разрезания */
-.marathon-card__corner {
-  position: absolute;
-  width: 4mm;
-  height: 4mm;
-  z-index: 5;
-}
-
-.marathon-card__corner--tl {
-  top: 1mm; left: 1mm;
-  border-top: 1px solid #999;
-  border-left: 1px solid #999;
-}
-
-.marathon-card__corner--tr {
-  top: 1mm; right: 1mm;
-  border-top: 1px solid #999;
-  border-right: 1px solid #999;
-}
-
-.marathon-card__corner--bl {
-  bottom: 1mm; left: 1mm;
-  border-bottom: 1px solid #999;
-  border-left: 1px solid #999;
-}
-
-.marathon-card__corner--br {
-  bottom: 1mm; right: 1mm;
-  border-bottom: 1px solid #999;
-  border-right: 1px solid #999;
-}
-
-/* Шапка карточки */
-.marathon-card__header {
+/* ── Шапка карточки ── */
+.mcp-header {
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px 6px 10px;
+  align-items: flex-start;
+  gap: 2.5mm;
+  padding: 3mm 3mm 0 3mm;
   flex-shrink: 0;
 }
 
-.marathon-card__num {
-  width: 32px;
-  height: 32px;
+/* Вертикальный логотип Lemma */
+.mcp-logo {
+  height: 26px;
+  width: auto;
+  flex-shrink: 0;
+  display: block;
+  margin-top: 1px;
+}
+
+/* Правая часть шапки: строка с номером + заголовком + горизонтальная линия */
+.mcp-header-right {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mcp-title-row {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  margin-bottom: 2mm;
+}
+
+/* Кружок с номером задачи */
+.mcp-num {
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   color: #fff;
-  font-size: 18px;
+  font-size: 11pt;
   font-weight: 700;
+  font-family: Arial, sans-serif;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: rgba(255,255,255,0.3);
-  border: 2px solid rgba(255,255,255,0.7);
+  line-height: 1;
 }
 
-.marathon-card__meta {
-  display: flex;
-  flex-direction: column;
-}
-
-.marathon-card__title-text {
-  font-size: 10px;
-  color: rgba(255,255,255,0.85);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.marathon-card__diff {
-  font-size: 11px;
+.mcp-title-text {
+  font-size: 9.5pt;
   font-weight: 700;
-  color: #fff;
+  font-family: Arial, sans-serif;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Тело карточки — условие задачи */
-.marathon-card__body {
+/* Разделительная линия под шапкой */
+.mcp-rule {
+  height: 1px;
+  background: #444;
+}
+
+/* ── Тело карточки ── */
+.mcp-body {
   flex: 1;
-  padding: 8px 10px 4px;
-  font-size: 11pt;
-  overflow: hidden;
+  padding: 2.5mm 3mm 2mm 3mm;
+  font-size: 10.5pt;
   font-family: 'Times New Roman', Times, serif;
   line-height: 1.45;
+  overflow: hidden;
+  color: #111;
 }
 
-/* Уменьшаем KaTeX в карточках */
-.marathon-card__body .katex {
+.mcp-body .katex {
   font-size: 1em;
 }
 
-.marathon-card__body .katex-display {
-  margin: 0.3em 0;
+.mcp-body .katex-display {
+  margin: 0.25em 0;
 }
 
-.marathon-card__image {
-  max-width: 55%;
-  max-height: 55px;
+.mcp-task-image {
+  max-width: 50%;
+  max-height: 50px;
   float: right;
-  margin-left: 6px;
-  margin-bottom: 4px;
+  margin-left: 5px;
+  margin-bottom: 3px;
 }
 
-/* Подвал карточки */
-.marathon-card__footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 10px 5px;
-  border-top: 1px dashed #ccc;
-  font-size: 8px;
-  color: #999;
-  flex-shrink: 0;
-  font-family: Arial, sans-serif;
-}
-
-.marathon-card__name-field {
-  font-style: italic;
-}
 
 /* === Лист учителя === */
 
 .marathon-teacher-print-root {
-  padding: 10mm 12mm;
   font-family: Arial, sans-serif;
 }
 
@@ -627,12 +552,6 @@
 .marathon-teacher__header h2 {
   font-size: 14pt;
   margin: 0 0 4px;
-}
-
-.marathon-teacher__hint {
-  font-size: 9pt;
-  color: #c00;
-  margin: 0;
 }
 
 .marathon-teacher__table {
@@ -655,50 +574,81 @@
   vertical-align: top;
 }
 
+.marathon-teacher__table tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+@media print {
+  .marathon-teacher__table thead {
+    display: table-header-group;
+  }
+  .marathon-teacher__table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+
 .marathon-teacher__row--even td {
   background: #f9f9f9;
 }
 
-.marathon-teacher__col-num { width: 24px; text-align: center; font-weight: 700; }
-.marathon-teacher__col-diff { width: 30px; text-align: center; }
-.marathon-teacher__col-statement { width: 35%; }
-.marathon-teacher__col-answer { width: 18%; }
-.marathon-teacher__col-solution { width: 35%; }
+.marathon-teacher__col-statement { width: 33%; }
+.marathon-teacher__col-solution { width: 67%; }
+
+.marathon-teacher__task-num {
+  font-weight: 700;
+  font-size: 9pt;
+}
+
+.marathon-teacher__answer {
+  margin-top: 4px;
+  font-size: 8.5pt;
+  color: #333;
+}
 
 /* === Рейтинговый бланк === */
 
 .marathon-rating-print-root {
-  padding: 10mm 12mm;
   font-family: Arial, sans-serif;
 }
 
 .marathon-rating__header {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .marathon-rating__header h2 {
-  font-size: 14pt;
+  font-size: 13pt;
   margin: 0 0 4px;
 }
 
 .marathon-rating__legend {
   display: flex;
-  gap: 20px;
-  font-size: 9pt;
-  color: #555;
-  margin-bottom: 8px;
+  gap: 16px;
+  font-size: 8.5pt;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
 }
+
+.marathon-rating__legend-item {
+  font-weight: 600;
+}
+.marathon-rating__legend-item--3 { color: #2a7a00; }
+.marathon-rating__legend-item--2 { color: #0050b3; }
+.marathon-rating__legend-item--1 { color: #ad6800; }
+.marathon-rating__legend-item--0 { color: #555; }
+.marathon-rating__legend-item--hint { color: #999; font-weight: 400; }
 
 .marathon-rating__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 9pt;
+  font-size: 8.5pt;
 }
 
 .marathon-rating__table th {
   background: #333;
   color: #fff;
-  padding: 4px 6px;
+  padding: 3px 4px;
   border: 1px solid #555;
   text-align: center;
 }
@@ -716,25 +666,49 @@
   text-align: left !important;
   padding: 4px 8px !important;
   white-space: nowrap;
-  min-width: 130px;
+  min-width: 120px;
+}
+
+.marathon-rating__col-task-header {
+  text-align: center;
+  padding: 3px 2px !important;
+  font-size: 9pt;
+}
+
+.marathon-rating__col-sub {
+  text-align: center;
+  font-size: 7pt;
+  font-weight: 400 !important;
+  background: #555 !important;
+  padding: 2px 3px !important;
+  white-space: nowrap;
 }
 
 .marathon-rating__col-task {
-  width: 40px;
+  width: 44px;
   text-align: center;
   padding: 2px !important;
+  border-right: none !important;
+}
+
+.marathon-rating__col-score {
+  width: 28px;
+  text-align: center;
+  padding: 2px 4px !important;
+  border-left: 1px dashed #bbb !important;
 }
 
 .marathon-rating__col-total {
-  width: 50px;
+  width: 44px;
   text-align: center;
+  font-weight: 700;
 }
 
 .marathon-rating__attempts {
   display: flex;
   justify-content: space-around;
-  padding: 4px 2px;
-  font-size: 11pt;
-  color: #999;
-  letter-spacing: 2px;
+  padding: 3px 2px;
+  font-size: 10pt;
+  color: #bbb;
 }
+

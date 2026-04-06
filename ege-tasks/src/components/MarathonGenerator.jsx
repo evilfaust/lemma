@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   Button, Card, Input, InputNumber, Tabs, Space, List, Tag, Tooltip,
   Modal, Empty, Spin, message, Popconfirm, Typography, Divider, Badge,
@@ -46,23 +45,31 @@ export default function MarathonGenerator() {
   // Для печати
   const [printMode, setPrintMode] = useState(null); // 'cards' | 'teacher' | 'rating' | null
 
+  // Ждём рендера print-блока + загрузки картинок, потом печатаем
   useEffect(() => {
     if (!printMode) return;
     const styleId = 'marathon-print-page-style';
-    let existing = document.getElementById(styleId);
+    const existing = document.getElementById(styleId);
     if (existing) existing.remove();
     const style = document.createElement('style');
     style.id = styleId;
-    style.textContent = '@page { size: A4 portrait; margin: 0; }';
+    if (printMode === 'rating') {
+      style.textContent = '@page { size: A4 landscape; margin: 10mm 12mm; }';
+    } else if (printMode === 'teacher') {
+      style.textContent = '@page { size: A4 portrait; margin: 10mm 12mm; }';
+    } else {
+      style.textContent = '@page { size: A4 portrait; margin: 0; }';
+    }
     document.head.appendChild(style);
+    // 300мс — достаточно для загрузки логотипа и KaTeX-шрифтов
     const timer = setTimeout(() => {
       window.print();
       setTimeout(() => {
         const s = document.getElementById(styleId);
         if (s) s.remove();
         setPrintMode(null);
-      }, 1500);
-    }, 100);
+      }, 1000);
+    }, 300);
     return () => clearTimeout(timer);
   }, [printMode]);
 
@@ -376,9 +383,6 @@ export default function MarathonGenerator() {
                   <div className="mg-card-preview__body">
                     <MathRenderer content={task.statement_md || ''} />
                   </div>
-                  <div className="mg-card-preview__footer">
-                    Задача № {idx + 1} &nbsp;·&nbsp; Ученик: ____________________
-                  </div>
                 </div>
               );
             })}
@@ -631,18 +635,16 @@ export default function MarathonGenerator() {
         )}
       </Modal>
 
-      {/* Блоки для печати — через Portal в document.body, вне дерева приложения */}
-      {printMode === 'cards' && createPortal(
-        <MarathonCardsPrint tasks={tasks} title={title} />,
-        document.body
+      {/* Блоки для печати — рендерятся в дереве компонента, как в QRWorksheetGenerator.
+          @media print скрывает body:has(.root) и показывает только print-root. */}
+      {printMode === 'cards' && (
+        <MarathonCardsPrint tasks={tasks} title={title} />
       )}
-      {printMode === 'teacher' && createPortal(
-        <MarathonTeacherSheet tasks={tasks} title={title} />,
-        document.body
+      {printMode === 'teacher' && (
+        <MarathonTeacherSheet tasks={tasks} title={title} />
       )}
-      {printMode === 'rating' && createPortal(
-        <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />,
-        document.body
+      {printMode === 'rating' && (
+        <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />
       )}
     </div>
   );

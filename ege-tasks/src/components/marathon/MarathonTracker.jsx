@@ -1,35 +1,47 @@
 import { useState, useCallback } from 'react';
-import { Button, Tooltip, Badge, Tag } from 'antd';
+import { Button, Tooltip, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 
-const CELL_STATES = {
-  EMPTY: 'empty',
-  ATTEMPT_1: 'attempt_1',
-  ATTEMPT_2: 'attempt_2',
-  ATTEMPT_3: 'attempt_3',
-  SOLVED: 'solved',
-  FAILED: 'failed',
-};
-
-function getCellState(data) {
-  if (!data || data.attempts === 0 && !data.solved && !data.failed) return CELL_STATES.EMPTY;
-  if (data.solved) return CELL_STATES.SOLVED;
-  if (data.failed) return CELL_STATES.FAILED;
-  if (data.attempts === 1) return CELL_STATES.ATTEMPT_1;
-  if (data.attempts === 2) return CELL_STATES.ATTEMPT_2;
-  return CELL_STATES.EMPTY;
+/**
+ * Очки за задачу:
+ *  решена с 0 неудачных попыток  → +3
+ *  решена с 1 неудачной попыткой → +2
+ *  решена с 2 неудачными попытками → +1
+ *  3 неудачные попытки (задача провалена) → 0
+ */
+function calcTaskScore(data) {
+  if (!data || (!data.solved && !data.failed)) return 0;
+  if (data.failed) return 0;
+  if (data.solved) {
+    const a = data.attempts || 0;
+    if (a === 0) return 3;
+    if (a === 1) return 2;
+    return 1;
+  }
+  return 0;
 }
 
+function calcTotalScore(name, trackingData) {
+  const data = trackingData[name] || {};
+  return Object.values(data).reduce((sum, v) => sum + calcTaskScore(v), 0);
+}
+
+const SCORE_STYLE = {
+  3: { color: '#52c41a', label: '+3' },
+  2: { color: '#1890ff', label: '+2' },
+  1: { color: '#faad14', label: '+1' },
+  0: { color: '#999',    label: '0'  },
+};
+
 function TaskCell({ data, onSuccess, onFail, onReset }) {
-  const state = getCellState(data);
-
   const attempts = data?.attempts || 0;
-  const attemptsLeft = 3 - attempts;
 
-  if (state === CELL_STATES.SOLVED) {
+  if (data?.solved) {
+    const score = calcTaskScore(data);
+    const s = SCORE_STYLE[score] || SCORE_STYLE[0];
     return (
       <div className="mt-cell mt-cell--solved">
-        <CheckOutlined style={{ color: '#52c41a', fontSize: 16 }} />
+        <span style={{ fontWeight: 700, fontSize: 13, color: s.color }}>{s.label}</span>
         <Tooltip title="Сбросить">
           <button className="mt-cell__reset-btn" onClick={onReset}>↺</button>
         </Tooltip>
@@ -37,10 +49,10 @@ function TaskCell({ data, onSuccess, onFail, onReset }) {
     );
   }
 
-  if (state === CELL_STATES.FAILED) {
+  if (data?.failed) {
     return (
       <div className="mt-cell mt-cell--failed">
-        <span style={{ fontSize: 11, color: '#ff4d4f' }}>✗✗✗</span>
+        <span style={{ fontWeight: 700, fontSize: 13, color: '#999' }}>0</span>
         <Tooltip title="Сбросить">
           <button className="mt-cell__reset-btn" onClick={onReset}>↺</button>
         </Tooltip>
@@ -50,7 +62,7 @@ function TaskCell({ data, onSuccess, onFail, onReset }) {
 
   return (
     <div className="mt-cell mt-cell--active">
-      {/* Кружки попыток */}
+      {/* Кружки использованных попыток */}
       <div className="mt-cell__dots">
         {[0, 1, 2].map(i => (
           <span
@@ -59,14 +71,13 @@ function TaskCell({ data, onSuccess, onFail, onReset }) {
           />
         ))}
       </div>
-      {/* Кнопки */}
       <div className="mt-cell__actions">
-        <Tooltip title="Засчитать решение">
+        <Tooltip title={`Решено! (+${3 - attempts} очка)`}>
           <button className="mt-cell__btn mt-cell__btn--ok" onClick={onSuccess}>
             <CheckOutlined />
           </button>
         </Tooltip>
-        <Tooltip title={attemptsLeft > 0 ? `Попытка ${attempts + 1} из 3` : 'Задача провалена'}>
+        <Tooltip title={attempts < 2 ? `Неудача (попытка ${attempts + 1}/3)` : 'Последняя попытка — три неудачи дают 0 очков'}>
           <button
             className="mt-cell__btn mt-cell__btn--fail"
             onClick={onFail}
@@ -108,12 +119,7 @@ export default function MarathonTracker({
 
       studentData[key] = updated;
       next[studentName] = studentData;
-
-      // Автосохранение
-      if (onSaveTracking) {
-        onSaveTracking(next);
-      }
-
+      if (onSaveTracking) onSaveTracking(next);
       return next;
     });
   }, [setTrackingData, onSaveTracking]);
@@ -129,13 +135,8 @@ export default function MarathonTracker({
     });
   }, [setTrackingData, onSaveTracking]);
 
-  const countSolved = (name) => {
-    const data = trackingData[name] || {};
-    return Object.values(data).filter(v => v.solved).length;
-  };
-
   const displayStudents = sortByScore
-    ? [...students].sort((a, b) => countSolved(b) - countSolved(a))
+    ? [...students].sort((a, b) => calcTotalScore(b, trackingData) - calcTotalScore(a, trackingData))
     : students;
 
   if (!students.length || !tasks.length) {
@@ -158,7 +159,7 @@ export default function MarathonTracker({
           {sortByScore ? 'Сортировка по счёту' : 'Порядок списка'}
         </Button>
         <span style={{ color: '#999', fontSize: 12 }}>
-          Нажмите ✓ — задача решена, ✗ — попытка провалена (макс. 3 попытки)
+          +3 / +2 / +1 за решение с 1, 2, 3-й попытки &nbsp;·&nbsp; −1 за три неудачи
         </span>
       </div>
 
@@ -175,11 +176,12 @@ export default function MarathonTracker({
           </thead>
           <tbody>
             {displayStudents.map((student, rowIdx) => {
-              const solved = countSolved(student);
+              const total = calcTotalScore(student, trackingData);
+              const maxScore = tasks.length * 3;
               return (
                 <tr key={student} className={rowIdx % 2 === 0 ? 'mt-row--even' : ''}>
                   <td className="mt-td-name">
-                    {rowIdx === 0 && sortByScore && (
+                    {rowIdx === 0 && sortByScore && total > 0 && (
                       <span className="mt-leader-badge">🥇</span>
                     )}
                     {student}
@@ -198,8 +200,8 @@ export default function MarathonTracker({
                     );
                   })}
                   <td className="mt-td-score">
-                    <Tag color={solved >= tasks.length * 0.8 ? 'green' : solved > 0 ? 'blue' : 'default'}>
-                      {solved} / {tasks.length}
+                    <Tag color={total >= maxScore * 0.8 ? 'green' : total > 0 ? 'blue' : total < 0 ? 'red' : 'default'}>
+                      {total > 0 ? `+${total}` : total}
                     </Tag>
                   </td>
                 </tr>
@@ -211,15 +213,10 @@ export default function MarathonTracker({
 
       {/* Легенда */}
       <div className="marathon-tracker__legend">
-        <span className="mt-legend__item">
-          <span className="mt-cell__dot mt-cell__dot--used" /> — попытка провалена
-        </span>
-        <span className="mt-legend__item">
-          <CheckOutlined style={{ color: '#52c41a' }} /> — решено
-        </span>
-        <span className="mt-legend__item">
-          <span style={{ color: '#ff4d4f' }}>✗✗✗</span> — исчерпаны все попытки
-        </span>
+        <span className="mt-legend__item" style={{ color: '#52c41a' }}>+3 — с первой попытки</span>
+        <span className="mt-legend__item" style={{ color: '#1890ff' }}>+2 — со второй попытки</span>
+        <span className="mt-legend__item" style={{ color: '#faad14' }}>+1 — с третьей попытки</span>
+        <span className="mt-legend__item" style={{ color: '#999' }}>0 — три неудачи</span>
       </div>
     </div>
   );
