@@ -88,10 +88,18 @@ export default function MarathonGenerator() {
     await loadSavedList();
   };
 
-  const handleLoadItem = (item) => {
-    loadMarathon(item);
+  const handleLoadItem = async (item) => {
     setShowLoadModal(false);
-    message.success('Марафон загружен');
+    try {
+      // Загружаем полную запись через getOne — expand работает надёжнее, чем в списке
+      const full = await api.getMarathon(item.id);
+      loadMarathon(full);
+      message.success('Марафон загружен');
+    } catch {
+      // Fallback на данные из списка
+      loadMarathon(item);
+      message.success('Марафон загружен');
+    }
   };
 
   const handleDelete = async (id) => {
