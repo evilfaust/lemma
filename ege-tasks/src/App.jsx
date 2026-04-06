@@ -30,6 +30,8 @@ import RouteSheetGenerator from './components/RouteSheetGenerator';
 import ErrorHeatmap from './components/ErrorHeatmap';
 import UnitCircleGenerator from './components/UnitCircleGenerator';
 import UnitCircleCryptogramGenerator from './components/UnitCircleCryptogramGenerator';
+import TrigValuesGenerator from './components/TrigValuesGenerator';
+import MarathonGenerator from './components/MarathonGenerator';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -121,6 +123,11 @@ function AppContent() {
       label: 'Маршрутный лист',
     },
     {
+      key: 'marathon',
+      icon: <TrophyOutlined />,
+      label: 'Марафон',
+    },
+    {
       key: 'work-manager',
       icon: <SolutionOutlined />,
       label: 'Мои работы',
@@ -169,6 +176,7 @@ function AppContent() {
       label: 'Тригонометрия',
       children: [
         { key: 'unit-circle', icon: <RadarChartOutlined />, label: 'Единичная окружность' },
+        { key: 'trig-values', icon: <RadarChartOutlined />, label: 'Значения функций' },
         { key: 'trig-cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
       ],
     },
@@ -326,10 +334,14 @@ function AppContent() {
         );
       case 'unit-circle':
         return <UnitCircleGenerator />;
+      case 'trig-values':
+        return <TrigValuesGenerator />;
       case 'trig-cryptogram':
         return <UnitCircleCryptogramGenerator />;
       case 'route-sheet':
         return <RouteSheetGenerator />;
+      case 'marathon':
+        return <MarathonGenerator />;
       case 'heatmap':
         return <ErrorHeatmap />;
       case 'theory-browser':
@@ -394,8 +406,10 @@ function AppContent() {
       case 'tdf-variants': return 'ТДФ — Варианты';
       case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
       case 'unit-circle': return 'Тригонометрия — Единичная окружность';
+      case 'trig-values': return 'Тригонометрия — Значения функций';
       case 'trig-cryptogram': return 'Тригонометрия — Шифровки';
       case 'route-sheet': return 'Маршрутный лист';
+      case 'marathon': return 'Марафон — подготовка и проведение';
       case 'heatmap': return 'Тепловая карта ошибок';
       case 'theory-browser': return 'Теория — Библиотека';
       case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';

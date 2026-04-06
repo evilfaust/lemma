@@ -2011,6 +2011,96 @@ export const api = {
       throw error;
     }
   },
+
+  // --- trig_values_worksheets ---
+
+  async getTrigValuesWorksheets() {
+    try {
+      return await pb.collection('trig_values_worksheets').getFullList({
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching trig_values_worksheets:', error);
+      return [];
+    }
+  },
+
+  async createTrigValuesWorksheet(data) {
+    try {
+      return await pb.collection('trig_values_worksheets').create(data);
+    } catch (error) {
+      console.error('Error creating trig_values_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async updateTrigValuesWorksheet(id, data) {
+    try {
+      return await pb.collection('trig_values_worksheets').update(id, data);
+    } catch (error) {
+      console.error('Error updating trig_values_worksheet:', error);
+      throw error;
+    }
+  },
+
+  async deleteTrigValuesWorksheet(id) {
+    try {
+      return await pb.collection('trig_values_worksheets').delete(id);
+    } catch (error) {
+      console.error('Error deleting trig_values_worksheet:', error);
+      throw error;
+    }
+  },
+
+  // --- marathons ---
+
+  async getMarathons() {
+    try {
+      return await pb.collection('marathons').getFullList({
+        sort: '-created',
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching marathons:', error);
+      return [];
+    }
+  },
+
+  async getMarathon(id) {
+    try {
+      return await pb.collection('marathons').getOne(id, { expand: 'tasks' });
+    } catch (error) {
+      console.error('Error fetching marathon:', error);
+      throw error;
+    }
+  },
+
+  async createMarathon(data) {
+    try {
+      return await pb.collection('marathons').create(data);
+    } catch (error) {
+      console.error('Error creating marathon:', error);
+      throw error;
+    }
+  },
+
+  async updateMarathon(id, data) {
+    try {
+      return await pb.collection('marathons').update(id, data);
+    } catch (error) {
+      console.error('Error updating marathon:', error);
+      throw error;
+    }
+  },
+
+  async deleteMarathon(id) {
+    try {
+      return await pb.collection('marathons').delete(id);
+    } catch (error) {
+      console.error('Error deleting marathon:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;

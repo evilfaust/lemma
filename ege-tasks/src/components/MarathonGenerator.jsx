@@ -1,0 +1,593 @@
+import { useRef, useState, useCallback, useEffect } from 'react';
+import {
+  Button, Card, Input, InputNumber, Tabs, Space, List, Tag, Tooltip,
+  Modal, Empty, Spin, message, Popconfirm, Typography, Divider, Badge,
+} from 'antd';
+import {
+  PlusOutlined, DeleteOutlined, SaveOutlined, FolderOpenOutlined,
+  PrinterOutlined, ArrowUpOutlined, ArrowDownOutlined, ReloadOutlined,
+  TrophyOutlined, UserOutlined, OrderedListOutlined, FileTextOutlined,
+} from '@ant-design/icons';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
+import { useMarathon } from '../hooks/useMarathon';
+import TaskSelectModal from './TaskSelectModal';
+import MarathonCardsPrint from './marathon/MarathonCardsPrint';
+import MarathonTeacherSheet from './marathon/MarathonTeacherSheet';
+import MarathonRatingPrint from './marathon/MarathonRatingPrint';
+import MarathonTracker from './marathon/MarathonTracker';
+import MathRenderer from '../shared/components/MathRenderer';
+import './MarathonGenerator.css';
+
+const { Text } = Typography;
+const DIFFICULTY_COLOR = { 1: '#52c41a', 2: '#faad14', 3: '#ff4d4f' };
+const DIFFICULTY_LABEL = { 1: 'Лёгкая', 2: 'Средняя', 3: 'Сложная' };
+
+export default function MarathonGenerator() {
+  const { topics, subtopics, tags } = useReferenceData();
+
+  const {
+    title, setTitle,
+    classNumber, setClassNumber,
+    tasks, students, trackingData, setTrackingData,
+    savedId, saved, loadingSaved, saving,
+    addTasks, removeTask, moveTask,
+    addStudent, removeStudent,
+    saveMarathon, saveTracking, loadMarathon, loadSavedList, deleteMarathon, reset,
+    initTracking,
+  } = useMarathon();
+
+  const [activeTab, setActiveTab] = useState('setup');
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [newStudentName, setNewStudentName] = useState('');
+
+  // Для печати
+  const [printMode, setPrintMode] = useState(null); // 'cards' | 'teacher' | 'rating' | null
+
+  useEffect(() => {
+    if (!printMode) return;
+    const styleId = 'marathon-print-page-style';
+    let existing = document.getElementById(styleId);
+    if (existing) existing.remove();
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = '@page { size: A4 portrait; margin: 0; }';
+    document.head.appendChild(style);
+    const timer = setTimeout(() => {
+      window.print();
+      setTimeout(() => {
+        const s = document.getElementById(styleId);
+        if (s) s.remove();
+        setPrintMode(null);
+      }, 1500);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [printMode]);
+
+  // --- Обработчики ---
+
+  const handleAddStudent = () => {
+    if (!newStudentName.trim()) return;
+    addStudent(newStudentName.trim());
+    setNewStudentName('');
+  };
+
+  const handleSave = async () => {
+    if (!tasks.length) return message.warning('Добавьте хотя бы одну задачу');
+    try {
+      await saveMarathon();
+      message.success(savedId ? 'Марафон обновлён' : 'Марафон сохранён');
+    } catch {
+      message.error('Ошибка при сохранении');
+    }
+  };
+
+  const handleLoad = async () => {
+    setShowLoadModal(true);
+    await loadSavedList();
+  };
+
+  const handleLoadItem = (item) => {
+    loadMarathon(item);
+    setShowLoadModal(false);
+    message.success('Марафон загружен');
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await deleteMarathon(id);
+      message.success('Удалено');
+    } catch {
+      message.error('Ошибка удаления');
+    }
+  };
+
+  const handlePrint = (type) => {
+    setPrintMode(type);
+  };
+
+  const handleInitTracking = () => {
+    if (!students.length) return message.warning('Добавьте учеников');
+    if (!tasks.length) return message.warning('Добавьте задачи');
+    initTracking();
+    message.success('Трекер инициализирован');
+  };
+
+  // --- Вкладка 1: Настройка ---
+  const setupTab = (
+    <div className="mg-setup">
+      {/* Основные параметры */}
+      <Card size="small" title="Параметры марафона" className="mg-card">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <Space wrap>
+            <div>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Название</Text>
+              <Input
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                style={{ width: 300 }}
+                placeholder="Марафон по алгебре"
+              />
+            </div>
+            <div>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Класс</Text>
+              <InputNumber
+                value={classNumber}
+                onChange={setClassNumber}
+                min={5} max={11}
+                style={{ width: 80 }}
+              />
+            </div>
+          </Space>
+
+          <Space>
+            <Button
+              icon={<SaveOutlined />}
+              type="primary"
+              onClick={handleSave}
+              loading={saving}
+            >
+              {savedId ? 'Обновить' : 'Сохранить'}
+            </Button>
+            <Button icon={<FolderOpenOutlined />} onClick={handleLoad}>
+              Загрузить
+            </Button>
+            <Popconfirm title="Сбросить всё?" onConfirm={reset}>
+              <Button icon={<ReloadOutlined />} danger>
+                Новый
+              </Button>
+            </Popconfirm>
+          </Space>
+          {savedId && (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              ID: {savedId}
+            </Text>
+          )}
+        </Space>
+      </Card>
+
+      {/* Задачи */}
+      <Card
+        size="small"
+        title={
+          <Space>
+            <OrderedListOutlined />
+            {`Задачи (${tasks.length})`}
+          </Space>
+        }
+        className="mg-card"
+        extra={
+          <Button
+            size="small"
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setShowTaskModal(true)}
+          >
+            Добавить задачи
+          </Button>
+        }
+      >
+        {tasks.length === 0 ? (
+          <Empty description="Задачи не выбраны" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <List
+            size="small"
+            dataSource={tasks}
+            renderItem={(task, idx) => (
+              <List.Item
+                key={task.id}
+                className="mg-task-item"
+                actions={[
+                  <Tooltip title="Переместить вверх">
+                    <Button
+                      size="small"
+                      icon={<ArrowUpOutlined />}
+                      disabled={idx === 0}
+                      onClick={() => moveTask(idx, idx - 1)}
+                    />
+                  </Tooltip>,
+                  <Tooltip title="Переместить вниз">
+                    <Button
+                      size="small"
+                      icon={<ArrowDownOutlined />}
+                      disabled={idx === tasks.length - 1}
+                      onClick={() => moveTask(idx, idx + 1)}
+                    />
+                  </Tooltip>,
+                  <Tooltip title="Удалить">
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => removeTask(task.id)}
+                    />
+                  </Tooltip>,
+                ]}
+              >
+                <Space size={8} align="start" style={{ width: '100%', flexWrap: 'wrap' }}>
+                  <div
+                    className="mg-task-num"
+                    style={{ background: DIFFICULTY_COLOR[task.difficulty] || '#1890ff' }}
+                  >
+                    {idx + 1}
+                  </div>
+                  <Tag
+                    color={DIFFICULTY_COLOR[task.difficulty] || 'blue'}
+                    style={{ fontSize: 11 }}
+                  >
+                    {DIFFICULTY_LABEL[task.difficulty] || '?'}
+                  </Tag>
+                  <Text type="secondary" style={{ fontSize: 12 }}>{task.code}</Text>
+                  <div className="mg-task-preview" style={{ fontSize: 13 }}>
+                    <MathRenderer
+                      content={(task.statement_md || '').slice(0, 200) + ((task.statement_md || '').length > 200 ? '…' : '')}
+                    />
+                  </div>
+                </Space>
+              </List.Item>
+            )}
+          />
+        )}
+      </Card>
+
+      {/* Ученики */}
+      <Card
+        size="small"
+        title={
+          <Space>
+            <UserOutlined />
+            {`Ученики (${students.length})`}
+          </Space>
+        }
+        className="mg-card"
+      >
+        <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
+          <Input
+            placeholder="Фамилия Имя"
+            value={newStudentName}
+            onChange={e => setNewStudentName(e.target.value)}
+            onPressEnter={handleAddStudent}
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAddStudent}>
+            Добавить
+          </Button>
+        </Space.Compact>
+
+        {students.length === 0 ? (
+          <Text type="secondary">Список учеников пуст</Text>
+        ) : (
+          <div className="mg-students-list">
+            {students.map((name, idx) => (
+              <div key={name} className="mg-student-item">
+                <span className="mg-student-idx">{idx + 1}.</span>
+                <span className="mg-student-name">{name}</span>
+                <Button
+                  size="small"
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => removeStudent(name)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+
+  // --- Вкладка 2: Карточки ---
+  const cardsTab = (
+    <div className="mg-print-tab">
+      {tasks.length === 0 ? (
+        <Empty description="Добавьте задачи в разделе «Настройка»" />
+      ) : (
+        <>
+          <div className="mg-print-actions">
+            <Button
+              type="primary"
+              icon={<PrinterOutlined />}
+              onClick={() => handlePrint('cards')}
+              className="marathon-print-cards-trigger"
+            >
+              Печать карточек (A6, 4 на лист)
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Каждая карточка — одна задача. Распечатайте и разрежьте по пунктиру.
+            </Text>
+          </div>
+
+          {/* Экранный превью */}
+          <div className="mg-cards-preview">
+            {tasks.map((task, idx) => {
+              const diff = task.difficulty || 1;
+              return (
+                <div key={task.id} className="mg-card-preview-item">
+                  <div
+                    className="mg-card-preview__num"
+                    style={{ background: DIFFICULTY_COLOR[diff] }}
+                  >
+                    {idx + 1}
+                  </div>
+                  <div className="mg-card-preview__body">
+                    <MathRenderer content={(task.statement_md || '').slice(0, 150)} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // --- Вкладка 3: Лист учителя ---
+  const teacherTab = (
+    <div className="mg-print-tab">
+      {tasks.length === 0 ? (
+        <Empty description="Добавьте задачи в разделе «Настройка»" />
+      ) : (
+        <>
+          <div className="mg-print-actions">
+            <Button
+              type="primary"
+              icon={<PrinterOutlined />}
+              onClick={() => handlePrint('teacher')}
+              className="marathon-print-teacher-trigger"
+            >
+              Печать листа учителя (A4)
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Компактная таблица со всеми задачами, ответами и решениями.
+            </Text>
+          </div>
+
+          {/* Экранный превью таблицы */}
+          <div className="mg-teacher-preview">
+            <table className="mg-teacher-preview__table">
+              <thead>
+                <tr>
+                  <th>№</th>
+                  <th>Условие</th>
+                  <th>Ответ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tasks.map((task, idx) => (
+                  <tr key={task.id}>
+                    <td style={{ fontWeight: 700, color: DIFFICULTY_COLOR[task.difficulty] }}>
+                      {idx + 1}
+                    </td>
+                    <td>
+                      <MathRenderer content={(task.statement_md || '').slice(0, 120)} />
+                    </td>
+                    <td>
+                      <strong><MathRenderer content={task.answer || '—'} /></strong>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // --- Вкладка 4: Рейтинг ---
+  const ratingTab = (
+    <div className="mg-rating-tab">
+      <Tabs
+        defaultActiveKey="tracker"
+        size="small"
+        items={[
+          {
+            key: 'tracker',
+            label: <><TrophyOutlined /> Цифровой трекер</>,
+            children: (
+              <div>
+                <div className="mg-print-actions" style={{ marginBottom: 12 }}>
+                  <Button
+                    type="default"
+                    icon={<ReloadOutlined />}
+                    onClick={handleInitTracking}
+                  >
+                    Инициализировать трекер
+                  </Button>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Нажмите для сброса и инициализации всех студентов
+                  </Text>
+                </div>
+                <MarathonTracker
+                  tasks={tasks}
+                  students={students}
+                  trackingData={trackingData}
+                  setTrackingData={setTrackingData}
+                  onSaveTracking={savedId ? saveTracking : null}
+                />
+              </div>
+            ),
+          },
+          {
+            key: 'print',
+            label: <><PrinterOutlined /> Бумажный бланк</>,
+            children: (
+              <div>
+                <div className="mg-print-actions">
+                  <Button
+                    type="primary"
+                    icon={<PrinterOutlined />}
+                    onClick={() => handlePrint('rating')}
+                    className="marathon-print-rating-trigger"
+                    disabled={!students.length || !tasks.length}
+                  >
+                    Печать рейтингового бланка (A4)
+                  </Button>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    Бланк для ручного заполнения во время марафона.
+                    Кружки — попытки, галочка — задача решена.
+                  </Text>
+                </div>
+
+                {students.length > 0 && tasks.length > 0 ? (
+                  <div className="mg-rating-preview">
+                    <table className="mg-rating-preview__table">
+                      <thead>
+                        <tr>
+                          <th>Ученик</th>
+                          {tasks.map((_, i) => <th key={i}>{i + 1}</th>)}
+                          <th>Итого</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {students.map(name => (
+                          <tr key={name}>
+                            <td>{name}</td>
+                            {tasks.map((_, i) => (
+                              <td key={i} style={{ textAlign: 'center', color: '#ccc', fontSize: 10 }}>
+                                ○○○
+                              </td>
+                            ))}
+                            <td></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <Empty description="Добавьте учеников и задачи" />
+                )}
+              </div>
+            ),
+          },
+        ]}
+      />
+    </div>
+  );
+
+  const tabItems = [
+    {
+      key: 'setup',
+      label: <><OrderedListOutlined /> Настройка</>,
+      children: setupTab,
+    },
+    {
+      key: 'cards',
+      label: <><FileTextOutlined /> Карточки учеников</>,
+      children: cardsTab,
+    },
+    {
+      key: 'teacher',
+      label: <><UserOutlined /> Лист учителя</>,
+      children: teacherTab,
+    },
+    {
+      key: 'rating',
+      label: <><TrophyOutlined /> Рейтинг</>,
+      children: ratingTab,
+    },
+  ];
+
+  return (
+    <div className="marathon-generator">
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={tabItems}
+        className="mg-tabs"
+      />
+
+      {/* Модал выбора задач */}
+      <TaskSelectModal
+        visible={showTaskModal}
+        onCancel={() => setShowTaskModal(false)}
+        onSelect={(selected) => {
+          const arr = Array.isArray(selected) ? selected : [selected];
+          addTasks(arr);
+          setShowTaskModal(false);
+        }}
+        topics={topics}
+        subtopics={subtopics}
+        tags={tags}
+        excludeIds={tasks.map(t => t.id)}
+      />
+
+      {/* Модал загрузки */}
+      <Modal
+        title="Загрузить марафон"
+        open={showLoadModal}
+        onCancel={() => setShowLoadModal(false)}
+        footer={null}
+        width={520}
+      >
+        {loadingSaved ? (
+          <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
+        ) : saved.length === 0 ? (
+          <Empty description="Нет сохранённых марафонов" />
+        ) : (
+          <List
+            dataSource={saved}
+            renderItem={(item) => (
+              <List.Item
+                actions={[
+                  <Button
+                    size="small"
+                    type="primary"
+                    onClick={() => handleLoadItem(item)}
+                  >
+                    Загрузить
+                  </Button>,
+                  <Popconfirm
+                    title="Удалить марафон?"
+                    onConfirm={() => handleDelete(item.id)}
+                  >
+                    <Button size="small" danger>Удалить</Button>
+                  </Popconfirm>,
+                ]}
+              >
+                <List.Item.Meta
+                  title={item.title}
+                  description={
+                    <Space size={4}>
+                      <Tag>{item.class_number} класс</Tag>
+                      <Tag>{(item.task_order || []).length} задач</Tag>
+                      <Tag>{(item.students || []).length} учеников</Tag>
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        {new Date(item.created).toLocaleDateString('ru')}
+                      </Text>
+                    </Space>
+                  }
+                />
+              </List.Item>
+            )}
+          />
+        )}
+      </Modal>
+
+      {/* Блоки для печати — монтируются только когда нужны */}
+      {printMode === 'cards' && <MarathonCardsPrint tasks={tasks} title={title} />}
+      {printMode === 'teacher' && <MarathonTeacherSheet tasks={tasks} title={title} />}
+      {printMode === 'rating' && <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />}
+    </div>
+  );
+}

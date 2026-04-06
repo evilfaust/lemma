@@ -1,0 +1,162 @@
+/* ─── Корень ──────────────────────────────────────────────────────────────── */
+.tvg-root {
+  padding: 16px;
+  max-width: 1280px;
+}
+
+/* ─── Заголовок ───────────────────────────────────────────────────────────── */
+.tvg-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.tvg-title-input {
+  max-width: 420px;
+  font-size: 15px;
+}
+
+/* ─── Двухколоночный макет ────────────────────────────────────────────────── */
+.tvg-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+/* ─── Карточка настроек ────────────────────────────────────────────────────── */
+.tvg-settings-card {
+  flex: 0 0 240px;
+  min-width: 210px;
+}
+
+.tvg-settings-row {
+  margin-bottom: 14px;
+}
+
+.tvg-settings-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 6px;
+}
+
+/* ─── Область превью ─────────────────────────────────────────────────────── */
+.tvg-preview {
+  flex: 1;
+  min-width: 0;
+}
+
+.tvg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.tvg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 60px 0;
+  color: #bbb;
+  font-size: 14px;
+}
+
+/* ─── Карточка превью варианта ────────────────────────────────────────────── */
+.tvg-preview-card {
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tvg-preview-card-title {
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+.tvg-preview-body {
+  display: flex;
+  gap: 10px;
+  padding: 10px;
+  align-items: flex-start;
+  overflow-x: auto;
+}
+
+.tvg-preview-circle {
+  flex: 0 0 200px;
+  width: 200px;
+  height: 200px;
+  min-width: 150px;
+}
+
+/* ─── Таблица превью ─────────────────────────────────────────────────────── */
+.tvg-preview-table-wrap {
+  flex: 1;
+  min-width: 200px;
+  overflow-x: auto;
+}
+
+.tvg-preview-table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+
+.tvg-preview-table th {
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  padding: 5px 8px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tvg-preview-table td {
+  border: 1px solid #e8e8e8;
+  padding: 3px 8px;
+  text-align: center;
+  height: 28px;
+  vertical-align: middle;
+}
+
+.tvg-preview-blank {
+  min-width: 40px;
+}
+
+/* Чередование строк */
+.tvg-preview-table tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+
+/* ─── Сводка ─────────────────────────────────────────────────────────────── */
+.tvg-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+/* ─── Сохранённые листы ──────────────────────────────────────────────────── */
+.tvg-saved-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.tvg-saved-title {
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 3px;
+}
+
+.tvg-saved-meta {
+  font-size: 12px;
+  color: #888;
+}

@@ -1,0 +1,610 @@
+/* ================================================
+   MarathonGenerator — основные стили
+   ================================================ */
+
+.marathon-generator {
+  max-width: 1100px;
+}
+
+.mg-tabs .ant-tabs-content-holder {
+  padding-top: 8px;
+}
+
+.mg-card {
+  margin-bottom: 16px;
+}
+
+.mg-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.mg-task-item .ant-list-item-action {
+  margin-left: 8px;
+}
+
+.mg-task-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mg-task-preview {
+  max-width: 500px;
+  line-height: 1.4;
+}
+
+/* Список учеников */
+.mg-students-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mg-student-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.mg-student-idx {
+  color: #999;
+  font-size: 12px;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.mg-student-name {
+  flex: 1;
+  font-size: 14px;
+}
+
+/* ================================================
+   Вкладки печати
+   ================================================ */
+
+.mg-print-tab,
+.mg-rating-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mg-print-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Экранный превью карточек */
+.mg-cards-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 0;
+}
+
+.mg-card-preview-item {
+  width: 200px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.mg-card-preview__num {
+  width: 100%;
+  padding: 6px 12px;
+  color: #fff;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.mg-card-preview__body {
+  padding: 8px 12px;
+  font-size: 12px;
+  min-height: 60px;
+}
+
+/* Экранный превью таблицы учителя */
+.mg-teacher-preview {
+  overflow-x: auto;
+}
+
+.mg-teacher-preview__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.mg-teacher-preview__table th {
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+.mg-teacher-preview__table td {
+  border: 1px solid #f0f0f0;
+  padding: 6px 10px;
+  vertical-align: top;
+}
+
+/* Экранный превью рейтинга */
+.mg-rating-preview {
+  overflow-x: auto;
+  margin-top: 8px;
+}
+
+.mg-rating-preview__table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mg-rating-preview__table th {
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  padding: 4px 8px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.mg-rating-preview__table td {
+  border: 1px solid #f0f0f0;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+/* ================================================
+   MarathonTracker (цифровой трекер)
+   ================================================ */
+
+.marathon-tracker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.marathon-tracker__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.marathon-tracker__scroll {
+  overflow-x: auto;
+}
+
+.marathon-tracker__table {
+  border-collapse: collapse;
+  font-size: 13px;
+  min-width: 100%;
+}
+
+.marathon-tracker__table th {
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  padding: 6px 8px;
+  text-align: center;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.mt-th-name {
+  text-align: left !important;
+  min-width: 140px;
+  padding-left: 12px !important;
+}
+
+.mt-th-task {
+  min-width: 80px;
+}
+
+.mt-th-score {
+  min-width: 70px;
+}
+
+.marathon-tracker__table td {
+  border: 1px solid #f0f0f0;
+  padding: 4px 6px;
+  vertical-align: middle;
+}
+
+.mt-td-name {
+  font-size: 13px;
+  padding-left: 12px !important;
+  white-space: nowrap;
+}
+
+.mt-td-task {
+  text-align: center;
+}
+
+.mt-td-score {
+  text-align: center;
+}
+
+.mt-row--even td {
+  background: #fafafa;
+}
+
+.mt-leader-badge {
+  margin-right: 4px;
+}
+
+/* Ячейка трекера */
+.mt-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 2px;
+  min-width: 72px;
+}
+
+.mt-cell--solved {
+  background: #f6ffed;
+  border-radius: 4px;
+}
+
+.mt-cell--failed {
+  background: #fff1f0;
+  border-radius: 4px;
+}
+
+.mt-cell--active {
+  background: #fff;
+}
+
+.mt-cell__dots {
+  display: flex;
+  gap: 4px;
+}
+
+.mt-cell__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid #bbb;
+  display: inline-block;
+}
+
+.mt-cell__dot--used {
+  background: #ff4d4f;
+  border-color: #ff4d4f;
+}
+
+.mt-cell__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.mt-cell__btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  border: 1px solid #d9d9d9;
+  background: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.mt-cell__btn:hover:not(:disabled) {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.mt-cell__btn--ok:hover:not(:disabled) {
+  background: #f6ffed;
+  border-color: #52c41a;
+  color: #52c41a;
+}
+
+.mt-cell__btn--fail:hover:not(:disabled) {
+  background: #fff1f0;
+  border-color: #ff4d4f;
+  color: #ff4d4f;
+}
+
+.mt-cell__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mt-cell__reset-btn {
+  font-size: 12px;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.mt-cell__reset-btn:hover {
+  color: #1890ff;
+}
+
+/* Легенда трекера */
+.marathon-tracker__legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #666;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f0;
+}
+
+.mt-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ================================================
+   PRINT STYLES — карточки учеников (A6, 4 на A4)
+   ================================================ */
+
+/* Скрываем все блоки печати в экранном режиме */
+.marathon-cards-print-root,
+.marathon-teacher-print-root,
+.marathon-rating-print-root {
+  display: none;
+}
+
+@media print {
+  /* При печати любого марафон-блока — скрыть интерфейс */
+  body:has(.marathon-cards-print-root),
+  body:has(.marathon-teacher-print-root),
+  body:has(.marathon-rating-print-root) {
+    visibility: hidden;
+  }
+
+  .marathon-cards-print-root,
+  .marathon-teacher-print-root,
+  .marathon-rating-print-root {
+    visibility: visible;
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: block !important;
+    width: 100%;
+  }
+
+  /* Дочерние элементы блоков печати — видны */
+  .marathon-cards-print-root *,
+  .marathon-teacher-print-root *,
+  .marathon-rating-print-root * {
+    visibility: visible;
+  }
+}
+
+/* === Карточки учеников === */
+
+.marathon-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  width: 210mm;
+}
+
+.marathon-card {
+  width: 105mm;
+  height: 148mm;
+  box-sizing: border-box;
+  border: 1px dashed #ccc;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.marathon-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 3px solid;
+  background: #fafafa;
+}
+
+.marathon-card__num {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.marathon-card__meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.marathon-card__title-text {
+  font-size: 11px;
+  color: #666;
+  font-weight: 600;
+}
+
+.marathon-card__diff {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.marathon-card__body {
+  flex: 1;
+  padding: 10px;
+  font-size: 12pt;
+  overflow: hidden;
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.marathon-card__image {
+  max-width: 60%;
+  max-height: 60px;
+  float: right;
+  margin-left: 6px;
+  margin-bottom: 4px;
+}
+
+.marathon-card__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  border-top: 1px solid #eee;
+  font-size: 9px;
+  color: #999;
+}
+
+.marathon-card__name-field {
+  font-style: italic;
+}
+
+/* === Лист учителя === */
+
+.marathon-teacher-print-root {
+  padding: 10mm 12mm;
+  font-family: Arial, sans-serif;
+}
+
+.marathon-teacher__header {
+  margin-bottom: 8px;
+}
+
+.marathon-teacher__header h2 {
+  font-size: 14pt;
+  margin: 0 0 4px;
+}
+
+.marathon-teacher__hint {
+  font-size: 9pt;
+  color: #c00;
+  margin: 0;
+}
+
+.marathon-teacher__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.marathon-teacher__table th {
+  background: #333;
+  color: #fff;
+  padding: 4px 6px;
+  border: 1px solid #555;
+  text-align: left;
+}
+
+.marathon-teacher__table td {
+  border: 1px solid #ccc;
+  padding: 4px 6px;
+  vertical-align: top;
+}
+
+.marathon-teacher__row--even td {
+  background: #f9f9f9;
+}
+
+.marathon-teacher__col-num { width: 24px; text-align: center; font-weight: 700; }
+.marathon-teacher__col-diff { width: 30px; text-align: center; }
+.marathon-teacher__col-statement { width: 35%; }
+.marathon-teacher__col-answer { width: 18%; }
+.marathon-teacher__col-solution { width: 35%; }
+
+/* === Рейтинговый бланк === */
+
+.marathon-rating-print-root {
+  padding: 10mm 12mm;
+  font-family: Arial, sans-serif;
+}
+
+.marathon-rating__header {
+  margin-bottom: 8px;
+}
+
+.marathon-rating__header h2 {
+  font-size: 14pt;
+  margin: 0 0 4px;
+}
+
+.marathon-rating__legend {
+  display: flex;
+  gap: 20px;
+  font-size: 9pt;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.marathon-rating__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+
+.marathon-rating__table th {
+  background: #333;
+  color: #fff;
+  padding: 4px 6px;
+  border: 1px solid #555;
+  text-align: center;
+}
+
+.marathon-rating__table td {
+  border: 1px solid #ccc;
+  vertical-align: middle;
+}
+
+.marathon-rating__row--even td {
+  background: #f9f9f9;
+}
+
+.marathon-rating__col-name {
+  text-align: left !important;
+  padding: 4px 8px !important;
+  white-space: nowrap;
+  min-width: 130px;
+}
+
+.marathon-rating__col-task {
+  width: 40px;
+  text-align: center;
+  padding: 2px !important;
+}
+
+.marathon-rating__col-total {
+  width: 50px;
+  text-align: center;
+}
+
+.marathon-rating__attempts {
+  display: flex;
+  justify-content: space-around;
+  padding: 4px 2px;
+  font-size: 11pt;
+  color: #999;
+  letter-spacing: 2px;
+}
