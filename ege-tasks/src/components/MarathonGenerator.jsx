@@ -324,13 +324,18 @@ export default function MarathonGenerator() {
               return (
                 <div key={task.id} className="mg-card-preview-item">
                   <div
-                    className="mg-card-preview__num"
+                    className="mg-card-preview__header"
                     style={{ background: DIFFICULTY_COLOR[diff] }}
                   >
-                    {idx + 1}
+                    <span className="mg-card-preview__num">{idx + 1}</span>
+                    <span className="mg-card-preview__diff">{DIFFICULTY_LABEL[diff]}</span>
+                    <span className="mg-card-preview__code" style={{ opacity: 0.7, fontSize: 10 }}>{task.code}</span>
                   </div>
                   <div className="mg-card-preview__body">
-                    <MathRenderer content={(task.statement_md || '').slice(0, 150)} />
+                    <MathRenderer content={task.statement_md || ''} />
+                  </div>
+                  <div className="mg-card-preview__footer">
+                    Задача № {idx + 1} &nbsp;·&nbsp; Ученик: ____________________
                   </div>
                 </div>
               );
