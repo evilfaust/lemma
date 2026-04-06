@@ -400,30 +400,17 @@
 }
 
 @media print {
-  /* visibility:hidden на корне — дочерние элементы могут переопределить visibility:visible.
-     В отличие от display:none, это позволяет печатать вложенные блоки. */
-  body:has(.marathon-cards-print-root),
-  body:has(.marathon-teacher-print-root),
-  body:has(.marathon-rating-print-root) {
-    visibility: hidden;
+  /* Portal-блоки рендерятся прямо в body — скрываем всё остальное */
+  body:has(.marathon-cards-print-root) > *:not(.marathon-cards-print-root),
+  body:has(.marathon-teacher-print-root) > *:not(.marathon-teacher-print-root),
+  body:has(.marathon-rating-print-root) > *:not(.marathon-rating-print-root) {
+    display: none !important;
   }
 
-  /* Блоки печати и все их потомки — видимы, в нормальном потоке (не fixed!) */
   .marathon-cards-print-root,
   .marathon-teacher-print-root,
   .marathon-rating-print-root {
-    visibility: visible !important;
     display: block !important;
-    position: static;
-    width: 100%;
-    margin: 0;
-    padding: 0;
-  }
-
-  .marathon-cards-print-root *,
-  .marathon-teacher-print-root *,
-  .marathon-rating-print-root * {
-    visibility: visible !important;
   }
 }
 

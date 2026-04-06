@@ -1,4 +1,5 @@
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Button, Card, Input, InputNumber, Tabs, Space, List, Tag, Tooltip,
   Modal, Empty, Spin, message, Popconfirm, Typography, Divider, Badge,
@@ -589,10 +590,19 @@ export default function MarathonGenerator() {
         )}
       </Modal>
 
-      {/* Блоки для печати — монтируются только когда нужны */}
-      {printMode === 'cards' && <MarathonCardsPrint tasks={tasks} title={title} />}
-      {printMode === 'teacher' && <MarathonTeacherSheet tasks={tasks} title={title} />}
-      {printMode === 'rating' && <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />}
+      {/* Блоки для печати — через Portal в document.body, вне дерева приложения */}
+      {printMode === 'cards' && createPortal(
+        <MarathonCardsPrint tasks={tasks} title={title} />,
+        document.body
+      )}
+      {printMode === 'teacher' && createPortal(
+        <MarathonTeacherSheet tasks={tasks} title={title} />,
+        document.body
+      )}
+      {printMode === 'rating' && createPortal(
+        <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />,
+        document.body
+      )}
     </div>
   );
 }
