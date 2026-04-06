@@ -400,28 +400,30 @@
 }
 
 @media print {
-  /* Скрыть весь интерфейс приложения при печати марафон-блоков */
-  body:has(.marathon-cards-print-root) .ant-layout-sider,
-  body:has(.marathon-cards-print-root) .ant-layout-header,
-  body:has(.marathon-cards-print-root) .ant-layout-content,
-  body:has(.marathon-teacher-print-root) .ant-layout-sider,
-  body:has(.marathon-teacher-print-root) .ant-layout-header,
-  body:has(.marathon-teacher-print-root) .ant-layout-content,
-  body:has(.marathon-rating-print-root) .ant-layout-sider,
-  body:has(.marathon-rating-print-root) .ant-layout-header,
-  body:has(.marathon-rating-print-root) .ant-layout-content {
-    display: none !important;
+  /* visibility:hidden на корне — дочерние элементы могут переопределить visibility:visible.
+     В отличие от display:none, это позволяет печатать вложенные блоки. */
+  body:has(.marathon-cards-print-root),
+  body:has(.marathon-teacher-print-root),
+  body:has(.marathon-rating-print-root) {
+    visibility: hidden;
   }
 
-  /* Показать блоки печати в нормальном потоке (не fixed!) */
+  /* Блоки печати и все их потомки — видимы, в нормальном потоке (не fixed!) */
   .marathon-cards-print-root,
   .marathon-teacher-print-root,
   .marathon-rating-print-root {
+    visibility: visible !important;
     display: block !important;
     position: static;
     width: 100%;
     margin: 0;
     padding: 0;
+  }
+
+  .marathon-cards-print-root *,
+  .marathon-teacher-print-root *,
+  .marathon-rating-print-root * {
+    visibility: visible !important;
   }
 }
 
