@@ -32,6 +32,7 @@ import UnitCircleGenerator from './components/UnitCircleGenerator';
 import UnitCircleCryptogramGenerator from './components/UnitCircleCryptogramGenerator';
 import TrigValuesGenerator from './components/TrigValuesGenerator';
 import MarathonGenerator from './components/MarathonGenerator';
+import EgeScoreCalculator from './components/EgeScoreCalculator';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -101,6 +102,11 @@ function AppContent() {
       key: 'ege-variant',
       icon: <FileAddOutlined />,
       label: 'Варианты ЕГЭ',
+    },
+    {
+      key: 'ege-score-calc',
+      icon: <BarChartOutlined />,
+      label: 'Калькулятор баллов',
     },
     {
       key: 'test-generator',
@@ -254,6 +260,8 @@ function AppContent() {
         return <TaskSheetGenerator />;
       case 'ege-variant':
         return <EgeVariantGenerator />;
+      case 'ege-score-calc':
+        return <EgeScoreCalculator />;
       case 'test-generator':
         return <TestWorkGenerator />;
       case 'qr-worksheet':
@@ -390,6 +398,7 @@ function AppContent() {
       case 'catalog': return 'Каталог задач';
       case 'generator': return 'Генератор';
       case 'ege-variant': return 'Варианты ЕГЭ (базовый уровень)';
+      case 'ege-score-calc': return 'Калькулятор баллов ЕГЭ';
       case 'test-generator': return 'Контрольные работы';
       case 'qr-worksheet': return 'QR-листы';
       case 'pixel-art': return 'Пиксель-арт раскраска';
