@@ -346,7 +346,7 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
           difficulty: task.difficulty || parsedData.metadata.difficulty || '1',
           statement_md: task.statement_md,
           answer: task.answer || '',
-          solution_md: '',
+          solution_md: task.solution_md || '',
           explanation_md: '',
           source: parsedData.metadata.source || '',
           year: parsedData.metadata.year || null,

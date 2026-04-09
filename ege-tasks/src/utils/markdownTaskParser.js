@@ -508,22 +508,26 @@ export function parseSdamgiaResult(problems, metadata = {}) {
   const tasks = problems.map((problem, index) => {
     const rawStatement = normalizeSdamgiaText(problem.condition);
     const rawAnswer = normalizeSdamgiaText(problem.answer);
+    const rawSolution = normalizeSdamgiaText(problem.solution || '');
 
     // Конвертируем в LaTeX только если пришёл "старый" текст без готовой разметки
     const statement = shouldConvertLegacyMath(rawStatement) ? convertToLatex(rawStatement) : rawStatement;
     const answer = shouldConvertLegacyMath(rawAnswer) ? convertToLatex(rawAnswer) : rawAnswer;
+    // Решение: LaTeX-формулы уже вставлены сервером как $...$, конвертация не нужна
+    const solution = rawSolution;
 
     const task = {
       number: index + 1,
       difficulty,
       statement_md: statement,
       answer: answer,
+      solution_md: solution,
       tags: [...globalTags],
       imageUrl: '',
       sdamgiaId: problem.id || '',
     };
 
-    // Первое изображение из списка
+    // Первое изображение условия
     if (problem.images && problem.images.length > 0) {
       task.imageUrl = problem.images[0];
     }
