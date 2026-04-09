@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App } from 'antd';
-import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined } from '@ant-design/icons';
+import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App, Tooltip } from 'antd';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import GeoGebraDrawingPanel from './GeoGebraDrawingPanel';
 import CropModal from './shared/CropModal';
@@ -34,6 +34,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [newSubtopicName, setNewSubtopicName] = useState('');
 
   const img = useImageUpload('url');
+  const [imageDeleted, setImageDeleted] = useState(false);
 
   const isCreateMode = !task;
 
@@ -115,6 +116,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         img.setDrawingImageDataUrl(null);
         img.setUploadedFile(null);
         img.setUploadPreviewUrl('');
+        setImageDeleted(false);
       } else {
         form.resetFields();
         setGeneratedCode('');
@@ -123,6 +125,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         setSelectedTopic(null);
         setFilteredSubtopics([]);
         img.resetImage();
+        setImageDeleted(false);
       }
     }
   }, [task, visible, form, allTopics, allSubtopics]);
@@ -219,7 +222,12 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         tags: values.tags || [],
       };
 
-      if (img.imageSource === 'drawing' && img.drawingImageDataUrl) {
+      if (imageDeleted) {
+        // Явное удаление изображения пользователем
+        taskData.image = null;
+        taskData.image_url = '';
+        taskData.has_image = false;
+      } else if (img.imageSource === 'drawing' && img.drawingImageDataUrl) {
         taskData.image = dataUrlToFile(img.drawingImageDataUrl);
         taskData.image_url = '';
         taskData.has_image = true;
@@ -431,6 +439,62 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
         {/* Изображение */}
         <Form.Item label="Изображение (опционально)">
+          {/* Индикатор текущего изображения с кнопкой удаления */}
+          {!isCreateMode && (task?.image || task?.image_url) && !imageDeleted && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+              padding: '6px 10px', background: '#f6ffed', borderRadius: 6,
+              border: '1px solid #b7eb8f', fontSize: 12,
+            }}>
+              <span style={{ color: '#52c41a', flex: 1 }}>
+                ✓ Изображение прикреплено
+                {task.image_url ? ` (ссылка)` : ` (файл)`}
+              </span>
+              <Tooltip title="Удалить изображение из задачи">
+                <Button
+                  size="small"
+                  danger
+                  icon={<CloseCircleOutlined />}
+                  onClick={() => {
+                    setImageDeleted(true);
+                    img.resetImage();
+                    form.setFieldValue('image_url', '');
+                  }}
+                >
+                  Удалить
+                </Button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Уведомление о том, что изображение будет удалено */}
+          {imageDeleted && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+              padding: '6px 10px', background: '#fff1f0', borderRadius: 6,
+              border: '1px solid #ffa39e', fontSize: 12,
+            }}>
+              <span style={{ color: '#ff4d4f', flex: 1 }}>
+                ✕ Изображение будет удалено при сохранении
+              </span>
+              <Button
+                size="small"
+                onClick={() => {
+                  setImageDeleted(false);
+                  // Восстанавливаем исходный режим
+                  if (task?.image && !task?.image_url) {
+                    img.setImageSource('upload');
+                  } else {
+                    img.setImageSource('url');
+                    form.setFieldValue('image_url', task?.image_url || '');
+                  }
+                }}
+              >
+                Отменить
+              </Button>
+            </div>
+          )}
+
           <Segmented
             value={img.imageSource}
             onChange={img.setImageSource}
