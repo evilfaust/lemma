@@ -19,6 +19,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [deleting, setDeleting] = useState(false);
   const [previewStatement, setPreviewStatement] = useState('');
   const [previewAnswer, setPreviewAnswer] = useState('');
+  const [previewSolution, setPreviewSolution] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [filteredSubtopics, setFilteredSubtopics] = useState([]);
   const [generatedCode, setGeneratedCode] = useState('');
@@ -108,6 +109,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         });
         setPreviewStatement(task.statement_md || '');
         setPreviewAnswer(task.answer || '');
+        setPreviewSolution(task.solution_md || '');
         if (task.image && !task.image_url) {
           img.setImageSource('upload');
         } else {
@@ -122,6 +124,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         setGeneratedCode('');
         setPreviewStatement('');
         setPreviewAnswer('');
+        setPreviewSolution('');
         setSelectedTopic(null);
         setFilteredSubtopics([]);
         img.resetImage();
@@ -602,8 +605,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
         {/* Решение */}
         <Form.Item name="solution_md" label="Решение (опционально, поддерживает LaTeX)">
-          <TextArea rows={4} placeholder="Введите решение задачи..." />
+          <TextArea rows={5} placeholder="Введите решение задачи..." onChange={(e) => setPreviewSolution(e.target.value)} />
         </Form.Item>
+
+        {previewSolution && (
+          <div style={{ marginBottom: 16, padding: 12, background: '#f6ffed', borderRadius: 4, border: '1px solid #b7eb8f' }}>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр решения:</div>
+            <MathRenderer text={previewSolution} />
+          </div>
+        )}
 
         {/* Подсказка по LaTeX */}
         <div style={{ fontSize: 12, color: '#666', background: '#fff7e6', padding: 8, borderRadius: 4, border: '1px solid #ffd591' }}>
