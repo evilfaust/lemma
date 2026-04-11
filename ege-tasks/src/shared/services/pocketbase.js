@@ -1892,15 +1892,28 @@ export const api = {
 
   // --- pixel_art_worksheets ---
 
+  // Лёгкий список для модала загрузки (без matrix/grid и без expand задач)
   async getPixelArtWorksheets() {
     try {
       return await pb.collection('pixel_art_worksheets').getFullList({
         sort: '-created',
-        expand: 'tasks',
+        fields: 'id,title,grid_cols,grid_rows,threshold,two_sheets,show_teacher_key,two_columns,custom_answers,created,tasks',
       });
     } catch (error) {
       console.error('Error fetching pixel_art_worksheets:', error);
       return [];
+    }
+  },
+
+  // Полная загрузка одной записи (с matrix/grid и expand задач) — вызывается при клике «Загрузить»
+  async getPixelArtWorksheet(id) {
+    try {
+      return await pb.collection('pixel_art_worksheets').getOne(id, {
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching pixel_art_worksheet:', error);
+      throw error;
     }
   },
 
@@ -1927,6 +1940,46 @@ export const api = {
       return await pb.collection('pixel_art_worksheets').delete(id);
     } catch (error) {
       console.error('Error deleting pixel_art_worksheet:', error);
+      throw error;
+    }
+  },
+
+  // --- pixel_art_images (library) ---
+
+  async getPixelArtImages() {
+    try {
+      return await pb.collection('pixel_art_images').getFullList({
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching pixel_art_images:', error);
+      return [];
+    }
+  },
+
+  async createPixelArtImage(data) {
+    try {
+      return await pb.collection('pixel_art_images').create(data);
+    } catch (error) {
+      console.error('Error creating pixel_art_image:', error);
+      throw error;
+    }
+  },
+
+  async updatePixelArtImage(id, data) {
+    try {
+      return await pb.collection('pixel_art_images').update(id, data);
+    } catch (error) {
+      console.error('Error updating pixel_art_image:', error);
+      throw error;
+    }
+  },
+
+  async deletePixelArtImage(id) {
+    try {
+      return await pb.collection('pixel_art_images').delete(id);
+    } catch (error) {
+      console.error('Error deleting pixel_art_image:', error);
       throw error;
     }
   },
@@ -2100,6 +2153,14 @@ export const api = {
       console.error('Error deleting marathon:', error);
       throw error;
     }
+  },
+
+  subscribeMarathon(id, callback) {
+    return pb.collection('marathons').subscribe(id, callback);
+  },
+
+  unsubscribeMarathon(id) {
+    return pb.collection('marathons').unsubscribe(id);
   },
 };
 

@@ -30,6 +30,7 @@ import RouteSheetGenerator from './components/RouteSheetGenerator';
 import ErrorHeatmap from './components/ErrorHeatmap';
 import UnitCircleGenerator from './components/UnitCircleGenerator';
 import UnitCircleCryptogramGenerator from './components/UnitCircleCryptogramGenerator';
+import CryptogramGenerator from './components/CryptogramGenerator';
 import TrigValuesGenerator from './components/TrigValuesGenerator';
 import MarathonGenerator from './components/MarathonGenerator';
 import EgeScoreCalculator from './components/EgeScoreCalculator';
@@ -122,6 +123,11 @@ function AppContent() {
       key: 'pixel-art',
       icon: <PictureOutlined />,
       label: 'Пиксель-арт',
+    },
+    {
+      key: 'cryptogram',
+      icon: <KeyOutlined />,
+      label: 'Шифровки',
     },
     {
       key: 'route-sheet',
@@ -268,6 +274,8 @@ function AppContent() {
         return <QRWorksheetGenerator />;
       case 'pixel-art':
         return <PixelArtWorksheet />;
+      case 'cryptogram':
+        return <CryptogramGenerator />;
       case 'work-manager':
         return (
           <WorkManager
@@ -402,6 +410,7 @@ function AppContent() {
       case 'test-generator': return 'Контрольные работы';
       case 'qr-worksheet': return 'QR-листы';
       case 'pixel-art': return 'Пиксель-арт раскраска';
+      case 'cryptogram': return 'Шифровки';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';
       case 'students': return 'Прогресс учеников';

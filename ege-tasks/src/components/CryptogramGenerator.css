@@ -1,0 +1,367 @@
+/* ── Список задач в редакторе ─────────────────────────────────────────── */
+.cg-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cg-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #fafafa;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+}
+
+.cg-task-num {
+  font-weight: 700;
+  color: #1677ff;
+  min-width: 22px;
+  font-size: 13px;
+  padding-top: 2px;
+}
+
+.cg-task-preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* ── Превью таблицы ───────────────────────────────────────────────────── */
+.cg-preview-table {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cg-preview-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+  border: 1.5px solid #c41d7f;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff7fb;
+}
+
+.cg-preview-cell--decoy {
+  border-color: #d9d9d9;
+  background: #fafafa;
+  opacity: 0.7;
+}
+
+.cg-preview-answer {
+  padding: 4px 6px;
+  font-size: 12px;
+  text-align: center;
+  border-bottom: 1px solid #f3d0e5;
+  width: 100%;
+}
+
+.cg-preview-cell--decoy .cg-preview-answer {
+  border-bottom-color: #e8e8e8;
+}
+
+.cg-preview-letter {
+  padding: 3px 6px;
+  font-weight: 700;
+  font-size: 14px;
+  color: #c41d7f;
+  letter-spacing: 0.05em;
+}
+
+.cg-preview-cell--decoy .cg-preview-letter {
+  color: #999;
+}
+
+/* ── Превью строки ответа ─────────────────────────────────────────────── */
+.cg-preview-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.cg-preview-answer-slot {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.cg-preview-answer-val {
+  font-size: 10px;
+  color: #555;
+  text-align: center;
+  max-width: 40px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cg-preview-cell-box {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border: 1.5px solid #595959;
+  border-radius: 3px;
+}
+
+.cg-preview-gap {
+  display: inline-block;
+  width: 14px;
+}
+
+/* ================================================================
+   ПЕЧАТНЫЙ ВИД
+   ================================================================ */
+.cgp-root {
+  display: none; /* скрыт по умолчанию, виден только при печати */
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 9.5pt;
+  color: #000;
+  padding: 6mm 8mm 6mm;
+  box-sizing: border-box;
+  width: 148mm;
+}
+
+@media print {
+  body:has(.cgp-root) .cgp-root {
+    display: block;
+  }
+
+  /* Скрываем весь UI при наличии cgp-root */
+  body:has(.cgp-root) > * {
+    visibility: hidden;
+  }
+
+  body:has(.cgp-root) .cgp-root,
+  body:has(.cgp-root) .cgp-root * {
+    visibility: visible;
+  }
+
+  body:has(.cgp-root) .cgp-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}
+
+/* Шапка */
+.cgp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 2px solid #000;
+  padding-bottom: 5px;
+  margin-bottom: 10px;
+}
+
+.cgp-title {
+  font-size: 12pt;
+  font-weight: 700;
+}
+
+.cgp-subtitle {
+  font-size: 8.5pt;
+}
+
+/* Задачи — 2 колонки */
+.cgp-tasks {
+  columns: 2;
+  column-gap: 5mm;
+  margin-bottom: 4mm;
+}
+
+.cgp-task {
+  break-inside: avoid;
+  display: flex;
+  gap: 3px;
+  margin-bottom: 2.5mm;
+  padding-bottom: 1.5mm;
+  border-bottom: 0.5px dashed #bbb;
+}
+
+.cgp-task-num {
+  font-weight: 700;
+  min-width: 15px;
+  font-size: 9.5pt;
+}
+
+.cgp-task-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.cgp-task-img {
+  max-width: 100%;
+  max-height: 35mm;
+  display: block;
+  margin-bottom: 3px;
+}
+
+/* Блок шифровки */
+.cgp-crypto-block {
+  border: 1pt solid #000;
+  border-radius: 3px;
+  padding: 2mm 3mm;
+  margin-bottom: 3mm;
+  break-inside: avoid;
+}
+
+.cgp-crypto-note {
+  font-size: 8pt;
+  color: #555;
+  margin-bottom: 2mm;
+}
+
+/* Таблица ответ → буква */
+.cgp-table {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: 2.5mm;
+}
+
+.cgp-table-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border: 0.75pt solid #000;
+  min-width: 11mm;
+}
+
+.cgp-table-cell--decoy {
+  border-style: solid;
+}
+
+.cgp-cell-answer {
+  padding: 0.5mm 1.5mm;
+  font-size: 8.5pt;
+  text-align: center;
+  border-bottom: 0.75pt solid #000;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cgp-table-cell--decoy .cgp-cell-answer {
+  border-bottom-style: solid;
+}
+
+.cgp-cell-letter {
+  padding: 0.5mm 1.5mm;
+  font-size: 10pt;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Строка ответа */
+.cgp-result {
+  margin-top: 2mm;
+}
+
+.cgp-result-label {
+  font-size: 8.5pt;
+  margin-bottom: 1.5mm;
+}
+
+.cgp-result-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: flex-end;
+}
+
+.cgp-result-slot {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5mm;
+}
+
+.cgp-result-answer {
+  font-size: 7pt;
+  text-align: center;
+  max-width: 11mm;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.cgp-result-cell {
+  display: inline-block;
+  width: 7mm;
+  height: 7mm;
+  border: 0.75pt solid #000;
+}
+
+.cgp-result-gap {
+  display: inline-block;
+  width: 3mm;
+}
+
+/* Предупреждение */
+.cgp-warning-print {
+  border: 1pt solid #999;
+  padding: 4mm;
+  font-size: 9pt;
+  color: #555;
+}
+
+/* ── Ключ учителя ─────────────────────────────────────────────────────── */
+.cgp-teacher-key {
+  break-before: page;
+  padding-top: 5mm;
+}
+
+.cgp-teacher-key-title {
+  font-size: 11pt;
+  font-weight: 700;
+  border-bottom: 1.5px solid #000;
+  padding-bottom: 2mm;
+  margin-bottom: 3mm;
+}
+
+.cgp-teacher-answers {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(38mm, 1fr));
+  gap: 2mm;
+  margin-bottom: 3mm;
+}
+
+.cgp-teacher-answer-item {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 1mm 2mm;
+  border: 0.75pt solid #ccc;
+  border-radius: 2pt;
+  font-size: 8.5pt;
+}
+
+.cgp-ta-num {
+  font-weight: 700;
+  min-width: 16px;
+  color: #1677ff;
+}
+
+.cgp-ta-answer {
+  flex: 1;
+}
+
+.cgp-ta-letter {
+  font-weight: 700;
+  color: #c41d7f;
+  font-size: 11pt;
+}
+
+.cgp-teacher-phrase {
+  font-size: 11pt;
+  border-top: 1pt solid #ccc;
+  padding-top: 3mm;
+}
