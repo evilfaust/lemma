@@ -6,8 +6,9 @@ import {
 import {
   PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined,
   PrinterOutlined, ReloadOutlined, KeyOutlined, InfoCircleOutlined,
-  ThunderboltOutlined,
+  ThunderboltOutlined, SaveOutlined, FolderOpenOutlined,
 } from '@ant-design/icons';
+import { Modal, List } from 'antd';
 import { api } from '../shared/services/pocketbase';
 import MathRenderer from '../shared/components/MathRenderer';
 import TaskSelectModal from './TaskSelectModal';
@@ -135,6 +136,13 @@ export default function CryptogramGenerator() {
   const [genSubtopic, setGenSubtopic] = useState(null);
   const [genLoading, setGenLoading] = useState(false);
 
+  // Сохранение/загрузка
+  const [savedId, setSavedId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [loadModalOpen, setLoadModalOpen] = useState(false);
+  const [savedList, setSavedList] = useState([]);
+  const [loadingList, setLoadingList] = useState(false);
+
   const printRef = useRef(null);
 
   const letterCount = getCryptogramLetterCount(phrase);
@@ -192,6 +200,71 @@ export default function CryptogramGenerator() {
       setGenLoading(false);
     }
   }, [genTopic, genSubtopic, uniqueLetterCount, tasks, message]);
+
+  /* ── Сохранение ── */
+  const handleSave = useCallback(async () => {
+    if (!phrase.trim() && tasks.length === 0) {
+      message.warning('Добавьте фразу и задачи перед сохранением');
+      return;
+    }
+    setSaving(true);
+    try {
+      const data = {
+        title: title || 'Шифровка',
+        phrase,
+        tasks: tasks.map(t => t.id),
+        task_order: tasks.map(t => t.id),
+        strip_prefixes: stripPrefixes,
+      };
+      const record = savedId
+        ? await api.updateCryptogram(savedId, data)
+        : await api.createCryptogram(data);
+      setSavedId(record.id);
+      message.success(savedId ? 'Шифровка обновлена' : 'Шифровка сохранена');
+    } catch {
+      message.error('Ошибка при сохранении');
+    } finally {
+      setSaving(false);
+    }
+  }, [phrase, tasks, title, stripPrefixes, savedId, message]);
+
+  /* ── Загрузка ── */
+  const handleOpenLoad = useCallback(async () => {
+    setLoadModalOpen(true);
+    setLoadingList(true);
+    try {
+      const list = await api.getCryptograms();
+      setSavedList(list);
+    } catch {
+      message.error('Ошибка при загрузке списка');
+    } finally {
+      setLoadingList(false);
+    }
+  }, [message]);
+
+  const handleLoadItem = useCallback((item) => {
+    setTitle(item.title || '');
+    setPhrase(item.phrase || '');
+    setStripPrefixes(item.strip_prefixes !== false);
+    const ordered = (item.task_order || [])
+      .map(id => item.expand?.tasks?.find?.(t => t.id === id))
+      .filter(Boolean);
+    const remaining = (item.expand?.tasks || []).filter(t => !item.task_order?.includes(t.id));
+    setTasks([...ordered, ...remaining]);
+    setSavedId(item.id);
+    setLoadModalOpen(false);
+  }, []);
+
+  const handleDelete = useCallback(async (id) => {
+    try {
+      await api.deleteCryptogram(id);
+      setSavedList(prev => prev.filter(i => i.id !== id));
+      if (savedId === id) setSavedId(null);
+      message.success('Удалено');
+    } catch {
+      message.error('Ошибка при удалении');
+    }
+  }, [savedId, message]);
 
   /* ── Печать ── */
   const handlePrint = () => {
@@ -397,10 +470,32 @@ export default function CryptogramGenerator() {
             >
               Печать
             </Button>
+            <Space.Compact style={{ width: '100%' }}>
+              <Button
+                icon={<SaveOutlined />}
+                style={{ flex: 1 }}
+                loading={saving}
+                onClick={handleSave}
+              >
+                {savedId ? 'Обновить' : 'Сохранить'}
+              </Button>
+              <Button
+                icon={<FolderOpenOutlined />}
+                style={{ flex: 1 }}
+                onClick={handleOpenLoad}
+              >
+                Загрузить
+              </Button>
+            </Space.Compact>
+            {savedId && (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                ID: {savedId}
+              </Text>
+            )}
             <Button
               icon={<ReloadOutlined />}
               block
-              onClick={() => { setTasks([]); setPhrase(''); setTitle(''); }}
+              onClick={() => { setTasks([]); setPhrase(''); setTitle(''); setSavedId(null); }}
             >
               Сбросить
             </Button>
@@ -473,6 +568,54 @@ export default function CryptogramGenerator() {
         tags={tags}
         excludeIds={tasks.map(t => t.id)}
       />
+
+      <Modal
+        title="Загрузить шифровку"
+        open={loadModalOpen}
+        onCancel={() => setLoadModalOpen(false)}
+        footer={null}
+        width={520}
+      >
+        <List
+          loading={loadingList}
+          dataSource={savedList}
+          locale={{ emptyText: 'Нет сохранённых шифровок' }}
+          renderItem={item => (
+            <List.Item
+              actions={[
+                <Button
+                  key="load"
+                  type="link"
+                  size="small"
+                  onClick={() => handleLoadItem(item)}
+                >
+                  Загрузить
+                </Button>,
+                <Popconfirm
+                  key="del"
+                  title="Удалить шифровку?"
+                  okText="Да"
+                  cancelText="Нет"
+                  onConfirm={() => handleDelete(item.id)}
+                >
+                  <Button type="link" size="small" danger>Удалить</Button>
+                </Popconfirm>,
+              ]}
+            >
+              <List.Item.Meta
+                title={item.title || 'Без названия'}
+                description={
+                  <span style={{ fontSize: 12, color: '#888' }}>
+                    {item.phrase ? `«${item.phrase.slice(0, 40)}${item.phrase.length > 40 ? '…' : ''}»` : '—'}
+                    {' · '}
+                    {(item.expand?.tasks?.length || 0)} задач
+                  </span>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </Modal>
     </div>
   );
 }

@@ -2162,6 +2162,56 @@ export const api = {
   unsubscribeMarathon(id) {
     return pb.collection('marathons').unsubscribe(id);
   },
+
+  // --- cryptograms ---
+
+  async getCryptograms() {
+    try {
+      return await pb.collection('cryptograms').getFullList({
+        sort: '-created',
+        expand: 'tasks',
+      });
+    } catch (error) {
+      console.error('Error fetching cryptograms:', error);
+      return [];
+    }
+  },
+
+  async getCryptogram(id) {
+    try {
+      return await pb.collection('cryptograms').getOne(id, { expand: 'tasks' });
+    } catch (error) {
+      console.error('Error fetching cryptogram:', error);
+      throw error;
+    }
+  },
+
+  async createCryptogram(data) {
+    try {
+      return await pb.collection('cryptograms').create(data);
+    } catch (error) {
+      console.error('Error creating cryptogram:', error);
+      throw error;
+    }
+  },
+
+  async updateCryptogram(id, data) {
+    try {
+      return await pb.collection('cryptograms').update(id, data);
+    } catch (error) {
+      console.error('Error updating cryptogram:', error);
+      throw error;
+    }
+  },
+
+  async deleteCryptogram(id) {
+    try {
+      return await pb.collection('cryptograms').delete(id);
+    } catch (error) {
+      console.error('Error deleting cryptogram:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;
