@@ -1,0 +1,261 @@
+/* Скрыто на экране */
+.texpr-print-root {
+  display: none;
+}
+
+@media print {
+  /* Scoped: скрываем всё приложение, показываем только наш блок */
+  body:has(.texpr-print-root) {
+    visibility: hidden;
+  }
+  .texpr-print-root {
+    display: block !important;
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .texpr-print-root * {
+    visibility: visible;
+  }
+
+  /* ─── Страница ────────────────────────────────────────────────────────────── */
+  .texpr-page {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #000;
+    background: #fff;
+  }
+
+  /* Один вариант — полная страница */
+  .texpr-page--full {
+    min-height: 100vh;
+    padding: 12mm 16mm 12mm 20mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Два варианта на листе: каждый занимает половину */
+  .texpr-page--half {
+    padding: 8mm 14mm 8mm 16mm;
+    min-height: 50vh;
+    border-bottom: 1px dashed #888;
+  }
+  .texpr-page--half:last-of-type {
+    border-bottom: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* ─── Шапка ─────────────────────────────────────────────────────────────── */
+  .texpr-header {
+    display: flex;
+    align-items: baseline;
+    gap: 4mm;
+    margin-bottom: 2mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #000;
+    flex-wrap: nowrap;
+  }
+
+  .texpr-subtitle {
+    font-size: 10pt;
+    font-weight: bold;
+    margin-bottom: 4mm;
+    color: #000;
+  }
+
+  .texpr-variant-badge {
+    font-weight: bold;
+    font-size: 11pt;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .texpr-field {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5mm;
+    font-size: 10pt;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* ФИО растягивается на оставшееся место */
+  .texpr-field:nth-child(2) {
+    flex: 1;
+  }
+  .texpr-field:nth-child(2) .texpr-line {
+    flex: 1;
+  }
+
+  .texpr-line {
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    vertical-align: bottom;
+  }
+  .texpr-line--name  { min-width: 40mm; width: 100%; }
+  .texpr-line--short { width: 18mm; }
+
+  /* ─── Инструкция ─────────────────────────────────────────────────────────── */
+  .texpr-instruction {
+    font-size: 11pt;
+    font-weight: bold;
+    margin-bottom: 3mm;
+  }
+
+  /* ─── Список заданий ─────────────────────────────────────────────────────── */
+  .texpr-questions {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .texpr-question {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    min-height: 9mm;
+    padding: 1.5mm 0;
+    border-bottom: 1px dotted #ccc;
+  }
+  .texpr-question:last-child {
+    border-bottom: none;
+  }
+
+  .texpr-q-label {
+    font-weight: bold;
+    min-width: 18px;
+    flex-shrink: 0;
+    color: #000;
+  }
+
+  .texpr-q-expr {
+    flex: 1;
+    font-size: 10.5pt;
+  }
+
+  .texpr-q-equals {
+    padding: 0 3px;
+    font-size: 11pt;
+  }
+
+  .texpr-q-answer-space {
+    display: inline-block;
+    width: 20mm;
+    flex-shrink: 0;
+  }
+
+  /* ─── Двухстрочный режим (для уравнений) ─────────────────────────────────── */
+  .texpr-question--twoLine {
+    flex-direction: column;
+    gap: 1mm;
+    min-height: 14mm;
+  }
+
+  .texpr-question-top {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+  }
+
+  .texpr-question-answer {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    padding-left: 18px; /* отступ под номером */
+  }
+
+  .texpr-q-answer-label {
+    font-size: 10.5pt;
+    white-space: nowrap;
+  }
+
+  .texpr-q-answer-line {
+    flex: 1;
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    min-width: 60mm;
+    max-width: 120mm;
+  }
+
+  /* Ключ учителя — двухстрочный режим: разрешаем перенос */
+  .texpr-key-row--eq {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+  .texpr-key-row--eq .texpr-key-expr {
+    flex: 1 1 100%;
+  }
+  .texpr-key-row--eq .texpr-key-eq,
+  .texpr-key-row--eq .texpr-key-ans {
+    flex-shrink: 0;
+  }
+
+  /* ─── Страница ответов ───────────────────────────────────────────────────── */
+  .texpr-key-page {
+    padding: 12mm 16mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .texpr-key-header {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 5mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #000;
+  }
+
+  .texpr-key-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 5mm 10mm;
+  }
+
+  .texpr-key-variant {
+    break-inside: avoid;
+  }
+
+  .texpr-key-variant-title {
+    font-weight: bold;
+    font-size: 10pt;
+    margin-bottom: 1.5mm;
+    padding-bottom: 1mm;
+    border-bottom: 1px dotted #666;
+  }
+
+  .texpr-key-row {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    font-size: 9pt;
+    margin-bottom: 1mm;
+    flex-wrap: wrap;
+  }
+
+  .texpr-key-label {
+    font-weight: bold;
+    min-width: 14px;
+    flex-shrink: 0;
+  }
+
+  .texpr-key-expr {
+    flex: 1;
+    font-size: 8.5pt;
+    color: #333;
+  }
+
+  .texpr-key-eq {
+    padding: 0 2px;
+  }
+
+  .texpr-key-ans {
+    font-weight: bold;
+    font-size: 9pt;
+  }
+}

@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -32,6 +32,9 @@ import UnitCircleGenerator from './components/UnitCircleGenerator';
 import UnitCircleCryptogramGenerator from './components/UnitCircleCryptogramGenerator';
 import CryptogramGenerator from './components/CryptogramGenerator';
 import TrigValuesGenerator from './components/TrigValuesGenerator';
+import TrigExpressionsGenerator from './components/TrigExpressionsGenerator';
+import InverseTrigGenerator from './components/InverseTrigGenerator';
+import TrigEquationsGenerator from './components/TrigEquationsGenerator';
 import MarathonGenerator from './components/MarathonGenerator';
 import EgeScoreCalculator from './components/EgeScoreCalculator';
 import { api } from './services/pocketbase';
@@ -189,6 +192,9 @@ function AppContent() {
       children: [
         { key: 'unit-circle', icon: <RadarChartOutlined />, label: 'Единичная окружность' },
         { key: 'trig-values', icon: <RadarChartOutlined />, label: 'Значения функций' },
+        { key: 'trig-expressions', icon: <FunctionOutlined />, label: 'Вычисление выражений' },
+        { key: 'inverse-trig', icon: <FunctionOutlined />, label: 'Обратные функции' },
+        { key: 'trig-equations', icon: <FunctionOutlined />, label: 'Уравнения' },
         { key: 'trig-cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
       ],
     },
@@ -352,6 +358,12 @@ function AppContent() {
         return <UnitCircleGenerator />;
       case 'trig-values':
         return <TrigValuesGenerator />;
+      case 'trig-expressions':
+        return <TrigExpressionsGenerator />;
+      case 'inverse-trig':
+        return <InverseTrigGenerator />;
+      case 'trig-equations':
+        return <TrigEquationsGenerator />;
       case 'trig-cryptogram':
         return <UnitCircleCryptogramGenerator />;
       case 'route-sheet':
@@ -425,6 +437,9 @@ function AppContent() {
       case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
       case 'unit-circle': return 'Тригонометрия — Единичная окружность';
       case 'trig-values': return 'Тригонометрия — Значения функций';
+      case 'trig-expressions': return 'Тригонометрия — Вычисление выражений';
+      case 'inverse-trig': return 'Тригонометрия — Обратные функции';
+      case 'trig-equations': return 'Тригонометрия — Уравнения';
       case 'trig-cryptogram': return 'Тригонометрия — Шифровки';
       case 'route-sheet': return 'Маршрутный лист';
       case 'marathon': return 'Марафон — подготовка и проведение';
