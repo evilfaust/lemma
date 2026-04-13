@@ -1,4 +1,5 @@
 import MathRenderer from '../../shared/components/MathRenderer';
+import { api } from '../../shared/services/pocketbase';
 
 /**
  * Компактный лист учителя — два столбца:
@@ -22,31 +23,34 @@ export default function MarathonTeacherSheet({ tasks, title }) {
           </tr>
         </thead>
         <tbody>
-          {tasks.map((task, idx) => (
-            <tr key={task.id} className={idx % 2 === 0 ? 'marathon-teacher__row--even' : ''}>
-              <td className="marathon-teacher__col-statement">
-                {task.image_url && (
-                  <img
-                    src={task.image_url}
-                    alt=""
-                    style={{ maxWidth: 80, maxHeight: 60, float: 'right', marginLeft: 4 }}
-                    crossOrigin="anonymous"
-                  />
-                )}
-                <span className="marathon-teacher__task-num">{idx + 1}.</span>{' '}
-                <MathRenderer content={task.statement_md || ''} inline />
-                {task.answer && (
-                  <div className="marathon-teacher__answer">
-                    <strong>Ответ:</strong>{' '}
-                    <MathRenderer content={task.answer} />
-                  </div>
-                )}
-              </td>
-              <td className="marathon-teacher__col-solution">
-                <MathRenderer content={task.solution_md || ''} />
-              </td>
-            </tr>
-          ))}
+          {tasks.map((task, idx) => {
+            const imageUrl = api.getTaskImageUrl(task);
+            return (
+              <tr key={task.id} className={idx % 2 === 0 ? 'marathon-teacher__row--even' : ''}>
+                <td className="marathon-teacher__col-statement">
+                  {imageUrl && (
+                    <img
+                      src={imageUrl}
+                      alt=""
+                      style={{ maxWidth: 100, maxHeight: 80, float: 'right', marginLeft: 6, marginBottom: 4 }}
+                      crossOrigin="anonymous"
+                    />
+                  )}
+                  <span className="marathon-teacher__task-num">{idx + 1}.</span>{' '}
+                  <MathRenderer content={task.statement_md || ''} inline />
+                  {task.answer && (
+                    <div className="marathon-teacher__answer">
+                      <strong>Ответ:</strong>{' '}
+                      <MathRenderer content={task.answer} />
+                    </div>
+                  )}
+                </td>
+                <td className="marathon-teacher__col-solution">
+                  <MathRenderer content={task.solution_md || ''} />
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

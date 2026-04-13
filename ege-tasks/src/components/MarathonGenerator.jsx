@@ -1,12 +1,13 @@
 import { useState, useCallback, useEffect } from 'react';
 import {
   Button, Card, Input, InputNumber, Tabs, Space, List, Tag, Tooltip,
-  Modal, Empty, Spin, message, Popconfirm, Typography, Divider, Badge,
+  Modal, Empty, Spin, message, Popconfirm, Typography, Divider, Badge, Switch,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SaveOutlined, FolderOpenOutlined,
   PrinterOutlined, ArrowUpOutlined, ArrowDownOutlined, ReloadOutlined,
   TrophyOutlined, UserOutlined, OrderedListOutlined, FileTextOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useMarathon } from '../hooks/useMarathon';
@@ -44,6 +45,7 @@ export default function MarathonGenerator() {
 
   // Для печати
   const [printMode, setPrintMode] = useState(null); // 'cards' | 'teacher' | 'rating' | null
+  const [showLogo, setShowLogo] = useState(true);
 
   // Ждём рендера print-блока + загрузки картинок, потом печатаем
   useEffect(() => {
@@ -361,6 +363,14 @@ export default function MarathonGenerator() {
             >
               Печать карточек (A6, 4 на лист)
             </Button>
+            <Space>
+              <Switch
+                size="small"
+                checked={showLogo}
+                onChange={setShowLogo}
+              />
+              <Text type="secondary" style={{ fontSize: 13 }}>Логотип</Text>
+            </Space>
             <Text type="secondary" style={{ fontSize: 12 }}>
               Каждая карточка — одна задача. Распечатайте и разрежьте по пунктиру.
             </Text>
@@ -465,6 +475,18 @@ export default function MarathonGenerator() {
                   >
                     Инициализировать трекер
                   </Button>
+                  {savedId && (
+                    <Button
+                      type="primary"
+                      icon={<DashboardOutlined />}
+                      onClick={() => {
+                        const base = import.meta.env.VITE_STUDENT_URL || `${window.location.origin}/student`;
+                        window.open(`${base}/marathon-live/${savedId}`, '_blank');
+                      }}
+                    >
+                      Открыть дешборд
+                    </Button>
+                  )}
                   <Text type="secondary" style={{ fontSize: 12 }}>
                     Нажмите для сброса и инициализации всех студентов
                   </Text>
@@ -638,7 +660,7 @@ export default function MarathonGenerator() {
       {/* Блоки для печати — рендерятся в дереве компонента, как в QRWorksheetGenerator.
           @media print скрывает body:has(.root) и показывает только print-root. */}
       {printMode === 'cards' && (
-        <MarathonCardsPrint tasks={tasks} title={title} />
+        <MarathonCardsPrint tasks={tasks} title={title} showLogo={showLogo} />
       )}
       {printMode === 'teacher' && (
         <MarathonTeacherSheet tasks={tasks} title={title} />

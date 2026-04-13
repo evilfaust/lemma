@@ -23,7 +23,27 @@ function calcTaskScore(data) {
 
 function calcTotalScore(name, trackingData) {
   const data = trackingData[name] || {};
-  return Object.values(data).reduce((sum, v) => sum + calcTaskScore(v), 0);
+  return Object.entries(data).reduce((sum, [k, v]) => {
+    if (k.startsWith('_')) return sum; // skip meta fields like _issued
+    return sum + calcTaskScore(v);
+  }, 0);
+}
+
+// Сколько карточек выдано ученику (по умолчанию 2 — первые две)
+function getIssuedCount(studentName, trackingData) {
+  return trackingData[studentName]?._issued ?? 2;
+}
+
+// Номера карточек, которые сейчас у ученика «на руках»
+// (выданы, но ещё не решены и не провалены)
+function getHandCards(studentName, taskCount, trackingData) {
+  const issued = getIssuedCount(studentName, trackingData);
+  const result = [];
+  for (let i = 0; i < Math.min(issued, taskCount); i++) {
+    const d = (trackingData[studentName] || {})[String(i)];
+    if (!d?.solved && !d?.failed) result.push(i + 1); // 1-based номер карточки
+  }
+  return result;
 }
 
 const SCORE_STYLE = {
@@ -135,6 +155,20 @@ export default function MarathonTracker({
     });
   }, [setTrackingData, onSaveTracking]);
 
+  // Выдать следующую карточку ученику
+  const handleIssueNext = useCallback((studentName) => {
+    setTrackingData(prev => {
+      const next = { ...prev };
+      const studentData = { ...(next[studentName] || {}) };
+      const current = studentData._issued ?? 2;
+      if (current >= tasks.length) return prev;
+      studentData._issued = current + 1;
+      next[studentName] = studentData;
+      if (onSaveTracking) onSaveTracking(next);
+      return next;
+    });
+  }, [setTrackingData, onSaveTracking, tasks.length]);
+
   const displayStudents = sortByScore
     ? [...students].sort((a, b) => calcTotalScore(b, trackingData) - calcTotalScore(a, trackingData))
     : students;
@@ -178,18 +212,37 @@ export default function MarathonTracker({
             {displayStudents.map((student, rowIdx) => {
               const total = calcTotalScore(student, trackingData);
               const maxScore = tasks.length * 3;
+              const issuedCount = getIssuedCount(student, trackingData);
+              const handCards = getHandCards(student, tasks.length, trackingData);
               return (
                 <tr key={student} className={rowIdx % 2 === 0 ? 'mt-row--even' : ''}>
                   <td className="mt-td-name">
-                    {rowIdx === 0 && sortByScore && total > 0 && (
-                      <span className="mt-leader-badge">🥇</span>
-                    )}
-                    {student}
+                    <div className="mt-name-row">
+                      {rowIdx === 0 && sortByScore && total > 0 && (
+                        <span className="mt-leader-badge">🥇</span>
+                      )}
+                      {student}
+                    </div>
+                    <div className="mt-issued-row">
+                      <span className="mt-hand-cards">
+                        🃏 {handCards.length > 0 ? handCards.join(', ') : '—'}
+                      </span>
+                      <Tooltip title={issuedCount < tasks.length ? `Выдать карточку №${issuedCount + 1}` : 'Все карточки выданы'}>
+                        <button
+                          className="mt-issue-btn"
+                          onClick={() => handleIssueNext(student)}
+                          disabled={issuedCount >= tasks.length}
+                        >
+                          +
+                        </button>
+                      </Tooltip>
+                    </div>
                   </td>
                   {tasks.map((_, taskIdx) => {
                     const data = (trackingData[student] || {})[String(taskIdx)];
+                    const isInHand = taskIdx < issuedCount && !data?.solved && !data?.failed;
                     return (
-                      <td key={taskIdx} className="mt-td-task">
+                      <td key={taskIdx} className={`mt-td-task${isInHand ? ' mt-td-task--inhand' : ''}`}>
                         <TaskCell
                           data={data}
                           onSuccess={() => handleAttempt(student, taskIdx, true)}

@@ -1,21 +1,25 @@
 import MathRenderer from '../../shared/components/MathRenderer';
+import { api } from '../../shared/services/pocketbase';
 
 const DIFFICULTY_COLOR = { 1: '#52c41a', 2: '#faad14', 3: '#ff4d4f' };
 
-function MarathonCard({ task, idx, title }) {
+function MarathonCard({ task, idx, title, showLogo }) {
   const diff = task.difficulty || 1;
   const color = DIFFICULTY_COLOR[diff] || '#1890ff';
+  const imageUrl = api.getTaskImageUrl(task);
 
   return (
     <div className="mcp-slot">
       <div className="mcp-card">
         {/* Шапка: лого + номер + заголовок */}
-        <div className="mcp-header">
-          <img
-            src="/lemma-text-logo-vertical.png"
-            alt="Lemma"
-            className="mcp-logo"
-          />
+        <div className={`mcp-header${showLogo ? '' : ' mcp-header--no-logo'}`}>
+          {showLogo && (
+            <img
+              src="/lemma-text-logo-vertical.png"
+              alt="Lemma"
+              className="mcp-logo"
+            />
+          )}
           <div className="mcp-header-right">
             <div className="mcp-title-row">
               <div className="mcp-num" style={{ background: color }}>
@@ -29,15 +33,19 @@ function MarathonCard({ task, idx, title }) {
 
         {/* Условие задачи */}
         <div className="mcp-body">
-          {task.image_url && (
-            <img
-              src={task.image_url}
-              alt=""
-              className="mcp-task-image"
-              crossOrigin="anonymous"
-            />
+          <div className="mcp-body-text">
+            <MathRenderer content={task.statement_md || ''} />
+          </div>
+          {imageUrl && (
+            <div className="mcp-body-image">
+              <img
+                src={imageUrl}
+                alt=""
+                className="mcp-task-image"
+                crossOrigin="anonymous"
+              />
+            </div>
           )}
-          <MathRenderer content={task.statement_md || ''} />
         </div>
       </div>
     </div>
@@ -48,7 +56,7 @@ function MarathonCard({ task, idx, title }) {
  * Печать A4: 2 колонки × 3 строки = 6 карточек на страницу.
  * Каждые 6 карточек — отдельная страница.
  */
-export default function MarathonCardsPrint({ tasks, title }) {
+export default function MarathonCardsPrint({ tasks, title, showLogo = true }) {
   if (!tasks.length) return null;
 
   const pages = [];
@@ -66,6 +74,7 @@ export default function MarathonCardsPrint({ tasks, title }) {
               task={task}
               idx={pageIdx * 6 + slotIdx}
               title={title}
+              showLogo={showLogo}
             />
           ))}
           {/* Пустые слоты для неполной последней страницы */}

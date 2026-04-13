@@ -1,4 +1,5 @@
 import { Row, Col, Form, Radio, Switch, Input } from 'antd';
+import { getCryptogramLetterCount } from '../../utils/cryptogram';
 
 /**
  * Компонент настроек форматирования для печати
@@ -22,7 +23,14 @@ const FormatSettings = ({
   setShowAnswersPage,
   variantLabel,
   setVariantLabel,
+  cryptogramEnabled,
+  setCryptogramEnabled,
+  cryptogramPhrase,
+  setCryptogramPhrase,
+  tasksCount = 0,
 }) => {
+  const lettersCount = getCryptogramLetterCount(cryptogramPhrase);
+
   return (
     <>
       <Row gutter={16}>
@@ -106,7 +114,7 @@ const FormatSettings = ({
             <Switch
               checked={showAnswersInline}
               onChange={setShowAnswersInline}
-              disabled={compactMode}
+              disabled={compactMode || cryptogramEnabled}
             />
           </Form.Item>
         </Col>
@@ -128,7 +136,33 @@ const FormatSettings = ({
             />
           </Form.Item>
         </Col>
+
+        <Col xs={24} md={6}>
+          <Form.Item
+            label="Шифровка по ответам"
+            tooltip="Каждому ответу будет соответствовать буква, а ниже появится таблица для расшифровки"
+          >
+            <Switch checked={cryptogramEnabled} onChange={setCryptogramEnabled} />
+          </Form.Item>
+        </Col>
       </Row>
+
+      {cryptogramEnabled && (
+        <Row gutter={16}>
+          <Col xs={24} md={18}>
+            <Form.Item
+              label="Слово или фраза"
+              extra={`Букв без пробелов: ${lettersCount}. Задач в варианте: ${tasksCount}. Для корректной шифровки эти числа должны совпадать.`}
+            >
+              <Input
+                value={cryptogramPhrase}
+                onChange={(e) => setCryptogramPhrase(e.target.value)}
+                placeholder="Например: ТЕОРЕМА ПИФАГОРА"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+      )}
     </>
   );
 };

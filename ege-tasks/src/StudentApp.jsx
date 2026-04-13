@@ -10,6 +10,7 @@ import AchievementGallery from './components/student/AchievementGallery';
 import StudentProgressPage from './components/student/StudentProgressPage';
 import { api } from './services/pocketbase';
 import { useVersionSync } from './shared/version/useVersionSync';
+import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -250,6 +251,12 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
 }
 
 function StudentApp() {
+  // Detect marathon-live route: /student/marathon-live/{marathonId}
+  const marathonLiveMatch = useMemo(
+    () => window.location.pathname.match(/\/student\/marathon-live\/([^/]+)/),
+    []
+  );
+
   const generateDeviceId = () => {
     if (globalThis.crypto?.randomUUID) {
       return globalThis.crypto.randomUUID();
@@ -269,10 +276,12 @@ function StudentApp() {
   };
 
   // Извлекаем sessionId из URL: /student/{sessionId}
+  // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
+    if (marathonLiveMatch) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, []);
+  }, [marathonLiveMatch]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -345,6 +354,10 @@ function StudentApp() {
     if (attempt.status === 'started') return 'test';
     return 'result'; // submitted или corrected
   }, [authChecked, student, attempt, viewOverride]);
+
+  if (marathonLiveMatch) {
+    return <MarathonLiveBoard marathonId={marathonLiveMatch[1]} />;
+  }
 
   if (currentView === 'loading') {
     return null; // Или спиннер

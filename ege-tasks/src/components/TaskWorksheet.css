@@ -489,6 +489,32 @@
   font-size: 0.95em;
 }
 
+.answer-letter-key {
+  color: #c41d7f;
+  font-weight: 700;
+}
+
+.answers-cryptogram-box {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #fff7fb;
+  border: 1px solid #f3d0e5;
+  border-radius: 8px;
+}
+
+.answers-cryptogram-title {
+  font-size: 0.9em;
+  color: #7a1f56;
+  margin-bottom: 4px;
+}
+
+.answers-cryptogram-phrase {
+  font-size: 1.1em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #c41d7f;
+}
+
 @media print {
   .answers-page {
     page-break-before: always;
@@ -602,6 +628,106 @@
   color: inherit;
 }
 
+.cryptogram-panel {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1.5px solid #f3d0e5;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fff7fb 0%, #ffffff 100%);
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.cryptogram-panel-title {
+  font-size: 1.05em;
+  font-weight: 700;
+  color: #7a1f56;
+  margin-bottom: 6px;
+}
+
+.cryptogram-panel-note {
+  font-size: 0.95em;
+  color: #666;
+  margin-bottom: 12px;
+}
+
+.cryptogram-table-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cryptogram-table-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: stretch;
+  border: 1px solid #e8d3df;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.cryptogram-table-entry-decoy {
+  opacity: 0.92;
+}
+
+.cryptogram-table-answer {
+  padding: 8px 10px;
+  font-size: 0.95em;
+  display: flex;
+  align-items: center;
+}
+
+.cryptogram-table-letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.15em;
+  color: #7a1f56;
+  background: #fdf0f7;
+  border-left: 1px solid #eed4e2;
+}
+
+.cryptogram-result-block {
+  margin-top: 14px;
+}
+
+.cryptogram-result-label {
+  font-size: 0.92em;
+  color: #555;
+  margin-bottom: 8px;
+}
+
+.cryptogram-result-cells {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.cryptogram-result-cell {
+  width: 24px;
+  height: 28px;
+  border-bottom: 2px solid #7a1f56;
+  border-radius: 2px;
+}
+
+.cryptogram-result-gap {
+  width: 16px;
+  height: 1px;
+}
+
+.cryptogram-warning {
+  padding: 10px 12px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 8px;
+  color: #8c5a12;
+  font-size: 0.95em;
+  line-height: 1.45;
+}
+
 /* Оптимизация таблиц для печати */
 @media print {
   .task-content table {
@@ -620,6 +746,14 @@
 
   .task-content tr:nth-child(even) {
     background-color: #fafafa !important;
+  }
+
+  .cryptogram-panel {
+    background: #fff7fb !important;
+  }
+
+  .cryptogram-table-letter {
+    background: #fdf0f7 !important;
   }
 }
 
@@ -677,6 +811,12 @@
   color: #1890ff;
   flex-shrink: 0;
   font-size: 0.9em;
+}
+
+@media (max-width: 900px) {
+  .cryptogram-table-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .compact-controls {

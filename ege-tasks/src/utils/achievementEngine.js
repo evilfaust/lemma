@@ -19,45 +19,42 @@ import { shuffleArray } from './shuffle';
  * @returns {object|null} - выбранный значок или null если нечего выдавать
  */
 export function getRandomAchievement(achievements, percentage, excludedIds = []) {
-  // Определить редкость на основе результата
-  let rarity;
+  // Определить редкость и fallback-цепочку на основе результата
+  // ≥90%: legendary → rare → common
+  // 70-89%: rare → common
+  // 40-69%: common
+  // <40%: не выдаётся
+  let rarityChain;
   if (percentage >= 90) {
-    rarity = 'legendary';
+    rarityChain = ['legendary', 'rare', 'common'];
   } else if (percentage >= 70) {
-    rarity = 'rare';
+    rarityChain = ['rare', 'common'];
   } else if (percentage >= 40) {
-    rarity = 'common';
+    rarityChain = ['common'];
   } else {
-    // Нет награды при результате < 40%
     console.log('[AchievementEngine] Результат слишком низкий для значка:', percentage);
     return null;
   }
 
-  // Фильтровать значки по типу 'random' и соответствующей редкости
-  const filtered = achievements.filter(
-    (a) => a.type === 'random' && a.rarity === rarity
-  );
-
-  if (filtered.length === 0) {
-    console.warn('[AchievementEngine] Нет значков редкости:', rarity);
-    return null;
-  }
-
-  // ИСПРАВЛЕНИЕ: Выдавать только неполученные значки
   const excluded = new Set(excludedIds);
-  const nonDuplicate = filtered.filter((a) => !excluded.has(a.id));
 
-  // Если все значки этой редкости уже получены — не выдаем повторно
-  if (nonDuplicate.length === 0) {
-    console.log('[AchievementEngine] Все значки редкости уже получены:', rarity,
-      `(${filtered.length} всего, ${excludedIds.length} получено)`);
-    return null;
+  for (const rarity of rarityChain) {
+    const pool = achievements.filter(
+      (a) => a.type === 'random' && a.rarity === rarity && !excluded.has(a.id)
+    );
+
+    if (pool.length > 0) {
+      const chosen = shuffleArray([...pool])[0];
+      console.log('[AchievementEngine] Выдан значок:', chosen.code, `(${rarity}, осталось ${pool.length - 1})`);
+      return chosen;
+    }
+
+    console.log('[AchievementEngine] Все значки редкости получены, fallback:', rarity);
   }
 
-  // Вернуть случайный значок из неполученных
-  const chosen = shuffleArray([...nonDuplicate])[0];
-  console.log('[AchievementEngine] Выдан значок:', chosen.code, `(${rarity}, осталось ${nonDuplicate.length - 1})`);
-  return chosen;
+  // Все значки цепочки собраны
+  console.log('[AchievementEngine] Все возможные значки уже получены для результата:', percentage);
+  return null;
 }
 
 /**

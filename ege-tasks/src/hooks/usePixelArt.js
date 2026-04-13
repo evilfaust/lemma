@@ -200,6 +200,7 @@ export function usePixelArt() {
     // Действия
     processImage, reset, loadFromSaved,
     toggleCell, clearMatrix, fillMatrix, invertMatrix, createEmptyMatrix,
+    setMatrix,
     // Сохранение
     savedId, setSavedId,
   };

@@ -12,7 +12,7 @@ import AchievementBadge from './student/AchievementBadge';
 
 // ==================== CONSTANTS ====================
 
-const ALL_ICONS = Array.from({ length: 48 }, (_, i) =>
+const ALL_ICONS = Array.from({ length: 78 }, (_, i) =>
   `icon${String(i + 1).padStart(3, '0')}.png`
 );
 

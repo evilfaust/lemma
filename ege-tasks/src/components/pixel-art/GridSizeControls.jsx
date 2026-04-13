@@ -1,4 +1,4 @@
-import { Slider, InputNumber, Button, Row, Col, Typography, Space, Tooltip, Alert } from 'antd';
+import { Slider, InputNumber, Button, Row, Col, Typography, Space, Tooltip, Alert, Tag } from 'antd';
 import { LinkOutlined, DisconnectOutlined, AimOutlined } from '@ant-design/icons';
 import { calcCellSize, suggestGridSize } from '../../utils/imageToMatrix';
 
@@ -25,6 +25,7 @@ const PRESETS = [
  *   onApply()                          — кнопка «Пересчитать»
  *   processing                         — bool (идёт обработка)
  *   twoSheets                          — bool (влияет на расчёт размера клетки)
+ *   hasImage                           — bool (есть ли оригинальное изображение для пересчёта)
  */
 export default function GridSizeControls({
   gridCols,
@@ -39,6 +40,7 @@ export default function GridSizeControls({
   onApply,
   processing,
   twoSheets = false,
+  hasImage = true,
 }) {
   const cellMm = calcCellSize(gridCols, gridRows, twoSheets);
   const tooSmall = cellMm < 5.5;
@@ -185,15 +187,24 @@ export default function GridSizeControls({
         />
       )}
 
-      <Button
-        type="primary"
-        onClick={onApply}
-        loading={processing}
-        block
-        disabled={!processing && false}
+      <Tooltip
+        title={!hasImage ? 'Для пересчёта нужно оригинальное изображение. Загрузите файл или отредактируйте пиксели вручную.' : ''}
       >
-        Пересчитать
-      </Button>
+        <Button
+          type="primary"
+          onClick={onApply}
+          loading={processing}
+          block
+          disabled={!hasImage}
+        >
+          Пересчитать
+        </Button>
+      </Tooltip>
+      {!hasImage && (
+        <div style={{ marginTop: 6, fontSize: 12, color: '#8c8c8c', lineHeight: 1.4 }}>
+          Картинка из библиотеки — оригинал недоступен. Используйте «Редактор пикселей» для ручного редактирования.
+        </div>
+      )}
     </div>
   );
 }

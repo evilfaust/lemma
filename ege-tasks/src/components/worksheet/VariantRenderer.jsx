@@ -3,6 +3,7 @@ import { EditOutlined, SwapOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { filterTaskText } from '../../utils/filterTaskText';
 import { api } from '../../services/pocketbase';
+import { buildCryptogramForVariant } from '../../utils/cryptogram';
 
 /**
  * Компонент рендеринга одного варианта (компактный и обычный режимы).
@@ -20,6 +21,8 @@ import { api } from '../../services/pocketbase';
  * @param {Object} dragDropHandlers - обработчики drag & drop из useTaskDragDrop
  * @param {Function} onEditTask - (task) => void
  * @param {Function} onReplaceTask - (variantIndex, taskIndex, task) => void
+ * @param {boolean} cryptogramEnabled - включена ли шифровка
+ * @param {string} cryptogramPhrase - слово/фраза для шифровки
  */
 const VariantRenderer = ({
   variant,
@@ -35,13 +38,22 @@ const VariantRenderer = ({
   dragDropHandlers,
   onEditTask,
   onReplaceTask,
+  cryptogramEnabled = false,
+  cryptogramPhrase = '',
 }) => {
   const applyTextFilter = (text) => {
     if (!hideTaskPrefixes) return text;
     return filterTaskText(text);
   };
 
-  if (compactMode) {
+  const showCryptogram = cryptogramEnabled;
+  const cryptogram = showCryptogram
+    ? buildCryptogramForVariant({ variant, phrase: cryptogramPhrase })
+    : null;
+  const isCompactMode = compactMode;
+  const effectiveColumns = columns;
+
+  if (isCompactMode) {
     return (
       <div key={variant.number} className="variant-container compact-mode">
         <div className="variant-header-compact">
@@ -129,9 +141,9 @@ const VariantRenderer = ({
         className="tasks-content"
         style={{
           fontSize: `${fontSize}pt`,
-          columnCount: columns,
+          columnCount: effectiveColumns,
           columnGap: '20px',
-          columnRule: columns > 1 ? '1px solid #ddd' : 'none',
+          columnRule: effectiveColumns > 1 ? '1px solid #ddd' : 'none',
         }}
       >
         {variant.tasks.map((task, taskIndex) => {
@@ -201,6 +213,50 @@ const VariantRenderer = ({
           );
         })}
       </div>
+
+      {showCryptogram && (
+        <div className="cryptogram-panel">
+          <div className="cryptogram-panel-title">Шифровка по ответам</div>
+          {cryptogram?.valid ? (
+            <>
+              <div className="cryptogram-panel-note">
+                Решите задачи, найдите каждый ответ в таблице и запишите буквы по порядку.
+              </div>
+
+              <div className="cryptogram-table-grid">
+                {cryptogram.entries.map((entry, index) => (
+                  <div
+                    key={`${entry.letter}-${entry.answer}-${index}`}
+                    className={`cryptogram-table-entry ${entry.isDecoy ? 'cryptogram-table-entry-decoy' : ''}`}
+                  >
+                    <div className="cryptogram-table-answer">
+                      <MathRenderer text={entry.answer} />
+                    </div>
+                    <div className="cryptogram-table-letter">{entry.letter}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="cryptogram-result-block">
+                <div className="cryptogram-result-label">Получившееся слово / фраза:</div>
+                <div className="cryptogram-result-cells">
+                  {cryptogram.answerCells.map((cell, index) => (
+                    cell.type === 'space' ? (
+                      <span key={`space-${index}`} className="cryptogram-result-gap" />
+                    ) : (
+                      <span key={`cell-${index}`} className="cryptogram-result-cell" />
+                    )
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="cryptogram-warning">
+              {cryptogram?.warnings?.join(' ')}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="page-break"></div>
     </div>

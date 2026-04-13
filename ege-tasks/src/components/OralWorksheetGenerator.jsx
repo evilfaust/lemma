@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, Form, Select, Space, Row, Col, Switch, Radio, InputNumber, Input, Spin, Tag, Divider, Collapse, Badge, Alert, App } from 'antd';
 import {
   FilterOutlined,
@@ -14,6 +14,7 @@ import AnswersPage from './worksheet/AnswersPage';
 import VariantStats from './worksheet/VariantStats';
 import ActionButtons from './worksheet/ActionButtons';
 import DistributionPanel from './worksheet/DistributionPanel';
+import FormatSettings from './worksheet/FormatSettings';
 import {
   useWorksheetGeneration,
   useTaskDragDrop,
@@ -41,6 +42,8 @@ const TaskSheetGenerator = () => {
   const [showStudentInfo, setShowStudentInfo] = useState(true);
   const [variantLabel, setVariantLabel] = useState('Вариант');
   const [solutionSpace, setSolutionSpace] = useState('medium');
+  const [cryptogramEnabled, setCryptogramEnabled] = useState(false);
+  const [cryptogramPhrase, setCryptogramPhrase] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedSubtopic, setSelectedSubtopic] = useState(null);
   const [compactMode, setCompactMode] = useState(false);
@@ -81,6 +84,7 @@ const TaskSheetGenerator = () => {
 
   // Счётчик доступных задач (дебаунс 500мс)
   const watchedValues = Form.useWatch([], form);
+  const tasksPerVariantValue = Form.useWatch('tasksPerVariant', form) || 0;
   const { availableTasksCount, loadingTasksCount } = useTaskCounter(watchedValues);
 
   // Опции сложности для DistributionPanel
@@ -252,8 +256,16 @@ const TaskSheetGenerator = () => {
       dragDropHandlers={dragDropHandlers}
       onEditTask={taskEditing.handleEditTask}
       onReplaceTask={taskEditing.handleReplaceTask}
+      cryptogramEnabled={cryptogramEnabled}
+      cryptogramPhrase={cryptogramPhrase}
     />
   );
+
+  useEffect(() => {
+    if (!cryptogramEnabled) return;
+    setCompactMode(false);
+    setShowAnswersInline(false);
+  }, [cryptogramEnabled]);
 
   const collapseItems = [
     {
@@ -587,92 +599,31 @@ const TaskSheetGenerator = () => {
 
           {outputMode === 'sheet' && (
             <>
-              <Row gutter={16}>
-                <Col xs={24} md={6}>
-                  <Form.Item
-                    label="Колонки"
-                    tooltip={compactMode ? "В компактном режиме - количество вариантов в ряд" : "Колонки для задач в варианте"}
-                  >
-                    <Radio.Group
-                      value={columns}
-                      onChange={(e) => setColumns(e.target.value)}
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value={1}>1</Radio.Button>
-                      <Radio.Button value={2}>2</Radio.Button>
-                      <Radio.Button value={3}>3</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={8}>
-                  <Form.Item label="Размер шрифта">
-                    <Radio.Group
-                      value={fontSize}
-                      onChange={(e) => setFontSize(e.target.value)}
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value={10}>10pt</Radio.Button>
-                      <Radio.Button value={12}>12pt</Radio.Button>
-                      <Radio.Button value={14}>14pt</Radio.Button>
-                      <Radio.Button value={16}>16pt</Radio.Button>
-                      <Radio.Button value={20}>20pt</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
-                  <Form.Item label="Место для решения">
-                    <Radio.Group
-                      value={solutionSpace}
-                      onChange={(e) => setSolutionSpace(e.target.value)}
-                      buttonStyle="solid"
-                    >
-                      <Radio.Button value="none">Нет</Radio.Button>
-                      <Radio.Button value="small">Мало</Radio.Button>
-                      <Radio.Button value="medium">Средне</Radio.Button>
-                      <Radio.Button value="large">Много</Radio.Button>
-                    </Radio.Group>
-                  </Form.Item>
-                </Col>
-              </Row>
-
-              <Row gutter={16}>
-                <Col xs={24} md={6}>
-                  <Form.Item label="Компактный режим">
-                    <Switch checked={compactMode} onChange={setCompactMode} />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
-                  <Form.Item
-                    label="Скрыть «Вычислите:» и т.п."
-                    tooltip="Убирает типовые фразы из начала условия задач"
-                  >
-                    <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
-                  <Form.Item label="Поля для ФИО">
-                    <Switch
-                      checked={showStudentInfo}
-                      onChange={setShowStudentInfo}
-                      disabled={compactMode}
-                    />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
-                  <Form.Item label="Ответы в тексте">
-                    <Switch
-                      checked={showAnswersInline}
-                      onChange={setShowAnswersInline}
-                      disabled={compactMode}
-                    />
-                  </Form.Item>
-                </Col>
-              </Row>
+              <FormatSettings
+                columns={columns}
+                setColumns={setColumns}
+                fontSize={fontSize}
+                setFontSize={setFontSize}
+                solutionSpace={solutionSpace}
+                setSolutionSpace={setSolutionSpace}
+                compactMode={compactMode}
+                setCompactMode={setCompactMode}
+                hideTaskPrefixes={hideTaskPrefixes}
+                setHideTaskPrefixes={setHideTaskPrefixes}
+                showStudentInfo={showStudentInfo}
+                setShowStudentInfo={setShowStudentInfo}
+                showAnswersInline={showAnswersInline}
+                setShowAnswersInline={setShowAnswersInline}
+                showAnswersPage={showAnswersPage}
+                setShowAnswersPage={setShowAnswersPage}
+                variantLabel={variantLabel}
+                setVariantLabel={setVariantLabel}
+                cryptogramEnabled={cryptogramEnabled}
+                setCryptogramEnabled={setCryptogramEnabled}
+                cryptogramPhrase={cryptogramPhrase}
+                setCryptogramPhrase={setCryptogramPhrase}
+                tasksCount={tasksPerVariantValue}
+              />
 
               <Row gutter={16}>
                 <Col xs={24} md={6}>
@@ -685,22 +636,6 @@ const TaskSheetGenerator = () => {
                       <Radio.Button value="A4">A4</Radio.Button>
                       <Radio.Button value="A5">A5</Radio.Button>
                     </Radio.Group>
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
-                  <Form.Item label="Лист с ответами">
-                    <Switch checked={showAnswersPage} onChange={setShowAnswersPage} />
-                  </Form.Item>
-                </Col>
-
-                <Col xs={24} md={6}>
-                  <Form.Item label="Название варианта">
-                    <Input
-                      placeholder="Вариант"
-                      value={variantLabel}
-                      onChange={(e) => setVariantLabel(e.target.value)}
-                    />
                   </Form.Item>
                 </Col>
               </Row>
@@ -854,7 +789,15 @@ const TaskSheetGenerator = () => {
         if (showAnswersPage) {
           pageContents.push({
             key: 'answers',
-            content: <AnswersPage variants={variants} variantLabel={variantLabel} show={true} />,
+            content: (
+              <AnswersPage
+                variants={variants}
+                variantLabel={variantLabel}
+                show={true}
+                cryptogramEnabled={cryptogramEnabled}
+                cryptogramPhrase={cryptogramPhrase}
+              />
+            ),
           });
         }
 

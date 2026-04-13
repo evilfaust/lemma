@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
 import { Card, Form, Button, Space, Alert, Collapse, Spin, Row, Col, Statistic, Timeline, Tag, App } from 'antd';
 import {
   PlusOutlined,
@@ -87,6 +87,8 @@ const TestWorkGenerator = () => {
   const [showAnswersInline, setShowAnswersInline] = useState(false);
   const [showAnswersPage, setShowAnswersPage] = useState(true);
   const [variantLabel, setVariantLabel] = useState('Вариант');
+  const [cryptogramEnabled, setCryptogramEnabled] = useState(false);
+  const [cryptogramPhrase, setCryptogramPhrase] = useState('');
 
   // Модальные окна сохранения/загрузки
   const [saveModalVisible, setSaveModalVisible] = useState(false);
@@ -248,6 +250,12 @@ const TestWorkGenerator = () => {
     setSavedWorks(savedWorks.filter(w => w.id !== workId));
   };
 
+  useEffect(() => {
+    if (!cryptogramEnabled) return;
+    setCompactMode(false);
+    setShowAnswersInline(false);
+  }, [cryptogramEnabled]);
+
   /**
    * Экспорт вариантов в Markdown (для Obsidian)
    */
@@ -298,6 +306,8 @@ const TestWorkGenerator = () => {
       dragDropHandlers={dragDropHandlers}
       onEditTask={taskEditing.handleEditTask}
       onReplaceTask={taskEditing.handleReplaceTask}
+      cryptogramEnabled={cryptogramEnabled}
+      cryptogramPhrase={cryptogramPhrase}
     />
   );
 
@@ -426,6 +436,11 @@ const TestWorkGenerator = () => {
                     setShowAnswersPage={setShowAnswersPage}
                     variantLabel={variantLabel}
                     setVariantLabel={setVariantLabel}
+                    cryptogramEnabled={cryptogramEnabled}
+                    setCryptogramEnabled={setCryptogramEnabled}
+                    cryptogramPhrase={cryptogramPhrase}
+                    setCryptogramPhrase={setCryptogramPhrase}
+                    tasksCount={getTotalTaskCount()}
                   />
                 ),
               },
@@ -498,7 +513,13 @@ const TestWorkGenerator = () => {
           ) : (
             variants.map((variant, index) => renderVariant(variant, index))
           )}
-          <AnswersPage variants={variants} variantLabel={variantLabel} show={showAnswersPage} />
+          <AnswersPage
+            variants={variants}
+            variantLabel={variantLabel}
+            show={showAnswersPage}
+            cryptogramEnabled={cryptogramEnabled}
+            cryptogramPhrase={cryptogramPhrase}
+          />
         </div>
       )}
 

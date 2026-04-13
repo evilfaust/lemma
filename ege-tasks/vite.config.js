@@ -10,8 +10,21 @@ const buildId = process.env.EGE_BUILD_ID || new Date().toISOString().replace(/[-
 const buildDate = new Date().toISOString()
 
 // https://vitejs.dev/config/
+// Dev-only: serve student.html for all /student/* paths (SPA routing)
+const studentRewritePlugin = {
+  name: 'student-spa-rewrite',
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => {
+      if (req.url && req.url.startsWith('/student/')) {
+        req.url = '/student.html';
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), studentRewritePlugin],
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
     __BUILD_ID__: JSON.stringify(buildId),

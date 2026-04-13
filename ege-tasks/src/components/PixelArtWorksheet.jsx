@@ -5,7 +5,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, PictureOutlined, DeleteOutlined,
-  SaveOutlined, FolderOpenOutlined, EditOutlined,
+  SaveOutlined, FolderOpenOutlined, EditOutlined, AppstoreOutlined, StarOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { usePixelArt } from '../hooks/usePixelArt';
@@ -16,6 +16,7 @@ import ImageUploader from './pixel-art/ImageUploader';
 import GridSizeControls from './pixel-art/GridSizeControls';
 import PixelArtPrintLayout from './pixel-art/PixelArtPrintLayout';
 import MatrixEditor from './pixel-art/MatrixEditor';
+import PixelArtImageLibraryModal from './pixel-art/PixelArtImageLibraryModal';
 import './PixelArtWorksheet.css';
 
 const { Text } = Typography;
@@ -29,6 +30,13 @@ export default function PixelArtWorksheet() {
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
+
+  // Библиотека картинок
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [libraryImages, setLibraryImages] = useState([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [savingToLibrary, setSavingToLibrary] = useState(false);
+  const [libraryImageId, setLibraryImageId] = useState(null); // ID записи в библиотеке (null = новая)
 
   const {
     imageFile, setImageFile,
@@ -46,6 +54,7 @@ export default function PixelArtWorksheet() {
     processing, error,
     processImage, reset, loadFromSaved,
     toggleCell, clearMatrix, fillMatrix, invertMatrix,
+    setMatrix,
     savedId, setSavedId,
   } = usePixelArt();
 
@@ -58,6 +67,7 @@ export default function PixelArtWorksheet() {
       const dims = { width: img.width, height: img.height };
       setImageDimensions(dims);
       setImageFile(file);
+      setLibraryImageId(null); // новое изображение — отвязываемся от библиотечной записи
       // Авто-подбираем размер сетки под пропорции изображения
       const { cols, rows } = suggestGridSize(img.width, img.height, gridCols);
       setGridCols(cols);
@@ -71,7 +81,7 @@ export default function PixelArtWorksheet() {
   // ── Пересчёт по кнопке «Пересчитать» ─────────────────────────────────────
   const handleApply = () => {
     if (!imageFile) {
-      message.warning('Сначала загрузите изображение');
+      // Картинка из библиотеки — оригинала нет, можно только редактировать пиксели вручную
       return;
     }
     processImage(imageFile, gridCols, gridRows, threshold);
@@ -131,11 +141,18 @@ export default function PixelArtWorksheet() {
     }
   };
 
-  const handleLoad = (record) => {
-    loadFromSaved(record);
-    setTwoColumns(!!record.two_columns);
+  const handleLoad = async (record) => {
     setLoadModalOpen(false);
-    message.success('Пиксель-арт загружен');
+    try {
+      // Список загружается без matrix/grid/expand — берём полную запись по ID
+      const full = await api.getPixelArtWorksheet(record.id);
+      loadFromSaved(full);
+      setTwoColumns(!!full.two_columns);
+      setLibraryImageId(null); // сбрасываем привязку к библиотеке — это готовый лист, не картинка
+      message.success('Пиксель-арт загружен');
+    } catch (e) {
+      message.error('Ошибка загрузки: ' + (e.message || e));
+    }
   };
 
   const handleDeleteSaved = async (id) => {
@@ -146,6 +163,85 @@ export default function PixelArtWorksheet() {
       message.success('Удалено');
     } catch (e) {
       message.error('Ошибка удаления');
+    }
+  };
+
+  // ── Библиотека картинок ───────────────────────────────────────────────────
+  const handleOpenLibrary = async () => {
+    setLibraryOpen(true);
+    setLibraryLoading(true);
+    try {
+      const imgs = await api.getPixelArtImages();
+      setLibraryImages(imgs);
+    } catch (e) {
+      message.error('Ошибка загрузки библиотеки');
+    } finally {
+      setLibraryLoading(false);
+    }
+  };
+
+  const handleSelectFromLibrary = (record) => {
+    setMatrix(record.matrix);
+    setGridCols(record.grid_cols || 25);
+    setGridRows(record.grid_rows || 25);
+    setThreshold(record.threshold ?? 128);
+    setImageFile(null);
+    setImageDimensions(null);
+    setLibraryImageId(record.id);
+    setLibraryOpen(false);
+    message.success(`Картинка «${record.title || 'Без названия'}» применена`);
+  };
+
+  const handleDeleteFromLibrary = async (id) => {
+    try {
+      await api.deletePixelArtImage(id);
+      setLibraryImages(prev => prev.filter(img => img.id !== id));
+      message.success('Удалено из библиотеки');
+    } catch (e) {
+      message.error('Ошибка удаления');
+    }
+  };
+
+  const handleRenameInLibrary = async (id, newTitle) => {
+    try {
+      const updated = await api.updatePixelArtImage(id, { title: newTitle });
+      setLibraryImages(prev => prev.map(img => img.id === id ? { ...img, title: updated.title } : img));
+    } catch (e) {
+      message.error('Ошибка переименования');
+    }
+  };
+
+  const handleSaveToLibrary = async () => {
+    if (!matrix) {
+      message.warning('Сначала загрузите или нарисуйте картинку');
+      return;
+    }
+    setSavingToLibrary(true);
+    // Берём реальные размеры из матрицы (могут отличаться от слайдеров если не нажали «Пересчитать»)
+    const actualCols = matrix[0]?.length || gridCols;
+    const actualRows = matrix.length || gridRows;
+    const data = {
+      title: title || 'Раскраска',
+      matrix,
+      grid_cols: actualCols,
+      grid_rows: actualRows,
+      threshold,
+    };
+    try {
+      if (libraryImageId) {
+        const updated = await api.updatePixelArtImage(libraryImageId, data);
+        setLibraryImages(prev => prev.map(img => img.id === libraryImageId ? { ...img, ...updated } : img));
+        message.success('Картинка в библиотеке обновлена');
+      } else {
+        const img = await api.createPixelArtImage(data);
+        setLibraryImageId(img.id);
+        setLibraryImages(prev => [img, ...prev]);
+        message.success('Картинка сохранена в библиотеку');
+      }
+    } catch (e) {
+      message.error('Ошибка сохранения в библиотеку: ' + (e.message || e));
+    } finally {
+      setSavingToLibrary(false);
     }
   };
 
@@ -167,10 +263,8 @@ export default function PixelArtWorksheet() {
   };
 
   // ── Placeholder ───────────────────────────────────────────────────────────
-  const placeholderText = !imageFile
-    ? 'Загрузите изображение'
-    : !matrix
-    ? 'Нажмите «Пересчитать»'
+  const placeholderText = !matrix
+    ? 'Загрузите изображение или выберите из библиотеки'
     : tasks.length === 0
     ? 'Добавьте задачи с числовыми ответами'
     : 'Идёт генерация…';
@@ -194,7 +288,38 @@ export default function PixelArtWorksheet() {
             </Card>
 
             {/* Изображение */}
-            <Card size="small" title="Изображение">
+            <Card
+              size="small"
+              title="Изображение"
+              extra={
+                <Button
+                  size="small"
+                  icon={<AppstoreOutlined />}
+                  onClick={handleOpenLibrary}
+                >
+                  Библиотека
+                </Button>
+              }
+            >
+              {libraryImageId && !imageFile && (
+                <Alert
+                  type="info"
+                  showIcon
+                  message={
+                    <span>
+                      Картинка из библиотеки{' '}
+                      <Text style={{ fontSize: 12 }}>
+                        ({(matrix?.[0]?.length || 0)}×{(matrix?.length || 0)} кл.)
+                      </Text>
+                      <br />
+                      <Text type="secondary" style={{ fontSize: 11 }}>
+                        Загрузите новое изображение, чтобы заменить. Для правок — «Редактор пикселей».
+                      </Text>
+                    </span>
+                  }
+                  style={{ marginBottom: 10, fontSize: 12 }}
+                />
+              )}
               <ImageUploader
                 imageFile={imageFile}
                 gridCols={gridCols}
@@ -202,6 +327,19 @@ export default function PixelArtWorksheet() {
                 threshold={threshold}
                 onImageChange={handleImageChange}
               />
+              {matrix && (
+                <Button
+                  size="small"
+                  icon={<StarOutlined />}
+                  loading={savingToLibrary}
+                  onClick={handleSaveToLibrary}
+                  style={{ marginTop: 10 }}
+                  type={libraryImageId ? 'default' : 'default'}
+                  block
+                >
+                  {libraryImageId ? 'Обновить в библиотеке' : 'Сохранить в библиотеку'}
+                </Button>
+              )}
             </Card>
 
             {/* Кнопка редактора пикселей */}
@@ -230,6 +368,7 @@ export default function PixelArtWorksheet() {
                 onApply={handleApply}
                 processing={processing}
                 twoSheets={twoSheets}
+                hasImage={!!imageFile}
               />
             </Card>
 
@@ -404,7 +543,7 @@ export default function PixelArtWorksheet() {
           },
           content: { borderRadius: 0 },
         }}
-        destroyOnClose={false}
+        destroyOnHidden={false}
       >
         {matrix && (
           <MatrixEditor
@@ -432,6 +571,17 @@ export default function PixelArtWorksheet() {
           className="pixel-art-print-root"
         />
       )}
+
+      {/* ── Модал библиотеки картинок ── */}
+      <PixelArtImageLibraryModal
+        open={libraryOpen}
+        onClose={() => setLibraryOpen(false)}
+        images={libraryImages}
+        loading={libraryLoading}
+        onSelect={handleSelectFromLibrary}
+        onDelete={handleDeleteFromLibrary}
+        onRename={handleRenameInLibrary}
+      />
 
       {/* ── Модал загрузки ── */}
       <Modal
@@ -465,7 +615,7 @@ export default function PixelArtWorksheet() {
                 title={sheet.title || 'Без названия'}
                 description={
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    {(sheet.tasks?.length ?? 0)} задач · {sheet.grid_cols}×{sheet.grid_rows} · {new Date(sheet.created).toLocaleDateString('ru-RU')}
+                    {Array.isArray(sheet.tasks) ? sheet.tasks.length : 0} задач · {sheet.grid_cols}×{sheet.grid_rows} · {new Date(sheet.created).toLocaleDateString('ru-RU')}
                   </Text>
                 }
               />
