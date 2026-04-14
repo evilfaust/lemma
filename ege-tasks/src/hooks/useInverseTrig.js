@@ -34,10 +34,16 @@ const TRIG_RESULTS = [
   [S3 / 3, '\\dfrac{\\sqrt{3}}{3}'], [-S3 / 3, '-\\dfrac{\\sqrt{3}}{3}'],
 ];
 
-function formatArcResult(val) {
+function formatArcResult(val, useDegrees) {
   if (!isFinite(val)) return null;
   for (const [v, tex] of ARC_RESULTS) {
-    if (Math.abs(val - v) < 1e-7) return tex;
+    if (Math.abs(val - v) < 1e-7) {
+      if (useDegrees) {
+        const deg = Math.round(v * 180 / Math.PI);
+        return deg === 0 ? '0^{\\circ}' : `${deg}^{\\circ}`;
+      }
+      return tex;
+    }
   }
   return null;
 }
@@ -130,7 +136,7 @@ function shuffle(arr) {
 // ─── Генераторы заданий ───────────────────────────────────────────────────────
 
 // Тип basic: arcsin(a), arccos(a), arctg(a), arcctg(a)
-function genBasic(fns) {
+function genBasic(fns, useDegrees) {
   const tasks = [];
   for (const fn of fns) {
     const pool = (fn === 'arctan' || fn === 'arccot') ? TAN_ARGS : SINCOS_ARGS;
@@ -141,7 +147,7 @@ function genBasic(fns) {
       else if (fn === 'arctan') val = arctanVal(argNum);
       else val = arccotVal(argNum);
 
-      const resultLatex = formatArcResult(val);
+      const resultLatex = formatArcResult(val, useDegrees);
       if (!resultLatex) continue;
 
       const exprLatex = `${arcFnTex(fn)}${formatArcArg(argTex)}`;
@@ -152,7 +158,7 @@ function genBasic(fns) {
 }
 
 // Тип sum: arcfn1(a) ± arcfn2(b)
-function genSum(fns, maxTries = 200) {
+function genSum(fns, useDegrees, maxTries = 200) {
   const results = [];
   for (let t = 0; t < maxTries; t++) {
     const fn1 = rand(fns);
@@ -175,7 +181,7 @@ function genSum(fns, maxTries = 200) {
     else v2 = arccotVal(a2.argNum);
 
     const total = v1 + sign * v2;
-    const resultLatex = formatArcResult(total);
+    const resultLatex = formatArcResult(total, useDegrees);
     if (!resultLatex) continue;
 
     // Не брать тривиальные: fn1=fn2, a1=a2, sign=-1 → 0
@@ -233,6 +239,7 @@ export const DEFAULT_SETTINGS = {
   useOuterCos:    true,
   useOuterTan:    false,
   useOuterCot:    false,
+  useDegrees:     false,      // градусная мера угла
   showTeacherKey: true,
   twoPerPage:     false,
 };
@@ -251,6 +258,7 @@ export function useInverseTrig() {
       variantsCount, questionsCount, taskType,
       useArcsin, useArccos, useArctan, useArccot,
       useOuterSin, useOuterCos, useOuterTan, useOuterCot,
+      useDegrees,
     } = settings;
 
     const arcFns = [
@@ -266,10 +274,10 @@ export function useInverseTrig() {
 
     // Формируем полный пул заданий по типу
     let pool = [];
-    if (taskType === 'basic' || taskType === 'mixed') pool.push(...genBasic(arcFns));
-    if (taskType === 'sum'   || taskType === 'mixed') pool.push(...genSum(arcFns));
+    if (taskType === 'basic' || taskType === 'mixed') pool.push(...genBasic(arcFns, useDegrees));
+    if (taskType === 'sum'   || taskType === 'mixed') pool.push(...genSum(arcFns, useDegrees));
     if ((taskType === 'nested' || taskType === 'mixed') && outerFns.length > 0) {
-      pool.push(...genNested(outerFns, arcFns));
+      pool.push(...genNested(outerFns, arcFns)); // nested: результат — число, не угол
     }
     if (pool.length === 0) return;
 

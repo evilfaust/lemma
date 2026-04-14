@@ -206,6 +206,14 @@ export default function TrigValuesGenerator() {
             >
               Подписи углов на окружности
             </Checkbox>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Switch
+                size="small"
+                checked={settings.useDegrees ?? false}
+                onChange={v => updateSetting('useDegrees', v)}
+              />
+              <span style={{ fontSize: 13 }}>Градусная мера</span>
+            </div>
             <Checkbox
               checked={settings.showTeacherKey}
               onChange={e => updateSetting('showTeacherKey', e.target.checked)}

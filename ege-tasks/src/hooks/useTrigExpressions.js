@@ -111,10 +111,14 @@ function formatResult(val) {
 }
 
 // ─── Форматирование угла в теле выражения ────────────────────────────────────
-function formatAngleInExpr(num, den) {
-  if (num === 0) return { body: '0', isNeg: false };
+function formatAngleInExpr(num, den, useDegrees) {
+  if (num === 0) return { body: useDegrees ? '0^{\\circ}' : '0', isNeg: false };
   const isNeg = num < 0;
   const absN = Math.abs(num);
+  if (useDegrees) {
+    const deg = Math.round(absN * 180 / den);
+    return { body: `${deg}^{\\circ}`, isNeg };
+  }
   const g = gcd(absN, den);
   const n = absN / g;
   const d = den / g;
@@ -126,19 +130,13 @@ function formatAngleInExpr(num, den) {
 }
 
 // ─── Форматирование одного терма ─────────────────────────────────────────────
-function formatTermLatex(fn, num, den) {
+function formatTermLatex(fn, num, den, useDegrees) {
   const fnTex = fn === 'sin' ? '\\sin'
               : fn === 'cos' ? '\\cos'
               : fn === 'tan' ? '\\operatorname{tg}'
               : '\\operatorname{ctg}';
-  const { body, isNeg } = formatAngleInExpr(num, den);
-  if (isNeg) {
-    return `${fnTex}\\!\\left(-${body}\\right)`;
-  }
-  // Положительный угол: 0 и π без пробела, дробь с пробелом
-  if (body === '0' || body.endsWith('\\pi') && !body.includes('\\dfrac')) {
-    return `${fnTex}\\,${body}`;
-  }
+  const { body, isNeg } = formatAngleInExpr(num, den, useDegrees);
+  if (isNeg) return `${fnTex}\\!\\left(-${body}\\right)`;
   return `${fnTex}\\,${body}`;
 }
 
@@ -149,7 +147,7 @@ function termKey(fn, num, den) {
 }
 
 // ─── Генерация одного выражения ──────────────────────────────────────────────
-function generateExpression(type, termsCount, fns, anglePool, maxTries = 400) {
+function generateExpression(type, termsCount, fns, anglePool, maxTries = 400, useDegrees = false) {
   for (let attempt = 0; attempt < maxTries; attempt++) {
     const terms = [];
     const usedKeys = new Set();
@@ -176,14 +174,14 @@ function generateExpression(type, termsCount, fns, anglePool, maxTries = 400) {
 
     if (type === 'product') {
       total = terms.reduce((acc, t) => acc * t.val, 1);
-      exprLatex = terms.map(t => formatTermLatex(t.fn, t.num, t.den)).join(' \\cdot ');
+      exprLatex = terms.map(t => formatTermLatex(t.fn, t.num, t.den, useDegrees)).join(' \\cdot ');
     } else {
       // sum: первый терм со знаком «+» (т.е. без знака), остальные случайно
       const signs = [1, ...Array.from({ length: termsCount - 1 }, () => rand([1, -1]))];
       total = terms.reduce((acc, t, i) => acc + signs[i] * t.val, 0);
       exprLatex = terms
         .map((t, i) => {
-          const termLatex = formatTermLatex(t.fn, t.num, t.den);
+          const termLatex = formatTermLatex(t.fn, t.num, t.den, useDegrees);
           if (i === 0) return termLatex;
           return signs[i] === 1 ? ` + ${termLatex}` : ` - ${termLatex}`;
         })
@@ -209,6 +207,7 @@ export const DEFAULT_SETTINGS = {
   useTan:          false,
   useCot:          false,
   useNegAngles:    true,
+  useDegrees:      false,      // градусная мера угла
   showTeacherKey:  true,
   twoPerPage:      false,      // 2 варианта на одной A4
 };
@@ -225,7 +224,7 @@ export function useTrigExpressions() {
   const generate = useCallback(() => {
     const {
       variantsCount, questionsCount, taskType, termsCount,
-      useSin, useCos, useTan, useCot, useNegAngles,
+      useSin, useCos, useTan, useCot, useNegAngles, useDegrees,
     } = settings;
 
     const fns = [useSin && 'sin', useCos && 'cos', useTan && 'tan', useCot && 'cot'].filter(Boolean);
@@ -245,7 +244,7 @@ export function useTrigExpressions() {
           // чередуем: чётные — сумма, нечётные — произведение
           type = questions.length % 2 === 0 ? 'sum' : 'product';
         }
-        const expr = generateExpression(type, termsCount, fns, anglePool);
+        const expr = generateExpression(type, termsCount, fns, anglePool, 400, useDegrees);
         if (expr) questions.push(expr);
         else failCount++;
       }

@@ -5,6 +5,7 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import PrintableWorksheet from './PrintableWorksheet';
+import WorksheetGridPrint from './worksheet/WorksheetGridPrint';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
 import SaveWorkModal from './worksheet/SaveWorkModal';
@@ -755,6 +756,18 @@ const TaskSheetGenerator = () => {
         {/* Превью информация */}
         <VariantStats variants={variants} showAnswersPage={showAnswersPage} />
       </Card>
+
+      {/* Рабочий лист с клеткой — только в режиме «Лист задач» */}
+      {variants.length > 0 && outputMode === 'sheet' && (
+        <WorksheetGridPrint
+          pages={variants.map(v => ({
+            title: form.getFieldValue('workTitle') || 'Лист задач',
+            label: `${variantLabel} ${v.number}`,
+            tasks: v.tasks,
+          }))}
+          hideTaskPrefixes={hideTaskPrefixes}
+        />
+      )}
 
       {/* Лист задач — постраничный предпросмотр */}
       {variants.length > 0 && outputMode === 'sheet' && (() => {

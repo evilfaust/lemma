@@ -15,6 +15,7 @@ import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
 import VariantStats from './worksheet/VariantStats';
 import ActionButtons from './worksheet/ActionButtons';
+import WorksheetGridPrint from './worksheet/WorksheetGridPrint';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
 import {
@@ -484,6 +485,18 @@ const TestWorkGenerator = () => {
         {/* Превью */}
         <VariantStats variants={variants} showAnswersPage={showAnswersPage} />
       </Card>
+
+      {/* Рабочий лист с клеткой */}
+      {variants.length > 0 && (
+        <WorksheetGridPrint
+          pages={variants.map(v => ({
+            title: form.getFieldValue('workTitle') || 'Контрольная работа',
+            label: `${variantLabel} ${v.number}`,
+            tasks: v.tasks,
+          }))}
+          hideTaskPrefixes={hideTaskPrefixes}
+        />
+      )}
 
       {/* Печатный лист */}
       {variants.length > 0 && (

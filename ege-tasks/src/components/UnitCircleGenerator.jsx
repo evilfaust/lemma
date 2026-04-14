@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import katex from 'katex';
 import {
-  Card, Button, Input, Select, Slider, Radio, Checkbox,
+  Card, Button, Input, Select, Slider, Radio, Checkbox, Switch,
   Divider, Space, Tooltip, Modal, List, Typography, Tag, Popconfirm,
 } from 'antd';
 import {
@@ -180,6 +180,14 @@ export default function UnitCircleGenerator() {
               >
                 Засечки на всех стандартных позициях
               </Checkbox>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Switch
+                  size="small"
+                  checked={settings.useDegrees ?? false}
+                  onChange={v => updateSetting('useDegrees', v)}
+                />
+                <span style={{ fontSize: 13 }}>Градусная мера угла</span>
+              </div>
               <Checkbox
                 checked={settings.showTeacherKey}
                 onChange={e => updateSetting('showTeacherKey', e.target.checked)}

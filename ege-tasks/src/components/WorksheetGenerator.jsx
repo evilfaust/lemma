@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons';
 import PrintableWorksheet from './PrintableWorksheet';
 import ActionButtons from './worksheet/ActionButtons';
+import WorksheetGridPrint from './worksheet/WorksheetGridPrint';
 import { api } from '../services/pocketbase';
 import { useWorksheetActions } from '../hooks';
 
@@ -593,9 +594,21 @@ const WorksheetGenerator = ({ topics, tags = [], subtopics = [], years = [], sou
         </Form>
       </Card>
 
+      {/* Рабочий лист с клеткой */}
+      {worksheet && !loading && (
+        <WorksheetGridPrint
+          pages={worksheet.cards.map((tasks, i) => ({
+            title: worksheet.title,
+            label: `Карточка ${i + 1}`,
+            tasks,
+          }))}
+          hideTaskPrefixes={hideTaskPrefixes}
+        />
+      )}
+
       {/* Сохраненные карточки */}
-      <Card 
-        title="Сохраненные карточки" 
+      <Card
+        title="Сохраненные карточки"
         style={{ marginBottom: 24 }}
         loading={loadingCards}
       >

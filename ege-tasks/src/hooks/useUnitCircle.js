@@ -46,6 +46,13 @@ export function formatAngleLatex(num, den, k = 0) {
   return `${sign}\\dfrac{${absN}\\pi}{${d}}`;
 }
 
+// Градусная версия: num/den * 180 + k*360 → "30^{\circ}"
+function formatAngleDeg(num, den, k = 0) {
+  const deg = Math.round((num / den + 2 * k) * 180);
+  if (deg === 0) return '0^{\\circ}';
+  return `${deg}^{\\circ}`;
+}
+
 // Устаревшая текстовая версия (оставлена для совместимости)
 export function formatAngle(num, den, k = 0) {
   return formatAngleLatex(num, den, k);
@@ -62,7 +69,7 @@ function shuffleArray(arr) {
 }
 
 // Генерация одного задания (одна окружность)
-function generateTask(taskType, pointsCount, maxK) {
+function generateTask(taskType, pointsCount, maxK, useDegrees = false) {
   const shuffled = shuffleArray(STANDARD_ANGLES);
   const selected = shuffled.slice(0, Math.min(pointsCount, 16));
 
@@ -76,7 +83,7 @@ function generateTask(taskType, pointsCount, maxK) {
       num,
       den,
       k,
-      display: formatAngleLatex(num, den, k),
+      display: useDegrees ? formatAngleDeg(num, den, k) : formatAngleLatex(num, den, k),
     };
   });
 
@@ -90,14 +97,14 @@ function generateTask(taskType, pointsCount, maxK) {
 
 // Генерация одного варианта (несколько окружностей)
 function generateVariant(settings) {
-  const { circlesPerPage, pointsPerCircle, maxK, taskType } = settings;
+  const { circlesPerPage, pointsPerCircle, maxK, taskType, useDegrees } = settings;
   const tasks = [];
   for (let i = 0; i < circlesPerPage; i++) {
     let type = taskType;
     if (taskType === 'mixed') {
       type = i % 2 === 0 ? 'direct' : 'inverse';
     }
-    tasks.push(generateTask(type, pointsPerCircle, maxK));
+    tasks.push(generateTask(type, pointsPerCircle, maxK, useDegrees ?? false));
   }
   return tasks;
 }
@@ -110,8 +117,9 @@ export const DEFAULT_SETTINGS = {
   maxK: 1,                // максимальное смещение на k×2π (0 = только [0,2π))
   taskType: 'mixed',      // 'direct' | 'inverse' | 'mixed'
   showAxes: 'axes',       // 'none' | 'axes' | 'all'
-  showDegrees: false,
+  showDegrees: false,     // засечки 0°/90°/180°/270° на SVG
   showTicks: true,
+  useDegrees: false,      // градусная мера угла в заданиях
   showTeacherKey: true,
 };
 

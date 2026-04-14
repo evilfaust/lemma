@@ -2,7 +2,7 @@ import { useState } from 'react';
 import katex from 'katex';
 import {
   Card, Button, Slider, Radio, Checkbox,
-  Divider, Space, Input, Tag, Popconfirm,
+  Divider, Space, Input, Switch, Tag, Popconfirm,
 } from 'antd';
 import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
 import { useInverseTrig } from '../hooks/useInverseTrig';
@@ -132,6 +132,14 @@ export default function InverseTrigGenerator() {
 
           <Divider style={{ margin: '8px 0' }} />
           <Space direction="vertical" size={6}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Switch
+                size="small"
+                checked={settings.useDegrees}
+                onChange={v => updateSetting('useDegrees', v)}
+              />
+              <span style={{ fontSize: 13 }}>Градусная мера</span>
+            </div>
             <Checkbox checked={settings.showTeacherKey}
               onChange={e => updateSetting('showTeacherKey', e.target.checked)}>
               Лист ответов (учитель)

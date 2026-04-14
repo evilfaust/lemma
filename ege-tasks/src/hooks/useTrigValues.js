@@ -41,6 +41,14 @@ export function formatAngleLatex(num, den) {
   return `${sign}\\dfrac{${n}\\pi}{${d}}`;
 }
 
+// Градусная версия: num/den * 180 + k*360 → "30^{\circ}"
+export function formatAngleDeg(num, den, k = 0) {
+  const dispNum = num + 2 * k * den;
+  const deg = Math.round((dispNum / den) * 180);
+  if (deg === 0) return '0^{\\circ}';
+  return `${deg}^{\\circ}`;
+}
+
 // Компактная версия для таблицы (frac вместо dfrac)
 export function formatAngleLatexCompact(num, den) {
   if (num === 0) return '0';
@@ -72,7 +80,7 @@ export function formatTrigValue(val) {
 
 // ─── Данные угла: все значения функций ──────────────────────────────────────
 // k — сдвиг на k×2π (только для отображения угла; тригзначения те же)
-function buildAngleData(angle, id, k = 0) {
+function buildAngleData(angle, id, k = 0, useDegrees = false) {
   const { num, den } = angle;
   const theta = (num / den) * Math.PI;
   const sv = Math.sin(theta);
@@ -81,13 +89,12 @@ function buildAngleData(angle, id, k = 0) {
   const cotUndef = Math.abs(sv) < 1e-9; // 0, π
   // Отображаемый угол: (num + 2k·den)/den·π
   const dispNum = num + 2 * k * den;
+  const angleDisplay        = useDegrees ? formatAngleDeg(num, den, k) : formatAngleLatex(dispNum, den);
+  const angleDisplayCompact = useDegrees ? formatAngleDeg(num, den, k) : formatAngleLatexCompact(dispNum, den);
   return {
-    id,
-    num,
-    den,
-    k,
-    angleDisplay:        formatAngleLatex(dispNum, den),
-    angleDisplayCompact: formatAngleLatexCompact(dispNum, den),
+    id, num, den, k,
+    angleDisplay,
+    angleDisplayCompact,
     sin: formatTrigValue(sv),
     cos: formatTrigValue(cv),
     tan: tanUndef ? null : formatTrigValue(sv / cv),
@@ -117,6 +124,7 @@ export const DEFAULT_SETTINGS = {
   showCot:         true,
   showHelperLines: true,
   showAngleLabels: false,    // подписи углов вокруг окружности
+  useDegrees:      false,    // градусная мера угла в таблице
   showTeacherKey:  true,
   layout:          'landscape',
 };
@@ -145,7 +153,7 @@ export function useTrigValues() {
       return selected.map((a, i) => {
         const k = maxK === 0 ? 0
           : Math.floor(Math.random() * (2 * maxK + 1)) - maxK;
-        return buildAngleData(a, i + 1, k);
+        return buildAngleData(a, i + 1, k, settings.useDegrees ?? false);
       });
     });
 
