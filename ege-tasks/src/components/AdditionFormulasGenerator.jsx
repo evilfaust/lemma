@@ -2,7 +2,7 @@ import { useState } from 'react';
 import katex from 'katex';
 import {
   Card, Button, Slider, Checkbox,
-  Divider, Space, Input, Switch, Tag, Row, Col, InputNumber,
+  Divider, Space, Input, Switch, Tag, Row, Col,
 } from 'antd';
 import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
 import { useAdditionFormulas } from '../hooks/useAdditionFormulas';
@@ -133,16 +133,16 @@ export default function AdditionFormulasGenerator() {
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Количество вариантов</div>
-            <InputNumber
-              min={1} max={35} value={variantsCount}
-              onChange={v => updateSetting('variantsCount', v ?? 1)}
-              style={{ width: '100%' }}
-              addonAfter={`/ 35`}
-            />
-            <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4 }}>
-              до 35 — каждому ученику свой вариант
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
+              Вариантов: <b>{variantsCount}</b>
             </div>
+            <Slider
+              min={1} max={32}
+              value={variantsCount}
+              onChange={v => updateSetting('variantsCount', v)}
+              marks={{ 1: '1', 10: '10', 20: '20', 32: '32' }}
+              size="small"
+            />
           </div>
 
           <Divider style={{ margin: '10px 0' }} />
