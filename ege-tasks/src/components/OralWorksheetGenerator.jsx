@@ -3,6 +3,10 @@ import { Card, Form, Select, Space, Row, Col, Switch, Radio, InputNumber, Input,
 import {
   FilterOutlined,
   SearchOutlined,
+  TagsOutlined,
+  BarChartOutlined,
+  ThunderboltOutlined,
+  PrinterOutlined,
 } from '@ant-design/icons';
 import PrintableWorksheet from './PrintableWorksheet';
 import WorksheetGridPrint from './worksheet/WorksheetGridPrint';
@@ -272,8 +276,9 @@ const TaskSheetGenerator = () => {
     {
       key: 'filters',
       label: (
-        <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span>📋 Фильтры задач</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FilterOutlined />
+          <span>Фильтры задач</span>
           {selectedTopic ? (
             <Badge
               count={loadingTasksCount ? '...' : availableTasksCount}
@@ -432,7 +437,13 @@ const TaskSheetGenerator = () => {
     },
     {
       key: 'tags',
-      label: '🏷️ Распределение по тегам (опционально)',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <TagsOutlined />
+          <span>Распределение по тегам</span>
+          <span style={{ fontSize: 12, color: '#8c8c8c', fontWeight: 400 }}>опционально</span>
+        </span>
+      ),
       children: (
         <>
           {!selectedTopic && (
@@ -485,7 +496,13 @@ const TaskSheetGenerator = () => {
     },
     {
       key: 'difficulty',
-      label: '📊 Распределение по сложности (опционально)',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BarChartOutlined />
+          <span>Распределение по сложности</span>
+          <span style={{ fontSize: 12, color: '#8c8c8c', fontWeight: 400 }}>опционально</span>
+        </span>
+      ),
       children: (
         <>
           {!selectedTopic && (
@@ -539,7 +556,12 @@ const TaskSheetGenerator = () => {
     },
     {
       key: 'variants',
-      label: '🎲 Генерация вариантов',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ThunderboltOutlined />
+          <span>Генерация вариантов</span>
+        </span>
+      ),
       children: (
         <Row gutter={16}>
           <Col xs={24} md={8}>
@@ -577,7 +599,12 @@ const TaskSheetGenerator = () => {
     },
     {
       key: 'format',
-      label: '🎨 Формат печати',
+      label: (
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <PrinterOutlined />
+          <span>Формат печати</span>
+        </span>
+      ),
       children: (
         <>
           <Row gutter={16} style={{ marginBottom: 16 }}>

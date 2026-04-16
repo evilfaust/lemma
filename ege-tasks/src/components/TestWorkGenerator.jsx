@@ -1,10 +1,14 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Card, Form, Button, Space, Alert, Collapse, Spin, Row, Col, Statistic, Timeline, Tag, App } from 'antd';
+import { Card, Form, Button, Alert, Collapse, Spin, Row, Col, Tag, App, Typography } from 'antd';
 import {
   PlusOutlined,
-  InfoCircleOutlined,
+  UnorderedListOutlined,
+  SettingOutlined,
+  PrinterOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
+
+const { Text } = Typography;
 import { v4 as uuid } from 'uuid';
 import FilterBlock from './worksheet/FilterBlock';
 import VariantSettings from './worksheet/VariantSettings';
@@ -58,19 +62,6 @@ const TestWorkGenerator = () => {
   } = useWorksheetActions();
   const taskEditing = useTaskEditing(variants, setVariants);
 
-  const timelineItems = useMemo(() => workBlocks.map((block) => ({
-    key: block.id,
-    children: (
-      <div>
-        <div style={{ fontWeight: 600 }}>{getTopicTitle(block.topic)}</div>
-        <div style={{ color: '#666', fontSize: 12 }}>
-          Задач: {block.count}
-          {block.difficulty.length > 0 && ` • Сложность: ${block.difficulty.join(', ')}`}
-          {block.subtopics.length > 0 && ` • Подтем: ${block.subtopics.length}`}
-        </div>
-      </div>
-    ),
-  })), [workBlocks]);
 
   // Настройки вариантов
   const [variantsCount, setVariantsCount] = useState(1);
@@ -314,24 +305,6 @@ const TestWorkGenerator = () => {
 
   return (
     <div className="task-worksheet-container">
-      <Alert
-        message="Генератор контрольных работ"
-        description={
-          <div>
-            <div>📚 Задачи из разных тем в одной работе</div>
-            <div>🎯 Настройка количества задач по каждой теме</div>
-            <div>🎲 Разные стратегии генерации вариантов</div>
-            <div>✏️ Редактирование и замена задач</div>
-            <div>💾 Сохранение работ в базу данных</div>
-          </div>
-        }
-        type="info"
-        icon={<InfoCircleOutlined />}
-        showIcon
-        className="no-print"
-        style={{ marginBottom: 16 }}
-      />
-
       <Card title="Настройки контрольной работы" className="no-print">
         <Form form={form} layout="vertical" onFinish={handleGenerate} initialValues={{ workTitle: 'Контрольная работа' }}>
           <Collapse
@@ -339,7 +312,17 @@ const TestWorkGenerator = () => {
             items={[
               {
                 key: 'structure',
-                label: '📚 Структура контрольной работы',
+                label: (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <UnorderedListOutlined />
+                    <span>Структура работы</span>
+                    {workBlocks.length > 0 && (
+                      <span style={{ fontSize: 12, color: '#8c8c8c', fontWeight: 400 }}>
+                        {workBlocks.length} {workBlocks.length === 1 ? 'блок' : 'блока'} · {getTotalTaskCount()} задач
+                      </span>
+                    )}
+                  </span>
+                ),
                 children: (
                   <>
                     {workBlocks.length === 0 && (
@@ -377,28 +360,25 @@ const TestWorkGenerator = () => {
                     </Button>
 
                     {workBlocks.length > 0 && (
-                      <Card size="small" title="📊 Предпросмотр структуры">
-                        <Row gutter={16} style={{ marginBottom: 16 }}>
-                          <Col span={8}>
-                            <Statistic title="Блоков" value={workBlocks.length} />
-                          </Col>
-                          <Col span={8}>
-                            <Statistic title="Тем" value={getUniqueTopicsCount()} />
-                          </Col>
-                          <Col span={8}>
-                            <Statistic title="Задач" value={getTotalTaskCount()} />
-                          </Col>
-                        </Row>
-
-                        <Timeline mode="left" items={timelineItems} />
-                      </Card>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {workBlocks.map((block, i) => (
+                          <Tag key={block.id} color="blue" style={{ fontSize: 12, padding: '2px 8px' }}>
+                            {getTopicTitle(block.topic)} · {block.count} зад.
+                          </Tag>
+                        ))}
+                      </div>
                     )}
                   </>
                 ),
               },
               {
                 key: 'variants',
-                label: '🎲 Генерация вариантов',
+                label: (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <ThunderboltOutlined />
+                    <span>Генерация вариантов</span>
+                  </span>
+                ),
                 children: (
                   <VariantSettings
                     variantsCount={variantsCount}
@@ -416,7 +396,12 @@ const TestWorkGenerator = () => {
               },
               {
                 key: 'format',
-                label: '🎨 Формат печати',
+                label: (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <PrinterOutlined />
+                    <span>Формат печати</span>
+                  </span>
+                ),
                 children: (
                   <FormatSettings
                     columns={columns}

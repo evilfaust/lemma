@@ -144,29 +144,47 @@
     margin-bottom: 1.5mm;
   }
 
+  /* Блочный контейнер — нужен для работы float */
   .wgp-task-statement {
-    display: flex;
-    flex-direction: row;
-    align-items: baseline;
-    gap: 1.5mm;
+    display: block;
     margin-bottom: 1mm;
     line-height: 1.35;
+    overflow: hidden; /* clearfix для float */
+  }
+
+  /* Картинка плавает справа, текст обтекает слева */
+  .wgp-task-image {
+    float: right;
+    max-width: 38mm;
+    max-height: 28mm;
+    width: auto;
+    height: auto;
+    margin: 0 0 1.5mm 3mm;
+    object-fit: contain;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .wgp-task-num {
     font-weight: 700;
-    flex-shrink: 0;
-    min-width: 5mm;
+    margin-right: 1.5mm;
   }
 
+  /* Текст задачи — инлайн, чтобы номер и условие были на одной строке */
   .wgp-task-text {
-    flex: 1;
-    min-width: 0;
+    display: inline;
   }
 
   .wgp-task-text p {
+    display: inline;
     margin: 0;
     padding: 0;
+  }
+
+  /* Блочные формулы остаются на своей строке */
+  .wgp-task-text .katex-display {
+    display: block;
+    margin: 1mm 0;
   }
 
   /* ── Лист ответов учителя ────────────────────────────────────────────── */
@@ -279,6 +297,33 @@
   .wgp-key-stmt p {
     margin: 0;
     padding: 0;
+  }
+
+  /* ── Режим «задача поверх клетки» ────────────────────────────────────── */
+
+  /* Контейнер занимает высоту текста + распорки (поле для решения) */
+  .wgp-task--overlay {
+    position: relative;
+  }
+
+  /* Сетка растянута на весь контейнер через absolute */
+  .wgp-overlay-grid {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 0;
+  }
+
+  .wgp-overlay-grid .wgp-grid-area {
+    height: 100% !important;
+  }
+
+  /* Текст условия + распорка — поверх сетки */
+  .wgp-overlay-content {
+    position: relative;
+    z-index: 1;
   }
 
   /* ── Клетчатое поле ───────────────────────────────────────────────────── */

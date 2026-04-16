@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Input, Radio, Space, Switch, Tooltip } from 'antd';
-import { PrinterOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, Radio, Row, Select, Switch } from 'antd';
+import { PrinterOutlined, TableOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { filterTaskText } from '../../utils/filterTaskText';
+import { api } from '../../services/pocketbase';
 import './WorksheetGridPrint.css';
 
 // ── SVG-клетка ─────────────────────────────────────────────────────────────
@@ -34,26 +35,52 @@ function GridArea({ cellMm, heightMm, uid }) {
 
 // ── Одна задача ────────────────────────────────────────────────────────────
 
-function TaskBlock({ task, number, cellMm, heightMm, fontSize, hideTaskPrefixes, pageIdx }) {
+function TaskBlock({ task, number, cellMm, heightMm, fontSize, hideTaskPrefixes, pageIdx, showGrid, overlayGrid }) {
   const raw = task.statement_md || '';
   const text = hideTaskPrefixes ? filterTaskText(raw) : raw;
   const uid = `${pageIdx}-${number}`;
+  const imageUrl = task.has_image ? api.getTaskImageUrl(task) : null;
+
+  const statement = (
+    <div className="wgp-task-statement" style={{ fontSize: `${fontSize}pt` }}>
+      {imageUrl && <img src={imageUrl} alt="" className="wgp-task-image" />}
+      <span className="wgp-task-num">{number}.</span>
+      <span className="wgp-task-text">
+        <MathRenderer text={text || ' '} />
+      </span>
+    </div>
+  );
+
+  // Режим «задача поверх клетки»: сетка растянута на весь блок,
+  // текст условия отображается поверх неё (z-index), ниже — чистое поле для решения
+  if (showGrid && overlayGrid) {
+    return (
+      <div className="wgp-task wgp-task--overlay">
+        {/* Сетка абсолютно позиционирована — заполняет весь контейнер */}
+        <div className="wgp-overlay-grid">
+          <GridArea cellMm={cellMm} heightMm={heightMm} uid={uid} />
+        </div>
+        {/* Текст условия поверх сетки */}
+        <div className="wgp-overlay-content">
+          {statement}
+          {/* Распорка = высота поля для решения */}
+          <div style={{ height: `${heightMm}mm` }} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="wgp-task">
-      <div className="wgp-task-statement" style={{ fontSize: `${fontSize}pt` }}>
-        <span className="wgp-task-num">{number}.</span>
-        <span className="wgp-task-text">
-          <MathRenderer text={text || ' '} />
-        </span>
-      </div>
-      <GridArea cellMm={cellMm} heightMm={heightMm} uid={uid} />
+      {statement}
+      {showGrid && <GridArea cellMm={cellMm} heightMm={heightMm} uid={uid} />}
     </div>
   );
 }
 
 // ── Одна страница ──────────────────────────────────────────────────────────
 
-function WorksheetPage({ page, pageIdx, settings, hideTaskPrefixes, showStudentInfo, titleOverride }) {
+function WorksheetPage({ page, pageIdx, settings, hideTaskPrefixes, showStudentInfo, titleOverride, showGrid, overlayGrid }) {
   const { gridCellMm, gridHeightMm, columns, fontSize } = settings;
   const tasks = page.tasks || [];
   const half = Math.ceil(tasks.length / 2);
@@ -71,6 +98,8 @@ function WorksheetPage({ page, pageIdx, settings, hideTaskPrefixes, showStudentI
         fontSize={fontSize}
         hideTaskPrefixes={hideTaskPrefixes}
         pageIdx={pageIdx}
+        showGrid={showGrid}
+        overlayGrid={overlayGrid}
       />
     ));
 
@@ -155,12 +184,15 @@ function TeacherKeyPage({ pages, hideTaskPrefixes, titleOverride }) {
  */
 export default function WorksheetGridPrint({ pages = [], hideTaskPrefixes = false }) {
   const [gridCellMm, setGridCellMm] = useState(5);
-  const [gridHeightMm, setGridHeightMm] = useState(18);
+  const [gridHeightMm, setGridHeightMm] = useState(22);
   const [columns, setColumns] = useState(1);
   const [fontSize, setFontSize] = useState(10);
   const [showStudentInfo, setShowStudentInfo] = useState(true);
   const [showTeacherKey, setShowTeacherKey] = useState(true);
+  const [showGridPerTask, setShowGridPerTask] = useState(true);
+  const [overlayGrid, setOverlayGrid] = useState(false);
   const [title, setTitle] = useState(() => pages[0]?.title || '');
+  const [isPrinting, setIsPrinting] = useState(false);
 
   // Синхронизируем заголовок при новой генерации (смене pages)
   useEffect(() => {
@@ -170,15 +202,23 @@ export default function WorksheetGridPrint({ pages = [], hideTaskPrefixes = fals
   const settings = { gridCellMm, gridHeightMm, columns, fontSize };
 
   const handlePrint = () => {
-    const style = document.createElement('style');
-    style.id = 'wgp-page-style';
-    style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
-    document.head.appendChild(style);
-    window.print();
+    setIsPrinting(true);
+    // Даём React время отрендерить .wgp-root перед вызовом print()
     setTimeout(() => {
-      const el = document.getElementById('wgp-page-style');
-      if (el) el.remove();
-    }, 1500);
+      const style = document.createElement('style');
+      style.id = 'wgp-page-style';
+      style.innerHTML = '@page { size: A4 portrait; margin: 10mm; }';
+      document.head.appendChild(style);
+      window.print();
+      const cleanup = () => {
+        document.getElementById('wgp-page-style')?.remove();
+        setIsPrinting(false);
+        window.removeEventListener('afterprint', cleanup);
+      };
+      window.addEventListener('afterprint', cleanup);
+      // Фолбэк если afterprint не сработает
+      setTimeout(cleanup, 3000);
+    }, 50);
   };
 
   if (!pages.length) return null;
@@ -188,118 +228,138 @@ export default function WorksheetGridPrint({ pages = [], hideTaskPrefixes = fals
       {/* ── Карточка настроек — видна на экране, скрыта при печати ── */}
       <Card
         className="wgp-settings-card"
-        title="🔲 Рабочий лист с клеткой"
+        title={<span><TableOutlined style={{ marginRight: 8 }} />Рабочий лист с клеткой</span>}
         style={{ marginTop: 8, marginBottom: 24 }}
-      >
-        <Space direction="vertical" size={8} style={{ marginBottom: 0 }}>
-          <Space size={8} style={{ width: '100%' }}>
-            <span className="wgp-setting-label" style={{ whiteSpace: 'nowrap' }}>Название:</span>
-            <Input
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              placeholder="Название листа"
-              size="small"
-              style={{ maxWidth: 320 }}
-            />
-          </Space>
-
-          <Space wrap size={12}>
-            <span className="wgp-setting-label">Клетка:</span>
-            <Radio.Group
-              value={gridCellMm}
-              onChange={e => setGridCellMm(e.target.value)}
-              buttonStyle="solid"
-              size="small"
-            >
-              <Radio.Button value={4}>4 мм</Radio.Button>
-              <Radio.Button value={5}>5 мм</Radio.Button>
-              <Radio.Button value={8}>8 мм</Radio.Button>
-            </Radio.Group>
-
-            <span className="wgp-setting-label">Поле:</span>
-            <Tooltip title="Высота клетчатого поля для решения">
-              <Radio.Group
-                value={gridHeightMm}
-                onChange={e => setGridHeightMm(e.target.value)}
-                buttonStyle="solid"
-                size="small"
-              >
-                <Radio.Button value={14}>маленькое (~10–12/А4)</Radio.Button>
-                <Radio.Button value={22}>среднее (~7–8/А4)</Radio.Button>
-                <Radio.Button value={35}>большое (~5/А4)</Radio.Button>
-              </Radio.Group>
-            </Tooltip>
-
-            <span className="wgp-setting-label">Колонки:</span>
-            <Radio.Group
-              value={columns}
-              onChange={e => setColumns(e.target.value)}
-              buttonStyle="solid"
-              size="small"
-            >
-              <Radio.Button value={1}>1</Radio.Button>
-              <Radio.Button value={2}>2</Radio.Button>
-            </Radio.Group>
-
-            <span className="wgp-setting-label">Шрифт:</span>
-            <Radio.Group
-              value={fontSize}
-              onChange={e => setFontSize(e.target.value)}
-              buttonStyle="solid"
-              size="small"
-            >
-              <Radio.Button value={9}>9pt</Radio.Button>
-              <Radio.Button value={10}>10pt</Radio.Button>
-              <Radio.Button value={11}>11pt</Radio.Button>
-              <Radio.Button value={12}>12pt</Radio.Button>
-            </Radio.Group>
-
-            <Space size={4}>
-              <Switch
-                size="small"
-                checked={showStudentInfo}
-                onChange={setShowStudentInfo}
-              />
-              <span style={{ fontSize: 13 }}>Шапка</span>
-            </Space>
-
-            <Space size={4}>
-              <Switch
-                size="small"
-                checked={showTeacherKey}
-                onChange={setShowTeacherKey}
-              />
-              <span style={{ fontSize: 13 }}>Ответы (учитель)</span>
-            </Space>
-          </Space>
-
-          <Button
-            type="primary"
-            icon={<PrinterOutlined />}
-            onClick={handlePrint}
-          >
+        extra={
+          <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
             Печать рабочего листа
           </Button>
-        </Space>
+        }
+      >
+        <Form layout="vertical" size="small">
+          <Row gutter={16} align="bottom">
+            <Col xs={24} sm={12} md={8} lg={6}>
+              <Form.Item label="Название" style={{ marginBottom: 0 }}>
+                <Input
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  placeholder="Название листа"
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={12} sm={6} md={4} lg={3}>
+              <Form.Item label="Клетка" style={{ marginBottom: 0 }}>
+                <Radio.Group
+                  value={gridCellMm}
+                  onChange={e => setGridCellMm(e.target.value)}
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value={4}>4</Radio.Button>
+                  <Radio.Button value={5}>5</Radio.Button>
+                  <Radio.Button value={8}>8</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+
+            <Col xs={12} sm={8} md={5} lg={4}>
+              <Form.Item label="Поле для решения" style={{ marginBottom: 0 }}>
+                <Select
+                  value={gridHeightMm}
+                  onChange={setGridHeightMm}
+                  style={{ width: '100%' }}
+                  options={[
+                    { value: 12, label: '12 мм  — ~13 задач/А4' },
+                    { value: 16, label: '16 мм  — ~10 задач/А4' },
+                    { value: 22, label: '22 мм  —  ~8 задач/А4' },
+                    { value: 30, label: '30 мм  —  ~6 задач/А4' },
+                    { value: 40, label: '40 мм  —  ~5 задач/А4' },
+                    { value: 55, label: '55 мм  —  ~4 задачи/А4' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={8} sm={4} md={3} lg={2}>
+              <Form.Item label="Колонки" style={{ marginBottom: 0 }}>
+                <Radio.Group
+                  value={columns}
+                  onChange={e => setColumns(e.target.value)}
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value={1}>1</Radio.Button>
+                  <Radio.Button value={2}>2</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+
+            <Col xs={16} sm={8} md={5} lg={4}>
+              <Form.Item label="Шрифт" style={{ marginBottom: 0 }}>
+                <Radio.Group
+                  value={fontSize}
+                  onChange={e => setFontSize(e.target.value)}
+                  buttonStyle="solid"
+                >
+                  <Radio.Button value={9}>9</Radio.Button>
+                  <Radio.Button value={10}>10</Radio.Button>
+                  <Radio.Button value={11}>11</Radio.Button>
+                  <Radio.Button value={12}>12</Radio.Button>
+                </Radio.Group>
+              </Form.Item>
+            </Col>
+
+            <Col xs={12} sm={6} md={4} lg={3}>
+              <Form.Item label="Шапка" style={{ marginBottom: 0 }}>
+                <Switch checked={showStudentInfo} onChange={setShowStudentInfo} />
+              </Form.Item>
+            </Col>
+
+            <Col xs={12} sm={6} md={4} lg={3}>
+              <Form.Item label="Клетка под задачей" style={{ marginBottom: 0 }}>
+                <Switch checked={showGridPerTask} onChange={v => { setShowGridPerTask(v); if (!v) setOverlayGrid(false); }} />
+              </Form.Item>
+            </Col>
+
+            <Col xs={12} sm={6} md={4} lg={3}>
+              <Form.Item label="Задача поверх клетки" style={{ marginBottom: 0 }}>
+                <Switch
+                  checked={overlayGrid}
+                  onChange={setOverlayGrid}
+                  disabled={!showGridPerTask}
+                />
+              </Form.Item>
+            </Col>
+
+            <Col xs={12} sm={8} md={5} lg={4}>
+              <Form.Item label="Ответы (учитель)" style={{ marginBottom: 0 }}>
+                <Switch checked={showTeacherKey} onChange={setShowTeacherKey} />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
       </Card>
 
-      {/* ── Печатный блок — inline, скрыт на экране через CSS ── */}
-      <div className="wgp-root">
-        {pages.map((page, i) => (
-          <WorksheetPage
-            key={i}
-            page={page}
-            pageIdx={i}
-            settings={settings}
-            hideTaskPrefixes={hideTaskPrefixes}
-            showStudentInfo={showStudentInfo}
-            titleOverride={title}
-          />
-        ))}
-        {showTeacherKey && (
-          <TeacherKeyPage pages={pages} hideTaskPrefixes={hideTaskPrefixes} titleOverride={title} />
-        )}
-      </div>
+      {/* ── Печатный блок — рендерится только во время печати ── */}
+      {isPrinting && (
+        <div className="wgp-root">
+          {pages.map((page, i) => (
+            <WorksheetPage
+              key={i}
+              page={page}
+              pageIdx={i}
+              settings={settings}
+              hideTaskPrefixes={hideTaskPrefixes}
+              showStudentInfo={showStudentInfo}
+              titleOverride={title}
+              showGrid={showGridPerTask}
+              overlayGrid={overlayGrid}
+            />
+          ))}
+          {showTeacherKey && (
+            <TeacherKeyPage pages={pages} hideTaskPrefixes={hideTaskPrefixes} titleOverride={title} />
+          )}
+        </div>
+      )}
     </>
   );
 }

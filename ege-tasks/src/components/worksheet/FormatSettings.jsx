@@ -1,4 +1,4 @@
-import { Row, Col, Form, Radio, Switch, Input } from 'antd';
+import { Row, Col, Form, Radio, Switch, Input, Divider } from 'antd';
 import { getCryptogramLetterCount } from '../../utils/cryptogram';
 
 /**
@@ -33,24 +33,8 @@ const FormatSettings = ({
 
   return (
     <>
+      {/* — Текст — */}
       <Row gutter={16}>
-        <Col xs={24} md={6}>
-          <Form.Item
-            label="Колонки"
-            tooltip={compactMode ? "В компактном режиме - количество вариантов в ряд" : "Колонки для задач в варианте"}
-          >
-            <Radio.Group
-              value={columns}
-              onChange={(e) => setColumns(e.target.value)}
-              buttonStyle="solid"
-            >
-              <Radio.Button value={1}>1</Radio.Button>
-              <Radio.Button value={2}>2</Radio.Button>
-              <Radio.Button value={3}>3</Radio.Button>
-            </Radio.Group>
-          </Form.Item>
-        </Col>
-
         <Col xs={24} md={8}>
           <Form.Item label="Размер шрифта">
             <Radio.Group
@@ -63,6 +47,48 @@ const FormatSettings = ({
               <Radio.Button value={14}>14pt</Radio.Button>
               <Radio.Button value={16}>16pt</Radio.Button>
               <Radio.Button value={20}>20pt</Radio.Button>
+            </Radio.Group>
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={6}>
+          <Form.Item
+            label="Скрыть типовые фразы"
+            tooltip="Убирает «Вычислите:», «Найдите:» и т.п. из начала условия"
+          >
+            <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
+          </Form.Item>
+        </Col>
+
+        <Col xs={24} md={6}>
+          <Form.Item label="Название варианта">
+            <Input
+              value={variantLabel}
+              onChange={(e) => setVariantLabel(e.target.value)}
+              placeholder="Вариант"
+              style={{ maxWidth: 160 }}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
+
+      <Divider style={{ margin: '4px 0 16px' }} />
+
+      {/* — Страница — */}
+      <Row gutter={16}>
+        <Col xs={24} md={6}>
+          <Form.Item
+            label="Колонки"
+            tooltip={compactMode ? 'В компактном режиме — количество вариантов в ряд' : 'Колонки для задач в варианте'}
+          >
+            <Radio.Group
+              value={columns}
+              onChange={(e) => setColumns(e.target.value)}
+              buttonStyle="solid"
+            >
+              <Radio.Button value={1}>1</Radio.Button>
+              <Radio.Button value={2}>2</Radio.Button>
+              <Radio.Button value={3}>3</Radio.Button>
             </Radio.Group>
           </Form.Item>
         </Col>
@@ -81,21 +107,10 @@ const FormatSettings = ({
             </Radio.Group>
           </Form.Item>
         </Col>
-      </Row>
 
-      <Row gutter={16}>
         <Col xs={24} md={6}>
           <Form.Item label="Компактный режим">
             <Switch checked={compactMode} onChange={setCompactMode} />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={6}>
-          <Form.Item
-            label="Скрыть «Вычислите:» и т.п."
-            tooltip="Убирает типовые фразы из начала условия задач"
-          >
-            <Switch checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
           </Form.Item>
         </Col>
 
@@ -108,7 +123,12 @@ const FormatSettings = ({
             />
           </Form.Item>
         </Col>
+      </Row>
 
+      <Divider style={{ margin: '4px 0 16px' }} />
+
+      {/* — Ответы — */}
+      <Row gutter={16}>
         <Col xs={24} md={6}>
           <Form.Item label="Ответы в тексте">
             <Switch
@@ -118,22 +138,10 @@ const FormatSettings = ({
             />
           </Form.Item>
         </Col>
-      </Row>
 
-      <Row gutter={16}>
         <Col xs={24} md={6}>
           <Form.Item label="Лист с ответами">
             <Switch checked={showAnswersPage} onChange={setShowAnswersPage} />
-          </Form.Item>
-        </Col>
-
-        <Col xs={24} md={12}>
-          <Form.Item label="Название варианта">
-            <Input
-              value={variantLabel}
-              onChange={(e) => setVariantLabel(e.target.value)}
-              placeholder="Вариант"
-            />
           </Form.Item>
         </Col>
 
@@ -151,8 +159,8 @@ const FormatSettings = ({
         <Row gutter={16}>
           <Col xs={24} md={18}>
             <Form.Item
-              label="Слово или фраза"
-              extra={`Букв без пробелов: ${lettersCount}. Задач в варианте: ${tasksCount}. Для корректной шифровки эти числа должны совпадать.`}
+              label="Слово или фраза для шифровки"
+              extra={`Букв без пробелов: ${lettersCount} · Задач в варианте: ${tasksCount} · Для корректной шифровки числа должны совпадать`}
             >
               <Input
                 value={cryptogramPhrase}

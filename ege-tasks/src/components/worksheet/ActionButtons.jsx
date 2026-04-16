@@ -1,35 +1,19 @@
-import { Button, Space, Tooltip, Badge, Segmented } from 'antd';
+import { Button, Space, Tooltip, Dropdown, Divider, Tag } from 'antd';
 import {
-  ReloadOutlined,
   PrinterOutlined,
   FilePdfOutlined,
   FileMarkdownOutlined,
   SaveOutlined,
   FolderOpenOutlined,
+  ThunderboltOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  CheckOutlined,
   RocketOutlined,
 } from '@ant-design/icons';
 
 /**
  * Компонент кнопок действий для генераторов.
- *
- * @param {boolean} hasVariants - есть ли сгенерированные варианты
- * @param {boolean} loading - загрузка генерации
- * @param {Function} onGenerate - обработчик генерации (submit формы)
- * @param {Function} onOpenLoad - открыть модалку загрузки
- * @param {Function} onSave - открыть модалку сохранения
- * @param {Function} onPrint - печать
- * @param {Function} onExportPDF - экспорт в PDF
- * @param {Function} onReset - сброс
- * @param {string} pdfMethod - метод PDF (puppeteer/legacy)
- * @param {Function} setPdfMethod - установить метод PDF
- * @param {boolean} puppeteerAvailable - доступен ли Puppeteer
- * @param {boolean} exporting - идёт экспорт
- * @param {boolean} saving - идёт сохранение
- * @param {string} generateLabel - текст кнопки генерации
- * @param {boolean} generateDisabled - кнопка генерации отключена
- * @param {string} saveLabel - текст кнопки сохранения
- * @param {string} loadLabel - текст кнопки загрузки
- * @param {Function} onExportMD - экспорт в Markdown
  */
 const ActionButtons = ({
   hasVariants = false,
@@ -48,24 +32,52 @@ const ActionButtons = ({
   saving = false,
   generateLabel = 'Сформировать работу',
   generateDisabled = false,
-  saveLabel = 'Сохранить работу',
+  saveLabel = 'Сохранить',
   loadLabel = 'Открыть сохранённую',
 }) => {
+  const pdfMenuItems = [
+    {
+      key: 'puppeteer',
+      label: (
+        <Space>
+          {pdfMethod === 'puppeteer' && <CheckOutlined style={{ color: '#52c41a' }} />}
+          <RocketOutlined style={{ color: '#52c41a' }} />
+          <span>Высокое качество</span>
+          {!puppeteerAvailable && <Tag color="error" style={{ marginLeft: 4 }}>недоступно</Tag>}
+        </Space>
+      ),
+      disabled: !puppeteerAvailable,
+    },
+    {
+      key: 'legacy',
+      label: (
+        <Space>
+          {pdfMethod === 'legacy' && <CheckOutlined style={{ color: '#52c41a' }} />}
+          <FilePdfOutlined />
+          <span>Стандартный</span>
+        </Space>
+      ),
+    },
+  ];
+
   return (
-    <Space wrap>
-      {onGenerate ? (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+
+      {/* Основное действие */}
+      {onGenerate && (
         <Button
           type="primary"
           htmlType="submit"
-          icon={<ReloadOutlined />}
+          icon={<ThunderboltOutlined />}
           loading={loading}
           size="large"
           disabled={generateDisabled}
         >
           {generateLabel}
         </Button>
-      ) : null}
+      )}
 
+      {/* Загрузить — всегда видна */}
       {onOpenLoad && (
         <Button
           icon={<FolderOpenOutlined />}
@@ -76,102 +88,76 @@ const ActionButtons = ({
         </Button>
       )}
 
+      {/* Вторичные действия — только при наличии вариантов */}
       {hasVariants && (
         <>
+          <Divider type="vertical" style={{ height: 28, margin: '0 2px', borderColor: '#d9d9d9' }} />
+
+          {/* Сохранить */}
           {onSave && (
-            <Button
-              icon={<SaveOutlined />}
-              onClick={onSave}
-              loading={saving}
-              size="large"
-            >
-              {saveLabel}
-            </Button>
-          )}
-
-          {onPrint && (
-            <Button
-              icon={<PrinterOutlined />}
-              onClick={onPrint}
-              size="large"
-            >
-              Печать
-            </Button>
-          )}
-
-          {onExportPDF && (
-            <Tooltip
-              title={
-                pdfMethod === 'puppeteer'
-                  ? 'Высокое качество PDF с идеальным рендерингом формул'
-                  : 'Стандартный экспорт PDF'
-              }
-            >
-              <Badge
-                count={pdfMethod === 'puppeteer' ? <RocketOutlined style={{ color: '#52c41a' }} /> : 0}
-                offset={[-5, 5]}
-              >
-                <Button
-                  icon={<FilePdfOutlined />}
-                  onClick={onExportPDF}
-                  loading={exporting}
-                  size="large"
-                >
-                  Сохранить PDF
-                </Button>
-              </Badge>
-            </Tooltip>
-          )}
-
-          {onExportMD && (
-            <Tooltip title="Экспорт вариантов в Markdown для Obsidian">
-              <Button
-                icon={<FileMarkdownOutlined />}
-                onClick={onExportMD}
-                size="large"
-              >
-                Экспорт MD
+            <Tooltip title={saveLabel}>
+              <Button icon={<SaveOutlined />} onClick={onSave} loading={saving}>
+                Сохранить
               </Button>
             </Tooltip>
           )}
 
-          {setPdfMethod && (
-            <Segmented
-              options={[
-                {
-                  label: (
-                    <Tooltip title="Новая технология: высокое качество, быстрая генерация">
-                      <span>
-                        <RocketOutlined /> Новый
-                      </span>
-                    </Tooltip>
-                  ),
-                  value: 'puppeteer',
-                  disabled: !puppeteerAvailable,
-                },
-                {
-                  label: (
-                    <Tooltip title="Классический метод экспорта">
-                      <span>Обычный</span>
-                    </Tooltip>
-                  ),
-                  value: 'legacy',
-                },
-              ]}
-              value={pdfMethod}
-              onChange={setPdfMethod}
-              size="large"
-            />
+          <Divider type="vertical" style={{ height: 28, margin: '0 2px', borderColor: '#d9d9d9' }} />
+
+          {/* Печать */}
+          {onPrint && (
+            <Tooltip title="Открыть диалог печати браузера">
+              <Button icon={<PrinterOutlined />} onClick={onPrint}>
+                Печать
+              </Button>
+            </Tooltip>
           )}
 
+          {/* PDF — кнопка с dropdown для выбора метода */}
+          {onExportPDF && (
+            setPdfMethod ? (
+              <Dropdown.Button
+                icon={<DownOutlined />}
+                onClick={onExportPDF}
+                loading={exporting}
+                menu={{
+                  items: pdfMenuItems,
+                  onClick: ({ key }) => setPdfMethod(key),
+                }}
+              >
+                <FilePdfOutlined />
+                {' PDF'}
+                {pdfMethod === 'puppeteer' && puppeteerAvailable && (
+                  <RocketOutlined style={{ color: '#52c41a', marginLeft: 4, fontSize: 11 }} />
+                )}
+              </Dropdown.Button>
+            ) : (
+              <Button icon={<FilePdfOutlined />} onClick={onExportPDF} loading={exporting}>
+                PDF
+              </Button>
+            )
+          )}
+
+          {/* Markdown */}
+          {onExportMD && (
+            <Tooltip title="Экспорт в Markdown (для Obsidian)">
+              <Button icon={<FileMarkdownOutlined />} onClick={onExportMD}>
+                MD
+              </Button>
+            </Tooltip>
+          )}
+
+          <Divider type="vertical" style={{ height: 28, margin: '0 2px', borderColor: '#d9d9d9' }} />
+
+          {/* Сброс */}
           {onReset && (
-            <Button onClick={onReset} size="large">
-              Сбросить
-            </Button>
+            <Tooltip title="Сбросить всё">
+              <Button icon={<DeleteOutlined />} onClick={onReset} danger />
+            </Tooltip>
           )}
         </>
       )}
-    </Space>
+    </div>
   );
 };
 
