@@ -150,20 +150,20 @@ const NONSTANDARD_POOL = [
   { func:'cos', angle:75,  decompDeg:'30+45',  decomp:'30^{\\circ}+45^{\\circ}', result:'\\dfrac{\\sqrt{6}-\\sqrt{2}}{4}' },
 ];
 
-function genNonstandardTask(funcs) {
+function genNonstandardTask(funcs, showHint) {
   const avail = NONSTANDARD_POOL.filter(p => funcs.includes(p.func));
   if (!avail.length) return null;
   const p = rand(avail);
   const fn = p.func === 'tan' ? '\\operatorname{tg}' : `\\${p.func}`;
-  return {
-    exprLatex: `${fn}\\,${p.angle}^{\\circ}\\;\\bigl(${p.angle}^{\\circ}=${p.decomp}\\bigr)`,
-    resultLatex: p.result,
-  };
+  const expr = showHint
+    ? `${fn}\\,${p.angle}^{\\circ}\\;\\bigl(${p.angle}^{\\circ}=${p.decomp}\\bigr)`
+    : `${fn}\\,${p.angle}^{\\circ}`;
+  return { exprLatex: expr, resultLatex: p.result };
 }
 
 // ─── Вариант ──────────────────────────────────────────────────────────────────
 
-function generateVariant({ count, taskTypes, funcs, incSum, incDiff }) {
+function generateVariant({ count, taskTypes, funcs, incSum, incDiff, showHint }) {
   const tasks = [];
   for (let i = 0; i < count; i++) {
     const type = rand(taskTypes);
@@ -171,7 +171,7 @@ function generateVariant({ count, taskTypes, funcs, incSum, incDiff }) {
     for (let attempt = 0; attempt < 10; attempt++) {
       if (type === 'formula_eval') task = genFormulaEvalTask(funcs, incSum, incDiff);
       else if (type === 'symbolic')  task = genSymbolicTask(funcs);
-      else                           task = genNonstandardTask(funcs);
+      else                           task = genNonstandardTask(funcs, showHint);
       if (task) break;
     }
     tasks.push(task || { exprLatex: '?', resultLatex: '?' });
@@ -188,6 +188,7 @@ export const DEFAULT_AF_SETTINGS = {
   incDiff: true,
   variantsCount: 4,
   tasksPerVariant: 10,
+  showHint: false,
   twoPerPage: false,
   showTeacherKey: true,
 };
@@ -202,10 +203,10 @@ export function useAdditionFormulas() {
   }, []);
 
   const generate = useCallback(() => {
-    const { variantsCount, tasksPerVariant, taskTypes, funcs, incSum, incDiff } = settings;
+    const { variantsCount, tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint } = settings;
     if (!taskTypes.length || !funcs.length) return;
     const data = Array.from({ length: variantsCount }, () =>
-      generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSum, incDiff })
+      generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint })
     );
     setTasksData(data);
   }, [settings]);
