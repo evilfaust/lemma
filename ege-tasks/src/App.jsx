@@ -35,6 +35,7 @@ import TrigValuesGenerator from './components/TrigValuesGenerator';
 import TrigExpressionsGenerator from './components/TrigExpressionsGenerator';
 import InverseTrigGenerator from './components/InverseTrigGenerator';
 import TrigEquationsGenerator from './components/TrigEquationsGenerator';
+import ReductionFormulasGenerator from './components/ReductionFormulasGenerator';
 import MarathonGenerator from './components/MarathonGenerator';
 import EgeScoreCalculator from './components/EgeScoreCalculator';
 import { api } from './services/pocketbase';
@@ -195,6 +196,7 @@ function AppContent() {
         { key: 'trig-expressions', icon: <FunctionOutlined />, label: 'Вычисление выражений' },
         { key: 'inverse-trig', icon: <FunctionOutlined />, label: 'Обратные функции' },
         { key: 'trig-equations', icon: <FunctionOutlined />, label: 'Уравнения' },
+        { key: 'reduction-formulas', icon: <FunctionOutlined />, label: 'Формулы приведения' },
         { key: 'trig-cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
       ],
     },
@@ -364,6 +366,8 @@ function AppContent() {
         return <InverseTrigGenerator />;
       case 'trig-equations':
         return <TrigEquationsGenerator />;
+      case 'reduction-formulas':
+        return <ReductionFormulasGenerator />;
       case 'trig-cryptogram':
         return <UnitCircleCryptogramGenerator />;
       case 'route-sheet':
@@ -440,6 +444,7 @@ function AppContent() {
       case 'trig-expressions': return 'Тригонометрия — Вычисление выражений';
       case 'inverse-trig': return 'Тригонометрия — Обратные функции';
       case 'trig-equations': return 'Тригонометрия — Уравнения';
+      case 'reduction-formulas': return 'Тригонометрия — Формулы приведения';
       case 'trig-cryptogram': return 'Тригонометрия — Шифровки';
       case 'route-sheet': return 'Маршрутный лист';
       case 'marathon': return 'Марафон — подготовка и проведение';
