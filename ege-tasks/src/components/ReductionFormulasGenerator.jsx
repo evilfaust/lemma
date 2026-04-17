@@ -183,8 +183,10 @@ export default function ReductionFormulasGenerator() {
               Вариантов: <b>{variantsCount}</b>
             </div>
             <Slider
-              min={1} max={8} value={variantsCount}
+              min={1} max={32} value={variantsCount}
               onChange={v => updateSetting('variantsCount', v)}
+              marks={{ 1: '1', 10: '10', 20: '20', 32: '32' }}
+              size="small"
             />
           </div>
 
