@@ -191,6 +191,8 @@ export const DEFAULT_AF_SETTINGS = {
   showHint: false,
   twoPerPage: false,
   showTeacherKey: true,
+  showWorkSpace: false,
+  workSpaceSize: 30,
 };
 
 export function useAdditionFormulas() {
@@ -202,8 +204,9 @@ export function useAdditionFormulas() {
     setSettings(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  const generate = useCallback(() => {
-    const { variantsCount, tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint } = settings;
+  const generate = useCallback((override) => {
+    const s = override ? { ...settings, ...override } : settings;
+    const { variantsCount, tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint } = s;
     if (!taskTypes.length || !funcs.length) return;
     const data = Array.from({ length: variantsCount }, () =>
       generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint })

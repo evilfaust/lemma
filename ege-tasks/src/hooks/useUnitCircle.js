@@ -139,10 +139,11 @@ export function useUnitCircle() {
   }, []);
 
   // Генерация вариантов
-  const generate = useCallback(() => {
+  const generate = useCallback((override) => {
+    const s = override ? { ...settings, ...override } : settings;
     const variants = Array.from(
-      { length: settings.variantsCount },
-      () => generateVariant(settings)
+      { length: s.variantsCount },
+      () => generateVariant(s)
     );
     setTasksData(variants);
     setSavedId(null); // новая генерация сбрасывает связь с сохранённой

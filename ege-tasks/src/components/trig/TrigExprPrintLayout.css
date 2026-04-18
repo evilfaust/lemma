@@ -117,14 +117,20 @@
 
   .texpr-question {
     display: flex;
-    align-items: baseline;
-    gap: 3px;
-    min-height: 9mm;
+    flex-direction: column;
+    gap: 0;
     padding: 1.5mm 0;
     border-bottom: 1px dotted #ccc;
   }
   .texpr-question:last-child {
     border-bottom: none;
+  }
+
+  .texpr-question-top {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    min-height: 9mm;
   }
 
   .texpr-q-label {
@@ -152,15 +158,10 @@
 
   /* ─── Двухстрочный режим (для уравнений) ─────────────────────────────────── */
   .texpr-question--twoLine {
-    flex-direction: column;
     gap: 1mm;
-    min-height: 14mm;
   }
-
-  .texpr-question-top {
-    display: flex;
-    align-items: baseline;
-    gap: 3px;
+  .texpr-question--twoLine .texpr-question-top {
+    min-height: 14mm;
   }
 
   .texpr-question-answer {
@@ -257,5 +258,11 @@
   .texpr-key-ans {
     font-weight: bold;
     font-size: 9pt;
+  }
+
+  /* ─── Место для работы ───────────────────────────────────────────────────── */
+  .texpr-workspace {
+    width: 100%;
+    margin-top: 1mm;
   }
 }

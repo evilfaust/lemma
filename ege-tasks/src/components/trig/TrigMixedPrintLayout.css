@@ -1,0 +1,384 @@
+/* Скрыто на экране */
+.tmixed-print-root {
+  display: none;
+}
+
+@media print {
+  body:has(.tmixed-print-root) {
+    visibility: hidden;
+  }
+  .tmixed-print-root {
+    display: block !important;
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .tmixed-print-root * {
+    visibility: visible;
+  }
+
+  /* ─── Страница варианта ──────────────────────────────────────────────────── */
+  .tmixed-page {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 100vh;
+    padding: 12mm 16mm 12mm 20mm;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #000;
+    background: #fff;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* Два варианта на листе */
+  .tmixed-page--half {
+    padding: 8mm 14mm 8mm 16mm;
+    min-height: 50vh;
+    border-bottom: 1px dashed #888;
+  }
+  .tmixed-page--half:last-of-type {
+    border-bottom: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* ─── Шапка варианта ─────────────────────────────────────────────────────── */
+  .tmixed-header {
+    display: flex;
+    align-items: baseline;
+    gap: 4mm;
+    margin-bottom: 1.5mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1px solid #000;
+    flex-wrap: nowrap;
+  }
+
+  .tmixed-variant-badge {
+    font-weight: bold;
+    font-size: 11pt;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tmixed-field {
+    display: flex;
+    align-items: baseline;
+    gap: 1.5mm;
+    font-size: 10pt;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tmixed-field--name {
+    flex: 1;
+  }
+  .tmixed-field--name .tmixed-line {
+    flex: 1;
+  }
+
+  .tmixed-line {
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    vertical-align: bottom;
+  }
+  .tmixed-line--name  { min-width: 40mm; width: 100%; }
+  .tmixed-line--short { width: 18mm; }
+
+  /* ─── Заголовок работы ───────────────────────────────────────────────────── */
+  .tmixed-work-title {
+    font-size: 11pt;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 3mm;
+  }
+
+  /* ─── Секция генератора ──────────────────────────────────────────────────── */
+  .tmixed-section {
+    margin-bottom: 2mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #bbb;
+  }
+  .tmixed-section:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .tmixed-section-header {
+    font-size: 10pt;
+    font-weight: bold;
+    margin-bottom: 1mm;
+    padding-bottom: 0.5mm;
+    border-bottom: 1px dotted #666;
+  }
+
+  .tmixed-instruction {
+    font-size: 10pt;
+    font-style: italic;
+    margin-bottom: 1mm;
+  }
+
+  /* ─── Список заданий (обычный) ───────────────────────────────────────────── */
+  .tmixed-questions {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* Компактный режим — 2 колонки */
+  .tmixed-questions--compact {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 6mm;
+  }
+
+  /* ─── Одно задание ───────────────────────────────────────────────────────── */
+  .tmixed-question {
+    display: flex;
+    flex-direction: column;
+    padding: 1mm 0;
+    break-inside: avoid;
+  }
+
+  .tmixed-question-top {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    min-height: 8mm;
+  }
+
+  .tmixed-q-label {
+    font-weight: bold;
+    min-width: 18px;
+    flex-shrink: 0;
+  }
+
+  .tmixed-q-expr {
+    flex: 1;
+    font-size: 10.5pt;
+  }
+
+  .tmixed-q-equals {
+    padding: 0 2px;
+  }
+
+  .tmixed-q-answer-space {
+    display: inline-block;
+    width: 22mm;
+    flex-shrink: 0;
+  }
+
+  /* Двухстрочный режим (уравнения) */
+  .tmixed-question--twoLine .tmixed-question-top {
+    min-height: 12mm;
+  }
+
+  .tmixed-question-answer {
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+    padding-left: 18px;
+  }
+
+  .tmixed-q-answer-label {
+    font-size: 10.5pt;
+    white-space: nowrap;
+  }
+
+  .tmixed-q-answer-line {
+    flex: 1;
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    min-width: 50mm;
+    max-width: 110mm;
+  }
+
+  /* Место для решения */
+  .tmixed-workspace {
+    width: 100%;
+    margin-top: 1mm;
+  }
+
+  /* ─── Блок единичной окружности ──────────────────────────────────────────── */
+  .tmixed-uc-tasks {
+    display: flex;
+    flex-direction: column;
+    gap: 3mm;
+    margin-top: 1mm;
+  }
+
+  .tmixed-uc-task {
+    display: flex;
+    align-items: flex-start;
+    gap: 5mm;
+    break-inside: avoid;
+  }
+
+  .tmixed-uc-circle-wrap {
+    width: 68mm;
+    height: 72mm;
+    flex-shrink: 0;
+    position: relative;
+  }
+
+  .tmixed-uc-task-num {
+    position: absolute;
+    top: 0;
+    left: 0;
+    font-weight: bold;
+    font-size: 11pt;
+    z-index: 1;
+    line-height: 1;
+  }
+
+  .tmixed-uc-points {
+    flex: 1;
+    padding-top: 6mm;
+  }
+
+  .tmixed-uc-points-label {
+    font-size: 9pt;
+    font-style: italic;
+    margin-bottom: 2mm;
+  }
+
+  /* Точки/ответы в строку с переносом */
+  .tmixed-uc-angle-list,
+  .tmixed-uc-answer-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2mm 5mm;
+    align-items: baseline;
+  }
+
+  .tmixed-uc-angle-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1mm;
+    font-size: 10pt;
+    white-space: nowrap;
+  }
+
+  .tmixed-uc-pt-num {
+    font-weight: bold;
+    flex-shrink: 0;
+  }
+
+  .tmixed-uc-answer-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 1mm;
+    white-space: nowrap;
+  }
+
+  .tmixed-uc-answer-blank {
+    display: inline-block;
+    border-bottom: 1px solid #000;
+    width: 20mm;
+  }
+
+  /* ─── Страница ответов (учитель) ─────────────────────────────────────────── */
+  .tmixed-key-page {
+    padding: 12mm 16mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .tmixed-key-title {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 4mm;
+    padding-bottom: 1.5mm;
+    border-bottom: 1px solid #000;
+  }
+
+  .tmixed-key-section {
+    margin-bottom: 4mm;
+    break-inside: avoid;
+  }
+
+  .tmixed-key-section-name {
+    font-size: 10pt;
+    font-weight: bold;
+    margin-bottom: 1.5mm;
+    padding-bottom: 0.5mm;
+    border-bottom: 1px dotted #aaa;
+  }
+
+  .tmixed-key-variants-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 3mm 8mm;
+  }
+
+  .tmixed-key-variant-block {
+    break-inside: avoid;
+  }
+
+  .tmixed-key-variant-title {
+    font-size: 9pt;
+    font-weight: bold;
+    margin-bottom: 1mm;
+  }
+
+  .tmixed-key-row {
+    display: flex;
+    align-items: baseline;
+    gap: 2px;
+    font-size: 8.5pt;
+    margin-bottom: 0.5mm;
+    flex-wrap: wrap;
+  }
+
+  .tmixed-key-label {
+    font-weight: bold;
+    min-width: 14px;
+    flex-shrink: 0;
+  }
+
+  .tmixed-key-expr {
+    flex: 1;
+    color: #444;
+    font-size: 8pt;
+  }
+
+  .tmixed-key-eq {
+    padding: 0 2px;
+    flex-shrink: 0;
+  }
+
+  .tmixed-key-ans {
+    font-weight: bold;
+    font-size: 8.5pt;
+  }
+
+  /* Ключ уравнений — многострочный */
+  .tmixed-key-row--eq {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .tmixed-key-row--eq .tmixed-key-expr { flex: none; }
+
+  /* Ключ единичной окружности */
+  .tmixed-key-uc-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3mm;
+  }
+
+  .tmixed-key-uc-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    break-inside: avoid;
+  }
+
+  .tmixed-key-uc-label {
+    font-size: 8pt;
+    font-weight: bold;
+    margin-bottom: 0.5mm;
+  }
+}

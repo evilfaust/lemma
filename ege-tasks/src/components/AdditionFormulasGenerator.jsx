@@ -165,6 +165,22 @@ export default function AdditionFormulasGenerator() {
           </div>
 
           <Divider style={{ margin: '10px 0' }} />
+          <Checkbox checked={settings.showWorkSpace}
+            onChange={e => updateSetting('showWorkSpace', e.target.checked)}>
+            Место для работы
+          </Checkbox>
+          {settings.showWorkSpace && (
+            <div style={{ marginTop: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
+                Высота: <b>{settings.workSpaceSize} мм</b>
+              </div>
+              <Slider min={2} max={50} value={settings.workSpaceSize}
+                onChange={v => updateSetting('workSpaceSize', v)}
+                marks={{ 2: '2', 15: '15', 30: '30', 50: '50' }} size="small" />
+            </div>
+          )}
+
+          <Divider style={{ margin: '10px 0' }} />
 
           <Space direction="vertical" style={{ width: '100%' }}>
             <Button type="primary" block icon={<ReloadOutlined />} onClick={generate}>

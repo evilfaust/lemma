@@ -35,8 +35,11 @@ import TrigValuesGenerator from './components/TrigValuesGenerator';
 import TrigExpressionsGenerator from './components/TrigExpressionsGenerator';
 import InverseTrigGenerator from './components/InverseTrigGenerator';
 import TrigEquationsGenerator from './components/TrigEquationsGenerator';
+import TrigEquationsAdvancedGenerator from './components/TrigEquationsAdvancedGenerator';
 import ReductionFormulasGenerator from './components/ReductionFormulasGenerator';
 import AdditionFormulasGenerator from './components/AdditionFormulasGenerator';
+import TrigMixedGenerator from './components/TrigMixedGenerator';
+import DoubleAngleGenerator from './components/DoubleAngleGenerator';
 import MarathonGenerator from './components/MarathonGenerator';
 import EgeScoreCalculator from './components/EgeScoreCalculator';
 import { api } from './services/pocketbase';
@@ -192,13 +195,16 @@ function AppContent() {
       icon: <RadarChartOutlined />,
       label: 'Тригонометрия',
       children: [
+        { key: 'trig-mixed',   icon: <FunctionOutlined />, label: 'Смешанная работа' },
         { key: 'unit-circle', icon: <RadarChartOutlined />, label: 'Единичная окружность' },
         { key: 'trig-values', icon: <RadarChartOutlined />, label: 'Значения функций' },
         { key: 'trig-expressions', icon: <FunctionOutlined />, label: 'Вычисление выражений' },
         { key: 'inverse-trig', icon: <FunctionOutlined />, label: 'Обратные функции' },
         { key: 'trig-equations', icon: <FunctionOutlined />, label: 'Уравнения' },
+        { key: 'trig-equations-advanced', icon: <FunctionOutlined />, label: 'Уравнения f(kx+b)=a' },
         { key: 'reduction-formulas', icon: <FunctionOutlined />, label: 'Формулы приведения' },
         { key: 'addition-formulas',  icon: <FunctionOutlined />, label: 'Формулы сложения' },
+        { key: 'double-angle',       icon: <FunctionOutlined />, label: 'Двойной аргумент' },
         { key: 'trig-cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
       ],
     },
@@ -358,6 +364,8 @@ function AppContent() {
             onBack={() => setCurrentView('tdf')}
           />
         );
+      case 'trig-mixed':
+        return <TrigMixedGenerator />;
       case 'unit-circle':
         return <UnitCircleGenerator />;
       case 'trig-values':
@@ -368,10 +376,14 @@ function AppContent() {
         return <InverseTrigGenerator />;
       case 'trig-equations':
         return <TrigEquationsGenerator />;
+      case 'trig-equations-advanced':
+        return <TrigEquationsAdvancedGenerator />;
       case 'reduction-formulas':
         return <ReductionFormulasGenerator />;
       case 'addition-formulas':
         return <AdditionFormulasGenerator />;
+      case 'double-angle':
+        return <DoubleAngleGenerator />;
       case 'trig-cryptogram':
         return <UnitCircleCryptogramGenerator />;
       case 'route-sheet':
@@ -443,13 +455,16 @@ function AppContent() {
       case 'tdf-editor': return 'ТДФ — Редактор конспекта';
       case 'tdf-variants': return 'ТДФ — Варианты';
       case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
+      case 'trig-mixed':  return 'Тригонометрия — Смешанная работа';
       case 'unit-circle': return 'Тригонометрия — Единичная окружность';
       case 'trig-values': return 'Тригонометрия — Значения функций';
       case 'trig-expressions': return 'Тригонометрия — Вычисление выражений';
       case 'inverse-trig': return 'Тригонометрия — Обратные функции';
       case 'trig-equations': return 'Тригонометрия — Уравнения';
+      case 'trig-equations-advanced': return 'Тригонометрия — Уравнения f(kx+b)=a';
       case 'reduction-formulas': return 'Тригонометрия — Формулы приведения';
       case 'addition-formulas':  return 'Тригонометрия — Формулы сложения';
+      case 'double-angle':       return 'Тригонометрия — Двойной аргумент';
       case 'trig-cryptogram': return 'Тригонометрия — Шифровки';
       case 'route-sheet': return 'Маршрутный лист';
       case 'marathon': return 'Марафон — подготовка и проведение';

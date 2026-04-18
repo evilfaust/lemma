@@ -4,7 +4,7 @@ import {
   Divider, Space, Input, Tag, Popconfirm,
 } from 'antd';
 import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
-import { useTrigEquations } from '../hooks/useTrigEquations';
+import { useTrigEquationsAdvanced } from '../hooks/useTrigEquationsAdvanced';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
 
 function MathInline({ latex }) {
@@ -16,8 +16,8 @@ function MathInline({ latex }) {
 
 const LABELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 
-export default function TrigEquationsGenerator() {
-  const { title, setTitle, settings, updateSetting, tasksData, generate, reset } = useTrigEquations();
+export default function TrigEquationsAdvancedGenerator() {
+  const { title, setTitle, settings, updateSetting, tasksData, generate, reset } = useTrigEquationsAdvanced();
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -28,22 +28,15 @@ export default function TrigEquationsGenerator() {
     setTimeout(() => document.getElementById('texpr-print-page-style')?.remove(), 1500);
   };
 
-  const fnBoxes = [
-    { key: 'useSin', label: 'sin t = a' },
-    { key: 'useCos', label: 'cos t = a' },
-    { key: 'useTan', label: 'tg t = a' },
-    { key: 'useCot', label: 'ctg t = a' },
-  ];
-
   return (
     <div style={{ padding: 16, maxWidth: 1200 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <FunctionOutlined style={{ fontSize: 20, color: '#13c2c2' }} />
+        <FunctionOutlined style={{ fontSize: 20, color: '#722ed1' }} />
         <Input
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="Название листа"
-          style={{ maxWidth: 420, fontSize: 15 }}
+          style={{ maxWidth: 480, fontSize: 15 }}
         />
       </div>
 
@@ -80,10 +73,18 @@ export default function TrigEquationsGenerator() {
           <Divider style={{ margin: '8px 0' }} />
           <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Типы уравнений</div>
           <Space direction="vertical" size={4}>
-            {fnBoxes.map(f => (
-              <Checkbox key={f.key} checked={settings[f.key]}
-                onChange={e => updateSetting(f.key, e.target.checked)}>{f.label}</Checkbox>
-            ))}
+            <Checkbox
+              checked={settings.useType1}
+              onChange={e => updateSetting('useType1', e.target.checked)}
+            >
+              f(kx) = a
+            </Checkbox>
+            <Checkbox
+              checked={settings.useType2}
+              onChange={e => updateSetting('useType2', e.target.checked)}
+            >
+              A·f(kx + b) = c
+            </Checkbox>
           </Space>
 
           <Divider style={{ margin: '8px 0' }} />
@@ -136,9 +137,11 @@ export default function TrigEquationsGenerator() {
           ) : (
             <>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                <Tag color="cyan">{settings.questionsCount} зад./вар.</Tag>
+                <Tag color="purple">{settings.questionsCount} зад./вар.</Tag>
                 <Tag color="orange">{settings.variantsCount} вар.</Tag>
-                {settings.twoPerPage && <Tag color="green">2 вар./лист</Tag>}
+                {settings.useType1 && <Tag color="blue">f(kx) = a</Tag>}
+                {settings.useType2 && <Tag color="green">A·f(kx+b) = c</Tag>}
+                {settings.twoPerPage && <Tag color="cyan">2 вар./лист</Tag>}
                 {settings.showTeacherKey && <Tag>+ Ответы</Tag>}
               </div>
 
@@ -159,7 +162,7 @@ export default function TrigEquationsGenerator() {
                         fontSize: 13 }}>
                         <span style={{ fontWeight: 600, minWidth: 18, color: '#555' }}>{LABELS[qi]})</span>
                         <span style={{ flex: 1 }}><MathInline latex={q.exprLatex} /></span>
-                        <span style={{ color: '#13c2c2', fontWeight: 500, fontSize: 11, maxWidth: 280, textAlign: 'right' }}>
+                        <span style={{ color: '#722ed1', fontWeight: 500, fontSize: 11, maxWidth: 340, textAlign: 'right' }}>
                           <MathInline latex={q.resultLatex} />
                         </span>
                       </div>

@@ -242,6 +242,8 @@ export const DEFAULT_SETTINGS = {
   useDegrees:     false,      // градусная мера угла
   showTeacherKey: true,
   twoPerPage:     false,
+  showWorkSpace:  false,
+  workSpaceSize:  20,
 };
 
 // ─── Хук ──────────────────────────────────────────────────────────────────────
@@ -253,13 +255,14 @@ export function useInverseTrig() {
   const updateSetting = useCallback((k, v) =>
     setSettings(p => ({ ...p, [k]: v })), []);
 
-  const generate = useCallback(() => {
+  const generate = useCallback((override) => {
+    const s = override ? { ...settings, ...override } : settings;
     const {
       variantsCount, questionsCount, taskType,
       useArcsin, useArccos, useArctan, useArccot,
       useOuterSin, useOuterCos, useOuterTan, useOuterCot,
       useDegrees,
-    } = settings;
+    } = s;
 
     const arcFns = [
       useArcsin && 'arcsin', useArccos && 'arccos',

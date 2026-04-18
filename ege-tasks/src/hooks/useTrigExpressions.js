@@ -210,6 +210,8 @@ export const DEFAULT_SETTINGS = {
   useDegrees:      false,      // градусная мера угла
   showTeacherKey:  true,
   twoPerPage:      false,      // 2 варианта на одной A4
+  showWorkSpace:   false,
+  workSpaceSize:   20,
 };
 
 // ─── Хук ─────────────────────────────────────────────────────────────────────
@@ -221,11 +223,12 @@ export function useTrigExpressions() {
   const updateSetting = useCallback((k, v) =>
     setSettings(p => ({ ...p, [k]: v })), []);
 
-  const generate = useCallback(() => {
+  const generate = useCallback((override) => {
+    const s = override ? { ...settings, ...override } : settings;
     const {
       variantsCount, questionsCount, taskType, termsCount,
       useSin, useCos, useTan, useCot, useNegAngles, useDegrees,
-    } = settings;
+    } = s;
 
     const fns = [useSin && 'sin', useCos && 'cos', useTan && 'tan', useCot && 'cot'].filter(Boolean);
     if (fns.length === 0) return;

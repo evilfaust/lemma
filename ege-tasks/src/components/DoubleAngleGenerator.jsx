@@ -1,11 +1,10 @@
-import { useState } from 'react';
 import katex from 'katex';
 import {
-  Card, Button, Slider, Radio, Checkbox,
+  Card, Button, Slider, Checkbox,
   Divider, Space, Input, Switch, Tag, Row, Col,
 } from 'antd';
 import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
-import { useReductionFormulas } from '../hooks/useReductionFormulas';
+import { useDoubleAngle } from '../hooks/useDoubleAngle';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
 
 function MathInline({ latex }) {
@@ -18,67 +17,54 @@ function MathInline({ latex }) {
 const LABELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 
 const TASK_TYPE_OPTIONS = [
-  { value: 'basic',    label: 'Формулы приведения',     desc: 'sin(π/2 + α) = ?' },
-  { value: 'reversed', label: 'Перевёрнутый аргумент',  desc: 'cos(α − π/2) = ?' },
-  { value: 'numeric',  label: 'Числовые выражения',     desc: '14√3 cos 750° = ?' },
+  { value: 'numeric',  label: 'Числовое вычисление', desc: '2sin35°cos35° = ?' },
+  { value: 'symbolic', label: 'Символьное упрощение', desc: '2sin3x cos3x = ?' },
+  { value: 'mixed',    label: 'Распознавание формул', desc: '(cosα+sinα)² = ?' },
 ];
 
 const FUNC_OPTIONS = [
   { value: 'sin', label: 'sin' },
   { value: 'cos', label: 'cos' },
   { value: 'tan', label: 'tg' },
-  { value: 'cot', label: 'ctg' },
-];
-
-const NUM_PATTERN_OPTIONS = [
-  { value: 'sqrt3',        label: 'a√3 · f(α)' },
-  { value: 'sqrt2',        label: 'a√2 · f(α)' },
-  { value: 'complementary', label: 'f(A°)·f(90°−A°)' },
 ];
 
 function getInstruction(taskTypes) {
-  const basic    = taskTypes.includes('basic');
-  const reversed = taskTypes.includes('reversed');
-  const numeric  = taskTypes.includes('numeric');
-  if (numeric && !basic && !reversed) return 'Найдите значение выражения:';
-  if (!numeric && (basic || reversed)) return 'Упростите выражение:';
-  return 'Упростите выражение или найдите значение:';
+  const hasEval = taskTypes.includes('numeric');
+  const hasSym  = taskTypes.includes('symbolic') || taskTypes.includes('mixed');
+  if (hasSym && !hasEval) return 'Упростите выражение:';
+  if (!hasSym && hasEval) return 'Вычислите:';
+  return 'Вычислите или упростите:';
 }
 
-export default function ReductionFormulasGenerator() {
+export default function DoubleAngleGenerator() {
   const {
     title, setTitle,
     settings, updateSetting,
     tasksData,
     generate, reset,
-  } = useReductionFormulas();
+  } = useDoubleAngle();
 
   const handlePrint = () => {
     const style = document.createElement('style');
-    style.id = 'rf-print-page-style';
+    style.id = 'da-print-page-style';
     style.textContent = '@page { size: A4 portrait; margin: 0; }';
     document.head.appendChild(style);
     window.print();
-    setTimeout(() => document.getElementById('rf-print-page-style')?.remove(), 1500);
+    setTimeout(() => document.getElementById('da-print-page-style')?.remove(), 1500);
   };
 
-  const { taskTypes, funcs, angleMode, variantsCount, tasksPerVariant,
-          numPatterns, twoPerPage, showTeacherKey } = settings;
-
-  const hasSymbolic = taskTypes.includes('basic') || taskTypes.includes('reversed');
-  const hasNumeric  = taskTypes.includes('numeric');
+  const {
+    taskTypes, funcs, incSin, incCos, incTan,
+    variantsCount, tasksPerVariant,
+    twoPerPage, showTeacherKey,
+  } = settings;
 
   const instruction = getInstruction(taskTypes);
 
-  // Теги активных настроек для краткого описания
-  const typeTags = TASK_TYPE_OPTIONS.filter(o => taskTypes.includes(o.value)).map(o => o.label);
-  const funcTags = FUNC_OPTIONS.filter(o => funcs.includes(o.value)).map(o => o.label);
-
   return (
     <div style={{ padding: 16, maxWidth: 1200 }}>
-      {/* Заголовок */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <FunctionOutlined style={{ fontSize: 20, color: '#1677ff' }} />
+        <FunctionOutlined style={{ fontSize: 20, color: '#722ed1' }} />
         <Input
           value={title}
           onChange={e => setTitle(e.target.value)}
@@ -95,7 +81,7 @@ export default function ReductionFormulasGenerator() {
             <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Типы задач</div>
             <Space direction="vertical" size={4}>
               {TASK_TYPE_OPTIONS.map(o => (
-                <div key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div key={o.value} style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                   <Checkbox
                     checked={taskTypes.includes(o.value)}
                     onChange={e => {
@@ -115,25 +101,6 @@ export default function ReductionFormulasGenerator() {
 
           <Divider style={{ margin: '10px 0' }} />
 
-          {hasSymbolic && (
-            <>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Единицы угла</div>
-                <Radio.Group
-                  value={angleMode}
-                  onChange={e => updateSetting('angleMode', e.target.value)}
-                  buttonStyle="solid"
-                  size="small"
-                >
-                  <Radio.Button value="radians">рад</Radio.Button>
-                  <Radio.Button value="degrees">°</Radio.Button>
-                  <Radio.Button value="both">оба</Radio.Button>
-                </Radio.Group>
-              </div>
-              <Divider style={{ margin: '10px 0' }} />
-            </>
-          )}
-
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Функции</div>
             <Checkbox.Group
@@ -143,38 +110,44 @@ export default function ReductionFormulasGenerator() {
             />
           </div>
 
-          <Divider style={{ margin: '10px 0' }} />
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Формулы cos 2α</div>
+            <Space direction="vertical" size={4}>
+              <Checkbox
+                checked={incCos}
+                onChange={e => { if (e.target.checked || incSin || incTan) updateSetting('incCos', e.target.checked); }}
+              >
+                cos²α − sin²α (и варианты)
+              </Checkbox>
+              <Checkbox
+                checked={incSin}
+                onChange={e => { if (e.target.checked || incCos || incTan) updateSetting('incSin', e.target.checked); }}
+              >
+                2sin α cos α
+              </Checkbox>
+              {funcs.includes('tan') && (
+                <Checkbox
+                  checked={incTan}
+                  onChange={e => { if (e.target.checked || incSin || incCos) updateSetting('incTan', e.target.checked); }}
+                >
+                  2tg α / (1−tg²α)
+                </Checkbox>
+              )}
+            </Space>
+          </div>
 
-          {hasNumeric && (
-            <>
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>Числовые паттерны</div>
-                <Space direction="vertical" size={4}>
-                  {NUM_PATTERN_OPTIONS.map(o => (
-                    <Checkbox
-                      key={o.value}
-                      checked={numPatterns[o.value]}
-                      onChange={e => {
-                        const next = { ...numPatterns, [o.value]: e.target.checked };
-                        if (Object.values(next).some(Boolean)) updateSetting('numPatterns', next);
-                      }}
-                    >
-                      {o.label}
-                    </Checkbox>
-                  ))}
-                </Space>
-              </div>
-              <Divider style={{ margin: '10px 0' }} />
-            </>
-          )}
+          <Divider style={{ margin: '10px 0' }} />
 
           <div style={{ marginBottom: 14 }}>
             <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
               Задач в варианте: <b>{tasksPerVariant}</b>
             </div>
             <Slider
-              min={4} max={20} value={tasksPerVariant}
+              min={4} max={20}
+              value={tasksPerVariant}
               onChange={v => updateSetting('tasksPerVariant', v)}
+              marks={{ 4: '4', 8: '8', 12: '12', 20: '20' }}
+              size="small"
             />
           </div>
 
@@ -183,7 +156,8 @@ export default function ReductionFormulasGenerator() {
               Вариантов: <b>{variantsCount}</b>
             </div>
             <Slider
-              min={1} max={32} value={variantsCount}
+              min={1} max={32}
+              value={variantsCount}
               onChange={v => updateSetting('variantsCount', v)}
               marks={{ 1: '1', 10: '10', 20: '20', 32: '32' }}
               size="small"
@@ -204,8 +178,10 @@ export default function ReductionFormulasGenerator() {
           </div>
 
           <Divider style={{ margin: '10px 0' }} />
-          <Checkbox checked={settings.showWorkSpace}
-            onChange={e => updateSetting('showWorkSpace', e.target.checked)}>
+          <Checkbox
+            checked={settings.showWorkSpace}
+            onChange={e => updateSetting('showWorkSpace', e.target.checked)}
+          >
             Место для работы
           </Checkbox>
           {settings.showWorkSpace && (
@@ -213,9 +189,13 @@ export default function ReductionFormulasGenerator() {
               <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
                 Высота: <b>{settings.workSpaceSize} мм</b>
               </div>
-              <Slider min={2} max={50} value={settings.workSpaceSize}
+              <Slider
+                min={2} max={50}
+                value={settings.workSpaceSize}
                 onChange={v => updateSetting('workSpaceSize', v)}
-                marks={{ 2: '2', 15: '15', 30: '30', 50: '50' }} size="small" />
+                marks={{ 2: '2', 15: '15', 30: '30', 50: '50' }}
+                size="small"
+              />
             </div>
           )}
 
@@ -227,9 +207,7 @@ export default function ReductionFormulasGenerator() {
             </Button>
             {tasksData && (
               <>
-                <Button block icon={<PrinterOutlined />} onClick={handlePrint}>
-                  Печать
-                </Button>
+                <Button block icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>
                 <Button block size="small" onClick={reset}>Сбросить</Button>
               </>
             )}
@@ -241,10 +219,10 @@ export default function ReductionFormulasGenerator() {
           {!tasksData ? (
             <Card size="small">
               <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
-                <FunctionOutlined style={{ fontSize: 32, marginBottom: 12 }} />
+                <FunctionOutlined style={{ fontSize: 32, marginBottom: 12, color: '#d3adf7' }} />
                 <div style={{ fontSize: 15 }}>Настройте параметры и нажмите «Сформировать»</div>
                 <div style={{ fontSize: 12, marginTop: 8 }}>
-                  Типы: {typeTags.join(', ')} · Функции: {funcTags.join(', ')}
+                  Формулы двойного аргумента: sin 2α, cos 2α, tg 2α
                 </div>
               </div>
             </Card>
@@ -254,15 +232,14 @@ export default function ReductionFormulasGenerator() {
               title={
                 <span>
                   Предпросмотр
-                  <Tag style={{ marginLeft: 8 }} color="blue">{variantsCount} вар.</Tag>
+                  <Tag style={{ marginLeft: 8 }} color="purple">{variantsCount} вар.</Tag>
                   <Tag color="geekblue">{tasksPerVariant} задач</Tag>
                 </span>
               }
             >
-              {/* Экранный предпросмотр */}
               {tasksData.map((variant, vi) => (
                 <div key={vi} style={{ marginBottom: 20 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 8, color: '#1677ff' }}>
+                  <div style={{ fontWeight: 600, marginBottom: 8, color: '#722ed1' }}>
                     Вариант {vi + 1}
                   </div>
                   <Row gutter={[8, 4]}>
@@ -286,7 +263,6 @@ export default function ReductionFormulasGenerator() {
         </div>
       </div>
 
-      {/* ── Печатный блок ── */}
       {tasksData && (
         <TrigExprPrintLayout
           tasksData={tasksData}

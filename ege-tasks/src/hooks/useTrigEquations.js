@@ -207,6 +207,8 @@ export const DEFAULT_SETTINGS = {
   useCot:         false,
   showTeacherKey: true,
   twoPerPage:     false,
+  showWorkSpace:  false,
+  workSpaceSize:  30,
 };
 
 // ─── Хук ──────────────────────────────────────────────────────────────────────
@@ -218,8 +220,9 @@ export function useTrigEquations() {
   const updateSetting = useCallback((k, v) =>
     setSettings(p => ({ ...p, [k]: v })), []);
 
-  const generate = useCallback(() => {
-    const { variantsCount, questionsCount, useSin, useCos, useTan, useCot } = settings;
+  const generate = useCallback((override) => {
+    const s = override ? { ...settings, ...override } : settings;
+    const { variantsCount, questionsCount, useSin, useCos, useTan, useCot } = s;
 
     const fns = [
       useSin && 'sin', useCos && 'cos',

@@ -226,6 +226,8 @@ export const DEFAULT_RF_SETTINGS = {
   numPatterns: { sqrt3: true, sqrt2: true, complementary: true },
   twoPerPage: false,
   showTeacherKey: true,
+  showWorkSpace: false,
+  workSpaceSize: 25,
 };
 
 export function useReductionFormulas() {
@@ -237,8 +239,9 @@ export function useReductionFormulas() {
     setSettings(prev => ({ ...prev, [key]: value }));
   }, []);
 
-  const generate = useCallback(() => {
-    const { variantsCount, tasksPerVariant, taskTypes, funcs, angleMode, numPatterns } = settings;
+  const generate = useCallback((override) => {
+    const s = override ? { ...settings, ...override } : settings;
+    const { variantsCount, tasksPerVariant, taskTypes, funcs, angleMode, numPatterns } = s;
     if (!taskTypes.length || !funcs.length) return;
 
     const data = Array.from({ length: variantsCount }, () =>

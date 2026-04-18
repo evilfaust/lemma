@@ -16,7 +16,13 @@ function MathLine({ latex }) {
 //   'inline'  — задание + "=" + пустое место (по умолчанию)
 //   'twoLine' — задание на первой строке, "t = ___" на второй (для уравнений)
 //   'plain'   — только задание, без поля для ответа (для уравнений без строки ответа)
-function QuestionRow({ q, qi, questionMode }) {
+function WorkSpace({ size }) {
+  return <div className="texpr-workspace" style={{ height: `${size}mm` }} />;
+}
+
+function QuestionRow({ q, qi, questionMode, showWorkSpace, workSpaceSize }) {
+  const ws = showWorkSpace ? <WorkSpace size={workSpaceSize} /> : null;
+
   if (questionMode === 'twoLine') {
     return (
       <div className="texpr-question texpr-question--twoLine">
@@ -28,29 +34,36 @@ function QuestionRow({ q, qi, questionMode }) {
           <span className="texpr-q-answer-label">t =</span>
           <span className="texpr-q-answer-line" />
         </div>
+        {ws}
       </div>
     );
   }
   if (questionMode === 'plain') {
     return (
-      <div className="texpr-question">
-        <span className="texpr-q-label">{LABELS[qi]})</span>
-        <span className="texpr-q-expr"><MathLine latex={q.exprLatex} /></span>
+      <div className="texpr-question texpr-question--plain">
+        <div className="texpr-question-top">
+          <span className="texpr-q-label">{LABELS[qi]})</span>
+          <span className="texpr-q-expr"><MathLine latex={q.exprLatex} /></span>
+        </div>
+        {ws}
       </div>
     );
   }
   return (
     <div className="texpr-question">
-      <span className="texpr-q-label">{LABELS[qi]})</span>
-      <span className="texpr-q-expr"><MathLine latex={q.exprLatex} /></span>
-      <span className="texpr-q-equals">=</span>
-      <span className="texpr-q-answer-space" />
+      <div className="texpr-question-top">
+        <span className="texpr-q-label">{LABELS[qi]})</span>
+        <span className="texpr-q-expr"><MathLine latex={q.exprLatex} /></span>
+        <span className="texpr-q-equals">=</span>
+        <span className="texpr-q-answer-space" />
+      </div>
+      {ws}
     </div>
   );
 }
 
 // ─── Одна страница ученика ────────────────────────────────────────────────────
-function StudentPage({ variant, variantIndex, title, mode, instruction, questionMode }) {
+function StudentPage({ variant, variantIndex, title, mode, instruction, questionMode, showWorkSpace, workSpaceSize }) {
   const pageClass = mode === 'half' ? 'texpr-page texpr-page--half' : 'texpr-page texpr-page--full';
 
   return (
@@ -67,7 +80,8 @@ function StudentPage({ variant, variantIndex, title, mode, instruction, question
 
       <div className="texpr-questions">
         {variant.map((q, qi) => (
-          <QuestionRow key={qi} q={q} qi={qi} questionMode={questionMode} />
+          <QuestionRow key={qi} q={q} qi={qi} questionMode={questionMode}
+            showWorkSpace={showWorkSpace} workSpaceSize={workSpaceSize} />
         ))}
       </div>
     </div>
@@ -106,10 +120,10 @@ function TeacherKeyPage({ tasksData, title, questionMode }) {
 export default function TrigExprPrintLayout({
   tasksData, settings, title,
   instruction,        // текст инструкции ("Вычислите:", "Решите уравнение:" и т.д.)
-  questionMode,       // 'inline' | 'twoLine'
+  questionMode,       // 'inline' | 'twoLine' | 'plain'
 }) {
   if (!tasksData) return null;
-  const { twoPerPage, showTeacherKey } = settings;
+  const { twoPerPage, showTeacherKey, showWorkSpace = false, workSpaceSize = 25 } = settings;
   const qMode = questionMode || 'inline';
 
   let pages;
@@ -128,6 +142,8 @@ export default function TrigExprPrintLayout({
               mode="half"
               instruction={instruction}
               questionMode={qMode}
+              showWorkSpace={showWorkSpace}
+              workSpaceSize={workSpaceSize}
             />
           ))}
         </div>
@@ -143,6 +159,8 @@ export default function TrigExprPrintLayout({
         mode="full"
         instruction={instruction}
         questionMode={qMode}
+        showWorkSpace={showWorkSpace}
+        workSpaceSize={workSpaceSize}
       />
     ));
   }
