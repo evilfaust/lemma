@@ -1,5 +1,20 @@
 # Changelog — История изменений
 
+## [3.9.8] - 2026-04-20
+
+### Удалён tldraw
+
+- `TldrawSection.jsx` и пакет `@tldraw/tldraw` удалены — требует коммерческую лицензию для production-деплоя
+- В меню «Лаборатория» остался только Excalidraw
+- Билд уменьшился на ~1.7MB (chunk `TldrawSection` исчез)
+
+### Инфраструктура: деплой на Raspberry Pi 4
+
+- Приложение задеплоено на домашний сервер: `https://l.oipav.ru/`
+- nginx в Docker: порт 80→443 редирект, TLS (Let's Encrypt), Basic Auth, gzip (73% сжатие JS)
+- Nginx Proxy Manager удалён — заменён plain nginx
+- Автообновление сертификата: cron каждый понедельник в 3:00
+
 ## [3.9.7] - 2026-04-18
 
 ### Новый раздел: Смешанная работа (TrigMixedGenerator)

@@ -45,7 +45,7 @@ const APP_BRAND = '© Лемма 2025–2026 уч. г.';
 
 // Размеры в px (при 96dpi: 1mm ≈ 3.78px)
 const MM_TO_PX = 3.78;
-const KIM_GAP_PX = 3 * MM_TO_PX; // 3mm gap
+const KIM_GAP_PX = 2.5 * MM_TO_PX; // 2.5mm gap
 
 /**
  * Разбивает задачи по страницам на основе реальных DOM-измерений.
@@ -53,24 +53,24 @@ const KIM_GAP_PX = 3 * MM_TO_PX; // 3mm gap
  * иначе — на следующую.
  *
  * Размеры A5-страницы (148.5mm × 210mm):
- *   padding: 7mm top/bottom, 8mm left/right
- *   content area: 132.5mm × 196mm
+ *   padding: 5mm top/bottom, 7mm left/right
+ *   content area: 134.5mm × 200mm
  *
  * Вычет "служебных" зон:
- *   header (text 3.5mm + line-height + margin-bottom 6mm) ≈ 10mm
- *   footer (padding-top 3mm + text 3mm) ≈ 6mm
- *   → для задач: 196 - 10 - 6 = 180mm
+ *   header (text ~3mm + margin-bottom 4mm) ≈ 7mm
+ *   footer (padding-top 2mm + text 3mm) ≈ 5mm
+ *   → для задач: 200 - 7 - 5 = 188mm
  *
  * Первая страница задач (стр.2) дополнительно имеет note-box:
- *   padding 4mm + text 11px×3 lines×1.18 ≈ 13mm + margin-bottom 4mm ≈ 21mm
- *   → для задач: 180 - 21 = 159mm
+ *   padding 1.5mm×2 + text 11px×3×1.18 ≈ 13mm + margin-bottom 2mm ≈ 18mm
+ *   → для задач: 188 - 15 = 173mm (берём 172 с небольшим запасом)
  */
 const paginateKimByHeight = (tasks, heights) => {
   const withNumbers = tasks.map((task, i) => ({ ...task, kimNumber: i + 1 }));
   if (withNumbers.length === 0) return [];
 
-  const PAGE_HEIGHT_PX = 180 * MM_TO_PX;
-  const FIRST_PAGE_HEIGHT_PX = 159 * MM_TO_PX;
+  const PAGE_HEIGHT_PX = 188 * MM_TO_PX;
+  const FIRST_PAGE_HEIGHT_PX = 172 * MM_TO_PX;
 
   const pages = [];
   let current = [];
@@ -952,10 +952,9 @@ const EgeVariantGenerator = () => {
                         onReplaceTask={taskEditing.handleReplaceTask}
                       />
                     </div>
-                    {/* Печатный КИМ-вид */}
-                    <div className="print-only">
-                      <KimVariantPrint variant={variant} kimMeta={kimMeta} />
-                    </div>
+                    {/* Печатный КИМ-вид — вне print-only, чтобы measure-фаза (offsetHeight)
+                        работала корректно. На экране скрывается через .kim-booklet в CSS. */}
+                    <KimVariantPrint variant={variant} kimMeta={kimMeta} />
                   </>
                 )}
 

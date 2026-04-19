@@ -191,97 +191,89 @@ function VariantPage({ variant, title, settings, mode }) {
   );
 }
 
+// ─── Блок одного варианта в листе ответов ─────────────────────────────────────
+function VariantKeyBlock({ variant }) {
+  // Сквозная нумерация заданий внутри варианта
+  let cursor = 1;
+  const sectionsWithStart = variant.sections.map(sec => {
+    const start = cursor;
+    cursor += sec.tasks.length;
+    return { ...sec, startIndex: start };
+  });
+
+  return (
+    <div className="tmixed-key-variant-block">
+      <div className="tmixed-key-variant-title">Вариант {variant.number}</div>
+
+      {sectionsWithStart.map(sec => (
+        <div key={sec.id} className="tmixed-key-section-inline">
+          <div className="tmixed-key-section-inline-name">{sec.label}</div>
+
+          {sec.questionMode === 'unitcircle' ? (
+            <div className="tmixed-key-uc-grid">
+              {sec.tasks.map((task, ti) => (
+                <div key={ti} className="tmixed-key-uc-item">
+                  <div className="tmixed-key-uc-label">{sec.startIndex + ti})</div>
+                  <div style={{ width: '44mm', height: '44mm' }}>
+                    <UnitCircleSVG
+                      points={task.points}
+                      taskType={task.type}
+                      isAnswer={true}
+                      showAxes={sec.ucSettings?.showAxes ?? 'axes'}
+                      showDegrees={sec.ucSettings?.showDegrees ?? false}
+                      showTicks={sec.ucSettings?.showTicks ?? true}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            sec.tasks.map((q, qi) => {
+              const isEq = sec.questionMode === 'twoLine';
+              return (
+                <div
+                  key={qi}
+                  className={`tmixed-key-row${isEq ? ' tmixed-key-row--eq' : ''}`}
+                >
+                  <span className="tmixed-key-label">{sec.startIndex + qi})</span>
+                  <span className="tmixed-key-expr">
+                    <MathLine latex={q.exprLatex} />
+                  </span>
+                  <span className="tmixed-key-eq">{isEq ? 'x =' : '='}</span>
+                  <span className="tmixed-key-ans">
+                    <MathLine latex={`\\color{#c0392b}{${q.resultLatex}}`} />
+                  </span>
+                </div>
+              );
+            })
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Страница ответов для учителя ─────────────────────────────────────────────
 function TeacherKeyPage({ variants, title }) {
   if (!variants.length) return null;
 
-  // Собираем секции (по id) из первого варианта — структура одинакова для всех
-  const sectionIds = variants[0].sections.map(s => s.id);
+  // Разбиваем варианты на пары для двухколоночной вёрстки
+  const pairs = [];
+  for (let i = 0; i < variants.length; i += 2) {
+    pairs.push(variants.slice(i, i + 2));
+  }
 
   return (
     <div className="tmixed-key-page">
       <div className="tmixed-key-title">{title} — Ответы (для учителя)</div>
 
-      {sectionIds.map(sectionId => {
-        // Берём данные по секции из каждого варианта
-        const sectionsByVariant = variants.map(v =>
-          v.sections.find(s => s.id === sectionId)
-        ).filter(Boolean);
-
-        if (!sectionsByVariant.length) return null;
-        const sec0 = sectionsByVariant[0];
-
-        // Считаем стартовый индекс секции (сквозная нумерация)
-        const sectionStarts = variants.map(v => {
-          let cursor = 1;
-          for (const s of v.sections) {
-            if (s.id === sectionId) return cursor;
-            cursor += s.tasks.length;
-          }
-          return cursor;
-        });
-
-        return (
-          <div key={sectionId} className="tmixed-key-section">
-            <div className="tmixed-key-section-name">{sec0.label}</div>
-
-            {sec0.questionMode === 'unitcircle' ? (
-              // Ключ для единичной окружности
-              <div className="tmixed-key-variants-grid">
-                {sectionsByVariant.map((sec, vi) => (
-                  <div key={vi} className="tmixed-key-variant-block">
-                    <div className="tmixed-key-variant-title">Вариант {vi + 1}</div>
-                    <div className="tmixed-key-uc-grid">
-                      {sec.tasks.map((task, ti) => (
-                        <div key={ti} className="tmixed-key-uc-item">
-                          <div className="tmixed-key-uc-label">{sectionStarts[vi] + ti})</div>
-                          <div style={{ width: '52mm', height: '52mm' }}>
-                            <UnitCircleSVG
-                              points={task.points}
-                              taskType={task.type}
-                              isAnswer={true}
-                              showAxes={sec.ucSettings?.showAxes ?? 'axes'}
-                              showDegrees={sec.ucSettings?.showDegrees ?? false}
-                              showTicks={sec.ucSettings?.showTicks ?? true}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              // Ключ для обычных заданий
-              <div className="tmixed-key-variants-grid">
-                {sectionsByVariant.map((sec, vi) => (
-                  <div key={vi} className="tmixed-key-variant-block">
-                    <div className="tmixed-key-variant-title">Вариант {vi + 1}</div>
-                    {sec.tasks.map((q, qi) => {
-                      const isEq = sec.questionMode === 'twoLine';
-                      return (
-                        <div
-                          key={qi}
-                          className={`tmixed-key-row${isEq ? ' tmixed-key-row--eq' : ''}`}
-                        >
-                          <span className="tmixed-key-label">{sectionStarts[vi] + qi})</span>
-                          <span className="tmixed-key-expr">
-                            <MathLine latex={q.exprLatex} />
-                          </span>
-                          <span className="tmixed-key-eq">{isEq ? 't =' : '='}</span>
-                          <span className="tmixed-key-ans">
-                            <MathLine latex={`\\color{#c0392b}{${q.resultLatex}}`} />
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {pairs.map((pair, pi) => (
+        <div key={pi} className="tmixed-key-variants-grid">
+          {pair.map(variant => (
+            <VariantKeyBlock key={variant.number} variant={variant} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

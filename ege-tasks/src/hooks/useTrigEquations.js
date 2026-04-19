@@ -181,20 +181,43 @@ function shuffle(arr) {
   return a;
 }
 
-// ─── Генерация пула ───────────────────────────────────────────────────────────
-function buildPool(fns) {
-  const tasks = [];
-  for (const fn of fns) {
+// ─── Генерация вариантов с гарантированным балансом функций ──────────────────
+// Квоты делятся поровну между включёнными функциями; пул каждой функции
+// перемешивается заранее для всех вариантов → нет повторов ни внутри варианта,
+// ни между вариантами (пока хватает записей).
+function generateVariants({ variantsCount, questionsCount, fns }) {
+  if (!fns.length) return [];
+
+  // Квота каждой функции в одном варианте (распределяем остаток по первым функциям)
+  const base      = Math.floor(questionsCount / fns.length);
+  const remainder = questionsCount % fns.length;
+  const quotas    = fns.map((_, i) => base + (i < remainder ? 1 : 0));
+
+  // Для каждой функции строим пул достаточной длины (без повторов внутри одного прохода)
+  const fnPools = fns.map((fn, fi) => {
     const entries = entriesFor(fn);
-    for (const entry of entries) {
-      const argTex = entry.aTex.startsWith('-')
-        ? `\\!\\left(${entry.aTex}\\right)`
-        : `\\,${entry.aTex}`;
-      const exprLatex = `${fnTex(fn)}\\, t = ${entry.aTex}`;
-      tasks.push({ exprLatex, resultLatex: entry.generalTex });
-    }
-  }
-  return tasks;
+    const needed  = quotas[fi] * variantsCount;
+    let pool = [];
+    // Повторяем перемешанные записи пока не наберём нужное количество
+    while (pool.length < needed) pool = [...pool, ...shuffle([...entries])];
+    return pool;
+  });
+
+  // Собираем варианты: каждый вариант берёт свою «порцию» из каждого пула
+  return Array.from({ length: variantsCount }, (_, vi) => {
+    const tasks = [];
+    fns.forEach((fn, fi) => {
+      const start = vi * quotas[fi];
+      fnPools[fi].slice(start, start + quotas[fi]).forEach(entry => {
+        tasks.push({
+          exprLatex:   `${fnTex(fn)}\\, t = ${entry.aTex}`,
+          resultLatex: entry.generalTex,
+        });
+      });
+    });
+    // Перемешиваем задания внутри варианта, чтобы функции не шли группами
+    return shuffle(tasks);
+  });
 }
 
 // ─── Настройки по умолчанию ───────────────────────────────────────────────────
@@ -230,13 +253,8 @@ export function useTrigEquations() {
     ].filter(Boolean);
     if (fns.length === 0) return;
 
-    const pool = buildPool(fns);
-    if (pool.length === 0) return;
-
-    const variants = Array.from({ length: variantsCount }, () => {
-      const shuffled = shuffle(pool);
-      return shuffled.slice(0, Math.min(questionsCount, shuffled.length));
-    });
+    const variants = generateVariants({ variantsCount, questionsCount, fns });
+    if (!variants.length) return;
 
     setTasksData(variants);
   }, [settings]);

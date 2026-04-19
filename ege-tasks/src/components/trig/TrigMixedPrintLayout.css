@@ -308,6 +308,21 @@
     border-bottom: 1px dotted #aaa;
   }
 
+  /* Подзаголовок секции внутри блока варианта */
+  .tmixed-key-section-inline {
+    margin-bottom: 2mm;
+    margin-top: 1.5mm;
+  }
+
+  .tmixed-key-section-inline-name {
+    font-size: 7.5pt;
+    font-style: italic;
+    color: #666;
+    margin-bottom: 0.5mm;
+    padding-bottom: 0.3mm;
+    border-bottom: 1px dotted #ccc;
+  }
+
   .tmixed-key-variants-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

@@ -25,7 +25,7 @@
 .kim-page {
   width: 148.5mm;
   min-height: 210mm;
-  padding: 7mm 8mm;
+  padding: 5mm 7mm;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -130,24 +130,24 @@
   gap: 10px;
   font-size: 11px;
   line-height: 1.1;
-  margin-bottom: 6mm;
+  margin-bottom: 4mm;
   padding-bottom: 0;
 }
 
 .kim-page-note {
   border: 1.5px solid #555;
-  padding: 2mm 3mm;
+  padding: 1.5mm 2.5mm;
   font-size: 11px;
   line-height: 1.18;
   font-style: italic;
   font-weight: 700;
-  margin-bottom: 4mm;
+  margin-bottom: 2mm;
   text-align: justify;
 }
 
 .kim-page-footer {
   margin-top: auto;
-  padding-top: 3mm;
+  padding-top: 2mm;
   font-size: 10px;
   color: #4a4a4a;
   text-align: center;
@@ -159,7 +159,7 @@
 .kim-book-tasks {
   display: flex;
   flex-direction: column;
-  gap: 3mm;
+  gap: 2.5mm;
   flex: 1;
 }
 
@@ -229,14 +229,16 @@
 }
 
 .kim-book-task-image {
-  margin-top: 1.5mm;
-  text-align: right;
+  float: right;
+  margin: 0 0 1.5mm 3mm;
+  max-width: 48%;
 }
 
 .kim-book-task-image img {
-  max-width: 55%;
-  max-height: 30mm;
+  max-width: 100%;
+  max-height: 35mm;
   object-fit: contain;
+  display: block;
 }
 
 /* Image floated right for tasks with text + image */
@@ -263,7 +265,7 @@
   align-items: baseline;
   gap: 1.5mm;
   font-size: 12.5px;
-  margin-top: 1.5mm;
+  margin-top: 1mm;
   clear: both;
 }
 
@@ -325,8 +327,8 @@
 
 .kim-measure-page {
   /* Ширина контентной зоны A5-страницы:
-     148.5mm - 2×8mm (padding left+right) = 132.5mm */
-  width: 132.5mm;
+     148.5mm - 2×7mm (padding left+right) = 134.5mm */
+  width: 134.5mm;
   min-height: 196mm;
 }
 
@@ -341,11 +343,11 @@
 /* ─── Screen only ─── */
 
 @media screen {
+  /* Booklet скрыт на экране — вместо него показывается VariantRenderer.
+     kim-measure-root абсолютно позиционирован за пределами экрана (left:-10000px),
+     поэтому offsetHeight задач измеряется корректно вне зависимости от display booklet. */
   .kim-booklet {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    display: none;
   }
 
   .kim-page {

@@ -263,6 +263,11 @@ function GenSettings({ id, cfg, onChange }) {
   }
 
   if (id === 'reductionFormulas') {
+    const RF_TYPES = [
+      { value: 'basic',    label: 'Формулы приведения',    desc: 'sin(π/2 + α) = ?' },
+      { value: 'reversed', label: 'Перевёрнутый аргумент', desc: 'cos(α − π/2) = ?' },
+      { value: 'numeric',  label: 'Числовые выражения',    desc: '14√3·cos750° = ?' },
+    ];
     return (
       <Space direction="vertical" size={4} style={{ width: '100%' }}>
         <Row align="middle" gutter={8}>
@@ -283,20 +288,24 @@ function GenSettings({ id, cfg, onChange }) {
             />
           </Col>
         </Row>
-        <Row gutter={8} align="middle">
-          <Col><Text type="secondary" style={{ fontSize: 12 }}>Типы:</Text></Col>
-          <Col>
-            <Checkbox.Group
-              options={[
-                { label: 'Базовые',    value: 'basic' },
-                { label: 'Обратные',   value: 'reversed' },
-                { label: 'Числовые',   value: 'numeric' },
-              ]}
-              value={cfg.taskTypes}
-              onChange={vals => set('taskTypes', vals)}
-            />
-          </Col>
-        </Row>
+        <Space direction="vertical" size={2}>
+          {RF_TYPES.map(o => (
+            <div key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Checkbox
+                checked={cfg.taskTypes.includes(o.value)}
+                onChange={e => {
+                  const next = e.target.checked
+                    ? [...cfg.taskTypes, o.value]
+                    : cfg.taskTypes.filter(t => t !== o.value);
+                  if (next.length) set('taskTypes', next);
+                }}
+              >
+                <Text style={{ fontSize: 12 }}>{o.label}</Text>
+              </Checkbox>
+              <Text type="secondary" style={{ fontSize: 11 }}>{o.desc}</Text>
+            </div>
+          ))}
+        </Space>
       </Space>
     );
   }

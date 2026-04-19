@@ -9,6 +9,7 @@ import TaskStatsDashboard from './components/TaskStatsDashboard';
 import TaskCatalogManager from './components/TaskCatalogManager';
 import TheoryBrowser from './components/TheoryBrowser';
 const TheoryEditor = lazy(() => import('./components/TheoryEditor'));
+const ExcalidrawSection = lazy(() => import('./components/ExcalidrawSection'));
 import TheoryArticleView from './components/TheoryArticleView';
 import TheoryCategoryManager from './components/TheoryCategoryManager';
 import TheoryPrintBuilder from './components/TheoryPrintBuilder';
@@ -219,6 +220,14 @@ function AppContent() {
         { key: 'theory-categories', icon: <FolderOutlined />, label: 'Категории' },
       ],
     },
+    {
+      key: 'lab',
+      icon: <EditOutlined />,
+      label: 'Лаборатория',
+      children: [
+        { key: 'excalidraw', icon: <EditOutlined />, label: 'Excalidraw' },
+      ],
+    },
   ];
 
   // Navigation helpers for theory
@@ -426,7 +435,13 @@ function AppContent() {
         );
       case 'theory-categories':
         return <TheoryCategoryManager />;
-      default:
+      case 'excalidraw':
+        return (
+          <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}><Spin size="large" /></div>}>
+            <ExcalidrawSection />
+          </Suspense>
+        );
+default:
         return null;
     }
   };
@@ -539,15 +554,15 @@ function AppContent() {
         </Header>
 
         <Content style={{
-          margin: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? 0 : '24px 16px 0',
+          margin: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? 0 : '24px 16px 0',
           overflow: 'hidden',
         }}>
           <div style={{
-            padding: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? 0 : 24,
-            minHeight: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? undefined : 360,
-            height: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? '100%' : undefined,
+            padding: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? 0 : 24,
+            minHeight: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? undefined : 360,
+            height: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? '100%' : undefined,
             background: '#fff',
-            borderRadius: ['theory-editor', 'theory-view', 'theory-print'].includes(currentView) ? 0 : 8,
+            borderRadius: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? 0 : 8,
           }}>
             {renderContent()}
           </div>
