@@ -17,7 +17,7 @@ import './SessionPanel.css';
 
 const { Text, Title } = Typography;
 
-const SessionPanel = ({ workId }) => {
+const SessionPanel = ({ workId, mcTestId }) => {
   const { message } = App.useApp();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,21 +33,35 @@ const SessionPanel = ({ workId }) => {
   }, []);
 
   useEffect(() => {
-    if (!workId) return;
+    if (!workId && !mcTestId) return;
     const init = async () => {
       setLoading(true);
       try {
-        let existing = await api.getSessionByWork(workId);
-        if (!existing) {
-          existing = await api.createSession({
-            work: workId,
-            is_open: true,
-            achievements_enabled: false,
-            student_title: 'Самостоятельная работа',
-          });
-          setStudentTitle('Самостоятельная работа');
+        let existing;
+        if (mcTestId) {
+          const sessions = await api.getSessionsByMCTest(mcTestId);
+          existing = sessions[0] || null;
+          if (!existing) {
+            existing = await api.createMCTestSession(mcTestId, {
+              student_title: 'Тест с выбором ответа',
+            });
+            setStudentTitle('Тест с выбором ответа');
+          } else {
+            setStudentTitle(existing.student_title || 'Тест с выбором ответа');
+          }
         } else {
-          setStudentTitle(existing.student_title || 'Самостоятельная работа');
+          existing = await api.getSessionByWork(workId);
+          if (!existing) {
+            existing = await api.createSession({
+              work: workId,
+              is_open: true,
+              achievements_enabled: false,
+              student_title: 'Самостоятельная работа',
+            });
+            setStudentTitle('Самостоятельная работа');
+          } else {
+            setStudentTitle(existing.student_title || 'Самостоятельная работа');
+          }
         }
         setSession(existing);
       } catch (err) {
@@ -57,7 +71,7 @@ const SessionPanel = ({ workId }) => {
       setLoading(false);
     };
     init();
-  }, [workId, message]);
+  }, [workId, mcTestId, message]);
 
   const studentUrl = session ? buildStudentUrl(session.id) : '';
 

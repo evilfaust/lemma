@@ -1,6 +1,40 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/pocketbase';
 import { shuffleArray } from '../utils/shuffle';
+import { shuffleOptionsWithSeed, hashStringToSeed } from '../utils/distractorGenerator';
+
+// Загрузка задач варианта MC-теста: getTasksByIds + прикрепляем mc_options
+async function loadMCVariantTasks(mcTest, variantNumber, attemptId, deviceId, authStudentId) {
+  const variantData = mcTest.variants.find(v => String(v.number) === String(variantNumber));
+  if (!variantData) return { variant: null, tasks: [] };
+
+  const taskIds = variantData.tasks.map(t => t.task_id);
+  const taskRecords = await api.getTasksByIds(taskIds);
+  const recById = new Map(taskRecords.map(t => [t.id, t]));
+
+  const seedBase = mcTest.shuffle_mode === 'per_student'
+    ? `${attemptId || authStudentId || deviceId || 'anon'}`
+    : (mcTest.id || 'fixed');
+
+  const tasks = variantData.tasks
+    .map((t, ti) => {
+      const rec = recById.get(t.task_id);
+      if (!rec) return null;
+      const seed = hashStringToSeed(`${seedBase}-${variantNumber}-${ti}-${t.task_id}`);
+      const orderedOptions = mcTest.shuffle_mode === 'fixed'
+        ? t.options
+        : shuffleOptionsWithSeed(t.options, seed);
+      return { ...rec, mc_options: orderedOptions };
+    })
+    .filter(Boolean);
+
+  const syntheticVariant = {
+    id: `mc-${variantNumber}`,
+    number: variantNumber,
+    isMC: true,
+  };
+  return { variant: syntheticVariant, tasks };
+}
 
 /**
  * Хук для управления сессией ученика.
@@ -88,11 +122,28 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
             ...existingAttempt,
             issueNumber: getIssueNumber(existingAttempt, allAttempts),
           });
-          // Загрузить вариант с задачами
-          const variantData = await api.getVariant(existingAttempt.variant);
-          if (variantData) {
-            setVariant(variantData);
-            await loadVariantTasks(variantData);
+
+          if (sessionData.mc_test) {
+            // MC-тест: загрузить mc_test и собрать задачи с опциями
+            const mcTest = await api.getMCTest(sessionData.mc_test);
+            const { variant: mcVariant, tasks: mcTasks } = await loadMCVariantTasks(
+              mcTest,
+              existingAttempt.variant,
+              existingAttempt.id,
+              deviceId,
+              authStudentId
+            );
+            if (mcVariant) {
+              setVariant(mcVariant);
+              setTasks(mcTasks);
+            }
+          } else {
+            // Обычная работа
+            const variantData = await api.getVariant(existingAttempt.variant);
+            if (variantData) {
+              setVariant(variantData);
+              await loadVariantTasks(variantData);
+            }
           }
         }
       } catch (err) {
@@ -151,12 +202,60 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           ...resolvedAttempt,
           issueNumber: getIssueNumber(resolvedAttempt, allAttempts),
         });
-        const existingVariant = await api.getVariant(resolvedAttempt.variant);
-        if (existingVariant) {
-          setVariant(existingVariant);
-          await loadVariantTasks(existingVariant);
+        if (session.mc_test) {
+          const mcTest = await api.getMCTest(session.mc_test);
+          const { variant: mcVariant, tasks: mcTasks } = await loadMCVariantTasks(
+            mcTest, resolvedAttempt.variant, resolvedAttempt.id, deviceId, authStudentId
+          );
+          if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); }
+        } else {
+          const existingVariant = await api.getVariant(resolvedAttempt.variant);
+          if (existingVariant) {
+            setVariant(existingVariant);
+            await loadVariantTasks(existingVariant);
+          }
         }
         return resolvedAttempt;
+      }
+
+      // === MC-тест: round-robin по mc_test.variants ===
+      if (session.mc_test) {
+        const mcTest = await api.getMCTest(session.mc_test);
+        const mcVariants = mcTest.variants || [];
+        if (!mcVariants.length) {
+          setError('В тесте нет вариантов');
+          return null;
+        }
+        const allAttemptsAll = await api.getAttemptsBySession(sessionId);
+        const counts = {};
+        mcVariants.forEach(v => { counts[String(v.number)] = 0; });
+        allAttemptsAll.forEach(a => {
+          if (counts[a.variant] !== undefined) counts[a.variant]++;
+        });
+        const min = Math.min(...Object.values(counts));
+        const candidates = Object.keys(counts).filter(k => counts[k] === min);
+        const chosenNumber = shuffleArray([...candidates])[0];
+        const chosenVariant = mcVariants.find(v => String(v.number) === chosenNumber);
+
+        const newAttempt = await api.createAttempt({
+          session: sessionId,
+          student_name: studentName,
+          device_id: deviceId,
+          ...(authStudentId ? { student: authStudentId } : {}),
+          variant: chosenNumber,
+          status: 'started',
+          score: 0,
+          total: chosenVariant.tasks.length,
+        });
+        const { variant: mcVariant, tasks: mcTasks } = await loadMCVariantTasks(
+          mcTest, chosenNumber, newAttempt.id, deviceId, authStudentId
+        );
+        setAttempt({
+          ...newAttempt,
+          issueNumber: getIssueNumber(newAttempt, [...allAttemptsAll, newAttempt]),
+        });
+        if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); }
+        return newAttempt;
       }
 
       // Получить все варианты работы

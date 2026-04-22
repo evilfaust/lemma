@@ -1,0 +1,130 @@
+.mct-print-root {
+  display: none;
+}
+
+@media print {
+  body:has(.mct-print-root) {
+    visibility: hidden;
+  }
+  .mct-print-root {
+    display: block !important;
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .mct-print-root * {
+    visibility: visible;
+  }
+
+  @page { margin: 12mm 14mm; }
+
+  .mct-page {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 11pt;
+    line-height: 1.4;
+    color: #000;
+    background: #fff;
+    padding: 0;
+    page-break-after: always;
+    break-after: page;
+  }
+  .mct-page:last-of-type { page-break-after: auto; break-after: auto; }
+
+  .mct-header {
+    display: flex;
+    align-items: baseline;
+    gap: 4mm;
+    margin-bottom: 2mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #000;
+    flex-wrap: nowrap;
+  }
+  .mct-variant-badge { font-weight: bold; font-size: 11pt; flex-shrink: 0; white-space: nowrap; }
+  .mct-field { display: flex; align-items: baseline; gap: 1.5mm; font-size: 10pt; white-space: nowrap; flex-shrink: 0; }
+  .mct-field:nth-child(2) { flex: 1; }
+  .mct-field:nth-child(2) .mct-line { flex: 1; }
+  .mct-line { display: inline-block; border-bottom: 1px solid #000; vertical-align: bottom; }
+  .mct-line--name { min-width: 40mm; width: 100%; }
+  .mct-line--short { width: 18mm; }
+
+  .mct-subtitle { font-size: 10pt; font-weight: bold; margin-bottom: 3mm; }
+  .mct-instruction { font-size: 11pt; font-weight: bold; margin-bottom: 3mm; }
+
+  .mct-tasks { display: flex; flex-direction: column; gap: 2mm; }
+
+  .mct-task {
+    padding: 1.5mm 0;
+    border-bottom: 1px dotted #ccc;
+    break-inside: avoid;
+  }
+  .mct-task:last-child { border-bottom: none; }
+
+  .mct-task-head { display: flex; align-items: baseline; gap: 4px; }
+  .mct-task-num { font-weight: bold; min-width: 22px; flex-shrink: 0; }
+  .mct-task-stmt { flex: 1; font-size: 10.5pt; }
+  .mct-task-img { max-width: 60mm; max-height: 40mm; margin-top: 1mm; display: block; }
+
+  .mct-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1mm 8mm;
+    margin: 1.5mm 0 1mm 22px;
+  }
+  .mct-option { display: flex; align-items: baseline; gap: 4px; font-size: 10pt; }
+  .mct-option-letter { font-weight: bold; flex-shrink: 0; }
+  .mct-option-text { flex: 1; }
+
+  /* Сетка ответов внизу страницы */
+  .mct-answer-grid { margin-top: 5mm; page-break-inside: avoid; break-inside: avoid; }
+  .mct-answer-grid-title { font-weight: bold; font-size: 10pt; margin-bottom: 1.5mm; }
+  .mct-answer-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+  }
+  .mct-answer-table th, .mct-answer-table td {
+    border: 1px solid #000;
+    padding: 1.5mm 1mm;
+    text-align: center;
+    min-width: 8mm;
+  }
+  .mct-answer-table th { background: #f0f0f0; font-weight: bold; }
+  .mct-answer-cell { height: 8mm; }
+
+  /* ── Страница ответов учителя ── */
+  .mct-key-page { padding: 0; }
+  .mct-key-header {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-bottom: 4mm;
+    padding-bottom: 2mm;
+    border-bottom: 1px solid #000;
+  }
+  .mct-key-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4mm 8mm;
+  }
+  .mct-key-variant { break-inside: avoid; }
+  .mct-key-variant-title {
+    font-weight: bold;
+    font-size: 10pt;
+    margin-bottom: 1.5mm;
+    padding-bottom: 1mm;
+    border-bottom: 1px dotted #666;
+  }
+  .mct-key-row {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    font-size: 9pt;
+    margin-bottom: 0.8mm;
+  }
+  .mct-key-label { font-weight: bold; min-width: 14px; flex-shrink: 0; }
+  .mct-key-letter { font-weight: bold; color: #c0392b; min-width: 14px; }
+  .mct-key-ans { flex: 1; }
+}

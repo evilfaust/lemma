@@ -2212,6 +2212,93 @@ export const api = {
       throw error;
     }
   },
+
+  // --- mc_tests (тесты с выбором ответа) ---
+
+  async getMCTests() {
+    try {
+      return await pb.collection('mc_tests').getFullList({ sort: '-created' });
+    } catch (error) {
+      console.error('Error fetching mc_tests:', error);
+      return [];
+    }
+  },
+
+  async getMCTest(id) {
+    try {
+      return await pb.collection('mc_tests').getOne(id);
+    } catch (error) {
+      console.error('Error fetching mc_test:', error);
+      throw error;
+    }
+  },
+
+  async createMCTest(data) {
+    try {
+      return await pb.collection('mc_tests').create(data);
+    } catch (error) {
+      console.error('Error creating mc_test:', error);
+      throw error;
+    }
+  },
+
+  async updateMCTest(id, data) {
+    try {
+      return await pb.collection('mc_tests').update(id, data);
+    } catch (error) {
+      console.error('Error updating mc_test:', error);
+      throw error;
+    }
+  },
+
+  async deleteMCTest(id) {
+    try {
+      return await pb.collection('mc_tests').delete(id);
+    } catch (error) {
+      console.error('Error deleting mc_test:', error);
+      throw error;
+    }
+  },
+
+  // Получить task-записи по списку id (для рендера mc_test, т.к. task_id хранится в variants.json)
+  async getTasksByIds(ids) {
+    if (!ids || !ids.length) return [];
+    try {
+      const unique = [...new Set(ids.filter(Boolean))];
+      const filter = unique.map(id => `id = "${id}"`).join(' || ');
+      return await pb.collection('tasks').getFullList({ filter, batch: 500 });
+    } catch (error) {
+      console.error('Error fetching tasks by ids:', error);
+      return [];
+    }
+  },
+
+  // Сессия для mc_test (без поля work)
+  async createMCTestSession(mcTestId, extra = {}) {
+    try {
+      return await pb.collection('work_sessions').create({
+        mc_test: mcTestId,
+        is_open: true,
+        achievements_enabled: true,
+        ...extra,
+      });
+    } catch (error) {
+      console.error('Error creating mc_test session:', error);
+      throw error;
+    }
+  },
+
+  async getSessionsByMCTest(mcTestId) {
+    try {
+      return await pb.collection('work_sessions').getFullList({
+        filter: `mc_test = "${mcTestId}"`,
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error fetching sessions by mc_test:', error);
+      return [];
+    }
+  },
 };
 
 export default pb;

@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { Button, Space, message, Tooltip } from 'antd';
-import { DownloadOutlined, ClearOutlined, BookOutlined } from '@ant-design/icons';
+import { DownloadOutlined, ClearOutlined, BookOutlined, FullscreenOutlined, FullscreenExitOutlined } from '@ant-design/icons';
 import { Excalidraw, exportToBlob, exportToSvg } from '@excalidraw/excalidraw';
 import '@excalidraw/excalidraw/index.css';
 
@@ -37,7 +37,44 @@ function loadSavedLibrary() {
 
 export default function ExcalidrawSection() {
   const excalidrawApiRef = useRef(null);
+  const containerRef = useRef(null);
   const [libLoading, setLibLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const handleFsChange = () => {
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      setIsFullscreen(!!fsEl);
+    };
+    document.addEventListener('fullscreenchange', handleFsChange);
+    document.addEventListener('webkitfullscreenchange', handleFsChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange);
+      document.removeEventListener('webkitfullscreenchange', handleFsChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = async () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    try {
+      if (fsEl) {
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else if (el.requestFullscreen) {
+        await el.requestFullscreen();
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      } else {
+        // iPad Safari (iOS <16.4) не поддерживает Fullscreen API — включаем CSS-оверлей
+        setIsFullscreen((v) => !v);
+      }
+    } catch (e) {
+      // fallback на CSS-оверлей
+      setIsFullscreen((v) => !v);
+    }
+  };
 
   const [initialData] = useState(() => {
     const saved = loadSaved();
@@ -135,8 +172,12 @@ export default function ExcalidrawSection() {
     localStorage.removeItem(STORAGE_KEY);
   };
 
+  const rootStyle = isFullscreen
+    ? { position: 'fixed', inset: 0, zIndex: 9999, background: '#fff', display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 12px' }
+    : { display: 'flex', flexDirection: 'column', height: '100%', gap: 8, padding: '12px 16px' };
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 8, padding: '12px 16px' }}>
+    <div ref={containerRef} style={rootStyle}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontWeight: 600, fontSize: 16 }}>Доска Excalidraw</span>
         <Space>
@@ -147,11 +188,20 @@ export default function ExcalidrawSection() {
           </Tooltip>
           <Button icon={<DownloadOutlined />} onClick={handleExportPng}>PNG</Button>
           <Button icon={<DownloadOutlined />} onClick={handleExportSvg}>SVG</Button>
+          <Tooltip title={isFullscreen ? 'Выйти из полноэкранного режима' : 'Во весь экран (для iPad)'}>
+            <Button
+              type={isFullscreen ? 'primary' : 'default'}
+              icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+              onClick={handleToggleFullscreen}
+            >
+              {isFullscreen ? 'Свернуть' : 'Во весь экран'}
+            </Button>
+          </Tooltip>
           <Button icon={<ClearOutlined />} danger onClick={handleClear}>Очистить</Button>
         </Space>
       </div>
 
-      <div style={{ flex: 1, border: '1px solid #d9d9d9', borderRadius: 8, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: 1, border: isFullscreen ? 'none' : '1px solid #d9d9d9', borderRadius: isFullscreen ? 0 : 8, overflow: 'hidden', minHeight: 0 }}>
         <Excalidraw
           excalidrawAPI={(api) => { excalidrawApiRef.current = api; }}
           initialData={initialData}

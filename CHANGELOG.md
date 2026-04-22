@@ -1,5 +1,44 @@
 # Changelog — История изменений
 
+## [3.9.9] - 2026-04-22
+
+### Новый раздел: Тесты с выбором ответов (MCTestGenerator)
+
+Полноценный генератор тестов формата A/B/C/D с авто-генерацией дистракторов и интеграцией в систему выдачи учеников.
+
+**Возможности:**
+- Подбор задач по одной теме или из нескольких (multi-topic)
+- Авто-генерация дистракторов (`distractorGenerator.js`): числовые / дробные / текстовые стратегии; учитель может править вручную
+- Два режима порядка ответов: **зафиксированный** учителем или **перемешивание у каждого студента** (детерминированный seed = hash(attemptId+taskId), стабильный при перезагрузке)
+- Несколько вариантов в одном тесте (по умолчанию 1–2, расширяется)
+- Радио-кнопки в интерфейсе ученика (`StudentMCTestPage`), автосохранение в localStorage
+- Печатная вёрстка `MCTestPrintLayout` в стиле тригонометрических генераторов (компактная двухколоночная сетка опций, таблица ответов внизу, страница-ключ учителя)
+
+**База данных:**
+- Новая коллекция `mc_tests`: `{title, description, class_number, topics, options_count(2-8), shuffle_mode("fixed"|"per_student"), variants(json)}`
+- Поле `work_sessions.mc_test` (relation→mc_tests, optional) — для выдачи MC-теста через знакомый QR/ссылка-механизм
+- `work_sessions.work` сделано **опциональным** (раньше required) — позволяет создавать сессии и для классических работ, и для MC-тестов
+- `attempt.variant` для MC хранит номер варианта строкой ("1"/"2") вместо relation (нет separate variants record)
+- `attempt_answers.answer_raw` хранит индекс опции ("0"/"1"/"2"/"3")
+- Миграции: `1772000017_create_mc_tests.js`, `1772000018_make_work_optional_in_sessions.js`
+
+**Архитектурные решения:**
+- Переиспользование инфраструктуры `work_sessions` / `attempts` / `attempt_answers` / `achievements` — MC-тесты автоматически получают QR-выдачу, систему достижений и dashboard учителя
+- Синтетический variant id `mc-N` (без записи в БД), tasks обогащаются `mc_options` на лету в `useStudentSession.loadMCVariantTasks`
+- Round-robin выбор варианта по min-count из существующих attempts
+- В `StudentApp.jsx` диспатч: `session.mc_test` → `<StudentMCTestPage>`, иначе → `<StudentTestPage>`
+
+**Файлы:**
+- Компоненты: `MCTestGenerator.jsx`, `mc-test/MCOptionsEditor.jsx`, `mc-test/MCTestPrintLayout.jsx` (+CSS)
+- Хук: `useMCTest.js`
+- Утилита: `distractorGenerator.js`
+- Студенческий интерфейс: `student/StudentMCTestPage.jsx`
+- API: 7 новых методов (`getMCTests`, `getMCTest`, `createMCTest`, `updateMCTest`, `deleteMCTest`, `getTasksByIds`, `createMCTestSession`, `getSessionsByMCTest`)
+
+### Деплой
+- Студенческое приложение задеплоено на VPS (`student.oipav.ru`)
+- Учительский фронтенд задеплоен на Raspberry Pi (`l.oipav.ru`)
+
 ## [3.9.8] - 2026-04-20
 
 ### Удалён tldraw

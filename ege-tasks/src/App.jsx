@@ -43,6 +43,7 @@ import TrigMixedGenerator from './components/TrigMixedGenerator';
 import DoubleAngleGenerator from './components/DoubleAngleGenerator';
 import MarathonGenerator from './components/MarathonGenerator';
 import EgeScoreCalculator from './components/EgeScoreCalculator';
+import MCTestGenerator from './components/MCTestGenerator';
 import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
@@ -122,6 +123,11 @@ function AppContent() {
       key: 'test-generator',
       icon: <SnippetsOutlined />,
       label: 'Контрольные работы',
+    },
+    {
+      key: 'mc-test',
+      icon: <FormOutlined />,
+      label: 'Тесты с выбором',
     },
     {
       key: 'qr-worksheet',
@@ -295,6 +301,8 @@ function AppContent() {
         return <EgeScoreCalculator />;
       case 'test-generator':
         return <TestWorkGenerator />;
+      case 'mc-test':
+        return <MCTestGenerator />;
       case 'qr-worksheet':
         return <QRWorksheetGenerator />;
       case 'pixel-art':
