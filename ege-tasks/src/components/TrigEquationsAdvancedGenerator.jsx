@@ -3,9 +3,12 @@ import {
   Card, Button, Slider, Checkbox,
   Divider, Space, Input, Tag, Popconfirm,
 } from 'antd';
-import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PrinterOutlined, FunctionOutlined, CheckSquareOutlined } from '@ant-design/icons';
 import { useTrigEquationsAdvanced } from '../hooks/useTrigEquationsAdvanced';
+import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
+import TrigMCSaveModal from './trig/TrigMCSaveModal';
+import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 
 function MathInline({ latex }) {
   let html;
@@ -18,6 +21,7 @@ const LABELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
 
 export default function TrigEquationsAdvancedGenerator() {
   const { title, setTitle, settings, updateSetting, tasksData, generate, reset } = useTrigEquationsAdvanced();
+  const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -122,6 +126,11 @@ export default function TrigEquationsAdvancedGenerator() {
             <Button type="primary" icon={<ReloadOutlined />} onClick={generate}>Сгенерировать</Button>
             {tasksData && <Button icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>}
             {tasksData && (
+              <Button icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>
+                Тест с выбором
+              </Button>
+            )}
+            {tasksData && (
               <Popconfirm title="Сбросить?" onConfirm={reset} okText="Да" cancelText="Нет">
                 <Button danger>Сброс</Button>
               </Popconfirm>
@@ -182,6 +191,23 @@ export default function TrigEquationsAdvancedGenerator() {
           title={title}
           instruction="Решите уравнение:"
           questionMode="plain"
+        />
+      )}
+
+      <TrigMCSaveModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        tasksData={tasksData}
+        generatorType="trig_equations_advanced"
+        generatorTitle={title}
+        settings={settings}
+        onPrint={handleMCPrint}
+      />
+      {printTest && (
+        <TrigMCPrintLayout
+          variants={printTest.variants}
+          title={printTest.title}
+          shuffleMode={printTest.shuffle_mode || 'fixed'}
         />
       )}
     </div>

@@ -1,5 +1,50 @@
 # Changelog — История изменений
 
+## [3.9.11] - 2026-04-22
+
+### Тригонометрические MC-тесты — выдача через ученический интерфейс
+
+**Новые возможности:**
+- Тесты из тригонометрических генераторов теперь можно выдавать ученикам
+- В разделе «Тесты с выбором» → вкладка «Из генераторов» → кнопка «Выдать» раскрывает SessionPanel с QR-кодом и ссылкой
+- Ученики проходят тест в новом интерфейсе `StudentTrigMCTestPage` (задания в LaTeX через KaTeX)
+- Вопросы хранятся inline (`{question, answer, options}`) — без привязки к коллекции `tasks`
+- Round-robin раздача вариантов, автосохранение ответов в localStorage
+- Полная поддержка достижений (если включены в сессии)
+
+**Технические изменения:**
+- Новая миграция `1772000021_add_trig_mc_test_to_sessions.js` — поле `trig_mc_test: relation→trig_mc_tests` в `work_sessions`
+- API: `createTrigMCTestSession(id)`, `getSessionsByTrigMCTest(id)` в `pocketbase.js`
+- `SessionPanel` расширен: новый prop `trigMcTestId` (аналог `mcTestId`)
+- `useStudentSession.js`: ветка `session.trig_mc_test` с `loadTrigMCVariantTasks()`
+- `StudentApp.jsx`: маршрутизация на `StudentTrigMCTestPage` при `session.trig_mc_test`
+
+## [3.9.10] - 2026-04-22
+
+### MC-тесты — интеграция с разделом «Мои работы» и статистикой
+
+**Раздел «Мои работы» теперь поддерживает оба типа:**
+- Tabs внутри `WorkManager`: «Контрольные работы» / «Тесты с выбором»
+- На вкладке MC: список тестов с метаданными (вариантов, задач, режим перемешивания, попыток), expand-карточка с подвкладками «Выдача» (`SessionPanel mcTestId={...}`) и «Результаты» (`TeacherResultsDashboard`)
+- Кнопка «Открыть в редакторе» переходит в раздел «Тесты с выбором» с уже загруженным тестом (через новый prop `initialMcTestId`)
+
+**Статистика учеников теперь корректно учитывает MC-тесты:**
+- Расширен `expand` в API: `getAttemptsByStudentAllWithWorks`, `getAttemptsByDeviceAllWithWorks`, `getAttemptsForRegisteredStudents` теперь подгружают `session.mc_test`
+- Fallback названия: `work?.title || mc_test?.title || 'Тест'` во всех местах отображения попыток
+- Группировка работ (counts, dashboard, прогресс) учитывает `mc_test` как полноценную «работу» при подсчёте уникальных тестов
+
+**Багфикс выдачи MC-тестов:**
+- Поле `attempts.variant` (relation) сделано optional, добавлено числовое поле `mc_variant`
+- MC-попытки создаются с `mc_variant: number` вместо строки в relation-поле
+- Чтение варианта: `attempt.mc_variant ?? attempt.variant` (fallback для legacy записей)
+- Миграция: `1772000019_add_mc_variant_to_attempts.js`
+
+**Файлы:**
+- API: `shared/services/pocketbase.js` — expand с `session.mc_test`
+- Компоненты: `WorkManager.jsx` (Tabs + MC tab), `MCTestGenerator.jsx` (`initialMcTestId` prop), `App.jsx` (`selectedMcTestId` state)
+- Статистика: `StudentDetailPage.jsx`, `StudentProgressDashboard.jsx`, `student/StudentProgressPage.jsx`
+- Хук: `useStudentSession.js` (mc_variant)
+
 ## [3.9.9] - 2026-04-22
 
 ### Новый раздел: Тесты с выбором ответов (MCTestGenerator)

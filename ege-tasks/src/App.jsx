@@ -55,6 +55,7 @@ const { Header, Content, Sider } = Layout;
 function AppContent() {
   const [currentView, setCurrentView] = useState('tasks');
   const [selectedWorkIdForEditor, setSelectedWorkIdForEditor] = useState(null);
+  const [selectedMcTestId, setSelectedMcTestId] = useState(null);
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
   const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
@@ -302,7 +303,7 @@ function AppContent() {
       case 'test-generator':
         return <TestWorkGenerator />;
       case 'mc-test':
-        return <MCTestGenerator />;
+        return <MCTestGenerator initialMcTestId={selectedMcTestId} />;
       case 'qr-worksheet':
         return <QRWorksheetGenerator />;
       case 'pixel-art':
@@ -315,6 +316,10 @@ function AppContent() {
             onEditWork={(workId) => {
               setSelectedWorkIdForEditor(workId);
               setCurrentView('work-editor');
+            }}
+            onEditMCTest={(mcId) => {
+              setSelectedMcTestId(mcId);
+              setCurrentView('mc-test');
             }}
           />
         );
@@ -543,6 +548,7 @@ default:
               setEditingArticleId(null);
               setViewingArticleId(null);
             }
+            if (key === 'mc-test') setSelectedMcTestId(null);
           }}
           style={{ borderRight: 0 }}
         />

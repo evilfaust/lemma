@@ -345,7 +345,8 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
     if (!filteredAttempts.length) return null;
     const workIds = new Set();
     filteredAttempts.forEach(a => {
-      const workId = a.expand?.session?.expand?.work?.id || a.expand?.session?.work;
+      const workId = a.expand?.session?.expand?.work?.id || a.expand?.session?.work
+        || a.expand?.session?.expand?.mc_test?.id || a.expand?.session?.mc_test;
       if (workId) workIds.add(workId);
     });
     const totalScore = filteredAttempts.reduce((s, a) => s + (a.score || 0), 0);
@@ -383,7 +384,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
         id: a.id,
         date: new Date(a.submitted_at || a.created),
         percent: Math.round((a.score / a.total) * 100),
-        title: a.expand?.session?.expand?.work?.title || 'Тест',
+        title: a.expand?.session?.expand?.work?.title || a.expand?.session?.expand?.mc_test?.title || 'Тест',
         score: a.score,
         total: a.total,
       }))
@@ -542,10 +543,12 @@ function StudentDetailPage({ studentId, onBack, onOpenWork }) {
       key: 'work',
       render: (_, record) => {
         const work = record.expand?.session?.expand?.work;
-        const title = work?.title || 'Тест';
+        const mcTest = record.expand?.session?.expand?.mc_test;
+        const title = work?.title || mcTest?.title || 'Тест';
+        const isMC = !!mcTest && !work?.id;
         return (
           <Space>
-            <Text>{title}</Text>
+            <Text>{title}{isMC ? ' (тест с выбором)' : ''}</Text>
             {work?.id && (
               <Button size="small" type="link" onClick={() => onOpenWork?.(work.id)}>Открыть</Button>
             )}

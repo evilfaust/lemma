@@ -6,6 +6,7 @@ import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentEntryPage from './components/student/StudentEntryPage';
 import StudentTestPage from './components/student/StudentTestPage';
 import StudentMCTestPage from './components/student/StudentMCTestPage';
+import StudentTrigMCTestPage from './components/student/StudentTrigMCTestPage';
 import StudentResultPage from './components/student/StudentResultPage';
 import AchievementGallery from './components/student/AchievementGallery';
 import StudentProgressPage from './components/student/StudentProgressPage';
@@ -463,9 +464,11 @@ function StudentApp() {
         )}
 
         {currentView === 'test' && (
-          session?.mc_test
-            ? <StudentMCTestPage studentSession={studentSession} />
-            : <StudentTestPage studentSession={studentSession} />
+          session?.trig_mc_test
+            ? <StudentTrigMCTestPage studentSession={studentSession} />
+            : session?.mc_test
+              ? <StudentMCTestPage studentSession={studentSession} />
+              : <StudentTestPage studentSession={studentSession} />
         )}
 
         {currentView === 'result' && (

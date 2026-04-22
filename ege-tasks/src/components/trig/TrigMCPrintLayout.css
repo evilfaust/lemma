@@ -1,0 +1,21 @@
+/* Scoped print visibility for trig MC tests */
+.trig-mc-print-root {
+  display: none;
+}
+
+@media print {
+  body:has(.trig-mc-print-root) {
+    visibility: hidden;
+  }
+  .trig-mc-print-root {
+    display: block !important;
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .trig-mc-print-root * {
+    visibility: visible;
+  }
+}

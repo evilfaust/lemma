@@ -27,6 +27,9 @@ const getAttemptTestTitle = (attempt, worksById) => {
   const workTitle = session?.work ? worksById?.get(session.work)?.title?.trim() : '';
   if (workTitle) return workTitle;
 
+  const mcTitle = session?.expand?.mc_test?.title?.trim();
+  if (mcTitle) return mcTitle;
+
   return session?.id || attempt?.session || '—';
 };
 
@@ -181,7 +184,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         if (a.achievement) achievements.add(a.achievement);
         normalizeUnlockedIds(a.unlocked_achievements).forEach((id) => achievements.add(id));
         if (a.status !== 'started') {
-          const workId = a.expand?.session?.work;
+          const workId = a.expand?.session?.work || a.expand?.session?.mc_test;
           if (workId) completedWorkIds.add(workId);
         }
       });

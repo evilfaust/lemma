@@ -129,7 +129,7 @@ const formatDurationShort = (seconds) => {
 const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
   const pct = attempt.total ? Math.round((attempt.score / attempt.total) * 100) : 0;
   const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
-  const workTitle = attempt.expand?.session?.expand?.work?.title || 'Тест';
+  const workTitle = attempt.expand?.session?.expand?.work?.title || attempt.expand?.session?.expand?.mc_test?.title || 'Тест';
   const date = new Date(attempt.submitted_at || attempt.created);
   const correctCount = answers.filter(a => a.is_correct).length;
   const wrongCount = answers.filter(a => !a.is_correct).length;
@@ -339,7 +339,8 @@ function StudentProgressPage({ studentSession }) {
 
     const workIds = new Set();
     allAttempts.forEach(a => {
-      const workId = a.expand?.session?.work || a.expand?.session?.expand?.work?.id;
+      const workId = a.expand?.session?.work || a.expand?.session?.expand?.work?.id
+        || a.expand?.session?.mc_test || a.expand?.session?.expand?.mc_test?.id;
       if (workId) workIds.add(typeof workId === 'string' ? workId : workId);
     });
 
@@ -383,7 +384,7 @@ function StudentProgressPage({ studentSession }) {
       .map(a => ({
         date: new Date(a.submitted_at || a.created),
         percent: Math.round((a.score / a.total) * 100),
-        title: a.expand?.session?.expand?.work?.title || 'Тест',
+        title: a.expand?.session?.expand?.work?.title || a.expand?.session?.expand?.mc_test?.title || 'Тест',
       }))
       .sort((a, b) => a.date - b.date);
   }, [allAttempts]);
@@ -566,7 +567,7 @@ function StudentProgressPage({ studentSession }) {
           {allAttempts.map((a, idx) => {
             const pct = a.total ? Math.round((a.score / a.total) * 100) : 0;
             const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
-            const workTitle = a.expand?.session?.expand?.work?.title || 'Тест';
+            const workTitle = a.expand?.session?.expand?.work?.title || a.expand?.session?.expand?.mc_test?.title || 'Тест';
             const date = new Date(a.submitted_at || a.created);
             const duration = a.duration_seconds;
 

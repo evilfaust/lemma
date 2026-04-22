@@ -5,10 +5,13 @@ import {
   Divider, Space, Input, Switch, Tag, Popconfirm,
 } from 'antd';
 import {
-  ReloadOutlined, PrinterOutlined, FunctionOutlined,
+  ReloadOutlined, PrinterOutlined, FunctionOutlined, CheckSquareOutlined,
 } from '@ant-design/icons';
 import { useTrigExpressions } from '../hooks/useTrigExpressions';
+import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
+import TrigMCSaveModal from './trig/TrigMCSaveModal';
+import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 
 function MathInline({ latex }) {
   let html;
@@ -32,6 +35,8 @@ export default function TrigExpressionsGenerator() {
     tasksData,
     generate, reset,
   } = useTrigExpressions();
+
+  const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -206,6 +211,11 @@ export default function TrigExpressionsGenerator() {
               </Button>
             )}
             {tasksData && (
+              <Button icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>
+                Тест с выбором
+              </Button>
+            )}
+            {tasksData && (
               <Popconfirm title="Сбросить?" onConfirm={reset} okText="Да" cancelText="Нет">
                 <Button danger>Сброс</Button>
               </Popconfirm>
@@ -284,6 +294,23 @@ export default function TrigExpressionsGenerator() {
           tasksData={tasksData}
           settings={settings}
           title={title}
+        />
+      )}
+
+      <TrigMCSaveModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        tasksData={tasksData}
+        generatorType="trig_expressions"
+        generatorTitle={title}
+        settings={settings}
+        onPrint={handleMCPrint}
+      />
+      {printTest && (
+        <TrigMCPrintLayout
+          variants={printTest.variants}
+          title={printTest.title}
+          shuffleMode={printTest.shuffle_mode || 'fixed'}
         />
       )}
     </div>

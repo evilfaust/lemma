@@ -1,28 +1,131 @@
-import { useState, useEffect, useRef } from 'react';
-import { Card, Button, Input, Select, InputNumber, Space, Divider, Modal, App, Empty, Tag, Tooltip, Collapse, Radio } from 'antd';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Card, Button, Input, Select, InputNumber, Space, Divider, Modal, App, Empty, Tag, Tooltip, Collapse, Radio, Tabs, Popconfirm, Spin } from 'antd';
 import {
   PlusOutlined, SaveOutlined, DeleteOutlined, PrinterOutlined, ArrowLeftOutlined,
   EditOutlined, FileTextOutlined, CloseOutlined, ArrowUpOutlined, ArrowDownOutlined,
-  AppstoreAddOutlined,
+  AppstoreAddOutlined, ReloadOutlined, ShareAltOutlined,
 } from '@ant-design/icons';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { api } from '../services/pocketbase';
 import { useMCTest } from '../hooks/useMCTest';
+import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import MathRenderer from './MathRenderer';
 import TaskSelectModal from './TaskSelectModal';
 import MCOptionsEditor from './mc-test/MCOptionsEditor';
 import MCTestPrintLayout from './mc-test/MCTestPrintLayout';
+import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 import SessionPanel from './worksheet/SessionPanel';
+
+const GENERATOR_LABELS = {
+  trig_expressions:        'Вычисление выражений',
+  trig_equations:          'Простейшие уравнения',
+  inverse_trig:            'Обратные функции',
+  double_angle:            'Двойной аргумент',
+  trig_equations_advanced: 'Уравнения f(kx+b)=a',
+};
+
+function TrigMCTestsList({ onPrint }) {
+  const { message: msg } = App.useApp();
+  const [tests, setTests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
+  const [issueOpenId, setIssueOpenId] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try { setTests(await api.getTrigMCTests()); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleDelete = async (id, title) => {
+    setDeletingId(id);
+    try {
+      await api.deleteTrigMCTest(id);
+      msg.success('Тест удалён');
+      setTests(prev => prev.filter(t => t.id !== id));
+    } catch { msg.error('Ошибка удаления'); }
+    finally { setDeletingId(null); }
+  };
+
+  if (loading) return <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+        <Button icon={<ReloadOutlined />} size="small" onClick={load}>Обновить</Button>
+      </div>
+      {tests.length === 0 ? (
+        <Empty description="Сохранённых тестов из генераторов нет. Нажмите «Тест с выбором» в любом тригонометрическом генераторе." />
+      ) : (
+        <div style={{ display: 'grid', gap: 12 }}>
+          {tests.map(t => {
+            const variantsCount = Array.isArray(t.variants) ? t.variants.length : 0;
+            const tasksPerVariant = variantsCount > 0 ? (t.variants[0]?.tasks?.length ?? 0) : 0;
+            return (
+              <Card key={t.id} size="small" hoverable>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 15, fontWeight: 600 }}>{t.title || '(без названия)'}</div>
+                    <Space size={8} style={{ marginTop: 6 }} wrap>
+                      {t.class_number && <Tag>{t.class_number} класс</Tag>}
+                      <Tag color="cyan">{GENERATOR_LABELS[t.generator_type] ?? t.generator_type}</Tag>
+                      <Tag color="blue">{variantsCount} вар.</Tag>
+                      <Tag color="geekblue">{tasksPerVariant} зад./вар.</Tag>
+                      <Tag color="purple">{t.options_count} вар. ответа</Tag>
+                      <Tag color={t.shuffle_mode === 'fixed' ? 'orange' : 'green'}>
+                        {t.shuffle_mode === 'fixed' ? 'Фикс. порядок' : 'Перемешивать'}
+                      </Tag>
+                      <span style={{ fontSize: 11, color: '#aaa' }}>
+                        {new Date(t.created).toLocaleDateString('ru')}
+                      </span>
+                    </Space>
+                  </div>
+                  <Space>
+                    <Button
+                      icon={<ShareAltOutlined />}
+                      type={issueOpenId === t.id ? 'primary' : 'default'}
+                      onClick={() => setIssueOpenId(prev => prev === t.id ? null : t.id)}
+                    >
+                      Выдать
+                    </Button>
+                    <Button icon={<PrinterOutlined />} onClick={() => onPrint(t)}>Печать</Button>
+                    <Popconfirm
+                      title={`Удалить тест «${t.title}»?`}
+                      onConfirm={() => handleDelete(t.id, t.title)}
+                      okText="Да" cancelText="Нет" okType="danger"
+                    >
+                      <Button danger icon={<DeleteOutlined />} loading={deletingId === t.id} />
+                    </Popconfirm>
+                  </Space>
+                </div>
+                {issueOpenId === t.id && (
+                  <div style={{ marginTop: 12, borderTop: '1px solid #f0f0f0', paddingTop: 12 }}>
+                    <SessionPanel trigMcTestId={t.id} />
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const { TextArea } = Input;
 
-const MCTestGenerator = () => {
+const MCTestGenerator = ({ initialMcTestId = null } = {}) => {
   const { message, modal } = App.useApp();
   const { topics, subtopics, tags } = useReferenceData();
 
   const [mode, setMode] = useState('list'); // 'list' | 'edit'
+  const [listTab, setListTab] = useState('tasks'); // 'tasks' | 'trig'
   const [list, setList] = useState([]);
   const [listLoading, setListLoading] = useState(false);
+
+  const { printTest: trigPrintTest, handlePrint: handleTrigPrint } = useTrigMCModal();
 
   const mc = useMCTest();
   const [taskSelectFor, setTaskSelectFor] = useState(null); // index of variant
@@ -37,6 +140,20 @@ const MCTestGenerator = () => {
   };
 
   useEffect(() => { if (mode === 'list') loadList(); }, [mode]);
+
+  useEffect(() => {
+    if (initialMcTestId) {
+      (async () => {
+        try {
+          await mc.load(initialMcTestId);
+          setActiveVariantKey(['0']);
+          setMode('edit');
+        } catch {
+          message.error('Не удалось загрузить тест');
+        }
+      })();
+    }
+  }, [initialMcTestId]);
 
   const startNew = () => {
     mc.reset();
@@ -99,43 +216,74 @@ const MCTestGenerator = () => {
   };
 
   if (mode === 'list') {
+    const tabItems = [
+      {
+        key: 'tasks',
+        label: 'Из задач',
+        children: (
+          <div>
+            {listLoading ? <Empty description="Загрузка..." /> :
+              list.length === 0 ? <Empty description="Нет сохранённых тестов" /> : (
+                <div style={{ display: 'grid', gap: 12 }}>
+                  {list.map(t => {
+                    const totalTasks = (t.variants || []).reduce((s, v) => s + (v.tasks?.length || 0), 0);
+                    return (
+                      <Card key={t.id} size="small" hoverable>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 16, fontWeight: 600 }}>{t.title || '(без названия)'}</div>
+                            {t.description && <div style={{ color: '#666', marginTop: 4 }}>{t.description}</div>}
+                            <Space size={8} style={{ marginTop: 6 }} wrap>
+                              <Tag color="blue">{t.variants?.length || 0} вар.</Tag>
+                              <Tag color="green">{totalTasks} задач</Tag>
+                              {t.class_number && <Tag>{t.class_number} класс</Tag>}
+                              <Tag color={t.shuffle_mode === 'fixed' ? 'orange' : 'purple'}>
+                                {t.shuffle_mode === 'fixed' ? 'Фикс. порядок' : 'Перемешивать'}
+                              </Tag>
+                            </Space>
+                          </div>
+                          <Space>
+                            <Button icon={<EditOutlined />} onClick={() => openTest(t.id)}>Открыть</Button>
+                            <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(t.id, t.title)} />
+                          </Space>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+          </div>
+        ),
+      },
+      {
+        key: 'trig',
+        label: 'Из генераторов',
+        children: <TrigMCTestsList onPrint={handleTrigPrint} />,
+      },
+    ];
+
     return (
       <div style={{ padding: 16 }}>
         <Card
           title="Тесты с выбором ответа"
-          extra={<Button type="primary" icon={<PlusOutlined />} onClick={startNew}>Создать тест</Button>}
+          extra={listTab === 'tasks' && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={startNew}>Создать тест</Button>
+          )}
         >
-          {listLoading ? <Empty description="Загрузка..." /> :
-            list.length === 0 ? <Empty description="Нет сохранённых тестов" /> : (
-              <div style={{ display: 'grid', gap: 12 }}>
-                {list.map(t => {
-                  const totalTasks = (t.variants || []).reduce((s, v) => s + (v.tasks?.length || 0), 0);
-                  return (
-                    <Card key={t.id} size="small" hoverable>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16 }}>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 16, fontWeight: 600 }}>{t.title || '(без названия)'}</div>
-                          {t.description && <div style={{ color: '#666', marginTop: 4 }}>{t.description}</div>}
-                          <Space size={8} style={{ marginTop: 6 }} wrap>
-                            <Tag color="blue">{t.variants?.length || 0} вар.</Tag>
-                            <Tag color="green">{totalTasks} задач</Tag>
-                            {t.class_number && <Tag>{t.class_number} класс</Tag>}
-                            <Tag color={t.shuffle_mode === 'fixed' ? 'orange' : 'purple'}>
-                              {t.shuffle_mode === 'fixed' ? 'Фикс. порядок' : 'Перемешивать'}
-                            </Tag>
-                          </Space>
-                        </div>
-                        <Space>
-                          <Button icon={<EditOutlined />} onClick={() => openTest(t.id)}>Открыть</Button>
-                          <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(t.id, t.title)} />
-                        </Space>
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
-            )}
+          <Tabs
+            activeKey={listTab}
+            onChange={setListTab}
+            items={tabItems}
+            size="small"
+          />
         </Card>
+        {trigPrintTest && (
+          <TrigMCPrintLayout
+            variants={trigPrintTest.variants}
+            title={trigPrintTest.title}
+            shuffleMode={trigPrintTest.shuffle_mode || 'fixed'}
+          />
+        )}
       </div>
     );
   }

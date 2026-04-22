@@ -4,7 +4,7 @@ import {
   DeleteOutlined, SendOutlined, ReloadOutlined, EyeOutlined, EditOutlined,
   RightOutlined, InboxOutlined, SolutionOutlined, TeamOutlined,
   ThunderboltOutlined, PercentageOutlined, ClockCircleOutlined,
-  SearchOutlined, SortAscendingOutlined,
+  SearchOutlined, SortAscendingOutlined, FormOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
@@ -16,9 +16,16 @@ import './WorkManager.css';
 const { Text } = Typography;
 const { Option } = Select;
 
-const WorkManager = ({ onEditWork }) => {
-  const { message } = App.useApp();
+const WorkManager = ({ onEditWork, onEditMCTest }) => {
+  const { message, modal } = App.useApp();
   const { topics } = useReferenceData();
+
+  const [activeTab, setActiveTab] = useState('works');
+  const [mcTests, setMcTests] = useState([]);
+  const [mcSessionsByTest, setMcSessionsByTest] = useState({});
+  const [mcAttemptsByTest, setMcAttemptsByTest] = useState({});
+  const [mcExpandedId, setMcExpandedId] = useState(null);
+  const [mcLoading, setMcLoading] = useState(false);
 
   const [works, setWorks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -107,6 +114,60 @@ const WorkManager = ({ onEditWork }) => {
   useEffect(() => {
     loadWorks();
   }, [loadWorks]);
+
+  // Load MC tests + sessions/attempts
+  const loadMcTests = useCallback(async () => {
+    setMcLoading(true);
+    try {
+      const tests = await api.getMCTests();
+      setMcTests(tests);
+      const sessByTest = {};
+      const attByTest = {};
+      await Promise.all(tests.map(async (mc) => {
+        const sessions = await api.getSessionsByMCTest(mc.id);
+        sessByTest[mc.id] = sessions;
+        if (sessions.length) {
+          const att = await api.getAttemptsBySessions(sessions.map(s => s.id));
+          attByTest[mc.id] = att;
+        } else {
+          attByTest[mc.id] = [];
+        }
+      }));
+      setMcSessionsByTest(sessByTest);
+      setMcAttemptsByTest(attByTest);
+    } catch (err) {
+      console.error('Error loading MC tests:', err);
+      message.error('Ошибка загрузки MC-тестов');
+    }
+    setMcLoading(false);
+  }, [message]);
+
+  useEffect(() => {
+    if (activeTab === 'mc' && mcTests.length === 0 && !mcLoading) {
+      loadMcTests();
+    }
+  }, [activeTab, mcTests.length, mcLoading, loadMcTests]);
+
+  const handleDeleteMcTest = (e, mcId, mcTitle) => {
+    e.stopPropagation();
+    modal.confirm({
+      title: `Удалить «${mcTitle || 'тест'}»?`,
+      content: 'Также будут удалены все связанные сессии и попытки. Действие необратимо.',
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: async () => {
+        try {
+          await api.deleteMCTest(mcId);
+          message.success('Тест удалён');
+          setMcTests([]);
+          loadMcTests();
+        } catch (err) {
+          message.error('Ошибка: ' + (err.message || ''));
+        }
+      },
+    });
+  };
 
   // Load variants for preview
   const loadVariants = useCallback(async (workId) => {
@@ -308,18 +369,8 @@ const WorkManager = ({ onEditWork }) => {
     );
   };
 
-  return (
-    <div className="wm-dashboard">
-      {/* Header */}
-      <div className="wm-dashboard-header">
-        <h2 className="wm-dashboard-title">
-          <SolutionOutlined /> Мои работы
-        </h2>
-        <Button icon={<ReloadOutlined />} onClick={loadWorks} type="text" loading={loading}>
-          Обновить
-        </Button>
-      </div>
-
+  const worksContent = (
+    <>
       {/* Hero Metrics */}
       <div className="wm-hero-grid">
         <div className="wm-hero-card wm-hero-card--total">
@@ -599,6 +650,125 @@ const WorkManager = ({ onEditWork }) => {
           })}
         </div>
       )}
+    </>
+  );
+
+  const mcContent = (
+    <div className="wm-mc-list">
+      {mcLoading ? (
+        <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+      ) : mcTests.length === 0 ? (
+        <div className="wm-empty">
+          <div className="wm-empty-icon"><FormOutlined /></div>
+          <div className="wm-empty-text">Нет MC-тестов</div>
+          <div className="wm-empty-hint">
+            Создайте тест в разделе «Тесты с выбором» и сохраните его
+          </div>
+        </div>
+      ) : (
+        mcTests.map(mc => {
+          const isExpanded = mcExpandedId === mc.id;
+          const sessions = mcSessionsByTest[mc.id] || [];
+          const session = sessions[0];
+          const attempts = mcAttemptsByTest[mc.id] || [];
+          const variantsCount = Array.isArray(mc.variants) ? mc.variants.length : 0;
+          const tasksCount = Array.isArray(mc.variants)
+            ? mc.variants.reduce((s, v) => s + (v.tasks?.length || 0), 0)
+            : 0;
+          return (
+            <div
+              key={mc.id}
+              className={`wm-work-card ${isExpanded ? 'wm-work-card--expanded' : ''}`}
+            >
+              <div className="wm-work-card-header" onClick={() => setMcExpandedId(prev => prev === mc.id ? null : mc.id)}>
+                <div className="wm-work-card-expand"><RightOutlined /></div>
+                <div className="wm-work-card-main">
+                  <div className="wm-work-card-title">
+                    {mc.title || 'Без названия'}
+                    <Tag color="purple" style={{ marginLeft: 8 }}>MC-тест</Tag>
+                    {session?.is_open && (
+                      <span className="wm-status-badge wm-status-badge--open">Приём открыт</span>
+                    )}
+                  </div>
+                  <div className="wm-work-card-meta">
+                    <span className="wm-work-card-date">
+                      {new Date(mc.created).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
+                    </span>
+                    <Tag style={{ margin: 0 }}>Вариантов: {variantsCount}</Tag>
+                    <Tag style={{ margin: 0 }}>Задач: {tasksCount}</Tag>
+                    {mc.shuffle_mode === 'per_student' && (
+                      <Tag color="cyan" style={{ margin: 0 }}>Перемешивать у каждого</Tag>
+                    )}
+                    {attempts.length > 0 && (
+                      <Tag color="green" style={{ margin: 0 }}>Попыток: {attempts.length}</Tag>
+                    )}
+                  </div>
+                </div>
+                <div className="wm-work-card-actions" onClick={e => e.stopPropagation()}>
+                  {onEditMCTest && (
+                    <Tooltip title="Открыть в редакторе">
+                      <Button type="text" size="small" icon={<EditOutlined />} onClick={() => onEditMCTest(mc.id)} />
+                    </Tooltip>
+                  )}
+                  <Tooltip title="Удалить">
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={e => handleDeleteMcTest(e, mc.id, mc.title)} />
+                  </Tooltip>
+                </div>
+              </div>
+              {isExpanded && (
+                <div className="wm-work-card-body">
+                  <Tabs
+                    defaultActiveKey="session"
+                    items={[
+                      {
+                        key: 'session',
+                        label: <span><SendOutlined /> Выдача</span>,
+                        children: <SessionPanel mcTestId={mc.id} />,
+                      },
+                      {
+                        key: 'results',
+                        label: <span><TeamOutlined /> Результаты{attempts.length > 0 ? ` (${attempts.length})` : ''}</span>,
+                        children: session ? (
+                          <TeacherResultsDashboard sessionId={session.id} />
+                        ) : (
+                          <Empty description="Нет активной сессии. Откройте вкладку «Выдача», чтобы создать сессию." />
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })
+      )}
+    </div>
+  );
+
+  return (
+    <div className="wm-dashboard">
+      <div className="wm-dashboard-header">
+        <h2 className="wm-dashboard-title">
+          <SolutionOutlined /> Мои работы
+        </h2>
+        <Button
+          icon={<ReloadOutlined />}
+          onClick={() => activeTab === 'mc' ? loadMcTests() : loadWorks()}
+          type="text"
+          loading={activeTab === 'mc' ? mcLoading : loading}
+        >
+          Обновить
+        </Button>
+      </div>
+
+      <Tabs
+        activeKey={activeTab}
+        onChange={setActiveTab}
+        items={[
+          { key: 'works', label: <span><SolutionOutlined /> Контрольные работы</span>, children: worksContent },
+          { key: 'mc', label: <span><FormOutlined /> Тесты с выбором</span>, children: mcContent },
+        ]}
+      />
     </div>
   );
 };

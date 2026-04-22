@@ -1390,7 +1390,7 @@ export const api = {
     try {
       return await pb.collection('attempts').getFullList({
         filter: `student = "${escapeFilter(studentId)}"`,
-        expand: 'achievement,unlocked_achievements,session.work,session.work.topic',
+        expand: 'achievement,unlocked_achievements,session.work,session.work.topic,session.mc_test',
         sort: '-created',
       });
     } catch (error) {
@@ -1417,7 +1417,7 @@ export const api = {
     try {
       return await pb.collection('attempts').getFullList({
         filter: `device_id = "${escapeFilter(deviceId)}"`,
-        expand: 'achievement,unlocked_achievements,session.work,session.work.topic',
+        expand: 'achievement,unlocked_achievements,session.work,session.work.topic,session.mc_test',
         sort: '-created',
       });
     } catch (error) {
@@ -1468,7 +1468,7 @@ export const api = {
       return await pb.collection('attempts').getFullList({
         filter: 'student != ""',
         sort: '-created',
-        expand: 'session,variant',
+        expand: 'session,session.work,session.mc_test,variant',
       });
     } catch (error) {
       console.error('Error fetching attempts for registered students:', error);
@@ -2296,6 +2296,80 @@ export const api = {
       });
     } catch (error) {
       console.error('Error fetching sessions by mc_test:', error);
+      return [];
+    }
+  },
+
+  // --- trig_mc_tests (MC-тесты из тригонометрических генераторов) ---
+
+  async getTrigMCTests() {
+    try {
+      return await pb.collection('trig_mc_tests').getFullList({ sort: '-created' });
+    } catch (error) {
+      console.error('Error fetching trig_mc_tests:', error);
+      return [];
+    }
+  },
+
+  async getTrigMCTest(id) {
+    try {
+      return await pb.collection('trig_mc_tests').getOne(id);
+    } catch (error) {
+      console.error('Error fetching trig_mc_test:', error);
+      throw error;
+    }
+  },
+
+  async createTrigMCTest(data) {
+    try {
+      return await pb.collection('trig_mc_tests').create(data);
+    } catch (error) {
+      console.error('Error creating trig_mc_test:', error);
+      throw error;
+    }
+  },
+
+  async updateTrigMCTest(id, data) {
+    try {
+      return await pb.collection('trig_mc_tests').update(id, data);
+    } catch (error) {
+      console.error('Error updating trig_mc_test:', error);
+      throw error;
+    }
+  },
+
+  async deleteTrigMCTest(id) {
+    try {
+      return await pb.collection('trig_mc_tests').delete(id);
+    } catch (error) {
+      console.error('Error deleting trig_mc_test:', error);
+      throw error;
+    }
+  },
+
+  // Сессия для trig_mc_test (без поля work)
+  async createTrigMCTestSession(trigMcTestId, extra = {}) {
+    try {
+      return await pb.collection('work_sessions').create({
+        trig_mc_test: trigMcTestId,
+        is_open: true,
+        achievements_enabled: false,
+        ...extra,
+      });
+    } catch (error) {
+      console.error('Error creating trig MC test session:', error);
+      throw error;
+    }
+  },
+
+  async getSessionsByTrigMCTest(trigMcTestId) {
+    try {
+      return await pb.collection('work_sessions').getFullList({
+        filter: `trig_mc_test = "${trigMcTestId}"`,
+        sort: '-created',
+      });
+    } catch (error) {
+      console.error('Error getting sessions by trig_mc_test:', error);
       return [];
     }
   },

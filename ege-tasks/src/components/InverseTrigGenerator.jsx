@@ -4,9 +4,12 @@ import {
   Card, Button, Slider, Radio, Checkbox,
   Divider, Space, Input, Switch, Tag, Popconfirm,
 } from 'antd';
-import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PrinterOutlined, FunctionOutlined, CheckSquareOutlined } from '@ant-design/icons';
 import { useInverseTrig } from '../hooks/useInverseTrig';
+import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
+import TrigMCSaveModal from './trig/TrigMCSaveModal';
+import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 
 function MathInline({ latex }) {
   let html;
@@ -26,6 +29,7 @@ const TASK_TYPE_OPTIONS = [
 
 export default function InverseTrigGenerator() {
   const { title, setTitle, settings, updateSetting, tasksData, generate, reset } = useInverseTrig();
+  const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -173,6 +177,11 @@ export default function InverseTrigGenerator() {
             <Button type="primary" icon={<ReloadOutlined />} onClick={generate}>Сгенерировать</Button>
             {tasksData && <Button icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>}
             {tasksData && (
+              <Button icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>
+                Тест с выбором
+              </Button>
+            )}
+            {tasksData && (
               <Popconfirm title="Сбросить?" onConfirm={reset} okText="Да" cancelText="Нет">
                 <Button danger>Сброс</Button>
               </Popconfirm>
@@ -232,6 +241,23 @@ export default function InverseTrigGenerator() {
           settings={settings}
           title={title}
           instruction="Вычислите:"
+        />
+      )}
+
+      <TrigMCSaveModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        tasksData={tasksData}
+        generatorType="inverse_trig"
+        generatorTitle={title}
+        settings={settings}
+        onPrint={handleMCPrint}
+      />
+      {printTest && (
+        <TrigMCPrintLayout
+          variants={printTest.variants}
+          title={printTest.title}
+          shuffleMode={printTest.shuffle_mode || 'fixed'}
         />
       )}
     </div>

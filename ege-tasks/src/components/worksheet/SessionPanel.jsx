@@ -17,7 +17,7 @@ import './SessionPanel.css';
 
 const { Text, Title } = Typography;
 
-const SessionPanel = ({ workId, mcTestId }) => {
+const SessionPanel = ({ workId, mcTestId, trigMcTestId }) => {
   const { message } = App.useApp();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,12 +33,23 @@ const SessionPanel = ({ workId, mcTestId }) => {
   }, []);
 
   useEffect(() => {
-    if (!workId && !mcTestId) return;
+    if (!workId && !mcTestId && !trigMcTestId) return;
     const init = async () => {
       setLoading(true);
       try {
         let existing;
-        if (mcTestId) {
+        if (trigMcTestId) {
+          const sessions = await api.getSessionsByTrigMCTest(trigMcTestId);
+          existing = sessions[0] || null;
+          if (!existing) {
+            existing = await api.createTrigMCTestSession(trigMcTestId, {
+              student_title: 'Тест с выбором ответа',
+            });
+            setStudentTitle('Тест с выбором ответа');
+          } else {
+            setStudentTitle(existing.student_title || 'Тест с выбором ответа');
+          }
+        } else if (mcTestId) {
           const sessions = await api.getSessionsByMCTest(mcTestId);
           existing = sessions[0] || null;
           if (!existing) {
