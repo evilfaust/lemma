@@ -4,9 +4,12 @@ import {
   Card, Button, Slider, Radio, Checkbox,
   Divider, Space, Input, Switch, Tag, Row, Col,
 } from 'antd';
-import { ReloadOutlined, PrinterOutlined, FunctionOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PrinterOutlined, FunctionOutlined, CheckSquareOutlined } from '@ant-design/icons';
 import { useReductionFormulas } from '../hooks/useReductionFormulas';
+import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
+import TrigMCSaveModal from './trig/TrigMCSaveModal';
+import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 
 function MathInline({ latex }) {
   let html;
@@ -52,6 +55,7 @@ export default function ReductionFormulasGenerator() {
     tasksData,
     generate, reset,
   } = useReductionFormulas();
+  const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -230,6 +234,9 @@ export default function ReductionFormulasGenerator() {
                 <Button block icon={<PrinterOutlined />} onClick={handlePrint}>
                   Печать
                 </Button>
+                <Button block icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>
+                  Тест с выбором
+                </Button>
                 <Button block size="small" onClick={reset}>Сбросить</Button>
               </>
             )}
@@ -294,6 +301,23 @@ export default function ReductionFormulasGenerator() {
           title={title}
           instruction={instruction}
           questionMode="inline"
+        />
+      )}
+
+      <TrigMCSaveModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        tasksData={tasksData}
+        generatorType="reduction_formulas"
+        generatorTitle={title}
+        settings={settings}
+        onPrint={handleMCPrint}
+      />
+      {printTest && (
+        <TrigMCPrintLayout
+          variants={printTest.variants}
+          title={printTest.title}
+          shuffleMode={printTest.shuffle_mode || 'fixed'}
         />
       )}
     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Modal, Tabs, Form, Input, Select, Radio, Button,
-  Space, List, Tag, Popconfirm, message, Spin, Empty, Divider,
+  Space, List, Tag, Popconfirm, message, Spin, Empty, Progress,
 } from 'antd';
 import { SaveOutlined, PrinterOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
@@ -9,28 +9,78 @@ import { buildOptions } from '../../utils/distractorGenerator';
 
 const { Option } = Select;
 
-const GENERATOR_LABELS = {
-  trig_expressions:          'Вычисление выражений',
-  trig_equations:            'Простейшие уравнения',
-  inverse_trig:              'Обратные функции',
-  double_angle:              'Двойной аргумент',
-  trig_equations_advanced:   'Уравнения f(kx+b)=a',
+export const GENERATOR_LABELS = {
+  trig_expressions:        'Вычисление выражений',
+  trig_equations:          'Простейшие уравнения',
+  inverse_trig:            'Обратные функции',
+  double_angle:            'Двойной аргумент',
+  trig_equations_advanced: 'Уравнения f(kx+b)=a',
+  reduction_formulas:      'Формулы приведения',
+  addition_formulas:       'Формулы сложения',
 };
 
-function convertToMCVariants(tasksData, optionsCount) {
-  return tasksData.map((variantTasks, i) => ({
-    number: i + 1,
-    tasks: variantTasks.map(task => ({
-      question: task.exprLatex,
-      answer:   task.resultLatex,
-      options:  buildOptions(task.resultLatex, optionsCount),
-    })),
-  }));
+// Инструкция-префикс, записываемая в statement_md задачи
+const GENERATOR_INSTRUCTIONS = {
+  trig_expressions:        'Вычислите:',
+  trig_equations:          'Решите уравнение:',
+  inverse_trig:            'Вычислите:',
+  double_angle:            'Вычислите или упростите:',
+  trig_equations_advanced: 'Решите уравнение:',
+  reduction_formulas:      'Упростите выражение:',
+  addition_formulas:       'Вычислите или упростите:',
+};
+
+/**
+ * Создаёт реальные записи в коллекции `tasks` для каждой задачи генератора,
+ * возвращает варианты в формате {number, tasks: [{task_id, options}]}.
+ * При ошибке откатывает уже созданные задачи.
+ */
+async function createTasksAndBuildVariants(tasksData, optionsCount, generatorType, onProgress) {
+  const instruction = GENERATOR_INSTRUCTIONS[generatorType] || 'Вычислите:';
+  const createdIds = [];
+
+  try {
+    const variants = [];
+    let done = 0;
+    const total = tasksData.reduce((s, v) => s + v.length, 0);
+
+    for (let i = 0; i < tasksData.length; i++) {
+      const variantTasks = tasksData[i];
+      const tasks = [];
+
+      for (const task of variantTasks) {
+        const record = await api.createTask({
+          statement_md: `${instruction}\n\n$$${task.exprLatex}$$`,
+          answer:  task.resultLatex,
+          source:  'trig_generator',
+        });
+        createdIds.push(record.id);
+        tasks.push({
+          task_id:  record.id,
+          question: task.exprLatex,   // сохраняем для печати (TrigMCPrintLayout)
+          answer:   task.resultLatex, // сохраняем для ключа учителя
+          options:  buildOptions(task.resultLatex, optionsCount),
+        });
+        done++;
+        // Прогресс 5–90 % — создание задач; 90–100 % — сохранение теста
+        onProgress?.(5 + Math.round((done / total) * 85));
+      }
+
+      variants.push({ number: i + 1, tasks });
+    }
+
+    return variants;
+  } catch (err) {
+    // Откатить уже созданные задачи
+    await Promise.allSettled(createdIds.map(id => api.deleteTask(id)));
+    throw err;
+  }
 }
 
 function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }) {
   const [form] = Form.useForm();
-  const [saving, setSaving] = useState(false);
+  const [saving,   setSaving]   = useState(false);
+  const [progress, setProgress] = useState(0);
 
   useEffect(() => {
     form.setFieldValue('title', generatorTitle || '');
@@ -43,8 +93,15 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
       return;
     }
     setSaving(true);
+    setProgress(5);
     try {
-      const variants = convertToMCVariants(tasksData, values.optionsCount);
+      const variants = await createTasksAndBuildVariants(
+        tasksData,
+        values.optionsCount,
+        generatorType,
+        (pct) => setProgress(pct),
+      );
+      setProgress(95);
       const record = await api.createTrigMCTest({
         title:          values.title,
         class_number:   values.classNumber || null,
@@ -54,16 +111,18 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
         settings:       settings || {},
         variants,
       });
+      setProgress(100);
       message.success('Тест сохранён!');
       onSaved?.(record);
     } catch (e) {
       message.error('Ошибка сохранения: ' + (e?.message || e));
     } finally {
       setSaving(false);
+      setProgress(0);
     }
   };
 
-  const totalTasks = tasksData ? tasksData[0]?.length ?? 0 : 0;
+  const totalTasks    = tasksData ? (tasksData[0]?.length ?? 0) : 0;
   const variantsCount = tasksData?.length ?? 0;
 
   return (
@@ -109,12 +168,24 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
           background: '#f6f6f6', borderRadius: 6, padding: '8px 12px',
           fontSize: 13, color: '#555', marginBottom: 8,
         }}>
-          Будет сохранено: <b>{variantsCount}</b> вариантов × <b>{totalTasks}</b> заданий
+          Будет сохранено: <b>{variantsCount}</b> вар. × <b>{totalTasks}</b> задач
+          <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
+            Каждая задача сохраняется как отдельная запись — студент видит разбор ошибок
+          </div>
         </div>
       ) : (
         <div style={{ color: '#999', fontSize: 13, marginBottom: 8 }}>
-          Задания не сгенерированы. Сначала нажмите «Сгенерировать» в генераторе.
+          Задания не сгенерированы. Нажмите «Сгенерировать» в генераторе.
         </div>
+      )}
+
+      {saving && progress > 0 && (
+        <Progress
+          percent={progress}
+          size="small"
+          status={progress < 100 ? 'active' : 'success'}
+          style={{ marginBottom: 8 }}
+        />
       )}
 
       <Button
@@ -124,22 +195,21 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
         loading={saving}
         disabled={!tasksData}
       >
-        Сохранить тест
+        {saving ? 'Сохранение...' : 'Сохранить тест'}
       </Button>
     </Form>
   );
 }
 
 function SavedTab({ generatorType, onPrint }) {
-  const [tests, setTests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tests,      setTests]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
   const [deletingId, setDeletingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const all = await api.getTrigMCTests();
-      // показываем тесты только текущего типа генератора
       setTests(all.filter(t => t.generator_type === generatorType));
     } finally {
       setLoading(false);
@@ -151,10 +221,16 @@ function SavedTab({ generatorType, onPrint }) {
   const handleDelete = async (id) => {
     setDeletingId(id);
     try {
+      const test = tests.find(t => t.id === id);
+      if (test?.variants) {
+        const taskIds = (test.variants || [])
+          .flatMap(v => (v.tasks || []).map(t => t.task_id).filter(Boolean));
+        await Promise.allSettled(taskIds.map(tid => api.deleteTask(tid)));
+      }
       await api.deleteTrigMCTest(id);
       message.success('Тест удалён');
       setTests(prev => prev.filter(t => t.id !== id));
-    } catch (e) {
+    } catch {
       message.error('Ошибка удаления');
     } finally {
       setDeletingId(null);
@@ -179,32 +255,24 @@ function SavedTab({ generatorType, onPrint }) {
       <List
         dataSource={tests}
         renderItem={t => {
-          const variantsCount = Array.isArray(t.variants) ? t.variants.length : 0;
+          const variantsCount   = Array.isArray(t.variants) ? t.variants.length : 0;
           const tasksPerVariant = variantsCount > 0 ? (t.variants[0]?.tasks?.length ?? 0) : 0;
           return (
             <List.Item
               actions={[
                 <Button
-                  key="print"
-                  size="small"
-                  icon={<PrinterOutlined />}
+                  key="print" size="small" icon={<PrinterOutlined />}
                   onClick={() => onPrint(t)}
                 >
                   Печать
                 </Button>,
                 <Popconfirm
                   key="del"
-                  title="Удалить тест?"
+                  title="Удалить тест и все его задачи?"
                   onConfirm={() => handleDelete(t.id)}
-                  okText="Да"
-                  cancelText="Нет"
+                  okText="Да" cancelText="Нет"
                 >
-                  <Button
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    loading={deletingId === t.id}
-                  />
+                  <Button size="small" danger icon={<DeleteOutlined />} loading={deletingId === t.id} />
                 </Popconfirm>,
               ]}
             >
@@ -239,10 +307,10 @@ export default function TrigMCSaveModal({
   settings,
   onPrint,
 }) {
-  const [activeTab, setActiveTab] = useState('save');
+  const [activeTab,  setActiveTab]  = useState('save');
   const [savedCount, setSavedCount] = useState(0);
 
-  const handleSaved = (record) => {
+  const handleSaved = () => {
     setSavedCount(c => c + 1);
     setActiveTab('list');
   };
@@ -275,9 +343,7 @@ export default function TrigMCSaveModal({
         <SavedTab
           key={`${generatorType}-${savedCount}`}
           generatorType={generatorType}
-          onPrint={(t) => {
-            onPrint?.(t);
-          }}
+          onPrint={(t) => { onPrint?.(t); }}
         />
       ),
     },
@@ -292,12 +358,7 @@ export default function TrigMCSaveModal({
       width={520}
       destroyOnHidden={false}
     >
-      <Tabs
-        activeKey={activeTab}
-        onChange={setActiveTab}
-        items={tabs}
-        size="small"
-      />
+      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabs} size="small" />
     </Modal>
   );
 }

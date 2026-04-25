@@ -14,6 +14,7 @@ import TaskSelectModal from './TaskSelectModal';
 import MCOptionsEditor from './mc-test/MCOptionsEditor';
 import MCTestPrintLayout from './mc-test/MCTestPrintLayout';
 import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
+import TrigMCTestEditor from './trig/TrigMCTestEditor';
 import SessionPanel from './worksheet/SessionPanel';
 
 const GENERATOR_LABELS = {
@@ -22,6 +23,8 @@ const GENERATOR_LABELS = {
   inverse_trig:            'Обратные функции',
   double_angle:            'Двойной аргумент',
   trig_equations_advanced: 'Уравнения f(kx+b)=a',
+  reduction_formulas:      'Формулы приведения',
+  addition_formulas:       'Формулы сложения',
 };
 
 function TrigMCTestsList({ onPrint }) {
@@ -30,6 +33,7 @@ function TrigMCTestsList({ onPrint }) {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [issueOpenId, setIssueOpenId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +94,7 @@ function TrigMCTestsList({ onPrint }) {
                     >
                       Выдать
                     </Button>
+                    <Button icon={<EditOutlined />} onClick={() => setEditingId(t.id)}>Редактировать</Button>
                     <Button icon={<PrinterOutlined />} onClick={() => onPrint(t)}>Печать</Button>
                     <Popconfirm
                       title={`Удалить тест «${t.title}»?`}
@@ -110,6 +115,13 @@ function TrigMCTestsList({ onPrint }) {
           })}
         </div>
       )}
+
+      <TrigMCTestEditor
+        testId={editingId}
+        open={!!editingId}
+        onClose={() => setEditingId(null)}
+        onSaved={() => load()}
+      />
     </div>
   );
 }

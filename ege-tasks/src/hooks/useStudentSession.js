@@ -3,30 +3,10 @@ import { api } from '../services/pocketbase';
 import { shuffleArray } from '../utils/shuffle';
 import { shuffleOptionsWithSeed, hashStringToSeed } from '../utils/distractorGenerator';
 
-// Загрузка задач варианта trig MC-теста: inline задачи из trig_mc_tests.variants
+// Загрузка задач варианта trig MC-теста.
+// Задачи теперь хранятся как реальные записи в tasks по task_id — формат идентичен mc_tests.
 async function loadTrigMCVariantTasks(trigMcTest, variantNumber, attemptId, deviceId, authStudentId) {
-  const variants = trigMcTest.variants || [];
-  const variantData = variants.find(v => String(v.number) === String(variantNumber))
-    || variants[0];
-  if (!variantData) return { variant: null, tasks: [] };
-
-  const seedBase = trigMcTest.shuffle_mode === 'per_student'
-    ? `${attemptId || authStudentId || deviceId || 'anon'}`
-    : (trigMcTest.id || 'fixed');
-
-  const tasks = (variantData.tasks || []).map((task, ti) => {
-    const seed = hashStringToSeed(`${seedBase}-${variantNumber}-${ti}-${task.question}`);
-    const orderedOptions = trigMcTest.shuffle_mode === 'fixed'
-      ? task.options
-      : shuffleOptionsWithSeed(task.options, seed);
-    return { ...task, index: ti, mc_options: orderedOptions };
-  });
-
-  const number = variantData.number ?? Number(variantNumber);
-  return {
-    variant: { id: `trig-mc-${number}`, number, isTrigMC: true },
-    tasks,
-  };
+  return loadMCVariantTasks(trigMcTest, variantNumber, attemptId, deviceId, authStudentId);
 }
 
 // Загрузка задач варианта MC-теста: getTasksByIds + прикрепляем mc_options

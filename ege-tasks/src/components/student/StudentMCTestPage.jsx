@@ -10,6 +10,17 @@ const { Title, Text } = Typography;
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 /**
+ * Оборачивает текст опции в $...$ если это LaTeX без делимитеров.
+ * Нужно для тригонометрических тестов, где опции хранятся как сырой LaTeX.
+ */
+function wrapOptionText(text) {
+  if (!text) return '';
+  if (text.includes('$') || text.includes('\\(') || text.includes('\\[')) return text;
+  if (/\\[a-zA-Z]|[_^{]/.test(text)) return `$${text}$`;
+  return text;
+}
+
+/**
  * Страница прохождения теста с выбором ответа (MC).
  */
 const StudentMCTestPage = ({ studentSession }) => {
@@ -233,7 +244,7 @@ const StudentMCTestPage = ({ studentSession }) => {
                   }}
                 >
                   <strong style={{ marginRight: 8 }}>{LETTERS[oi]}.</strong>
-                  <MathRenderer text={opt.text || ''} />
+                  <MathRenderer text={wrapOptionText(opt.text || '')} />
                 </Radio>
               ))}
             </Radio.Group>
