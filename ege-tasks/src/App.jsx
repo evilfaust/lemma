@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
 import { Layout, Menu, ConfigProvider, Spin, Button, notification } from 'antd';
 import { hybridTheme } from './theme/hybrid';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined, AppstoreOutlined, BulbOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -108,54 +108,28 @@ function AppContent() {
       label: 'Аналитика',
     },
     {
-      key: 'generator',
-      icon: <FileSearchOutlined />,
-      label: 'Генератор',
+      key: 'worksheets-group',
+      icon: <AppstoreOutlined />,
+      label: 'Рабочие листы',
+      children: [
+        { key: 'generator', icon: <FileSearchOutlined />, label: 'Генератор' },
+        { key: 'ege-variant', icon: <FileAddOutlined />, label: 'Варианты ЕГЭ' },
+        { key: 'ege-score-calc', icon: <BarChartOutlined />, label: 'Калькулятор баллов' },
+        { key: 'test-generator', icon: <SnippetsOutlined />, label: 'Контрольные работы' },
+        { key: 'mc-test', icon: <FormOutlined />, label: 'Тесты с выбором' },
+      ],
     },
     {
-      key: 'ege-variant',
-      icon: <FileAddOutlined />,
-      label: 'Варианты ЕГЭ',
-    },
-    {
-      key: 'ege-score-calc',
-      icon: <BarChartOutlined />,
-      label: 'Калькулятор баллов',
-    },
-    {
-      key: 'test-generator',
-      icon: <SnippetsOutlined />,
-      label: 'Контрольные работы',
-    },
-    {
-      key: 'mc-test',
-      icon: <FormOutlined />,
-      label: 'Тесты с выбором',
-    },
-    {
-      key: 'qr-worksheet',
-      icon: <QrcodeOutlined />,
-      label: 'QR-листы',
-    },
-    {
-      key: 'pixel-art',
-      icon: <PictureOutlined />,
-      label: 'Пиксель-арт',
-    },
-    {
-      key: 'cryptogram',
-      icon: <KeyOutlined />,
-      label: 'Шифровки',
-    },
-    {
-      key: 'route-sheet',
-      icon: <BranchesOutlined />,
-      label: 'Маршрутный лист',
-    },
-    {
-      key: 'marathon',
-      icon: <TrophyOutlined />,
-      label: 'Марафон',
+      key: 'gamification-group',
+      icon: <BulbOutlined />,
+      label: 'Геймификация',
+      children: [
+        { key: 'qr-worksheet', icon: <QrcodeOutlined />, label: 'QR-листы' },
+        { key: 'pixel-art', icon: <PictureOutlined />, label: 'Пиксель-арт' },
+        { key: 'cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
+        { key: 'route-sheet', icon: <BranchesOutlined />, label: 'Маршрутный лист' },
+        { key: 'marathon', icon: <TrophyOutlined />, label: 'Марафон' },
+      ],
     },
     {
       key: 'work-manager',
