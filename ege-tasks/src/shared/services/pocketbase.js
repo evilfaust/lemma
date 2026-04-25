@@ -411,6 +411,35 @@ export const api = {
     }
   },
 
+  // Удалить задачу принудительно: сначала убрать из всех связанных записей
+  async forceDeleteTask(taskId) {
+    const refs = [
+      'variants',
+      'cards',
+      'qr_worksheets',
+      'pixel_art_worksheets',
+      'marathons',
+    ];
+    for (const col of refs) {
+      try {
+        const records = await pb.collection(col).getFullList({
+          filter: `tasks ~ "${taskId}"`,
+        });
+        for (const rec of records) {
+          const ids = Array.isArray(rec.tasks) ? rec.tasks : [];
+          const next = ids.filter(id => id !== taskId);
+          try {
+            await pb.collection(col).update(rec.id, { tasks: next });
+          } catch {
+            // если поле обязательно и стало пустым — удаляем всю запись
+            try { await pb.collection(col).delete(rec.id); } catch {}
+          }
+        }
+      } catch {}
+    }
+    return await pb.collection('tasks').delete(taskId);
+  },
+
   // Получить URL изображения
   getImageUrl(record, filename) {
     return pb.files.getUrl(record, filename);

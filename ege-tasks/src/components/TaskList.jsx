@@ -253,8 +253,23 @@ const TaskList = ({
         setBulkLoading(true);
         message.loading({ content: 'Удаляем задачи…', key: 'bulk', duration: 0 });
         try {
-          for (const taskId of selectedTaskIds) await api.deleteTask(taskId);
-          message.success({ content: `Удалено: ${selCount}`, key: 'bulk', duration: 2 });
+          let failed = 0;
+          for (const taskId of selectedTaskIds) {
+            try {
+              await api.deleteTask(taskId);
+            } catch (e) {
+              if (e?.status === 400) {
+                await api.forceDeleteTask(taskId);
+              } else {
+                failed++;
+              }
+            }
+          }
+          if (failed > 0) {
+            message.warning({ content: `Удалено с ошибками: ${failed} не удалось`, key: 'bulk', duration: 3 });
+          } else {
+            message.success({ content: `Удалено: ${selCount}`, key: 'bulk', duration: 2 });
+          }
           setSelectedTaskIds(new Set());
           await loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
         } catch (error) {

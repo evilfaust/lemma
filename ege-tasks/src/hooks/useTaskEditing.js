@@ -11,7 +11,7 @@ import { api } from '../services/pocketbase';
  * @returns {Object} обработчики и состояния для модалок замены/редактирования
  */
 export const useTaskEditing = (variants, setVariants) => {
-  const { message } = App.useApp();
+  const { message, modal } = App.useApp();
   // Замена задачи
   const [replaceModalVisible, setReplaceModalVisible] = useState(false);
   const [taskToReplace, setTaskToReplace] = useState(null);
@@ -77,18 +77,42 @@ export const useTaskEditing = (variants, setVariants) => {
   };
 
   /**
-   * Удалить задачу из БД и из всех вариантов
+   * Удалить задачу из БД и из всех вариантов.
+   * При 400 (задача используется) — спрашиваем и удаляем каскадно.
    */
   const handleDeleteEdit = async (taskId) => {
-    await api.deleteTask(taskId);
-    const newVariants = variants.map(variant => ({
-      ...variant,
-      tasks: variant.tasks.filter(t => t.id !== taskId),
-    }));
-    setVariants(newVariants);
-    setEditModalVisible(false);
-    setTaskToEdit(null);
-    message.success('Задача удалена');
+    const doDelete = async (force = false) => {
+      if (force) {
+        await api.forceDeleteTask(taskId);
+      } else {
+        await api.deleteTask(taskId);
+      }
+      const newVariants = variants.map(variant => ({
+        ...variant,
+        tasks: variant.tasks.filter(t => t.id !== taskId),
+      }));
+      setVariants(newVariants);
+      setEditModalVisible(false);
+      setTaskToEdit(null);
+      message.success('Задача удалена');
+    };
+
+    try {
+      await doDelete(false);
+    } catch (error) {
+      if (error?.status === 400) {
+        modal.confirm({
+          title: 'Задача используется в работах',
+          content: 'Задача входит в варианты, карточки или другие работы. Удалить её отовсюду и убрать из базы?',
+          okText: 'Удалить',
+          okButtonProps: { danger: true },
+          cancelText: 'Отмена',
+          onOk: () => doDelete(true),
+        });
+      } else {
+        message.error('Ошибка при удалении задачи');
+      }
+    }
   };
 
   return {
