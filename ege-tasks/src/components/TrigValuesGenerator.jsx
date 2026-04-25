@@ -1,17 +1,24 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import katex from 'katex';
 import {
-  Card, Button, Input, Slider, Radio, Checkbox,
-  Divider, Space, Modal, List, Typography, Tag, Popconfirm, Switch,
+  Button, Slider, Radio, Checkbox, Divider, Space,
+  Modal, List, Typography, Switch, Tag,
 } from 'antd';
 import {
-  ReloadOutlined, PrinterOutlined, SaveOutlined, FolderOpenOutlined,
-  DeleteOutlined, RadarChartOutlined, TableOutlined,
+  PrinterOutlined, SaveOutlined, FolderOpenOutlined,
+  DeleteOutlined, RadarChartOutlined, TableOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import { useTrigValues } from '../hooks/useTrigValues';
 import TrigValuesSVG from './trig/TrigValuesSVG';
 import TrigValuesPrintLayout from './trig/TrigValuesPrintLayout';
-import './TrigValuesGenerator.css';
+import {
+  TrigGeneratorLayout,
+  TrigSettingsSection,
+  TrigActions,
+  TrigPreviewPane,
+  TrigPreviewCard,
+  TrigStatBadge,
+} from './trig/TrigGeneratorLayout';
 
 const { Text } = Typography;
 
@@ -22,13 +29,6 @@ function MathInline({ latex }) {
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-
-const LAYOUT_OPTIONS = [
-  { value: 'landscape', label: 'Альбомная A4' },
-  { value: 'portrait',  label: 'Книжная A4' },
-];
-
-// Компактная таблица для превью на экране
 function PreviewTable({ points, showSin, showCos, showTan, showCot }) {
   const cols = [
     showSin && { key: 'sin', head: '\\sin' },
@@ -38,25 +38,25 @@ function PreviewTable({ points, showSin, showCos, showTan, showCot }) {
   ].filter(Boolean);
 
   return (
-    <div className="tvg-preview-table-wrap">
-      <table className="tvg-preview-table">
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead>
           <tr>
-            <th>№</th>
-            <th><MathInline latex="\alpha" /></th>
-            {cols.map(c => <th key={c.key}><MathInline latex={c.head} /></th>)}
+            <th style={thStyle}>№</th>
+            <th style={thStyle}><MathInline latex="\alpha" /></th>
+            {cols.map(c => <th key={c.key} style={thStyle}><MathInline latex={c.head} /></th>)}
           </tr>
         </thead>
         <tbody>
           {points.map(p => (
             <tr key={p.id}>
-              <td>{p.id}</td>
-              <td><MathInline latex={p.angleDisplayCompact || p.angleDisplay} /></td>
+              <td style={tdStyle}>{p.id}</td>
+              <td style={tdStyle}><MathInline latex={p.angleDisplayCompact || p.angleDisplay} /></td>
               {cols.map(c => {
                 const undef = (c.key === 'tan' && p.tanUndef) || (c.key === 'cot' && p.cotUndef);
                 return (
-                  <td key={c.key} className="tvg-preview-blank">
-                    {undef ? <span style={{ color: '#aaa', fontSize: 11 }}>—</span> : ''}
+                  <td key={c.key} style={{ ...tdStyle, color: 'var(--ink-4)' }}>
+                    {undef ? '—' : ''}
                   </td>
                 );
               })}
@@ -67,6 +67,20 @@ function PreviewTable({ points, showSin, showCos, showTan, showCot }) {
     </div>
   );
 }
+
+const thStyle = {
+  padding: '6px 8px',
+  borderBottom: '1px solid var(--rule)',
+  textAlign: 'center',
+  color: 'var(--ink-3)',
+  fontWeight: 600,
+};
+
+const tdStyle = {
+  padding: '6px 8px',
+  borderBottom: '1px dotted var(--rule-soft)',
+  textAlign: 'center',
+};
 
 export default function TrigValuesGenerator() {
   const [showLoadModal, setShowLoadModal] = useState(false);
@@ -92,214 +106,125 @@ export default function TrigValuesGenerator() {
     style.textContent = `@page { size: ${size}; margin: 0; }`;
     document.head.appendChild(style);
     window.print();
-    setTimeout(() => {
-      const s = document.getElementById('tvg-print-page-style');
-      if (s) s.remove();
-    }, 1500);
+    setTimeout(() => document.getElementById('tvg-print-page-style')?.remove(), 1500);
   };
 
+  const columnLabels = [settings.showSin && 'sin', settings.showCos && 'cos', settings.showTan && 'tg', settings.showCot && 'ctg']
+    .filter(Boolean)
+    .join(', ');
+
   return (
-    <div className="tvg-root">
-      {/* ── Заголовок ── */}
-      <div className="tvg-header">
-        <TableOutlined style={{ fontSize: 20, color: '#1677ff' }} />
-        <Input
-          className="tvg-title-input"
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="Название листа"
-          size="middle"
-        />
-      </div>
+    <>
+      <TrigGeneratorLayout
+        icon={<TableOutlined style={{ fontSize: 14 }} />}
+        title={title}
+        onTitleChange={setTitle}
+        leftWidth={360}
+        left={
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
+            <TrigSettingsSection label="Параметры">
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 6 }}>
+                Углов в таблице: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{settings.anglesCount ?? 8}</b>
+              </div>
+              <Slider min={4} max={16} value={settings.anglesCount ?? 8} onChange={v => updateSetting('anglesCount', v)} marks={{ 4: '4', 8: '8', 12: '12', 16: '16' }} size="small" />
+              <Divider style={{ margin: '10px 0' }} />
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 6 }}>
+                Кол-во вариантов: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{settings.variantsCount}</b>
+              </div>
+              <Slider min={1} max={32} value={settings.variantsCount} onChange={v => updateSetting('variantsCount', v)} marks={{ 1: '1', 10: '10', 20: '20', 32: '32' }} size="small" />
+              <Divider style={{ margin: '10px 0' }} />
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 6 }}>
+                Сдвиг углов ±k×2π: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{settings.maxK === 0 ? 'нет' : `до ${settings.maxK}`}</b>
+              </div>
+              <Slider min={0} max={4} value={settings.maxK ?? 2} onChange={v => updateSetting('maxK', v)} marks={{ 0: 'нет', 1: '±1', 2: '±2', 3: '±3', 4: '±4' }} size="small" />
+            </TrigSettingsSection>
 
-      <div className="tvg-layout">
-        {/* ── Панель настроек ─────────────────────────────────────── */}
-        <Card className="tvg-settings-card" size="small" title="Настройки">
+            <TrigSettingsSection label="Колонки">
+              <Space wrap size={4}>
+                <Checkbox checked={settings.showSin} onChange={e => updateSetting('showSin', e.target.checked)}>sin</Checkbox>
+                <Checkbox checked={settings.showCos} onChange={e => updateSetting('showCos', e.target.checked)}>cos</Checkbox>
+                <Checkbox checked={settings.showTan} onChange={e => updateSetting('showTan', e.target.checked)}>tg</Checkbox>
+                <Checkbox checked={settings.showCot} onChange={e => updateSetting('showCot', e.target.checked)}>ctg</Checkbox>
+              </Space>
+            </TrigSettingsSection>
 
-          <div className="tvg-settings-row">
-            <div className="tvg-settings-label">
-              Углов в таблице: {settings.anglesCount ?? 8}
-            </div>
-            <Slider
-              min={4} max={16}
-              value={settings.anglesCount ?? 8}
-              onChange={v => updateSetting('anglesCount', v)}
-              marks={{ 4: '4', 8: '8', 12: '12', 16: '16' }}
-              size="small"
-            />
+            <TrigSettingsSection label="Печать и вид">
+              <Radio.Group value={settings.layout} onChange={e => updateSetting('layout', e.target.value)} size="small" optionType="button" buttonStyle="solid">
+                <Radio.Button value="landscape">Альбомная</Radio.Button>
+                <Radio.Button value="portrait">Книжная</Radio.Button>
+              </Radio.Group>
+              <Divider style={{ margin: '10px 0' }} />
+              <Space direction="vertical" size={6}>
+                <Checkbox checked={settings.showHelperLines} onChange={e => updateSetting('showHelperLines', e.target.checked)}>
+                  Вспомогательные линии
+                </Checkbox>
+                <Checkbox checked={settings.showAngleLabels} onChange={e => updateSetting('showAngleLabels', e.target.checked)}>
+                  Подписи углов на окружности
+                </Checkbox>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Switch size="small" checked={settings.useDegrees ?? false} onChange={v => updateSetting('useDegrees', v)} />
+                  <span style={{ fontSize: 13 }}>Градусная мера</span>
+                </div>
+                <Checkbox checked={settings.showTeacherKey} onChange={e => updateSetting('showTeacherKey', e.target.checked)}>
+                  Лист ответов
+                </Checkbox>
+              </Space>
+            </TrigSettingsSection>
+
+            <TrigActions>
+              <Button type="primary" block icon={<ThunderboltOutlined />} onClick={generate}>
+                Сформировать
+              </Button>
+              {tasksData && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Button block icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>
+                  <Button block icon={<SaveOutlined />} loading={saving} onClick={saveWorksheet}>
+                    {savedId ? 'Обновить' : 'Сохранить'}
+                  </Button>
+                </div>
+              )}
+              <Button block icon={<FolderOpenOutlined />} onClick={handleOpenLoad}>Загрузить</Button>
+              {tasksData && <Button block onClick={reset}>Сбросить</Button>}
+            </TrigActions>
           </div>
-
-          <div className="tvg-settings-row">
-            <div className="tvg-settings-label">
-              Кол-во вариантов: {settings.variantsCount}
-            </div>
-            <Slider
-              min={1} max={32}
-              value={settings.variantsCount}
-              onChange={v => updateSetting('variantsCount', v)}
-              marks={{ 1: '1', 10: '10', 20: '20', 32: '32' }}
-              size="small"
-            />
-          </div>
-
-          <div className="tvg-settings-row">
-            <div className="tvg-settings-label">
-              Сдвиг углов ±k×2π: {settings.maxK === 0 ? 'нет' : `k до ${settings.maxK}`}
-            </div>
-            <Slider
-              min={0} max={4}
-              value={settings.maxK ?? 2}
-              onChange={v => updateSetting('maxK', v)}
-              marks={{ 0: 'нет', 1: '±1', 2: '±2', 3: '±3', 4: '±4' }}
-              size="small"
-            />
-          </div>
-
-          <div className="tvg-settings-row">
-            <div className="tvg-settings-label">Ориентация</div>
-            <Radio.Group
-              value={settings.layout}
-              onChange={e => updateSetting('layout', e.target.value)}
-              size="small"
-              optionType="button"
-              buttonStyle="solid"
-            >
-              <Radio.Button value="landscape">Альбомная</Radio.Button>
-              <Radio.Button value="portrait">Книжная</Radio.Button>
-            </Radio.Group>
-          </div>
-
-          <Divider style={{ margin: '8px 0' }} />
-
-          <div className="tvg-settings-label" style={{ marginBottom: 6 }}>Колонки в таблице</div>
-          <Space wrap size={4}>
-            <Checkbox
-              checked={settings.showSin}
-              onChange={e => updateSetting('showSin', e.target.checked)}
-            >sin</Checkbox>
-            <Checkbox
-              checked={settings.showCos}
-              onChange={e => updateSetting('showCos', e.target.checked)}
-            >cos</Checkbox>
-            <Checkbox
-              checked={settings.showTan}
-              onChange={e => updateSetting('showTan', e.target.checked)}
-            >tg</Checkbox>
-            <Checkbox
-              checked={settings.showCot}
-              onChange={e => updateSetting('showCot', e.target.checked)}
-            >ctg</Checkbox>
-          </Space>
-
-          <Divider style={{ margin: '8px 0' }} />
-
-          <Space direction="vertical" size={6}>
-            <Checkbox
-              checked={settings.showHelperLines}
-              onChange={e => updateSetting('showHelperLines', e.target.checked)}
-            >
-              Вспомогательные линии
-            </Checkbox>
-            <Checkbox
-              checked={settings.showAngleLabels}
-              onChange={e => updateSetting('showAngleLabels', e.target.checked)}
-            >
-              Подписи углов на окружности
-            </Checkbox>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Switch
-                size="small"
-                checked={settings.useDegrees ?? false}
-                onChange={v => updateSetting('useDegrees', v)}
-              />
-              <span style={{ fontSize: 13 }}>Градусная мера</span>
-            </div>
-            <Checkbox
-              checked={settings.showTeacherKey}
-              onChange={e => updateSetting('showTeacherKey', e.target.checked)}
-            >
-              Лист ответов (учитель)
-            </Checkbox>
-          </Space>
-        </Card>
-
-        {/* ── Превью ─────────────────────────────────────────────── */}
-        <div className="tvg-preview">
-
-          {/* Кнопки */}
-          <div className="tvg-actions">
-            <Button type="primary" icon={<ReloadOutlined />} onClick={generate}>
-              Сгенерировать
-            </Button>
-            {tasksData && (
-              <>
-                <Button icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>
-                <Button icon={<SaveOutlined />} loading={saving} onClick={saveWorksheet}>
-                  {savedId ? 'Обновить' : 'Сохранить'}
-                </Button>
-              </>
-            )}
-            <Button icon={<FolderOpenOutlined />} onClick={handleOpenLoad}>Загрузить</Button>
-            {tasksData && (
-              <Popconfirm title="Сбросить?" onConfirm={reset} okText="Да" cancelText="Нет">
-                <Button danger>Сброс</Button>
-              </Popconfirm>
-            )}
-          </div>
-
-          {/* Пустое состояние */}
-          {!tasksData ? (
-            <div className="tvg-empty">
-              <RadarChartOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />
-              <div>Нажмите «Сгенерировать» чтобы создать лист</div>
-            </div>
-          ) : (
-            <>
-              {/* Превью всех вариантов */}
-              {tasksData.map((variant, vi) => (
-                <div key={vi} className="tvg-preview-card">
-                  <div className="tvg-preview-card-title">
-                    Вариант {vi + 1}
-                  </div>
-                  <div className="tvg-preview-body">
-                    <div className="tvg-preview-circle">
-                      <TrigValuesSVG
-                        points={variant}
-                        showHelperLines={settings.showHelperLines}
-                        showAngleLabels={settings.showAngleLabels}
-                      />
-                    </div>
-                    <PreviewTable
+        }
+        right={
+          <TrigPreviewPane
+            hasData={Boolean(tasksData)}
+            emptyIcon={<RadarChartOutlined />}
+            emptyTitle="Нажмите «Сформировать», чтобы создать лист"
+            emptyHint="Таблица значений тригонометрических функций"
+            summary={[
+              <TrigStatBadge key="angles" tone="accent">{tasksData?.[0]?.length || settings.anglesCount} углов</TrigStatBadge>,
+              <TrigStatBadge key="cols">{columnLabels || 'колонки'}</TrigStatBadge>,
+              <TrigStatBadge key="variants" tone="success">{settings.variantsCount} вар.</TrigStatBadge>,
+              <TrigStatBadge key="layout">{settings.layout === 'landscape' ? 'A4 альбом' : 'A4 книжн.'}</TrigStatBadge>,
+            ]}
+          >
+            {tasksData?.map((variant, vi) => (
+              <TrigPreviewCard key={vi} title={`Вариант ${vi + 1}`} meta={`${variant.length} углов`}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 320px) 1fr', gap: 16, alignItems: 'start' }}>
+                  <div style={{ maxWidth: 320 }}>
+                    <TrigValuesSVG
                       points={variant}
-                      showSin={settings.showSin}
-                      showCos={settings.showCos}
-                      showTan={settings.showTan}
-                      showCot={settings.showCot}
+                      showHelperLines={settings.showHelperLines}
+                      showAngleLabels={settings.showAngleLabels}
                     />
                   </div>
+                  <PreviewTable
+                    points={variant}
+                    showSin={settings.showSin}
+                    showCos={settings.showCos}
+                    showTan={settings.showTan}
+                    showCot={settings.showCot}
+                  />
                 </div>
-              ))}
+              </TrigPreviewCard>
+            ))}
+          </TrigPreviewPane>
+        }
+      />
 
-              {/* Сводка */}
-              <div className="tvg-summary">
-                <Tag color="blue">{tasksData[0].length} углов</Tag>
-                <Tag color="geekblue">
-                  {[settings.showSin && 'sin', settings.showCos && 'cos',
-                    settings.showTan && 'tg', settings.showCot && 'ctg']
-                    .filter(Boolean).join(', ')}
-                </Tag>
-                <Tag color="purple">{settings.variantsCount} вар.</Tag>
-                <Tag color="cyan">
-                  {settings.layout === 'landscape' ? 'Альбомная A4' : 'Книжная A4'}
-                </Tag>
-                {settings.showTeacherKey && <Tag color="orange">+ Ответы</Tag>}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Печатная вёрстка (скрыта на экране) */}
       {tasksData && (
         <TrigValuesPrintLayout
           tasksData={tasksData}
@@ -308,7 +233,6 @@ export default function TrigValuesGenerator() {
         />
       )}
 
-      {/* ── Модал загрузки ─────────────────────────────────────────────── */}
       <Modal
         title="Загрузить сохранённый лист"
         open={showLoadModal}
@@ -323,36 +247,23 @@ export default function TrigValuesGenerator() {
             loading={loadingSaved}
             dataSource={saved}
             renderItem={item => (
-              <div className="tvg-saved-item">
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0' }}>
                 <div>
-                  <div className="tvg-saved-title">{item.title}</div>
-                  <div className="tvg-saved-meta">
+                  <div style={{ fontWeight: 600 }}>{item.title}</div>
+                  <div style={{ color: 'var(--ink-4)', fontSize: 12 }}>
                     <Tag>{item.task_type}</Tag>
-                    {item.variants_count} вар. ·{' '}
-                    {new Date(item.created).toLocaleDateString('ru')}
+                    {item.variants_count} вар. · {new Date(item.created).toLocaleDateString('ru')}
                   </div>
                 </div>
                 <Space>
-                  <Button size="small" onClick={() => {
-                    loadWorksheet(item);
-                    setShowLoadModal(false);
-                  }}>
-                    Загрузить
-                  </Button>
-                  <Popconfirm
-                    title="Удалить?"
-                    onConfirm={() => deleteWorksheet(item.id)}
-                    okText="Да"
-                    cancelText="Нет"
-                  >
-                    <Button size="small" danger icon={<DeleteOutlined />} />
-                  </Popconfirm>
+                  <Button size="small" onClick={() => { loadWorksheet(item); setShowLoadModal(false); }}>Загрузить</Button>
+                  <Button size="small" danger icon={<DeleteOutlined />} onClick={() => deleteWorksheet(item.id)} />
                 </Space>
               </div>
             )}
           />
         )}
       </Modal>
-    </div>
+    </>
   );
 }

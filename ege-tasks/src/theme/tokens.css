@@ -1,0 +1,146 @@
+/* Lemma · Hybrid — CSS-переменные
+   Покрывают то, что не входит в Ant Design ConfigProvider:
+   категорийные цвета, уровни сложности, ритм типографики заголовков */
+
+:root {
+  /* ── Категорийные оттенки (5 тематик) ── */
+  --c-blue:        #2B4BFF;
+  --c-blue-soft:   #E7ECFF;
+  --c-teal:        #0D9488;
+  --c-teal-soft:   #D1FAE5;
+  --c-violet:      #7C3AED;
+  --c-violet-soft: #EDE9FE;
+  --c-amber:       #D97706;
+  --c-amber-soft:  #FEF3C7;
+  --c-rose:        #E11D48;
+  --c-rose-soft:   #FFE4E6;
+
+  /* ── Уровни сложности ── */
+  --lvl-1: #0D9488;
+  --lvl-2: #D97706;
+  --lvl-3: #E11D48;
+
+  /* ── Нейтральная система (дублирует Antd токены для CSS-only контекстов) ── */
+  --ink:   #0D1321;
+  --ink-2: #2A2F3A;
+  --ink-3: #646A76;
+  --ink-4: #9AA0AC;
+  --rule:       #E5E7EB;
+  --rule-soft:  #EEF0F3;
+  --bg:         #FBFBFD;
+  --bg-raised:  #FFFFFF;
+  --bg-sunken:  #F3F4F6;
+  --bg-hover:   #F7F8FA;
+  --accent:     #2B4BFF;
+  --accent-ink: #1A34D1;
+  --accent-soft: #E7ECFF;
+
+  /* ── Типографика заголовков ── */
+  --page-title-size:     26px;
+  --page-title-weight:   600;
+  --page-title-tracking: -0.03em;
+
+  --card-title-size:     15px;
+  --card-title-weight:   600;
+  --card-title-tracking: -0.015em;
+
+  --stat-value-size:     30px;
+  --stat-value-weight:   600;
+  --stat-value-tracking: -0.035em;
+
+  --eyebrow-size:        10.5px;
+  --eyebrow-weight:      600;
+  --eyebrow-tracking:    0.08em;
+
+  /* ── Шрифты ── */
+  --font-body: 'Geist', 'Inter', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ── Радиусы ── */
+  --radius-sm: 4px;
+  --radius:    6px;
+  --radius-lg: 8px;
+
+  /* ── Тени ── */
+  --shadow-sm: 0 1px 2px rgba(13,19,33,.04);
+  --shadow:    0 1px 2px rgba(13,19,33,.04), 0 0 0 1px rgba(13,19,33,.05);
+}
+
+/* ── Чипы (категории задач) ── */
+.lemma-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  line-height: 1.5;
+  font-family: var(--font-body);
+  cursor: default;
+}
+.lemma-chip::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.lemma-chip-blue   { color: var(--c-blue);   background: var(--c-blue-soft); }
+.lemma-chip-teal   { color: var(--c-teal);   background: var(--c-teal-soft); }
+.lemma-chip-violet { color: var(--c-violet); background: var(--c-violet-soft); }
+.lemma-chip-amber  { color: var(--c-amber);  background: var(--c-amber-soft); }
+.lemma-chip-rose   { color: var(--c-rose);   background: var(--c-rose-soft); }
+
+/* ── Кружок уровня сложности ── */
+.lemma-level {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  background: transparent;
+  border: 1.5px solid currentColor;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.lemma-level-1 { color: var(--lvl-1); }
+.lemma-level-2 { color: var(--lvl-2); }
+.lemma-level-3 { color: var(--lvl-3); }
+
+/* ── Фокус-ринг — единый для всех интерактивов ── */
+.ant-btn:focus-visible,
+.ant-input:focus,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  outline: none !important;
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 4px var(--accent) !important;
+}
+
+/* ── Боковая панель — тонкая граница вместо тени ── */
+.ant-layout-sider {
+  border-right: 1px solid var(--rule-soft) !important;
+}
+
+/* ── Заголовки таблицы — uppercase + letter-spacing ── */
+.ant-table-thead > tr > th {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+}
+
+/* ── Меню — убрать Ant-тень на selected item ── */
+.ant-menu-item-selected {
+  font-weight: 600;
+}
+
+/* ── Breadcrumb — небольшой letter-spacing убрать ── */
+.ant-breadcrumb {
+  font-size: 12px;
+}

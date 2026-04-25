@@ -1,5 +1,6 @@
 import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
-import { Layout, Menu, ConfigProvider, theme, Spin, Button, notification } from 'antd';
+import { Layout, Menu, ConfigProvider, Spin, Button, notification } from 'antd';
+import { hybridTheme } from './theme/hybrid';
 import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
@@ -48,6 +49,7 @@ import { api } from './services/pocketbase';
 import { ReferenceDataProvider, useReferenceData } from './contexts/ReferenceDataContext';
 import { useVersionSync } from './shared/version/useVersionSync';
 import 'katex/dist/katex.min.css';
+import './theme/tokens.css';
 import './App.css';
 
 const { Header, Content, Sider } = Layout;
@@ -588,14 +590,7 @@ default:
 
 function App() {
   return (
-    <ConfigProvider
-      theme={{
-        algorithm: theme.defaultAlgorithm,
-        token: {
-          colorPrimary: '#1890ff',
-        },
-      }}
-    >
+    <ConfigProvider theme={hybridTheme}>
       <ReferenceDataProvider>
         <AppContent />
       </ReferenceDataProvider>

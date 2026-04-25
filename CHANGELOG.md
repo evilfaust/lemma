@@ -1,5 +1,35 @@
 # Changelog — История изменений
 
+## [3.9.13] - 2026-04-25
+
+### Тригонометрия — новый UI-паттерн генераторов и доработка шифровок
+
+**Новые возможности:**
+- Большинство тригонометрических генераторов переведены на единый современный интерфейс в стиле `TrigMixedGenerator`: общий заголовок, двухпанельный layout, компактные секции настроек слева и новый блок предпросмотра справа
+- Добавлен общий UI-каркас `components/trig/TrigGeneratorLayout.jsx` для переиспользования в тригонометрических экранах
+- Обновлены интерфейсы генераторов:
+  - `TrigExpressionsGenerator`
+  - `InverseTrigGenerator`
+  - `TrigEquationsGenerator`
+  - `TrigEquationsAdvancedGenerator`
+  - `ReductionFormulasGenerator`
+  - `AdditionFormulasGenerator`
+  - `DoubleAngleGenerator`
+  - `TrigValuesGenerator`
+  - `UnitCircleGenerator`
+  - `UnitCircleCryptogramGenerator`
+
+**Шифровки:**
+- В `CryptogramGenerator` повторяющиеся буквы теперь объясняются через номера позиций у самой задачи: одна задача может быть помечена как `8, 10`, если найденную букву нужно вписать сразу в две клетки
+- Таблица `ответ → буква` снова не раскрывает позиции повторов ученику
+- Экран обычных шифровок переведён на новый паттерн интерфейса с двухпанельным layout и обновлённым предпросмотром
+- Внутренняя логика `buildCryptogramForVariant()` теперь хранит позиции каждой буквы в фразе для учительского ключа и UI-подсказок
+
+**Технические изменения:**
+- Новый файл: `ege-tasks/src/components/trig/TrigGeneratorLayout.jsx`
+- `ege-tasks/src/utils/cryptogram.js`: добавлены `positions` для `answerKey` и реальных элементов шифровки
+- `ege-tasks/src/components/CryptogramGenerator.css`: переработаны стили страницы шифровок и печатного блока
+
 ## [3.9.12] - 2026-04-25
 
 ### Тригонометрические MC-тесты — редактор и исправление рендеринга LaTeX

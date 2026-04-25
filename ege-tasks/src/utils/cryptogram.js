@@ -95,6 +95,7 @@ export function buildCryptogramForVariant({
   const uniqueLetters = [...new Set(allLetters)];
   const tasks = variant?.tasks || [];
   const warnings = [];
+  const positionsByLetter = {};
 
   if (!normalizedPhrase) {
     warnings.push('Введите слово или фразу для шифровки.');
@@ -106,24 +107,27 @@ export function buildCryptogramForVariant({
     );
   }
 
-  // Маппинг задача → буква (по позиции в uniqueLetters)
-  const answerKey = tasks.map((task, index) => ({
-    index: index + 1,
-    answer: normalizeAnswer(task?.answer),
-    letter: uniqueLetters[index] || '',
-  }));
-
-  if (answerKey.some((item) => !item.answer)) {
-    warnings.push('У части задач нет ответа, поэтому шифровку построить нельзя.');
-  }
-
   // answerCells: для каждого символа фразы — тип + порядковый номер позиции (1,2,3...)
   let posCounter = 0;
   const answerCells = normalizedPhrase.split('').map((char) => {
     if (char === ' ') return { type: 'space', value: ' ', posNum: null };
     posCounter += 1;
+    if (!positionsByLetter[char]) positionsByLetter[char] = [];
+    positionsByLetter[char].push(posCounter);
     return { type: 'letter', value: char, posNum: posCounter };
   });
+
+  // Маппинг задача → буква (по позиции в uniqueLetters)
+  const answerKey = tasks.map((task, index) => ({
+    index: index + 1,
+    answer: normalizeAnswer(task?.answer),
+    letter: uniqueLetters[index] || '',
+    positions: positionsByLetter[uniqueLetters[index]] || [],
+  }));
+
+  if (answerKey.some((item) => !item.answer)) {
+    warnings.push('У части задач нет ответа, поэтому шифровку построить нельзя.');
+  }
 
   if (warnings.length > 0) {
     return {
@@ -140,6 +144,7 @@ export function buildCryptogramForVariant({
   const realEntries = answerKey.map((item) => ({
     answer: item.answer,
     letter: item.letter,
+    positions: item.positions,
     isDecoy: false,
   }));
 
@@ -168,6 +173,7 @@ export function buildCryptogramForVariant({
   const decoyEntries = decoyLetters.map((letter, index) => ({
     letter,
     answer: decoyAnswersPool[index] || String(21 + index),
+    positions: [],
     isDecoy: true,
   }));
 

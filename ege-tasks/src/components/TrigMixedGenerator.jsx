@@ -1,13 +1,14 @@
 import React, { useState, useCallback } from 'react';
 import katex from 'katex';
 import {
-  Card, Button, Switch, Slider, Select, Checkbox, Space, Divider,
-  Input, Row, Col, Typography, InputNumber, Tabs, Tag,
+  Button, Switch, Slider, Select, Checkbox, Space,
+  Input, Row, Col, Typography, InputNumber, Tabs,
 } from 'antd';
 import {
-  PrinterOutlined, ReloadOutlined, ThunderboltOutlined, FunctionOutlined,
+  PrinterOutlined, ThunderboltOutlined, FunctionOutlined,
   HolderOutlined,
 } from '@ant-design/icons';
+import { SplitLayout, ConfigLabel } from '../ui';
 import UnitCircleSVG from './trig/UnitCircleSVG';
 import { useTrigExpressions }      from '../hooks/useTrigExpressions';
 import { useInverseTrig }           from '../hooks/useInverseTrig';
@@ -651,92 +652,91 @@ export default function TrigMixedGenerator() {
   };
 
   return (
-    <div style={{ padding: 16, maxWidth: 1200 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* ─── Заголовок ───────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-        <FunctionOutlined style={{ fontSize: 20, color: '#1677ff' }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingBottom: 12, borderBottom: '1px solid var(--rule)', marginBottom: 16 }}>
+        <div style={{ width: 28, height: 28, borderRadius: 6, background: 'var(--accent-soft)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <FunctionOutlined style={{ fontSize: 14 }} />
+        </div>
         <Input
           value={workTitle}
           onChange={e => setWorkTitle(e.target.value)}
           placeholder="Название работы"
-          style={{ maxWidth: 420, fontSize: 15 }}
+          style={{ flex: 1, fontWeight: 500 }}
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-        {/* ─── Левая панель: настройки ─────────────────────────────── */}
-        <Card size="small" title="Настройки" style={{ flex: '0 0 320px', minWidth: 280 }}>
+      <SplitLayout leftWidth={340} gap={20} style={{ flex: 1 }}
+        left={
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
-          {/* Вариантов */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
-              Вариантов: <b>{variantsCount}</b>
+            {/* Вариантов */}
+            <div style={{ padding: '10px 12px', background: 'var(--bg-sunken)', borderRadius: 'var(--radius)', border: '1px solid var(--rule-soft)' }}>
+              <ConfigLabel>Настройки</ConfigLabel>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 6 }}>
+                Вариантов: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{variantsCount}</b>
+              </div>
+              <Slider
+                min={1} max={30} value={variantsCount}
+                onChange={setVariantsCount}
+                marks={{ 1: '1', 2: '2', 4: '4', 8: '8', 12: '12', 20: '20', 30: '30' }}
+                size="small"
+              />
             </div>
-            <Slider
-              min={1} max={30} value={variantsCount}
-              onChange={setVariantsCount}
-              marks={{ 1: '1', 2: '2', 4: '4', 8: '8', 12: '12', 20: '20', 30: '30' }}
-              size="small"
-            />
-          </div>
 
-          <Divider style={{ margin: '10px 0' }} />
+            {/* Разделы label */}
+            <div style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              Разделы · перетащите для сортировки
+            </div>
 
-          {/* Разделы (drag & drop) */}
-          <div style={{ fontSize: 12, color: '#666', marginBottom: 6 }}>
-            Разделы работы
-            <span style={{ color: '#bbb', fontWeight: 400, marginLeft: 6 }}>
-              — перетащите для сортировки
-            </span>
-          </div>
-          <Space direction="vertical" size={4} style={{ width: '100%', marginBottom: 4 }}>
-            {orderedRegistry.map(g => {
-              const cfg = genConfigs[g.id];
-              const isDragging   = dragId === g.id;
-              const isDropTarget = dragOverId === g.id && dragId !== g.id;
-              return (
-                <div
-                  key={g.id}
-                  draggable
-                  onDragStart={e => handleDragStart(e, g.id)}
-                  onDragOver={e => handleDragOver(e, g.id)}
-                  onDrop={e => handleDrop(e, g.id)}
-                  onDragEnd={handleDragEnd}
-                  style={{
-                    border: '1px solid',
-                    borderColor: isDropTarget ? '#1890ff' : cfg.enabled ? '#1890ff' : '#d9d9d9',
-                    borderRadius: 6,
-                    padding: '6px 10px',
-                    background: isDragging ? '#e6f4ff' : cfg.enabled ? '#f0f7ff' : '#fafafa',
-                    opacity: isDragging ? 0.5 : 1,
-                    transition: 'opacity 0.15s, border-color 0.15s, background 0.15s',
-                    cursor: 'default',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <HolderOutlined style={{ color: '#bbb', cursor: 'grab', fontSize: 13, flexShrink: 0 }} />
-                    <Switch
-                      size="small"
-                      checked={cfg.enabled}
-                      onChange={v => updateGenConfig(g.id, { enabled: v })}
-                    />
-                    <span style={{ fontSize: 12, fontWeight: cfg.enabled ? 600 : 400 }}>
-                      {g.label}
-                    </span>
-                  </div>
-                  {cfg.enabled && (
-                    <div style={{ marginTop: 6, paddingLeft: 32 }}>
-                      <GenSettings
-                        id={g.id}
-                        cfg={cfg}
-                        onChange={newCfg => setGenConfigs(prev => ({ ...prev, [g.id]: newCfg }))}
+            {/* Scrollable section blocks */}
+            <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8, margin: '0 -4px', padding: '0 4px 4px' }}>
+              {orderedRegistry.map(g => {
+                const cfg = genConfigs[g.id];
+                const isDragging   = dragId === g.id;
+                const isDropTarget = dragOverId === g.id && dragId !== g.id;
+                return (
+                  <div
+                    key={g.id}
+                    draggable
+                    onDragStart={e => handleDragStart(e, g.id)}
+                    onDragOver={e => handleDragOver(e, g.id)}
+                    onDrop={e => handleDrop(e, g.id)}
+                    onDragEnd={handleDragEnd}
+                    style={{
+                      padding: '8px 12px',
+                      border: `1px solid ${isDropTarget ? 'var(--accent)' : cfg.enabled ? 'var(--accent)' : 'var(--rule)'}`,
+                      borderRadius: 'var(--radius)',
+                      background: cfg.enabled ? 'var(--accent-soft)' : 'var(--bg-raised)',
+                      opacity: isDragging ? 0.5 : 1,
+                      transition: 'opacity .15s, border-color .15s, background .15s',
+                      cursor: 'default',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <HolderOutlined style={{ color: 'var(--ink-4)', cursor: 'grab', fontSize: 13, flexShrink: 0 }} />
+                      <Switch
+                        size="small"
+                        checked={cfg.enabled}
+                        onChange={v => updateGenConfig(g.id, { enabled: v })}
                       />
-                      {g.id !== 'unitCircle' && (
-                        <div style={{ marginTop: 4 }}>
-                          <Checkbox
-                            checked={cfg.twoColumns || false}
-                            onChange={e => updateGenConfig(g.id, { twoColumns: e.target.checked })}
-                            style={{ fontSize: 12 }}
+                      <span style={{ fontSize: 12, fontWeight: cfg.enabled ? 600 : 400, color: 'var(--ink)', lineHeight: 1.3 }}>
+                        {g.label}
+                      </span>
+                    </div>
+                    {cfg.enabled && (
+                      <div style={{ marginTop: 8, paddingLeft: 32 }}>
+                        <GenSettings
+                          id={g.id}
+                          cfg={cfg}
+                          onChange={newCfg => setGenConfigs(prev => ({ ...prev, [g.id]: newCfg }))}
+                        />
+                        {g.id !== 'unitCircle' && (
+                          <div style={{ marginTop: 4 }}>
+                            <Checkbox
+                              checked={cfg.twoColumns || false}
+                              onChange={e => updateGenConfig(g.id, { twoColumns: e.target.checked })}
+                              style={{ fontSize: 12 }}
                           >
                             2 колонки
                           </Checkbox>
@@ -747,182 +747,169 @@ export default function TrigMixedGenerator() {
                 </div>
               );
             })}
-          </Space>
-
-          <Divider style={{ margin: '10px 0' }} />
-
-          {/* Параметры печати */}
-          <div style={{ marginBottom: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: '#666' }}>Заголовки разделов</span>
-              <Switch size="small" checked={showSectionHeaders} onChange={setShowSectionHeaders} />
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: '#666' }}>2 варианта на стр.</span>
-              <Switch size="small" checked={twoPerPage} onChange={setTwoPerPage} />
+
+            {/* Параметры печати */}
+            <div style={{ padding: '10px 12px', background: 'var(--bg-sunken)', border: '1px solid var(--rule-soft)', borderRadius: 'var(--radius)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <ConfigLabel>Параметры печати</ConfigLabel>
+              {[
+                ['Заголовки разделов', showSectionHeaders, setShowSectionHeaders],
+                ['2 варианта на стр.', twoPerPage, setTwoPerPage],
+                ['Лист ответов', showTeacherKey, setShowTeacherKey],
+                ['Место для решения', showWorkSpace, setShowWorkSpace],
+              ].map(([label, val, setter]) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</span>
+                  <Switch size="small" checked={val} onChange={setter} />
+                </div>
+              ))}
+              {showWorkSpace && (
+                <div style={{ marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 4 }}>
+                    Высота: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{workSpaceSize} мм</b>
+                  </div>
+                  <Slider
+                    min={10} max={80} value={workSpaceSize}
+                    onChange={setWorkSpaceSize}
+                    marks={{ 10: '10', 30: '30', 50: '50', 80: '80' }}
+                    size="small"
+                  />
+                </div>
+              )}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, color: '#666' }}>Лист ответов</span>
-              <Switch size="small" checked={showTeacherKey} onChange={setShowTeacherKey} />
+
+            {/* Кнопки */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <Button
+                type="primary" block
+                icon={<ThunderboltOutlined />}
+                onClick={handleGenerate}
+                disabled={!enabledGens.length}
+              >
+                Сформировать
+              </Button>
+              {hasData && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <Button block icon={<PrinterOutlined />} onClick={handlePrint} style={{ flex: 1 }}>
+                    Печать
+                  </Button>
+                  <Button block onClick={handleReset} style={{ flex: 1 }}>
+                    Сбросить
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
-
-          <Divider style={{ margin: '10px 0' }} />
-
-          <Checkbox
-            checked={showWorkSpace}
-            onChange={e => setShowWorkSpace(e.target.checked)}
-          >
-            Место для решения
-          </Checkbox>
-          {showWorkSpace && (
-            <div style={{ marginTop: 8, marginBottom: 8 }}>
-              <div style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>
-                Высота: <b>{workSpaceSize} мм</b>
+        }
+        right={
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+          {!hasData ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--ink-3)' }}>
+              <FunctionOutlined style={{ fontSize: 32, marginBottom: 12, color: 'var(--ink-4)' }} />
+              <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--ink-3)' }}>
+                Настройте разделы и нажмите «Сформировать»
               </div>
-              <Slider
-                min={10} max={80} value={workSpaceSize}
-                onChange={setWorkSpaceSize}
-                marks={{ 10: '10', 30: '30', 50: '50', 80: '80' }}
-                size="small"
-              />
+              <div style={{ fontSize: 12, marginTop: 8, color: 'var(--ink-4)' }}>
+                Включено: {enabledGens.map(g => g.label).join(', ') || 'нет'}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+              {/* Preview header */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0, letterSpacing: '-0.025em', color: 'var(--ink)' }}>
+                    Предпросмотр
+                  </h2>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11.5, color: 'var(--ink-3)', padding: '2px 8px', background: 'var(--bg-sunken)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--rule)' }}>
+                    {variantsCount} вар.
+                  </span>
+                </div>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--lvl-1)', padding: '2px 8px', background: 'var(--c-teal-soft)', borderRadius: 'var(--radius-sm)' }}>
+                  {mixedVariants[0]?.sections.reduce((n, s) => n + s.tasks.length, 0)} задач
+                </span>
+              </div>
+            <Tabs
+              size="small"
+              style={{ flex: 1, minHeight: 0 }}
+              items={mixedVariants.map((variant, vi) => ({
+                key: String(vi),
+                label: `Вариант ${variant.number}`,
+                children: (
+                  <div style={{ overflow: 'auto' }}>
+                    {/* NOTE: Card replaced — start removed */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                    {variant.sections.map((sec, si) => {
+                      let startIdx = 1;
+                      for (let k = 0; k < si; k++) startIdx += variant.sections[k].tasks.length;
+                      return (
+                        <div key={sec.id}>
+                          <div style={{
+                            fontSize: 11, fontWeight: 600, color: 'var(--ink-3)',
+                            textTransform: 'uppercase', letterSpacing: '0.09em',
+                            paddingBottom: 6, borderBottom: '1px solid var(--rule)',
+                            marginBottom: 8,
+                          }}>
+                            {sec.label}
+                          </div>
+                          {sec.questionMode === 'unitcircle' ? (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 0' }}>
+                              {sec.tasks.map((task, ti) => (
+                                <div key={ti} style={{ textAlign: 'center' }}>
+                                  <div style={{ fontSize: 11, color: 'var(--ink-4)', marginBottom: 4, fontFamily: 'var(--font-mono)' }}>
+                                    {startIdx + ti})
+                                  </div>
+                                  <div style={{ width: 100, height: 100 }}>
+                                    <UnitCircleSVG
+                                      points={task.points}
+                                      taskType={task.type}
+                                      isAnswer={false}
+                                      showAxes={sec.ucSettings?.showAxes ?? 'axes'}
+                                      showDegrees={sec.ucSettings?.showDegrees ?? false}
+                                      showTicks={sec.ucSettings?.showTicks ?? true}
+                                    />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div style={{ border: '1px solid var(--rule-soft)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                              {sec.tasks.map((q, qi) => (
+                                <div key={qi} style={{
+                                  display: 'flex', alignItems: 'baseline', gap: 6,
+                                  padding: '5px 12px',
+                                  borderBottom: qi < sec.tasks.length - 1 ? '1px dotted var(--rule-soft)' : 'none',
+                                  fontSize: 13,
+                                }}>
+                                  <span style={{ fontWeight: 600, minWidth: 20, color: 'var(--ink-3)', flexShrink: 0, fontFamily: 'var(--font-mono)' }}>
+                                    {startIdx + qi})
+                                  </span>
+                                  <span style={{ flex: 1 }}>
+                                    <MathInline latex={q.exprLatex} />
+                                  </span>
+                                  <span style={{ color: 'var(--rule)', padding: '0 4px', flexShrink: 0 }}>
+                                    {sec.questionMode === 'twoLine' ? 't =' : '='}
+                                  </span>
+                                  <span style={{ color: 'var(--accent)', fontStyle: 'italic', fontWeight: 500, flexShrink: 0 }}>
+                                    <MathInline latex={q.resultLatex} />
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    </div>
+                  </div>
+                ),
+              }))}
+            />
             </div>
           )}
-
-          <Divider style={{ margin: '10px 0' }} />
-
-          {/* Кнопки */}
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <Button
-              type="primary" block
-              icon={<ThunderboltOutlined />}
-              onClick={handleGenerate}
-              disabled={!enabledGens.length}
-            >
-              Сформировать
-            </Button>
-            {hasData && (
-              <>
-                <Button block icon={<PrinterOutlined />} onClick={handlePrint}>
-                  Печать
-                </Button>
-                <Button block size="small" onClick={handleReset}>
-                  Сбросить
-                </Button>
-              </>
-            )}
-          </Space>
-        </Card>
-
-        {/* ─── Правая панель: предпросмотр ─────────────────────────── */}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {!hasData ? (
-            <Card size="small">
-              <div style={{ padding: '40px 0', textAlign: 'center', color: '#8c8c8c' }}>
-                <FunctionOutlined style={{ fontSize: 32, marginBottom: 12 }} />
-                <div style={{ fontSize: 15 }}>
-                  Настройте разделы и нажмите «Сформировать»
-                </div>
-                <div style={{ fontSize: 12, marginTop: 8, color: '#bbb' }}>
-                  Включено: {enabledGens.map(g => g.label).join(', ') || 'нет'}
-                </div>
-              </div>
-            </Card>
-          ) : (
-            <Card
-              size="small"
-              title={
-                <span>
-                  Предпросмотр
-                  <Tag color="blue" style={{ marginLeft: 8 }}>{variantsCount} вар.</Tag>
-                  {mixedVariants[0]?.sections.map(s => (
-                    <Tag key={s.id} color="geekblue">{s.tasks.length} зад.</Tag>
-                  ))}
-                  <Tag color="purple">
-                    итого {mixedVariants[0]?.sections.reduce((n, s) => n + s.tasks.length, 0)} зад.
-                  </Tag>
-                </span>
-              }
-            >
-              <Tabs
-                size="small"
-                items={mixedVariants.map((variant, vi) => ({
-                  key: String(vi),
-                  label: `Вариант ${variant.number}`,
-                  children: (
-                    <div>
-                      {variant.sections.map((sec, si) => {
-                        let startIdx = 1;
-                        for (let k = 0; k < si; k++) startIdx += variant.sections[k].tasks.length;
-                        return (
-                          <div key={sec.id} style={{ marginBottom: 12 }}>
-                            <div style={{
-                              fontSize: 12, fontWeight: 600, color: '#555',
-                              padding: '4px 10px',
-                              background: '#f5f5f5',
-                              borderLeft: '3px solid #1890ff',
-                              borderRadius: '0 4px 4px 0',
-                              marginBottom: 6,
-                            }}>
-                              {sec.label}
-                            </div>
-
-                            {sec.questionMode === 'unitcircle' ? (
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '4px 8px' }}>
-                                {sec.tasks.map((task, ti) => (
-                                  <div key={ti} style={{ textAlign: 'center' }}>
-                                    <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>
-                                      {startIdx + ti})
-                                    </div>
-                                    <div style={{ width: 100, height: 100 }}>
-                                      <UnitCircleSVG
-                                        points={task.points}
-                                        taskType={task.type}
-                                        isAnswer={false}
-                                        showAxes={sec.ucSettings?.showAxes ?? 'axes'}
-                                        showDegrees={sec.ucSettings?.showDegrees ?? false}
-                                        showTicks={sec.ucSettings?.showTicks ?? true}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div style={{ border: '1px solid #f0f0f0', borderRadius: 6, overflow: 'hidden' }}>
-                                {sec.tasks.map((q, qi) => (
-                                  <div key={qi} style={{
-                                    display: 'flex', alignItems: 'baseline', gap: 6,
-                                    padding: '5px 12px',
-                                    borderBottom: qi < sec.tasks.length - 1 ? '1px dotted #f0f0f0' : 'none',
-                                    fontSize: 13,
-                                  }}>
-                                    <span style={{ fontWeight: 600, minWidth: 20, color: '#888', flexShrink: 0 }}>
-                                      {startIdx + qi})
-                                    </span>
-                                    <span style={{ flex: 1 }}>
-                                      <MathInline latex={q.exprLatex} />
-                                    </span>
-                                    <span style={{ color: '#bbb', padding: '0 4px', flexShrink: 0 }}>
-                                      {sec.questionMode === 'twoLine' ? 't =' : '='}
-                                    </span>
-                                    <span style={{ color: '#c0392b', fontWeight: 500, flexShrink: 0 }}>
-                                      <MathInline latex={q.resultLatex} />
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ),
-                }))}
-              />
-            </Card>
-          )}
-        </div>
-      </div>
+          </div>
+        }
+      />
 
       {/* ─── Блок печати (скрыт на экране) ───────────────────────────── */}
       <TrigMixedPrintLayout
