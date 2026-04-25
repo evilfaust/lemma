@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App, Tooltip } from 'antd';
 import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
@@ -34,10 +34,27 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [newTopicTitle, setNewTopicTitle] = useState('');
   const [newSubtopicName, setNewSubtopicName] = useState('');
 
+  const [selectedExamType, setSelectedExamType] = useState(null);
+
   const img = useImageUpload('url');
   const [imageDeleted, setImageDeleted] = useState(false);
 
   const isCreateMode = !task;
+
+  const EXAM_TYPE_OPTIONS = [
+    { value: 'ege_base',    label: 'ЕГЭ базовый' },
+    { value: 'ege_profile', label: 'ЕГЭ профильный' },
+    { value: 'mordkovich',  label: 'Мордкович' },
+    { value: 'oral',        label: 'Устный счёт' },
+    { value: 'vpr',         label: 'ВПР' },
+    { value: 'trig',        label: 'Тригонометрия' },
+    { value: 'other',       label: 'Прочее' },
+  ];
+
+  const filteredTopicsList = useMemo(() => {
+    if (!selectedExamType) return topics;
+    return topics.filter(t => t.exam_type === selectedExamType);
+  }, [topics, selectedExamType]);
 
   // Функция генерации кода задачи
   const handleGenerateCode = async (topicId) => {
@@ -92,6 +109,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       if (task) {
         const topicData = allTopics.find(t => t.id === task.topic);
         setSelectedTopic(topicData);
+        setSelectedExamType(topicData?.exam_type || null);
         if (task.topic) {
           setFilteredSubtopics(allSubtopics.filter(st => st.topic === task.topic));
         }
@@ -127,6 +145,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         setPreviewSolution('');
         setSelectedTopic(null);
         setFilteredSubtopics([]);
+        setSelectedExamType(null);
         img.resetImage();
         setImageDeleted(false);
       }
@@ -144,14 +163,20 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const handleCreateTopic = async () => {
     const trimmedTitle = (newTopicTitle || '').trim();
     if (!trimmedTitle) { message.warning('Введите название темы'); return; }
-    if (newTopicNumber == null || newTopicNumber === '') { message.warning('Укажите номер ЕГЭ'); return; }
 
-    const existingByNumber = topics.find(t => String(t.ege_number) === String(newTopicNumber));
-    if (existingByNumber) {
-      message.warning(`Тема с номером ${newTopicNumber} уже существует`);
-      form.setFieldValue('topic', existingByNumber.id);
-      handleTopicChange(existingByNumber.id);
-      return;
+    const isEgeType = selectedExamType === 'ege_base' || selectedExamType === 'ege_profile';
+    if (isEgeType && (newTopicNumber == null || newTopicNumber === '')) {
+      message.warning('Укажите номер ЕГЭ'); return;
+    }
+
+    if (newTopicNumber != null && newTopicNumber !== '') {
+      const existingByNumber = topics.find(t => String(t.ege_number) === String(newTopicNumber));
+      if (existingByNumber) {
+        message.warning(`Тема с номером ${newTopicNumber} уже существует`);
+        form.setFieldValue('topic', existingByNumber.id);
+        handleTopicChange(existingByNumber.id);
+        return;
+      }
     }
     const existingByTitle = topics.find(t => normalizeTitle(t.title) === normalizeTitle(trimmedTitle));
     if (existingByTitle) {
@@ -163,7 +188,13 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
 
     setCreatingTopic(true);
     try {
-      const newTopic = await api.createTopic({ title: trimmedTitle, ege_number: Number(newTopicNumber), order: Number(newTopicNumber) });
+      const topicPayload = { title: trimmedTitle };
+      if (newTopicNumber != null && newTopicNumber !== '') {
+        topicPayload.ege_number = Number(newTopicNumber);
+        topicPayload.order = Number(newTopicNumber);
+      }
+      if (selectedExamType) topicPayload.exam_type = selectedExamType;
+      const newTopic = await api.createTopic(topicPayload);
       setTopics([...topics, newTopic]);
       message.success(`Тема "${trimmedTitle}" создана`);
       setNewTopicTitle('');
@@ -346,6 +377,25 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           </Select>
         </Form.Item>
 
+        {/* Контекст */}
+        <Form.Item label="Контекст">
+          <Select
+            placeholder="Все темы"
+            allowClear
+            value={selectedExamType}
+            onChange={(val) => {
+              setSelectedExamType(val || null);
+              form.setFieldsValue({ topic: undefined, subtopic: undefined });
+              setSelectedTopic(null);
+              setFilteredSubtopics([]);
+            }}
+          >
+            {EXAM_TYPE_OPTIONS.map(o => (
+              <Option key={o.value} value={o.value}>{o.label}</Option>
+            ))}
+          </Select>
+        </Form.Item>
+
         {/* Тема */}
         <Form.Item name="topic" label="Тема" rules={[{ required: true, message: 'Выберите тему' }]}>
           <Select
@@ -359,7 +409,9 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 <Divider style={{ margin: '8px 0' }} />
                 <div style={{ padding: '0 8px 8px' }}>
                   <Space style={{ display: 'flex' }}>
-                    <InputNumber placeholder="№ ЕГЭ" min={0} style={{ width: 100 }} value={newTopicNumber} onChange={setNewTopicNumber} />
+                    {(selectedExamType === 'ege_base' || selectedExamType === 'ege_profile' || !selectedExamType) && (
+                      <InputNumber placeholder="№ ЕГЭ" min={0} style={{ width: 100 }} value={newTopicNumber} onChange={setNewTopicNumber} />
+                    )}
                     <Input placeholder="Новая тема" value={newTopicTitle} onChange={(e) => setNewTopicTitle(e.target.value)} />
                     <Button type="text" icon={<PlusOutlined />} loading={creatingTopic} onClick={handleCreateTopic}>Добавить</Button>
                   </Space>
@@ -367,8 +419,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
               </>
             )}
           >
-            {topics.map(topic => (
-              <Option key={topic.id} value={topic.id}>{topic.ege_number ? `№${topic.ege_number} — ` : ""}{topic.title}</Option>
+            {filteredTopicsList.map(topic => (
+              <Option key={topic.id} value={topic.id}>{topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}</Option>
             ))}
           </Select>
         </Form.Item>
