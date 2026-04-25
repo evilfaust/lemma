@@ -6,6 +6,7 @@ import {
 import { SaveOutlined, PrinterOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { buildOptions } from '../../utils/distractorGenerator';
+import { generateTrigTaskCodes } from '../../utils/taskCodeGenerator';
 
 const { Option } = Select;
 
@@ -63,10 +64,22 @@ async function createTasksAndBuildVariants(tasksData, optionsCount, generatorTyp
     // Тема не критична — продолжаем без неё
   }
 
+  // Предварительно генерируем коды для всех задач (один запрос к API)
+  const totalTaskCount = tasksData.reduce((s, v) => s + v.length, 0);
+  let codePool = [];
+  if (topicId) {
+    try {
+      codePool = await generateTrigTaskCodes(topicId, totalTaskCount);
+    } catch {
+      // Коды не критичны — продолжаем без них
+    }
+  }
+  let codeIndex = 0;
+
   try {
     const variants = [];
     let done = 0;
-    const total = tasksData.reduce((s, v) => s + v.length, 0);
+    const total = totalTaskCount;
 
     for (let i = 0; i < tasksData.length; i++) {
       const variantTasks = tasksData[i];
@@ -79,6 +92,7 @@ async function createTasksAndBuildVariants(tasksData, optionsCount, generatorTyp
           source:  'trig_generator',
         };
         if (topicId) taskData.topic = topicId;
+        if (codePool[codeIndex]) taskData.code = codePool[codeIndex++];
         const record = await api.createTask(taskData);
         createdIds.push(record.id);
         tasks.push({

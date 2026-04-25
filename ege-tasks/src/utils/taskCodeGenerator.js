@@ -1,83 +1,66 @@
 import { api } from '../services/pocketbase';
 
+function extractCounter(code, prefix) {
+  if (!code || !code.startsWith(prefix)) return null;
+  const num = parseInt(code.slice(prefix.length), 10);
+  return isNaN(num) ? null : num;
+}
+
+function nextCode(existingCodes, prefix) {
+  const counters = existingCodes.map(c => extractCounter(c, prefix)).filter(n => n !== null);
+  const next = counters.length > 0 ? Math.max(...counters) + 1 : 1;
+  return `${prefix}${String(next).padStart(3, '0')}`;
+}
+
 /**
- * Генерирует следующий код задачи для заданной темы
- * @param {string} topicId - ID темы
- * @param {object} topic - Объект темы (опционально, будет загружен если не передан)
- * @returns {Promise<string>} - Новый код задачи
+ * Генерирует следующий код задачи для заданной темы.
+ * Для тригонометрических тем (exam_type='trig'): T{N}-{seq}
+ * Для остальных тем: {ege_number}-{seq}
  */
 export async function generateTaskCode(topicId, topic = null) {
-  // Валидация topicId
   if (!topicId) {
     throw new Error('topicId обязателен для генерации кода');
   }
 
-  // 1. Получить тему если не передана или неполная
-  if (!topic || !topic.ege_number) {
-    console.log('[taskCodeGenerator] Topic не передана или неполная, загружаем из API. topicId:', topicId);
-
+  if (!topic) {
     const topics = await api.getTopics();
     topic = topics.find(t => t.id === topicId);
-
     if (!topic) {
-      throw new Error(`Тема с ID "${topicId}" не найдена в базе данных`);
+      throw new Error(`Тема с ID "${topicId}" не найдена`);
     }
-
-    console.log('[taskCodeGenerator] Тема загружена:', {
-      id: topic.id,
-      title: topic.title,
-      ege_number: topic.ege_number
-    });
   }
 
-  // 2. Проверить наличие ege_number
+  const tasks = await api.getTasks({ topic: topicId });
+  const codes = tasks.map(t => t.code).filter(Boolean);
+
+  if (topic.exam_type === 'trig') {
+    const idMatch = topic.id.match(/(\d+)$/);
+    const n = idMatch ? parseInt(idMatch[1], 10) : 0;
+    return nextCode(codes, `T${n}-`);
+  }
+
   const egeNumber = topic.ege_number;
   if (!egeNumber && egeNumber !== 0) {
-    console.error('[taskCodeGenerator] Тема без ege_number:', topic);
-    throw new Error(`У темы "${topic.title || topic.id}" не указан номер ЕГЭ (ege_number)`);
+    throw new Error(`У темы "${topic.title || topic.id}" не указан ege_number`);
   }
-
-  // 3. Получить все задачи этой темы
-  const tasks = await api.getTasks({ topic: topicId });
-  console.log(`[taskCodeGenerator] Найдено ${tasks.length} задач для темы №${egeNumber}`);
-
-  // 4. Извлечь все номера кодов
-  const counters = [];
-  const prefix = `${egeNumber}-`;
-
-  tasks.forEach(task => {
-    if (!task.code || !task.code.startsWith(prefix)) {
-      return;
-    }
-
-    const parts = task.code.split('-');
-    if (parts.length !== 2) {
-      return;
-    }
-
-    const num = parseInt(parts[1], 10);
-    if (!isNaN(num)) {
-      counters.push(num);
-    }
-  });
-
-  // 5. Найти следующий номер
-  const nextNumber = counters.length > 0 ? Math.max(...counters) + 1 : 1;
-
-  // 6. Сформировать код с zero-padding
-  const code = `${egeNumber}-${String(nextNumber).padStart(3, '0')}`;
-
-  console.log(`[taskCodeGenerator] Сгенерирован код: ${code}`);
-
-  return code;
+  return nextCode(codes, `${egeNumber}-`);
 }
 
 /**
- * Валидация формата кода задачи
- * @param {string} code - Код для валидации
- * @returns {boolean}
+ * Генерирует N кодов подряд для тригонометрической темы — один запрос к API.
+ * Возвращает массив строк длиной count.
  */
+export async function generateTrigTaskCodes(topicId, count) {
+  const tasks = await api.getTasks({ topic: topicId });
+  const idMatch = topicId.match(/(\d+)$/);
+  const n = idMatch ? parseInt(idMatch[1], 10) : 0;
+  const prefix = `T${n}-`;
+  const codes = tasks.map(t => t.code).filter(Boolean);
+  const counters = codes.map(c => extractCounter(c, prefix)).filter(v => v !== null);
+  let next = counters.length > 0 ? Math.max(...counters) + 1 : 1;
+  return Array.from({ length: count }, () => `${prefix}${String(next++).padStart(3, '0')}`);
+}
+
 export function validateTaskCode(code) {
-  const pattern = /^\d+-\d{3}$/;
-  return pattern.test(code);
+  return /^(T\d+|\d+)-\d{3}$/.test(code);
 }
