@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Tag, Empty, Spin, Modal, Space, Typography, Tabs, Input, Select, Progress, Tooltip, App } from 'antd';
+import { Button, Tag, Empty, Spin, Modal, Typography, Tabs, Input, Select, Progress, Tooltip, App } from 'antd';
 import {
   DeleteOutlined, SendOutlined, ReloadOutlined, EyeOutlined, EditOutlined,
   RightOutlined, InboxOutlined, SolutionOutlined, TeamOutlined,
-  ThunderboltOutlined, PercentageOutlined, ClockCircleOutlined,
-  SearchOutlined, SortAscendingOutlined, FormOutlined,
+  ClockCircleOutlined, SearchOutlined, SortAscendingOutlined, FormOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import SessionPanel from './worksheet/SessionPanel';
 import TeacherResultsDashboard from './worksheet/TeacherResultsDashboard';
 import MathRenderer from './MathRenderer';
+import { PageHeader, StatRow, Stat, FilterRow } from '../ui';
 import './WorkManager.css';
 
 const { Text } = Typography;
@@ -287,13 +287,12 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
     return sessions[0];
   }, [sessionsByWork]);
 
-  // Score color
+  // Score color — использует токены Hybrid
   const getScoreColor = (score) => {
-    if (score === null || score === undefined) return '#d9d9d9';
-    if (score >= 80) return '#52c41a';
-    if (score >= 60) return '#faad14';
-    if (score >= 40) return '#ff7a45';
-    return '#ff4d4f';
+    if (score === null || score === undefined) return 'var(--ink-4)';
+    if (score >= 80) return 'var(--lvl-1)';
+    if (score >= 60) return 'var(--lvl-2)';
+    return 'var(--lvl-3)';
   };
 
   // Loading skeleton
@@ -372,87 +371,36 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
   const worksContent = (
     <>
       {/* Hero Metrics */}
-      <div className="wm-hero-grid">
-        <div className="wm-hero-card wm-hero-card--total">
-          <div className="wm-hero-card-content">
-            <div className="wm-hero-card-info">
-              <div className="wm-hero-card-label">Всего работ</div>
-              <div className="wm-hero-card-value">{heroStats.totalWorks}</div>
-              <div className="wm-hero-card-suffix">сохранено</div>
-            </div>
-            <div className="wm-hero-card-icon">
-              <SolutionOutlined />
-            </div>
-          </div>
-        </div>
-
-        <div className="wm-hero-card wm-hero-card--active">
-          <div className="wm-hero-card-content">
-            <div className="wm-hero-card-info">
-              <div className="wm-hero-card-label">Активных</div>
-              <div className="wm-hero-card-value">{heroStats.activeWorks}</div>
-              <div className="wm-hero-card-suffix">не в архиве</div>
-            </div>
-            <div className="wm-hero-card-icon">
-              <ThunderboltOutlined />
-            </div>
-          </div>
-        </div>
-
-        <div className="wm-hero-card wm-hero-card--attempts">
-          <div className="wm-hero-card-content">
-            <div className="wm-hero-card-info">
-              <div className="wm-hero-card-label">Попыток</div>
-              <div className="wm-hero-card-value">{heroStats.totalAttempts}</div>
-              <div className="wm-hero-card-suffix">всего</div>
-            </div>
-            <div className="wm-hero-card-icon">
-              <TeamOutlined />
-            </div>
-          </div>
-        </div>
-
-        <div className="wm-hero-card wm-hero-card--avg">
-          <div className="wm-hero-card-content">
-            <div className="wm-hero-card-info">
-              <div className="wm-hero-card-label">Средний балл</div>
-              <div className="wm-hero-card-value">
-                {heroStats.avgScore !== null ? `${heroStats.avgScore}%` : '—'}
-              </div>
-              <div className="wm-hero-card-suffix">по всем работам</div>
-            </div>
-            <div className="wm-hero-card-icon">
-              <PercentageOutlined />
-            </div>
-          </div>
-        </div>
-      </div>
+      <StatRow cols={4}>
+        <Stat label="Всего работ"  value={heroStats.totalWorks}  sub="сохранено" />
+        <Stat label="Активных"     value={heroStats.activeWorks} sub="не в архиве" />
+        <Stat label="Попыток"      value={heroStats.totalAttempts} sub="всего" />
+        <Stat
+          label="Средний балл"
+          value={heroStats.avgScore !== null ? `${heroStats.avgScore}%` : '—'}
+          sub="по всем работам"
+          accent={heroStats.avgScore >= 80 ? 'good' : heroStats.avgScore >= 60 ? 'warn' : heroStats.avgScore !== null ? 'bad' : undefined}
+        />
+      </StatRow>
 
       {/* Filters */}
-      <div className="wm-filters">
+      <FilterRow>
         <Input
-          className="wm-filters-search"
+          style={{ flex: 1, maxWidth: 320 }}
           placeholder="Поиск по названию..."
-          prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+          prefix={<SearchOutlined style={{ color: 'var(--ink-4)' }} />}
           allowClear
           value={searchText}
           onChange={e => setSearchText(e.target.value)}
           onPressEnter={loadWorks}
         />
-
-        <Select
-          className="wm-filters-select"
-          value={statusFilter}
-          onChange={setStatusFilter}
-        >
+        <Select style={{ minWidth: 140 }} value={statusFilter} onChange={setStatusFilter}>
           <Option value="all">Все</Option>
           <Option value="active">Активные</Option>
           <Option value="archived">Архив</Option>
           <Option value="with_attempts">С попытками</Option>
         </Select>
-
         <Select
-          className="wm-filters-select"
           allowClear
           placeholder="Тема"
           value={topicFilter}
@@ -462,30 +410,24 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
           style={{ minWidth: 180 }}
         >
           {topics.map(t => (
-            <Option key={t.id} value={t.id}>
-              №{t.ege_number} — {t.title}
-            </Option>
+            <Option key={t.id} value={t.id}>№{t.ege_number} — {t.title}</Option>
           ))}
         </Select>
-
-        <div className="wm-filters-right">
-          <Select
-            className="wm-filters-sort"
-            value={sortBy}
-            onChange={setSortBy}
-            suffixIcon={<SortAscendingOutlined />}
-          >
-            <Option value="date_desc">Сначала новые</Option>
-            <Option value="date_asc">Сначала старые</Option>
-            <Option value="attempts">По попыткам</Option>
-            <Option value="avg_score">По среднему баллу</Option>
-          </Select>
-
-          <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>
-            {filteredWorks.length} из {works.length}
-          </Text>
-        </div>
-      </div>
+        <Select
+          value={sortBy}
+          onChange={setSortBy}
+          style={{ minWidth: 180, marginLeft: 'auto' }}
+          suffixIcon={<SortAscendingOutlined />}
+        >
+          <Option value="date_desc">Сначала новые</Option>
+          <Option value="date_asc">Сначала старые</Option>
+          <Option value="attempts">По попыткам</Option>
+          <Option value="avg_score">По среднему баллу</Option>
+        </Select>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
+          {filteredWorks.length} из {works.length}
+        </span>
+      </FilterRow>
 
       {/* Work Cards */}
       {filteredWorks.length === 0 ? (
@@ -747,19 +689,19 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
 
   return (
     <div className="wm-dashboard">
-      <div className="wm-dashboard-header">
-        <h2 className="wm-dashboard-title">
-          <SolutionOutlined /> Мои работы
-        </h2>
-        <Button
-          icon={<ReloadOutlined />}
-          onClick={() => activeTab === 'mc' ? loadMcTests() : loadWorks()}
-          type="text"
-          loading={activeTab === 'mc' ? mcLoading : loading}
-        >
-          Обновить
-        </Button>
-      </div>
+      <PageHeader
+        title="Мои работы"
+        lede="контрольные, тесты, тесты с выбором"
+        actions={
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={() => activeTab === 'mc' ? loadMcTests() : loadWorks()}
+            loading={activeTab === 'mc' ? mcLoading : loading}
+          >
+            Обновить
+          </Button>
+        }
+      />
 
       <Tabs
         activeKey={activeTab}

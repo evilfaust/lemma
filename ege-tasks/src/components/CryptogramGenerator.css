@@ -314,6 +314,22 @@
   color: #555;
 }
 
+/* ── Определение термина (печать) ───────────────────────────────────────── */
+.cgp-definition {
+  margin-top: 3mm;
+  padding: 2mm 3mm;
+  border-left: 2pt solid #595959;
+  background: #f9f9f9;
+  font-size: 8.5pt;
+  line-height: 1.4;
+  color: #222;
+  break-inside: avoid;
+}
+
+.cgp-definition-label {
+  font-weight: 700;
+}
+
 /* Предупреждение */
 .cgp-warning-print {
   border: 1pt solid #999;

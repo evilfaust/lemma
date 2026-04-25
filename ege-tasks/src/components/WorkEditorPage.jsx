@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, List, Button, Space, Input, Select, Tag, Typography, Spin, Row, Col, Empty, App } from 'antd';
-import { ReloadOutlined, FolderOpenOutlined, InboxOutlined } from '@ant-design/icons';
+import { Button, Input, Select, Spin, Empty, App } from 'antd';
+import { ReloadOutlined, InboxOutlined } from '@ant-design/icons';
 import WorkEditor from './WorkEditor';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import { SplitLayout, StatMini, Chip, topicTint } from '../ui';
 
-const { Text } = Typography;
 const { Option } = Select;
 
 const WorkEditorPage = ({ initialWorkId = null }) => {
@@ -249,154 +249,196 @@ const WorkEditorPage = ({ initialWorkId = null }) => {
     }
   };
 
-  const leftList = (
-    <Card
-      title="Работы"
-      extra={
-        <Button icon={<ReloadOutlined />} onClick={loadWorks} />
-      }
-      styles={{ body: { padding: 12 } }}
-    >
-      <Space direction="vertical" style={{ width: '100%' }} size={8}>
+  // ---- Левая панель: список работ ----
+  const leftPanel = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      {/* Шапка */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 600, letterSpacing: '-0.02em', margin: 0, color: 'var(--ink)' }}>
+          Работы{' '}
+          <span style={{ color: 'var(--ink-4)', fontWeight: 400, fontFamily: 'var(--font-mono)', fontSize: 13 }}>
+            · {works.length}
+          </span>
+        </h2>
+        <Button
+          type="text"
+          size="small"
+          icon={<ReloadOutlined />}
+          onClick={loadWorks}
+          loading={loadingWorks}
+        />
+      </div>
+
+      {/* Фильтры */}
+      <div style={{ position: 'relative', marginBottom: 8 }}>
         <Input.Search
           placeholder="Поиск по названию"
           allowClear
           onSearch={(value) => setFilters(prev => ({ ...prev, search: value }))}
           onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
         />
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         <Select
           value={filters.status}
           onChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+          style={{ flex: 1 }}
         >
           <Option value="active">Активные</Option>
           <Option value="archived">Архив</Option>
         </Select>
         <Select
           allowClear
-          placeholder="Фильтр по теме"
+          placeholder="Все темы"
           value={filters.topic}
           onChange={(value) => setFilters(prev => ({ ...prev, topic: value || null }))}
           showSearch
           optionFilterProp="children"
+          style={{ flex: 1 }}
         >
           {topics.map(topic => (
             <Option key={topic.id} value={topic.id}>
-              №{topic.ege_number} - {topic.title}
+              №{topic.ege_number} — {topic.title}
             </Option>
           ))}
         </Select>
-      </Space>
+      </div>
 
-      {loadingWorks ? (
-        <div style={{ textAlign: 'center', padding: 40 }}><Spin size="large" /></div>
-      ) : works.length === 0 ? (
-        <Empty description="Работ нет" style={{ padding: 24 }} />
-      ) : (
-        <List
-          style={{ marginTop: 12 }}
-          dataSource={works}
-          renderItem={work => (
-            <List.Item
-              style={{
-                padding: '10px 4px',
-                background: selectedWorkId === work.id ? '#f5f5f5' : 'transparent',
-                borderRadius: 6,
-                cursor: 'pointer',
-              }}
-              onClick={() => setSelectedWorkId(work.id)}
-            >
-              <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <div style={{ fontWeight: 600 }}>{work.title || 'Без названия'}</div>
-                    {work.archived && <Tag color="default">Архив</Tag>}
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {new Date(work.created).toLocaleDateString('ru-RU')}
-                  </Text>
-                  <div style={{ marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 8, fontSize: 12 }}>
-                    <Text type="secondary">
-                      Сессий: {workStats[work.id]?.sessions || 0}
-                    </Text>
-                    <Text type="secondary">
-                      Попыток: {workStats[work.id]?.attempts || 0}
-                    </Text>
-                    {workStats[work.id]?.avgScore !== null && (
-                      <Text type="secondary">
-                        Средний результат: {workStats[work.id]?.avgScore}%
-                      </Text>
-                    )}
-                  </div>
-                  {work.expand?.topic && (
-                    <div style={{ marginTop: 4 }}>
-                      <Tag color="purple">
-                        №{work.expand.topic.ege_number} — {work.expand.topic.title}
-                      </Tag>
+      {/* Список работ */}
+      <div style={{ flex: 1, overflow: 'auto', margin: '0 -4px', padding: '0 4px 12px' }}>
+        {loadingWorks ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+            <Spin />
+          </div>
+        ) : works.length === 0 ? (
+          <Empty description="Работ нет" style={{ padding: 24 }} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {works.map(work => {
+              const isSelected = selectedWorkId === work.id;
+              const stats = workStats[work.id] || {};
+              const avg = stats.avgScore;
+              const topic = work.expand?.topic;
+              const kind = topic?.title || '';
+              const tint = topicTint(kind);
+
+              return (
+                <div
+                  key={work.id}
+                  onClick={() => setSelectedWorkId(work.id)}
+                  style={{
+                    padding: 12,
+                    border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--rule)'}`,
+                    borderRadius: 'var(--radius)',
+                    background: isSelected ? 'var(--accent-soft)' : 'var(--bg-raised)',
+                    cursor: 'pointer',
+                    transition: 'border-color .12s, background .12s',
+                  }}
+                  onMouseEnter={e => {
+                    if (!isSelected) e.currentTarget.style.borderColor = 'var(--ink-3)';
+                  }}
+                  onMouseLeave={e => {
+                    if (!isSelected) e.currentTarget.style.borderColor = 'var(--rule)';
+                  }}
+                >
+                  {/* Заголовок + chip */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        fontWeight: 600,
+                        fontSize: 13.5,
+                        color: 'var(--ink)',
+                        lineHeight: 1.3,
+                        marginBottom: 2,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {work.title || 'Без названия'}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
+                        {new Date(work.created).toLocaleDateString('ru-RU')}
+                      </div>
                     </div>
-                  )}
-                </div>
+                    {kind && <Chip tint={tint}>{kind}</Chip>}
+                    {work.archived && <Chip tint="rose">архив</Chip>}
+                  </div>
 
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <Button
-                    size="small"
-                    icon={<FolderOpenOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedWorkId(work.id);
-                    }}
-                  >
-                    Открыть
-                  </Button>
-                  <Button
-                    size="small"
-                    icon={<InboxOutlined />}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleArchiveToggle(work);
-                    }}
-                  >
-                    {work.archived ? 'Вернуть' : 'Архив'}
-                  </Button>
+                  {/* Мини-статистика */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 6,
+                    paddingTop: 8,
+                    borderTop: `1px solid ${isSelected ? 'var(--accent)' : 'var(--rule-soft)'}`,
+                  }}>
+                    <StatMini label="сессий" value={stats.sessions ?? 0} />
+                    <StatMini label="попыток" value={stats.attempts ?? 0} />
+                    <StatMini
+                      label="средний"
+                      value={avg != null ? `${avg}%` : '—'}
+                      good={avg != null && avg >= 80}
+                      warn={avg != null && avg < 70 && avg >= 40}
+                      danger={avg != null && avg < 40}
+                    />
+                  </div>
+
+                  {/* Кнопки действий */}
+                  <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                    <Button
+                      size="small"
+                      style={{ flex: 1 }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedWorkId(work.id); }}
+                    >
+                      Открыть
+                    </Button>
+                    <Button
+                      size="small"
+                      icon={<InboxOutlined />}
+                      onClick={(e) => { e.stopPropagation(); handleArchiveToggle(work); }}
+                    >
+                      {work.archived ? 'Вернуть' : 'Архив'}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </List.Item>
-          )}
-        />
-      )}
-    </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // ---- Правая панель: редактор ----
+  const rightPanel = workLoading ? (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+      <Spin size="large" />
+    </div>
+  ) : (
+    <WorkEditor
+      work={currentWork}
+      variants={variants}
+      setVariants={setVariants}
+      onSave={handleSave}
+      onSaveAsNew={handleSaveAsNew}
+      hasAttempts={attemptCount > 0}
+      attemptCount={attemptCount}
+      sessionId={sessionId}
+      topics={topics}
+      tags={tags}
+      subtopics={subtopics}
+      years={years}
+      sources={sources}
+    />
   );
 
   return (
-    <Row gutter={16}>
-      <Col xs={24} lg={8}>
-        {leftList}
-      </Col>
-      <Col xs={24} lg={16}>
-        {workLoading ? (
-          <Card>
-            <div style={{ textAlign: 'center', padding: 60 }}>
-              <Spin size="large" />
-            </div>
-          </Card>
-        ) : (
-          <WorkEditor
-            work={currentWork}
-            variants={variants}
-            setVariants={setVariants}
-            onSave={handleSave}
-            onSaveAsNew={handleSaveAsNew}
-            hasAttempts={attemptCount > 0}
-            attemptCount={attemptCount}
-            sessionId={sessionId}
-            topics={topics}
-            tags={tags}
-            subtopics={subtopics}
-            years={years}
-            sources={sources}
-          />
-        )}
-      </Col>
-    </Row>
+    <SplitLayout
+      left={leftPanel}
+      right={rightPanel}
+      leftWidth={320}
+      gap={20}
+    />
   );
 };
 

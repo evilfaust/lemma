@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Alert, Button, Collapse, Empty, Modal, Popover, Progress, Select, Space, Spin, Table, Tag, Typography } from 'antd';
 import { MergeCellsOutlined, ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
-import './StudentProgressDashboard.css';
+import { PageHeader, StatRow, Stat } from '../ui';
 
 const { Text } = Typography;
 
@@ -112,7 +112,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       content: (
         <div>
           <p>Все попытки (<strong>{sourceAttempts.length}</strong>) от аккаунта <strong>@{sourceStudent?.username}</strong> будут перенесены на <strong>@{targetStudent?.username}</strong>.</p>
-          <p style={{ color: '#ff4d4f' }}>Аккаунт <strong>@{sourceStudent?.username}</strong> будет удалён. Это действие необратимо.</p>
+          <p style={{ color: 'var(--lvl-3)' }}>Аккаунт <strong>@{sourceStudent?.username}</strong> будет удалён. Это действие необратимо.</p>
         </div>
       ),
       okText: 'Объединить',
@@ -389,32 +389,32 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
 
   if (loading && tableData.length === 0) {
     return (
-      <div className="spd-loading">
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 64 }}>
         <Spin />
       </div>
     );
   }
 
   return (
-    <div className="spd-dashboard">
-      <div className="spd-dashboard-header">
-        <h2 className="spd-dashboard-title">
-          <UserOutlined />
-          Прогресс учеников
-        </h2>
-        <Space>
-          <Button
-            icon={<MergeCellsOutlined />}
-            onClick={() => setMergeOpen(true)}
-            disabled={students.length < 2}
-          >
-            Объединить аккаунты
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
-            Обновить
-          </Button>
-        </Space>
-      </div>
+    <div style={{ padding: '4px 0' }}>
+      <PageHeader
+        title="Прогресс учеников"
+        lede="Зарегистрированные ученики, их попытки и достижения"
+        actions={
+          <Space>
+            <Button
+              icon={<MergeCellsOutlined />}
+              onClick={() => setMergeOpen(true)}
+              disabled={students.length < 2}
+            >
+              Объединить аккаунты
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+              Обновить
+            </Button>
+          </Space>
+        }
+      />
 
       <Modal
         title={<Space><MergeCellsOutlined />Объединить аккаунты учеников</Space>}
@@ -433,7 +433,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
           message="Используйте, когда ученик случайно зарегистрировал два аккаунта. Все попытки будут перенесены на основной аккаунт, дублирующий — удалён."
         />
         <div style={{ marginBottom: 12 }}>
-          <div style={{ marginBottom: 4, fontWeight: 500 }}>Старый / дублирующий аккаунт <span style={{ color: '#ff4d4f' }}>(удалить)</span></div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Старый / дублирующий аккаунт <span style={{ color: 'var(--lvl-3)' }}>(удалить)</span></div>
           <Select
             style={{ width: '100%' }}
             placeholder="Выберите аккаунт для удаления"
@@ -450,7 +450,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
           />
         </div>
         <div style={{ marginBottom: 12 }}>
-          <div style={{ marginBottom: 4, fontWeight: 500 }}>Основной аккаунт <span style={{ color: '#52c41a' }}>(сохранить)</span></div>
+          <div style={{ marginBottom: 4, fontWeight: 500 }}>Основной аккаунт <span style={{ color: 'var(--lvl-1)' }}>(сохранить)</span></div>
           <Select
             style={{ width: '100%' }}
             placeholder="Выберите основной аккаунт"
@@ -480,40 +480,25 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         })()}
       </Modal>
 
-      <div className="spd-hero-grid">
-        <div className="spd-hero-card spd-hero-card--students">
-          <div className="spd-hero-label">Ученики</div>
-          <div className="spd-hero-value">{dashboardStats.totalStudents}</div>
-          <div className="spd-hero-suffix">{dashboardStats.classCount} классов</div>
-        </div>
-        <div className="spd-hero-card spd-hero-card--attempts">
-          <div className="spd-hero-label">Попытки</div>
-          <div className="spd-hero-value">{dashboardStats.finishedAttempts}</div>
-          <div className="spd-hero-suffix">из {dashboardStats.totalAttempts}</div>
-        </div>
-        <div className="spd-hero-card spd-hero-card--result">
-          <div className="spd-hero-label">Средний результат</div>
-          <div className="spd-hero-value">{dashboardStats.avgResult}%</div>
-          <div className="spd-hero-suffix">по завершённым работам</div>
-        </div>
-        <div className="spd-hero-card spd-hero-card--achievements">
-          <div className="spd-hero-label">Достижения</div>
-          <div className="spd-hero-value">{dashboardStats.achievements}</div>
-          <div className="spd-hero-suffix">разблокировано всего</div>
-        </div>
-      </div>
+      <StatRow cols={4} style={{ marginBottom: 16 }}>
+        <Stat label="Ученики" value={dashboardStats.totalStudents} sub={`${dashboardStats.classCount} классов`} />
+        <Stat label="Завершено попыток" value={dashboardStats.finishedAttempts} sub={`из ${dashboardStats.totalAttempts}`} />
+        <Stat
+          label="Средний результат"
+          value={`${dashboardStats.avgResult}%`}
+          sub="по завершённым работам"
+          accent={dashboardStats.avgResult >= 70 ? 'var(--lvl-1)' : dashboardStats.avgResult >= 40 ? 'var(--lvl-2)' : 'var(--lvl-3)'}
+        />
+        <Stat label="Достижения" value={dashboardStats.achievements} sub="разблокировано всего" />
+      </StatRow>
 
       {tableData.length === 0 ? (
-        <div className="spd-section">
-          <Empty description="Нет зарегистрированных учеников" />
-        </div>
+        <Empty description="Нет зарегистрированных учеников" style={{ padding: '48px 0' }} />
       ) : (
-        <div className="spd-section">
-          <div className="spd-section-header">
-            <div className="spd-section-icon">
-              <TeamOutlined />
-            </div>
-            <h3 className="spd-section-title">Классы и ученики</h3>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <TeamOutlined style={{ color: 'var(--ink-3)' }} />
+            <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--ink)' }}>Классы и ученики</span>
           </div>
           <Collapse
             defaultActiveKey={groupedByClass.length <= 4 ? groupedByClass.map((g) => g.key) : []}

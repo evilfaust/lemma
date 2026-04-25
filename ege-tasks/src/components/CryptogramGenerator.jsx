@@ -6,7 +6,7 @@ import {
 import {
   PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined,
   PrinterOutlined, ReloadOutlined, KeyOutlined, InfoCircleOutlined,
-  ThunderboltOutlined, SaveOutlined, FolderOpenOutlined,
+  ThunderboltOutlined, SaveOutlined, FolderOpenOutlined, BulbOutlined,
 } from '@ant-design/icons';
 import { Modal, List } from 'antd';
 import { api } from '../shared/services/pocketbase';
@@ -25,10 +25,12 @@ import {
 } from './trig/TrigGeneratorLayout';
 import './CryptogramGenerator.css';
 
-const { Text } = Typography;
+const { Text, Paragraph } = Typography;
+
+const DEFINE_API = import.meta.env.VITE_DEFINE_API_URL || 'https://l.oipav.ru/define';
 
 /* ── Печатный блок шифровки ─────────────────────────────────────────────── */
-function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes }) {
+function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes, description }) {
   const variant = { tasks, number: 1 };
   const cryptogram = buildCryptogramForVariant({ variant, phrase });
 
@@ -97,6 +99,12 @@ function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes }) {
                   )
               )}
                 </div>
+                {description && (
+                  <div className="cgp-definition">
+                    <span className="cgp-definition-label">Узнай: </span>
+                    {description}
+                  </div>
+                )}
                 <div className="cgp-result-note">
                   Впиши букву, найденную для задачи N, в клетку с номером N.
                 </div>
@@ -146,6 +154,8 @@ export default function CryptogramGenerator() {
   const [tasks, setTasks] = useState([]);
   const [phrase, setPhrase] = useState('');
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [defLoading, setDefLoading] = useState(false);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [stripPrefixes, setStripPrefixes] = useState(true);
 
@@ -192,6 +202,27 @@ export default function CryptogramGenerator() {
     });
   }, []);
 
+  /* ── Генерация определения через Ollama ── */
+  const handleGetDefinition = useCallback(async () => {
+    const term = phrase.trim();
+    if (!term) return;
+    setDefLoading(true);
+    try {
+      const resp = await fetch(DEFINE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ term }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      setDescription(data.definition || '');
+    } catch (e) {
+      message.error('Не удалось получить определение. Убедитесь, что сервис Ollama запущен на Малине.');
+    } finally {
+      setDefLoading(false);
+    }
+  }, [phrase, message]);
+
   /* ── Автогенерация задач ── */
   const handleGenerate = useCallback(async () => {
     if (!genTopic) { message.warning('Выберите тему'); return; }
@@ -228,6 +259,7 @@ export default function CryptogramGenerator() {
       const data = {
         title: title || 'Шифровка',
         phrase,
+        description,
         tasks: tasks.map(t => t.id),
         task_order: tasks.map(t => t.id),
         strip_prefixes: stripPrefixes,
@@ -261,6 +293,7 @@ export default function CryptogramGenerator() {
   const handleLoadItem = useCallback((item) => {
     setTitle(item.title || '');
     setPhrase(item.phrase || '');
+    setDescription(item.description || '');
     setStripPrefixes(item.strip_prefixes !== false);
     const ordered = (item.task_order || [])
       .map(id => item.expand?.tasks?.find?.(t => t.id === id))
@@ -311,6 +344,7 @@ export default function CryptogramGenerator() {
     setTasks([]);
     setPhrase('');
     setTitle('');
+    setDescription('');
     setSavedId(null);
     setGenTopic(null);
     setGenSubtopic(null);
@@ -350,6 +384,31 @@ export default function CryptogramGenerator() {
                 message={`Нужно, чтобы число задач (${taskCount}) совпало с числом уникальных букв (${uniqueLetterCount})`}
               />
             )}
+            </TrigSettingsSection>
+
+            <TrigSettingsSection label="Описание термина">
+              <Input.TextArea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Определение появится здесь после генерации или введите вручную…"
+                autoSize={{ minRows: 2, maxRows: 5 }}
+                style={{ marginBottom: 6, fontSize: 12 }}
+              />
+              <Button
+                size="small"
+                icon={<BulbOutlined />}
+                loading={defLoading}
+                disabled={!phrase.trim()}
+                onClick={handleGetDefinition}
+                style={{ width: '100%' }}
+              >
+                {defLoading ? 'Генерирую (~30 сек)…' : 'Сгенерировать определение (AI)'}
+              </Button>
+              {!phrase.trim() && (
+                <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 4 }}>
+                  Сначала введите фразу-термин выше
+                </div>
+              )}
             </TrigSettingsSection>
 
             <TrigSettingsSection label="Подбор задач">
@@ -541,7 +600,7 @@ export default function CryptogramGenerator() {
 
       {/* ── Скрытый блок для печати ── */}
       {canPrint && (
-        <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} />
+        <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
       )}
 
       <TaskSelectModal

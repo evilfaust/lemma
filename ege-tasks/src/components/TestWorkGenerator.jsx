@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Card, Form, Button, Alert, Collapse, Spin, Row, Col, Tag, App, Typography } from 'antd';
+import { Form, Button, Alert, Collapse, Spin, Tag, App, Typography } from 'antd';
 import {
   PlusOutlined,
   UnorderedListOutlined,
@@ -10,6 +10,7 @@ import {
 
 const { Text } = Typography;
 import { v4 as uuid } from 'uuid';
+import { PageHeader } from '../ui';
 import FilterBlock from './worksheet/FilterBlock';
 import VariantSettings from './worksheet/VariantSettings';
 import FormatSettings from './worksheet/FormatSettings';
@@ -305,7 +306,8 @@ const TestWorkGenerator = () => {
 
   return (
     <div className="task-worksheet-container">
-      <Card title="Настройки контрольной работы" className="no-print">
+      <div className="no-print" style={{ marginBottom: 16 }}>
+        <PageHeader title="Контрольные работы" lede="Генератор вариантов с задачами из разных тем" />
         <Form form={form} layout="vertical" onFinish={handleGenerate} initialValues={{ workTitle: 'Контрольная работа' }}>
           <Collapse
             defaultActiveKey={['structure', 'variants', 'format']}
@@ -317,7 +319,7 @@ const TestWorkGenerator = () => {
                     <UnorderedListOutlined />
                     <span>Структура работы</span>
                     {workBlocks.length > 0 && (
-                      <span style={{ fontSize: 12, color: '#8c8c8c', fontWeight: 400 }}>
+                      <span style={{ fontSize: 12, color: 'var(--ink-4)', fontWeight: 400 }}>
                         {workBlocks.length} {workBlocks.length === 1 ? 'блок' : 'блока'} · {getTotalTaskCount()} задач
                       </span>
                     )}
@@ -469,7 +471,7 @@ const TestWorkGenerator = () => {
 
         {/* Превью */}
         <VariantStats variants={variants} showAnswersPage={showAnswersPage} />
-      </Card>
+      </div>
 
       {/* Рабочий лист с клеткой */}
       {variants.length > 0 && (
