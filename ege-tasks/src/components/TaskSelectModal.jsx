@@ -3,18 +3,29 @@ import { Modal, Card, Button, Spin, Empty, Form, Select, Row, Col, Input, Space,
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { api } from '../services/pocketbase';
+import { useReferenceData } from '../contexts/ReferenceDataContext';
 
 const { Option } = Select;
+
+const EXAM_TYPE_OPTIONS = [
+  { value: 'ege_base',    label: 'ЕГЭ базовый' },
+  { value: 'ege_profile', label: 'ЕГЭ профильный' },
+  { value: 'mordkovich',  label: 'Мордкович' },
+  { value: 'oral',        label: 'Устный счёт' },
+  { value: 'vpr',         label: 'ВПР' },
+  { value: 'trig',        label: 'Тригонометрия' },
+  { value: 'other',       label: 'Прочее' },
+];
 
 const TaskSelectModal = ({
   visible,
   onCancel,
   onSelect,
-  topics = [],
-  subtopics = [],
-  tags = [],
+  // topics/subtopics/tags props kept for backward compat but not used internally
   excludeIds = [],
 }) => {
+  const { topics: allTopics, subtopics: allSubtopics, tags: allTags } = useReferenceData();
+
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [tasks, setTasks] = useState([]);
@@ -27,7 +38,13 @@ const TaskSelectModal = ({
   }, [visible, filters]);
 
   const loadTasks = async () => {
-    const hasFilters = !!(filters.topic || filters.subtopic || (filters.tags && filters.tags.length) || filters.difficulty);
+    const hasFilters = !!(
+      filters.exam_type ||
+      filters.topic ||
+      filters.subtopic ||
+      (filters.tags && filters.tags.length) ||
+      filters.difficulty
+    );
     if (!hasFilters) {
       setTasks([]);
       return;
@@ -36,15 +53,15 @@ const TaskSelectModal = ({
     setLoading(true);
     try {
       const filterObj = {};
-      if (filters.topic) filterObj.topic = filters.topic;
-      if (filters.subtopic) filterObj.subtopic = filters.subtopic;
+      if (filters.exam_type)                      filterObj.exam_type = filters.exam_type;
+      if (filters.topic)                          filterObj.topic = filters.topic;
+      if (filters.subtopic)                       filterObj.subtopic = filters.subtopic;
       if (filters.tags && filters.tags.length > 0) filterObj.tags = filters.tags;
-      if (filters.difficulty) filterObj.difficulty = filters.difficulty;
+      if (filters.difficulty)                     filterObj.difficulty = filters.difficulty;
 
       const allTasks = await api.getTasks(filterObj);
       const excluded = new Set(excludeIds);
-      const filtered = allTasks.filter(t => !excluded.has(t.id));
-      setTasks(filtered);
+      setTasks(allTasks.filter(t => !excluded.has(t.id)));
     } catch (error) {
       console.error('Error loading tasks for selection:', error);
     } finally {
@@ -52,8 +69,13 @@ const TaskSelectModal = ({
     }
   };
 
+  const filteredTopics = useMemo(() => {
+    if (!filters.exam_type) return allTopics;
+    return allTopics.filter(t => t.exam_type === filters.exam_type);
+  }, [allTopics, filters.exam_type]);
+
   const filteredSubtopics = filters.topic
-    ? subtopics.filter(st => st.topic === filters.topic)
+    ? allSubtopics.filter(st => st.topic === filters.topic)
     : [];
 
   const visibleTasks = useMemo(() => {
@@ -98,6 +120,11 @@ const TaskSelectModal = ({
           layout="vertical"
           onValuesChange={(changed, values) => {
             const next = { ...values };
+            if (Object.prototype.hasOwnProperty.call(changed, 'exam_type')) {
+              next.topic = undefined;
+              next.subtopic = undefined;
+              form.setFieldsValue({ topic: undefined, subtopic: undefined });
+            }
             if (Object.prototype.hasOwnProperty.call(changed, 'topic')) {
               next.subtopic = undefined;
               form.setFieldsValue({ subtopic: undefined });
@@ -106,7 +133,17 @@ const TaskSelectModal = ({
           }}
         >
           <Row gutter={16}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
+              <Form.Item name="exam_type" label="Контекст">
+                <Select placeholder="Все задачи" allowClear>
+                  {EXAM_TYPE_OPTIONS.map(o => (
+                    <Option key={o.value} value={o.value}>{o.label}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={6}>
               <Form.Item name="topic" label="Тема">
                 <Select
                   placeholder="Выберите тему"
@@ -114,16 +151,16 @@ const TaskSelectModal = ({
                   showSearch
                   optionFilterProp="children"
                 >
-                  {topics.map(topic => (
+                  {filteredTopics.map(topic => (
                     <Option key={topic.id} value={topic.id}>
-                      {topic.ege_number ? `№${topic.ege_number} — ` : ""}{topic.title}
+                      {topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}
                     </Option>
                   ))}
                 </Select>
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <Form.Item name="subtopic" label="Подтема">
                 <Select
                   placeholder="Выберите подтему"
@@ -141,7 +178,7 @@ const TaskSelectModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={6}>
               <Form.Item name="difficulty" label="Сложность">
                 <Select placeholder="Любая" allowClear>
                   <Option value="1">1 - Базовый</Option>
@@ -162,7 +199,7 @@ const TaskSelectModal = ({
                   showSearch
                   optionFilterProp="children"
                 >
-                  {tags.map(tag => (
+                  {allTags.map(tag => (
                     <Option key={tag.id} value={tag.id}>
                       {tag.title}
                     </Option>
