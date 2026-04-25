@@ -135,7 +135,7 @@ const TaskStatsDashboard = ({ onOpenTasks, onTagClick, onOpenCatalog }) => {
       const topic = topics.find(t => t.id === st.topic);
       return {
         key: st.id, title: st.name || st.title,
-        topicTitle: topic ? `№${topic.ege_number} ${topic.title}` : '',
+        topicTitle: topic ? (topic.ege_number ? `№${topic.ege_number} ${topic.title}` : topic.title) : '',
         count: stats.bySubtopic.get(st.id) || 0, subtopicId: st.id,
       };
     });

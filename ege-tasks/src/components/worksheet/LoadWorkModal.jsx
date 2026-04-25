@@ -83,7 +83,7 @@ const LoadWorkModal = ({
                   {work.time_limit && <span>• {work.time_limit} мин</span>}
                   {work.expand?.topic && (
                     <Tag color="purple" style={{ marginInlineEnd: 0 }}>
-                      №{work.expand.topic.ege_number} - {work.expand.topic.title}
+                      {work.expand.topic.ege_number ? `№${work.expand.topic.ege_number} — ` : ''}{work.expand.topic.title}
                     </Tag>
                   )}
                 </div>

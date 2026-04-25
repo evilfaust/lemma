@@ -121,7 +121,9 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
             />
             <Text strong>{task.code}</Text>
             {task.expand?.topic && (
-              <Tag color="blue">№{task.expand.topic.ege_number}</Tag>
+              <Tag color="blue">
+                {task.expand.topic.ege_number ? `№${task.expand.topic.ege_number}` : task.expand.topic.title}
+              </Tag>
             )}
           </Space>
         }

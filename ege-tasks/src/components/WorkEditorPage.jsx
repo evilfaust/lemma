@@ -298,7 +298,7 @@ const WorkEditorPage = ({ initialWorkId = null }) => {
         >
           {topics.map(topic => (
             <Option key={topic.id} value={topic.id}>
-              №{topic.ege_number} — {topic.title}
+              {topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}
             </Option>
           ))}
         </Select>

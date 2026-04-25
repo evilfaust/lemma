@@ -581,7 +581,7 @@ const TaskList = ({
             onChange={(v) => { setBulkTopic(v); setBulkSubtopics([]); }}
             style={{ width: '100%' }}
             options={(topics || []).map((t) => ({
-              label: `№${t.ege_number} — ${t.title}`,
+              label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
               value: t.id,
             }))}
             disabled={bulkLoading}
@@ -663,7 +663,7 @@ const TaskList = ({
             <Select
               placeholder="Выберите тему…"
               options={(topics || []).map((t) => ({
-                label: `№${t.ege_number} — ${t.title}`,
+                label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
                 value: t.id,
               }))}
               showSearch

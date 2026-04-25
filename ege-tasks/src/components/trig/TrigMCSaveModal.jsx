@@ -30,6 +30,17 @@ const GENERATOR_INSTRUCTIONS = {
   addition_formulas:       'Вычислите или упростите:',
 };
 
+// Соответствие generator_type → title темы (должно совпадать с migration 1772000023)
+const GENERATOR_TOPIC_TITLES = {
+  trig_expressions:        'Вычисление тригонометрических выражений',
+  trig_equations:          'Простейшие тригонометрические уравнения',
+  inverse_trig:            'Обратные тригонометрические функции',
+  double_angle:            'Формулы двойного аргумента',
+  trig_equations_advanced: 'Уравнения f(kx+b)=a',
+  reduction_formulas:      'Формулы приведения',
+  addition_formulas:       'Формулы сложения',
+};
+
 /**
  * Создаёт реальные записи в коллекции `tasks` для каждой задачи генератора,
  * возвращает варианты в формате {number, tasks: [{task_id, options}]}.
@@ -38,6 +49,19 @@ const GENERATOR_INSTRUCTIONS = {
 async function createTasksAndBuildVariants(tasksData, optionsCount, generatorType, onProgress) {
   const instruction = GENERATOR_INSTRUCTIONS[generatorType] || 'Вычислите:';
   const createdIds = [];
+
+  // Определяем тему: ищем среди тригонометрических тем по названию
+  let topicId = null;
+  try {
+    const targetTitle = GENERATOR_TOPIC_TITLES[generatorType];
+    if (targetTitle) {
+      const trigTopics = await api.getTrigTopics();
+      const match = trigTopics.find(t => t.title === targetTitle);
+      if (match) topicId = match.id;
+    }
+  } catch {
+    // Тема не критична — продолжаем без неё
+  }
 
   try {
     const variants = [];
@@ -49,11 +73,13 @@ async function createTasksAndBuildVariants(tasksData, optionsCount, generatorTyp
       const tasks = [];
 
       for (const task of variantTasks) {
-        const record = await api.createTask({
+        const taskData = {
           statement_md: `${instruction}\n\n$$${task.exprLatex}$$`,
           answer:  task.resultLatex,
           source:  'trig_generator',
-        });
+        };
+        if (topicId) taskData.topic = topicId;
+        const record = await api.createTask(taskData);
         createdIds.push(record.id);
         tasks.push({
           task_id:  record.id,

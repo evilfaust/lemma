@@ -1,8 +1,21 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, Form, Select, Button, Space, Row, Col, Radio, Statistic, Badge, Input, Tag } from 'antd';
-import { FilterOutlined, ClearOutlined, SearchOutlined, CloseCircleOutlined, SortAscendingOutlined, PlusOutlined } from '@ant-design/icons';
+import { FilterOutlined, ClearOutlined, SearchOutlined, SortAscendingOutlined, PlusOutlined } from '@ant-design/icons';
 
 const { Option } = Select;
+
+const EXAM_TYPE_LABELS = {
+  ege_base:    'ЕГЭ базовый (11 кл.)',
+  ege_profile: 'ЕГЭ профильный (11 кл.)',
+  vpr:         'ВПР',
+  oral:        'Устный счёт',
+  trig:        'Тригонометрия',
+  mordkovich:  'Мордкович',
+  other:       'Прочее',
+};
+
+const topicLabel = (topic) =>
+  topic.ege_number ? `№${topic.ege_number} — ${topic.title}` : topic.title;
 
 const TaskFilters = ({
   topics,
@@ -19,50 +32,39 @@ const TaskFilters = ({
   const [form] = Form.useForm();
   const [filters, setFilters] = useState({});
   const [selectedTopic, setSelectedTopic] = useState(null);
+  const [selectedExamType, setSelectedExamType] = useState(null);
 
   const getDifficultyColor = (difficulty) => {
-    const colors = {
-      '1': '#52c41a',
-      '2': '#1890ff',
-      '3': '#fa8c16',
-      '4': '#f5222d',
-      '5': '#722ed1',
-    };
+    const colors = { '1': '#52c41a', '2': '#1890ff', '3': '#fa8c16', '4': '#f5222d', '5': '#722ed1' };
     return colors[difficulty] || '#d9d9d9';
   };
 
-  // Автоматическое применение фильтров при изменении
   const applyFilters = useCallback((values) => {
     const newFilters = {};
 
-    if (values.search) newFilters.search = values.search;
-    if (values.topic) newFilters.topic = values.topic;
-    if (values.subtopic) newFilters.subtopic = values.subtopic;
-    if (values.difficulty) newFilters.difficulty = values.difficulty;
-    if (values.source) newFilters.source = values.source;
-    if (values.year) newFilters.year = values.year;
-    if (values.tags && values.tags.length > 0) newFilters.tags = values.tags;
-    if (values.hasAnswer !== undefined) newFilters.hasAnswer = values.hasAnswer === 'yes';
-    if (values.hasSolution !== undefined) newFilters.hasSolution = values.hasSolution === 'yes';
-    if (values.hasImage !== undefined) newFilters.hasImage = values.hasImage === 'yes';
-    if (values.sortBy) newFilters.sortBy = values.sortBy;
+    if (values.search)                        newFilters.search    = values.search;
+    if (values.exam_type)                     newFilters.exam_type = values.exam_type;
+    if (values.topic)                         newFilters.topic     = values.topic;
+    if (values.subtopic)                      newFilters.subtopic  = values.subtopic;
+    if (values.difficulty)                    newFilters.difficulty = values.difficulty;
+    if (values.source)                        newFilters.source    = values.source;
+    if (values.year)                          newFilters.year      = values.year;
+    if (values.tags && values.tags.length > 0) newFilters.tags     = values.tags;
+    if (values.hasAnswer  !== undefined)      newFilters.hasAnswer  = values.hasAnswer  === 'yes';
+    if (values.hasSolution !== undefined)     newFilters.hasSolution = values.hasSolution === 'yes';
+    if (values.hasImage   !== undefined)      newFilters.hasImage   = values.hasImage   === 'yes';
+    if (values.sortBy)                        newFilters.sortBy    = values.sortBy;
 
     setFilters(newFilters);
     onFilterChange(newFilters);
   }, [onFilterChange]);
 
-  const buildFormValuesFromFilters = (filters) => {
-    if (!filters) return {};
-    const values = { ...filters };
-    if (filters.hasAnswer !== undefined) {
-      values.hasAnswer = filters.hasAnswer ? 'yes' : 'no';
-    }
-    if (filters.hasSolution !== undefined) {
-      values.hasSolution = filters.hasSolution ? 'yes' : 'no';
-    }
-    if (filters.hasImage !== undefined) {
-      values.hasImage = filters.hasImage ? 'yes' : 'no';
-    }
+  const buildFormValuesFromFilters = (f) => {
+    if (!f) return {};
+    const values = { ...f };
+    if (f.hasAnswer  !== undefined) values.hasAnswer  = f.hasAnswer  ? 'yes' : 'no';
+    if (f.hasSolution !== undefined) values.hasSolution = f.hasSolution ? 'yes' : 'no';
+    if (f.hasImage   !== undefined) values.hasImage   = f.hasImage   ? 'yes' : 'no';
     return values;
   };
 
@@ -71,18 +73,25 @@ const TaskFilters = ({
     const values = buildFormValuesFromFilters(initialFilters);
     form.setFieldsValue(values);
     setSelectedTopic(values.topic || null);
+    setSelectedExamType(values.exam_type || null);
     applyFilters(values);
-  }, [initialFiltersToken]);
+  }, [initialFiltersToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Обработчик изменения любого поля
   const handleFieldChange = (changedValues, allValues) => {
-    // Если изменилась тема, сбрасываем подтему
+    // Смена контекста — сбрасываем тему и подтему
+    if (changedValues.exam_type !== undefined) {
+      setSelectedExamType(changedValues.exam_type || null);
+      form.setFieldValue('topic', undefined);
+      form.setFieldValue('subtopic', undefined);
+      allValues.topic    = undefined;
+      allValues.subtopic = undefined;
+      setSelectedTopic(null);
+    }
+    // Смена темы — сбрасываем подтему
     if (changedValues.topic !== undefined) {
-      setSelectedTopic(changedValues.topic);
-      if (changedValues.topic !== allValues.topic) {
-        form.setFieldValue('subtopic', undefined);
-        allValues.subtopic = undefined;
-      }
+      setSelectedTopic(changedValues.topic || null);
+      form.setFieldValue('subtopic', undefined);
+      allValues.subtopic = undefined;
     }
     applyFilters(allValues);
   };
@@ -91,6 +100,7 @@ const TaskFilters = ({
     form.resetFields();
     setFilters({});
     setSelectedTopic(null);
+    setSelectedExamType(null);
     onFilterChange({});
   };
 
@@ -99,7 +109,14 @@ const TaskFilters = ({
     const values = form.getFieldsValue();
     values[filterKey] = undefined;
 
-    // Если удаляем тему, также сбрасываем подтему и selectedTopic
+    if (filterKey === 'exam_type') {
+      setSelectedExamType(null);
+      form.setFieldValue('topic', undefined);
+      form.setFieldValue('subtopic', undefined);
+      values.topic    = undefined;
+      values.subtopic = undefined;
+      setSelectedTopic(null);
+    }
     if (filterKey === 'topic') {
       form.setFieldValue('subtopic', undefined);
       values.subtopic = undefined;
@@ -109,9 +126,7 @@ const TaskFilters = ({
     applyFilters(values);
   };
 
-  const getActiveFiltersCount = () => {
-    return Object.keys(filters).length;
-  };
+  const getActiveFiltersCount = () => Object.keys(filters).length;
 
   const difficulties = [
     { value: '1', label: 'Базовый' },
@@ -121,29 +136,21 @@ const TaskFilters = ({
     { value: '5', label: 'Олимпиадный' },
   ];
 
+  // Фильтруем темы по выбранному контексту (если задан)
+  const visibleTopics = selectedExamType
+    ? topics.filter(t => t.exam_type === selectedExamType)
+    : topics;
+
   return (
-    <Card 
+    <Card
       style={{ marginBottom: 24 }}
-      title={
-        <Space>
-          <FilterOutlined />
-          <span>Фильтры</span>
-        </Space>
-      }
+      title={<Space><FilterOutlined /><span>Фильтры</span></Space>}
       extra={
         <Space>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={onCreateTask}
-          >
+          <Button type="primary" icon={<PlusOutlined />} onClick={onCreateTask}>
             Создать задачу
           </Button>
-          <Statistic
-            value={totalCount}
-            suffix="задач"
-            valueStyle={{ fontSize: 18 }}
-          />
+          <Statistic value={totalCount} suffix="задач" valueStyle={{ fontSize: 18 }} />
         </Space>
       }
     >
@@ -165,10 +172,7 @@ const TaskFilters = ({
           </Col>
           <Col xs={24} sm={6} md={6}>
             <Form.Item name="sortBy" label="Сортировка">
-              <Select
-                placeholder="Выберите сортировку"
-                suffixIcon={<SortAscendingOutlined />}
-              >
+              <Select placeholder="Выберите сортировку">
                 <Option value="code">По коду</Option>
                 <Option value="difficulty">По сложности</Option>
                 <Option value="created">Новые первые</Option>
@@ -179,7 +183,17 @@ const TaskFilters = ({
         </Row>
 
         <Row gutter={16}>
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={12} md={4}>
+            <Form.Item name="exam_type" label="Контекст">
+              <Select placeholder="Все задачи" allowClear>
+                {Object.entries(EXAM_TYPE_LABELS).map(([value, label]) => (
+                  <Option key={value} value={value}>{label}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </Col>
+
+          <Col xs={24} sm={12} md={4}>
             <Form.Item name="topic" label="Тема">
               <Select
                 placeholder="Выберите тему"
@@ -187,36 +201,34 @@ const TaskFilters = ({
                 showSearch
                 optionFilterProp="children"
               >
-                {topics.map(topic => (
+                {visibleTopics.map(topic => (
                   <Option key={topic.id} value={topic.id}>
-                    №{topic.ege_number} - {topic.title}
+                    {topicLabel(topic)}
                   </Option>
                 ))}
               </Select>
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={12} md={4}>
             <Form.Item name="subtopic" label="Подтема">
               <Select
-                placeholder={selectedTopic ? "Выберите подтему" : "Сначала выберите тему"}
+                placeholder={selectedTopic ? 'Выберите подтему' : 'Сначала выберите тему'}
                 allowClear
                 showSearch
                 optionFilterProp="children"
                 disabled={!selectedTopic}
               >
                 {subtopics
-                  .filter(subtopic => !selectedTopic || subtopic.topic === selectedTopic)
-                  .map(subtopic => (
-                    <Option key={subtopic.id} value={subtopic.id}>
-                      {subtopic.name}
-                    </Option>
+                  .filter(s => !selectedTopic || s.topic === selectedTopic)
+                  .map(s => (
+                    <Option key={s.id} value={s.id}>{s.name}</Option>
                   ))}
               </Select>
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={12} md={4}>
             <Form.Item name="difficulty" label="Сложность">
               <Select placeholder="Выберите сложность" allowClear>
                 {difficulties.map(d => (
@@ -231,7 +243,7 @@ const TaskFilters = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={12} md={4}>
             <Form.Item name="source" label="Источник">
               <Select placeholder="Выберите источник" allowClear>
                 {sources.map(s => (
@@ -241,7 +253,7 @@ const TaskFilters = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={6}>
+          <Col xs={24} sm={12} md={4}>
             <Form.Item name="year" label="Год">
               <Select placeholder="Выберите год" allowClear>
                 {years.map(y => (
@@ -263,9 +275,7 @@ const TaskFilters = ({
                 optionFilterProp="children"
               >
                 {tags.map(tag => (
-                  <Option key={tag.id} value={tag.id}>
-                    {tag.title}
-                  </Option>
+                  <Option key={tag.id} value={tag.id}>{tag.title}</Option>
                 ))}
               </Select>
             </Form.Item>
@@ -282,7 +292,6 @@ const TaskFilters = ({
               </Radio.Group>
             </Form.Item>
           </Col>
-
           <Col xs={24} sm={8}>
             <Form.Item name="hasSolution" label="Наличие решения">
               <Radio.Group>
@@ -292,7 +301,6 @@ const TaskFilters = ({
               </Radio.Group>
             </Form.Item>
           </Col>
-
           <Col xs={24} sm={8}>
             <Form.Item name="hasImage" label="Наличие изображения">
               <Radio.Group>
@@ -309,109 +317,66 @@ const TaskFilters = ({
             <Space wrap>
               <span style={{ color: '#666', fontWeight: 500 }}>Активные фильтры:</span>
               {filters.search && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('search')}
-                  color="blue"
-                >
+                <Tag closable onClose={() => removeFilter('search')} color="blue">
                   Поиск: {filters.search}
                 </Tag>
               )}
+              {filters.exam_type && (
+                <Tag closable onClose={() => removeFilter('exam_type')} color="geekblue">
+                  Контекст: {EXAM_TYPE_LABELS[filters.exam_type] || filters.exam_type}
+                </Tag>
+              )}
               {filters.topic && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('topic')}
-                  color="blue"
-                >
-                  Тема: {topics.find(t => t.id === filters.topic)?.title}
+                <Tag closable onClose={() => removeFilter('topic')} color="blue">
+                  Тема: {topicLabel(topics.find(t => t.id === filters.topic) || {})}
                 </Tag>
               )}
               {filters.subtopic && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('subtopic')}
-                  color="purple"
-                >
+                <Tag closable onClose={() => removeFilter('subtopic')} color="purple">
                   Подтема: {subtopics.find(s => s.id === filters.subtopic)?.name || filters.subtopic}
                 </Tag>
               )}
               {filters.difficulty && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('difficulty')}
-                  color="blue"
-                >
+                <Tag closable onClose={() => removeFilter('difficulty')} color="blue">
                   Сложность: {filters.difficulty}
                 </Tag>
               )}
               {filters.source && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('source')}
-                  color="blue"
-                >
+                <Tag closable onClose={() => removeFilter('source')} color="blue">
                   Источник: {filters.source}
                 </Tag>
               )}
               {filters.year && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('year')}
-                  color="blue"
-                >
+                <Tag closable onClose={() => removeFilter('year')} color="blue">
                   Год: {filters.year}
                 </Tag>
               )}
               {filters.tags && filters.tags.length > 0 && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('tags')}
-                  color="cyan"
-                >
-                  Теги: {filters.tags.map(tagId => {
-                    const tag = tags.find(t => t.id === tagId);
-                    return tag ? tag.title : tagId;
-                  }).join(', ')}
+                <Tag closable onClose={() => removeFilter('tags')} color="cyan">
+                  Теги: {filters.tags.map(id => tags.find(t => t.id === id)?.title || id).join(', ')}
                 </Tag>
               )}
               {filters.hasAnswer !== undefined && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('hasAnswer')}
-                  color="green"
-                >
+                <Tag closable onClose={() => removeFilter('hasAnswer')} color="green">
                   {filters.hasAnswer ? 'С ответом' : 'Без ответа'}
                 </Tag>
               )}
               {filters.hasSolution !== undefined && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('hasSolution')}
-                  color="green"
-                >
+                <Tag closable onClose={() => removeFilter('hasSolution')} color="green">
                   {filters.hasSolution ? 'С решением' : 'Без решения'}
                 </Tag>
               )}
               {filters.hasImage !== undefined && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('hasImage')}
-                  color="green"
-                >
+                <Tag closable onClose={() => removeFilter('hasImage')} color="green">
                   {filters.hasImage ? 'С изображением' : 'Без изображения'}
                 </Tag>
               )}
               {filters.sortBy && filters.sortBy !== 'code' && (
-                <Tag
-                  closable
-                  onClose={() => removeFilter('sortBy')}
-                  color="purple"
-                >
+                <Tag closable onClose={() => removeFilter('sortBy')} color="purple">
                   Сортировка: {
                     filters.sortBy === 'difficulty' ? 'По сложности' :
-                    filters.sortBy === 'created' ? 'Новые первые' :
-                    filters.sortBy === 'updated' ? 'Обновленные первые' :
-                    'По коду'
+                    filters.sortBy === 'created'    ? 'Новые первые' :
+                    filters.sortBy === 'updated'    ? 'Обновленные первые' : 'По коду'
                   }
                 </Tag>
               )}

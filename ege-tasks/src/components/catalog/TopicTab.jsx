@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Tooltip, App } from 'antd';
+import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Select, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
+
+const EXAM_TYPE_OPTIONS = [
+  { value: 'ege_base',    label: 'ЕГЭ базовый (11 кл.)' },
+  { value: 'ege_profile', label: 'ЕГЭ профильный (11 кл.)' },
+  { value: 'vpr',         label: 'ВПР' },
+  { value: 'oral',        label: 'Устный счёт' },
+  { value: 'trig',        label: 'Тригонометрия' },
+  { value: 'mordkovich',  label: 'Мордкович' },
+  { value: 'other',       label: 'Прочее' },
+];
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
 
@@ -24,9 +34,11 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
     setEditing(topic);
     setModalOpen(true);
     form.setFieldsValue({
-      title: topic?.title || '',
-      ege_number: topic?.ege_number || null,
-      order: topic?.order || null,
+      title:       topic?.title       || '',
+      ege_number:  topic?.ege_number  || null,
+      exam_type:   topic?.exam_type   || null,
+      exam_part:   topic?.exam_part   || null,
+      order:       topic?.order       || null,
       description: topic?.description || '',
     });
   };
@@ -122,10 +134,16 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
           <Form.Item name="title" label="Название" rules={[{ required: true, message: 'Введите название' }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="ege_number" label="Номер ЕГЭ">
-            <InputNumber min={1} max={27} style={{ width: '100%' }} />
+          <Form.Item name="exam_type" label="Контекст (тип экзамена)">
+            <Select placeholder="Не указан" allowClear options={EXAM_TYPE_OPTIONS} />
           </Form.Item>
-          <Form.Item name="order" label="Порядок">
+          <Form.Item name="ege_number" label="Номер задания в экзамене">
+            <InputNumber min={1} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="exam_part" label="Часть экзамена (для профильного ЕГЭ: 1 или 2)">
+            <InputNumber min={1} max={2} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="order" label="Порядок сортировки">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="description" label="Описание">

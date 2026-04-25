@@ -202,7 +202,7 @@ export default function CryptogramGenerator() {
     });
   }, []);
 
-  /* ── Генерация определения через Ollama ── */
+  /* ── Генерация определения через AI ── */
   const handleGetDefinition = useCallback(async () => {
     const term = phrase.trim();
     if (!term) return;
@@ -215,9 +215,14 @@ export default function CryptogramGenerator() {
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      setDescription(data.definition || '');
+      const definition = data.definition || '';
+      if (!definition) {
+        message.warning('Модель не смогла сформулировать описание — попробуйте ещё раз или введите вручную.');
+      } else {
+        setDescription(definition);
+      }
     } catch (e) {
-      message.error('Не удалось получить определение. Убедитесь, что сервис Ollama запущен на Малине.');
+      message.error('Не удалось получить определение. Проверьте подключение к интернету.');
     } finally {
       setDefLoading(false);
     }

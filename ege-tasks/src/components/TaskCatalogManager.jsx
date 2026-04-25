@@ -87,7 +87,7 @@ const TaskCatalogManager = ({ onOpenTasks, onBackToAnalytics }) => {
     const topic = topics.find(t => t.id === st.topic);
     return {
       key: st.id, title: st.name || st.title,
-      topicTitle: topic ? `№${topic.ege_number} ${topic.title}` : '',
+      topicTitle: topic ? (topic.ege_number ? `№${topic.ege_number} ${topic.title}` : topic.title) : '',
       topicId: st.topic, order: st.order,
       count: stats.bySubtopic.get(st.id) || 0, raw: st,
     };

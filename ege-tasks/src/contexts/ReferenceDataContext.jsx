@@ -4,7 +4,7 @@ import { api } from '../services/pocketbase';
 
 const ReferenceDataContext = createContext(null);
 
-const CACHE_KEY = 'ege_ref_data_v2';
+const CACHE_KEY = 'ege_ref_data_v3';
 const CACHE_TTL = 5 * 60 * 1000; // 5 минут
 
 function loadFromCache() {
@@ -83,6 +83,20 @@ export function ReferenceDataProvider({ children }) {
     return topics
       .filter(t => t.exam_type === 'ege_base')
       .sort((a, b) => a.ege_number - b.ege_number);
+  }, [topics]);
+
+  // Темы ЕГЭ профильного уровня (часть 1 → часть 2, по ege_number)
+  const egeProfileTopics = useMemo(() => {
+    return topics
+      .filter(t => t.exam_type === 'ege_profile')
+      .sort((a, b) => (a.exam_part || 0) - (b.exam_part || 0) || a.ege_number - b.ege_number);
+  }, [topics]);
+
+  // Темы тригонометрических генераторов
+  const trigTopics = useMemo(() => {
+    return topics
+      .filter(t => t.exam_type === 'trig')
+      .sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [topics]);
 
   // Явная перезагрузка (кнопка «Обновить» или после мутаций) — всегда идёт в сеть
@@ -165,6 +179,8 @@ export function ReferenceDataProvider({ children }) {
     <ReferenceDataContext.Provider value={{
       topics,
       egeBaseTopics,
+      egeProfileTopics,
+      trigTopics,
       tags,
       years,
       sources,

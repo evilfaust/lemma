@@ -151,7 +151,7 @@ const TestWorkGenerator = () => {
    */
   function getTopicTitle(topicId) {
     const topic = topics.find(t => t.id === topicId);
-    return topic ? `№${topic.ege_number} - ${topic.title}` : 'Не выбрана';
+    return topic ? (topic.ege_number ? `№${topic.ege_number} — ${topic.title}` : topic.title) : 'Не выбрана';
   }
 
   /**

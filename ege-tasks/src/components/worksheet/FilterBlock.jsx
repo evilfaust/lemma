@@ -31,7 +31,7 @@ const FilterBlock = ({
   // Получаем название темы для заголовка
   const selectedTopic = topics.find(t => t.id === block.topic);
   const topicTitle = selectedTopic
-    ? `№${selectedTopic.ege_number} - ${selectedTopic.title}`
+    ? (selectedTopic.ege_number ? `№${selectedTopic.ege_number} — ${selectedTopic.title}` : selectedTopic.title)
     : `Блок ${index + 1}`;
 
   return (
@@ -71,7 +71,7 @@ const FilterBlock = ({
             >
               {topics.map(topic => (
                 <Option key={topic.id} value={topic.id}>
-                  №{topic.ege_number} - {topic.title}
+                  {topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}
                 </Option>
               ))}
             </Select>

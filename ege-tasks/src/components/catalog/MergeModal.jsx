@@ -66,7 +66,7 @@ export default function MergeModal({ open, mergeType, mergeFrom, sourceRows, tas
   const getOptions = () => {
     if (mergeType === 'topic') {
       return topics.filter(t => t.id !== mergeFrom?.id).map(t => ({
-        label: `№${t.ege_number} - ${t.title}`,
+        label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
         value: t.id,
       }));
     }

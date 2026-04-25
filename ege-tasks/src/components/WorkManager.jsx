@@ -410,7 +410,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
           style={{ minWidth: 180 }}
         >
           {topics.map(t => (
-            <Option key={t.id} value={t.id}>№{t.ege_number} — {t.title}</Option>
+            <Option key={t.id} value={t.id}>{t.ege_number ? `№${t.ege_number} — ` : ''}{t.title}</Option>
           ))}
         </Select>
         <Select
@@ -482,7 +482,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                       )}
                       {work.expand?.topic && (
                         <Tag color="purple" style={{ margin: 0 }}>
-                          №{work.expand.topic.ege_number} — {work.expand.topic.title}
+                          {work.expand.topic.ege_number ? `№${work.expand.topic.ege_number} — ` : ''}{work.expand.topic.title}
                         </Tag>
                       )}
                     </div>

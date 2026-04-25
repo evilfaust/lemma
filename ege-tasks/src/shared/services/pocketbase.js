@@ -38,6 +38,32 @@ export const api = {
     }
   },
 
+  // Получить темы ЕГЭ профильного уровня, отсортированные по part + ege_number
+  async getEgeProfileTopics() {
+    try {
+      return await pb.collection('topics').getFullList({
+        filter: 'exam_type = "ege_profile"',
+        sort: 'exam_part,ege_number',
+      });
+    } catch (error) {
+      console.error('Error fetching ege_profile topics:', error);
+      return [];
+    }
+  },
+
+  // Получить темы тригонометрических генераторов
+  async getTrigTopics() {
+    try {
+      return await pb.collection('topics').getFullList({
+        filter: 'exam_type = "trig"',
+        sort: 'order',
+      });
+    } catch (error) {
+      console.error('Error fetching trig topics:', error);
+      return [];
+    }
+  },
+
   // Получить тему по ID
   async getTopic(id) {
     try {
@@ -164,6 +190,16 @@ export const api = {
 
     if (filters.year) {
       filterArr.push(`year = ${Number(filters.year) || 0}`);
+    }
+
+    // Фильтрация по контексту (exam_type темы).
+    // Для trig дополнительно включаем задачи с source='trig_generator' без темы (легаси).
+    if (filters.exam_type) {
+      if (filters.exam_type === 'trig') {
+        filterArr.push(`(topic.exam_type = "trig" || source = "trig_generator")`);
+      } else {
+        filterArr.push(`topic.exam_type = "${escapeFilter(filters.exam_type)}"`);
+      }
     }
 
     return filterArr.length > 0 ? filterArr.join(' && ') : '';

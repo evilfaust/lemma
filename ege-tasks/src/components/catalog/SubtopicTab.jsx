@@ -130,7 +130,7 @@ export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, 
               showSearch
               optionFilterProp="label"
               options={topics.map(t => ({
-                label: `№${t.ege_number} - ${t.title}`,
+                label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
                 value: t.id,
               }))}
             />

@@ -368,7 +368,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             )}
           >
             {topics.map(topic => (
-              <Option key={topic.id} value={topic.id}>№{topic.ege_number} - {topic.title}</Option>
+              <Option key={topic.id} value={topic.id}>{topic.ege_number ? `№${topic.ege_number} — ` : ""}{topic.title}</Option>
             ))}
           </Select>
         </Form.Item>
