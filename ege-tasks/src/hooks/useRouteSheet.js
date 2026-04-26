@@ -55,6 +55,10 @@ export default function useRouteSheet() {
     });
   }, []);
 
+  const updateTask = useCallback((taskId, fields) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...fields } : t));
+  }, []);
+
   const setCustomChainLinks = useCallback((links) => {
     setChainLinks(links);
   }, []);
@@ -69,7 +73,10 @@ export default function useRouteSheet() {
 
   const loadFromSaved = useCallback((saved) => {
     setTitle(saved.title || 'Маршрутный лист');
-    setTasks(saved.expand?.tasks || []);
+    // PocketBase expand одного relation возвращает object, не array — нормализуем
+    const raw = saved.expand?.tasks;
+    const tasksList = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+    setTasks(tasksList);
     setChainLinks(saved.chain_links || []);
     setSavedId(saved.id);
     setShowTeacherKey(false);
@@ -106,6 +113,7 @@ export default function useRouteSheet() {
     addTask,
     removeTask,
     moveTask,
+    updateTask,
     setCustomChainLinks,
     reset,
     loadFromSaved,

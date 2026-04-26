@@ -1,155 +1,265 @@
-/* Scoped print CSS — не конфликтует с другими разделами */
+/* ─── Scoped print isolation ──────────────────────────────────────────────── */
 @media print {
-  body:has(.route-sheet-print-root) * {
-    visibility: hidden;
-  }
-  body:has(.route-sheet-print-root) .route-sheet-print-root,
-  body:has(.route-sheet-print-root) .route-sheet-print-root * {
-    visibility: visible;
-  }
-  body:has(.route-sheet-print-root) .route-sheet-print-root {
+  body:has(.rs-print-root) * { visibility: hidden; }
+  body:has(.rs-print-root) .rs-print-root,
+  body:has(.rs-print-root) .rs-print-root * { visibility: visible; }
+  body:has(.rs-print-root) .rs-print-root {
     position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
+    top: 0; left: 0; width: 100%;
   }
 }
 
-/* Сброс для обоих режимов (экран + печать) */
-.route-sheet-print-root {
+/* ─── Корневой контейнер ──────────────────────────────────────────────────── */
+.rs-print-root {
   font-family: 'Times New Roman', Times, serif;
-  font-size: 13pt;
+  font-size: 12pt;
   color: #000;
   background: #fff;
-  padding: 15mm;
-  max-width: 190mm;
-  margin: 0 auto;
+}
+
+/* ─── Страница ────────────────────────────────────────────────────────────── */
+.rs-page {
+  padding: 14mm 16mm 12mm;
+  max-width: 210mm;
   box-sizing: border-box;
+  page-break-after: always;
+  break-after: page;
 }
 
-.route-sheet-title {
+.rs-page--teacher-key {
+  page-break-before: always;
+  break-before: page;
+}
+
+/* ─── Шапка ───────────────────────────────────────────────────────────────── */
+.rs-header {
+  margin-bottom: 10pt;
+}
+
+.rs-title {
   font-size: 16pt;
-  font-weight: bold;
+  font-weight: 700;
   text-align: center;
-  margin-bottom: 16pt;
-  border-bottom: 2px solid #000;
-  padding-bottom: 6pt;
-}
-
-.route-sheet-tasks {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* Карточка задачи */
-.route-sheet-task-card {
-  border: 1.5px solid #333;
-  border-radius: 6px;
-  padding: 10pt 12pt;
-  background: #fff;
-  page-break-inside: avoid;
-}
-
-.route-sheet-task-card--teacher {
-  border-color: #1a6b1a;
-  background: #f6fff6;
-}
-
-.route-sheet-task-header {
-  display: flex;
-  align-items: baseline;
-  gap: 8pt;
+  letter-spacing: 0.02em;
   margin-bottom: 6pt;
 }
 
-.route-sheet-task-num {
-  font-size: 18pt;
-  font-weight: bold;
-  color: #1890ff;
-  line-height: 1;
-}
-
-.route-sheet-task-code {
+.rs-teacher-badge {
+  text-align: center;
   font-size: 9pt;
-  color: #888;
-  font-family: monospace;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: #1a6b1a;
+  border: 1px dashed #1a6b1a;
+  display: inline-block;
+  padding: 2pt 10pt;
+  border-radius: 3px;
+  margin: 4pt auto 6pt;
+  display: block;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.route-sheet-task-statement {
-  margin-bottom: 8pt;
-  line-height: 1.5;
-}
-
-.route-sheet-answer-row {
+.rs-info-line {
   display: flex;
-  align-items: center;
-  gap: 8pt;
-  margin-top: 4pt;
+  align-items: baseline;
+  gap: 20pt;
+  font-size: 11pt;
+  padding: 5pt 0 8pt;
+  border-top: 1.5pt solid #000;
+  border-bottom: 1pt solid #ccc;
 }
 
-.route-sheet-answer-label {
-  font-weight: bold;
+.rs-info-field {
+  display: flex;
+  align-items: baseline;
+  gap: 4pt;
   white-space: nowrap;
 }
 
-.route-sheet-answer-blank {
+.rs-info-blank {
   display: inline-block;
-  border-bottom: 1.5px solid #000;
-  min-width: 80pt;
-  height: 14pt;
+  border-bottom: 1pt solid #000;
+  height: 12pt;
 }
 
-.route-sheet-answer-value {
-  font-weight: bold;
-  color: #1a6b1a;
-  font-size: 13pt;
-  border-bottom: 1.5px solid #1a6b1a;
-  min-width: 40pt;
-  display: inline-block;
-  text-align: center;
-}
+.rs-info-blank--name { width: 120pt; }
+.rs-info-blank--short { width: 50pt; }
 
-/* Соединитель между задачами */
-.route-sheet-connector {
+/* ─── Цепочка задач ───────────────────────────────────────────────────────── */
+.rs-chain {
   display: flex;
   flex-direction: column;
+}
+
+.rs-chain-item {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─── Коннектор ───────────────────────────────────────────────────────────── */
+.rs-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-left: 20pt;
+  margin: 0;
+}
+
+.rs-connector-stem {
+  width: 1.5pt;
+  height: 10pt;
+  background: #bbb;
+  margin-left: 7pt;
+}
+
+.rs-connector-row {
+  display: flex;
   align-items: center;
-  gap: 0;
-  margin: 2pt 0;
+  gap: 5pt;
+  margin-bottom: 3pt;
 }
 
-.route-sheet-connector-line {
-  width: 2px;
-  height: 12pt;
-  background: #aaa;
-  border-left: 2px dashed #aaa;
-}
-
-.route-sheet-connector-arrow {
-  font-size: 14pt;
-  color: #555;
+.rs-connector-arrow {
+  font-size: 9pt;
+  color: #666;
   line-height: 1;
-  margin: -2pt 0;
 }
 
-.route-sheet-connector-hint {
-  font-size: 8pt;
-  color: #888;
+.rs-connector-hint {
+  font-size: 8.5pt;
+  color: #666;
   font-style: italic;
+}
+
+/* ─── Карточка задачи ─────────────────────────────────────────────────────── */
+.rs-task {
+  display: flex;
+  align-items: flex-start;
+  gap: 10pt;
+  border: 1.2pt solid #bbb;
+  border-radius: 5pt;
+  padding: 9pt 11pt;
+  background: #fff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.rs-task--teacher {
+  border-color: #2a7a2a;
+  background: #f4fcf4;
+}
+
+.rs-task-badge {
+  font-size: 17pt;
+  font-weight: 700;
+  color: #1a56c4;
+  line-height: 1;
+  flex-shrink: 0;
+  min-width: 20pt;
+  text-align: center;
   margin-top: 1pt;
 }
 
-/* Бейдж учителя */
-.route-sheet-teacher-badge {
-  margin-top: 20pt;
-  text-align: center;
-  font-size: 9pt;
+.rs-task-badge--teacher {
   color: #1a6b1a;
-  font-weight: bold;
-  letter-spacing: 2px;
-  border: 1px dashed #1a6b1a;
-  padding: 4pt 12pt;
+}
+
+.rs-task-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.rs-task-stmt {
+  line-height: 1.5;
+  margin-bottom: 7pt;
+  font-size: 12pt;
+}
+
+.rs-answer-row {
+  display: flex;
+  align-items: center;
+  gap: 7pt;
+  font-size: 11pt;
+}
+
+.rs-answer-label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.rs-answer-blank {
   display: inline-block;
-  border-radius: 4px;
+  border-bottom: 1.2pt solid #000;
+  min-width: 90pt;
+  height: 13pt;
+  flex: 1;
+  max-width: 160pt;
+}
+
+.rs-answer-value {
+  font-weight: 700;
+  color: #1a6b1a;
+  font-size: 13pt;
+  border-bottom: 1.5pt solid #1a6b1a;
+  min-width: 40pt;
+  display: inline-block;
+  text-align: center;
+  padding: 0 4pt;
+}
+
+/* ─── Таблица ответов учителя ─────────────────────────────────────────────── */
+.rs-answer-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border: 1.2pt solid #2a7a2a;
+  border-radius: 5pt;
+  overflow: hidden;
+  margin-bottom: 0;
+  width: fit-content;
+}
+
+.rs-answer-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 5pt;
+  padding: 5pt 10pt;
+  border-right: 1pt solid #c3e6c3;
+  border-bottom: 1pt solid #c3e6c3;
+}
+
+.rs-answer-summary-item:last-child {
+  border-right: none;
+}
+
+.rs-answer-summary-num {
+  font-size: 13pt;
+  font-weight: 700;
+  color: #1a6b1a;
+  line-height: 1;
+}
+
+.rs-answer-summary-val {
+  font-size: 12pt;
+  font-weight: 700;
+  color: #1a3a1a;
+  font-family: 'Courier New', monospace;
+}
+
+/* ─── Разделитель ─────────────────────────────────────────────────────────── */
+.rs-divider-dashed {
+  border: none;
+  border-top: 1pt dashed #bbb;
+  margin: 10pt 0;
+}
+
+/* ─── Подвал ──────────────────────────────────────────────────────────────── */
+.rs-footer {
+  margin-top: 14pt;
+  text-align: right;
+  font-size: 8pt;
+  color: #aaa;
+  letter-spacing: 0.02em;
 }

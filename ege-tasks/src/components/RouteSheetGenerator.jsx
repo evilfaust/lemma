@@ -1,110 +1,251 @@
-import { useRef, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
-  App, Button, Divider, Input, List, Modal, Popconfirm, Select,
-  Space, Switch, Tag, Tooltip, Typography,
+  App, Button, Divider, Input, Modal, List, Popconfirm,
+  Space, Switch, Tooltip, Typography,
 } from 'antd';
 import {
-  ArrowDownOutlined, DeleteOutlined, PlusOutlined, PrinterOutlined,
-  SaveOutlined, UpOutlined, DownOutlined, ReloadOutlined, FolderOpenOutlined,
+  DeleteOutlined, EditOutlined, PlusOutlined, PrinterOutlined,
+  SaveOutlined, UpOutlined, DownOutlined, FolderOpenOutlined,
+  ThunderboltOutlined, CheckOutlined, CloseOutlined, ReloadOutlined,
+  ApartmentOutlined, ArrowDownOutlined,
 } from '@ant-design/icons';
 import useRouteSheet, { circleNum } from '../hooks/useRouteSheet';
 import RouteSheetPrintLayout from './route-sheet/RouteSheetPrintLayout';
 import './route-sheet/RouteSheetPrintLayout.css';
 import TaskSelectModal from './TaskSelectModal';
 import RouteTaskEditor from './route-sheet/RouteTaskEditor';
+import RouteChainGeneratorDrawer from './route-sheet/RouteChainGeneratorDrawer';
 import MathRenderer from '../shared/components/MathRenderer';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import {
+  TrigGeneratorLayout,
+  TrigSettingsSection,
+  TrigActions,
+  TrigPreviewPane,
+  TrigPreviewCard,
+  TrigStatBadge,
+} from './trig/TrigGeneratorLayout';
 
-const { Title, Text } = Typography;
+const REFORMULATE_API = import.meta.env.VITE_REFORMULATE_API_URL || 'https://l.oipav.ru/reformulate-task';
+const { TextArea } = Input;
+const { Text } = Typography;
 
-// Компонент одной задачи в списке
-function TaskRow({ task, index, total, onRemove, onMoveUp, onMoveDown }) {
+const labelStyle = { fontSize: 12, color: 'var(--ink-3)', marginBottom: 4, display: 'block' };
+
+// ─── Просмотр одной задачи ────────────────────────────────────────────────────
+function TaskRow({ task, index, total, onRemove, onMoveUp, onMoveDown, onEdit }) {
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'flex-start',
-      gap: 8,
+      display: 'flex', alignItems: 'flex-start', gap: 10,
       padding: '10px 12px',
-      border: '1px solid #e8e8e8',
-      borderRadius: 8,
-      background: '#fafafa',
+      border: '1px solid var(--rule-soft)',
+      borderRadius: 'var(--radius)',
+      background: 'var(--bg-raised)',
     }}>
-      {/* Номер кружком */}
       <span style={{
-        fontSize: 20, fontWeight: 'bold', color: '#1890ff',
-        flexShrink: 0, lineHeight: '1.2',
-        minWidth: 28, textAlign: 'center',
+        fontSize: 18, fontWeight: 700, color: 'var(--accent)',
+        flexShrink: 0, lineHeight: 1.2, minWidth: 24, textAlign: 'center',
+        marginTop: 2,
       }}>
         {circleNum(index)}
       </span>
-
-      {/* Условие */}
-      <div style={{ flex: 1, overflow: 'hidden', fontSize: 13 }}>
-        <div style={{ color: '#666', fontSize: 11, marginBottom: 2 }}>
-          {task.code || task.id}
-        </div>
-        <div style={{ lineHeight: 1.5 }}>
-          <MathRenderer content={(task.statement_md || '').slice(0, 150)} />
+      <div style={{ flex: 1, overflow: 'hidden', fontSize: 13, minWidth: 0 }}>
+        {task.code && (
+          <div style={{ color: 'var(--ink-4)', fontSize: 11, marginBottom: 2, fontFamily: 'var(--font-mono)' }}>
+            {task.code}
+          </div>
+        )}
+        <div style={{ lineHeight: 1.5, color: 'var(--ink)' }}>
+          <MathRenderer content={(task.statement_md || '').slice(0, 220)} />
         </div>
         {task.answer && (
           <div style={{ marginTop: 4, fontSize: 12 }}>
-            <Text type="secondary">Ответ: </Text>
-            <Text strong style={{ color: '#389e0d' }}>{task.answer}</Text>
+            <span style={{ color: 'var(--ink-3)' }}>Ответ: </span>
+            <span style={{ fontWeight: 600, color: 'var(--lvl-1)', fontFamily: 'var(--font-mono)' }}>
+              {task.answer}
+            </span>
           </div>
         )}
       </div>
-
-      {/* Кнопки */}
-      <Space size={4} style={{ flexShrink: 0 }}>
-        <Tooltip title="Вверх">
-          <Button
-            size="small"
-            icon={<UpOutlined />}
-            disabled={index === 0}
-            onClick={() => onMoveUp(index)}
-          />
+      <Space size={3} style={{ flexShrink: 0 }}>
+        <Tooltip title="Редактировать">
+          <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(task.id)} />
         </Tooltip>
-        <Tooltip title="Вниз">
-          <Button
-            size="small"
-            icon={<DownOutlined />}
-            disabled={index === total - 1}
-            onClick={() => onMoveDown(index)}
-          />
+        <Tooltip title="Выше">
+          <Button size="small" icon={<UpOutlined />} disabled={index === 0} onClick={() => onMoveUp(index)} />
         </Tooltip>
-        <Popconfirm
-          title="Убрать задачу из листа?"
-          onConfirm={() => onRemove(task.id)}
-          okText="Да"
-          cancelText="Нет"
-          okButtonProps={{ danger: true }}
-        >
-          <Button size="small" icon={<DeleteOutlined />} danger />
+        <Tooltip title="Ниже">
+          <Button size="small" icon={<DownOutlined />} disabled={index === total - 1} onClick={() => onMoveDown(index)} />
+        </Tooltip>
+        <Popconfirm title="Убрать из листа?" onConfirm={() => onRemove(task.id)} okText="Да" cancelText="Нет" okButtonProps={{ danger: true }}>
+          <Button size="small" icon={<DeleteOutlined />} danger type="text" />
         </Popconfirm>
       </Space>
     </div>
   );
 }
 
-// Превью соединительной стрелки
+// ─── Inline-редактор задачи ────────────────────────────────────────────────────
+function TaskRowEditor({ task, index, previousTasks, onSave, onCancel }) {
+  const [statement, setStatement] = useState(task.statement_md || '');
+  const [answer, setAnswer] = useState(task.answer || '');
+  const [aiInstruction, setAiInstruction] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
+
+  const handleAiReformulate = useCallback(async () => {
+    if (!aiInstruction.trim()) return;
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const resp = await fetch(REFORMULATE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          statement,
+          answer,
+          instruction: aiInstruction.trim(),
+          previous_tasks: previousTasks.map(t => ({ answer: t.answer || '' })),
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      if (data.statement_md) setStatement(data.statement_md);
+      if (data.answer) setAnswer(data.answer);
+      setAiInstruction('');
+    } catch (e) {
+      setAiError(e.message || 'Ошибка AI');
+    } finally {
+      setAiLoading(false);
+    }
+  }, [statement, answer, aiInstruction, previousTasks]);
+
+  return (
+    <div style={{
+      border: '1.5px solid var(--accent)',
+      borderRadius: 'var(--radius)',
+      padding: '12px 14px',
+      background: 'var(--accent-soft)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--accent)' }}>{circleNum(index)}</span>
+        <Text style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 500 }}>Редактирование</Text>
+      </div>
+
+      {/* Быстрая вставка плейсхолдеров */}
+      {previousTasks.length > 0 && (
+        <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>Вставить:</span>
+          {previousTasks.map((t, i) => (
+            <Tooltip key={t.id || i} title={`Ответ ${i + 1}: ${t.answer || '—'}`}>
+              <Button
+                size="small"
+                onClick={() => setStatement(prev => prev + `[${circleNum(i)}]`)}
+                style={{ fontFamily: 'var(--font-mono)', padding: '0 8px', fontSize: 12, height: 22 }}
+              >
+                [{circleNum(i)}]
+              </Button>
+            </Tooltip>
+          ))}
+        </div>
+      )}
+
+      {/* Условие */}
+      <div style={{ marginBottom: 8 }}>
+        <label style={labelStyle}>Условие</label>
+        <TextArea
+          value={statement}
+          onChange={e => setStatement(e.target.value)}
+          rows={4}
+          style={{ fontFamily: 'var(--font-mono)', fontSize: 12 }}
+          placeholder="Условие задачи (Markdown + LaTeX)"
+        />
+      </div>
+
+      {/* Превью */}
+      {statement && (
+        <div style={{
+          background: 'var(--bg-raised)', border: '1px solid var(--rule-soft)',
+          borderRadius: 'var(--radius-sm)', padding: '6px 10px',
+          marginBottom: 8, fontSize: 13,
+        }}>
+          <MathRenderer content={statement} />
+        </div>
+      )}
+
+      {/* Ответ */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>Ответ:</span>
+        <Input
+          value={answer}
+          onChange={e => setAnswer(e.target.value)}
+          style={{ width: 160, fontWeight: 600, fontFamily: 'var(--font-mono)' }}
+          size="small"
+          placeholder="числовой ответ"
+        />
+      </div>
+
+      {/* AI-переформулировка */}
+      <div style={{
+        background: 'var(--bg-sunken)', border: '1px solid var(--rule)',
+        borderRadius: 'var(--radius-sm)', padding: '8px 10px', marginBottom: 10,
+      }}>
+        <div style={{ fontSize: 11, color: 'var(--ink-3)', marginBottom: 6 }}>
+          <ThunderboltOutlined style={{ color: '#faad14', marginRight: 4 }} />
+          AI-переформулировка
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <Input
+            value={aiInstruction}
+            onChange={e => setAiInstruction(e.target.value)}
+            placeholder="Что изменить? «сделай про площадь», «упрости», «исправь ошибку»"
+            size="small"
+            onPressEnter={handleAiReformulate}
+            disabled={aiLoading}
+          />
+          <Button
+            size="small"
+            type="primary"
+            ghost
+            icon={<ThunderboltOutlined />}
+            loading={aiLoading}
+            disabled={!aiInstruction.trim()}
+            onClick={handleAiReformulate}
+            style={{ flexShrink: 0 }}
+          >
+            AI
+          </Button>
+        </div>
+        {aiError && <div style={{ fontSize: 11, color: '#ff4d4f', marginTop: 4 }}>{aiError}</div>}
+      </div>
+
+      <Space>
+        <Button type="primary" size="small" icon={<CheckOutlined />} onClick={() => onSave({ statement_md: statement, answer })}>
+          Сохранить
+        </Button>
+        <Button size="small" icon={<CloseOutlined />} onClick={onCancel}>Отмена</Button>
+      </Space>
+    </div>
+  );
+}
+
+// ─── Коннектор цепочки ────────────────────────────────────────────────────────
 function ChainConnector({ fromIndex }) {
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      paddingLeft: 36,
-      color: '#888',
-      fontSize: 12,
-      gap: 4,
-      margin: '2px 0',
+      display: 'flex', alignItems: 'center', gap: 6,
+      paddingLeft: 34, color: 'var(--ink-4)', fontSize: 11,
+      margin: '1px 0',
     }}>
-      <ArrowDownOutlined style={{ color: '#aaa' }} />
+      <ArrowDownOutlined style={{ fontSize: 10 }} />
       <span style={{ fontStyle: 'italic' }}>ответ {circleNum(fromIndex)} → следующая задача</span>
     </div>
   );
 }
 
+// ─── Главный компонент ────────────────────────────────────────────────────────
 export default function RouteSheetGenerator() {
   const { message } = App.useApp();
   const { topics, subtopics, tags } = useReferenceData();
@@ -114,51 +255,71 @@ export default function RouteSheetGenerator() {
     effectiveLinks,
     savedId,
     showTeacherKey, setShowTeacherKey,
-    addTask, removeTask, moveTask,
+    addTask, removeTask, moveTask, updateTask,
     reset, loadFromSaved,
     save, update,
   } = useRouteSheet();
 
+  const [editingId, setEditingId] = useState(null);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const studentPrintRef = useRef(null);
-  const teacherPrintRef = useRef(null);
+  const [aiSaving, setAiSaving] = useState(false);
 
   const handleAddTask = useCallback((task) => {
     addTask(task);
     setSelectModalOpen(false);
   }, [addTask]);
 
-  // Печать
-  const handlePrint = useCallback((mode) => {
-    const styleEl = document.createElement('style');
-    styleEl.id = 'route-sheet-page-style';
-    styleEl.textContent = `@page { size: A4 portrait; margin: 0; }`;
-    document.head.appendChild(styleEl);
+  const handleSaveTaskEdit = useCallback(async (taskId, fields) => {
+    updateTask(taskId, fields);
+    try {
+      await api.updateTask(taskId, { statement_md: fields.statement_md, answer: fields.answer });
+    } catch {
+      message.error('Ошибка при сохранении задачи в базе');
+    }
+    setEditingId(null);
+  }, [updateTask, message]);
+
+  const handleAiTasksReady = useCallback(async (taskSpecs) => {
+    setAiSaving(true);
+    try {
+      for (const spec of taskSpecs) {
+        const record = await api.createTask({
+          statement_md: spec.statement_md,
+          answer: spec.answer,
+          source: 'route',
+          has_image: false,
+        });
+        addTask(record);
+      }
+      message.success(`Добавлено ${taskSpecs.length} задач в маршрут`);
+    } catch {
+      message.error('Ошибка при сохранении задач');
+    } finally {
+      setAiSaving(false);
+    }
+  }, [addTask, message]);
+
+  const handlePrint = useCallback(() => {
+    const style = document.createElement('style');
+    style.id = 'route-sheet-page-style';
+    style.textContent = '@page { size: A4 portrait; margin: 0; }';
+    document.head.appendChild(style);
     window.print();
-    setTimeout(() => {
-      const el = document.getElementById('route-sheet-page-style');
-      if (el) el.remove();
-    }, 1500);
+    setTimeout(() => document.getElementById('route-sheet-page-style')?.remove(), 1500);
   }, []);
 
-  // Сохранение
   const handleSave = useCallback(async () => {
     if (!tasks.length) { message.warning('Добавьте хотя бы одну задачу'); return; }
     setSaving(true);
     try {
-      if (savedId) {
-        await update();
-        message.success('Маршрутный лист обновлён');
-      } else {
-        await save();
-        message.success('Маршрутный лист сохранён');
-      }
+      if (savedId) { await update(); message.success('Обновлён'); }
+      else { await save(); message.success('Сохранён'); }
     } catch {
       message.error('Ошибка сохранения');
     } finally {
@@ -166,16 +327,11 @@ export default function RouteSheetGenerator() {
     }
   }, [tasks, savedId, save, update, message]);
 
-  // Загрузка
   const handleOpenLoad = useCallback(async () => {
     setLoadingSheets(true);
     setLoadModalOpen(true);
-    try {
-      const data = await api.getRouteSheets();
-      setSavedSheets(data);
-    } finally {
-      setLoadingSheets(false);
-    }
+    try { setSavedSheets(await api.getRouteSheets()); }
+    finally { setLoadingSheets(false); }
   }, []);
 
   const handleLoad = useCallback((sheet) => {
@@ -190,141 +346,136 @@ export default function RouteSheetGenerator() {
     message.success('Удалён');
   }, [message]);
 
-  return (
-    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
-      {/* Шапка */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <Title level={4} style={{ margin: 0 }}>Маршрутный лист</Title>
-        <Space>
-          <Button icon={<FolderOpenOutlined />} onClick={handleOpenLoad}>Загрузить</Button>
-          <Button icon={<ReloadOutlined />} onClick={reset}>Очистить</Button>
-          <Button
-            icon={<SaveOutlined />}
-            onClick={handleSave}
-            loading={saving}
-            disabled={!tasks.length}
-          >
-            {savedId ? 'Обновить' : 'Сохранить'}
-          </Button>
-        </Space>
-      </div>
-
-      {/* Настройки */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Название листа</label>
-          <Input
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Маршрутный лист"
-          />
-        </div>
+  // ─── Left panel ──────────────────────────────────────────────────────────────
+  const left = (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10, overflowY: 'auto' }}>
+      <TrigSettingsSection label="Параметры листа">
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Switch checked={showTeacherKey} onChange={setShowTeacherKey} size="small" />
-          <Text style={{ fontSize: 13 }}>Ключ учителя при печати</Text>
+          <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>Страница ключа учителя</span>
         </div>
-      </div>
+      </TrigSettingsSection>
 
-      <Divider />
+      <TrigSettingsSection label="Добавить задачи">
+        <TrigActions>
+          <Button
+            type="primary"
+            block
+            icon={<ThunderboltOutlined />}
+            onClick={() => setAiDrawerOpen(true)}
+            loading={aiSaving}
+            style={{ background: '#fa8c16', borderColor: '#fa8c16' }}
+          >
+            AI-генерация цепочки
+          </Button>
+          <Button block icon={<PlusOutlined />} onClick={() => setSelectModalOpen(true)}>
+            Добавить из базы задач
+          </Button>
+          <Button block icon={<EditOutlined />} type="dashed" onClick={() => setEditorOpen(true)}>
+            Создать задачу вручную
+          </Button>
+        </TrigActions>
+      </TrigSettingsSection>
 
-      {/* Список задач */}
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <Text strong>Задачи цепочки ({tasks.length})</Text>
-          <Space>
+      <TrigSettingsSection label="Сохранение">
+        <TrigActions>
+          <div style={{ display: 'flex', gap: 6 }}>
             <Button
-              type="dashed"
-              icon={<PlusOutlined />}
-              onClick={() => setSelectModalOpen(true)}
+              block
+              icon={<SaveOutlined />}
+              type={savedId ? 'default' : 'primary'}
+              onClick={handleSave}
+              loading={saving}
+              disabled={!tasks.length}
             >
-              Из базы
+              {savedId ? 'Обновить' : 'Сохранить'}
             </Button>
-            <Button
-              type="primary"
-              ghost
-              icon={<PlusOutlined />}
-              onClick={() => setEditorOpen(true)}
-            >
-              Создать задачу для маршрута
-            </Button>
-          </Space>
-        </div>
-
-        {tasks.length === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: '32px 0',
-            border: '2px dashed #d9d9d9', borderRadius: 8,
-            color: '#bbb',
-          }}>
-            Цепочка пуста. Добавьте задачи.
+            <Button icon={<FolderOpenOutlined />} onClick={handleOpenLoad} />
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {tasks.map((task, idx) => (
-              <div key={task.id}>
-                {idx > 0 && <ChainConnector fromIndex={idx - 1} />}
-                <TaskRow
-                  task={task}
-                  index={idx}
-                  total={tasks.length}
-                  onRemove={removeTask}
-                  onMoveUp={(i) => moveTask(i, i - 1)}
-                  onMoveDown={(i) => moveTask(i, i + 1)}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Кнопки печати */}
-      {tasks.length > 0 && (
-        <>
-          <Divider />
-          <Space>
-            <Button
-              type="primary"
-              icon={<PrinterOutlined />}
-              onClick={() => handlePrint('student')}
-            >
-              Печать (бланк ученика)
+          {savedId && (
+            <Button block icon={<ReloadOutlined />} onClick={reset} danger type="text" size="small">
+              Новый лист
             </Button>
-            {showTeacherKey && (
-              <Button
-                icon={<PrinterOutlined />}
-                onClick={() => handlePrint('teacher')}
-                style={{ borderColor: '#52c41a', color: '#52c41a' }}
-              >
-                Печать (ключ учителя)
-              </Button>
-            )}
-          </Space>
-        </>
-      )}
-
-      {/* Печатные макеты (скрыты на экране, показываются при печати) */}
-      {tasks.length > 0 && (
-        <>
-          <RouteSheetPrintLayout
-            ref={studentPrintRef}
-            title={title}
-            tasks={tasks}
-            effectiveLinks={effectiveLinks}
-            mode="student"
-          />
-          {showTeacherKey && (
-            <RouteSheetPrintLayout
-              ref={teacherPrintRef}
-              title={`${title} — КЛЮЧ`}
-              tasks={tasks}
-              effectiveLinks={effectiveLinks}
-              mode="teacher"
-            />
           )}
-        </>
+        </TrigActions>
+      </TrigSettingsSection>
+
+      {tasks.length > 0 && (
+        <TrigSettingsSection label="Печать">
+          <TrigActions>
+            <Button block type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
+              Печать
+            </Button>
+          </TrigActions>
+        </TrigSettingsSection>
+      )}
+    </div>
+  );
+
+  // ─── Right panel ─────────────────────────────────────────────────────────────
+  const right = (
+    <TrigPreviewPane
+      hasData={tasks.length > 0}
+      emptyIcon={<ApartmentOutlined />}
+      emptyTitle="Цепочка пуста"
+      emptyHint="Сгенерируйте задачи с помощью AI или добавьте из базы"
+      summary={tasks.length > 0 ? [
+        <TrigStatBadge key="n">{tasks.length} задач</TrigStatBadge>,
+        showTeacherKey && <TrigStatBadge key="key" tone="success">+ ключ учителя</TrigStatBadge>,
+      ].filter(Boolean) : null}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {tasks.map((task, idx) => (
+          <div key={task.id}>
+            {idx > 0 && <ChainConnector fromIndex={idx - 1} />}
+            {editingId === task.id ? (
+              <TaskRowEditor
+                task={task}
+                index={idx}
+                previousTasks={tasks.slice(0, idx)}
+                onSave={(fields) => handleSaveTaskEdit(task.id, fields)}
+                onCancel={() => setEditingId(null)}
+              />
+            ) : (
+              <TaskRow
+                task={task}
+                index={idx}
+                total={tasks.length}
+                onRemove={removeTask}
+                onMoveUp={(i) => moveTask(i, i - 1)}
+                onMoveDown={(i) => moveTask(i, i + 1)}
+                onEdit={setEditingId}
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </TrigPreviewPane>
+  );
+
+  return (
+    <>
+      <TrigGeneratorLayout
+        icon={<ApartmentOutlined style={{ fontSize: 14 }} />}
+        title={title}
+        onTitleChange={setTitle}
+        titlePlaceholder="Название маршрутного листа"
+        leftWidth={320}
+        left={left}
+        right={right}
+      />
+
+      {/* Печатный макет (скрыт на экране) */}
+      {tasks.length > 0 && (
+        <RouteSheetPrintLayout
+          title={title}
+          tasks={tasks}
+          effectiveLinks={effectiveLinks}
+          showTeacherKey={showTeacherKey}
+        />
       )}
 
-      {/* Модал выбора задачи */}
+      {/* Модал выбора задачи из базы */}
       <TaskSelectModal
         visible={selectModalOpen}
         onCancel={() => setSelectModalOpen(false)}
@@ -335,22 +486,30 @@ export default function RouteSheetGenerator() {
         excludeIds={tasks.map(t => t.id)}
       />
 
-      {/* Редактор задачи для маршрута */}
+      {/* Редактор новой задачи */}
       <RouteTaskEditor
         open={editorOpen}
         onClose={() => setEditorOpen(false)}
-        onSaved={(task) => { addTask(task); setEditorOpen(false); message.success('Задача создана и добавлена в маршрут'); }}
+        onSaved={(task) => { addTask(task); setEditorOpen(false); message.success('Задача создана и добавлена'); }}
         previousTasks={tasks}
         insertIndex={tasks.length}
       />
 
-      {/* Модал загрузки */}
+      {/* AI-генерация */}
+      <RouteChainGeneratorDrawer
+        open={aiDrawerOpen}
+        onClose={() => setAiDrawerOpen(false)}
+        existingTasks={tasks}
+        onTasksReady={handleAiTasksReady}
+      />
+
+      {/* Загрузка сохранённых листов */}
       <Modal
         title="Загрузить маршрутный лист"
         open={loadModalOpen}
         onCancel={() => setLoadModalOpen(false)}
         footer={null}
-        width={500}
+        width={480}
       >
         <List
           loading={loadingSheets}
@@ -359,21 +518,8 @@ export default function RouteSheetGenerator() {
           renderItem={(sheet) => (
             <List.Item
               actions={[
-                <Button
-                  key="load"
-                  type="link"
-                  onClick={() => handleLoad(sheet)}
-                >
-                  Загрузить
-                </Button>,
-                <Popconfirm
-                  key="del"
-                  title="Удалить?"
-                  onConfirm={() => handleDelete(sheet.id)}
-                  okText="Да"
-                  cancelText="Нет"
-                  okButtonProps={{ danger: true }}
-                >
+                <Button key="load" type="link" onClick={() => handleLoad(sheet)}>Загрузить</Button>,
+                <Popconfirm key="del" title="Удалить?" onConfirm={() => handleDelete(sheet.id)} okText="Да" cancelText="Нет" okButtonProps={{ danger: true }}>
                   <Button type="link" danger>Удалить</Button>
                 </Popconfirm>,
               ]}
@@ -386,6 +532,6 @@ export default function RouteSheetGenerator() {
           )}
         />
       </Modal>
-    </div>
+    </>
   );
 }

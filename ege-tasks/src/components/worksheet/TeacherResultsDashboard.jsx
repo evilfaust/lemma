@@ -25,6 +25,7 @@ const TeacherResultsDashboard = ({ sessionId }) => {
   const [manualAttempt, setManualAttempt] = useState(null);
   const [manualRandomAchievementId, setManualRandomAchievementId] = useState(undefined);
   const [manualUnlockedAchievementIds, setManualUnlockedAchievementIds] = useState([]);
+  const [mcTestData, setMcTestData] = useState(null); // данные MC-теста для отображения текста опций
 
   const normalizeAchievementId = useCallback((value) => {
     if (!value) return undefined;
@@ -79,6 +80,26 @@ const TeacherResultsDashboard = ({ sessionId }) => {
     const interval = setInterval(loadAttempts, 15000);
     return () => clearInterval(interval);
   }, [loadAttempts]);
+
+  // Загружаем MC-тест для сессии (если есть), чтобы отображать текст опций вместо индексов
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    const loadMCTest = async () => {
+      try {
+        const session = await api.getSession(sessionId);
+        if (cancelled) return;
+        const mcTestId = session?.mc_test || session?.trig_mc_test;
+        if (!mcTestId) { setMcTestData(null); return; }
+        const mcTest = session?.mc_test
+          ? await api.getMCTest(mcTestId)
+          : await api.getTrigMCTest(mcTestId);
+        if (!cancelled) setMcTestData(mcTest);
+      } catch (_) { /* не критично */ }
+    };
+    loadMCTest();
+    return () => { cancelled = true; };
+  }, [sessionId]);
 
   const loadAchievements = useCallback(async () => {
     setAchievementsLoading(true);
@@ -486,6 +507,21 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       return <Text type="secondary">Нет ответов</Text>;
     }
 
+    // Строим карту taskId → options[] из MC-теста (для отображения текста вместо индекса)
+    const mcOptionsMap = {};
+    if (mcTestData) {
+      const variantNumber = record.mc_variant ?? record.variant;
+      const variantData = (mcTestData.variants || []).find(
+        v => String(v.number) === String(variantNumber)
+      );
+      if (variantData) {
+        (variantData.tasks || []).forEach(t => {
+          const tid = t.task_id || t.id;
+          if (tid && Array.isArray(t.options)) mcOptionsMap[tid] = t.options;
+        });
+      }
+    }
+
     // Строим карту taskId → порядковый номер из варианта
     const variant = record.expand?.variant;
     const taskPositionMap = {};
@@ -554,10 +590,18 @@ const TeacherResultsDashboard = ({ sessionId }) => {
       },
       {
         title: 'Ответ ученика',
-        dataIndex: 'answer_raw',
         key: 'answer_raw',
-        width: 120,
-        render: (val) => val || <Text type="secondary">(пусто)</Text>,
+        width: 160,
+        render: (_, a) => {
+          const taskId = a.expand?.task?.id || a.task;
+          const options = mcOptionsMap[taskId];
+          if (options) {
+            const idx = parseInt(a.answer_raw, 10);
+            const optionText = !isNaN(idx) && options[idx] ? options[idx].text : null;
+            if (optionText) return <MathRenderer text={`$${optionText}$`} />;
+          }
+          return a.answer_raw || <Text type="secondary">(пусто)</Text>;
+        },
       },
       {
         title: 'Правильный',

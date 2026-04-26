@@ -191,6 +191,13 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
             if (!task) return null;
             const taskIndex = tasks.findIndex(t => t.id === answer.task);
             const taskNumber = taskIndex >= 0 ? taskIndex + 1 : i + 1;
+            const mcOptions = task.mc_options;
+            const selectedIndex = mcOptions ? parseInt(answer.answer_raw, 10) : NaN;
+            const mcOptionText = mcOptions && !isNaN(selectedIndex) && mcOptions[selectedIndex]
+              ? mcOptions[selectedIndex].text
+              : null;
+            const displayAnswer = mcOptionText ?? (answer.answer_raw || '(пусто)');
+            const isMcAnswer = mcOptionText !== null;
             return (
               <div key={answer.id} className="error-task" style={{ animationDelay: `${0.08 * i}s` }}>
                 <div className="task-number">Задача {taskNumber}</div>
@@ -200,9 +207,11 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
                     <img src={task.image_url || `${PB_URL}/api/files/tasks/${task.id}/${task.image}`} alt="" style={{ maxWidth: '100%', marginTop: 8, borderRadius: 12 }} />
                   )}
                 </div>
-                <div style={{ marginTop: 10 }}>
+                <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Text type="secondary">Ваш ответ: </Text>
-                  <Text className="wrong-badge">{answer.answer_raw || '(пусто)'}</Text>
+                  <span className="wrong-badge">
+                    {isMcAnswer ? <MathRenderer text={`$${displayAnswer}$`} /> : displayAnswer}
+                  </span>
                 </div>
               </div>
             );
