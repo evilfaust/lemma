@@ -1,7 +1,7 @@
-import { useState, useEffect, lazy, Suspense, useCallback } from 'react';
-import { Layout, Menu, ConfigProvider, Spin, Button, notification } from 'antd';
+import { useState, useEffect, lazy, Suspense } from 'react';
+import { Layout, Menu, ConfigProvider, Spin, Drawer, Button, Grid } from 'antd';
 import { hybridTheme } from './theme/hybrid';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined, AppstoreOutlined, BulbOutlined } from '@ant-design/icons';
+import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined, AppstoreOutlined, BulbOutlined, MenuOutlined } from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -61,6 +61,11 @@ function AppContent() {
   const [selectedStudentId, setSelectedStudentId] = useState(null);
   const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
   const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+
+  // Responsive breakpoints
+  const screens = Grid.useBreakpoint();
+  const isDesktop = !!screens.lg; // >= 992px (десктоп)
 
   // State for theory navigation
   const [editingArticleId, setEditingArticleId] = useState(null);
@@ -71,21 +76,7 @@ function AppContent() {
 
   const { theoryCategories, reloadData } = useReferenceData();
 
-  const handleVersionUpdate = useCallback((payload) => {
-    notification.info({
-      message: 'Доступно обновление приложения',
-      description: `Новая версия уже развернута (${payload.version || payload.releaseId}).`,
-      duration: 0,
-      placement: 'bottomRight',
-      btn: (
-        <Button type="primary" size="small" onClick={() => window.location.reload()}>
-          Обновить
-        </Button>
-      ),
-    });
-  }, []);
-
-  useVersionSync(handleVersionUpdate);
+  useVersionSync();
 
   useEffect(() => {
     // Teacher UI must always work in unrestricted mode.
@@ -234,6 +225,16 @@ function AppContent() {
     setTaskListInitialFilters(filters);
     setTaskListFiltersToken(prev => prev + 1);
     setCurrentView('tasks');
+  };
+
+  const handleMenuClick = ({ key }) => {
+    setCurrentView(key);
+    setMobileDrawerOpen(false);
+    if (key === 'theory-browser') {
+      setEditingArticleId(null);
+      setViewingArticleId(null);
+    }
+    if (key === 'mc-test') setSelectedMcTestId(null);
   };
 
   const handleArticleSaved = (newId) => {
@@ -489,70 +490,112 @@ default:
     return [currentView];
   };
 
+  const noMarginViews = ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'];
+  const isNoMarginView = noMarginViews.includes(currentView);
+
+  // Shared menu content — used in both Sider and Drawer
+  const menuLogo = (
+    <div style={{
+      height: 64,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '10px 16px',
+      flexShrink: 0,
+    }}>
+      <img
+        src="/lemma-logo-new.png"
+        alt="Lemma"
+        style={{ height: 38, width: 'auto', borderRadius: 6 }}
+      />
+    </div>
+  );
+
+  const menuComponent = (
+    <Menu
+      mode="inline"
+      selectedKeys={getSelectedKeys()}
+      defaultOpenKeys={[]}
+      items={menuItems}
+      onClick={handleMenuClick}
+      style={{ borderRight: 0 }}
+    />
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        breakpoint="lg"
-        collapsedWidth="0"
-        width={220}
-        style={{
-          background: '#fff',
-          boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
-        }}
-      >
-        <div style={{
-          height: 64,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '10px 16px',
-        }}>
-          <img
-            src="/lemma-logo-new.png"
-            alt="Lemma"
-            style={{ height: 38, width: 'auto', borderRadius: 6 }}
-          />
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={getSelectedKeys()}
-          defaultOpenKeys={[]}
-          items={menuItems}
-          onClick={({ key }) => {
-            setCurrentView(key);
-            if (key === 'theory-browser') {
-              setEditingArticleId(null);
-              setViewingArticleId(null);
-            }
-            if (key === 'mc-test') setSelectedMcTestId(null);
+      {/* ─── Боковое меню: только на десктопе ─── */}
+      {isDesktop && (
+        <Sider
+          width={220}
+          style={{
+            background: '#fff',
+            boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
           }}
-          style={{ borderRight: 0 }}
-        />
-      </Sider>
+        >
+          {menuLogo}
+          {menuComponent}
+        </Sider>
+      )}
+
+      {/* ─── Drawer-меню: мобильный + планшет ─── */}
+      {!isDesktop && (
+        <Drawer
+          open={mobileDrawerOpen}
+          onClose={() => setMobileDrawerOpen(false)}
+          placement="left"
+          width={260}
+          styles={{
+            body: { padding: 0, overflowX: 'hidden' },
+            header: { display: 'none' },
+          }}
+          style={{ padding: 0 }}
+        >
+          {menuLogo}
+          {menuComponent}
+        </Drawer>
+      )}
 
       <Layout>
         <Header style={{
           background: '#fff',
-          padding: '0 24px',
+          padding: isDesktop ? '0 24px' : '0 12px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
           display: 'flex',
           alignItems: 'center',
-          fontSize: 20,
-          fontWeight: 500,
+          gap: 8,
         }}>
-          {getHeaderTitle()}
+          {/* Кнопка-гамбургер на мобильных и планшете */}
+          {!isDesktop && (
+            <Button
+              type="text"
+              icon={<MenuOutlined style={{ fontSize: 20 }} />}
+              onClick={() => setMobileDrawerOpen(true)}
+              style={{ flexShrink: 0, width: 40, height: 40 }}
+            />
+          )}
+          <span style={{
+            fontSize: isDesktop ? 20 : 16,
+            fontWeight: 500,
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}>
+            {getHeaderTitle()}
+          </span>
         </Header>
 
         <Content style={{
-          margin: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? 0 : '24px 16px 0',
+          margin: isNoMarginView ? 0 : (isDesktop ? '24px 16px 0' : '12px 8px 0'),
           overflow: 'hidden',
         }}>
           <div style={{
-            padding: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? 0 : 24,
-            minHeight: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? undefined : 360,
-            height: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? '100%' : undefined,
+            padding: isNoMarginView ? 0 : (isDesktop ? 24 : 16),
+            minHeight: isNoMarginView ? undefined : 360,
+            height: isNoMarginView ? '100%' : undefined,
             background: '#fff',
-            borderRadius: ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'].includes(currentView) ? 0 : 8,
+            borderRadius: isNoMarginView ? 0 : 8,
           }}>
             {renderContent()}
           </div>
