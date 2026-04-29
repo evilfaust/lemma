@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, Input, Space, Switch, Typography } from 'antd';
+import { useMemo, useState } from 'react';
+import { Button, Card, Input, Segmented, Space, Switch, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import MathRenderer from './MathRenderer';
@@ -17,7 +17,7 @@ function WorksheetTask({ task, index, showDrawing }) {
     <div className="geo-worksheet-task">
       {/* Строка: бейдж + условие */}
       <div className="geo-worksheet-task-header">
-        <span className="geo-worksheet-task-badge">Задача №{index + 1}</span>
+        <span className="geo-worksheet-task-badge">№{index + 1}</span>
         <div className="geo-worksheet-task-statement">
           {task.statement_md ? (
             <MathRenderer text={task.statement_md} />
@@ -61,7 +61,7 @@ function WorksheetTask({ task, index, showDrawing }) {
   );
 }
 
-// ── Один лист A5 с двумя задачами ────────────────────────────────────────────
+// ── Один лист ─────────────────────────────────────────────────────────────────
 
 function WorksheetSheet({
   sheetTasks,
@@ -71,12 +71,20 @@ function WorksheetSheet({
   showFields,
   showDrawing,
   isFirstSheet,
+  tasksPerSheet,
 }) {
   const showPrimaryHeader = isFirstSheet;
   const showCompactTitle = !isFirstSheet && topicLabel;
 
+  const sheetClass = [
+    'geo-worksheet-sheet',
+    tasksPerSheet > 2 ? 'geo-worksheet-sheet--a4' : '',
+    tasksPerSheet === 4 ? 'geo-worksheet-sheet--4' : '',
+    tasksPerSheet === 5 ? 'geo-worksheet-sheet--5' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className="geo-worksheet-sheet">
+    <div className={sheetClass}>
       {/* Шапка */}
       {showPrimaryHeader && (
         <div className="geo-worksheet-header">
@@ -131,24 +139,24 @@ export default function GeometryWorksheetPrint({
   const [variantLabel, setVariantLabel] = useState(initialVariantLabel);
   const [showFields, setShowFields] = useState(true);
   const [showDrawing, setShowDrawing] = useState(true);
+  const [tasksPerSheet, setTasksPerSheet] = useState(2);
 
-  // Задаём формат страницы A5 при печати и убираем при демонтировании,
-  // чтобы не ломать @page других разделов приложения.
-  useEffect(() => {
+  const handlePrint = () => {
+    const size = tasksPerSheet === 2 ? 'A5 portrait' : 'A4 portrait';
     const style = document.createElement('style');
-    style.textContent = '@page { size: A5 portrait; margin: 0; }';
+    style.textContent = `@page { size: ${size}; margin: 0; }`;
     document.head.appendChild(style);
-    return () => style.remove();
-  }, []);
+    window.print();
+    setTimeout(() => style.remove(), 1500);
+  };
 
-  // Разбиваем задачи на листы по 2
   const sheets = useMemo(() => {
     const result = [];
-    for (let i = 0; i < tasks.length; i += 2) {
-      result.push({ sheetTasks: tasks.slice(i, i + 2), startIndex: i });
+    for (let i = 0; i < tasks.length; i += tasksPerSheet) {
+      result.push({ sheetTasks: tasks.slice(i, i + tasksPerSheet), startIndex: i });
     }
     return result;
-  }, [tasks]);
+  }, [tasks, tasksPerSheet]);
 
   const sheetsWord = sheets.length === 1 ? 'лист' : sheets.length < 5 ? 'листа' : 'листов';
 
@@ -162,7 +170,7 @@ export default function GeometryWorksheetPrint({
             Рабочий лист · {tasks.length} задач · {sheets.length} {sheetsWord}
           </Text>
         </Space>
-        <Button type="primary" icon={<PrinterOutlined />} onClick={() => window.print()}>
+        <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
           Печать
         </Button>
       </div>
@@ -170,6 +178,20 @@ export default function GeometryWorksheetPrint({
       {/* ── Настройки ── */}
       <Card size="small" style={{ marginBottom: 12 }}>
         <Space wrap size={16}>
+          <Space size={6}>
+            <Text style={{ fontSize: 13 }}>Задач на листе:</Text>
+            <Segmented
+              size="small"
+              value={tasksPerSheet}
+              onChange={setTasksPerSheet}
+              options={[
+                { label: '2 / A5', value: 2 },
+                { label: '3 / A4', value: 3 },
+                { label: '4 / A4', value: 4 },
+                { label: '5 / A4', value: 5 },
+              ]}
+            />
+          </Space>
           <Space size={6}>
             <Text style={{ fontSize: 13 }}>Заголовок:</Text>
             <Input
@@ -214,6 +236,7 @@ export default function GeometryWorksheetPrint({
             showFields={showFields}
             showDrawing={showDrawing}
             isFirstSheet={i === 0}
+            tasksPerSheet={tasksPerSheet}
           />
         ))}
       </div>

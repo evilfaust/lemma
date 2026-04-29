@@ -28,12 +28,12 @@
   gap: 16px;
 }
 
-/* ── Лист A5 ─────────────────────────────────────── */
+/* ── Лист A5 (2 задачи) ──────────────────────────── */
 
 .geo-worksheet-sheet {
   width: 148mm;
   height: 210mm;
-  padding: 3mm 4mm;
+  padding: 5mm;
   box-sizing: border-box;
   background: var(--paper);
   border: 1.5px solid #c0c0c0;
@@ -45,6 +45,43 @@
   overflow: hidden;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
+}
+
+/* ── Лист A4 (3–4 задачи) ────────────────────────── */
+
+.geo-worksheet-sheet--a4 {
+  width: 210mm;
+  height: 297mm;
+}
+
+/* Чертёж уменьшен для 3 задач / A4 */
+.geo-worksheet-sheet--a4 .geo-worksheet-task-drawing {
+  max-height: 45mm;
+  width: 38%;
+}
+
+.geo-worksheet-sheet--a4 .geo-worksheet-task-drawing img {
+  max-height: 43mm;
+}
+
+/* Чертёж ещё меньше для 4 задач / A4 */
+.geo-worksheet-sheet--4 .geo-worksheet-task-drawing {
+  max-height: 32mm;
+  width: 35%;
+}
+
+.geo-worksheet-sheet--4 .geo-worksheet-task-drawing img {
+  max-height: 30mm;
+}
+
+/* Чертёж минимальный для 5 задач / A4 */
+.geo-worksheet-sheet--5 .geo-worksheet-task-drawing {
+  max-height: 25mm;
+  width: 32%;
+}
+
+.geo-worksheet-sheet--5 .geo-worksheet-task-drawing img {
+  max-height: 23mm;
 }
 
 /* ── Шапка листа ─────────────────────────────────── */
@@ -143,16 +180,15 @@
 }
 
 .geo-worksheet-task-badge {
-  background: var(--accent);
-  color: #fff;
-  font-size: 3mm;
+  background: none;
+  color: var(--ink);
+  font-size: 3.2mm;
   font-weight: 700;
-  border-radius: 1.2mm;
-  padding: 0.8mm 2.2mm;
+  padding: 0;
   white-space: nowrap;
   flex-shrink: 0;
   font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
-  line-height: 1.4;
+  line-height: 1.25;
 }
 
 .geo-worksheet-task-statement {
@@ -279,9 +315,15 @@
     min-height: 210mm;
     margin: 0 auto;
     border: 0;
-    padding: 3mm 4mm;
+    padding: 5mm;
     box-sizing: border-box;
     box-shadow: none;
+  }
+
+  .geo-worksheet-sheet--a4 {
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
   }
 
   .geo-worksheet-pages .geo-worksheet-sheet {

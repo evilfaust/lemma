@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import katex from 'katex';
 import {
   Input, Button, Typography, Space, Alert,
   Divider, Tag, App, Tooltip, Popconfirm, Select, Spin, Switch,
@@ -29,6 +30,30 @@ const { Text, Paragraph } = Typography;
 
 const DEFINE_API = import.meta.env.VITE_DEFINE_API_URL || 'https://l.oipav.ru/define';
 
+const EXAM_TYPE_LABELS = {
+  ege_base:    'ЕГЭ базовый (11 кл.)',
+  ege_profile: 'ЕГЭ профильный (11 кл.)',
+  vpr:         'ВПР',
+  oral:        'Устный счёт',
+  trig:        'Тригонометрия',
+  mordkovich:  'Мордкович',
+  other:       'Прочее',
+};
+
+const topicLabel = (t) => t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title;
+
+/* ── Рендер ответа с KaTeX (без обёртки в $...$) ────────────────────────── */
+function MathAnswer({ text }) {
+  if (!text) return null;
+  let html;
+  try {
+    html = katex.renderToString(text, { throwOnError: false, displayMode: false });
+  } catch {
+    return <span>{text}</span>;
+  }
+  return <span dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
 /* ── Печатный блок шифровки ─────────────────────────────────────────────── */
 function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes, description }) {
   const variant = { tasks, number: 1 };
@@ -52,9 +77,9 @@ function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes, description
                 : `${idx + 1}.`}
             </div>
             <div className="cgp-task-body">
-              {task.image && (
+              {task.has_image && api.getTaskImageUrl(task) && (
                 <img
-                  src={task.image}
+                  src={api.getTaskImageUrl(task)}
                   alt=""
                   className="cgp-task-img"
                 />
@@ -73,20 +98,27 @@ function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes, description
           </div>
 
           {/* Таблица ответ → буква */}
-          <div className="cgp-table">
-              {cryptogram.entries.map((entry, i) => (
-                <div key={i} className={`cgp-table-cell${entry.isDecoy ? ' cgp-table-cell--decoy' : ''}`}>
-                  <div className="cgp-cell-answer">
-                    <MathRenderer text={entry.answer} />
-                  </div>
-                  <div className="cgp-cell-letter">{entry.letter}</div>
-                </div>
-              ))}
-            </div>
+          <table className="cgp-table">
+            <tbody>
+              <tr>
+                {cryptogram.entries.map((entry, i) => (
+                  <td key={i} className={`cgp-td-answer${entry.isDecoy ? ' cgp-td--decoy' : ''}`}>
+                    <MathAnswer text={entry.answer} />
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                {cryptogram.entries.map((entry, i) => (
+                  <td key={i} className={`cgp-td-letter${entry.isDecoy ? ' cgp-td--decoy' : ''}`}>
+                    {entry.letter}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
 
           {/* Строка-ответ */}
           <div className="cgp-result">
-                <div className="cgp-result-label">Запиши буквы — получится слово / фраза:</div>
                 <div className="cgp-result-cells">
               {cryptogram.answerCells.map((cell, i) =>
                 cell.type === 'space'
@@ -105,9 +137,6 @@ function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes, description
                     {description}
                   </div>
                 )}
-                <div className="cgp-result-note">
-                  Впиши букву, найденную для задачи N, в клетку с номером N.
-                </div>
               </div>
         </div>
       ) : (
@@ -158,8 +187,10 @@ export default function CryptogramGenerator() {
   const [defLoading, setDefLoading] = useState(false);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [stripPrefixes, setStripPrefixes] = useState(true);
+  const [twoPerPage, setTwoPerPage] = useState(false);
 
   // Генератор задач
+  const [genContext, setGenContext] = useState(null);
   const [genTopic, setGenTopic] = useState(null);
   const [genSubtopic, setGenSubtopic] = useState(null);
   const [genLoading, setGenLoading] = useState(false);
@@ -236,16 +267,25 @@ export default function CryptogramGenerator() {
     try {
       const filters = { topic: genTopic, hasAnswer: true };
       if (genSubtopic) filters.subtopic = genSubtopic;
+      // Запрашиваем с запасом — для дедупликации по ответу
       const result = await api.getRandomTasksWithoutRepetition(
-        uniqueLetterCount,
+        uniqueLetterCount * 5,
         filters,
         tasks.map(t => t.id)
       );
-      const withAnswer = result.filter(t => t.answer?.trim());
-      if (withAnswer.length < uniqueLetterCount) {
-        message.warning(`Нашлось только ${withAnswer.length} задач с ответами (нужно ${uniqueLetterCount}). Попробуйте другую тему.`);
+      // Дедупликация по нормализованному ответу
+      const seen = new Set();
+      const unique = result.filter(t => {
+        if (!t.answer?.trim()) return false;
+        const key = t.answer.trim().toLowerCase().replace(/\s+/g, '');
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+      if (unique.length < uniqueLetterCount) {
+        message.warning(`Нашлось только ${unique.length} задач с уникальными ответами (нужно ${uniqueLetterCount}). Попробуйте другую тему или подтему.`);
       }
-      setTasks(withAnswer.slice(0, uniqueLetterCount));
+      setTasks(unique.slice(0, uniqueLetterCount));
     } catch (e) {
       message.error('Ошибка при загрузке задач');
     } finally {
@@ -418,8 +458,20 @@ export default function CryptogramGenerator() {
 
             <TrigSettingsSection label="Подбор задач">
               <Spin spinning={genLoading}>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8, alignItems: 'flex-end' }}>
-                  <div style={{ flex: '1 1 140px', minWidth: 120 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--ink-4)', marginBottom: 2 }}>Контекст</div>
+                    <Select
+                      size="small"
+                      style={{ width: '100%' }}
+                      placeholder="Все контексты"
+                      allowClear
+                      value={genContext}
+                      onChange={v => { setGenContext(v); setGenTopic(null); setGenSubtopic(null); }}
+                      options={Object.entries(EXAM_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                    />
+                  </div>
+                  <div>
                     <div style={{ fontSize: 11, color: 'var(--ink-4)', marginBottom: 2 }}>Тема</div>
                     <Select
                       size="small"
@@ -428,12 +480,15 @@ export default function CryptogramGenerator() {
                       allowClear
                       value={genTopic}
                       onChange={v => { setGenTopic(v); setGenSubtopic(null); }}
-                      options={topics.map(t => ({ value: t.id, label: t.title }))}
+                      options={(genContext
+                        ? topics.filter(t => t.exam_type === genContext)
+                        : topics
+                      ).map(t => ({ value: t.id, label: topicLabel(t) }))}
                       showSearch
                       optionFilterProp="label"
                     />
                   </div>
-                  <div style={{ flex: '1 1 120px', minWidth: 100 }}>
+                  <div>
                     <div style={{ fontSize: 11, color: 'var(--ink-4)', marginBottom: 2 }}>Подтема</div>
                     <Select
                       size="small"
@@ -522,6 +577,10 @@ export default function CryptogramGenerator() {
                 <Switch size="small" checked={stripPrefixes} onChange={setStripPrefixes} />
                 <Text style={{ fontSize: 12 }}>Срезать «Вычислите», «Найдите» и т.д.</Text>
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                <Switch size="small" checked={twoPerPage} onChange={setTwoPerPage} />
+                <Text style={{ fontSize: 12 }}>2 работы на одном листе</Text>
+              </div>
               {savedId && (
                 <div style={{ marginTop: 8, fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
                   ID: {savedId}
@@ -569,7 +628,7 @@ export default function CryptogramGenerator() {
                     {cryptogram.entries.map((entry, i) => (
                       <div key={i} className={`cg-preview-cell${entry.isDecoy ? ' cg-preview-cell--decoy' : ''}`}>
                         <div className="cg-preview-answer">
-                          <MathRenderer text={entry.answer} />
+                          <MathAnswer text={entry.answer} />
                         </div>
                         <div className="cg-preview-letter">{entry.letter}</div>
                       </div>
@@ -604,9 +663,15 @@ export default function CryptogramGenerator() {
       />
 
       {/* ── Скрытый блок для печати ── */}
-      {canPrint && (
+      {canPrint && (twoPerPage ? (
+        <div className="cgp-sheet-wrap">
+          <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
+          <div className="cgp-sheet-divider" />
+          <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
+        </div>
+      ) : (
         <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
-      )}
+      ))}
 
       <TaskSelectModal
         visible={selectModalOpen}

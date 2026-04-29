@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ConfigProvider, Button, notification, theme } from 'antd';
 import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined, SunOutlined, MoonOutlined, LoginOutlined, UserAddOutlined, UserOutlined } from '@ant-design/icons';
 import { useStudentSession } from './hooks/useStudentSession';
@@ -307,21 +307,7 @@ function StudentApp() {
     });
   };
 
-  const handleVersionUpdate = useCallback((payload) => {
-    notification.info({
-      message: 'Доступно обновление',
-      description: `Доступна новая версия интерфейса (${payload.version || payload.releaseId}).`,
-      duration: 0,
-      placement: 'bottomRight',
-      btn: (
-        <Button type="primary" size="small" onClick={() => window.location.reload()}>
-          Обновить
-        </Button>
-      ),
-    });
-  }, []);
-
-  useVersionSync(handleVersionUpdate);
+  useVersionSync();
 
   // Проверить авторизацию при загрузке
   useEffect(() => {

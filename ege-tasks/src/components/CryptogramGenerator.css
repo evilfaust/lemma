@@ -125,7 +125,7 @@
   font-family: 'Times New Roman', Times, serif;
   font-size: 9.5pt;
   color: #000;
-  padding: 6mm 8mm 6mm;
+  padding: 4mm 8mm 4mm;
   box-sizing: border-box;
   width: 148mm;
 }
@@ -151,6 +151,38 @@
     left: 0;
     width: 100%;
   }
+
+  /* Режим 2 на листе — переопределяет одиночный режим */
+  body:has(.cgp-sheet-wrap) .cgp-root {
+    position: static;
+    width: 148mm;
+  }
+
+  body:has(.cgp-sheet-wrap) .cgp-sheet-wrap,
+  body:has(.cgp-sheet-wrap) .cgp-sheet-wrap * {
+    visibility: visible;
+  }
+
+  body:has(.cgp-sheet-wrap) .cgp-sheet-wrap {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* Обёртка «2 на листе» — скрыта по умолчанию, видна только при печати */
+.cgp-sheet-wrap {
+  display: none;
+}
+
+.cgp-sheet-divider {
+  width: 148mm;
+  border-top: 1pt dashed #999;
+  margin: 2mm 0;
 }
 
 /* Шапка */
@@ -159,8 +191,8 @@
   justify-content: space-between;
   align-items: baseline;
   border-bottom: 2px solid #000;
-  padding-bottom: 5px;
-  margin-bottom: 10px;
+  padding-bottom: 3px;
+  margin-bottom: 5px;
 }
 
 .cgp-title {
@@ -176,15 +208,15 @@
 .cgp-tasks {
   columns: 2;
   column-gap: 5mm;
-  margin-bottom: 4mm;
+  margin-bottom: 2.5mm;
 }
 
 .cgp-task {
   break-inside: avoid;
   display: flex;
   gap: 3px;
-  margin-bottom: 2.5mm;
-  padding-bottom: 1.5mm;
+  margin-bottom: 1.5mm;
+  padding-bottom: 1mm;
   border-bottom: 0.5px dashed #bbb;
 }
 
@@ -203,75 +235,59 @@
 }
 
 .cgp-task-img {
-  max-width: 100%;
-  max-height: 35mm;
-  display: block;
-  margin-bottom: 3px;
+  float: right;
+  max-width: 40mm;
+  max-height: 30mm;
+  margin-left: 2mm;
+  margin-bottom: 1mm;
 }
 
 /* Блок шифровки */
 .cgp-crypto-block {
-  border: 1pt solid #000;
-  border-radius: 3px;
-  padding: 2mm 3mm;
-  margin-bottom: 3mm;
+  padding: 1.5mm 0;
+  margin-bottom: 2mm;
   break-inside: avoid;
 }
 
 .cgp-crypto-note {
-  font-size: 8pt;
+  font-size: 7.5pt;
   color: #555;
-  margin-bottom: 2mm;
+  margin-bottom: 1.5mm;
 }
 
 /* Таблица ответ → буква */
 .cgp-table {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  margin-bottom: 2.5mm;
+  border-collapse: collapse;
+  margin-bottom: 1.5mm;
 }
 
-.cgp-table-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  border: 0.75pt solid #000;
-  min-width: 11mm;
-}
-
-.cgp-table-cell--decoy {
-  border-style: solid;
-}
-
-.cgp-cell-answer {
-  padding: 0.5mm 1.5mm;
-  font-size: 8.5pt;
+.cgp-td-answer {
+  border: 0.5pt solid #000;
   text-align: center;
-  border-bottom: 0.75pt solid #000;
-  width: 100%;
-  box-sizing: border-box;
+  padding: 0.3mm 1mm;
+  font-size: 7pt;
+  vertical-align: middle;
+  white-space: nowrap;
 }
 
-.cgp-table-cell--decoy .cgp-cell-answer {
-  border-bottom-style: solid;
-}
-
-.cgp-cell-letter {
-  padding: 0.5mm 1.5mm;
-  font-size: 10pt;
+.cgp-td-letter {
+  border: 0.5pt solid #000;
+  text-align: center;
+  padding: 0.3mm 1.5mm;
+  font-size: 9.5pt;
   font-weight: 700;
-  text-align: center;
+  vertical-align: middle;
 }
+
 
 /* Строка ответа */
 .cgp-result {
-  margin-top: 2mm;
+  margin-top: 1.5mm;
 }
 
 .cgp-result-label {
-  font-size: 8.5pt;
-  margin-bottom: 1.5mm;
+  font-size: 7.5pt;
+  margin-bottom: 1mm;
 }
 
 .cgp-result-cells {
@@ -289,28 +305,28 @@
 }
 
 .cgp-result-answer {
-  font-size: 7pt;
+  font-size: 6.5pt;
   text-align: center;
-  max-width: 11mm;
+  max-width: 9mm;
   overflow: hidden;
   white-space: nowrap;
 }
 
 .cgp-result-cell {
   display: inline-block;
-  width: 7mm;
-  height: 7mm;
+  width: 6mm;
+  height: 6mm;
   border: 0.75pt solid #000;
 }
 
 .cgp-result-gap {
   display: inline-block;
-  width: 3mm;
+  width: 2.5mm;
 }
 
 .cgp-result-note {
-  margin-top: 1.5mm;
-  font-size: 7.5pt;
+  margin-top: 1mm;
+  font-size: 7pt;
   color: #555;
 }
 
