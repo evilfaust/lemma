@@ -470,7 +470,6 @@ export default function RouteSheetGenerator() {
         <RouteSheetPrintLayout
           title={title}
           tasks={tasks}
-          effectiveLinks={effectiveLinks}
           showTeacherKey={showTeacherKey}
         />
       )}

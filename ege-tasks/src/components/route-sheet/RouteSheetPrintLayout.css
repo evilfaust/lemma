@@ -19,7 +19,7 @@
 
 /* ─── Страница ────────────────────────────────────────────────────────────── */
 .rs-page {
-  padding: 14mm 16mm 12mm;
+  padding: 12mm 16mm 10mm;
   max-width: 210mm;
   box-sizing: border-box;
   page-break-after: always;
@@ -33,15 +33,15 @@
 
 /* ─── Шапка ───────────────────────────────────────────────────────────────── */
 .rs-header {
-  margin-bottom: 10pt;
+  margin-bottom: 8pt;
 }
 
 .rs-title {
-  font-size: 16pt;
+  font-size: 15pt;
   font-weight: 700;
   text-align: center;
   letter-spacing: 0.02em;
-  margin-bottom: 6pt;
+  margin-bottom: 5pt;
 }
 
 .rs-teacher-badge {
@@ -51,14 +51,11 @@
   letter-spacing: 2px;
   color: #1a6b1a;
   border: 1px dashed #1a6b1a;
-  display: inline-block;
-  padding: 2pt 10pt;
-  border-radius: 3px;
-  margin: 4pt auto 6pt;
   display: block;
   width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
+  padding: 2pt 10pt;
+  border-radius: 3px;
+  margin: 3pt auto 5pt;
 }
 
 .rs-info-line {
@@ -66,7 +63,7 @@
   align-items: baseline;
   gap: 20pt;
   font-size: 11pt;
-  padding: 5pt 0 8pt;
+  padding: 5pt 0 6pt;
   border-top: 1.5pt solid #000;
   border-bottom: 1pt solid #ccc;
 }
@@ -84,85 +81,57 @@
   height: 12pt;
 }
 
-.rs-info-blank--name { width: 120pt; }
+.rs-info-blank--name  { width: 120pt; }
 .rs-info-blank--short { width: 50pt; }
 
 /* ─── Цепочка задач ───────────────────────────────────────────────────────── */
 .rs-chain {
   display: flex;
   flex-direction: column;
+  margin-top: 6pt;
 }
 
-.rs-chain-item {
+.rs-task-block {
   display: flex;
   flex-direction: column;
 }
 
-/* ─── Коннектор ───────────────────────────────────────────────────────────── */
-.rs-connector {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding-left: 20pt;
-  margin: 0;
-}
-
-.rs-connector-stem {
-  width: 1.5pt;
-  height: 10pt;
-  background: #bbb;
-  margin-left: 7pt;
-}
-
-.rs-connector-row {
-  display: flex;
-  align-items: center;
-  gap: 5pt;
-  margin-bottom: 3pt;
-}
-
-.rs-connector-arrow {
-  font-size: 9pt;
-  color: #666;
-  line-height: 1;
-}
-
-.rs-connector-hint {
-  font-size: 8.5pt;
-  color: #666;
-  font-style: italic;
+.rs-task-block--sep {
+  border-top: 0.5pt solid #ddd;
+  margin-top: 7pt;
+  padding-top: 7pt;
 }
 
 /* ─── Карточка задачи ─────────────────────────────────────────────────────── */
 .rs-task {
   display: flex;
-  align-items: flex-start;
-  gap: 10pt;
-  border: 1.2pt solid #bbb;
-  border-radius: 5pt;
-  padding: 9pt 11pt;
-  background: #fff;
+  flex-direction: column;
   break-inside: avoid;
   page-break-inside: avoid;
 }
 
 .rs-task--teacher {
-  border-color: #2a7a2a;
-  background: #f4fcf4;
+  /* нет отличий в структуре */
 }
 
-.rs-task-badge {
-  font-size: 17pt;
+.rs-task-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 8pt;
+}
+
+.rs-task-num {
+  font-size: 16pt;
   font-weight: 700;
   color: #1a56c4;
-  line-height: 1;
+  line-height: 1.1;
   flex-shrink: 0;
   min-width: 20pt;
   text-align: center;
   margin-top: 1pt;
 }
 
-.rs-task-badge--teacher {
+.rs-task-num--teacher {
   color: #1a6b1a;
 }
 
@@ -172,8 +141,8 @@
 }
 
 .rs-task-stmt {
-  line-height: 1.5;
-  margin-bottom: 7pt;
+  line-height: 1.45;
+  margin-bottom: 5pt;
   font-size: 12pt;
 }
 
@@ -252,12 +221,31 @@
 .rs-divider-dashed {
   border: none;
   border-top: 1pt dashed #bbb;
-  margin: 10pt 0;
+  margin: 8pt 0;
+}
+
+/* ─── Инструкция для ученика ──────────────────────────────────────────────── */
+.rs-instruction {
+  font-size: 9.5pt;
+  color: #666;
+  font-style: italic;
+  margin: 4pt 0 8pt;
+  line-height: 1.4;
+}
+
+/* ─── Плейсхолдеры предыдущих ответов в условии ──────────────────────────── */
+.rs-ph {
+  color: #c0c0c0;
+  border-bottom: 1pt solid #c0c0c0;
+  min-width: 1.4em;
+  display: inline-block;
+  text-align: center;
+  font-style: normal;
 }
 
 /* ─── Подвал ──────────────────────────────────────────────────────────────── */
 .rs-footer {
-  margin-top: 14pt;
+  margin-top: 12pt;
   text-align: right;
   font-size: 8pt;
   color: #aaa;

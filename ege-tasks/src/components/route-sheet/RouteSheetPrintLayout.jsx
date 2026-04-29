@@ -1,4 +1,5 @@
 import MathRenderer from '../../shared/components/MathRenderer';
+import RouteStatementRenderer from './RouteStatementRenderer';
 import { circleNum } from '../../hooks/useRouteSheet';
 import './RouteSheetPrintLayout.css';
 
@@ -12,17 +13,19 @@ function resolveStatement(statement, allTasks, upToIndex) {
 }
 
 // ─── Карточка задачи — ученик ─────────────────────────────────────────────────
-function StudentCard({ task, index, fromIdx }) {
+function StudentCard({ task, index }) {
   return (
     <div className="rs-task">
-      <div className="rs-task-badge">{circleNum(index)}</div>
-      <div className="rs-task-body">
-        <div className="rs-task-stmt">
-          <MathRenderer content={task.statement_md || ''} />
-        </div>
-        <div className="rs-answer-row">
-          <span className="rs-answer-label">Ответ:</span>
-          <span className="rs-answer-blank" />
+      <div className="rs-task-content">
+        <div className="rs-task-num">{circleNum(index)}</div>
+        <div className="rs-task-body">
+          <div className="rs-task-stmt">
+            <RouteStatementRenderer content={task.statement_md || ''} />
+          </div>
+          <div className="rs-answer-row">
+            <span className="rs-answer-label">Ответ:</span>
+            <span className="rs-answer-blank" />
+          </div>
         </div>
       </div>
     </div>
@@ -30,37 +33,21 @@ function StudentCard({ task, index, fromIdx }) {
 }
 
 // ─── Карточка задачи — учитель ────────────────────────────────────────────────
-function TeacherCard({ task, index, fromIdx, allTasks }) {
+function TeacherCard({ task, index, allTasks }) {
   const resolved = resolveStatement(task.statement_md, allTasks, index);
   return (
     <div className="rs-task rs-task--teacher">
-      <div className="rs-task-badge rs-task-badge--teacher">{circleNum(index)}</div>
-      <div className="rs-task-body">
-        <div className="rs-task-stmt">
-          <MathRenderer content={resolved} />
+      <div className="rs-task-content">
+        <div className="rs-task-num rs-task-num--teacher">{circleNum(index)}</div>
+        <div className="rs-task-body">
+          <div className="rs-task-stmt">
+            <MathRenderer content={resolved} />
+          </div>
+          <div className="rs-answer-row">
+            <span className="rs-answer-label">Ответ:</span>
+            <span className="rs-answer-value">{task.answer || '—'}</span>
+          </div>
         </div>
-        <div className="rs-answer-row">
-          <span className="rs-answer-label">Ответ:</span>
-          <span className="rs-answer-value">{task.answer || '—'}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Коннектор между задачами ─────────────────────────────────────────────────
-function Connector({ fromIdx, teacherMode, tasks }) {
-  return (
-    <div className="rs-connector">
-      <div className="rs-connector-stem" />
-      <div className="rs-connector-row">
-        <span className="rs-connector-arrow">▼</span>
-        <span className="rs-connector-hint">
-          {teacherMode
-            ? <>используй ответ {circleNum(fromIdx)} = <b>{tasks[fromIdx]?.answer || '?'}</b></>
-            : <>используй ответ {circleNum(fromIdx)}</>
-          }
-        </span>
       </div>
     </div>
   );
@@ -81,12 +68,7 @@ function AnswerSummary({ tasks }) {
 }
 
 // ─── Главный компонент ────────────────────────────────────────────────────────
-export default function RouteSheetPrintLayout({ title, tasks, effectiveLinks, showTeacherKey }) {
-  const linkMap = {};
-  for (const link of effectiveLinks) {
-    linkMap[link.toIndex] = link.fromIndex;
-  }
-
+export default function RouteSheetPrintLayout({ title, tasks, showTeacherKey }) {
   return (
     <div className="rs-print-root">
 
@@ -101,17 +83,15 @@ export default function RouteSheetPrintLayout({ title, tasks, effectiveLinks, sh
           </div>
         </div>
 
+        <p className="rs-instruction">
+          Задачи связаны цепочкой: ответ каждой задачи используется в следующей.
+          Бледные символы ①②③ в условии — это места для ответов из соответствующих задач.
+        </p>
+
         <div className="rs-chain">
           {tasks.map((task, idx) => (
-            <div key={task.id} className="rs-chain-item">
-              {idx > 0 && (
-                <Connector
-                  fromIdx={linkMap[idx] ?? idx - 1}
-                  teacherMode={false}
-                  tasks={tasks}
-                />
-              )}
-              <StudentCard task={task} index={idx} fromIdx={linkMap[idx]} />
+            <div key={task.id} className={`rs-task-block${idx > 0 ? ' rs-task-block--sep' : ''}`}>
+              <StudentCard task={task} index={idx} />
             </div>
           ))}
         </div>
@@ -133,15 +113,8 @@ export default function RouteSheetPrintLayout({ title, tasks, effectiveLinks, sh
 
           <div className="rs-chain">
             {tasks.map((task, idx) => (
-              <div key={task.id} className="rs-chain-item">
-                {idx > 0 && (
-                  <Connector
-                    fromIdx={linkMap[idx] ?? idx - 1}
-                    teacherMode={true}
-                    tasks={tasks}
-                  />
-                )}
-                <TeacherCard task={task} index={idx} fromIdx={linkMap[idx]} allTasks={tasks} />
+              <div key={task.id} className={`rs-task-block${idx > 0 ? ' rs-task-block--sep' : ''}`}>
+                <TeacherCard task={task} index={idx} allTasks={tasks} />
               </div>
             ))}
           </div>
