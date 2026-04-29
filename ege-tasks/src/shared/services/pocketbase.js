@@ -2438,6 +2438,53 @@ export const api = {
       return [];
     }
   },
+
+  // ─── Листы формул ────────────────────────────────────────────────────────────
+
+  async getFormulaSheets() {
+    try {
+      return await pb.collection('formula_sheets').getFullList({ sort: '-id' });
+    } catch (error) {
+      console.error('Error fetching formula_sheets:', error);
+      return [];
+    }
+  },
+
+  async getFormulaSheet(id) {
+    try {
+      return await pb.collection('formula_sheets').getOne(id);
+    } catch (error) {
+      console.error('Error fetching formula_sheet:', error);
+      throw error;
+    }
+  },
+
+  async createFormulaSheet(data) {
+    try {
+      return await pb.collection('formula_sheets').create(data);
+    } catch (error) {
+      console.error('Error creating formula_sheet:', error);
+      throw error;
+    }
+  },
+
+  async updateFormulaSheet(id, data) {
+    try {
+      return await pb.collection('formula_sheets').update(id, data);
+    } catch (error) {
+      console.error('Error updating formula_sheet:', error);
+      throw error;
+    }
+  },
+
+  async deleteFormulaSheet(id) {
+    try {
+      return await pb.collection('formula_sheets').delete(id);
+    } catch (error) {
+      console.error('Error deleting formula_sheet:', error);
+      throw error;
+    }
+  },
 };
 
 export default pb;

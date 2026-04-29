@@ -10,10 +10,14 @@
  *   style       object     — доп. стили на корневой div
  */
 export function SplitLayout({ left, right, leftWidth = 320, gap = 20, divider = true, style }) {
+  // leftWidth может быть числом (px) или строкой CSS-значения ('1fr', '50%', etc.)
+  const colDef = typeof leftWidth === 'number'
+    ? `${leftWidth}px 1fr`
+    : `${leftWidth} 1fr`;
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: `${leftWidth}px 1fr`,
+      gridTemplateColumns: colDef,
       gap,
       height: '100%',
       minHeight: 0,

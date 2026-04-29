@@ -26,6 +26,7 @@ import TDFManager from './components/tdf/TDFManager';
 import TDFEditor from './components/tdf/TDFEditor';
 import TDFVariantBuilder from './components/tdf/TDFVariantBuilder';
 import TDFFlashcards from './components/tdf/TDFFlashcards';
+import FormulaSheetGenerator from './components/FormulaSheetGenerator';
 import QRWorksheetGenerator from './components/QRWorksheetGenerator';
 import PixelArtWorksheet from './components/PixelArtWorksheet';
 import RouteSheetGenerator from './components/RouteSheetGenerator';
@@ -154,15 +155,16 @@ function AppContent() {
       children: [
         { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
         { key: 'geometry-topics', icon: <FolderOutlined />, label: 'Темы и подтемы' },
-        {
-          key: 'tdf-group',
-          icon: <FormOutlined />,
-          label: 'ТДФ',
-          children: [
-            { key: 'tdf', icon: <FormOutlined />, label: 'Наборы' },
-            { key: 'tdf-flashcards', icon: <CreditCardOutlined />, label: 'Карточки' },
-          ],
-        },
+      ],
+    },
+    {
+      key: 'tdf-group',
+      icon: <FormOutlined />,
+      label: 'ТДФ',
+      children: [
+        { key: 'tdf', icon: <UnorderedListOutlined />, label: 'Наборы' },
+        { key: 'tdf-flashcards', icon: <CreditCardOutlined />, label: 'Карточки' },
+        { key: 'formula-sheet', icon: <FunctionOutlined />, label: 'Листы формул' },
       ],
     },
     {
@@ -363,6 +365,8 @@ function AppContent() {
             onBack={() => setCurrentView('tdf')}
           />
         );
+      case 'formula-sheet':
+        return <FormulaSheetGenerator />;
       case 'trig-mixed':
         return <TrigMixedGenerator />;
       case 'unit-circle':
@@ -460,6 +464,7 @@ default:
       case 'tdf-editor': return 'ТДФ — Редактор конспекта';
       case 'tdf-variants': return 'ТДФ — Варианты';
       case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
+      case 'formula-sheet': return 'ТДФ — Листы формул';
       case 'trig-mixed':  return 'Тригонометрия — Смешанная работа';
       case 'unit-circle': return 'Тригонометрия — Единичная окружность';
       case 'trig-values': return 'Тригонометрия — Значения функций';
