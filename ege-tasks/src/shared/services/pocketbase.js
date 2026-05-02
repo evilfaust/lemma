@@ -2069,6 +2069,17 @@ export const api = {
     }
   },
 
+  async getTasksByIds(ids) {
+    if (!ids.length) return [];
+    try {
+      const filter = ids.map(id => `id="${id}"`).join(' || ');
+      return await pb.collection('tasks').getFullList({ filter });
+    } catch (error) {
+      console.error('Error fetching tasks by ids:', error);
+      return [];
+    }
+  },
+
   async createPixelArtTeamSet(data) {
     try {
       return await pb.collection('pixel_art_team_sets').create(data);

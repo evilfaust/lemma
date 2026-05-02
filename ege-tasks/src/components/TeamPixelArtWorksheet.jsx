@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Button, Radio, Slider, Switch, message } from 'antd';
-import { PrinterOutlined, SaveOutlined, TeamOutlined, FolderOpenOutlined } from '@ant-design/icons';
+import { Button, Radio, Slider, Switch, message, Modal, List, Popconfirm } from 'antd';
+import { PrinterOutlined, SaveOutlined, TeamOutlined, FolderOpenOutlined, DatabaseOutlined, DeleteOutlined } from '@ant-design/icons';
 import { TrigGeneratorLayout, TrigSettingsSection, TrigPreviewPane, TrigStatBadge } from './trig/TrigGeneratorLayout';
 import ImageUploader from './pixel-art/ImageUploader';
 import PixelArtImageLibraryModal from './pixel-art/PixelArtImageLibraryModal';
@@ -26,6 +26,10 @@ export default function TeamPixelArtWorksheet() {
   const [libraryImages, setLibraryImages] = useState([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [savedSets, setSavedSets] = useState([]);
+  const [savedLoading, setSavedLoading] = useState(false);
+  const [loadingId, setLoadingId] = useState(null);
 
   // ── Обработка изображения ─────────────────────────────────────────────────
   const handleImageChange = (file, dims) => {
@@ -76,6 +80,64 @@ export default function TeamPixelArtWorksheet() {
     pa.setThreshold(img.threshold ?? 128);
     pa.setImageFile(null);
     setLibraryOpen(false);
+  };
+
+  // ── Загрузка сохранённых сетов ────────────────────────────────────────────
+  const openSaved = async () => {
+    setSavedOpen(true);
+    setSavedLoading(true);
+    try {
+      setSavedSets(await api.getPixelArtTeamSets());
+    } catch {
+      message.error('Не удалось загрузить список');
+    } finally {
+      setSavedLoading(false);
+    }
+  };
+
+  const handleLoadSaved = async (setId) => {
+    setLoadingId(setId);
+    try {
+      const [setRecord, tileRecords] = await Promise.all([
+        api.getPixelArtTeamSet(setId),
+        api.getPixelArtTeamTiles(setId),
+      ]);
+      // Собираем все уникальные ID задач (shared_tasks — relation IDs; tile.tasks — JSON IDs)
+      const allIds = new Set([
+        ...(setRecord.shared_tasks ?? []),
+        ...tileRecords.flatMap(t => t.tasks ?? []),
+      ]);
+      const tasksMap = {};
+      if (allIds.size > 0) {
+        const tasks = await api.getTasksByIds([...allIds]);
+        tasks.forEach(t => { tasksMap[t.id] = t; });
+      }
+      setRecord.expand = {
+        shared_tasks: (setRecord.shared_tasks ?? []).map(id => tasksMap[id]).filter(Boolean),
+      };
+      const enrichedTiles = tileRecords.map(tile => ({
+        ...tile,
+        expand: { tasks: (tile.tasks ?? []).map(id => tasksMap[id]).filter(Boolean) },
+      }));
+      pa.loadFromSaved(setRecord, enrichedTiles);
+      setSavedOpen(false);
+      message.success('Загружено');
+    } catch {
+      message.error('Ошибка загрузки');
+    } finally {
+      setLoadingId(null);
+    }
+  };
+
+  const handleDeleteSaved = async (setId) => {
+    try {
+      await api.deletePixelArtTeamSet(setId);
+      setSavedSets(prev => prev.filter(s => s.id !== setId));
+      if (pa.savedId === setId) pa.reset();
+      message.success('Удалено');
+    } catch {
+      message.error('Ошибка удаления');
+    }
   };
 
   // ── Редактирование задачи ─────────────────────────────────────────────────
@@ -295,6 +357,13 @@ export default function TeamPixelArtWorksheet() {
         >
           Сохранить
         </Button>
+        <Button
+          icon={<DatabaseOutlined />}
+          onClick={openSaved}
+          block
+        >
+          Загрузить сохранённое
+        </Button>
       </div>
     </div>
   );
@@ -405,6 +474,56 @@ export default function TeamPixelArtWorksheet() {
           setLibraryImages(prev => prev.map(img => img.id === id ? { ...img, title } : img));
         }}
       />
+
+      {/* Список сохранённых */}
+      <Modal
+        title="Сохранённые командные раскраски"
+        open={savedOpen}
+        onCancel={() => setSavedOpen(false)}
+        footer={null}
+        width={520}
+      >
+        <List
+          loading={savedLoading}
+          dataSource={savedSets}
+          locale={{ emptyText: 'Нет сохранённых работ' }}
+          renderItem={(set) => (
+            <List.Item
+              actions={[
+                <Button
+                  key="load"
+                  type="primary"
+                  size="small"
+                  loading={loadingId === set.id}
+                  onClick={() => handleLoadSaved(set.id)}
+                >
+                  Загрузить
+                </Button>,
+                <Popconfirm
+                  key="del"
+                  title="Удалить эту раскраску?"
+                  onConfirm={() => handleDeleteSaved(set.id)}
+                  okText="Да"
+                  cancelText="Нет"
+                >
+                  <Button size="small" danger type="text" icon={<DeleteOutlined />} />
+                </Popconfirm>,
+              ]}
+            >
+              <List.Item.Meta
+                title={set.title || 'Без названия'}
+                description={
+                  <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                    {set.tile_count}×{set.tile_count} плиток
+                    {' · '}{set.task_mode === 'per_tile' ? 'разные задачи' : 'общие задачи'}
+                    {' · '}{new Date(set.created).toLocaleDateString('ru')}
+                  </span>
+                }
+              />
+            </List.Item>
+          )}
+        />
+      </Modal>
 
       {/* Редактирование задачи */}
       <TaskEditModal
