@@ -29,6 +29,7 @@ import TDFFlashcards from './components/tdf/TDFFlashcards';
 import FormulaSheetGenerator from './components/FormulaSheetGenerator';
 import QRWorksheetGenerator from './components/QRWorksheetGenerator';
 import PixelArtWorksheet from './components/PixelArtWorksheet';
+import TeamPixelArtWorksheet from './components/TeamPixelArtWorksheet';
 import RouteSheetGenerator from './components/RouteSheetGenerator';
 import ErrorHeatmap from './components/ErrorHeatmap';
 import UnitCircleGenerator from './components/UnitCircleGenerator';
@@ -118,6 +119,7 @@ function AppContent() {
       children: [
         { key: 'qr-worksheet', icon: <QrcodeOutlined />, label: 'QR-листы' },
         { key: 'pixel-art', icon: <PictureOutlined />, label: 'Пиксель-арт' },
+        { key: 'pixel-art-team', icon: <TeamOutlined />, label: 'Командный пиксель-арт' },
         { key: 'cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
         { key: 'route-sheet', icon: <BranchesOutlined />, label: 'Маршрутный лист' },
         { key: 'marathon', icon: <TrophyOutlined />, label: 'Марафон' },
@@ -287,6 +289,8 @@ function AppContent() {
         return <QRWorksheetGenerator />;
       case 'pixel-art':
         return <PixelArtWorksheet />;
+      case 'pixel-art-team':
+        return <TeamPixelArtWorksheet />;
       case 'cryptogram':
         return <CryptogramGenerator />;
       case 'work-manager':
@@ -451,6 +455,7 @@ default:
       case 'test-generator': return 'Контрольные работы';
       case 'qr-worksheet': return 'QR-листы';
       case 'pixel-art': return 'Пиксель-арт раскраска';
+      case 'pixel-art-team': return 'Командный пиксель-арт';
       case 'cryptogram': return 'Шифровки';
       case 'work-manager': return 'Мои работы';
       case 'work-editor': return 'Редактор работ';

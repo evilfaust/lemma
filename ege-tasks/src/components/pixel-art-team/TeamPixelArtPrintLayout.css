@@ -1,0 +1,48 @@
+/* Экран: скрываем всю область печати */
+.team-pixel-art-print-wrapper {
+  display: none;
+}
+
+/* Печать */
+@media print {
+  .team-pixel-art-print-wrapper {
+    display: block;
+  }
+
+  /*
+   * Scoped-изоляция: скрываем body целиком (visibility наследуется),
+   * затем делаем видимым только .team-pixel-art-print-root.
+   * ВАЖНО: selector на body, а НЕ body * — иначе специфичность
+   * не позволит переопределить обратно.
+   */
+  body:has(.team-pixel-art-print-root) {
+    visibility: hidden;
+  }
+
+  .team-pixel-art-print-root {
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+
+  .team-pixel-art-print-root * {
+    visibility: visible;
+  }
+
+  .team-pixel-art-student-page,
+  .team-pixel-art-grid-page,
+  .team-pixel-art-teacher-page {
+    padding: 12mm 10mm 10mm;
+    box-sizing: border-box;
+    min-height: 297mm;
+    overflow: hidden;
+  }
+
+  .team-pixel-art-grid-page,
+  .team-pixel-art-teacher-page {
+    page-break-before: always;
+    break-before: page;
+  }
+}

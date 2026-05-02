@@ -2049,6 +2049,80 @@ export const api = {
     }
   },
 
+  // --- pixel_art_team_sets + pixel_art_team_tiles ---
+
+  async getPixelArtTeamSets() {
+    try {
+      return await pb.collection('pixel_art_team_sets').getFullList({ sort: '-created' });
+    } catch (error) {
+      console.error('Error fetching pixel_art_team_sets:', error);
+      return [];
+    }
+  },
+
+  async getPixelArtTeamSet(id) {
+    try {
+      return await pb.collection('pixel_art_team_sets').getOne(id);
+    } catch (error) {
+      console.error('Error fetching pixel_art_team_set:', error);
+      throw error;
+    }
+  },
+
+  async createPixelArtTeamSet(data) {
+    try {
+      return await pb.collection('pixel_art_team_sets').create(data);
+    } catch (error) {
+      console.error('Error creating pixel_art_team_set:', error);
+      throw error;
+    }
+  },
+
+  async updatePixelArtTeamSet(id, data) {
+    try {
+      return await pb.collection('pixel_art_team_sets').update(id, data);
+    } catch (error) {
+      console.error('Error updating pixel_art_team_set:', error);
+      throw error;
+    }
+  },
+
+  async deletePixelArtTeamSet(id) {
+    try {
+      return await pb.collection('pixel_art_team_sets').delete(id);
+    } catch (error) {
+      console.error('Error deleting pixel_art_team_set:', error);
+      throw error;
+    }
+  },
+
+  async getPixelArtTeamTiles(teamSetId) {
+    try {
+      return await pb.collection('pixel_art_team_tiles').getFullList({
+        filter: `team_set="${teamSetId}"`,
+        sort: 'tile_index',
+      });
+    } catch (error) {
+      console.error('Error fetching pixel_art_team_tiles:', error);
+      return [];
+    }
+  },
+
+  async upsertPixelArtTeamTile(teamSetId, tileIndex, data) {
+    try {
+      const existing = await pb.collection('pixel_art_team_tiles').getFirstListItem(
+        `team_set="${teamSetId}" && tile_index=${tileIndex}`
+      ).catch(() => null);
+      if (existing) {
+        return await pb.collection('pixel_art_team_tiles').update(existing.id, data);
+      }
+      return await pb.collection('pixel_art_team_tiles').create({ team_set: teamSetId, tile_index: tileIndex, ...data });
+    } catch (error) {
+      console.error('Error upserting pixel_art_team_tile:', error);
+      throw error;
+    }
+  },
+
   // --- route_sheets ---
 
   async getRouteSheets() {
