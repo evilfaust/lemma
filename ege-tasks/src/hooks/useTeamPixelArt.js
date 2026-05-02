@@ -231,11 +231,12 @@ export function useTeamPixelArt() {
       // Сохраняем плитки только в per_tile-режиме
       if (taskMode === 'per_tile') {
         for (let i = 0; i < totalTiles; i++) {
-          await api.upsertPixelArtTeamTile(record.id, i, {
+          const tileData = {
             tasks: (tileTasks[i] ?? []).map(t => t.id),
             custom_answers: tileAnswers[i] ?? {},
-            grid: tileGrids[i] ?? null,
-          });
+          };
+          if (tileGrids[i] != null) tileData.grid = tileGrids[i];
+          await api.upsertPixelArtTeamTile(record.id, i, tileData);
         }
       }
 
