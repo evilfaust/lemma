@@ -1,7 +1,19 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import {
+  BrowserRouter, Routes, Route, Navigate,
+  useNavigate, useLocation, useParams, useSearchParams, Outlet,
+} from 'react-router-dom';
 import { Layout, Menu, ConfigProvider, Spin, Drawer, Button, Grid } from 'antd';
 import { hybridTheme } from './theme/hybrid';
-import { FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined, TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined, SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined, BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined, FunctionOutlined, AppstoreOutlined, BulbOutlined, MenuOutlined } from '@ant-design/icons';
+import {
+  FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined,
+  UploadOutlined, PieChartOutlined, SolutionOutlined, EditOutlined,
+  TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined,
+  SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined,
+  FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined,
+  BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined,
+  FunctionOutlined, AppstoreOutlined, BulbOutlined, MenuOutlined,
+} from '@ant-design/icons';
 import TaskList from './components/TaskList';
 import TaskSheetGenerator from './components/OralWorksheetGenerator';
 import TestWorkGenerator from './components/TestWorkGenerator';
@@ -56,513 +68,514 @@ import './App.css';
 
 const { Header, Content, Sider } = Layout;
 
-function AppContent() {
-  const [currentView, setCurrentView] = useState('tasks');
-  const [selectedWorkIdForEditor, setSelectedWorkIdForEditor] = useState(null);
-  const [selectedMcTestId, setSelectedMcTestId] = useState(null);
-  const [selectedStudentId, setSelectedStudentId] = useState(null);
-  const [taskListInitialFilters, setTaskListInitialFilters] = useState(null);
-  const [taskListFiltersToken, setTaskListFiltersToken] = useState(0);
-  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+// ── Route path constants ────────────────────────────────────────────────────
+export const R = {
+  TASKS:               '/app/tasks',
+  STATS:               '/app/stats',
+  CATALOG:             '/app/catalog',
+  // Рабочие листы
+  GENERATOR:           '/app/worksheets/oral',
+  EGE_VARIANT:         '/app/worksheets/ege-variant',
+  EGE_SCORE_CALC:      '/app/worksheets/ege-score-calc',
+  TEST:                '/app/worksheets/test',
+  MC_TEST:             '/app/worksheets/mc-test',
+  MC_TEST_EDIT:        '/app/worksheets/mc-test/:testId',
+  // Геймификация
+  QR:                  '/app/gamification/qr-worksheet',
+  PIXEL_ART:           '/app/gamification/pixel-art',
+  PIXEL_ART_TEAM:      '/app/gamification/pixel-art-team',
+  CRYPTOGRAM:          '/app/gamification/cryptogram',
+  ROUTE_SHEET:         '/app/gamification/route-sheet',
+  MARATHON:            '/app/gamification/marathon',
+  // Работы
+  WORKS:               '/app/works',
+  WORK_EDITOR:         '/app/works/:workId/edit',
+  // Ученики
+  STUDENTS:            '/app/students',
+  STUDENTS_HEATMAP:    '/app/students/heatmap',
+  ACHIEVEMENTS:        '/app/students/achievements',
+  STUDENT_DETAIL:      '/app/students/:studentId',
+  // Прочее
+  IMPORT:              '/app/import',
+  GEOMETRY_TASKS:      '/app/geometry/tasks',
+  GEOMETRY_TOPICS:     '/app/geometry/topics',
+  // ТДФ
+  TDF:                 '/app/tdf',
+  TDF_EDITOR:          '/app/tdf/sets/:setId/edit',
+  TDF_VARIANTS:        '/app/tdf/sets/:setId/variants',
+  TDF_FLASHCARDS:      '/app/tdf/sets/:setId/flashcards',
+  FORMULA_SHEET:       '/app/tdf/formula-sheet',
+  // Тригонометрия
+  TRIG_MIXED:          '/app/trig/mixed',
+  UNIT_CIRCLE:         '/app/trig/unit-circle',
+  TRIG_VALUES:         '/app/trig/values',
+  TRIG_EXPRESSIONS:    '/app/trig/expressions',
+  INVERSE_TRIG:        '/app/trig/inverse',
+  TRIG_EQUATIONS:      '/app/trig/equations',
+  TRIG_EQUATIONS_ADV:  '/app/trig/equations-advanced',
+  REDUCTION:           '/app/trig/reduction',
+  ADDITION:            '/app/trig/addition',
+  DOUBLE_ANGLE:        '/app/trig/double-angle',
+  TRIG_CRYPTOGRAM:     '/app/trig/cryptogram',
+  // Теория
+  THEORY:              '/app/theory',
+  THEORY_NEW:          '/app/theory/articles/new',
+  THEORY_VIEW:         '/app/theory/articles/:articleId',
+  THEORY_EDIT:         '/app/theory/articles/:articleId/edit',
+  THEORY_PRINT:        '/app/theory/print',
+  THEORY_CATEGORIES:   '/app/theory/categories',
+  // Лаборатория
+  EXCALIDRAW:          '/app/lab/excalidraw',
+};
 
-  // Responsive breakpoints
+// Вспомогательная функция для построения конкретного URL из шаблона с параметрами
+export function route(template, params) {
+  return Object.entries(params).reduce(
+    (url, [k, v]) => url.replace(`:${k}`, encodeURIComponent(v)),
+    template,
+  );
+}
+
+// ── Метаданные маршрутов (для заголовка, подсветки меню, отступов) ──────────
+// Порядок важен: более специфичные паттерны — первее
+const ROUTE_META = [
+  // Работы (detail)
+  { re: /^\/app\/works\/[^/]+\/edit/, menuKey: 'work-editor',        title: 'Редактор работ' },
+  // Ученики (detail + sub-pages)
+  { re: /^\/app\/students\/heatmap$/,     menuKey: 'heatmap',       menuGroup: 'students-group', title: 'Тепловая карта ошибок' },
+  { re: /^\/app\/students\/achievements$/, menuKey: 'achievements', menuGroup: 'students-group', title: 'Управление достижениями' },
+  { re: /^\/app\/students\/[^/]+$/,        menuKey: 'students',     menuGroup: 'students-group', title: 'Детали ученика' },
+  // ТДФ (detail)
+  { re: /^\/app\/tdf\/sets\/[^/]+\/edit/,      menuKey: 'tdf',           menuGroup: 'tdf-group', title: 'ТДФ — Редактор конспекта' },
+  { re: /^\/app\/tdf\/sets\/[^/]+\/variants/,  menuKey: 'tdf',           menuGroup: 'tdf-group', title: 'ТДФ — Варианты' },
+  { re: /^\/app\/tdf\/sets\/[^/]+\/flashcards/, menuKey: 'tdf-flashcards', menuGroup: 'tdf-group', title: 'ТДФ — Карточки-флипы' },
+  // Теория (detail + editor)
+  { re: /^\/app\/theory\/articles\/new$/,          menuKey: 'theory-editor',  menuGroup: 'theory', title: 'Теория — Новая статья',  noMargin: true },
+  { re: /^\/app\/theory\/articles\/[^/]+\/edit$/,  menuKey: 'theory-editor',  menuGroup: 'theory', title: 'Теория — Редактор',       noMargin: true },
+  { re: /^\/app\/theory\/articles\/[^/]+$/,        menuKey: 'theory-browser', menuGroup: 'theory', title: 'Теория — Просмотр',       noMargin: true },
+  // MC-тест (edit с id)
+  { re: /^\/app\/worksheets\/mc-test\/.+/, menuKey: 'mc-test', menuGroup: 'worksheets-group', title: 'Тесты с выбором' },
+  // Простые маршруты
+  { re: /^\/app\/tasks/,                   menuKey: 'tasks',                   title: 'Все задачи' },
+  { re: /^\/app\/stats/,                   menuKey: 'stats',                   title: 'Аналитика задач' },
+  { re: /^\/app\/catalog/,                 menuKey: 'catalog',                 title: 'Каталог задач' },
+  { re: /^\/app\/worksheets\/oral/,        menuKey: 'generator',         menuGroup: 'worksheets-group', title: 'Генератор' },
+  { re: /^\/app\/worksheets\/ege-variant/, menuKey: 'ege-variant',       menuGroup: 'worksheets-group', title: 'Варианты ЕГЭ (базовый уровень)' },
+  { re: /^\/app\/worksheets\/ege-score/,   menuKey: 'ege-score-calc',    menuGroup: 'worksheets-group', title: 'Калькулятор баллов ЕГЭ' },
+  { re: /^\/app\/worksheets\/test/,        menuKey: 'test-generator',    menuGroup: 'worksheets-group', title: 'Контрольные работы' },
+  { re: /^\/app\/worksheets\/mc-test$/,    menuKey: 'mc-test',           menuGroup: 'worksheets-group', title: 'Тесты с выбором' },
+  { re: /^\/app\/gamification\/qr/,        menuKey: 'qr-worksheet',      menuGroup: 'gamification-group', title: 'QR-листы' },
+  { re: /^\/app\/gamification\/pixel-art-team/, menuKey: 'pixel-art-team', menuGroup: 'gamification-group', title: 'Командный пиксель-арт' },
+  { re: /^\/app\/gamification\/pixel-art$/, menuKey: 'pixel-art',        menuGroup: 'gamification-group', title: 'Пиксель-арт раскраска' },
+  { re: /^\/app\/gamification\/cryptogram/, menuKey: 'cryptogram',       menuGroup: 'gamification-group', title: 'Шифровки' },
+  { re: /^\/app\/gamification\/route/,     menuKey: 'route-sheet',       menuGroup: 'gamification-group', title: 'Маршрутный лист' },
+  { re: /^\/app\/gamification\/marathon/,  menuKey: 'marathon',          menuGroup: 'gamification-group', title: 'Марафон — подготовка и проведение' },
+  { re: /^\/app\/works$/,                  menuKey: 'work-manager',              title: 'Мои работы' },
+  { re: /^\/app\/students$/,               menuKey: 'students', menuGroup: 'students-group', title: 'Прогресс учеников' },
+  { re: /^\/app\/import/,                  menuKey: 'import',                    title: 'Импорт задач' },
+  { re: /^\/app\/geometry\/tasks/,         menuKey: 'geometry-tasks',   menuGroup: 'geometry', title: 'Геометрические задачи' },
+  { re: /^\/app\/geometry\/topics/,        menuKey: 'geometry-topics',  menuGroup: 'geometry', title: 'Геометрия — Темы и подтемы' },
+  { re: /^\/app\/tdf$/,                    menuKey: 'tdf',              menuGroup: 'tdf-group', title: 'ТДФ — Теоремы, Определения, Формулы' },
+  { re: /^\/app\/tdf\/formula-sheet/,      menuKey: 'formula-sheet',    menuGroup: 'tdf-group', title: 'ТДФ — Листы формул' },
+  { re: /^\/app\/trig\/mixed/,             menuKey: 'trig-mixed',       menuGroup: 'trig', title: 'Тригонометрия — Смешанная работа' },
+  { re: /^\/app\/trig\/unit-circle/,       menuKey: 'unit-circle',      menuGroup: 'trig', title: 'Тригонометрия — Единичная окружность' },
+  { re: /^\/app\/trig\/values/,            menuKey: 'trig-values',      menuGroup: 'trig', title: 'Тригонометрия — Значения функций' },
+  { re: /^\/app\/trig\/expressions/,       menuKey: 'trig-expressions', menuGroup: 'trig', title: 'Тригонометрия — Вычисление выражений' },
+  { re: /^\/app\/trig\/inverse/,           menuKey: 'inverse-trig',     menuGroup: 'trig', title: 'Тригонометрия — Обратные функции' },
+  { re: /^\/app\/trig\/equations-advanced/, menuKey: 'trig-equations-advanced', menuGroup: 'trig', title: 'Тригонометрия — Уравнения f(kx+b)=a' },
+  { re: /^\/app\/trig\/equations/,         menuKey: 'trig-equations',   menuGroup: 'trig', title: 'Тригонометрия — Уравнения' },
+  { re: /^\/app\/trig\/reduction/,         menuKey: 'reduction-formulas', menuGroup: 'trig', title: 'Тригонометрия — Формулы приведения' },
+  { re: /^\/app\/trig\/addition/,          menuKey: 'addition-formulas', menuGroup: 'trig', title: 'Тригонометрия — Формулы сложения' },
+  { re: /^\/app\/trig\/double-angle/,      menuKey: 'double-angle',     menuGroup: 'trig', title: 'Тригонометрия — Двойной аргумент' },
+  { re: /^\/app\/trig\/cryptogram/,        menuKey: 'trig-cryptogram',  menuGroup: 'trig', title: 'Тригонометрия — Шифровки' },
+  { re: /^\/app\/theory\/print/,           menuKey: 'theory-print',     menuGroup: 'theory', title: 'Теория — Конспекты', noMargin: true },
+  { re: /^\/app\/theory\/categories/,      menuKey: 'theory-categories', menuGroup: 'theory', title: 'Теория — Категории' },
+  { re: /^\/app\/theory$/,                 menuKey: 'theory-browser',   menuGroup: 'theory', title: 'Теория — Библиотека' },
+  { re: /^\/app\/lab\/excalidraw/,         menuKey: 'excalidraw',       menuGroup: 'lab', title: 'Excalidraw', noMargin: true },
+];
+
+function getRouteMeta(pathname) {
+  return ROUTE_META.find(m => m.re.test(pathname)) ?? {};
+}
+
+// ── Маппинг menuKey → путь (для навигации по клику в меню) ─────────────────
+const MENU_KEY_PATH = {
+  tasks:                    R.TASKS,
+  stats:                    R.STATS,
+  generator:                R.GENERATOR,
+  'ege-variant':            R.EGE_VARIANT,
+  'ege-score-calc':         R.EGE_SCORE_CALC,
+  'test-generator':         R.TEST,
+  'mc-test':                R.MC_TEST,
+  'qr-worksheet':           R.QR,
+  'pixel-art':              R.PIXEL_ART,
+  'pixel-art-team':         R.PIXEL_ART_TEAM,
+  cryptogram:               R.CRYPTOGRAM,
+  'route-sheet':            R.ROUTE_SHEET,
+  marathon:                 R.MARATHON,
+  'work-manager':           R.WORKS,
+  'work-editor':            '/app/works/new/edit',
+  students:                 R.STUDENTS,
+  heatmap:                  R.STUDENTS_HEATMAP,
+  achievements:             R.ACHIEVEMENTS,
+  import:                   R.IMPORT,
+  'geometry-tasks':         R.GEOMETRY_TASKS,
+  'geometry-topics':        R.GEOMETRY_TOPICS,
+  tdf:                      R.TDF,
+  'tdf-flashcards':         R.TDF,   // открывает список наборов; карточки — через TDFManager
+  'formula-sheet':          R.FORMULA_SHEET,
+  'trig-mixed':             R.TRIG_MIXED,
+  'unit-circle':            R.UNIT_CIRCLE,
+  'trig-values':            R.TRIG_VALUES,
+  'trig-expressions':       R.TRIG_EXPRESSIONS,
+  'inverse-trig':           R.INVERSE_TRIG,
+  'trig-equations':         R.TRIG_EQUATIONS,
+  'trig-equations-advanced': R.TRIG_EQUATIONS_ADV,
+  'reduction-formulas':     R.REDUCTION,
+  'addition-formulas':      R.ADDITION,
+  'double-angle':           R.DOUBLE_ANGLE,
+  'trig-cryptogram':        R.TRIG_CRYPTOGRAM,
+  'theory-browser':         R.THEORY,
+  'theory-editor':          R.THEORY_NEW,
+  'theory-print':           R.THEORY_PRINT,
+  'theory-categories':      R.THEORY_CATEGORIES,
+  excalidraw:               R.EXCALIDRAW,
+};
+
+// ── Утилиты для фильтров (Stats → Tasks) ────────────────────────────────────
+function filtersToSearch(filters) {
+  if (!filters) return '';
+  const p = new URLSearchParams();
+  Object.entries(filters).forEach(([k, v]) => { if (v != null) p.set(k, String(v)); });
+  const s = p.toString();
+  return s ? '?' + s : '';
+}
+
+function parseFiltersFromSearch(searchParams) {
+  const filters = {};
+  for (const [k, v] of searchParams.entries()) filters[k] = v;
+  return Object.keys(filters).length ? filters : null;
+}
+
+// ── Вспомогательный Suspense-лоадер ─────────────────────────────────────────
+function LazyFallback() {
+  return <div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>;
+}
+
+// ── Page wrappers (читают params/searchParams, прокидывают navigate-колбэки) ─
+
+function TasksPage() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const filters = parseFiltersFromSearch(searchParams);
+  return (
+    <TaskList
+      initialFilters={filters}
+      initialFiltersToken={searchParams.toString()}
+      onOpenWorkEditor={(workId) => navigate(route(R.WORK_EDITOR, { workId }))}
+    />
+  );
+}
+
+function StatsPage() {
+  const navigate = useNavigate();
+  return (
+    <TaskStatsDashboard
+      onOpenTasks={(filters) => navigate(R.TASKS + filtersToSearch(filters))}
+      onOpenCatalog={() => navigate(R.CATALOG)}
+    />
+  );
+}
+
+function CatalogPage() {
+  const navigate = useNavigate();
+  return (
+    <TaskCatalogManager
+      onOpenTasks={(filters) => navigate(R.TASKS + filtersToSearch(filters))}
+      onBackToAnalytics={() => navigate(R.STATS)}
+    />
+  );
+}
+
+function MCTestPage() {
+  const { testId } = useParams();
+  return <MCTestGenerator initialMcTestId={testId ?? null} />;
+}
+
+function WorksPage() {
+  const navigate = useNavigate();
+  return (
+    <WorkManager
+      onEditWork={(workId) => navigate(route(R.WORK_EDITOR, { workId }))}
+      onEditMCTest={(mcId) => navigate(route(R.MC_TEST_EDIT, { testId: mcId }))}
+    />
+  );
+}
+
+function WorkEditorRoute() {
+  const { workId } = useParams();
+  return <WorkEditorPage initialWorkId={workId === 'new' ? null : workId} />;
+}
+
+function StudentsPage() {
+  const navigate = useNavigate();
+  return (
+    <StudentProgressDashboard
+      onOpenWork={(workId) => navigate(route(R.WORK_EDITOR, { workId }))}
+      onOpenStudent={(studentId) => navigate(route(R.STUDENT_DETAIL, { studentId }))}
+    />
+  );
+}
+
+function StudentDetailRoute() {
+  const { studentId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <StudentDetailPage
+      studentId={studentId}
+      onBack={() => navigate(R.STUDENTS)}
+      onOpenWork={(workId) => navigate(route(R.WORK_EDITOR, { workId }))}
+    />
+  );
+}
+
+function TDFPage() {
+  const navigate = useNavigate();
+  return (
+    <TDFManager
+      onOpenEditor={(id) => navigate(route(R.TDF_EDITOR, { setId: id }))}
+      onOpenVariants={(id) => navigate(route(R.TDF_VARIANTS, { setId: id }))}
+      onOpenFlashcards={(id) => navigate(route(R.TDF_FLASHCARDS, { setId: id }))}
+    />
+  );
+}
+
+function TDFEditorRoute() {
+  const { setId } = useParams();
+  const navigate = useNavigate();
+  return <TDFEditor setId={setId} onBack={() => navigate(R.TDF)} />;
+}
+
+function TDFVariantsRoute() {
+  const { setId } = useParams();
+  const navigate = useNavigate();
+  return <TDFVariantBuilder setId={setId} onBack={() => navigate(R.TDF)} />;
+}
+
+function TDFFlashcardsRoute() {
+  const { setId } = useParams();
+  const navigate = useNavigate();
+  return <TDFFlashcards setId={setId} onBack={() => navigate(R.TDF)} />;
+}
+
+function TheoryPage() {
+  const navigate = useNavigate();
+  return (
+    <TheoryBrowser
+      onEditArticle={(id) => navigate(route(R.THEORY_EDIT, { articleId: id }))}
+      onViewArticle={(id) => navigate(route(R.THEORY_VIEW, { articleId: id }))}
+      onCreateArticle={() => navigate(R.THEORY_NEW)}
+    />
+  );
+}
+
+function TheoryArticleRoute() {
+  const { articleId } = useParams();
+  const navigate = useNavigate();
+  return (
+    <TheoryArticleView
+      articleId={articleId}
+      onBack={() => navigate(R.THEORY)}
+      onEdit={(id) => navigate(route(R.THEORY_EDIT, { articleId: id }))}
+    />
+  );
+}
+
+function TheoryEditorRoute() {
+  const { articleId } = useParams();
+  const navigate = useNavigate();
+  const { reloadData } = useReferenceData();
+  return (
+    <Suspense fallback={<LazyFallback />}>
+      <TheoryEditor
+        articleId={articleId ?? null}
+        onBack={() => navigate(R.THEORY)}
+        onSaved={(newId) => {
+          reloadData();
+          // После создания новой статьи — заменяем URL на edit-режим
+          if (!articleId && newId) {
+            navigate(route(R.THEORY_EDIT, { articleId: newId }), { replace: true });
+          }
+        }}
+      />
+    </Suspense>
+  );
+}
+
+function TheoryPrintRoute() {
+  const navigate = useNavigate();
+  return <TheoryPrintBuilder onBack={() => navigate(R.THEORY)} />;
+}
+
+// ── AppLayout (шапка, боковое меню, контентная область) ─────────────────────
+
+function AppLayout() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const screens = Grid.useBreakpoint();
-  const isDesktop = !!screens.lg; // >= 992px (десктоп)
-
-  // State for theory navigation
-  const [editingArticleId, setEditingArticleId] = useState(null);
-  const [viewingArticleId, setViewingArticleId] = useState(null);
-
-  // State for TDF navigation
-  const [tdfSetId, setTdfSetId] = useState(null);
-
-  const { theoryCategories, reloadData } = useReferenceData();
+  const isDesktop = !!screens.lg;
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [openKeys, setOpenKeys] = useState([]);
 
   useVersionSync();
 
   useEffect(() => {
-    // Teacher UI must always work in unrestricted mode.
-    // If a student auth token remains in localStorage, PocketBase list rules
-    // return only that student's attempts, breaking dashboards.
     if (api.isStudentAuthenticated()) {
       api.logoutStudent();
     }
   }, []);
 
+  const meta = getRouteMeta(location.pathname);
+  const { menuKey = '', menuGroup, title = '', noMargin = false } = meta;
+
+  // Авто-открываем группу меню при смене маршрута
+  useEffect(() => {
+    if (menuGroup) {
+      setOpenKeys(prev => prev.includes(menuGroup) ? prev : [...prev, menuGroup]);
+    }
+  }, [menuGroup]);
+
+  const handleMenuClick = ({ key }) => {
+    const path = MENU_KEY_PATH[key];
+    if (path) navigate(path);
+    setMobileDrawerOpen(false);
+  };
+
   const menuItems = [
+    { key: 'tasks',  icon: <FileTextOutlined />,  label: 'Все задачи' },
+    { key: 'stats',  icon: <PieChartOutlined />,   label: 'Аналитика' },
     {
-      key: 'tasks',
-      icon: <FileTextOutlined />,
-      label: 'Все задачи',
-    },
-    {
-      key: 'stats',
-      icon: <PieChartOutlined />,
-      label: 'Аналитика',
-    },
-    {
-      key: 'worksheets-group',
-      icon: <AppstoreOutlined />,
-      label: 'Рабочие листы',
+      key: 'worksheets-group', icon: <AppstoreOutlined />, label: 'Рабочие листы',
       children: [
-        { key: 'generator', icon: <FileSearchOutlined />, label: 'Генератор' },
-        { key: 'ege-variant', icon: <FileAddOutlined />, label: 'Варианты ЕГЭ' },
-        { key: 'ege-score-calc', icon: <BarChartOutlined />, label: 'Калькулятор баллов' },
-        { key: 'test-generator', icon: <SnippetsOutlined />, label: 'Контрольные работы' },
-        { key: 'mc-test', icon: <FormOutlined />, label: 'Тесты с выбором' },
+        { key: 'generator',       icon: <FileSearchOutlined />, label: 'Генератор' },
+        { key: 'ege-variant',     icon: <FileAddOutlined />,    label: 'Варианты ЕГЭ' },
+        { key: 'ege-score-calc',  icon: <BarChartOutlined />,   label: 'Калькулятор баллов' },
+        { key: 'test-generator',  icon: <SnippetsOutlined />,   label: 'Контрольные работы' },
+        { key: 'mc-test',         icon: <FormOutlined />,       label: 'Тесты с выбором' },
       ],
     },
     {
-      key: 'gamification-group',
-      icon: <BulbOutlined />,
-      label: 'Геймификация',
+      key: 'gamification-group', icon: <BulbOutlined />, label: 'Геймификация',
       children: [
-        { key: 'qr-worksheet', icon: <QrcodeOutlined />, label: 'QR-листы' },
-        { key: 'pixel-art', icon: <PictureOutlined />, label: 'Пиксель-арт' },
-        { key: 'pixel-art-team', icon: <TeamOutlined />, label: 'Командный пиксель-арт' },
-        { key: 'cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
-        { key: 'route-sheet', icon: <BranchesOutlined />, label: 'Маршрутный лист' },
-        { key: 'marathon', icon: <TrophyOutlined />, label: 'Марафон' },
+        { key: 'qr-worksheet',    icon: <QrcodeOutlined />,    label: 'QR-листы' },
+        { key: 'pixel-art',       icon: <PictureOutlined />,   label: 'Пиксель-арт' },
+        { key: 'pixel-art-team',  icon: <TeamOutlined />,      label: 'Командный пиксель-арт' },
+        { key: 'cryptogram',      icon: <KeyOutlined />,       label: 'Шифровки' },
+        { key: 'route-sheet',     icon: <BranchesOutlined />,  label: 'Маршрутный лист' },
+        { key: 'marathon',        icon: <TrophyOutlined />,    label: 'Марафон' },
+      ],
+    },
+    { key: 'work-manager', icon: <SolutionOutlined />, label: 'Мои работы' },
+    { key: 'work-editor',  icon: <EditOutlined />,     label: 'Редактор работ' },
+    {
+      key: 'students-group', icon: <TeamOutlined />, label: 'Ученики',
+      children: [
+        { key: 'students',      icon: <BarChartOutlined />,  label: 'Прогресс' },
+        { key: 'heatmap',       icon: <HeatMapOutlined />,   label: 'Тепловая карта' },
+        { key: 'achievements',  icon: <TrophyOutlined />,    label: 'Достижения' },
+      ],
+    },
+    { key: 'import', icon: <UploadOutlined />, label: 'Импорт задач' },
+    {
+      key: 'geometry', icon: <CompassOutlined />, label: 'Геометрия',
+      children: [
+        { key: 'geometry-tasks',   icon: <UnorderedListOutlined />, label: 'Задачи' },
+        { key: 'geometry-topics',  icon: <FolderOutlined />,        label: 'Темы и подтемы' },
       ],
     },
     {
-      key: 'work-manager',
-      icon: <SolutionOutlined />,
-      label: 'Мои работы',
-    },
-    {
-      key: 'work-editor',
-      icon: <EditOutlined />,
-      label: 'Редактор работ',
-    },
-    {
-      key: 'students-group',
-      icon: <TeamOutlined />,
-      label: 'Ученики',
+      key: 'tdf-group', icon: <FormOutlined />, label: 'ТДФ',
       children: [
-        { key: 'students', icon: <BarChartOutlined />, label: 'Прогресс' },
-        { key: 'heatmap', icon: <HeatMapOutlined />, label: 'Тепловая карта' },
-        { key: 'achievements', icon: <TrophyOutlined />, label: 'Достижения' },
+        { key: 'tdf',           icon: <UnorderedListOutlined />, label: 'Наборы' },
+        { key: 'tdf-flashcards', icon: <CreditCardOutlined />,  label: 'Карточки' },
+        { key: 'formula-sheet', icon: <FunctionOutlined />,     label: 'Листы формул' },
       ],
     },
     {
-      key: 'import',
-      icon: <UploadOutlined />,
-      label: 'Импорт задач',
-    },
-    {
-      key: 'geometry',
-      icon: <CompassOutlined />,
-      label: 'Геометрия',
+      key: 'trig', icon: <RadarChartOutlined />, label: 'Тригонометрия',
       children: [
-        { key: 'geometry-tasks', icon: <UnorderedListOutlined />, label: 'Задачи' },
-        { key: 'geometry-topics', icon: <FolderOutlined />, label: 'Темы и подтемы' },
+        { key: 'trig-mixed',              icon: <FunctionOutlined />,    label: 'Смешанная работа' },
+        { key: 'unit-circle',             icon: <RadarChartOutlined />,  label: 'Единичная окружность' },
+        { key: 'trig-values',             icon: <RadarChartOutlined />,  label: 'Значения функций' },
+        { key: 'trig-expressions',        icon: <FunctionOutlined />,    label: 'Вычисление выражений' },
+        { key: 'inverse-trig',            icon: <FunctionOutlined />,    label: 'Обратные функции' },
+        { key: 'trig-equations',          icon: <FunctionOutlined />,    label: 'Уравнения' },
+        { key: 'trig-equations-advanced', icon: <FunctionOutlined />,    label: 'Уравнения f(kx+b)=a' },
+        { key: 'reduction-formulas',      icon: <FunctionOutlined />,    label: 'Формулы приведения' },
+        { key: 'addition-formulas',       icon: <FunctionOutlined />,    label: 'Формулы сложения' },
+        { key: 'double-angle',            icon: <FunctionOutlined />,    label: 'Двойной аргумент' },
+        { key: 'trig-cryptogram',         icon: <KeyOutlined />,         label: 'Шифровки' },
       ],
     },
     {
-      key: 'tdf-group',
-      icon: <FormOutlined />,
-      label: 'ТДФ',
+      key: 'theory', icon: <BookOutlined />, label: 'Теория',
       children: [
-        { key: 'tdf', icon: <UnorderedListOutlined />, label: 'Наборы' },
-        { key: 'tdf-flashcards', icon: <CreditCardOutlined />, label: 'Карточки' },
-        { key: 'formula-sheet', icon: <FunctionOutlined />, label: 'Листы формул' },
+        { key: 'theory-browser',    icon: <ReadOutlined />,    label: 'Библиотека' },
+        { key: 'theory-editor',     icon: <EditOutlined />,    label: 'Редактор' },
+        { key: 'theory-print',      icon: <SnippetsOutlined />, label: 'Конспекты' },
+        { key: 'theory-categories', icon: <FolderOutlined />,  label: 'Категории' },
       ],
     },
     {
-      key: 'trig',
-      icon: <RadarChartOutlined />,
-      label: 'Тригонометрия',
-      children: [
-        { key: 'trig-mixed',   icon: <FunctionOutlined />, label: 'Смешанная работа' },
-        { key: 'unit-circle', icon: <RadarChartOutlined />, label: 'Единичная окружность' },
-        { key: 'trig-values', icon: <RadarChartOutlined />, label: 'Значения функций' },
-        { key: 'trig-expressions', icon: <FunctionOutlined />, label: 'Вычисление выражений' },
-        { key: 'inverse-trig', icon: <FunctionOutlined />, label: 'Обратные функции' },
-        { key: 'trig-equations', icon: <FunctionOutlined />, label: 'Уравнения' },
-        { key: 'trig-equations-advanced', icon: <FunctionOutlined />, label: 'Уравнения f(kx+b)=a' },
-        { key: 'reduction-formulas', icon: <FunctionOutlined />, label: 'Формулы приведения' },
-        { key: 'addition-formulas',  icon: <FunctionOutlined />, label: 'Формулы сложения' },
-        { key: 'double-angle',       icon: <FunctionOutlined />, label: 'Двойной аргумент' },
-        { key: 'trig-cryptogram', icon: <KeyOutlined />, label: 'Шифровки' },
-      ],
-    },
-    {
-      key: 'theory',
-      icon: <BookOutlined />,
-      label: 'Теория',
-      children: [
-        { key: 'theory-browser', icon: <ReadOutlined />, label: 'Библиотека' },
-        { key: 'theory-editor', icon: <EditOutlined />, label: 'Редактор' },
-        { key: 'theory-print', icon: <SnippetsOutlined />, label: 'Конспекты' },
-        { key: 'theory-categories', icon: <FolderOutlined />, label: 'Категории' },
-      ],
-    },
-    {
-      key: 'lab',
-      icon: <EditOutlined />,
-      label: 'Лаборатория',
+      key: 'lab', icon: <EditOutlined />, label: 'Лаборатория',
       children: [
         { key: 'excalidraw', icon: <EditOutlined />, label: 'Excalidraw' },
       ],
     },
   ];
 
-  // Navigation helpers for theory
-  const navigateToEditor = (articleId = null) => {
-    setEditingArticleId(articleId);
-    setCurrentView('theory-editor');
-  };
-
-  const navigateToView = (articleId) => {
-    setViewingArticleId(articleId);
-    setCurrentView('theory-view');
-  };
-
-  const navigateToBrowser = () => {
-    setEditingArticleId(null);
-    setViewingArticleId(null);
-    setCurrentView('theory-browser');
-  };
-
-  const openTasksWithFilters = (filters) => {
-    setTaskListInitialFilters(filters);
-    setTaskListFiltersToken(prev => prev + 1);
-    setCurrentView('tasks');
-  };
-
-  const handleMenuClick = ({ key }) => {
-    setCurrentView(key);
-    setMobileDrawerOpen(false);
-    if (key === 'theory-browser') {
-      setEditingArticleId(null);
-      setViewingArticleId(null);
-    }
-    if (key === 'mc-test') setSelectedMcTestId(null);
-  };
-
-  const handleArticleSaved = (newId) => {
-    if (!editingArticleId && newId) {
-      setEditingArticleId(newId);
-    }
-    reloadData();
-  };
-
-  const renderContent = () => {
-    switch (currentView) {
-      case 'tasks':
-        return (
-          <TaskList
-            initialFilters={taskListInitialFilters}
-            initialFiltersToken={taskListFiltersToken}
-            onOpenWorkEditor={(workId) => {
-              setSelectedWorkIdForEditor(workId);
-              setCurrentView('work-editor');
-            }}
-          />
-        );
-      case 'stats':
-        return (
-          <TaskStatsDashboard
-            onOpenTasks={openTasksWithFilters}
-            onOpenCatalog={() => setCurrentView('catalog')}
-          />
-        );
-      case 'catalog':
-        return (
-          <TaskCatalogManager
-            onOpenTasks={openTasksWithFilters}
-            onBackToAnalytics={() => setCurrentView('stats')}
-          />
-        );
-      case 'generator':
-        return <TaskSheetGenerator />;
-      case 'ege-variant':
-        return <EgeVariantGenerator />;
-      case 'ege-score-calc':
-        return <EgeScoreCalculator />;
-      case 'test-generator':
-        return <TestWorkGenerator />;
-      case 'mc-test':
-        return <MCTestGenerator initialMcTestId={selectedMcTestId} />;
-      case 'qr-worksheet':
-        return <QRWorksheetGenerator />;
-      case 'pixel-art':
-        return <PixelArtWorksheet />;
-      case 'pixel-art-team':
-        return <TeamPixelArtWorksheet />;
-      case 'cryptogram':
-        return <CryptogramGenerator />;
-      case 'work-manager':
-        return (
-          <WorkManager
-            onEditWork={(workId) => {
-              setSelectedWorkIdForEditor(workId);
-              setCurrentView('work-editor');
-            }}
-            onEditMCTest={(mcId) => {
-              setSelectedMcTestId(mcId);
-              setCurrentView('mc-test');
-            }}
-          />
-        );
-      case 'work-editor':
-        return <WorkEditorPage initialWorkId={selectedWorkIdForEditor} />;
-      case 'students':
-        return (
-          <StudentProgressDashboard
-            onOpenWork={(workId) => {
-              setSelectedWorkIdForEditor(workId);
-              setCurrentView('work-editor');
-            }}
-            onOpenStudent={(studentId) => {
-              setSelectedStudentId(studentId);
-              setCurrentView('student-detail');
-            }}
-          />
-        );
-      case 'student-detail':
-        return (
-          <StudentDetailPage
-            studentId={selectedStudentId}
-            onBack={() => setCurrentView('students')}
-            onOpenWork={(workId) => {
-              setSelectedWorkIdForEditor(workId);
-              setCurrentView('work-editor');
-            }}
-          />
-        );
-      case 'achievements':
-        return <AchievementManager />;
-      case 'import':
-        return <TaskImporter />;
-      case 'geometry-tasks':
-        return <GeometryTaskList />;
-      case 'geometry-topics':
-        return <GeometryTopicManager />;
-      case 'tdf':
-        return (
-          <TDFManager
-            onOpenEditor={(id) => { setTdfSetId(id); setCurrentView('tdf-editor'); }}
-            onOpenVariants={(id) => { setTdfSetId(id); setCurrentView('tdf-variants'); }}
-            onOpenFlashcards={(id) => { setTdfSetId(id); setCurrentView('tdf-flashcards'); }}
-          />
-        );
-      case 'tdf-editor':
-        return (
-          <TDFEditor
-            setId={tdfSetId}
-            onBack={() => setCurrentView('tdf')}
-          />
-        );
-      case 'tdf-variants':
-        return (
-          <TDFVariantBuilder
-            setId={tdfSetId}
-            onBack={() => setCurrentView('tdf')}
-          />
-        );
-      case 'tdf-flashcards':
-        return (
-          <TDFFlashcards
-            setId={tdfSetId}
-            onBack={() => setCurrentView('tdf')}
-          />
-        );
-      case 'formula-sheet':
-        return <FormulaSheetGenerator />;
-      case 'trig-mixed':
-        return <TrigMixedGenerator />;
-      case 'unit-circle':
-        return <UnitCircleGenerator />;
-      case 'trig-values':
-        return <TrigValuesGenerator />;
-      case 'trig-expressions':
-        return <TrigExpressionsGenerator />;
-      case 'inverse-trig':
-        return <InverseTrigGenerator />;
-      case 'trig-equations':
-        return <TrigEquationsGenerator />;
-      case 'trig-equations-advanced':
-        return <TrigEquationsAdvancedGenerator />;
-      case 'reduction-formulas':
-        return <ReductionFormulasGenerator />;
-      case 'addition-formulas':
-        return <AdditionFormulasGenerator />;
-      case 'double-angle':
-        return <DoubleAngleGenerator />;
-      case 'trig-cryptogram':
-        return <UnitCircleCryptogramGenerator />;
-      case 'route-sheet':
-        return <RouteSheetGenerator />;
-      case 'marathon':
-        return <MarathonGenerator />;
-      case 'heatmap':
-        return <ErrorHeatmap />;
-      case 'theory-browser':
-        return (
-          <TheoryBrowser
-            onEditArticle={navigateToEditor}
-            onViewArticle={navigateToView}
-            onCreateArticle={() => navigateToEditor(null)}
-          />
-        );
-      case 'theory-editor':
-        return (
-          <Suspense fallback={<div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>}>
-            <TheoryEditor
-              articleId={editingArticleId}
-              onBack={navigateToBrowser}
-              onSaved={handleArticleSaved}
-            />
-          </Suspense>
-        );
-      case 'theory-view':
-        return (
-          <TheoryArticleView
-            articleId={viewingArticleId}
-            onBack={navigateToBrowser}
-            onEdit={navigateToEditor}
-          />
-        );
-      case 'theory-print':
-        return (
-          <TheoryPrintBuilder
-            onBack={navigateToBrowser}
-          />
-        );
-      case 'theory-categories':
-        return <TheoryCategoryManager />;
-      case 'excalidraw':
-        return (
-          <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}><Spin size="large" /></div>}>
-            <ExcalidrawSection />
-          </Suspense>
-        );
-default:
-        return null;
-    }
-  };
-
-  const getHeaderTitle = () => {
-    switch (currentView) {
-      case 'tasks': return 'Все задачи';
-      case 'stats': return 'Аналитика задач';
-      case 'catalog': return 'Каталог задач';
-      case 'generator': return 'Генератор';
-      case 'ege-variant': return 'Варианты ЕГЭ (базовый уровень)';
-      case 'ege-score-calc': return 'Калькулятор баллов ЕГЭ';
-      case 'test-generator': return 'Контрольные работы';
-      case 'qr-worksheet': return 'QR-листы';
-      case 'pixel-art': return 'Пиксель-арт раскраска';
-      case 'pixel-art-team': return 'Командный пиксель-арт';
-      case 'cryptogram': return 'Шифровки';
-      case 'work-manager': return 'Мои работы';
-      case 'work-editor': return 'Редактор работ';
-      case 'students': return 'Прогресс учеников';
-      case 'student-detail': return 'Детали ученика';
-      case 'achievements': return 'Управление достижениями';
-      case 'import': return 'Импорт задач';
-      case 'geometry-tasks': return 'Геометрические задачи';
-      case 'geometry-topics': return 'Геометрия — Темы и подтемы';
-      case 'tdf': return 'ТДФ — Теоремы, Определения, Формулы';
-      case 'tdf-editor': return 'ТДФ — Редактор конспекта';
-      case 'tdf-variants': return 'ТДФ — Варианты';
-      case 'tdf-flashcards': return 'ТДФ — Карточки-флипы';
-      case 'formula-sheet': return 'ТДФ — Листы формул';
-      case 'trig-mixed':  return 'Тригонометрия — Смешанная работа';
-      case 'unit-circle': return 'Тригонометрия — Единичная окружность';
-      case 'trig-values': return 'Тригонометрия — Значения функций';
-      case 'trig-expressions': return 'Тригонометрия — Вычисление выражений';
-      case 'inverse-trig': return 'Тригонометрия — Обратные функции';
-      case 'trig-equations': return 'Тригонометрия — Уравнения';
-      case 'trig-equations-advanced': return 'Тригонометрия — Уравнения f(kx+b)=a';
-      case 'reduction-formulas': return 'Тригонометрия — Формулы приведения';
-      case 'addition-formulas':  return 'Тригонометрия — Формулы сложения';
-      case 'double-angle':       return 'Тригонометрия — Двойной аргумент';
-      case 'trig-cryptogram': return 'Тригонометрия — Шифровки';
-      case 'route-sheet': return 'Маршрутный лист';
-      case 'marathon': return 'Марафон — подготовка и проведение';
-      case 'heatmap': return 'Тепловая карта ошибок';
-      case 'theory-browser': return 'Теория — Библиотека';
-      case 'theory-editor': return editingArticleId ? 'Теория — Редактор' : 'Теория — Новая статья';
-      case 'theory-view': return 'Теория — Просмотр';
-      case 'theory-print': return 'Теория — Конспекты';
-      case 'theory-categories': return 'Теория — Категории';
-      default: return '';
-    }
-  };
-
-  const getSelectedKeys = () => {
-    if (currentView === 'theory-view') return ['theory-browser'];
-    if (currentView === 'student-detail') return ['students'];
-    if (currentView === 'tdf-editor' || currentView === 'tdf-variants' || currentView === 'tdf-flashcards') return ['tdf'];
-    return [currentView];
-  };
-
-  const noMarginViews = ['theory-editor', 'theory-view', 'theory-print', 'excalidraw'];
-  const isNoMarginView = noMarginViews.includes(currentView);
-
-  // Shared menu content — used in both Sider and Drawer
-  const menuLogo = (
-    <div style={{
-      height: 64,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '10px 16px',
-      flexShrink: 0,
-    }}>
-      <img
-        src="/lemma-logo-new.png"
-        alt="Lemma"
-        style={{ height: 38, width: 'auto', borderRadius: 6 }}
-      />
-    </div>
-  );
-
-  const menuComponent = (
+  const menuEl = (
     <Menu
       mode="inline"
-      selectedKeys={getSelectedKeys()}
-      defaultOpenKeys={[]}
+      selectedKeys={menuKey ? [menuKey] : []}
+      openKeys={openKeys}
+      onOpenChange={setOpenKeys}
       items={menuItems}
       onClick={handleMenuClick}
       style={{ borderRight: 0 }}
     />
   );
 
+  const logo = (
+    <div style={{
+      height: 64, display: 'flex', alignItems: 'center',
+      justifyContent: 'center', padding: '10px 16px', flexShrink: 0,
+    }}>
+      <img src="/lemma-logo-new.png" alt="Lemma"
+        style={{ height: 38, width: 'auto', borderRadius: 6 }} />
+    </div>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      {/* ─── Боковое меню: только на десктопе ─── */}
       {isDesktop && (
-        <Sider
-          width={220}
-          style={{
-            background: '#fff',
-            boxShadow: '2px 0 8px rgba(0,0,0,0.05)',
-          }}
-        >
-          {menuLogo}
-          {menuComponent}
+        <Sider width={220} style={{ background: '#fff', boxShadow: '2px 0 8px rgba(0,0,0,0.05)' }}>
+          {logo}
+          {menuEl}
         </Sider>
       )}
 
-      {/* ─── Drawer-меню: мобильный + планшет ─── */}
       {!isDesktop && (
         <Drawer
           open={mobileDrawerOpen}
           onClose={() => setMobileDrawerOpen(false)}
           placement="left"
           width={260}
-          styles={{
-            body: { padding: 0, overflowX: 'hidden' },
-            header: { display: 'none' },
-          }}
+          styles={{ body: { padding: 0, overflowX: 'hidden' }, header: { display: 'none' } }}
           style={{ padding: 0 }}
         >
-          {menuLogo}
-          {menuComponent}
+          {logo}
+          {menuEl}
         </Drawer>
       )}
 
@@ -571,11 +584,8 @@ default:
           background: '#fff',
           padding: isDesktop ? '0 24px' : '0 12px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
+          display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          {/* Кнопка-гамбургер на мобильных и планшете */}
           {!isDesktop && (
             <Button
               type="text"
@@ -586,28 +596,25 @@ default:
           )}
           <span style={{
             fontSize: isDesktop ? 20 : 16,
-            fontWeight: 500,
-            flex: 1,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            fontWeight: 500, flex: 1,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
-            {getHeaderTitle()}
+            {title}
           </span>
         </Header>
 
         <Content style={{
-          margin: isNoMarginView ? 0 : (isDesktop ? '24px 16px 0' : '12px 8px 0'),
+          margin: noMargin ? 0 : (isDesktop ? '24px 16px 0' : '12px 8px 0'),
           overflow: 'hidden',
         }}>
           <div style={{
-            padding: isNoMarginView ? 0 : (isDesktop ? 24 : 16),
-            minHeight: isNoMarginView ? undefined : 360,
-            height: isNoMarginView ? '100%' : undefined,
+            padding: noMargin ? 0 : (isDesktop ? 24 : 16),
+            minHeight: noMargin ? undefined : 360,
+            height: noMargin ? '100%' : undefined,
             background: '#fff',
-            borderRadius: isNoMarginView ? 0 : 8,
+            borderRadius: noMargin ? 0 : 8,
           }}>
-            {renderContent()}
+            <Outlet />
           </div>
         </Content>
       </Layout>
@@ -615,12 +622,99 @@ default:
   );
 }
 
+// ── App (корень: провайдеры + роутер) ────────────────────────────────────────
+
 function App() {
   return (
     <ConfigProvider theme={hybridTheme}>
-      <ReferenceDataProvider>
-        <AppContent />
-      </ReferenceDataProvider>
+      <BrowserRouter>
+        <ReferenceDataProvider>
+          <Routes>
+            {/* Редирект с корня */}
+            <Route path="/" element={<Navigate to={R.TASKS} replace />} />
+            <Route path="/app" element={<Navigate to={R.TASKS} replace />} />
+
+            {/* Все учительские страницы через AppLayout */}
+            <Route element={<AppLayout />}>
+              {/* Задачи */}
+              <Route path={R.TASKS}   element={<TasksPage />} />
+              <Route path={R.STATS}   element={<StatsPage />} />
+              <Route path={R.CATALOG} element={<CatalogPage />} />
+
+              {/* Рабочие листы */}
+              <Route path={R.GENERATOR}      element={<TaskSheetGenerator />} />
+              <Route path={R.EGE_VARIANT}    element={<EgeVariantGenerator />} />
+              <Route path={R.EGE_SCORE_CALC} element={<EgeScoreCalculator />} />
+              <Route path={R.TEST}           element={<TestWorkGenerator />} />
+              <Route path={R.MC_TEST}        element={<MCTestPage />} />
+              <Route path={R.MC_TEST_EDIT}   element={<MCTestPage />} />
+
+              {/* Геймификация */}
+              <Route path={R.QR}             element={<QRWorksheetGenerator />} />
+              <Route path={R.PIXEL_ART}      element={<PixelArtWorksheet />} />
+              <Route path={R.PIXEL_ART_TEAM} element={<TeamPixelArtWorksheet />} />
+              <Route path={R.CRYPTOGRAM}     element={<CryptogramGenerator />} />
+              <Route path={R.ROUTE_SHEET}    element={<RouteSheetGenerator />} />
+              <Route path={R.MARATHON}       element={<MarathonGenerator />} />
+
+              {/* Работы */}
+              <Route path={R.WORKS}       element={<WorksPage />} />
+              <Route path={R.WORK_EDITOR} element={<WorkEditorRoute />} />
+
+              {/* Ученики */}
+              <Route path={R.STUDENTS}         element={<StudentsPage />} />
+              <Route path={R.STUDENTS_HEATMAP} element={<ErrorHeatmap />} />
+              <Route path={R.ACHIEVEMENTS}     element={<AchievementManager />} />
+              <Route path={R.STUDENT_DETAIL}   element={<StudentDetailRoute />} />
+
+              {/* Импорт */}
+              <Route path={R.IMPORT} element={<TaskImporter />} />
+
+              {/* Геометрия */}
+              <Route path={R.GEOMETRY_TASKS}   element={<GeometryTaskList />} />
+              <Route path={R.GEOMETRY_TOPICS}  element={<GeometryTopicManager />} />
+
+              {/* ТДФ */}
+              <Route path={R.TDF}          element={<TDFPage />} />
+              <Route path={R.TDF_EDITOR}   element={<TDFEditorRoute />} />
+              <Route path={R.TDF_VARIANTS} element={<TDFVariantsRoute />} />
+              <Route path={R.TDF_FLASHCARDS} element={<TDFFlashcardsRoute />} />
+              <Route path={R.FORMULA_SHEET}  element={<FormulaSheetGenerator />} />
+
+              {/* Тригонометрия */}
+              <Route path={R.TRIG_MIXED}         element={<TrigMixedGenerator />} />
+              <Route path={R.UNIT_CIRCLE}        element={<UnitCircleGenerator />} />
+              <Route path={R.TRIG_VALUES}        element={<TrigValuesGenerator />} />
+              <Route path={R.TRIG_EXPRESSIONS}   element={<TrigExpressionsGenerator />} />
+              <Route path={R.INVERSE_TRIG}       element={<InverseTrigGenerator />} />
+              <Route path={R.TRIG_EQUATIONS}     element={<TrigEquationsGenerator />} />
+              <Route path={R.TRIG_EQUATIONS_ADV} element={<TrigEquationsAdvancedGenerator />} />
+              <Route path={R.REDUCTION}          element={<ReductionFormulasGenerator />} />
+              <Route path={R.ADDITION}           element={<AdditionFormulasGenerator />} />
+              <Route path={R.DOUBLE_ANGLE}       element={<DoubleAngleGenerator />} />
+              <Route path={R.TRIG_CRYPTOGRAM}    element={<UnitCircleCryptogramGenerator />} />
+
+              {/* Теория */}
+              <Route path={R.THEORY}            element={<TheoryPage />} />
+              <Route path={R.THEORY_NEW}        element={<TheoryEditorRoute />} />
+              <Route path={R.THEORY_EDIT}       element={<TheoryEditorRoute />} />
+              <Route path={R.THEORY_VIEW}       element={<TheoryArticleRoute />} />
+              <Route path={R.THEORY_PRINT}      element={<TheoryPrintRoute />} />
+              <Route path={R.THEORY_CATEGORIES} element={<TheoryCategoryManager />} />
+
+              {/* Лаборатория */}
+              <Route path={R.EXCALIDRAW} element={
+                <Suspense fallback={<LazyFallback />}>
+                  <ExcalidrawSection />
+                </Suspense>
+              } />
+            </Route>
+
+            {/* Fallback: любой /app/* который не совпал → задачи */}
+            <Route path="/app/*" element={<Navigate to={R.TASKS} replace />} />
+          </Routes>
+        </ReferenceDataProvider>
+      </BrowserRouter>
     </ConfigProvider>
   );
 }
