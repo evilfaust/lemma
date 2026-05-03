@@ -3,7 +3,7 @@ import {
   BrowserRouter, Routes, Route, Navigate,
   useNavigate, useLocation, useParams, useSearchParams, Outlet,
 } from 'react-router-dom';
-import { Layout, Menu, ConfigProvider, Spin, Drawer, Button, Grid } from 'antd';
+import { Layout, Menu, ConfigProvider, Spin, Drawer, Button, Grid, Breadcrumb } from 'antd';
 import { hybridTheme } from './theme/hybrid';
 import {
   FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined,
@@ -242,6 +242,24 @@ const MENU_KEY_PATH = {
   excalidraw:               R.EXCALIDRAW,
 };
 
+// ── Метаданные групп меню (для хлебных крошек) ──────────────────────────────
+const GROUP_META = {
+  'worksheets-group':   { label: 'Рабочие листы' },
+  'gamification-group': { label: 'Геймификация' },
+  'students-group':     { label: 'Ученики',      path: R.STUDENTS },
+  geometry:             { label: 'Геометрия',    path: R.GEOMETRY_TASKS },
+  'tdf-group':          { label: 'ТДФ',          path: R.TDF },
+  trig:                 { label: 'Тригонометрия' },
+  theory:               { label: 'Теория',        path: R.THEORY },
+  lab:                  { label: 'Лаборатория' },
+};
+
+// Явные родители для страниц без menuGroup
+const PARENT_META = {
+  'work-editor': { label: 'Мои работы', path: R.WORKS },
+  catalog:       { label: 'Аналитика',  path: R.STATS },
+};
+
 // ── Утилиты для фильтров (Stats → Tasks) ────────────────────────────────────
 function filtersToSearch(filters) {
   if (!filters) return '';
@@ -438,6 +456,16 @@ function AppLayout() {
   const meta = getRouteMeta(location.pathname);
   const { menuKey = '', menuGroup, title = '', noMargin = false } = meta;
 
+  // Хлебные крошки: группа (или явный родитель) → текущая страница
+  const breadcrumbParent = (menuGroup ? GROUP_META[menuGroup] : null)
+    ?? (menuKey ? PARENT_META[menuKey] : null);
+  const breadcrumbItems = breadcrumbParent ? [
+    breadcrumbParent.path
+      ? { title: <a onClick={(e) => { e.preventDefault(); navigate(breadcrumbParent.path); }} style={{ cursor: 'pointer' }}>{breadcrumbParent.label}</a> }
+      : { title: <span>{breadcrumbParent.label}</span> },
+    { title },
+  ] : null;
+
   // Авто-открываем группу меню при смене маршрута
   useEffect(() => {
     if (menuGroup) {
@@ -614,6 +642,9 @@ function AppLayout() {
             background: '#fff',
             borderRadius: noMargin ? 0 : 8,
           }}>
+            {!noMargin && breadcrumbItems && (
+              <Breadcrumb items={breadcrumbItems} style={{ marginBottom: 16 }} />
+            )}
             <Outlet />
           </div>
         </Content>
