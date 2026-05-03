@@ -12,7 +12,7 @@ import { usePixelArt } from '../hooks/usePixelArt';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { suggestGridSize } from '../utils/imageToMatrix';
 import QRTaskPanel from './qr-worksheet/QRTaskPanel';
-import ImageUploader from './pixel-art/ImageUploader';
+import TeamImageUploader from './pixel-art-team/TeamImageUploader';
 import GridSizeControls from './pixel-art/GridSizeControls';
 import PixelArtPrintLayout from './pixel-art/PixelArtPrintLayout';
 import MatrixEditor from './pixel-art/MatrixEditor';
@@ -64,28 +64,20 @@ export default function PixelArtWorksheet() {
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const dims = { width: img.width, height: img.height };
-      setImageDimensions(dims);
+      setImageDimensions({ width: img.width, height: img.height });
       setImageFile(file);
-      setLibraryImageId(null); // новое изображение — отвязываемся от библиотечной записи
-      // Авто-подбираем размер сетки под пропорции изображения
+      setLibraryImageId(null);
+      // Авто-подбираем размер сетки под пропорции — TeamImageUploader сам запустит обработку
       const { cols, rows } = suggestGridSize(img.width, img.height, gridCols);
       setGridCols(cols);
       setGridRows(rows);
-      processImage(file, cols, rows, threshold);
     };
     img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
-  }, [gridCols, threshold, setImageFile, setImageDimensions, setGridCols, setGridRows, processImage]);
+  }, [gridCols, setImageFile, setImageDimensions, setGridCols, setGridRows]);
 
-  // ── Пересчёт по кнопке «Пересчитать» ─────────────────────────────────────
-  const handleApply = () => {
-    if (!imageFile) {
-      // Картинка из библиотеки — оригинала нет, можно только редактировать пиксели вручную
-      return;
-    }
-    processImage(imageFile, gridCols, gridRows, threshold);
-  };
+  // ── «Пересчитать» — теперь TeamImageUploader делает это автоматически ─────
+  const handleApply = () => {};
 
   // ── Изменение cols/rows с учётом блокировки пропорций ────────────────────
   // Логика блокировки — в GridSizeControls, здесь просто сеттеры
@@ -320,12 +312,14 @@ export default function PixelArtWorksheet() {
                   style={{ marginBottom: 10, fontSize: 12 }}
                 />
               )}
-              <ImageUploader
+              <TeamImageUploader
                 imageFile={imageFile}
                 gridCols={gridCols}
                 gridRows={gridRows}
                 threshold={threshold}
                 onImageChange={handleImageChange}
+                onMatrixChange={setMatrix}
+                onThresholdChange={setThreshold}
               />
               {matrix && (
                 <Button

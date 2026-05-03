@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Button, Radio, Slider, Switch, message, Modal, List, Popconfirm } from 'antd';
 import { PrinterOutlined, SaveOutlined, TeamOutlined, FolderOpenOutlined, DatabaseOutlined, DeleteOutlined } from '@ant-design/icons';
 import { TrigGeneratorLayout, TrigSettingsSection, TrigPreviewPane, TrigStatBadge } from './trig/TrigGeneratorLayout';
-import ImageUploader from './pixel-art/ImageUploader';
+import TeamImageUploader from './pixel-art-team/TeamImageUploader';
 import PixelArtImageLibraryModal from './pixel-art/PixelArtImageLibraryModal';
 import TeamTileTasksEditor from './pixel-art-team/TeamTileTasksEditor';
 import TeamPixelArtPrintLayout from './pixel-art-team/TeamPixelArtPrintLayout';
@@ -11,6 +11,7 @@ import { useTeamPixelArt } from '../hooks/useTeamPixelArt';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { api } from '../services/pocketbase';
 import { snapToTileCount } from '../utils/splitMatrix';
+import { calcCellSize } from '../utils/imageToMatrix';
 import './pixel-art-team/TeamPixelArtPrintLayout.css';
 
 const TILE_OPTIONS = [
@@ -32,31 +33,27 @@ export default function TeamPixelArtWorksheet() {
   const [loadingId, setLoadingId] = useState(null);
 
   // ── Обработка изображения ─────────────────────────────────────────────────
-  const handleImageChange = (file, dims) => {
+  // Сама обработка (processImageToMatrix) выполняется внутри TeamImageUploader.
+  // Здесь только обновляем состояние хука; хук отреагирует через эффект в компоненте.
+
+  const handleImageChange = (file) => {
     pa.setImageFile(file);
     if (file) {
       const snapped = snapToTileCount(pa.gridSize, pa.tileCount);
-      pa.processImage(file, snapped, pa.threshold);
+      pa.setGridSize(snapped);
     }
   };
 
   const handleGridSizeChange = (val) => {
-    const snapped = snapToTileCount(val, pa.tileCount);
-    pa.setGridSize(snapped);
-    if (pa.imageFile) pa.processImage(pa.imageFile, snapped, pa.threshold);
+    pa.setGridSize(snapToTileCount(val, pa.tileCount));
   };
 
   const handleThresholdChange = (val) => {
     pa.setThreshold(val);
-    if (pa.imageFile) pa.processImage(pa.imageFile, pa.gridSize, val);
   };
 
   const handleTileCountChange = (val) => {
     pa.changeTileCount(val);
-    if (pa.imageFile) {
-      const snapped = snapToTileCount(pa.gridSize, val);
-      pa.processImage(pa.imageFile, snapped, pa.threshold);
-    }
   };
 
   // ── Загрузка из библиотеки ────────────────────────────────────────────────
@@ -240,15 +237,14 @@ export default function TeamPixelArtWorksheet() {
 
       {/* Изображение */}
       <TrigSettingsSection label="Изображение">
-        <ImageUploader
+        <TeamImageUploader
           imageFile={pa.imageFile}
-          matrix={pa.matrix}
-          processing={pa.processing}
-          error={pa.error}
           gridCols={pa.gridSize}
           gridRows={pa.gridSize}
           threshold={pa.threshold}
           onImageChange={handleImageChange}
+          onMatrixChange={pa.setMatrix}
+          onThresholdChange={handleThresholdChange}
         />
         <div style={{ marginTop: 8 }}>
           <Button
@@ -280,12 +276,16 @@ export default function TeamPixelArtWorksheet() {
             <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 4 }}>
               Общая сетка: {pa.gridSize}×{pa.gridSize}
               <span style={{ fontSize: 11, marginLeft: 6, color: 'var(--ink-4)' }}>
-                → плитка {pa.gridSize / pa.tileCount}×{pa.gridSize / pa.tileCount} на A4
+                {(() => {
+                  const tileN = pa.gridSize / pa.tileCount;
+                  const mm = calcCellSize(tileN, tileN, pa.twoSheets).toFixed(1);
+                  return `→ плитка ${tileN}×${tileN}, клетка ~${mm} мм`;
+                })()}
               </span>
             </div>
             <Slider
               min={pa.tileCount * 4}
-              max={pa.tileCount * 40}
+              max={pa.tileCount * 50}
               step={pa.tileCount}
               value={pa.gridSize}
               onChange={handleGridSizeChange}

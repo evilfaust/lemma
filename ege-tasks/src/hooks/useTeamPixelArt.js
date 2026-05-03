@@ -25,7 +25,7 @@ export function useTeamPixelArt() {
   const [error, setError]                 = useState(null);
 
   // ── Параметры сетки ───────────────────────────────────────────────────────
-  const [gridSize, setGridSize]           = useState(48);     // квадратная сетка N×N
+  const [gridSize, setGridSize]           = useState(60);     // квадратная сетка N×N
   const [threshold, setThreshold]         = useState(128);
   const [tileCount, setTileCount]         = useState(2);      // 2=4шт, 3=9шт, 4=16шт
 
@@ -279,7 +279,7 @@ export function useTeamPixelArt() {
     setMatrix(null);
     setProcessing(false);
     setError(null);
-    setGridSize(48);
+    setGridSize(60);
     setThreshold(128);
     setTileCount(2);
     setTaskMode('per_tile');
