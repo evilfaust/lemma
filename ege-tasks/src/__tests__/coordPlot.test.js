@@ -103,9 +103,23 @@ describe('parseCoordPlot', () => {
       { x: 2, y: 0, filled: false, color: 'ink' },
     ]);
     expect(m.segments[0]).toMatchObject({ x1: 0, y1: 0, x2: 2, y2: 3, dash: true });
-    expect(m.labels[0]).toMatchObject({ x: 2, y: 3, text: 'A' });
+    expect(m.labels[0]).toMatchObject({ x: 2, y: 3, text: 'A', at: 'ne', dist: 1 });
     expect(m.xticks).toEqual([{ v: -5, label: '−5' }]);
     expect(m.yticks).toEqual([{ v: 3, label: 'три' }]);
+  });
+
+  it('подпись: направление at + человеческие синонимы', () => {
+    const m = parseCoordPlot('label 2 3 A at nw\nlabel 0 2 B at left\nlabel 1 1 C D');
+    expect(m.labels[0]).toMatchObject({ text: 'A', at: 'nw' });
+    expect(m.labels[1]).toMatchObject({ text: 'B', at: 'w' }); // left → w
+    expect(m.labels[2]).toMatchObject({ text: 'C D', at: 'ne' }); // текст из двух слов цел
+  });
+
+  it('подпись: расстояние вторым словом модификатора', () => {
+    const m = parseCoordPlot('label 0 2 A at nw 2,5\nlabel 1 1 B at s 99\nlabel 2 2 C 3');
+    expect(m.labels[0]).toMatchObject({ text: 'A', at: 'nw', dist: 2.5 });
+    expect(m.labels[1]).toMatchObject({ text: 'B', at: 's', dist: 5 }); // clamp
+    expect(m.labels[2]).toMatchObject({ text: 'C 3', dist: 1 }); // число в тексте — не модификатор
   });
 
   it('inline-форма: «;» как разделитель команд', () => {
@@ -165,6 +179,32 @@ describe('coordPlotSvg', () => {
     expect((d.match(/M/g) || []).length).toBe(2);
   });
 
+  it('подпись точки сдвигается по направлению at', () => {
+    const at = (dir) => {
+      const svg = coordPlotSvgFromSpec(`point 0 2 fill\nlabel 0 2 A${dir ? ` at ${dir}` : ''}`);
+      const tag = /<text[^>]*>A<\/text>/.exec(svg)[0];
+      return {
+        x: Number(/ x="([-\d.]+)"/.exec(tag)[1]),
+        y: Number(/ y="([-\d.]+)"/.exec(tag)[1]),
+        anchor: /text-anchor="(\w+)"/.exec(tag)[1],
+      };
+    };
+    const base = at(null); // по умолчанию — справа сверху
+    expect(at('ne')).toEqual(base);
+    const left = at('w');
+    expect(left.x).toBeLessThan(base.x);
+    expect(left.anchor).toBe('end');
+    const below = at('s');
+    expect(below.y).toBeGreaterThan(base.y);
+    expect(below.anchor).toBe('middle');
+
+    // расстояние тянет сдвиг, но не сбивает выравнивание по высоте строки
+    const near = at('w');
+    const far = at('w 3');
+    expect(base.x - far.x).toBeGreaterThan(base.x - near.x);
+    expect(far.y).toBe(near.y);
+  });
+
   it('пустая модель всё равно даёт валидный svg с осями', () => {
     const svg = coordPlotSvg(parseCoordPlot(''));
     expect(svg.startsWith('<svg')).toBe(true);
@@ -186,6 +226,7 @@ describe('plotToSpec / buildPlotSnippet', () => {
     expect(spec).toContain('vec a 1 4 3 1');
     expect(spec).toContain('point 2 0 open');
     expect(spec).toContain('label 2 0 A');
+    expect(spec).not.toContain(' at '); // направление по умолчанию не засоряет DSL
     expect(spec).not.toContain('grid');
   });
 
@@ -197,6 +238,20 @@ describe('plotToSpec / buildPlotSnippet', () => {
     const m = parseCoordPlot(plotToSpec(state));
     expect(m.xrange).toEqual([0, 6]);
     expect(m.vectors[0]).toMatchObject({ label: 'a', x1: 1, y1: 4, x2: 3, y2: 1, color: 'blue', side: 'right' });
+  });
+
+  it('направление подписи точки переживает round-trip', () => {
+    const state = {
+      view: { xrange: [-5, 5], yrange: [-5, 5] },
+      points: [{ x: 0, y: 2, filled: true, label: 'A', labelAt: 'sw' }],
+    };
+    const spec = plotToSpec(state);
+    expect(spec).toContain('label 0 2 A at sw');
+    expect(plotToSpec({
+      ...state,
+      points: [{ ...state.points[0], labelAt: 'ne', labelDist: 2.5 }],
+    })).toContain('label 0 2 A at ne 2.5'); // дальний отступ пишется и для направления по умолчанию
+    expect(parseCoordPlot(spec).labels[0]).toMatchObject({ text: 'A', at: 'sw' });
   });
 
   it('сниппеты: блок и inline', () => {

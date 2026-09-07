@@ -4,7 +4,9 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import CoordPlotSVG from './CoordPlotSVG';
-import { plotToSpec, compileExpr, PLOT_COLORS } from '../../utils/coordPlot';
+import {
+  plotToSpec, compileExpr, PLOT_COLORS, DEFAULT_LABEL_AT, DEFAULT_LABEL_DIST,
+} from '../../utils/coordPlot';
 
 // Визуальный конструктор координатной плоскости. Два режима:
 //  • «График функции» — формула y = f(x) (можно несколько кривых);
@@ -28,6 +30,19 @@ const TEMPLATES = [
   { label: 'Корень', expr: 'sqrt(x)' },
   { label: 'Модуль', expr: 'abs(x)' },
   { label: 'Синус', expr: 'sin(x)' },
+];
+
+// Куда отодвинуть подпись от точки — по кругу, начиная с левого верха.
+// Спасает, когда подпись накрывает график или соседнюю точку.
+const LABEL_AT_OPTIONS = [
+  { value: 'nw', label: '↖ влево-вверх' },
+  { value: 'n', label: '↑ вверх' },
+  { value: 'ne', label: '↗ вправо-вверх' },
+  { value: 'e', label: '→ вправо' },
+  { value: 'se', label: '↘ вправо-вниз' },
+  { value: 's', label: '↓ вниз' },
+  { value: 'sw', label: '↙ влево-вниз' },
+  { value: 'w', label: '← влево' },
 ];
 
 const SIZE_OPTIONS = [
@@ -128,6 +143,28 @@ function PointRow({ point, onChange, onRemove }) {
           <Switch size="small" checkedChildren="●" unCheckedChildren="○" checked={point.filled !== false} onChange={(filled) => patch({ filled })} />
         </Tooltip>
         <Input size="small" style={{ width: 56 }} maxLength={4} value={point.label} onChange={(e) => patch({ label: e.target.value })} placeholder="подпись" />
+        <Tooltip title="Куда сдвинуть подпись относительно точки — если её перекрывает график">
+          <Select
+            size="small"
+            style={{ width: 138 }}
+            disabled={!point.label}
+            value={point.labelAt || DEFAULT_LABEL_AT}
+            onChange={(labelAt) => patch({ labelAt })}
+            options={LABEL_AT_OPTIONS}
+          />
+        </Tooltip>
+        <Tooltip title="Насколько далеко отодвинуть подпись: 1 — вплотную к точке, 2–3 — если рядом проходит график">
+          <InputNumber
+            size="small"
+            style={{ width: 62 }}
+            min={0.5}
+            max={5}
+            step={0.5}
+            disabled={!point.label}
+            value={point.labelDist ?? DEFAULT_LABEL_DIST}
+            onChange={(labelDist) => patch({ labelDist: labelDist ?? DEFAULT_LABEL_DIST })}
+          />
+        </Tooltip>
         <Select size="small" style={{ width: 112 }} value={point.color} onChange={(color) => patch({ color })} options={COLOR_OPTIONS} />
       </Space>
       <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onRemove} />
@@ -161,7 +198,9 @@ export default function PlotModal({ open, onCancel, onInsert, kind = 'function',
     ...arr,
     { label: String.fromCharCode(97 + arr.length), x1: 0, y1: 0, x2: 2, y2: 3, color: 'ink', side: 'left' },
   ]);
-  const addPoint = () => setPoints((arr) => [...arr, { x: 1, y: 1, filled: true, label: '', color: 'ink' }]);
+  const addPoint = () => setPoints((arr) => [...arr, {
+    x: 1, y: 1, filled: true, label: '', labelAt: DEFAULT_LABEL_AT, labelDist: DEFAULT_LABEL_DIST, color: 'ink',
+  }]);
   const upd = (setter) => (i, next) => setter((arr) => arr.map((it, idx) => (idx === i ? next : it)));
   const del = (setter) => (i) => setter((arr) => arr.filter((_, idx) => idx !== i));
 

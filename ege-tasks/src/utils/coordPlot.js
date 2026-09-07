@@ -32,7 +32,11 @@
 //   vec b 2 3            — вектор из начала координат в (2;3)
 //   point 1 3 fill       — точка на плоскости (fill|open)
 //   seg 0 0 2 3 dash     — отрезок
-//   label 2 3 A          — текстовая подпись у точки (2;3)
+//   label 2 3 A          — текстовая подпись у точки (2;3); модификатор
+//                          at ne|n|nw|w|sw|s|se|e [расстояние] — с какой стороны
+//                          от точки стоит подпись (по умолчанию ne — справа
+//                          сверху) и как далеко (1 — вплотную, «at nw 2» — вдвое
+//                          дальше, когда подпись накрывает график)
 //   xtick -5             — засечка с подписью на оси X (алиас подписи вторым словом)
 //   ytick 3 три          — засечка с подписью на оси Y
 
@@ -287,7 +291,33 @@ function extractMods(rest) {
   });
   s = s.replace(/\bdash\b/i, () => { mods.dash = true; return ' '; });
   s = s.replace(/\bside\s+(left|right)\b/i, (_, v) => { mods.side = v.toLowerCase(); return ' '; });
+  s = s.replace(
+    /\bat\s+(up-right|up-left|down-right|down-left|ne|nw|se|sw|up|down|left|right|n|s|e|w)\b(?:\s+(\d+(?:[.,]\d+)?))?/i,
+    (_, v, d) => {
+      mods.at = LABEL_DIRS[v.toLowerCase()];
+      if (d !== undefined) mods.atDist = labelDist(d);
+      return ' ';
+    },
+  );
   return { rest: s.trim(), mods };
+}
+
+// Куда сдвинуть подпись относительно её точки. Компас (ne = справа сверху) +
+// человеческие синонимы, чтобы DSL читался и без шпаргалки.
+const LABEL_DIRS = {
+  ne: 'ne', nw: 'nw', se: 'se', sw: 'sw', n: 'n', s: 's', e: 'e', w: 'w',
+  up: 'n', down: 's', left: 'w', right: 'e',
+  'up-right': 'ne', 'up-left': 'nw', 'down-right': 'se', 'down-left': 'sw',
+};
+export const LABEL_PLACEMENTS = ['ne', 'n', 'nw', 'w', 'sw', 's', 'se', 'e'];
+export const DEFAULT_LABEL_AT = 'ne';
+export const DEFAULT_LABEL_DIST = 1;
+
+/** Множитель расстояния подписи от точки: 1 — вплотную, 5 — на пол-окна. */
+export function labelDist(v) {
+  const d = num(v);
+  if (!Number.isFinite(d) || d <= 0) return DEFAULT_LABEL_DIST;
+  return Math.min(Math.max(d, 0.5), 5);
 }
 
 const isFilled = (tok) => {
@@ -385,7 +415,10 @@ export function parseCoordPlot(spec) {
       const x = num(parts[0]); const y = num(parts[1]);
       const text = parts.slice(2).join(' ');
       if (Number.isFinite(x) && Number.isFinite(y) && text) {
-        model.labels.push({ x, y, text, color: mods.color || 'ink' });
+        model.labels.push({
+          x, y, text, color: mods.color || 'ink',
+          at: mods.at || DEFAULT_LABEL_AT, dist: mods.atDist || DEFAULT_LABEL_DIST,
+        });
       }
     } else if (cmd === 'xtick' || cmd === 'ytick') {
       const v = num(p[1]);
@@ -399,6 +432,23 @@ export function parseCoordPlot(spec) {
 }
 
 // ─────────────────────────────────── рендер ─────────────────────────────────
+
+// Сдвиг подписи (в px) относительно её точки + выключка. Вертикаль считана «на
+// глаз» под font-size 12: −6 поднимает базовую линию над кружком, +11 опускает
+// под него. `base` — поправка выравнивания по высоте строки, она НЕ тянется
+// расстоянием (иначе «слева» с отступом 3 уползало бы вниз), масштабируются
+// только dx/dy. dominant-baseline не используем — он капризен в печати и старых
+// конвертерах SVG.
+const LABEL_OFFSETS = {
+  ne: { dx: 6, dy: -6, base: 0, anchor: 'start' },
+  n: { dx: 0, dy: -8, base: 0, anchor: 'middle' },
+  nw: { dx: -6, dy: -6, base: 0, anchor: 'end' },
+  w: { dx: -8, dy: 0, base: 4, anchor: 'end' },
+  sw: { dx: -6, dy: 11, base: 4, anchor: 'end' },
+  s: { dx: 0, dy: 13, base: 4, anchor: 'middle' },
+  se: { dx: 6, dy: 11, base: 4, anchor: 'start' },
+  e: { dx: 8, dy: 0, base: 4, anchor: 'start' },
+};
 
 // Треугольная стрелка остриём в (x,y) вдоль единичного вектора (ux,uy).
 function arrowHead(x, y, ux, uy, color, len = 7, half = 3.1) {
@@ -537,7 +587,11 @@ export function coordPlotSvg(model, opts = {}) {
     parts.push(`<circle cx="${r2(sx(pt.x))}" cy="${r2(sy(pt.y))}" r="3.3" fill="${pt.filled ? colorOf(pt.color) : '#fff'}" stroke="${colorOf(pt.color)}" stroke-width="1.4"/>`);
   }
   for (const l of m.labels) {
-    parts.push(`<text x="${r2(sx(l.x) + 6)}" y="${r2(sy(l.y) - 6)}" font-size="12" font-style="italic" fill="${colorOf(l.color)}">${escapeXml(l.text)}</text>`);
+    const at = LABEL_OFFSETS[l.at] || LABEL_OFFSETS[DEFAULT_LABEL_AT];
+    const k = labelDist(l.dist);
+    const lx = sx(l.x) + at.dx * k;
+    const ly = sy(l.y) + at.dy * k + at.base;
+    parts.push(`<text x="${r2(lx)}" y="${r2(ly)}" font-size="12" font-style="italic" text-anchor="${at.anchor}" fill="${colorOf(l.color)}">${escapeXml(l.text)}</text>`);
   }
 
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg" class="coordplot-svg" role="img">${parts.join('')}</svg>`;
@@ -619,6 +673,13 @@ const numToken = (v) => {
  * Состояние конструктора → текст DSL.
  * @param {{view:object, curves?:Array, vectors?:Array, points?:Array, labels?:Array}} state
  */
+const atToken = (at, dist) => {
+  const dir = LABEL_DIRS[String(at || '').toLowerCase()] || DEFAULT_LABEL_AT;
+  const k = labelDist(dist);
+  const far = k === DEFAULT_LABEL_DIST ? '' : ` ${numToken(k)}`;
+  return dir === DEFAULT_LABEL_AT && !far ? '' : ` at ${dir}${far}`;
+};
+
 export function plotToSpec({ view = {}, curves = [], vectors = [], points = [], labels = [] } = {}) {
   const xr = view.xrange || DEFAULT_VIEW.xrange;
   const yr = view.yrange || DEFAULT_VIEW.yrange;
@@ -659,10 +720,10 @@ export function plotToSpec({ view = {}, curves = [], vectors = [], points = [], 
     let s = `point ${numToken(p.x)} ${numToken(p.y)} ${p.filled === false ? 'open' : 'fill'}`;
     if (p.color && p.color !== 'ink') s += ` color ${p.color}`;
     lines.push(s);
-    if (p.label) lines.push(`label ${numToken(p.x)} ${numToken(p.y)} ${p.label}`);
+    if (p.label) lines.push(`label ${numToken(p.x)} ${numToken(p.y)} ${p.label}${atToken(p.labelAt, p.labelDist)}`);
   }
   for (const l of labels) {
-    if (l.text) lines.push(`label ${numToken(l.x)} ${numToken(l.y)} ${l.text}`);
+    if (l.text) lines.push(`label ${numToken(l.x)} ${numToken(l.y)} ${l.text}${atToken(l.at, l.dist)}`);
   }
   return lines.join('\n');
 }
