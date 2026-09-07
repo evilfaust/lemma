@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseCoordPlot, coordPlotSvg, coordPlotSvgFromSpec, compileExpr, plotToSpec,
+  parseCoordPlot, coordPlotSvg, coordPlotSvgFromSpec, compileExpr, plotToSpec, specToPlotState,
 } from '../utils/coordPlot';
 import { buildPlotSnippet } from '../components/shared/PlotModal';
 
@@ -252,6 +252,43 @@ describe('plotToSpec / buildPlotSnippet', () => {
       points: [{ ...state.points[0], labelAt: 'ne', labelDist: 2.5 }],
     })).toContain('label 0 2 A at ne 2.5'); // дальний отступ пишется и для направления по умолчанию
     expect(parseCoordPlot(spec).labels[0]).toMatchObject({ text: 'A', at: 'sw' });
+  });
+
+  it('specToPlotState: подпись приклеивается к своей точке', () => {
+    const st = specToPlotState('point 0 2 open color blue\nlabel 0 2 A at w 1,5\nlabel 3 3 сбоку');
+    expect(st.points[0]).toMatchObject({
+      x: 0, y: 2, filled: false, color: 'blue', label: 'A', labelAt: 'w', labelDist: 1.5,
+    });
+    expect(st.labels).toHaveLength(1); // свободная подпись остаётся отдельной
+    expect(st.labels[0]).toMatchObject({ x: 3, y: 3, text: 'сбоку' });
+  });
+
+  it('правка чертежа ничего не теряет: spec → состояние → spec', () => {
+    const spec = [
+      '# заметка автора',
+      'x -6 6',
+      'y -4 4',
+      'grid 0.5',
+      'axis t s',
+      'units off',
+      'size 300',
+      'f 2-2x color blue from -1 to 3 dash',
+      'vec a 0 0 3 2 color red side right',
+      'point 0 2 fill',
+      'label 0 2 A at nw',
+      'seg 0 0 2 3 dash',
+      'xtick -5',
+      'ytick 3 три',
+    ].join('\n');
+    const back = plotToSpec(specToPlotState(spec));
+    // порядок команд может измениться — сравниваем построчно как множество
+    expect(back.split('\n').sort()).toEqual(spec.split('\n').sort());
+    // и, главное, картинка та же
+    expect(coordPlotSvgFromSpec(back)).toBe(coordPlotSvgFromSpec(spec));
+  });
+
+  it('без `size` в блоке правка его не дописывает', () => {
+    expect(plotToSpec(specToPlotState('x -5 5\nf x'))).not.toContain('size');
   });
 
   it('сниппеты: блок и inline', () => {

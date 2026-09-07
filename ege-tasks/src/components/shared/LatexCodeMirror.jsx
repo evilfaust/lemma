@@ -20,7 +20,9 @@ const katexLinter = linter(
  * basicSetup у @uiw/react-codemirror включает searchKeymap → Ctrl+F (поиск)
  * и Ctrl+H (замена) работают из коробки.
  */
-export default function LatexCodeMirror({ value = '', onChange, placeholder = '', minRows = 4, maxRows = 24 }) {
+export default function LatexCodeMirror({
+  value = '', onChange, onCaret, placeholder = '', minRows = 4, maxRows = 24,
+}) {
   const lineHeightPx = 21; // примерная высота строки CM при дефолтном шрифте
   const extensions = useMemo(
     () => [markdown(), EditorView.lineWrapping, katexLinter, lintGutter()],
@@ -31,6 +33,14 @@ export default function LatexCodeMirror({ value = '', onChange, placeholder = ''
     <CodeMirror
       value={value}
       onChange={(val) => onChange?.(val)}
+      onUpdate={(vu) => {
+        // Позиция каретки нужна снаружи: вставка сниппета по курсору и поиск
+        // чертежа под курсором для правки.
+        if (onCaret && (vu.selectionSet || vu.docChanged)) {
+          const sel = vu.state.selection.main;
+          onCaret({ start: sel.from, end: sel.to });
+        }
+      }}
       placeholder={placeholder}
       extensions={extensions}
       minHeight={`${minRows * lineHeightPx}px`}

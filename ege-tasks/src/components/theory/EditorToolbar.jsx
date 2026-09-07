@@ -13,6 +13,7 @@ import FormulaPalette from './FormulaPalette';
 import CropModal from '../shared/CropModal';
 import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
+import { findPlotAtCursor } from '../../utils/plotSnippet';
 import { materialsApi } from '../../shared/services/pb/filesClient';
 import { dataUrlToFile } from '../../utils/cropImage';
 import './EditorToolbar.css';
@@ -23,6 +24,20 @@ const DIVIDER = <Divider type="vertical" className="tf-divider" />;
 // Вставка/обёртка через императивный хэндл редактора (TheoryMarkdownEditor).
 function insertIntoEditor(editor, opts) {
   editor?.insert?.(opts);
+}
+
+// Замена куска документа (правка уже вставленного чертежа) — через CodeMirror
+// view из того же хэндла. Обрамляющие переводы строки блочного сниппета
+// срезаем: вокруг найденного блока они уже есть.
+function replaceInEditor(editor, [from, to], text) {
+  const view = editor?.view;
+  if (!view) return false;
+  const insert = text.replace(/^\n+/, '').replace(/\n+$/, '');
+  view.dispatch({
+    changes: { from, to, insert },
+    selection: { anchor: from + insert.length },
+  });
+  return true;
 }
 
 // Каллауты теории (тип → подпись по умолчанию)
@@ -53,11 +68,23 @@ export default function EditorToolbar({ editorRef }) {
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
   const [numlineOpen, setNumlineOpen] = useState(false);
-  // Конструктор координатной плоскости: null | 'function' | 'vectors'
-  const [plotKind, setPlotKind] = useState(null);
+  // Конструктор координатной плоскости: null | { kind, spec?, format?, range? }.
+  // spec/range заполнены, когда курсор стоял внутри готового чертежа — тогда
+  // конструктор открывается на правку, а не на вставку.
+  const [plot, setPlot] = useState(null);
 
   const insert = useCallback((opts) => {
     insertIntoEditor(editorRef.current, opts);
+  }, [editorRef]);
+
+  const openPlot = useCallback((kind) => {
+    const view = editorRef.current?.view;
+    const found = view
+      ? findPlotAtCursor(view.state.doc.toString(), view.state.selection.main.head)
+      : null;
+    setPlot(found
+      ? { kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
+      : { kind });
   }, [editorRef]);
 
   const handleTableInsert = useCallback((tableMarkdown) => {
@@ -256,13 +283,13 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<DashOutlined />}
             onClick={() => setNumlineOpen(true)} />
         </Tooltip>
-        <Tooltip title="График функции на клетчатой плоскости">
+        <Tooltip title="График функции на клетчатой плоскости. Курсор внутри готового чертежа — откроется его правка">
           <Button size="small" type="text" className="tf-btn" icon={<LineChartOutlined />}
-            onClick={() => setPlotKind('function')} />
+            onClick={() => openPlot('function')} />
         </Tooltip>
-        <Tooltip title="Векторы на клетчатой плоскости">
+        <Tooltip title="Векторы на клетчатой плоскости. Курсор внутри готового чертежа — откроется его правка">
           <Button size="small" type="text" className="tf-btn" icon={<RiseOutlined />}
-            onClick={() => setPlotKind('vectors')} />
+            onClick={() => openPlot('vectors')} />
         </Tooltip>
         <Tooltip title="Ссылка">
           <Button size="small" type="text" className="tf-btn" icon={<LinkOutlined />}
@@ -392,12 +419,16 @@ export default function EditorToolbar({ editorRef }) {
 
       {/* Modal: конструктор координатной плоскости (график / векторы) */}
       <PlotModal
-        open={!!plotKind}
-        kind={plotKind || 'function'}
-        onCancel={() => setPlotKind(null)}
+        open={!!plot}
+        kind={plot?.kind || 'function'}
+        initialSpec={plot?.spec || null}
+        defaultFormat={plot?.format || 'block'}
+        onCancel={() => setPlot(null)}
         onInsert={(snippet) => {
-          insertIntoEditor(editorRef.current, { text: snippet });
-          setPlotKind(null);
+          if (!plot?.range || !replaceInEditor(editorRef.current, plot.range, snippet)) {
+            insertIntoEditor(editorRef.current, { text: snippet });
+          }
+          setPlot(null);
         }}
       />
 

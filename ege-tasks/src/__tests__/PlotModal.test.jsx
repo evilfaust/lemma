@@ -48,6 +48,30 @@ describe('PlotModal', () => {
     expect(onInsert.mock.calls[0][0]).toContain('vec a 0 0 3 2');
   });
 
+  it('правка: открывается на готовой спеке и возвращает её же', () => {
+    const spec = 'x -5 5\ny -5 5\nf 2-2x\npoint 0 2 fill\nlabel 0 2 A at nw';
+    const onInsert = open({ kind: 'function', initialSpec: spec });
+    expect(screen.getByText('Правка: График функции')).toBeInTheDocument();
+    // поля подняты из DSL, а не дефолтные
+    expect(screen.getByDisplayValue('2-2x')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('A')).toBeInTheDocument();
+    expect(screen.queryByDisplayValue('x^2-4')).toBeNull();
+
+    fireEvent.click(screen.getByText('Сохранить'));
+    const snippet = onInsert.mock.calls[0][0];
+    expect(snippet).toContain('label 0 2 A at nw');
+    expect(snippet).toContain('f 2-2x');
+    expect(snippet).not.toContain('vec '); // дефолтный вектор не приезжает
+  });
+
+  it('правка: смена направления подписи попадает в спеку', () => {
+    const onInsert = open({ kind: 'function', initialSpec: 'x -5 5\npoint 0 2 fill\nlabel 0 2 A' });
+    fireEvent.mouseDown(screen.getByTitle('↗ вправо-вверх'));
+    fireEvent.click(screen.getByText('↓ вниз'));
+    fireEvent.click(screen.getByText('Сохранить'));
+    expect(onInsert.mock.calls[0][0]).toContain('label 0 2 A at s');
+  });
+
   it('inline-формат отдаёт код-спан для ячейки таблицы', () => {
     const onInsert = open({ kind: 'function', defaultFormat: 'inline' });
     fireEvent.click(screen.getByText('Вставить'));

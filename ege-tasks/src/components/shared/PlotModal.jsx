@@ -5,7 +5,8 @@ import {
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import CoordPlotSVG from './CoordPlotSVG';
 import {
-  plotToSpec, compileExpr, PLOT_COLORS, DEFAULT_LABEL_AT, DEFAULT_LABEL_DIST,
+  plotToSpec, specToPlotState, compileExpr, PLOT_COLORS,
+  DEFAULT_LABEL_AT, DEFAULT_LABEL_DIST,
 } from '../../utils/coordPlot';
 
 // Визуальный конструктор координатной плоскости. Два режима:
@@ -13,6 +14,11 @@ import {
 //  • «Векторы» — стрелки на клетчатой плоскости с подписями a, b, …
 // Окно/клетка/точки общие для обоих режимов. На каждый чих собираем DSL
 // (plotToSpec) и показываем живое превью. По «Вставить» отдаём готовый сниппет.
+//
+// `initialSpec` включает режим ПРАВКИ: состояние поднимается из готового DSL
+// (`specToPlotState`), и вызывающий редактор заменяет найденный блок, а не
+// вставляет новый. В правке сериализуются обе коллекции (кривые И векторы) —
+// переключение вкладки не должно стирать то, что учитель не трогал.
 
 const COLOR_LABEL = {
   ink: 'чёрный', orange: 'оранжевый', blue: 'синий', green: 'зелёный',
@@ -54,6 +60,9 @@ const SIZE_OPTIONS = [
 const DEFAULT_VIEW = { xrange: [-5, 5], yrange: [-5, 5], grid: 1, axisX: 'x', axisY: 'y', units: true, width: 280 };
 const DEFAULT_CURVES = [{ expr: 'x^2-4', color: 'ink', from: '', to: '', dash: false }];
 const DEFAULT_VECTORS = [{ label: 'a', x1: 0, y1: 0, x2: 3, y2: 2, color: 'ink', side: 'left' }];
+// Части чертежа без своего UI (отрезки, засечки, чужие строки) — конструктор
+// их не показывает, но при правке переписывает как есть.
+const EMPTY_EXTRA = { segments: [], xticks: [], yticks: [], raw: [] };
 
 // Готовый к вставке сниппет: блочный fenced (```plot) или inline-код
 // (`plot: a; b`) — последний нужен для ячеек markdown-таблиц.
@@ -172,26 +181,98 @@ function PointRow({ point, onChange, onRemove }) {
   );
 }
 
-export default function PlotModal({ open, onCancel, onInsert, kind = 'function', defaultFormat = 'block' }) {
+// Подпись сама по себе — без кружка. Так помечают точку пересечения графиков
+// («2» на оси Y), и именно такие подписи чаще всего лезут под линию.
+function LabelRow({ label, onChange, onRemove }) {
+  const patch = (delta) => onChange({ ...label, ...delta });
+  const numProps = { size: 'small', step: 1, style: { width: 62 } };
+  return (
+    <Space wrap style={rowStyle}>
+      <Space wrap size={6}>
+        <span style={{ color: '#888' }}>Подпись</span>
+        <InputNumber {...numProps} value={label.x} onChange={(v) => patch({ x: v ?? 0 })} />
+        <InputNumber {...numProps} value={label.y} onChange={(v) => patch({ y: v ?? 0 })} />
+        <Input
+          size="small"
+          style={{ width: 70 }}
+          maxLength={12}
+          value={label.text}
+          onChange={(e) => patch({ text: e.target.value })}
+          placeholder="текст"
+        />
+        <Tooltip title="Куда сдвинуть подпись относительно её координаты — если её перекрывает график">
+          <Select
+            size="small"
+            style={{ width: 138 }}
+            value={label.at || DEFAULT_LABEL_AT}
+            onChange={(at) => patch({ at })}
+            options={LABEL_AT_OPTIONS}
+          />
+        </Tooltip>
+        <Tooltip title="Насколько далеко отодвинуть подпись: 1 — вплотную, 2–3 — если рядом проходит график">
+          <InputNumber
+            size="small"
+            style={{ width: 62 }}
+            min={0.5}
+            max={5}
+            step={0.5}
+            value={label.dist ?? DEFAULT_LABEL_DIST}
+            onChange={(dist) => patch({ dist: dist ?? DEFAULT_LABEL_DIST })}
+          />
+        </Tooltip>
+        <Select size="small" style={{ width: 112 }} value={label.color} onChange={(color) => patch({ color })} options={COLOR_OPTIONS} />
+      </Space>
+      <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onRemove} />
+    </Space>
+  );
+}
+
+export default function PlotModal({
+  open, onCancel, onInsert, kind = 'function', defaultFormat = 'block', initialSpec = null,
+}) {
   const [mode, setMode] = useState(kind);
   const [format, setFormat] = useState(defaultFormat);
   const [view, setView] = useState(DEFAULT_VIEW);
   const [curves, setCurves] = useState(DEFAULT_CURVES);
   const [vectors, setVectors] = useState(DEFAULT_VECTORS);
   const [points, setPoints] = useState([]);
+  const [labels, setLabels] = useState([]);
+  const [extra, setExtra] = useState(EMPTY_EXTRA);
+  const [editing, setEditing] = useState(false);
 
-  // Открытие модала под конкретную кнопку («График» / «Векторы»).
-  const [lastKind, setLastKind] = useState(kind);
-  if (open && kind !== lastKind) { setLastKind(kind); setMode(kind); }
+  // Состояние поднимается заново при каждом открытии: под кнопку («График» /
+  // «Векторы») — дефолты, под найденный блок — его разбор. setState во время
+  // рендера — обычный паттерн производного состояния, лишнего кадра не даёт.
+  const [session, setSession] = useState(null);
+  const token = open ? `${kind}|${initialSpec ?? ''}` : null;
+  if (token !== session) {
+    setSession(token);
+    if (open) {
+      const st = initialSpec ? specToPlotState(initialSpec) : null;
+      setEditing(!!st);
+      setFormat(defaultFormat);
+      setView(st ? { ...DEFAULT_VIEW, ...st.view } : DEFAULT_VIEW);
+      setCurves(st ? st.curves : DEFAULT_CURVES);
+      setVectors(st ? st.vectors : DEFAULT_VECTORS);
+      setPoints(st ? st.points : []);
+      setLabels(st ? st.labels : []);
+      setExtra(st ? {
+        segments: st.segments, xticks: st.xticks, yticks: st.yticks, raw: st.raw,
+      } : EMPTY_EXTRA);
+      setMode(st && st.vectors.length && !st.curves.length ? 'vectors' : kind);
+    }
+  }
 
   const patchView = (delta) => setView((v) => ({ ...v, ...delta }));
 
   const spec = useMemo(() => plotToSpec({
     view,
-    curves: mode === 'function' ? curves : [],
-    vectors: mode === 'vectors' ? vectors : [],
+    curves: editing || mode === 'function' ? curves : [],
+    vectors: editing || mode === 'vectors' ? vectors : [],
     points,
-  }), [view, mode, curves, vectors, points]);
+    labels,
+    ...extra,
+  }), [view, mode, curves, vectors, points, labels, extra, editing]);
 
   const addCurve = (expr = 'x') => setCurves((arr) => [...arr, { expr, color: 'ink', from: '', to: '', dash: false }]);
   const addVector = () => setVectors((arr) => [
@@ -201,26 +282,24 @@ export default function PlotModal({ open, onCancel, onInsert, kind = 'function',
   const addPoint = () => setPoints((arr) => [...arr, {
     x: 1, y: 1, filled: true, label: '', labelAt: DEFAULT_LABEL_AT, labelDist: DEFAULT_LABEL_DIST, color: 'ink',
   }]);
+  const addLabel = () => setLabels((arr) => [...arr, {
+    x: 1, y: 1, text: 'A', at: DEFAULT_LABEL_AT, dist: DEFAULT_LABEL_DIST, color: 'ink',
+  }]);
   const upd = (setter) => (i, next) => setter((arr) => arr.map((it, idx) => (idx === i ? next : it)));
   const del = (setter) => (i) => setter((arr) => arr.filter((_, idx) => idx !== i));
 
   const handleInsert = () => {
     onInsert(buildPlotSnippet(spec, format));
-    // сброс к дефолту для следующего вызова
-    setView(DEFAULT_VIEW);
-    setCurves(DEFAULT_CURVES);
-    setVectors(DEFAULT_VECTORS);
-    setPoints([]);
-    setFormat(defaultFormat);
+    setSession(null); // следующее открытие начнётся с чистого листа
   };
 
   return (
     <Modal
-      title={mode === 'vectors' ? 'Векторы на плоскости' : 'График функции'}
+      title={`${editing ? 'Правка: ' : ''}${mode === 'vectors' ? 'Векторы на плоскости' : 'График функции'}`}
       open={open}
       onCancel={onCancel}
       onOk={handleInsert}
-      okText="Вставить"
+      okText={editing ? 'Сохранить' : 'Вставить'}
       cancelText="Отмена"
       width={700}
       styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
@@ -314,14 +393,20 @@ export default function PlotModal({ open, onCancel, onInsert, kind = 'function',
           </>
         )}
 
-        {/* Точки — общие для обоих режимов */}
+        {/* Точки и отдельные подписи — общие для обоих режимов */}
         <div>
           {points.map((p, i) => (
             <PointRow key={i} point={p} onChange={(next) => upd(setPoints)(i, next)} onRemove={() => del(setPoints)(i)} />
           ))}
+          {labels.map((l, i) => (
+            <LabelRow key={i} label={l} onChange={(next) => upd(setLabels)(i, next)} onRemove={() => del(setLabels)(i)} />
+          ))}
         </div>
         <Space>
           <Button size="small" icon={<PlusOutlined />} onClick={addPoint}>Точка</Button>
+          <Tooltip title="Текст у координаты без кружка — например, отметить пересечение графиков">
+            <Button size="small" icon={<PlusOutlined />} onClick={addLabel}>Подпись</Button>
+          </Tooltip>
         </Space>
 
         {/* Формат вставки */}

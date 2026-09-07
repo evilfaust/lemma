@@ -20,9 +20,14 @@ const LatexCodeMirror = lazy(() => import('./LatexCodeMirror'));
  * ref форвардится на нативный <textarea> только в plain-режиме — это нужно
  * существующей логике конвертации в таблицу (чтение выделения). В code-режиме
  * ref недоступен → конвертация работает по всему полю (приемлемая деградация).
+ *
+ * `onCaret({start, end})` работает в ОБОИХ режимах: тулбару нужно знать, куда
+ * вставлять сниппет и не стоит ли курсор внутри готового чертежа (тогда кнопка
+ * открывает его правку). Значение сохраняется и после потери фокуса — клик по
+ * кнопке тулбара уводит фокус из поля, живого выделения там уже нет.
  */
 const LatexField = forwardRef(function LatexField(
-  { mode = 'plain', value, onChange, onTextChange, rows = 4, placeholder = '' },
+  { mode = 'plain', value, onChange, onTextChange, onCaret, rows = 4, placeholder = '' },
   ref,
 ) {
   if (mode === 'code') {
@@ -38,12 +43,17 @@ const LatexField = forwardRef(function LatexField(
             onChange?.(val);
             onTextChange?.(val);
           }}
+          onCaret={onCaret}
           placeholder={placeholder}
           minRows={rows}
         />
       </Suspense>
     );
   }
+
+  const reportCaret = onCaret
+    ? (e) => onCaret({ start: e.target.selectionStart, end: e.target.selectionEnd })
+    : undefined;
 
   return (
     <TextArea
@@ -54,7 +64,11 @@ const LatexField = forwardRef(function LatexField(
       onChange={(e) => {
         onChange?.(e);
         onTextChange?.(e.target.value);
+        reportCaret?.(e);
       }}
+      onSelect={reportCaret}
+      onClick={reportCaret}
+      onKeyUp={reportCaret}
     />
   );
 });

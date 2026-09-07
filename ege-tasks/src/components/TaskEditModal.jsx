@@ -18,6 +18,8 @@ import { useImageUpload } from '../hooks';
 import { parseMatchingTask } from '../utils/parseMatchingTask';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { TABLE_SNIPPETS } from '../utils/markdownTables';
+import { findPlotAtCursor } from '../utils/plotSnippet';
+import { insertAtCaret } from '../utils/caretInsert';
 
 const DEFINE_API_BASE = import.meta.env.VITE_DEFINE_API_URL?.replace('/define', '') || 'https://l.oipav.ru';
 
@@ -80,6 +82,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [convertingTable, setConvertingTable] = useState(false);
   const statementTextAreaRef = useRef(null);
   const solutionTextAreaRef = useRef(null);
+  // Последнее выделение по полям — переживает потерю фокуса (клик по кнопке
+  // тулбара). По нему сниппет вставляется на место курсора, а не в конец, и по
+  // нему же ищется чертёж «под курсором» для правки.
+  const caretRef = useRef({});
   // Конструктор числовой прямой: открыт + целевое поле ('statement_md'|'solution_md')
   const [numlineTarget, setNumlineTarget] = useState(null);
   // Конструктор координатной плоскости: { field, kind: 'function'|'vectors' }
@@ -464,37 +470,66 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     setPreviewStatement(newValue);
   }, [form]);
 
+  // Текущее выделение поля: живое, если поле в фокусе, иначе — последнее
+  // запомненное (кнопка тулбара забирает фокус себе).
+  const fieldCaret = useCallback((fieldName) => {
+    const el = (fieldName === 'solution_md' ? solutionTextAreaRef : statementTextAreaRef)
+      .current?.resizableTextArea?.textArea;
+    if (el && document.activeElement === el) {
+      return { start: el.selectionStart, end: el.selectionEnd };
+    }
+    return caretRef.current[fieldName] || null;
+  }, []);
+
   // Вставка готового сниппета чертежа (блок ```numline / ```plot или inline-код
-  // `numline: …` / `plot: …` для ячеек таблиц) в поле по курсору. Если поле не
-  // сфокусировано (или редактор в code-режиме без нативного textarea) —
-  // дописываем в конец.
+  // `numline: …` / `plot: …` для ячеек таблиц) — на место курсора. Позиции нет
+  // или она от другого текста → в конец, как раньше.
   const insertSnippet = useCallback((fieldName, snippet) => {
     if (!fieldName) return;
-    const refObj = fieldName === 'solution_md' ? solutionTextAreaRef : statementTextAreaRef;
     const setter = fieldName === 'solution_md' ? setPreviewSolution : setPreviewStatement;
     const cur = form.getFieldValue(fieldName) || '';
-    const el = refObj.current?.resizableTextArea?.textArea;
-    let next;
-    if (el && document.activeElement === el) {
-      const s = el.selectionStart ?? cur.length;
-      const e = el.selectionEnd ?? cur.length;
-      next = cur.slice(0, s) + snippet + cur.slice(e);
-    } else {
-      next = cur ? `${cur}${snippet}` : snippet.replace(/^\n/, '');
-    }
-    form.setFieldValue(fieldName, next);
-    setter(next);
-  }, [form]);
+    const { text, caret } = insertAtCaret(cur, fieldCaret(fieldName), snippet);
+    form.setFieldValue(fieldName, text);
+    setter(text);
+    // Курсор — за вставленным куском: следующий чертёж не ляжет поверх этого.
+    caretRef.current[fieldName] = { start: caret, end: caret };
+    const el = (fieldName === 'solution_md' ? solutionTextAreaRef : statementTextAreaRef)
+      .current?.resizableTextArea?.textArea;
+    if (el) setTimeout(() => { el.focus(); el.setSelectionRange(caret, caret); }, 0);
+  }, [form, fieldCaret]);
 
   const insertNumline = useCallback((snippet) => {
     insertSnippet(numlineTarget, snippet);
     setNumlineTarget(null);
   }, [insertSnippet, numlineTarget]);
 
+  // Замена куска поля (правка уже вставленного чертежа). Обрамляющие переводы
+  // строки у блочного сниппета срезаем — они уже есть вокруг найденного блока.
+  const replaceRange = useCallback((fieldName, [from, to], snippet) => {
+    const setter = fieldName === 'solution_md' ? setPreviewSolution : setPreviewStatement;
+    const cur = form.getFieldValue(fieldName) || '';
+    const body = snippet.replace(/^\n+/, '').replace(/\n+$/, '');
+    const next = cur.slice(0, from) + body + cur.slice(to);
+    form.setFieldValue(fieldName, next);
+    setter(next);
+    caretRef.current[fieldName] = { start: from + body.length, end: from + body.length };
+  }, [form]);
+
   const insertPlot = useCallback((snippet) => {
-    insertSnippet(plotTarget?.field, snippet);
+    if (plotTarget?.range) replaceRange(plotTarget.field, plotTarget.range, snippet);
+    else insertSnippet(plotTarget?.field, snippet);
     setPlotTarget(null);
-  }, [insertSnippet, plotTarget]);
+  }, [insertSnippet, replaceRange, plotTarget]);
+
+  // Кнопки «График» / «Векторы»: курсор внутри готового блока ```plot (или
+  // inline `plot: …`) → открываем конструктор на правку этого блока.
+  const openPlot = useCallback((field, kind) => {
+    const pos = fieldCaret(field)?.start;
+    const found = pos == null ? null : findPlotAtCursor(form.getFieldValue(field) || '', pos);
+    setPlotTarget(found
+      ? { field, kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
+      : { field, kind });
+  }, [form, fieldCaret]);
 
   // Меню «Таблица»: готовые заготовки (соответствие без линий, бланк ответа и
   // т.п.) вставляются по курсору. Вид таблицы задаёт директива в самой разметке.
@@ -1115,21 +1150,21 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   Числовая прямая
                 </Button>
               </Tooltip>
-              <Tooltip title="Вставить график функции на клетчатой плоскости (конструктор)">
+              <Tooltip title="Конструктор графика функции. Курсор внутри готового чертежа — откроется его правка">
                 <Button
                   size="small"
                   icon={<LineChartOutlined />}
-                  onClick={() => setPlotTarget({ field: 'statement_md', kind: 'function' })}
+                  onClick={() => openPlot('statement_md', 'function')}
                   style={{ fontWeight: 400 }}
                 >
                   График
                 </Button>
               </Tooltip>
-              <Tooltip title="Вставить векторы на клетчатой плоскости (конструктор)">
+              <Tooltip title="Конструктор векторов. Курсор внутри готового чертежа — откроется его правка">
                 <Button
                   size="small"
                   icon={<RiseOutlined />}
-                  onClick={() => setPlotTarget({ field: 'statement_md', kind: 'vectors' })}
+                  onClick={() => openPlot('statement_md', 'vectors')}
                   style={{ fontWeight: 400 }}
                 >
                   Векторы
@@ -1145,6 +1180,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             rows={4}
             placeholder="Введите текст задания..."
             onTextChange={setPreviewStatement}
+            onCaret={(sel) => { caretRef.current.statement_md = sel; }}
           />
         </Form.Item>
 
@@ -1215,21 +1251,21 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   Числовая прямая
                 </Button>
               </Tooltip>
-              <Tooltip title="Вставить график функции на клетчатой плоскости (конструктор)">
+              <Tooltip title="Конструктор графика функции. Курсор внутри готового чертежа — откроется его правка">
                 <Button
                   size="small"
                   icon={<LineChartOutlined />}
-                  onClick={() => setPlotTarget({ field: 'solution_md', kind: 'function' })}
+                  onClick={() => openPlot('solution_md', 'function')}
                   style={{ fontWeight: 400 }}
                 >
                   График
                 </Button>
               </Tooltip>
-              <Tooltip title="Вставить векторы на клетчатой плоскости (конструктор)">
+              <Tooltip title="Конструктор векторов. Курсор внутри готового чертежа — откроется его правка">
                 <Button
                   size="small"
                   icon={<RiseOutlined />}
-                  onClick={() => setPlotTarget({ field: 'solution_md', kind: 'vectors' })}
+                  onClick={() => openPlot('solution_md', 'vectors')}
                   style={{ fontWeight: 400 }}
                 >
                   Векторы
@@ -1238,7 +1274,14 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             </span>
           }
         >
-          <LatexField ref={solutionTextAreaRef} mode={fieldMode} rows={5} placeholder="Введите решение задачи..." onTextChange={setPreviewSolution} />
+          <LatexField
+            ref={solutionTextAreaRef}
+            mode={fieldMode}
+            rows={5}
+            placeholder="Введите решение задачи..."
+            onTextChange={setPreviewSolution}
+            onCaret={(sel) => { caretRef.current.solution_md = sel; }}
+          />
         </Form.Item>
 
         {previewSolution && (
@@ -1339,9 +1382,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     <PlotModal
       open={!!plotTarget}
       kind={plotTarget?.kind || 'function'}
+      initialSpec={plotTarget?.spec || null}
       onCancel={() => setPlotTarget(null)}
       onInsert={insertPlot}
-      defaultFormat="block"
+      defaultFormat={plotTarget?.format || 'block'}
     />
     </>
   );

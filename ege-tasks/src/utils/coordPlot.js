@@ -17,6 +17,7 @@
 //   coordPlotSvgFromSpec(spec)  → '<svg>…</svg>'  (parse + render)
 //   compileExpr(src)            → { fn, error }   (безопасный калькулятор f(x))
 //   plotToSpec(state)           → текст DSL (для конструктора)
+//   specToPlotState(spec)       → состояние конструктора (обратная plotToSpec)
 //
 // DSL (одна команда на строку; «;» тоже разделитель — для inline-формы
 // в ячейках markdown-таблиц; строки с # — комментарии):
@@ -680,7 +681,16 @@ const atToken = (at, dist) => {
   return dir === DEFAULT_LABEL_AT && !far ? '' : ` at ${dir}${far}`;
 };
 
-export function plotToSpec({ view = {}, curves = [], vectors = [], points = [], labels = [] } = {}) {
+/**
+ * Состояние конструктора → текст DSL.
+ * `segments`/`xticks`/`yticks`/`raw` конструктор не редактирует — они приходят
+ * из разбора готового блока (`specToPlotState`) и переписываются как есть,
+ * чтобы правка подписи не стирала остальную разметку.
+ */
+export function plotToSpec({
+  view = {}, curves = [], vectors = [], points = [], labels = [],
+  segments = [], xticks = [], yticks = [], raw = [],
+} = {}) {
   const xr = view.xrange || DEFAULT_VIEW.xrange;
   const yr = view.yrange || DEFAULT_VIEW.yrange;
   const lines = [
@@ -725,5 +735,80 @@ export function plotToSpec({ view = {}, curves = [], vectors = [], points = [], 
   for (const l of labels) {
     if (l.text) lines.push(`label ${numToken(l.x)} ${numToken(l.y)} ${l.text}${atToken(l.at, l.dist)}`);
   }
+  for (const g of segments) {
+    let s = `seg ${numToken(g.x1)} ${numToken(g.y1)} ${numToken(g.x2)} ${numToken(g.y2)}`;
+    if (g.color && g.color !== 'ink') s += ` color ${g.color}`;
+    if (g.dash) s += ' dash';
+    lines.push(s);
+  }
+  for (const [cmd, ticks] of [['xtick', xticks], ['ytick', yticks]]) {
+    for (const t of ticks) {
+      // Подпись по умолчанию = само число; такую не выписываем.
+      const label = t.label && t.label !== fmtNum(t.v) ? ` ${t.label}` : '';
+      lines.push(`${cmd} ${numToken(t.v)}${label}`);
+    }
+  }
+  lines.push(...raw);
   return lines.join('\n');
+}
+
+// Команды, которые конструктор понимает; всё остальное (комментарии, опечатки)
+// переносится в правку дословно.
+const KNOWN_CMDS = new Set([
+  'x', 'xrange', 'y', 'yrange', 'grid', 'size', 'width', 'axis', 'units',
+  'f', 'plot', 'func', 'vec', 'vector', 'point', 'dot', 'seg', 'segment',
+  'label', 'text', 'xtick', 'ytick',
+]);
+
+const exprToken = (v) => (Number.isFinite(v) ? String(v) : '');
+
+/**
+ * Текст DSL → состояние конструктора (обратная `plotToSpec`).
+ * Подпись, стоящая ровно в точке, приклеивается к этой точке — в конструкторе
+ * подпись живёт в строке точки, а не отдельной сущностью.
+ */
+export function specToPlotState(spec) {
+  const m = parseCoordPlot(spec);
+  const free = [...m.labels];
+  const takeLabel = (p) => {
+    const i = free.findIndex((l) => l.x === p.x && l.y === p.y);
+    return i >= 0 ? free.splice(i, 1)[0] : null;
+  };
+  const raw = String(spec || '').split(/[\n;]/)
+    .map((l) => l.trim())
+    .filter((l) => l && !KNOWN_CMDS.has(l.split(/\s+/)[0].toLowerCase()));
+
+  return {
+    view: {
+      xrange: [...m.xrange],
+      yrange: [...m.yrange],
+      grid: m.grid,
+      axisX: m.axisX,
+      axisY: m.axisY,
+      units: m.units,
+      width: m.width, // null = в блоке не было `size`, не дописываем его
+    },
+    curves: m.curves.map((c) => ({
+      expr: c.expr, color: c.color, dash: !!c.dash,
+      from: exprToken(c.from), to: exprToken(c.to),
+    })),
+    vectors: m.vectors.map((v) => ({
+      label: v.label, x1: v.x1, y1: v.y1, x2: v.x2, y2: v.y2,
+      color: v.color, side: v.side, dash: !!v.dash,
+    })),
+    points: m.points.map((p) => {
+      const l = takeLabel(p);
+      return {
+        x: p.x, y: p.y, filled: p.filled, color: p.color,
+        label: l ? l.text : '',
+        labelAt: l ? l.at : DEFAULT_LABEL_AT,
+        labelDist: l ? l.dist : DEFAULT_LABEL_DIST,
+      };
+    }),
+    labels: free, // подписи не при точке — конструктор их не показывает, но хранит
+    segments: m.segments,
+    xticks: m.xticks,
+    yticks: m.yticks,
+    raw,
+  };
 }
