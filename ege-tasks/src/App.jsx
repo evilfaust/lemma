@@ -842,18 +842,27 @@ function AppLayout() {
   const logo = (
     <div style={{
       minHeight: 64, display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', padding: menuCollapsed ? '8px 4px 6px' : '8px 16px 6px',
-      flexShrink: 0, gap: 2,
+      justifyContent: 'center', padding: menuCollapsed ? '10px 8px' : '8px 16px 6px',
+      flexShrink: 0, gap: 2, overflow: 'hidden',
     }}>
       <a
         href="https://github.com/evilfaust/lemma"
         target="_blank"
         rel="noreferrer"
         title={`Lemma${APP_VERSION ? ` v${APP_VERSION}` : ''} © 2026 Oleg Pavlyuchenko. Лицензия AGPL-3.0 — исходный код открыт`}
-        style={{ display: 'flex', lineHeight: 0 }}
+        style={{ display: 'flex', lineHeight: 0, maxWidth: '100%' }}
       >
-        <img src="/lemma-logo-new.png" alt="Lemma"
-          style={{ height: menuCollapsed ? 28 : 38, width: 'auto', borderRadius: 6 }} />
+        {/* Свёрнутое меню шириной 64px: широкая надпись-логотип (5.5:1) в него
+            не помещается и вылезает на шапку — показываем квадратную эмблему. */}
+        <img
+          src={menuCollapsed ? '/icon-new.png' : '/lemma-logo-new.png'}
+          alt="Lemma"
+          style={{
+            height: menuCollapsed ? 34 : 38,
+            width: 'auto', maxWidth: '100%', objectFit: 'contain',
+            borderRadius: menuCollapsed ? 0 : 6,
+          }}
+        />
       </a>
       {!menuCollapsed && APP_VERSION && (
         <span style={{ fontSize: 10, lineHeight: 1, color: '#bfbfbf', letterSpacing: 0.2 }}>
