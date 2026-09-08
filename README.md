@@ -1,6 +1,6 @@
 # Lemma — платформа для учителя математики
 
-[![Version](https://img.shields.io/badge/version-3.9.130-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.9.172-blue.svg)](./CHANGELOG.md)
 [![Stack](https://img.shields.io/badge/stack-React%2018%20%2B%20PocketBase-green.svg)]()
 [![Tests](https://img.shields.io/badge/tests-436%20passing-brightgreen.svg)]()
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
@@ -27,6 +27,8 @@
 - «Сегодня» — дашборд одного окна: идущий урок, KPI, расписание дня, дедлайны, заметки
 - Календарь уроков, дедлайнов и дел; расписание пар и интенсивы, посещаемость
 - Классы и группы, журнал сдачи (ученик × выдача), КТП с экспортом в Word/PDF
+- Учебные годы: перевод классов на новый год одним мастером (повышение, выпуск, архив), история членства по годам
+- Модерация учеников: профиль, доступ (логин и пароль), статусы «учится / выпустился / выбыл», массовые операции
 - Заметки (блочный редактор с LaTeX), дела, библиотека материалов и файлов
 - Каникулярные задания — индивидуальные программы на лето с отслеживанием прогресса
 
@@ -72,7 +74,7 @@
 - PocketBase SDK 0.21
 - GeoGebra applet API + JSXGraph (SVG export)
 - Печать/PDF — только на клиенте: `window.print()` + `@media print`, html2pdf.js
-- Vitest — 436 тестов в 36 файлах
+- Vitest — 984 теста в 64 файлах
 
 **Backend** (`pocketbase/`):
 - PocketBase 0.36.4 (SQLite, REST API, Auth, File storage) — systemd `pocketbase-ege`, порт 8095
@@ -151,7 +153,7 @@ lemma/
 │
 ├── pocketbase/                     # Backend (deployed to VPS)
 │   ├── pb_migrations/              # Миграции (96 шт.)
-│   ├── pb_hooks/                   # JS-хуки PocketBase (stats.pb.js)
+│   ├── pb_hooks/                   # JS-хуки PocketBase (stats, слияние и модерация учеников)
 │   ├── pdf-service.js              # Backend helper: sdamgia, LLM, векторный поиск, бланки
 │   └── vec-search.js               # Векторный поиск (sqlite-vec)
 │
@@ -202,7 +204,7 @@ lemma/
 
 ## История изменений
 
-См. [CHANGELOG.md](./CHANGELOG.md). Последняя версия — **3.9.130** (2026-08-23).
+См. [CHANGELOG.md](./CHANGELOG.md). Последняя версия — **3.9.172** (2026-09-08).
 
 ---
 

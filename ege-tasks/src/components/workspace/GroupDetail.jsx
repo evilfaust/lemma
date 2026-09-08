@@ -24,6 +24,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
+import StudentEditModal from '../students/StudentEditModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { WorkspacePageHeader, EmptyState, SectionCard, Chip, groupTone, groupHex } from './ui';
 import CourseMembersSection from './course/CourseMembersSection';
@@ -46,7 +47,6 @@ export default function GroupDetail() {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualText, setManualText] = useState('');
   const [editStudent, setEditStudent] = useState(null);
-  const [editName, setEditName] = useState('');
   // Создание полноценных аккаунтов учеников (v3.9.120)
   const [accOpen, setAccOpen] = useState(false);
   const [accText, setAccText] = useState('');
@@ -176,24 +176,6 @@ export default function GroupDetail() {
       message.success('Список логинов и паролей скопирован');
     } catch {
       message.error('Не удалось скопировать — выделите текст вручную');
-    }
-  };
-
-  // Переименование ученика (имя/фамилия). updateStudent — правила students публичны.
-  const handleSaveName = async () => {
-    const name = editName.trim();
-    if (!editStudent || !name) return;
-    setBusy(true);
-    try {
-      await api.updateStudent(editStudent.id, { name });
-      message.success('Имя обновлено');
-      setEditStudent(null);
-      setEditName('');
-      load();
-    } catch {
-      message.error('Не удалось обновить имя');
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -335,7 +317,7 @@ export default function GroupDetail() {
                   <Button size="small" type="link" onClick={() => navigate(`/app/students/${s.id}`)}>профиль</Button>
                   {canEdit && (
                     <>
-                      <Button size="small" type="text" icon={<EditOutlined />} title="Переименовать" onClick={() => { setEditStudent(s); setEditName(s.name || ''); }} />
+                      <Button size="small" type="text" icon={<EditOutlined />} title="Изменить профиль, доступ, статус" onClick={() => setEditStudent(s)} />
                       <Button size="small" type="text" danger icon={<DisconnectOutlined />} title={s.external ? 'Убрать' : 'Отвязать'} onClick={() => handleUnlink(s)} />
                     </>
                   )}
@@ -401,27 +383,13 @@ export default function GroupDetail() {
         />
       </Modal>
 
-      <Modal
+      <StudentEditModal
         open={!!editStudent}
-        title="Переименовать ученика"
-        onCancel={() => { setEditStudent(null); setEditName(''); }}
-        onOk={handleSaveName}
-        confirmLoading={busy}
-        okText="Сохранить"
-        cancelText="Отмена"
-        okButtonProps={{ disabled: !editName.trim() }}
-        destroyOnHidden
-      >
-        <Text type="secondary">Фамилия Имя:</Text>
-        <Input
-          value={editName}
-          onChange={(e) => setEditName(e.target.value)}
-          onPressEnter={handleSaveName}
-          placeholder="Иванов Иван"
-          autoFocus
-          style={{ marginTop: 8 }}
-        />
-      </Modal>
+        student={editStudent}
+        onClose={() => setEditStudent(null)}
+        onSaved={load}
+        onDeleted={load}
+      />
 
       <Modal
         open={accOpen}

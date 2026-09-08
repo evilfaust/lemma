@@ -4,9 +4,10 @@ import { CheckCircleOutlined, CopyOutlined, FileAddOutlined } from '@ant-design/
 import {
   ArrowLeftOutlined, LineChartOutlined, BookOutlined,
   WarningOutlined, HistoryOutlined, TrophyOutlined, LoadingOutlined,
-  CalendarOutlined, FileTextOutlined, SwapOutlined,
+  CalendarOutlined, FileTextOutlined, SwapOutlined, EditOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
+import StudentEditModal from './students/StudentEditModal';
 import { useAuth } from '../contexts/AuthContext';
 import { ATT_STATUSES } from './workspace/AttendanceRoster';
 import MathRenderer from './MathRenderer';
@@ -85,6 +86,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
   const [lessonNotes, setLessonNotes] = useState([]);
   const [memberships, setMemberships] = useState([]);
   const [statusBusy, setStatusBusy] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [achievements, setAchievements] = useState([]);
   const [allAnswers, setAllAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
@@ -557,6 +559,11 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
               Попыток: {attempts.length}
             </Text>
             {canEdit && (isSuperAdmin || !student.owner || student.owner === teacher?.id) && (
+              <Button size="small" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
+                Изменить
+              </Button>
+            )}
+            {canEdit && (isSuperAdmin || !student.owner || student.owner === teacher?.id) && (
               <Button
                 size="small"
                 loading={statusBusy}
@@ -604,6 +611,14 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
           </div>
         </div>
       </div>
+
+      <StudentEditModal
+        open={editOpen}
+        student={student}
+        onClose={() => setEditOpen(false)}
+        onSaved={(updated) => setStudent((prev) => ({ ...prev, ...updated }))}
+        onDeleted={() => onBack?.()}
+      />
 
       <Modal
         open={transferOpen}

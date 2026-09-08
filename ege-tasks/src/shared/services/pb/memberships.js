@@ -110,6 +110,25 @@ export const membershipsApi = {
     if (unlinkGroup && status !== 'active') data.teaching_group = '';
     if (status === 'active') data.grad_year = '';
     const rec = await pb.collection('students').update(studentId, data);
+
+    // Выпуск и выбытие закрывают действующие членства: иначе ученик остался бы
+    // в составе группы, из которой уже ушёл. Мягко — сбой журнала не должен
+    // отменять смену статуса.
+    if (status !== 'active') {
+      try {
+        const active = await pb.collection('group_memberships').getFullList({
+          filter: `student = "${escapeFilter(studentId)}" && status = "${STATUS.ACTIVE}"`,
+          fields: 'id',
+        });
+        await Promise.all(active.map((m) => pb.collection('group_memberships').update(m.id, {
+          status: status === 'graduated' ? STATUS.GRADUATED : STATUS.LEFT,
+          left: nowStamp(),
+        })));
+      } catch (e) {
+        console.error('Не удалось закрыть членства ученика:', e?.message);
+      }
+    }
+
     _logAudit('update', 'students', studentId, `статус: ${status}${gradYear ? ` (${gradYear})` : ''}`);
     return rec;
   },

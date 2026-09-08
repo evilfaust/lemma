@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Alert, Button, Checkbox, Collapse, Empty, Modal, Popover, Progress, Select, Space, Spin, Switch, Table, Tag, Typography } from 'antd';
-import { MergeCellsOutlined, ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
+import {
+  MergeCellsOutlined, ReloadOutlined, UserOutlined, TeamOutlined, EditOutlined,
+} from '@ant-design/icons';
+import StudentEditModal from './students/StudentEditModal';
+import { BULK_ACTIONS, bulkSummary } from '../utils/studentModeration';
 import { api } from '../services/pocketbase';
+import { useAuth } from '../contexts/AuthContext';
+import { currentAcademicYear } from '../utils/academicYear';
 import { PageHeader, StatRow, Stat } from '../ui';
 
 const { Text } = Typography;
@@ -90,6 +96,7 @@ const nameKey = (name) => (name || '')
 
 const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   const { message, modal } = App.useApp();
+  const { canEdit } = useAuth();
   const [loading, setLoading] = useState(true);
   const [students, setStudents] = useState([]);
   const [attempts, setAttempts] = useState([]);
@@ -113,16 +120,26 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   // списке только мешают — показываем их по требованию.
   const [showInactive, setShowInactive] = useState(false);
   const [allStudents, setAllStudents] = useState([]);
+  // Панель модерации: правка одного ученика и массовые операции над выбранными.
+  const [editingStudent, setEditingStudent] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [teachersList, setTeachersList] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [studentsData, attemptsData, worksData, achievementsData] = await Promise.all([
+      const [studentsData, attemptsData, worksData, achievementsData, groupsData, teachersData] = await Promise.all([
         api.getStudents(),
         api.getAttemptsForRegisteredStudents(),
         api.getWorks({ includeArchived: true }),
         api.getAchievements(),
+        api.getTeachingGroups({ includeArchived: true }).catch(() => []),
+        api.getTeachers().catch(() => []),
       ]);
+      setGroups(groupsData);
+      setTeachersList(teachersData);
       // Внешних (вписанных вручную, без тестов) в дашборде прогресса не показываем.
       setStudents(studentsData.filter((s) => !s.external));
       setAllStudents(studentsData.filter((s) => !s.external));
@@ -238,6 +255,64 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       });
   }, [students]);
 
+  const groupNames = useMemo(
+    () => Object.fromEntries(groups.map((g) => [g.id, g.name])),
+    [groups],
+  );
+
+  const teacherNames = useMemo(
+    () => Object.fromEntries(teachersList.map((t) => [t.id, t.name || t.username])),
+    [teachersList],
+  );
+
+  // Массовая операция над отмеченными: сначала показываем, что реально
+  // изменится (bulkSummary отсеивает тех, у кого уже так), потом применяем
+  // пачками по пять — сеть не захлёбывается, а ошибки не рвут остальное.
+  const runBulk = useCallback((action, value) => {
+    const picked = allStudents.filter((s) => selectedIds.includes(s.id));
+    const summary = bulkSummary(picked, action, value, { groupNames, teacherNames });
+    if (!summary.changed.length) {
+      message.info(summary.text);
+      return;
+    }
+    modal.confirm({
+      title: summary.text,
+      content: summary.changed.length > 8
+        ? `${summary.changed.slice(0, 8).map((s) => s.name).join(', ')} и ещё ${summary.changed.length - 8}`
+        : summary.changed.map((s) => s.name || s.username).join(', '),
+      okText: 'Применить',
+      cancelText: 'Отмена',
+      onOk: async () => {
+        setBulkBusy(true);
+        const errors = [];
+        const pack = [];
+        for (let i = 0; i < summary.changed.length; i += 5) pack.push(summary.changed.slice(i, i + 5));
+        for (const chunk of pack) {
+          await Promise.all(chunk.map(async (st) => {
+            try {
+              if (action === BULK_ACTIONS.GROUP) {
+                await api.setStudentGroup(st.id, value || null);
+              } else if (action === BULK_ACTIONS.STATUS) {
+                await api.setStudentStatus(st.id, value, {
+                  gradYear: value === 'active' ? '' : (st.grad_year || currentAcademicYear()),
+                });
+              } else if (action === BULK_ACTIONS.OWNER) {
+                await api.transferStudent(st.id, value);
+              }
+            } catch (e) {
+              errors.push(`${st.name || st.username}: ${e?.message || 'ошибка'}`);
+            }
+          }));
+        }
+        setBulkBusy(false);
+        setSelectedIds([]);
+        if (errors.length) message.warning(`Готово, но с ошибками: ${errors.length}`);
+        else message.success('Готово');
+        loadData();
+      },
+    });
+  }, [allStudents, selectedIds, groupNames, teacherNames, message, modal, loadData]);
+
   const worksById = useMemo(() => {
     const map = new Map();
     works.forEach((work) => map.set(work.id, work));
@@ -294,9 +369,14 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       return {
         key: student.id,
         id: student.id,
+        student,                    // исходная запись — для модалки правки
         name: student.name || '—',
         username: student.username || '—',
         studentClass: student.student_class || '',
+        groupId: student.teaching_group || '',
+        status: student.status || 'active',
+        telegramId: student.telegram_id || '',
+        external: !!student.external,
         registeredAt: student.created || null,
         attemptsCount: studentAttempts.length,
         finishedCount: finishedAttempts.length,
@@ -313,12 +393,13 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
     });
   }, [students, attemptsByStudentId, worksById]);
 
-  // Группировка по классам для Collapse
+  // Группировка для Collapse: по учебной группе (сущность), а класс-строка —
+  // фолбэк для тех, кто к группе ещё не привязан.
   const groupedByClass = useMemo(() => {
     const groups = new Map();
 
     tableData.forEach((student) => {
-      const cls = student.studentClass || '__none__';
+      const cls = groupNames[student.groupId] || student.studentClass || '__none__';
       if (!groups.has(cls)) groups.set(cls, []);
       groups.get(cls).push(student);
     });
@@ -338,13 +419,13 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       const totalAttempts = students.reduce((sum, s) => sum + s.attemptsCount, 0);
       return {
         key,
-        label: key === '__none__' ? 'Без класса' : key,
+        label: key === '__none__' ? 'Без группы' : key,
         students,
         avgPercent,
         totalAttempts,
       };
     });
-  }, [tableData]);
+  }, [tableData, groupNames]);
 
   const dashboardStats = useMemo(() => {
     const totalStudents = tableData.length;
@@ -380,15 +461,40 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       sorter: (a, b) => a.name.localeCompare(b.name),
     },
     {
-      title: 'Класс',
+      title: 'Группа',
       key: 'studentClass',
-      width: 120,
+      width: 150,
+      render: (_, record) => {
+        const label = groupNames[record.groupId] || record.studentClass;
+        return label
+          ? <Tag color="geekblue">{label}</Tag>
+          : <Text type="secondary">—</Text>;
+      },
+      sorter: (a, b) => (groupNames[a.groupId] || a.studentClass || '')
+        .localeCompare(groupNames[b.groupId] || b.studentClass || '', 'ru'),
+    },
+    {
+      title: 'Метки',
+      key: 'flags',
+      width: 190,
       render: (_, record) => (
-        record.studentClass
-          ? <Tag color="geekblue">{record.studentClass}</Tag>
-          : <Text type="secondary">—</Text>
+        <Space size={4} wrap>
+          {record.status === 'graduated' && <Tag color="gold">выпустился</Tag>}
+          {record.status === 'left' && <Tag>выбыл</Tag>}
+          {record.external && <Tag color="orange">без аккаунта</Tag>}
+          {!record.telegramId && <Tag color="default" title="Результаты «Решу ЕГЭ» не сопоставятся">нет TG</Tag>}
+        </Space>
       ),
-      sorter: (a, b) => (a.studentClass || '').localeCompare(b.studentClass || '', 'ru'),
+      filters: [
+        { text: 'Выпустился / выбыл', value: 'inactive' },
+        { text: 'Без аккаунта', value: 'external' },
+        { text: 'Без Telegram ID', value: 'no_tg' },
+      ],
+      onFilter: (value, record) => (
+        value === 'inactive' ? record.status !== 'active'
+          : value === 'external' ? record.external
+            : !record.telegramId
+      ),
     },
     {
       title: 'Попытки',
@@ -474,20 +580,38 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
     {
       title: '',
       key: 'actions',
-      width: 120,
+      width: 150,
       render: (_, record) => (
-        <Button size="small" onClick={() => onOpenStudent?.(record.id)}>
-          Детали
-        </Button>
+        <Space size={4}>
+          {canEdit && (
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              title="Изменить профиль, доступ, статус"
+              onClick={() => setEditingStudent(record.student)}
+            />
+          )}
+          <Button size="small" onClick={() => onOpenStudent?.(record.id)}>
+            Детали
+          </Button>
+        </Space>
       ),
     },
   ];
 
-  // Колонки без колонки "Класс" для таблиц внутри Collapse
+  // Колонки без колонки "Группа" для таблиц внутри Collapse
   const columnsWithoutClass = useMemo(() =>
     columns.filter((c) => c.key !== 'studentClass'),
     [columns]
   );
+
+  // Отметки живут в одном общем состоянии: секции Collapse — это разные
+  // таблицы, но выбор между ними должен накапливаться.
+  const rowSelection = canEdit ? {
+    selectedRowKeys: selectedIds,
+    preserveSelectedRowKeys: true,
+    onChange: setSelectedIds,
+  } : undefined;
 
   if (loading && tableData.length === 0) {
     return (
@@ -653,6 +777,60 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         })()}
       </Modal>
 
+      {canEdit && selectedIds.length > 0 && (
+        <Alert
+          type="info"
+          style={{ marginBottom: 16 }}
+          message={(
+            <Space wrap size="middle">
+              <Text strong>{`Выбрано: ${selectedIds.length}`}</Text>
+              <Select
+                size="small"
+                style={{ width: 190 }}
+                placeholder="Перевести в группу"
+                value={null}
+                disabled={bulkBusy}
+                onChange={(v) => runBulk(BULK_ACTIONS.GROUP, v)}
+                options={[
+                  { value: '', label: 'Без группы' },
+                  ...groups.map((g) => ({
+                    value: g.id,
+                    label: `${g.name}${g.year ? ` · ${g.year}` : ''}`,
+                  })),
+                ]}
+              />
+              <Select
+                size="small"
+                style={{ width: 160 }}
+                placeholder="Статус"
+                value={null}
+                disabled={bulkBusy}
+                onChange={(v) => runBulk(BULK_ACTIONS.STATUS, v)}
+                options={[
+                  { value: 'active', label: 'Учится' },
+                  { value: 'graduated', label: 'Выпустился' },
+                  { value: 'left', label: 'Выбыл' },
+                ]}
+              />
+              <Select
+                size="small"
+                style={{ width: 190 }}
+                placeholder="Передать учителю"
+                value={null}
+                disabled={bulkBusy}
+                onChange={(v) => runBulk(BULK_ACTIONS.OWNER, v)}
+                options={teachersList
+                  .filter((t) => t.username !== 'journal-sync')
+                  .map((t) => ({ value: t.id, label: t.name || t.username }))}
+              />
+              <Button size="small" type="text" onClick={() => setSelectedIds([])}>
+                Снять выбор
+              </Button>
+            </Space>
+          )}
+        />
+      )}
+
       <StatRow cols={4} style={{ marginBottom: 16 }}>
         <Stat label="Ученики" value={dashboardStats.totalStudents} sub={`${dashboardStats.classCount} классов`} />
         <Stat label="Завершено попыток" value={dashboardStats.finishedAttempts} sub={`из ${dashboardStats.totalAttempts}`} />
@@ -695,6 +873,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
                 <Table
                   columns={columnsWithoutClass}
                   dataSource={group.students}
+                  rowSelection={rowSelection}
                   size="small"
                   pagination={group.students.length > 20 ? { pageSize: 20 } : false}
                   scroll={{ x: 920 }}
@@ -705,6 +884,13 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         </div>
       )}
 
+      <StudentEditModal
+        open={!!editingStudent}
+        student={editingStudent}
+        onClose={() => setEditingStudent(null)}
+        onSaved={loadData}
+        onDeleted={loadData}
+      />
     </div>
   );
 };

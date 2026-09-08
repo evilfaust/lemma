@@ -220,7 +220,7 @@ export const studentsApi = {
     try {
       return await pb.collection('students').getFullList({
         sort: '-created',
-        fields: 'id,username,name,student_class,external,owner,status,grad_year,created,updated',
+        fields: 'id,username,name,student_class,teaching_group,telegram_id,external,owner,status,grad_year,created,updated',
         // мои ученики + «ничьи» (саморегистрация до привязки)
         filter: andOwnerOrFree(),
       });
@@ -352,6 +352,64 @@ export const studentsApi = {
   // Что именно переедет при слиянии — ничего не меняет, только считает.
   async previewMergeStudents(fromStudentId, toStudentId, opts = {}) {
     return this.mergeStudents(fromStudentId, toStudentId, { ...opts, dryRun: true });
+  },
+
+  // ── Модерация профиля ученика (v3.9.172) ─────────────────────────────────
+  // Обычный update: имя, класс, группа, telegram, статус, логин, владелец.
+  // Пустая строка = «очистить поле», поэтому шлём ровно то, что пришло.
+  async updateStudentProfile(studentId, data = {}) {
+    const ALLOWED = [
+      'name', 'username', 'student_class', 'teaching_group',
+      'telegram_id', 'status', 'grad_year', 'owner', 'external',
+    ];
+    const payload = {};
+    for (const key of ALLOWED) {
+      if (data[key] !== undefined) payload[key] = data[key];
+    }
+    if (!Object.keys(payload).length) return null;
+    const rec = await pb.collection('students').update(studentId, payload);
+    _logAudit('update', 'students', studentId,
+      `профиль: ${Object.keys(payload).join(', ')}`);
+    return rec;
+  },
+
+  // Сброс пароля ученика. Обычным update это невозможно: PocketBase требует
+  // `oldPassword` для смены пароля auth-записи (или права суперюзера), поэтому
+  // операция живёт в серверном хуке `pb_hooks/students_admin.pb.js`.
+  // Новый пароль возвращается наружу ОДИН раз — в базе только хэш.
+  // Пустой password → сервер сгенерирует читаемый (без 0/O, 1/l/I).
+  async setStudentPassword(studentId, password = '') {
+    const response = await fetch(`${PB_BASE_URL}/api/students/set-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ studentId, password }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data; // { username, password }
+  },
+
+  // Удаление аккаунта ученика (только superadmin, только если нет ни одной
+  // связи — попыток, программ, курсов, посещаемости, дел, членств).
+  // `students.deleteRule` закрыт, операция идёт через тот же хук.
+  async deleteStudentAccount(studentId, { dryRun = false } = {}) {
+    const response = await fetch(`${PB_BASE_URL}/api/students/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ studentId, dryRun }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const err = new Error(data.error || `HTTP ${response.status}`);
+      err.blocking = data.blocking || [];
+      throw err;
+    }
+    return data;
+  },
+
+  // Что мешает удалить — ничего не меняет.
+  async previewDeleteStudent(studentId) {
+    return this.deleteStudentAccount(studentId, { dryRun: true });
   },
 
   async getAttemptsForRegisteredStudents() {
