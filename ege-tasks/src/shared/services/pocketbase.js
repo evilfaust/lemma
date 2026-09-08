@@ -20,6 +20,8 @@ import { geometryApi } from './pb/geometry.js';
 import { tdfApi } from './pb/tdf.js';
 import { worksheetsApi } from './pb/worksheets.js';
 import { groupsApi } from './pb/groups.js';
+import { membershipsApi } from './pb/memberships.js';
+import { rolloverApi } from './pb/rollover.js';
 import { ktpApi } from './pb/ktp.js';
 import { lessonsApi } from './pb/lessons.js';
 import { notesApi } from './pb/notes.js';
@@ -47,6 +49,8 @@ export const api = {
   ...tdfApi,
   ...worksheetsApi,
   ...groupsApi,
+  ...membershipsApi,
+  ...rolloverApi,
   ...ktpApi,
   ...lessonsApi,
   ...notesApi,

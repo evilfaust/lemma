@@ -20,6 +20,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   FundProjectionScreenOutlined,
+  CalendarOutlined,
   InboxOutlined,
   PlusOutlined,
   TeamOutlined,
@@ -29,16 +30,9 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import { WorkspacePageHeader, EmptyState, Chip, groupHex } from './ui';
+import { collectAcademicYears, currentAcademicYear } from '../../utils/academicYear';
 
 const { Text } = Typography;
-
-// Дефолтный учебный год вида «2025/2026» по текущей дате (учебный год с сентября).
-function defaultYear() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const start = now.getMonth() >= 7 ? y : y - 1; // с августа считаем новый учебный год
-  return `${start}/${start + 1}`;
-}
 
 function GroupModal({ open, initial, onSave, onCancel, saving }) {
   const [form] = Form.useForm();
@@ -55,7 +49,7 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
             grade: null,
             hours_per_week: null,
             umk: '',
-            year: defaultYear(),
+            year: currentAcademicYear(),
             kind: 'class',
             conference_url: '',
             board_url: '',
@@ -140,6 +134,10 @@ export default function GroupManager() {
   const [counts, setCounts] = useState({}); // groupId -> кол-во учеников
   const [loading, setLoading] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  // Учебный год: групп с годами становится больше с каждым сентябрём, поэтому
+  // список фильтруется по году (по умолчанию — текущий), '' = все годы.
+  const [year, setYear] = useState(currentAcademicYear());
+  const [knownYears, setKnownYears] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -148,26 +146,26 @@ export default function GroupManager() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await api.getTeachingGroups({ includeArchived: showArchived });
+      // Годы собираем по всем группам, включая архивные, — иначе прошлый год
+      // пропадёт из селектора сразу после перевода.
+      const all = await api.getTeachingGroups({ includeArchived: true });
+      const years = collectAcademicYears(all);
+      setKnownYears(years);
+      // Год из состояния мог оказаться пустым (первый запуск, все группы без
+      // года) — тогда показываем всё, а не пустой экран.
+      const effectiveYear = !year || years.includes(year) ? year : '';
+      if (effectiveYear !== year) setYear(effectiveYear);
+
+      const list = all.filter((g) => (showArchived || !g.archived)
+        && (!effectiveYear || (g.year || '') === effectiveYear));
       setGroups(list);
-      // Лёгкий подсчёт учеников по каждой группе (параллельно).
-      const entries = await Promise.all(
-        list.map(async (g) => {
-          try {
-            const studs = await api.getStudentsByGroup(g.id);
-            return [g.id, studs.length];
-          } catch {
-            return [g.id, 0];
-          }
-        }),
-      );
-      setCounts(Object.fromEntries(entries));
+      setCounts(await api.getRosterCounts(list));
     } catch (e) {
       message.error('Не удалось загрузить группы');
     } finally {
       setLoading(false);
     }
-  }, [showArchived, message]);
+  }, [showArchived, year, message]);
 
   useEffect(() => {
     load();
@@ -310,10 +308,29 @@ export default function GroupManager() {
         subtitle="Ваши учебные группы — основа планирования и журнала"
         extra={(
           <>
+            <Select
+              size="small"
+              style={{ width: 132 }}
+              value={year}
+              onChange={setYear}
+              options={[
+                { value: '', label: 'Все годы' },
+                ...knownYears.map((y) => ({ value: y, label: y })),
+              ]}
+            />
             <Space size={4}>
               <Switch checked={showArchived} onChange={setShowArchived} size="small" />
               <Text type="secondary">архив</Text>
             </Space>
+            {canEdit && (
+              <Button
+                icon={<CalendarOutlined />}
+                onClick={() => navigate('/app/groups/rollover')}
+                title="Перевести группы и учеников на следующий учебный год"
+              >
+                Новый учебный год
+              </Button>
+            )}
             {canEdit && (
               <Button
                 type="primary"
@@ -336,6 +353,14 @@ export default function GroupManager() {
         <div className="ws-grid">{groups.map(renderCard)}</div>
       ) : showArchived ? (
         <EmptyState title="Архив пуст" description="Сюда попадают группы, отправленные в архив" />
+      ) : year ? (
+        <EmptyState
+          title={`В ${year} учебном году групп нет`}
+          description="Выберите другой год или переведите прошлогодние группы на новый учебный год"
+          cta={canEdit ? 'Новый учебный год' : undefined}
+          ctaIcon={<CalendarOutlined />}
+          onCta={() => navigate('/app/groups/rollover')}
+        />
       ) : (
         <EmptyState
           title="Пока нет групп"

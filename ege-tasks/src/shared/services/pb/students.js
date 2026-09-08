@@ -220,7 +220,7 @@ export const studentsApi = {
     try {
       return await pb.collection('students').getFullList({
         sort: '-created',
-        fields: 'id,username,name,student_class,external,owner,created,updated',
+        fields: 'id,username,name,student_class,external,owner,status,grad_year,created,updated',
         // мои ученики + «ничьи» (саморегистрация до привязки)
         filter: andOwnerOrFree(),
       });

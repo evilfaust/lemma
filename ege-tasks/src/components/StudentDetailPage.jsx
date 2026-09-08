@@ -54,6 +54,20 @@ const SECTION_ORDER = ['Алгебра', 'Геометрия'];
 
 const ATT_BY_VALUE = Object.fromEntries(ATT_STATUSES.map(s => [s.value, s]));
 
+// Статус ученика (students.status): пусто = учится.
+const STUDENT_STATUS = {
+  graduated: { label: 'выпустился', color: 'gold' },
+  left: { label: 'выбыл', color: 'default' },
+};
+
+// Статус членства в группе (group_memberships.status).
+const MEMBERSHIP_STATUS = {
+  active: { label: 'учится', color: 'green' },
+  transferred: { label: 'переведён', color: 'blue' },
+  graduated: { label: 'выпустился', color: 'gold' },
+  left: { label: 'выбыл', color: 'default' },
+};
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -69,6 +83,8 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
   const [attempts, setAttempts] = useState([]);
   const [attendance, setAttendance] = useState([]);
   const [lessonNotes, setLessonNotes] = useState([]);
+  const [memberships, setMemberships] = useState([]);
+  const [statusBusy, setStatusBusy] = useState(false);
   const [achievements, setAchievements] = useState([]);
   const [allAnswers, setAllAnswers] = useState(null);
   const [answersLoading, setAnswersLoading] = useState(false);
@@ -101,12 +117,13 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
     const load = async () => {
       setLoading(true);
       try {
-        const [students, attemptsData, achievementsData, attendanceData, notesData] = await Promise.all([
+        const [students, attemptsData, achievementsData, attendanceData, notesData, membershipsData] = await Promise.all([
           api.getStudents(),
           api.getAttemptsByStudentAllWithWorks(studentId),
           api.getAchievements(),
           api.getAttendanceByStudent(studentId),
           api.getNotesByStudent(studentId),
+          api.getStudentMemberships(studentId),
         ]);
 
         const studentRecord = students.find(s => s.id === studentId);
@@ -118,6 +135,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
         setAchievements(achievementsData);
         setAttendance(attendanceData);
         setLessonNotes(notesData);
+        setMemberships(membershipsData);
       } catch (err) {
         console.error('Error loading student detail:', err);
       }
@@ -526,12 +544,48 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
             {student.student_class && <Tag color="geekblue">{student.student_class} класс</Tag>}
             {!student.external && <Tag>@{student.username}</Tag>}
             {!student.owner && <Tag color="volcano">не привязан к учителю</Tag>}
+            {STUDENT_STATUS[student.status] && (
+              <Tag color={STUDENT_STATUS[student.status].color}>
+                {STUDENT_STATUS[student.status].label}
+                {student.grad_year ? `, ${student.grad_year}` : ''}
+              </Tag>
+            )}
             <Text type="secondary">
               Регистрация: {new Date(student.created).toLocaleDateString('ru-RU')}
             </Text>
             <Text type="secondary">
               Попыток: {attempts.length}
             </Text>
+            {canEdit && (isSuperAdmin || !student.owner || student.owner === teacher?.id) && (
+              <Button
+                size="small"
+                loading={statusBusy}
+                onClick={async () => {
+                  const back = !!STUDENT_STATUS[student.status];
+                  setStatusBusy(true);
+                  try {
+                    await api.setStudentStatus(
+                      studentId,
+                      back ? 'active' : 'graduated',
+                      { gradYear: back ? '' : (memberships[0]?.year || '') },
+                    );
+                    setStudent(prev => ({
+                      ...prev,
+                      status: back ? 'active' : 'graduated',
+                      grad_year: back ? '' : (memberships[0]?.year || ''),
+                      ...(back ? {} : { teaching_group: '' }),
+                    }));
+                    message.success(back ? 'Ученик снова активен' : 'Ученик помечен как выпускник');
+                  } catch {
+                    message.error('Не удалось изменить статус');
+                  } finally {
+                    setStatusBusy(false);
+                  }
+                }}
+              >
+                {STUDENT_STATUS[student.status] ? 'Вернуть в активные' : 'Выпустить'}
+              </Button>
+            )}
             {canEdit && (isSuperAdmin || !student.owner || student.owner === teacher?.id) && (
               <Button
                 size="small"
@@ -812,6 +866,36 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
           <div className="sdp-empty-section">Нет ошибок — ученик отвечает на все задачи правильно!</div>
         )}
       </div>
+
+      {/* S5a2: История обучения по годам (group_memberships) */}
+      {memberships.length > 0 && (
+        <div className="sdp-section">
+          <Title level={4} className="sdp-section-title">
+            <HistoryOutlined /> История обучения
+            <Text type="secondary" style={{ fontSize: 14, fontWeight: 400, marginLeft: 8 }}>
+              ({memberships.length})
+            </Text>
+          </Title>
+          <div className="sdp-attendance-list">
+            {memberships.map(m => {
+              const cfg = MEMBERSHIP_STATUS[m.status] || MEMBERSHIP_STATUS.active;
+              const group = m.expand?.group;
+              return (
+                <div key={m.id} className="sdp-attendance-row">
+                  <Text type="secondary" style={{ width: 110, flexShrink: 0 }}>
+                    {m.year || '—'}
+                  </Text>
+                  <Text style={{ flex: 1, minWidth: 0 }} ellipsis>
+                    {group?.name || 'группа удалена'}
+                    {group?.grade ? ` · ${group.grade} кл.` : ''}
+                  </Text>
+                  <Tag color={cfg.color} style={{ marginInlineEnd: 0 }}>{cfg.label}</Tag>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* S5b: Attendance */}
       {attendanceList.length > 0 && (

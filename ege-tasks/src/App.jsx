@@ -30,6 +30,7 @@ const TodayDashboard = lazy(() => import('./components/workspace/TodayDashboard'
 const GroupManager = lazy(() => import('./components/workspace/GroupManager'));
 const GroupDetail = lazy(() => import('./components/workspace/GroupDetail'));
 const GradeJournal = lazy(() => import('./components/workspace/GradeJournal'));
+const YearRolloverWizard = lazy(() => import('./components/workspace/rollover/YearRolloverWizard'));
 const KtpList = lazy(() => import('./components/workspace/KtpList'));
 const KtpEditor = lazy(() => import('./components/workspace/KtpEditor'));
 const TeacherCalendar = lazy(() => import('./components/workspace/TeacherCalendar'));
@@ -131,6 +132,7 @@ export const R = {
   // Моё пространство (учительское фло)
   TODAY:               '/app/today',
   GROUPS:              '/app/groups',
+  GROUP_ROLLOVER:      '/app/groups/rollover',
   GROUP_DETAIL:        '/app/groups/:groupId',
   JOURNAL:             '/app/journal',
   KTP:                 '/app/ktp',
@@ -242,6 +244,7 @@ export function route(template, params) {
 const ROUTE_META = [
   // Моё пространство (учительское фло)
   { re: /^\/app\/today$/,         menuKey: 'today', menuGroup: 'workspace-group', title: 'Сегодня' },
+  { re: /^\/app\/groups\/rollover$/, menuKey: 'groups', menuGroup: 'workspace-group', title: 'Новый учебный год' },
   { re: /^\/app\/groups\/[^/]+$/, menuKey: 'groups', menuGroup: 'workspace-group', title: 'Группа' },
   { re: /^\/app\/groups$/,        menuKey: 'groups', menuGroup: 'workspace-group', title: 'Классы и группы' },
   { re: /^\/app\/journal$/,       menuKey: 'journal', menuGroup: 'workspace-group', title: 'Журнал сдачи' },
@@ -1123,6 +1126,7 @@ function App() {
                 <Route path={R.THEORY_NEW}       element={<TheoryEditorRoute />} />
                 <Route path={R.THEORY_EDIT}      element={<TheoryEditorRoute />} />
                 <Route path={R.THEORY_CATEGORIES} element={<TheoryCategoryManager />} />
+                <Route path={R.GROUP_ROLLOVER}    element={<YearRolloverWizard />} />
                 <Route path={R.SUMMER}             element={<VacationCampaignList />} />
                 <Route path={R.SUMMER_CAMPAIGN}   element={<VacationCampaignDetail />} />
                 <Route path={R.SUMMER_INDIVIDUAL} element={<SummerProgramList />} />

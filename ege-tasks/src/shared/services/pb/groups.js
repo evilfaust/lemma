@@ -1,13 +1,18 @@
 import { pb, _logAudit, andOwner, andOwnerOrFree, currentTeacher } from './client.js';
+import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 
 // Учительское фло, фаза 1: API классов/групп (коллекция `teaching_groups`).
 // `owner` подставляется автоматически из токена залогиненного учителя.
 export const groupsApi = {
   // ── Классы/группы (teaching_groups) ───────────────────────────────────────
-  async getTeachingGroups({ includeArchived = false } = {}) {
+  // `year` — учебный год («2025/2026»); без него отдаются группы всех лет.
+  async getTeachingGroups({ includeArchived = false, year = '' } = {}) {
     try {
-      const filter = andOwner(includeArchived ? '' : 'archived != true');
+      const parts = [];
+      if (!includeArchived) parts.push('archived != true');
+      if (year) parts.push(`year = "${escapeFilter(year)}"`);
+      const filter = andOwner(parts.join(' && '));
       return await pb.collection('teaching_groups').getFullList({
         ...(filter ? { filter } : {}),
         // Ручной порядок (sort_order), затем — новые сверху для одинакового sort_order.
@@ -97,9 +102,45 @@ export const groupsApi = {
   },
 
   // ── Привязка учеников к группе ────────────────────────────────────────────
-  // Ученики, привязанные к группе через relation `teaching_group`.
-  async getStudentsByGroup(groupId) {
+  // Состав группы. Источник истины — журнал членства `group_memberships`
+  // (миграция 1784300000): он переживает перевод на новый учебный год, поэтому
+  // группа прошлого года остаётся с учениками, а не пустеет.
+  //
+  // scope: 'auto' (по умолчанию) — действующие члены, а если их нет (группа
+  //        прошлого года, все переведены/выпущены) — все, кто в ней состоял;
+  //        'active' — только действующие; 'all' — вся история группы.
+  async getStudentsByGroup(groupId, { scope = 'auto' } = {}) {
     try {
+      const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+      const fromMemberships = async (onlyActive) => {
+        const parts = [`group = "${escapeFilter(groupId)}"`];
+        if (onlyActive) parts.push('status = "active"');
+        const rows = await pb.collection('group_memberships').getFullList({
+          filter: parts.join(' && '),
+          expand: 'student',
+        });
+        const seen = new Set();
+        return rows
+          .map((m) => m.expand?.student)
+          .filter((st) => st && !seen.has(st.id) && seen.add(st.id))
+          .sort(byName);
+      };
+
+      try {
+        if (scope !== 'all') {
+          const active = await fromMemberships(true);
+          if (active.length || scope === 'active') return active;
+        }
+        const historic = await fromMemberships(false);
+        if (historic.length) return historic;
+      } catch (e) {
+        // Коллекции ещё нет (фронт задеплоен раньше миграции) — не роняем экран,
+        // работаем по прямой связи, как до v3.9.171.
+        console.warn('group_memberships недоступны, читаем состав по teaching_group:', e?.status || e?.message);
+      }
+
+      // Членств нет вовсе: группа заполнялась старым фронтом (или сразу после
+      // миграции) — падаем на прямую связь students.teaching_group.
       return await pb.collection('students').getFullList({
         filter: `teaching_group = "${escapeFilter(groupId)}"`,
         sort: 'name',
@@ -110,22 +151,71 @@ export const groupsApi = {
     }
   },
 
+  // Число действующих учеников сразу по списку групп — для карточек в
+  // «Классах и группах» (иначе запрос на каждую группу).
+  async getRosterCounts(groups = []) {
+    const ids = groups.map((g) => g?.id || g).filter(Boolean);
+    if (!ids.length) return {};
+    const counts = Object.fromEntries(ids.map((id) => [id, 0]));
+    try {
+      const rows = await getFullListByOr(
+        'group_memberships', 'group', ids,
+        { fields: 'id,group,student' },
+        { extraFilter: 'status = "active"' },
+      );
+      for (const r of rows) {
+        if (counts[r.group] !== undefined) counts[r.group] += 1;
+      }
+    } catch (e) {
+      // Коллекции ещё нет — считаем по прямой связи (поведение до v3.9.171).
+      console.warn('group_memberships недоступны, считаем состав по teaching_group');
+    }
+    try {
+      // Группы без действующих членств: прошлогодние (все переведены) или
+      // заполненные старым фронтом. Второе видно по прямой связи.
+      const empty = ids.filter((id) => counts[id] === 0);
+      if (empty.length) {
+        const legacy = await getFullListByOr(
+          'students', 'teaching_group', empty, { fields: 'id,teaching_group' },
+        );
+        for (const st of legacy) {
+          if (counts[st.teaching_group] !== undefined) counts[st.teaching_group] += 1;
+        }
+      }
+    } catch (error) {
+      console.error('Error counting group rosters:', error);
+    }
+    return counts;
+  },
+
   // Лёгкий список всех учеников для пикера привязки: включает teaching_group
   // и student_class (для предложения «привязать по совпадению названия»).
-  async getStudentsForGroupPicker() {
+  // Выпустившиеся и выбывшие по умолчанию не предлагаются.
+  async getStudentsForGroupPicker({ includeInactive = false } = {}) {
+    const query = (base, fields) => pb.collection('students').getFullList({
+      sort: 'name',
+      fields,
+      // мои ученики + «ничьи» (саморегистрация) — до модели привязки учеников
+      filter: andOwnerOrFree(base),
+    });
+    const FIELDS = 'id,name,username,student_class,teaching_group,status,grad_year';
     try {
-      return await pb.collection('students').getFullList({
-        sort: 'name',
-        fields: 'id,name,username,student_class,teaching_group',
-        // мои ученики + «ничьи» (саморегистрация) — до модели привязки учеников
-        filter: andOwnerOrFree(),
-      });
+      const base = includeInactive ? '' : '(status = "" || status = "active")';
+      return await query(base, FIELDS);
     } catch (error) {
-      console.error('Error fetching students for picker:', error);
-      return [];
+      // Поля status ещё нет в схеме (фронт задеплоен раньше миграции) — PB
+      // отвечает 400 на фильтр; отдаём список без фильтра, как до v3.9.171.
+      try {
+        return await query('', 'id,name,username,student_class,teaching_group');
+      } catch (e) {
+        console.error('Error fetching students for picker:', e);
+        return [];
+      }
     }
   },
 
+  // Привязка/отвязка ученика. Пишет ОБА представления: указатель «где сейчас»
+  // (students.teaching_group) и строку журнала членства.
   async setStudentGroup(studentId, groupId) {
     try {
       // groupId === null → отвязать (владелец при этом сохраняется).
@@ -133,19 +223,34 @@ export const groupsApi = {
       // Привязка к группе «забирает» ничейного ученика (саморегистрация)
       // текущему учителю — это и есть модель привязки учеников.
       const t = currentTeacher();
-      if (groupId && t) {
-        try {
-          const found = await pb.collection('students').getFullList({
-            filter: `id = "${escapeFilter(studentId)}"`,
-            fields: 'id,owner',
-          });
-          if (found[0] && !found[0].owner) {
-            data.owner = t.id;
-            _logAudit('update', 'students', studentId, 'привязан к учителю (claim при добавлении в группу)');
-          }
-        } catch (_) { /* не смогли прочитать — просто не claim'им */ }
+      let prevGroup = '';
+      try {
+        const found = await pb.collection('students').getFullList({
+          filter: `id = "${escapeFilter(studentId)}"`,
+          fields: 'id,owner,teaching_group',
+        });
+        prevGroup = found[0]?.teaching_group || '';
+        if (groupId && t && found[0] && !found[0].owner) {
+          data.owner = t.id;
+          _logAudit('update', 'students', studentId, 'привязан к учителю (claim при добавлении в группу)');
+        }
+      } catch (_) { /* не смогли прочитать — просто не claim'им */ }
+
+      const rec = await pb.collection('students').update(studentId, data);
+
+      // Журнал членства ведём мягко: сбой здесь не должен ронять привязку.
+      try {
+        if (prevGroup && prevGroup !== groupId) {
+          await this.closeMembership(studentId, prevGroup, { status: 'left' });
+        }
+        if (groupId) {
+          const group = await this.getTeachingGroup(groupId).catch(() => null);
+          await this.joinGroup(studentId, groupId, { year: group?.year || '' });
+        }
+      } catch (e) {
+        console.error('Не удалось записать членство в группе:', e?.message);
       }
-      return await pb.collection('students').update(studentId, data);
+      return rec;
     } catch (error) {
       console.error('Error setting student group:', error);
       throw error;

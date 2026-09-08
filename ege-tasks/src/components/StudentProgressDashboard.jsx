@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { App, Alert, Button, Checkbox, Collapse, Empty, Modal, Popover, Progress, Select, Space, Spin, Table, Tag, Typography } from 'antd';
+import { App, Alert, Button, Checkbox, Collapse, Empty, Modal, Popover, Progress, Select, Space, Spin, Switch, Table, Tag, Typography } from 'antd';
 import { MergeCellsOutlined, ReloadOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { PageHeader, StatRow, Stat } from '../ui';
@@ -109,6 +109,11 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   const [previewLoading, setPreviewLoading] = useState(false);
 
 
+  // Выпускники и выбывшие остаются в базе со всей историей, но в рабочем
+  // списке только мешают — показываем их по требованию.
+  const [showInactive, setShowInactive] = useState(false);
+  const [allStudents, setAllStudents] = useState([]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -120,6 +125,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       ]);
       // Внешних (вписанных вручную, без тестов) в дашборде прогресса не показываем.
       setStudents(studentsData.filter((s) => !s.external));
+      setAllStudents(studentsData.filter((s) => !s.external));
       setAttempts(attemptsData);
       setWorks(worksData);
       setAchievements(achievementsData);
@@ -133,6 +139,12 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    setStudents(showInactive
+      ? allStudents
+      : allStudents.filter((s) => !s.status || s.status === 'active'));
+  }, [allStudents, showInactive]);
 
   // Предпросмотр берём с сервера (dryRun): он один знает про все связи ученика —
   // не только попытки, но и учебные программы, курсы, посещаемость.
@@ -499,6 +511,10 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
             >
               Объединить аккаунты
             </Button>
+            <Space size={4}>
+              <Switch checked={showInactive} onChange={setShowInactive} size="small" />
+              <Text type="secondary">выпускники</Text>
+            </Space>
             <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
               Обновить
             </Button>
