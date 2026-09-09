@@ -6,6 +6,7 @@ import { figureSizeVars } from '../../utils/kimImageSize';
 import {
   MM, TASK_GAP_PX, SOLUTION_GAP_MM, SOLUTION_SPACE_MM, COLUMN_GAP_MM,
   bodyFirstMm, bodyRestMm, bodyWidthMm, columnWidthMm, marginsOf,
+  isHalfSheet, minFirstCapMm, pageClassName, pageHeightMm,
   paginateByHeight, paginateFixedCount, paginateIntoColumns,
 } from './geometry';
 import './printSheet.css';
@@ -31,6 +32,7 @@ const DEFAULT_OPTIONS = {
 function VariantPages({
   variant, variantIndex, meta, headerMode, layout, options, variantLabel,
   showVariant, brand, pageOffset, onPageCount, editing, tail, columns, margins,
+  pageFormat,
 }) {
   const tasks = useMemo(
     () => (variant.tasks || []).map((t, i) => ({
@@ -63,7 +65,7 @@ function VariantPages({
   // Перемер при смене содержимого/настроек — в ключ входит ТЕКСТ, а не только id
   // (правка задачи не меняет id, но меняет высоту).
   const measureKey = useMemo(() => [
-    layout, headerMode, columns, margins,
+    layout, headerMode, columns, margins, pageFormat,
     options.answerStyle, options.solutionSpace, options.solutionFill,
     options.tasksPerPage, options.hideTaskPrefixes, options.showTaskCode,
     options.showAnswersInline, options.fontScale, options.fontFamily, options.showFooter,
@@ -73,7 +75,7 @@ function VariantPages({
     meta.showStudentFields, meta.showClassField,
     tail ? '1' : '0',
     tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || 'm'}`).join('§'),
-  ].join('¦'), [tasks, layout, headerMode, options, meta, tail]);
+  ].join('¦'), [tasks, layout, headerMode, options, meta, tail, columns, margins, pageFormat]);
 
   // Шрифты KaTeX догружаются асинхронно — после готовности меряем заново.
   useEffect(() => {
@@ -94,8 +96,11 @@ function VariantPages({
 
     const headPx = headRef.current?.offsetHeight || 0;
     const withFoot = options.showFooter !== false;
-    const firstCap = Math.max(bodyFirstMm(withFoot, margins) * MM - headPx, 40 * MM);
-    const restCap = bodyRestMm(withFoot, margins) * MM;
+    const firstCap = Math.max(
+      bodyFirstMm(withFoot, margins, pageFormat) * MM - headPx,
+      minFirstCapMm(pageFormat) * MM
+    );
+    const restCap = bodyRestMm(withFoot, margins, pageFormat) * MM;
 
     if (fitMode) {
       const tailPx = tail ? (heights.get(tailKey) || 0) : 0;
@@ -168,7 +173,7 @@ function VariantPages({
     />
   );
 
-  const colWidthMm = columnWidthMm(margins, columns);
+  const colWidthMm = columnWidthMm(margins, columns, pageFormat);
 
   const renderItem = (item, solutionMm) => (
     item.__kind === 'tail'
@@ -206,7 +211,7 @@ function VariantPages({
       </div>
 
       {list.map((page, i) => (
-        <section className="ps-page" key={`${variant.number}-p${i}`}>
+        <section className={pageClassName(pageFormat, pageOffset + i)} key={`${variant.number}-p${i}`}>
           {i === 0 ? header : (
             <div className="ps-runhead">
               <span>{meta.title}{meta.classLabel ? ` · ${meta.classLabel}` : ''}</span>
@@ -256,6 +261,8 @@ function VariantPages({
  * @param {number} columns — колонок на листе (1 или 2); раскладку считает
  *   пагинация, задачи меряются шириной колонки
  * @param {'normal'|'narrow'} margins — поля листа (см. MARGIN_PRESETS)
+ * @param {'a4'|'half'} pageFormat — 'half' печатает две страницы (варианта) на
+ *   одном листе A4: страница становится половиной высоты, лист режется поперёк
  */
 export default function PrintSheet({
   variants = [],
@@ -270,6 +277,7 @@ export default function PrintSheet({
   renderTail = null,
   columns = 1,
   margins = 'normal',
+  pageFormat = 'a4',
 }) {
   const [pageCounts, setPageCounts] = useState({});
 
@@ -302,11 +310,12 @@ export default function PrintSheet({
 
   // Геометрия листа и размер чертежей раздаются CSS-переменными: их должны
   // видеть и страницы, и measure-зона (она обязана быть шириной с колонку).
-  const m = marginsOf(margins);
+  const m = marginsOf(margins, pageFormat);
   const rootClass = [
     'ps-root',
     opts.fontFamily === 'serif' ? 'ps-root--serif' : '',
     opts.showFigures === false ? 'ps-root--nofig' : '',
+    isHalfSheet(pageFormat) ? 'ps-root--half' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -319,8 +328,9 @@ export default function PrintSheet({
         '--ps-pad-bot': `${m.bottom}mm`,
         '--ps-col-gap': `${COLUMN_GAP_MM}mm`,
         '--ps-cols': cols,
-        '--ps-body-w': `${bodyWidthMm(margins)}mm`,
-        '--ps-measure-w': `${columnWidthMm(margins, cols)}mm`,
+        '--ps-page-h': `${pageHeightMm(pageFormat)}mm`,
+        '--ps-body-w': `${bodyWidthMm(margins, pageFormat)}mm`,
+        '--ps-measure-w': `${columnWidthMm(margins, cols, pageFormat)}mm`,
         ...figureSizeVars(opts.figureSize),
       }}
     >
@@ -342,6 +352,7 @@ export default function PrintSheet({
           tail={renderTail ? renderTail(v) : null}
           columns={cols}
           margins={margins}
+          pageFormat={pageFormat}
         />
       ))}
 
@@ -356,6 +367,7 @@ export default function PrintSheet({
           brand={brand}
           pageNumber={offset + 1}
           showFooter={opts.showFooter}
+          pageClass={pageClassName(pageFormat, offset)}
         />
       )}
     </div>

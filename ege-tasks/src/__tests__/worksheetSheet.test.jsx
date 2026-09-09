@@ -8,7 +8,9 @@ import { hasFigure } from '../components/print-sheet/SheetTask';
 import { figureSizeVars } from '../utils/kimImageSize';
 import {
   paginateFixedCount, paginateIntoColumns, MM, SOLUTION_GAP_MM, SOLUTION_SPACE_MM,
-  TASK_GAP_PX, MARGIN_PRESETS, columnWidthMm, bodyWidthMm,
+  TASK_GAP_PX, MARGIN_PRESETS, HALF_MARGIN_PRESETS, columnWidthMm, bodyWidthMm,
+  bodyFirstMm, bodyRestMm, isHalfSheet, marginsOf, minFirstCapMm, pageClassName,
+  pageHeightMm, pagesPerSheet, PAGE_H_MM,
 } from '../components/print-sheet/geometry';
 
 const wrapper = ({ children }) => <App>{children}</App>;
@@ -483,5 +485,111 @@ describe('надпись «Вариант N» (meta.showVariant)', () => {
       { wrapper },
     );
     expect(two.container.querySelector('.ps-key-variant')).toBeTruthy();
+  });
+});
+
+describe('Формат «2 варианта на листе A4» — геометрия', () => {
+  it('половина листа — ровно половина A4 и две страницы на лист', () => {
+    expect(pageHeightMm('half')).toBe(PAGE_H_MM / 2);
+    expect(pagesPerSheet('half')).toBe(2);
+    expect(isHalfSheet('half')).toBe(true);
+  });
+
+  it('неизвестный формат и отсутствующий = прежний A4', () => {
+    expect(pageHeightMm()).toBe(PAGE_H_MM);
+    expect(pageHeightMm('a4')).toBe(PAGE_H_MM);
+    expect(pageHeightMm('нет такого')).toBe(PAGE_H_MM);
+    expect(isHalfSheet('a4')).toBe(false);
+  });
+
+  it('ёмкость страницы без формата считается ровно как раньше', () => {
+    const m = MARGIN_PRESETS.narrow;
+    expect(bodyFirstMm(true, 'narrow')).toBe(PAGE_H_MM - m.top - m.bottom - 8 - 3);
+    expect(bodyFirstMm(true, 'narrow')).toBe(bodyFirstMm(true, 'narrow', 'a4'));
+    expect(bodyRestMm(true, 'narrow')).toBe(bodyRestMm(true, 'narrow', 'a4'));
+  });
+
+  it('на половине листа ёмкость считается от 148,5 мм и своих полей', () => {
+    const m = HALF_MARGIN_PRESETS.narrow;
+    expect(marginsOf('narrow', 'half')).toEqual(m);
+    expect(bodyFirstMm(true, 'narrow', 'half'))
+      .toBe(PAGE_H_MM / 2 - m.top - m.bottom - 8 - 3);
+    // подвал отключён — задачам достаётся ещё 8 мм, как и на целом листе
+    expect(bodyFirstMm(false, 'narrow', 'half') - bodyFirstMm(true, 'narrow', 'half')).toBe(8);
+    expect(bodyRestMm(true, 'narrow', 'half'))
+      .toBe(bodyFirstMm(true, 'narrow', 'half') - 9);
+  });
+
+  it('ширина листа от формата не зависит — половина режется поперёк', () => {
+    expect(bodyWidthMm('narrow', 'half')).toBe(bodyWidthMm('narrow'));
+    expect(columnWidthMm('narrow', 2, 'half')).toBe(columnWidthMm('narrow', 2));
+  });
+
+  it('нижний порог ёмкости первой страницы у половины свой', () => {
+    expect(minFirstCapMm('a4')).toBe(40);
+    expect(minFirstCapMm('half')).toBeLessThan(minFirstCapMm('a4'));
+  });
+
+  it('класс страницы чередует верх и низ листа по сквозному номеру', () => {
+    expect(pageClassName('a4', 0)).toBe('ps-page');
+    expect(pageClassName('a4', 5)).toBe('ps-page');
+    expect(pageClassName('half', 0)).toContain('ps-page--half-top');
+    expect(pageClassName('half', 1)).toContain('ps-page--half-bot');
+    expect(pageClassName('half', 2)).toContain('ps-page--half-top');
+  });
+});
+
+describe('Формат «2 варианта на листе A4» — лист', () => {
+  const twoVariants = [
+    { number: 1, tasks: [task(1)] },
+    { number: 2, tasks: [task(2)] },
+  ];
+
+  it('два варианта ложатся на верх и низ одного листа', () => {
+    const { container } = render(
+      <PrintSheet variants={twoVariants} meta={meta} headerMode="compact" pageFormat="half" showAnswersPage={false} />,
+      { wrapper }
+    );
+    expect(container.querySelectorAll('.ps-page--half').length).toBe(2);
+    expect(container.querySelectorAll('.ps-page--half-top').length).toBe(1);
+    expect(container.querySelectorAll('.ps-page--half-bot').length).toBe(1);
+    const root = container.querySelector('.ps-root');
+    expect(root.classList.contains('ps-root--half')).toBe(true);
+    expect(root.style.getPropertyValue('--ps-page-h')).toBe(`${PAGE_H_MM / 2}mm`);
+    expect(root.style.getPropertyValue('--ps-pad-top')).toBe(`${HALF_MARGIN_PRESETS.normal.top}mm`);
+  });
+
+  it('лист ответов продолжает ту же нумерацию половинок', () => {
+    const { container } = render(
+      <PrintSheet variants={twoVariants} meta={meta} headerMode="compact" pageFormat="half" showAnswersPage />,
+      { wrapper }
+    );
+    const key = container.querySelector('.ps-page--key');
+    // варианты заняли половинки 0 и 1 → ключ начинает следующий лист сверху
+    expect(key.classList.contains('ps-page--half-top')).toBe(true);
+  });
+
+  it('без формата всё как раньше: обычные листы A4, метки половинок нет', () => {
+    const { container } = render(
+      <PrintSheet variants={twoVariants} meta={meta} headerMode="compact" showAnswersPage />,
+      { wrapper }
+    );
+    expect(container.querySelector('.ps-page--half')).toBeNull();
+    expect(container.querySelector('.ps-root--half')).toBeNull();
+    expect(container.querySelectorAll('.ps-page').length).toBe(3);
+    const root = container.querySelector('.ps-root');
+    expect(root.style.getPropertyValue('--ps-pad-top')).toBe(`${MARGIN_PRESETS.normal.top}mm`);
+  });
+
+  it('CSS печати рвёт лист после каждой второй половины, а последнюю не рвёт', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/components/print-sheet/printSheet.css'), 'utf-8'
+    );
+    const print = css.slice(css.lastIndexOf('@media print'));
+    // 148 + 148 = 296 при печатной высоте 297 — вторая половина остаётся на листе
+    expect(print).toMatch(/\.ps-page--half\s*\{[^}]*min-height:\s*148mm/);
+    expect(print).toMatch(/\.ps-page--half-bot\s*\{[^}]*break-after:\s*page/);
+    // правило последней страницы идёт ПОСЛЕ — иначе лишний пустой лист в конце
+    expect(print.indexOf('.ps-page--half-bot')).toBeLessThan(print.indexOf('.ps-page:last-of-type'));
   });
 });

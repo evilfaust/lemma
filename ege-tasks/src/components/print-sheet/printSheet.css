@@ -99,6 +99,32 @@
   box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
 }
 
+/* ── Формат «2 варианта на листе A4» ─────────────────────────────────────── */
+/* Страница = половина A4 (A5 альбомный, 210×148,5). Высота продублирована в
+   geometry.js (PAGE_FORMATS.half) — пагинация считает ёмкость по ней. */
+.ps-page--half {
+  min-height: 148.5mm;
+}
+
+/* Линия отреза под верхней половиной листа. Рисуется в нижнем поле страницы,
+   поэтому в содержимое не лезет; ::after у .ps-page (position: relative). */
+.ps-page--half-top::after {
+  content: '';
+  position: absolute;
+  left: 6mm;
+  right: 6mm;
+  bottom: 0;
+  border-top: 0.2pt dashed var(--ps-hair);
+}
+
+/* На экране половины одного листа стоят вплотную (минус `gap` у .ps-root) —
+   учитель видит будущий A4 целиком, а не два оторванных куска. Тень у верхней
+   половины убрана: она падала бы на нижнюю и выдавала стык. */
+.ps-root--half .ps-page--half-top {
+  margin-bottom: -16px;
+  box-shadow: none;
+}
+
 .ps-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -758,6 +784,22 @@
     margin: 0 auto;
     border: 0;
     box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  /* Половина листа. 148mm × 2 = 296mm при печатной высоте 297: доля
+     миллиметра от округлений выдавила бы вторую половину на новый лист.
+     Разрыв ставится ПОСЛЕ каждой второй половины — её знает pageClassName()
+     по сквозному номеру страницы, поэтому вариант, занявший одну половину, не
+     гонит следующий на чистый лист. */
+  .ps-page--half {
+    min-height: 148mm;
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+
+  .ps-page--half-bot {
     break-after: page;
     page-break-after: always;
   }

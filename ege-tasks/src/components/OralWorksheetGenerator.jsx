@@ -59,6 +59,10 @@ const TaskSheetGenerator = () => {
   const [headerMode, setHeaderMode] = useState('compact');
   const [columns, setColumns] = useState(1);
   const [margins, setMargins] = useState('narrow');
+  // Формат печатной страницы: 'a4' — лист целиком, 'half' — половина A4 (две
+  // на листе, режется поперёк). Половина хорошо живёт только с компактной
+  // шапкой, поэтому переключение формата её и ставит — см. handleFormatChange.
+  const [pageFormat, setPageFormat] = useState('a4');
   const [figureSize, setFigureSize] = useState('m');
   const [showFigures, setShowFigures] = useState(true);
   const [sheetMeta, setSheetMeta] = useState({
@@ -82,6 +86,14 @@ const TaskSheetGenerator = () => {
   const handleColumnsChange = (value) => {
     setColumns(value);
     if (value > 1 && solutionSpace === 'fit') setSolutionSpace('none');
+  };
+
+  // Полная шапка (надзаголовок, инструкция, доп. блок) занимает ~45 мм — треть
+  // половинки. Переключаясь на «2 на листе», ставим компактную; обратно шапку
+  // не возвращаем — вернуть её на A4 учитель может сам.
+  const handlePageFormatChange = (value) => {
+    setPageFormat(value);
+    if (value === 'half' && headerMode === 'full') setHeaderMode('compact');
   };
 
   // Размер чертежа у одной задачи (кнопка на карточке в превью) — пишется в
@@ -373,7 +385,8 @@ const TaskSheetGenerator = () => {
     fit: `${tasksPerPage} на лист`,
   }[solutionSpace] || 'компактно';
   const colLabel = columns > 1 ? ` · ${columns} колонки` : '';
-  const sheetSummary = `A4${margins === 'narrow' ? ' узкие поля' : ''}${colLabel} · ${spaceLabel}`;
+  const formatLabel = pageFormat === 'half' ? 'A5 · 2 варианта на листе A4' : 'A4';
+  const sheetSummary = `${formatLabel}${margins === 'narrow' ? ' узкие поля' : ''}${colLabel} · ${spaceLabel}`;
 
   return (
     <div className="task-worksheet-container">
@@ -448,6 +461,8 @@ const TaskSheetGenerator = () => {
             setColumns={handleColumnsChange}
             margins={margins}
             setMargins={setMargins}
+            pageFormat={pageFormat}
+            setPageFormat={handlePageFormatChange}
             figureSize={figureSize}
             setFigureSize={setFigureSize}
             showFigures={showFigures}
@@ -533,6 +548,7 @@ const TaskSheetGenerator = () => {
         workTitle={workTitle}
         columns={columns}
         margins={margins}
+        pageFormat={pageFormat}
         figureSize={figureSize}
         showFigures={showFigures}
         headerMode={headerMode}

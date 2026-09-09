@@ -9,6 +9,7 @@ export default function WorksheetPreview({
   // sheet
   columns,
   margins,
+  pageFormat,
   figureSize,
   showFigures,
   headerMode,
@@ -55,6 +56,7 @@ export default function WorksheetPreview({
           layout="workbook"
           columns={columns}
           margins={margins}
+          pageFormat={pageFormat}
           showAnswersPage={showAnswersPage}
           meta={{
             ...sheetMeta,

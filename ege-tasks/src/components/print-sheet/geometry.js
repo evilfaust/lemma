@@ -15,6 +15,35 @@ export const FOOT_MM   = 8;   // подвал на каждой странице
 const SAFETY_MM  = 3;         // запас на округления печати
 
 /**
+ * Форматы печатной страницы. `a4` — лист целиком (как было всегда), `half` —
+ * половина A4 (A5 альбомный, 210×148,5): две такие половины печатаются на
+ * одном листе, режутся поперёк и раздаются как два отдельных варианта.
+ *
+ * Формат меняет ТОЛЬКО высоту страницы: ширина, поля по бокам, колонки,
+ * пагинация и измерение задач работают ровно так же.
+ */
+export const PAGE_FORMATS = {
+  a4:   { heightMm: PAGE_H_MM,     perSheet: 1 },
+  half: { heightMm: PAGE_H_MM / 2, perSheet: 2 },
+};
+
+export const PAGE_FORMAT_OPTIONS = [
+  { label: 'A4',        value: 'a4' },
+  { label: '2 на листе', value: 'half' },
+];
+
+const formatOf = (format) => PAGE_FORMATS[format] || PAGE_FORMATS.a4;
+
+/** Высота одной печатной страницы, мм. */
+export const pageHeightMm = (format) => formatOf(format).heightMm;
+
+/** Сколько страниц движка ложится на один физический лист A4. */
+export const pagesPerSheet = (format) => formatOf(format).perSheet;
+
+/** Половинный формат — две страницы на листе. */
+export const isHalfSheet = (format) => pagesPerSheet(format) === 2;
+
+/**
  * Поля листа. `normal` — канон входной контрольной (14/12/8 мм). `narrow`
  * отдаёт под задачи ещё 12 мм по ширине и 6 мм по высоте: для компактного
  * листа задач это заметно, а обычные принтеры печатают от 5 мм.
@@ -24,12 +53,37 @@ export const MARGIN_PRESETS = {
   narrow: { x: 8,  top: 8,  bottom: 6 },
 };
 
+/**
+ * На половине листа вертикальные поля A4 (12/8) съели бы восьмую часть высоты,
+ * поэтому сверху-снизу режем их вдвое. По горизонтали половина — тот же A4,
+ * так что `x` общий: ширина колонки и измерение задач от формата не зависят.
+ */
+export const HALF_MARGIN_PRESETS = {
+  normal: { x: 14, top: 7, bottom: 5 },
+  narrow: { x: 8,  top: 5, bottom: 4 },
+};
+
 export const MARGIN_OPTIONS = [
   { label: 'Обычные', value: 'normal' },
   { label: 'Узкие',   value: 'narrow' },
 ];
 
-export const marginsOf = (key) => MARGIN_PRESETS[key] || MARGIN_PRESETS.normal;
+export const marginsOf = (key, format = 'a4') => {
+  const presets = isHalfSheet(format) ? HALF_MARGIN_PRESETS : MARGIN_PRESETS;
+  return presets[key] || presets.normal;
+};
+
+/**
+ * Класс печатной страницы. В половинном формате помечает, верх это листа A4
+ * или низ: по этой метке CSS рвёт страницу после каждой ВТОРОЙ половины и
+ * рисует линию отреза. Индекс — сквозной по всем вариантам, поэтому вариант,
+ * занявший одну половину, не гонит следующий на новый лист.
+ */
+export const pageClassName = (format, globalIndex = 0) => {
+  if (!isHalfSheet(format)) return 'ps-page';
+  const slot = globalIndex % 2 === 0 ? 'top' : 'bot';
+  return `ps-page ps-page--half ps-page--half-${slot}`;
+};
 
 /** Зазор между колонками в двухколоночной вёрстке. */
 export const COLUMN_GAP_MM = 8;
@@ -44,13 +98,14 @@ export const NUM_COL_MM = 10;
 export const SOLUTION_GAP_MM = 2.6;
 
 /** Ширина контентной зоны листа при заданных полях. */
-export const bodyWidthMm = (marginsKey) => PAGE_W_MM - 2 * marginsOf(marginsKey).x;
+export const bodyWidthMm = (marginsKey, format = 'a4') =>
+  PAGE_W_MM - 2 * marginsOf(marginsKey, format).x;
 
 /** Ширина одной колонки (в двухколоночной вёрстке — с учётом зазора). */
-export const columnWidthMm = (marginsKey, columns = 1) =>
+export const columnWidthMm = (marginsKey, columns = 1, format = 'a4') =>
   columns > 1
-    ? (bodyWidthMm(marginsKey) - COLUMN_GAP_MM * (columns - 1)) / columns
-    : bodyWidthMm(marginsKey);
+    ? (bodyWidthMm(marginsKey, format) - COLUMN_GAP_MM * (columns - 1)) / columns
+    : bodyWidthMm(marginsKey, format);
 
 /** Ширина контентной зоны при обычных полях. Оставлена ради старых импортов. */
 export const BODY_W_MM = PAGE_W_MM - 2 * MARGIN_PRESETS.normal.x;   // 182
@@ -63,15 +118,22 @@ export const TASK_GAP_PX = TASK_GAP_MM * MM;
  * Ёмкость страницы зависит от того, печатается ли подвал: без него задачам
  * достаётся ещё 8 мм, и пагинация обязана это учесть.
  */
-export const bodyRestMm = (withFoot, marginsKey) => {
-  const m = marginsOf(marginsKey);
-  return PAGE_H_MM - m.top - m.bottom - HEAD_MM - (withFoot ? FOOT_MM : 0) - SAFETY_MM;
+export const bodyRestMm = (withFoot, marginsKey, format = 'a4') => {
+  const m = marginsOf(marginsKey, format);
+  return pageHeightMm(format) - m.top - m.bottom - HEAD_MM - (withFoot ? FOOT_MM : 0) - SAFETY_MM;
 };
 
-export const bodyFirstMm = (withFoot, marginsKey) => {
-  const m = marginsOf(marginsKey);
-  return PAGE_H_MM - m.top - m.bottom - (withFoot ? FOOT_MM : 0) - SAFETY_MM;
+export const bodyFirstMm = (withFoot, marginsKey, format = 'a4') => {
+  const m = marginsOf(marginsKey, format);
+  return pageHeightMm(format) - m.top - m.bottom - (withFoot ? FOOT_MM : 0) - SAFETY_MM;
 };
+
+/**
+ * Нижний предел ёмкости первой страницы. Страховка от отрицательной ёмкости,
+ * когда полная шапка выше самой страницы: на половине листа порог свой, иначе
+ * он сам же и выдавил бы задачи за край половинки.
+ */
+export const minFirstCapMm = (format) => (isHalfSheet(format) ? 20 : 40);
 
 /** Высота зоны решения (режим «место для решения»), мм. */
 export const SOLUTION_SPACE_MM = {

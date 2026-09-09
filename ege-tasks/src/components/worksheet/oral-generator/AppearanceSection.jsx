@@ -2,7 +2,7 @@ import { Collapse, Segmented, Switch, Input, InputNumber, Space, Typography, Div
 import { BgColorsOutlined } from '@ant-design/icons';
 import { getCryptogramLetterCount } from '../../../utils/cryptogram';
 import { KIM_IMAGE_SIZE_OPTIONS } from '../../../utils/kimImageSize';
-import { SOLUTION_SPACE_OPTIONS, SOLUTION_FILL_OPTIONS, MARGIN_OPTIONS } from '../../print-sheet/geometry';
+import { SOLUTION_SPACE_OPTIONS, SOLUTION_FILL_OPTIONS, MARGIN_OPTIONS, PAGE_FORMAT_OPTIONS } from '../../print-sheet/geometry';
 
 const { Text } = Typography;
 
@@ -69,6 +69,8 @@ export default function AppearanceSection({
   setColumns,
   margins,
   setMargins,
+  pageFormat,
+  setPageFormat,
   figureSize,
   setFigureSize,
   showFigures,
@@ -122,6 +124,7 @@ export default function AppearanceSection({
   setShowCardStudentInfo,
 }) {
   const lettersCount = getCryptogramLetterCount(cryptogramPhrase);
+  const halfSheet = pageFormat === 'half';
   // Тумблер показывает фактическое состояние листа: пока учитель его не трогал
   // (null), надпись живёт по авто-правилу движка — «вариантов больше одного».
   const variantVisible = showVariantLabel != null ? showVariantLabel : variantsCount > 1;
@@ -132,11 +135,18 @@ export default function AppearanceSection({
         type="info"
         showIcon={false}
         style={{ marginBottom: 12, fontSize: 12 }}
-        message="Лист монохромный и считает страницы по реальной высоте задач — что видно в превью, то и напечатается. Формат A4."
+        message={halfSheet
+          ? 'Печатается на A4 по два варианта на лист: каждая страница — половинка A5, между ними линия отреза. Считается по реальной высоте задач — что видно в превью, то и напечатается.'
+          : 'Лист монохромный и считает страницы по реальной высоте задач — что видно в превью, то и напечатается. Формат A4.'}
       />
 
       <Subtitle>Лист</Subtitle>
       <Space wrap size={[16, 10]} style={{ width: '100%', marginTop: 6 }}>
+        <Field label="Формат">
+          <Tooltip title="«2 на листе» — страница становится половиной A4 (A5 альбомный). Два коротких варианта печатаются на одном листе, лист режется поперёк по пунктиру. Длинный вариант просто займёт две половинки.">
+            <Segmented size="small" value={pageFormat} onChange={setPageFormat} options={PAGE_FORMAT_OPTIONS} />
+          </Tooltip>
+        </Field>
         <Field label="Колонки">
           <Tooltip title="Две колонки — для коротких задач (устный счёт, вычисления). Задачи меряются шириной колонки, поэтому длинные условия с чертежами лучше печатать в одну.">
             <Segmented size="small" value={columns} onChange={setColumns} options={COLUMN_OPTIONS} />
@@ -256,7 +266,9 @@ export default function AppearanceSection({
       <Subtitle>Шапка и колонтитул</Subtitle>
       <Space wrap size={[16, 10]} style={{ width: '100%', marginTop: 6 }}>
         <Field label="Вид">
-          <Segmented size="small" value={headerMode} onChange={setHeaderMode} options={HEADER_OPTIONS} />
+          <Tooltip title={halfSheet ? 'На половине листа полная шапка съедает треть высоты — задач поместится 2–3.' : ''}>
+            <Segmented size="small" value={headerMode} onChange={setHeaderMode} options={HEADER_OPTIONS} />
+          </Tooltip>
         </Field>
         <Field label="Заголовок">
           <Input

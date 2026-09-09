@@ -1,11 +1,17 @@
 import MathRenderer from '../MathRenderer';
 
-/** Лист ответов для учителя — общий для всех вариантов, всегда последним. */
+/**
+ * Лист ответов для учителя — общий для всех вариантов, всегда последним.
+ *
+ * `pageClass` приходит снаружи: в формате «2 на листе» ключ — такая же половина
+ * A4, как страницы вариантов, и её место в паре считает общая нумерация.
+ */
 export default function AnswerKeyPage({
   variants, variantLabel, meta, brand, pageNumber, showFooter, showVariantTitle = true,
+  pageClass = 'ps-page',
 }) {
   return (
-    <section className="ps-page ps-page--key">
+    <section className={`${pageClass} ps-page--key`}>
       <div className="ps-runhead">
         <span>{meta.title}{meta.classLabel ? ` · ${meta.classLabel}` : ''}</span>
         <span>Для учителя</span>
