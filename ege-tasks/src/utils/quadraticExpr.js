@@ -49,6 +49,12 @@ function coefTexS(s, suffix, prefer) {
   return isZero(s.p) ? `${body}${suffix}` : `\\left(${body}\\right)${suffix}`;
 }
 
+// Множитель произведения: со свободным членом — в скобках, одночлен — без них
+function factorTex(l, varTex, prefer) {
+  const body = linTex(l, varTex, prefer);
+  return sIsZero(l.b) ? body : `\\left(${body}\\right)`;
+}
+
 function linTex(l, varTex, prefer) {
   const head = coefTexS(l.a, varTex, prefer);
   if (sIsZero(l.b)) return head;
@@ -74,8 +80,9 @@ export function renderQNode(node, varTex) {
     case 'x4':   return coefTexS(node.s, `${varTex}^4`, p);
     case 'sq':   return `${scaleTex(node.s, p)}\\left(${linTex(node.l, varTex, p)}\\right)^2`;
     case 'prod':
-      return `${scaleTex(node.s, p)}\\left(${linTex(node.l1, varTex, p)}\\right)`
-           + `\\left(${linTex(node.l2, varTex, p)}\\right)`;
+      // «x(x + 4)» читается привычнее, чем «(x)(x + 4)»: одночлен без
+      // свободного члена в скобках не нуждается
+      return `${scaleTex(node.s, p)}${factorTex(node.l1, varTex, p)}${factorTex(node.l2, varTex, p)}`;
     case 'inv':  return `\\dfrac{${sTex(node.s, p)}}{${varTex}}`;
     default:     return '';
   }

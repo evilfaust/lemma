@@ -1,6 +1,6 @@
 import React from 'react';
 import katex from 'katex';
-import { sheetOptions, sheetSpacingStyle } from './sheetOptions';
+import { sheetOptions, sheetSpacingStyle, keyAnswerLatex } from './sheetOptions';
 import './TrigExprPrintLayout.css';
 
 const LABELS = Array.from({ length: 20 }, (_, i) => String(i + 1));
@@ -96,7 +96,7 @@ function StudentPage({ variant, variantIndex, title, mode, instruction, question
 }
 
 // ─── Страница ответов для учителя ─────────────────────────────────────────────
-function TeacherKeyPage({ tasksData, title, questionMode }) {
+function TeacherKeyPage({ tasksData, title, questionMode, opts }) {
   return (
     <div className="texpr-page texpr-key-page">
       <div className="texpr-key-header">{title} — Ответы (для учителя)</div>
@@ -112,7 +112,7 @@ function TeacherKeyPage({ tasksData, title, questionMode }) {
                 </span>
                 <span className="texpr-key-eq">{questionMode === 'twoLine' ? 't =' : '='}</span>
                 <span className="texpr-key-ans">
-                  <MathLine latex={`\\color{#c0392b}{${q.resultLatex}}`} />
+                  <MathLine latex={keyAnswerLatex(q.resultLatex, opts)} />
                 </span>
               </div>
             ))}
@@ -180,7 +180,7 @@ export default function TrigExprPrintLayout({
     <div className="texpr-print-root" style={sheetSpacingStyle(opts.lineSpacing)}>
       {pages}
       {showTeacherKey && (
-        <TeacherKeyPage tasksData={tasksData} title={title} questionMode={qMode} />
+        <TeacherKeyPage tasksData={tasksData} title={title} questionMode={qMode} opts={opts} />
       )}
     </div>
   );

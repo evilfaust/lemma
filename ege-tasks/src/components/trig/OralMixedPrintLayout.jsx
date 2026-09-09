@@ -1,6 +1,6 @@
 import React from 'react';
 import { MathInline } from '../shared/MathInline';
-import { sheetOptions, sheetSpacingStyle } from './sheetOptions';
+import { sheetOptions, sheetSpacingStyle, keyAnswerLatex } from './sheetOptions';
 import { GRID_MODES, variantsPerPage } from './OralCountingPrintLayout';
 import './OralCountingPrintLayout.css';
 import './OralMixedPrintLayout.css';
@@ -78,7 +78,7 @@ function VariantPage({ variant, title, mode, showSectionHeaders, columnsCount, o
   );
 }
 
-function TeacherKeyPage({ variants, title }) {
+function TeacherKeyPage({ variants, title, opts }) {
   return (
     <div className="oral-key-page">
       <div className="oral-key-header">{title} — Ответы (для учителя)</div>
@@ -103,7 +103,7 @@ function TeacherKeyPage({ variants, title }) {
                           {sectionPrompt(sec) === 'eq' && '='}
                         </span>
                         <span className="oral-key-ans">
-                          <MathInline latex={`\\color{#c0392b}{${q.resultLatex}}`} />
+                          <MathInline latex={keyAnswerLatex(q.resultLatex, opts)} />
                         </span>
                       </div>
                     );
@@ -181,7 +181,7 @@ export default function OralMixedPrintLayout({
   const inner = (
     <>
       {pages}
-      {showTeacherKey && <TeacherKeyPage variants={variants} title={title} />}
+      {showTeacherKey && <TeacherKeyPage variants={variants} title={title} opts={opts} />}
     </>
   );
 

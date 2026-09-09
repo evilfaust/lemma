@@ -59,6 +59,8 @@ function toJs(tex, varName, xValue) {
   e = e
     .replace(new RegExp(`([\\d)])(?=${varName})`, 'g'), '$1*')
     .replace(/([\d)])(?=\()/g, '$1*')
+    // «x(x + 4)» — переменная перед скобкой; буква внутри «sqrt(» не в счёт
+    .replace(new RegExp(`(?<![A-Za-z.])(${varName})(?=\\()`, 'g'), '$1*')
     .replace(/Math\*\(/g, 'Math(');
   e = e.replace(new RegExp(`(?<!Math\\.[a-z]*)${varName}`, 'g'), `(${xValue})`);
   // JS запрещает унарный минус перед ** — «-x²» после подстановки станет «-(-3)**2»
@@ -192,6 +194,43 @@ describe('генератор квадратных уравнений', () => {
             `${cat}: ${q.exprLatex} → ${q.resultLatex}`).toBeLessThan(1e-9);
         });
       }
+    }
+  });
+
+  it('устные категории с дробями считаются в уме', () => {
+    // x² = 9/25 → ±3/5: справа дробь, ответ — тоже обыкновенная дробь
+    for (const q of onlyCategory('pureSquareFrac', 40)) {
+      expect(q.exprLatex, q.exprLatex).toMatch(/\\dfrac\{\d+\}\{\d+\}/);
+      expect(q.resultLatex, q.resultLatex).toMatch(/\\pm \\dfrac\{\d+\}\{\d+\}/);
+      // числитель и знаменатель — квадраты из таблицы умножения
+      const [, n, d] = q.exprLatex.match(/\\dfrac\{(\d+)\}\{(\d+)\}/);
+      expect(Number.isInteger(Math.sqrt(+n)), q.exprLatex).toBe(true);
+      expect(Number.isInteger(Math.sqrt(+d)), q.exprLatex).toBe(true);
+    }
+
+    // x² = 0,25 → ±0,5: ответ в той же записи, что условие, а не «±½»
+    for (const q of onlyCategory('pureSquareDecimal', 40)) {
+      expect(q.exprLatex, q.exprLatex).toMatch(/\{,\}/);
+      expect(q.resultLatex, q.resultLatex).toMatch(/^\\pm \d+\{,\}\d+$/);
+      expect(q.resultLatex, q.resultLatex).not.toContain('dfrac');
+    }
+
+    // 4x² = 9 → ±3/2: дробь несократима, иначе корень оказался бы целым
+    for (const q of onlyCategory('squareRatio', 40)) {
+      expect(q.resultLatex, q.exprLatex).toContain('dfrac');
+      const [, a, b] = q.exprLatex.match(/^(\d+)x\^2 = (\d+)$/);
+      expect(Number.isInteger(Math.sqrt(+a)), q.exprLatex).toBe(true);
+      expect(Number.isInteger(Math.sqrt(+b)), q.exprLatex).toBe(true);
+    }
+  });
+
+  it('множитель-одночлен печатается без скобок: x(x − 3) = 0', () => {
+    const withZero = onlyCategory('productZero', 120)
+      .filter(q => q.solution.roots.some(r => r === 0));
+    expect(withZero.length).toBeGreaterThan(0);
+    for (const q of withZero) {
+      expect(q.exprLatex, q.exprLatex).toMatch(/^x\\left\(/);
+      expect(q.exprLatex, q.exprLatex).not.toContain('\\left(x\\right)');
     }
   });
 

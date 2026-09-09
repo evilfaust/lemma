@@ -16,7 +16,7 @@ import { useState, useCallback } from 'react';
  */
 
 import {
-  rat, R1, negR, toNum, rand, randInt, chance, coprimeNumerators,
+  rat, R1, negR, toNum, rand, randInt, chance, coprimeNumerators, gcd,
 } from '../utils/linearExpr';
 import {
   sr, sRat, sInt, sRad, S0, S1, sIsRat, sIsZero, sNum, sSub, sMul, sNeg,
@@ -144,6 +144,98 @@ function genBinomSquareZero(P) {
     left: [qsq(sInt(k), lin(sInt(a), sInt(b)))],
     right: [qn(S0)],
     roots: [sRat(rat(-b, a))],
+  };
+}
+
+// x² = 1/4 — дробь справа, корень тоже дробный (устно: корень из числителя
+// и из знаменателя). Числа держим в таблице умножения: 1/4, 4/9, 9/25.
+function genPureSquareFrac(P) {
+  const d = rand([...P.dens, 5, 10]);
+  const n = rand(coprimeNumerators(d));
+  // изредка неправильная дробь — 9/4 читается так же легко, как 4/9, но её
+  // числитель не должен вылезать из таблицы квадратов (13² уже не устный)
+  const num = chance(0.25) && d <= 5 ? n + d : n;
+  const root = rat(num, d);
+  return {
+    left: [qx2(S1)],
+    right: [qn(sRat(rat(num * num, d * d)))],
+    roots: [sRat(negR(root)), sRat(root)],
+  };
+}
+
+// x² = 0,25 — десятичная справа; ответ печатаем тоже десятичным
+function genPureSquareDecimal() {
+  // корень — «круглая» десятичная дробь, её квадрат остаётся коротким
+  const root = rand([
+    rat(1, 10), rat(1, 5), rat(3, 10), rat(2, 5), rat(1, 2),
+    rat(3, 5), rat(7, 10), rat(4, 5), rat(9, 10),
+    rat(11, 10), rat(6, 5), rat(3, 2), rat(5, 2),
+  ]);
+  const sq = rat(root.n * root.n, root.d * root.d);
+  return {
+    left: [qx2(S1)],
+    right: [qn(sRat(sq), 'dec')],
+    roots: [sRat(negR(root)), sRat(root)],
+    answerPrefer: 'dec',
+  };
+}
+
+// 4x² = 9 — обе части точные квадраты, корень дробный: разделить и извлечь.
+// Общий множитель («8x² = 50») сюда не берём: деление 50 : 8 из устного счёта
+// уже выпадает, а приём остаётся тот же.
+function genSquareRatio() {
+  const a = rand([2, 2, 3, 3, 4, 5]);          // коэффициент при x² — это a²
+  // дробь b/a обязана быть несократимой: «16x² = 36» — то же самое, что
+  // «4x² = 9», только числа крупнее, а корень у него вообще целый
+  const b = rand([1, 2, 3, 4, 5, 6].filter(v => v !== a && gcd(v, a) === 1));
+  if (b === undefined) return null;
+  const root = rat(b, a);
+  return {
+    left: [qx2(sInt(a * a))],
+    right: [qn(sInt(b * b))],
+    roots: [sRat(negR(root)), sRat(root)],
+  };
+}
+
+// x² + 4 = 13 — сначала перенести число, потом взять корень
+function genShiftedSquare(P) {
+  const r = rand(P.roots);
+  // слагаемое держим в пределах двух десятков: «x² + 43 = 68» устно уже не про
+  // корень, а про вычитание в столбик
+  const c = randInt(1, Math.min(20, Math.max(4, P.konst / 2)));
+  const sq = r * r;
+  if (sq > 200) return null;
+  // «x² − 4 = 5» и «x² + 4 = 13» — один приём, разные знаки
+  if (chance(0.5)) return { left: [qx2(S1), qn(sInt(-c))], right: [qn(sInt(sq - c))], roots: [sInt(-r), sInt(r)] };
+  return { left: [qx2(S1), qn(sInt(c))], right: [qn(sInt(sq + c))], roots: [sInt(-r), sInt(r)] };
+}
+
+// 9 − x² = 0 — минус перед квадратом: знак сбивает, счёт остаётся устным
+function genNegSquare(P) {
+  const r = rand(P.roots);
+  const sq = r * r;
+  if (sq > 200) return null;
+  const roots = [sInt(-r), sInt(r)];
+  if (chance(0.35)) {                          // 20 − x² = 4
+    const c = randInt(1, Math.max(3, P.konst / 3));
+    return { left: [qn(sInt(sq + c)), qx2(sInt(-1))], right: [qn(sInt(c))], roots };
+  }
+  return { left: [qn(sInt(sq)), qx2(sInt(-1))], right: [qn(S0)], roots };
+}
+
+// (x − 2)(x + 5) = 0 — произведение равно нулю: корни видно сразу
+function genProductZero(P) {
+  // x(x − 3) = 0 — тот же приём с нулевым корнем; множитель «x» ставим первым,
+  // иначе выходит «(x − 3)x = 0»
+  const zeroFirst = chance(0.25);
+  const r1 = zeroFirst ? 0 : signed(rand(P.roots));
+  const r2 = signed(rand(P.roots));
+  if (r1 === r2) return null;
+  const roots = [sInt(r1), sInt(r2)].sort(sCompare);
+  return {
+    left: [qprod(S1, lin(S1, sInt(-r1)), lin(S1, sInt(-r2)))],
+    right: [qn(S0)],
+    roots,
   };
 }
 
@@ -503,6 +595,12 @@ const GENERATORS = {
   pureSquare:        genPureSquare,
   zeroRoot:          genZeroRoot,
   scaledSquare:      genScaledSquare,
+  pureSquareFrac:    genPureSquareFrac,
+  pureSquareDecimal: genPureSquareDecimal,
+  squareRatio:       genSquareRatio,
+  shiftedSquare:     genShiftedSquare,
+  negSquare:         genNegSquare,
+  productZero:       genProductZero,
   pureSquareIrr:     genPureSquareIrr,
   pureNegative:      genPureNegative,
   sumPositive:       genSumPositive,
@@ -551,6 +649,12 @@ export const CATEGORY_LABELS_QUAD = {
   pureSquare:        'Чистый квадрат: x² = 49',
   zeroRoot:          'Единственный корень 0: 7x² = 0',
   scaledSquare:      'С коэффициентом: 2x² = 18',
+  pureSquareFrac:    'Дробь справа: x² = ¼',
+  pureSquareDecimal: 'Десятичная справа: x² = 0,25',
+  squareRatio:       'Дробный корень: 4x² = 9',
+  shiftedSquare:     'Сначала перенести: x² + 4 = 13',
+  negSquare:         'Минус перед квадратом: 9 − x² = 0',
+  productZero:       'Произведение равно нулю: (x − 2)(x + 5) = 0',
   pureSquareIrr:     'Иррациональный ответ: x² = 7',
   pureNegative:      'Нет корней: x² = −7',
   sumPositive:       'Нет корней: x² + 2 = 0',
@@ -599,7 +703,9 @@ export const CATEGORY_LABELS_QUAD = {
 export const CATEGORY_GROUPS_QUAD = [
   {
     label: 'Блок 1. Простейшие (устно)',
-    keys: ['pureSquare', 'zeroRoot', 'scaledSquare', 'pureSquareIrr', 'pureNegative',
+    keys: ['pureSquare', 'zeroRoot', 'scaledSquare', 'pureSquareFrac', 'pureSquareDecimal',
+           'squareRatio', 'shiftedSquare', 'negSquare', 'productZero',
+           'pureSquareIrr', 'pureNegative',
            'sumPositive', 'noBx', 'noC', 'binomSquare', 'binomSquareZero', 'perfectSquare'],
   },
   {
@@ -669,36 +775,45 @@ export const DEFAULT_SETTINGS_QUAD = {
 };
 
 // ─── Ответ ───────────────────────────────────────────────────────────────────
-const rootTex = (r) => sTex(r);
+const rootTex = (r, prefer = 'frac') => sTex(r, prefer);
 
 // Симметричный набор корней (±a, ±b) печатается короче: «±1; ±2»
-function symmetricTex(roots) {
+function symmetricTex(roots, prefer) {
   if (roots.length < 2 || roots.length % 2 !== 0) return null;
   const positive = roots.filter(r => sNum(r) > 0);
   if (positive.length * 2 !== roots.length) return null;
   for (const r of positive) {
     if (!roots.some(other => sEq(other, sNeg(r)))) return null;
   }
-  return positive.sort(sCompare).map(r => `\\pm ${rootTex(r)}`).join(';\\ ');
+  return positive.sort(sCompare).map(r => `\\pm ${rootTex(r, prefer)}`).join(';\\ ');
 }
 
-export function answerTex(roots, { varTex = 'x', style = 'list', usePm = true } = {}) {
+/**
+ * `prefer` — как печатать дробный ответ: обыкновенной дробью или десятичной.
+ * Десятичная нужна там, где и условие десятичное («x² = 0,25 → ±0,5»): ответ
+ * в другой записи выглядит ошибкой проверки.
+ */
+export function answerTex(roots, {
+  varTex = 'x', style = 'list', usePm = true, prefer = 'frac',
+} = {}) {
   if (roots.length === 0) return '\\varnothing';
   if (roots.length === 1) {
-    return style === 'indexed' ? `${varTex} = ${rootTex(roots[0])}` : rootTex(roots[0]);
+    return style === 'indexed'
+      ? `${varTex} = ${rootTex(roots[0], prefer)}`
+      : rootTex(roots[0], prefer);
   }
   if (style !== 'indexed') {
     if (usePm) {
-      const sym = symmetricTex(roots);
+      const sym = symmetricTex(roots, prefer);
       if (sym) return sym;
     }
     if (roots.length === 2) {
       const pair = sPairTex(roots[0], roots[1]);
       if (pair) return pair;
     }
-    return roots.map(rootTex).join(';\\ ');
+    return roots.map(r => rootTex(r, prefer)).join(';\\ ');
   }
-  return roots.map((r, i) => `${varTex}_{${i + 1}} = ${rootTex(r)}`).join(',\\ ');
+  return roots.map((r, i) => `${varTex}_{${i + 1}} = ${rootTex(r, prefer)}`).join(',\\ ');
 }
 
 // ─── Проверка задания ────────────────────────────────────────────────────────
@@ -812,6 +927,7 @@ function buildQuestion(cat, varTex, opts) {
     exprLatex: exprBase,
     resultLatex: answerTex(roots, {
       varTex, style: opts.answerStyle, usePm: opts.usePm,
+      prefer: built.answerPrefer,
     }),
     varLatex: varTex,
     // Численные корни пригодятся для проверки ответа и разбора ошибок

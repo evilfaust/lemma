@@ -1,7 +1,7 @@
 import React from 'react';
 import katex from 'katex';
 import TrigValuesSVG from './TrigValuesSVG';
-import { sheetOptions } from './sheetOptions';
+import { sheetOptions, keyAnswerLatex } from './sheetOptions';
 import './TrigValuesPrintLayout.css';
 
 function MathCell({ latex }) {
@@ -110,6 +110,7 @@ function StudentPage({ variant, variantIndex, settings, title }) {
 // ─── Страница(ы) ответов учителя ─────────────────────────────────────────────
 function TeacherKeyPage({ tasksData, settings, title }) {
   const { showSin, showCos, showTan, showCot } = settings;
+  const opts = sheetOptions(settings);
   const cols = [
     showSin && 'sin', showCos && 'cos', showTan && 'tan', showCot && 'cot',
   ].filter(Boolean);
@@ -152,7 +153,7 @@ function TeacherKeyPage({ tasksData, settings, title }) {
                         <td key={c} className="tvg-td tvg-col-val tvg-answer">
                           {undef || p[c] === null
                             ? <span className="tvg-undef">—</span>
-                            : <MathCell latex={`\\color{#c0392b}{${p[c]}}`} />}
+                            : <MathCell latex={keyAnswerLatex(p[c], opts)} />}
                         </td>
                       );
                     })}

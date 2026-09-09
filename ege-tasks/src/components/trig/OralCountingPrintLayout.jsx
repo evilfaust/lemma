@@ -1,6 +1,6 @@
 import React from 'react';
 import { MathInline } from '../shared/MathInline';
-import { sheetOptions, sheetSpacingStyle } from './sheetOptions';
+import { sheetOptions, sheetSpacingStyle, keyAnswerLatex } from './sheetOptions';
 import './OralCountingPrintLayout.css';
 
 const LABELS = Array.from({ length: 30 }, (_, i) => String(i + 1));
@@ -98,8 +98,25 @@ function StudentPage({ variant, variantIndex, title, mode, columnsCount, prompt,
   );
 }
 
+/**
+ * Порядок ответов в листе учителя — тот же, что на листе ученика: иначе
+ * переставленное задание проверяется по чужому ответу. Черта листа в ключе не
+ * нужна, а нумерация идёт по заданиям — как в `renderTasks`.
+ */
+function keyOrder(variant, layout) {
+  if (!layout || !layout.length) return variant.map((q, qi) => ({ q, qi }));
+  const out = [];
+  layout.forEach((item) => {
+    if (item.kind === 'divider') return;
+    const q = variant[item.idx];
+    if (!q) return;
+    out.push({ q, qi: out.length });
+  });
+  return out;
+}
+
 // ─── Страница ответов для учителя ─────────────────────────────────────────────
-function TeacherKeyPage({ tasksData, title, prompt }) {
+function TeacherKeyPage({ tasksData, title, prompt, layout, opts }) {
   return (
     <div className="oral-key-page">
       <div className="oral-key-header">{title} — Ответы (для учителя)</div>
@@ -108,7 +125,7 @@ function TeacherKeyPage({ tasksData, title, prompt }) {
           <div key={vi} className="oral-key-variant">
             <div className="oral-key-variant-title">Вариант {vi + 1}</div>
             <div className="oral-key-grid">
-              {variant.map((q, qi) => (
+              {keyOrder(variant, layout).map(({ q, qi }) => (
                 <div key={qi} className="oral-key-row">
                   <span className="oral-key-num">{LABELS[qi]})</span>
                   <span className="oral-key-expr">
@@ -121,7 +138,7 @@ function TeacherKeyPage({ tasksData, title, prompt }) {
                     {prompt === 'eq' && '='}
                   </span>
                   <span className="oral-key-ans">
-                    <MathInline latex={`\\color{#c0392b}{${q.resultLatex}}`} />
+                    <MathInline latex={keyAnswerLatex(q.resultLatex, opts)} />
                   </span>
                 </div>
               ))}
@@ -227,7 +244,13 @@ export default function OralCountingPrintLayout({
     <>
       {pages}
       {showTeacherKey && (
-        <TeacherKeyPage tasksData={tasksData} title={title} prompt={prompt} />
+        <TeacherKeyPage
+          tasksData={tasksData}
+          title={title}
+          prompt={prompt}
+          layout={layout}
+          opts={opts}
+        />
       )}
     </>
   );

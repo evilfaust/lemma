@@ -1,7 +1,7 @@
 import React from 'react';
 import katex from 'katex';
 import UnitCircleSVG from './UnitCircleSVG';
-import { sheetOptions, sheetSpacingStyle } from './sheetOptions';
+import { sheetOptions, sheetSpacingStyle, keyAnswerLatex } from './sheetOptions';
 import './TrigMixedPrintLayout.css';
 
 function MathLine({ latex }) {
@@ -252,7 +252,7 @@ function VariantKeyBlock({ variant }) {
                   </span>
                   <span className="tmixed-key-eq">{isEq ? 'x =' : '='}</span>
                   <span className="tmixed-key-ans">
-                    <MathLine latex={`\\color{#c0392b}{${q.resultLatex}}`} />
+                    <MathLine latex={keyAnswerLatex(q.resultLatex, opts)} />
                   </span>
                 </div>
               );
@@ -265,7 +265,7 @@ function VariantKeyBlock({ variant }) {
 }
 
 // ─── Страница ответов для учителя ─────────────────────────────────────────────
-function TeacherKeyPage({ variants, title }) {
+function TeacherKeyPage({ variants, title, opts }) {
   if (!variants.length) return null;
 
   // Разбиваем варианты на пары для двухколоночной вёрстки
@@ -331,7 +331,7 @@ export default function TrigMixedPrintLayout({ variants, title, settings }) {
     <div className="tmixed-print-root" style={sheetSpacingStyle(rootOpts.lineSpacing)}>
       {pages}
       {showTeacherKey && (
-        <TeacherKeyPage variants={variants} title={title} />
+        <TeacherKeyPage variants={variants} title={title} opts={rootOpts} />
       )}
     </div>
   );

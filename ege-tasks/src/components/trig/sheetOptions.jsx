@@ -18,6 +18,7 @@ export const SHEET_DEFAULTS = {
   showInstruction: true,   // строка-инструкция («Вычислите:», «Решите…»)
   showAnswerSpace: true,   // место для ответа в строке задания («= ___», «Ответ:»)
   lineSpacing:     1,      // множитель межстрочного интервала заданий
+  keyColor:        true,   // ответы в листе учителя цветом (снять — чёрным, для ч/б печати)
 };
 
 export const LINE_SPACING_MIN = 0.75;
@@ -35,8 +36,24 @@ export function sheetOptions(settings = {}) {
     showTitle:       settings.showTitle       ?? SHEET_DEFAULTS.showTitle,
     showInstruction: settings.showInstruction ?? SHEET_DEFAULTS.showInstruction,
     showAnswerSpace: settings.showAnswerSpace ?? SHEET_DEFAULTS.showAnswerSpace,
+    keyColor:        settings.keyColor        ?? SHEET_DEFAULTS.keyColor,
     lineSpacing,
   };
+}
+
+/** Цвет ответа в листе учителя. Печать на ч/б принтере даёт из него серый — поэтому цвет отключаемый. */
+export const KEY_ANSWER_COLOR = '#c0392b';
+
+/**
+ * Ответ для листа учителя: цветным (легче проверять) или чёрным (для печати).
+ * `settings` — те же настройки листа; отсутствующий ключ = прежний цветной вид.
+ */
+export function keyAnswerLatex(latex, settings) {
+  const on = typeof settings === 'boolean'
+    ? settings
+    : (settings?.keyColor ?? SHEET_DEFAULTS.keyColor);
+  const body = latex ?? '';
+  return on ? `\\color{${KEY_ANSWER_COLOR}}{${body}}` : body;
 }
 
 /**
@@ -175,6 +192,16 @@ export function SheetLayoutOptions({
           >
             <span style={{ fontSize: 13 }}>Строка задания («Вычислите:»)</span>
           </Checkbox>
+        )}
+        {settings.showTeacherKey !== false && (
+          <Tooltip title="Цвет виден и на печати — на ч/б принтере ответ выйдет серым. Снимите галочку, чтобы печатать ответы чёрным">
+            <Checkbox
+              checked={o.keyColor}
+              onChange={e => onChange('keyColor', e.target.checked)}
+            >
+              <span style={{ fontSize: 13 }}>Ответы учителя цветом</span>
+            </Checkbox>
+          </Tooltip>
         )}
       </Space>
 

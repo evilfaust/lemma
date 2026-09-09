@@ -333,8 +333,8 @@
 
   .oral-key-variant-title {
     font-weight: bold;
-    font-size: 10pt;
-    margin-bottom: 1mm;
+    font-size: 11pt;
+    margin-bottom: 1.5mm;
     padding-bottom: 0.5mm;
     border-bottom: 1px dotted #666;
   }
@@ -348,22 +348,22 @@
   .oral-key-row {
     display: flex;
     align-items: baseline;
-    gap: 2px;
-    font-size: 8.5pt;
-    margin-bottom: 0.8mm;
+    gap: 3px;
+    font-size: 11pt;
+    margin-bottom: 1.4mm;
     flex-wrap: nowrap;
   }
 
   .oral-key-num {
     font-weight: bold;
-    min-width: 14px;
+    min-width: 17px;
     flex-shrink: 0;
   }
 
   .oral-key-expr {
     flex: 1;
-    font-size: 8pt;
-    color: #444;
+    font-size: 10pt;
+    color: #333;
     overflow: hidden;
   }
 
@@ -374,7 +374,7 @@
 
   .oral-key-ans {
     font-weight: bold;
-    font-size: 8.5pt;
+    font-size: 12.5pt;
     flex-shrink: 0;
   }
 
@@ -649,14 +649,14 @@
 }
 .oral-screen-root .oral-key-variant-title {
   font-weight: bold;
-  font-size: 0.95em;
+  font-size: 1.05em;
   margin-bottom: 1mm;
   padding-bottom: 0.5mm;
   border-bottom: 1px dotted #666;
 }
 .oral-screen-root .oral-key-grid   { display: grid; grid-template-columns: 1fr; gap: 0; }
-.oral-screen-root .oral-key-row    { display: flex; align-items: baseline; gap: 2px; font-size: 0.8em; margin-bottom: 0.8mm; }
-.oral-screen-root .oral-key-num    { font-weight: bold; min-width: 14px; flex-shrink: 0; }
-.oral-screen-root .oral-key-expr   { flex: 1; font-size: 0.75em; color: #444; overflow: hidden; }
+.oral-screen-root .oral-key-row    { display: flex; align-items: baseline; gap: 3px; font-size: 1.05em; margin-bottom: 1.4mm; }
+.oral-screen-root .oral-key-num    { font-weight: bold; min-width: 17px; flex-shrink: 0; }
+.oral-screen-root .oral-key-expr   { flex: 1; font-size: 0.95em; color: #333; overflow: hidden; }
 .oral-screen-root .oral-key-eq     { padding: 0 1px; flex-shrink: 0; }
-.oral-screen-root .oral-key-ans    { font-weight: bold; flex-shrink: 0; }
+.oral-screen-root .oral-key-ans    { font-weight: bold; font-size: 1.15em; flex-shrink: 0; }

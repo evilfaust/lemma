@@ -226,7 +226,7 @@
 
   .texpr-key-variant-title {
     font-weight: bold;
-    font-size: 10pt;
+    font-size: 11pt;
     margin-bottom: 1.5mm;
     padding-bottom: 1mm;
     border-bottom: 1px dotted #666;
@@ -236,8 +236,8 @@
     display: flex;
     align-items: baseline;
     gap: 3px;
-    font-size: 9pt;
-    margin-bottom: 1mm;
+    font-size: 11pt;
+    margin-bottom: 1.5mm;
     flex-wrap: wrap;
   }
 
@@ -249,7 +249,7 @@
 
   .texpr-key-expr {
     flex: 1;
-    font-size: 8.5pt;
+    font-size: 10pt;
     color: #333;
   }
 
@@ -259,7 +259,7 @@
 
   .texpr-key-ans {
     font-weight: bold;
-    font-size: 9pt;
+    font-size: 12.5pt;
   }
 
   /* ─── Место для работы ───────────────────────────────────────────────────── */

@@ -353,9 +353,9 @@
   .tmixed-key-row {
     display: flex;
     align-items: baseline;
-    gap: 2px;
-    font-size: 8.5pt;
-    margin-bottom: 0.5mm;
+    gap: 3px;
+    font-size: 11pt;
+    margin-bottom: 1.2mm;
     flex-wrap: wrap;
   }
 
@@ -367,8 +367,8 @@
 
   .tmixed-key-expr {
     flex: 1;
-    color: #444;
-    font-size: 8pt;
+    color: #333;
+    font-size: 10pt;
   }
 
   .tmixed-key-eq {
@@ -378,7 +378,7 @@
 
   .tmixed-key-ans {
     font-weight: bold;
-    font-size: 8.5pt;
+    font-size: 12.5pt;
   }
 
   /* Ключ уравнений — многострочный */

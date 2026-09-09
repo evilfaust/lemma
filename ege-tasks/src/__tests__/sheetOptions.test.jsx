@@ -5,6 +5,8 @@ import { render, screen } from '@testing-library/react';
 import {
   sheetOptions,
   sheetSpacingStyle,
+  keyAnswerLatex,
+  KEY_ANSWER_COLOR,
   SHEET_DEFAULTS,
   LINE_SPACING_MIN,
   LINE_SPACING_MAX,
@@ -51,6 +53,16 @@ describe('настройки печатного листа', () => {
   it('место для ответа выключается отдельно', () => {
     expect(sheetOptions({}).showAnswerSpace).toBe(true);
     expect(sheetOptions({ showAnswerSpace: false }).showAnswerSpace).toBe(false);
+  });
+
+  it('цвет ответов в листе учителя отключается', () => {
+    // по умолчанию — как раньше, цветом
+    expect(sheetOptions({}).keyColor).toBe(true);
+    expect(keyAnswerLatex('42', {})).toBe(`\\color{${KEY_ANSWER_COLOR}}{42}`);
+    // снятая галочка = ч/б печать: никакого \color в формуле
+    expect(sheetOptions({ keyColor: false }).keyColor).toBe(false);
+    expect(keyAnswerLatex('42', { keyColor: false })).toBe('42');
+    expect(keyAnswerLatex(undefined, { keyColor: false })).toBe('');
   });
 
   it('интервал уезжает в CSS-переменную', () => {
@@ -164,6 +176,17 @@ describe('раскладка устного счёта уважает настр
     );
     expect(container.querySelector('.oral-task-x-prompt')).toBeNull();
     expect(container.querySelectorAll('.oral-task')).toHaveLength(2);
+  });
+
+  it('лист ответов печатается цветом только с галочкой', () => {
+    const colored = renderOral({ showTeacherKey: true });
+    expect(colored.container.querySelector('.oral-key-ans').textContent)
+      .toContain(KEY_ANSWER_COLOR);
+    colored.unmount();
+
+    const plain = renderOral({ showTeacherKey: true, keyColor: false });
+    expect(plain.container.querySelector('.oral-key-ans').textContent)
+      .not.toContain(KEY_ANSWER_COLOR);
   });
 
   it('межстрочный интервал доезжает до корня раскладки', () => {

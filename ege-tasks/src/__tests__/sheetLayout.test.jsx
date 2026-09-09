@@ -144,6 +144,11 @@ describe('план листа: порядок и черта', () => {
   });
 });
 
+// KaTeX печатает ответ трижды (MathML + HTML + исходный latex) — из узла нужна
+// сама цифра, а цвет из `\color{...}` в неё попадать не должен.
+const keyAnswers = (container) => [...container.querySelectorAll('.oral-key-ans')]
+  .map(e => e.textContent.replace(/\\color\{[^}]*\}/g, '').replace(/[^0-9]/g, '')[0]);
+
 describe('печать по плану листа', () => {
   const tasksData = [[
     { exprLatex: '2x = 8', resultLatex: '4', varLatex: 'x' },
@@ -193,6 +198,29 @@ describe('печать по плану листа', () => {
     const exprs = [...container.querySelectorAll('.oral-task-expr')].map(e => e.textContent);
     expect(exprs[0]).toContain('5');
     expect(exprs[1]).toContain('2');
+  });
+
+  // Переставленное задание проверяется по своему ответу, а не по соседнему
+  it('лист ответов идёт в том же порядке, что лист ученика', () => {
+    const { container } = renderSheet({
+      settings: { ...base, showTeacherKey: true },
+      layout: [
+        { kind: 'task', idx: 2 },
+        { kind: 'divider', id: 'd1' },
+        { kind: 'task', idx: 0 },
+        { kind: 'task', idx: 1 },
+      ],
+    });
+    expect(keyAnswers(container)).toEqual(['1', '4', '3']);
+
+    // черта в ключе не печатается и нумерацию не сбивает
+    const nums = [...container.querySelectorAll('.oral-key-num')].map(e => e.textContent);
+    expect(nums).toEqual(['1)', '2)', '3)']);
+  });
+
+  it('без плана лист ответов остаётся в исходном порядке', () => {
+    const { container } = renderSheet({ settings: { ...base, showTeacherKey: true } });
+    expect(keyAnswers(container)).toEqual(['4', '3', '1']);
   });
 });
 
