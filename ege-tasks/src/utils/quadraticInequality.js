@@ -90,6 +90,21 @@ export const singlePoint = (sol) => {
   return sol.pieces.length === 1 && p.lo && p.hi && sEq(p.lo, p.hi) ? p.lo : null;
 };
 
+/**
+ * Решение — набор отдельных точек и ничего кроме: «x² ⩾ 9 и x² ⩽ 9» даёт
+ * ровно ±3, и записывать это двумя отрезками [−3; −3] ∪ [3; 3] нельзя.
+ * null — если хотя бы один кусок имеет длину.
+ */
+export function pointSet(sol) {
+  if (!sol.pieces.length) return null;
+  const pts = [];
+  for (const p of sol.pieces) {
+    if (!p.lo || !p.hi || !sEq(p.lo, p.hi)) return null;
+    pts.push(p.lo);
+  }
+  return pts;
+}
+
 /** «Всё, кроме точки»: (−∞; a) ∪ (a; +∞) */
 export function puncturedAt(sol) {
   if (sol.pieces.length !== 2) return null;
@@ -148,8 +163,8 @@ export function inequalityAnswerTex(sol, varTex = 'x', { form = 'inequality' } =
   if (isEmptySet(sol)) return '\\varnothing';
 
   if (form === 'interval') {
-    const point = singlePoint(sol);
-    if (point) return `\\left\\{${sTex(point)}\\right\\}`;
+    const points = pointSet(sol);
+    if (points) return `\\left\\{${points.map(p => sTex(p)).join('; ')}\\right\\}`;
     return sol.pieces.map(pieceIntervalTex).join(' \\cup ');
   }
 

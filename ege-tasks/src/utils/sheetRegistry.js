@@ -49,6 +49,14 @@ import {
   CATEGORY_LABELS_INEQ,
 } from '../hooks/useLinearInequalities';
 import {
+  generateLinearSystemVariants,
+  CATEGORY_LABELS_LINSYS,
+} from '../hooks/useLinearSystems';
+import {
+  generateQuadraticSystemVariants,
+  CATEGORY_LABELS_QSYS,
+} from '../hooks/useQuadraticSystems';
+import {
   generateDoubleInequalityVariants,
   CATEGORY_LABELS_DBL,
 } from '../hooks/useDoubleInequalities';
@@ -136,6 +144,20 @@ export const SHEET_GENERATORS = {
     instruction: 'Решите неравенство:',
     categoryLabels: CATEGORY_LABELS_INEQ,
     generate: generateLinearInequalityVariants,
+  },
+  linear_systems: {
+    label: 'Системы линейных неравенств',
+    route: '/app/equations/linear-systems',
+    instruction: 'Решите систему:',
+    categoryLabels: CATEGORY_LABELS_LINSYS,
+    generate: generateLinearSystemVariants,
+  },
+  quadratic_systems: {
+    label: 'Системы квадратных неравенств',
+    route: '/app/equations/quadratic-systems',
+    instruction: 'Решите систему:',
+    categoryLabels: CATEGORY_LABELS_QSYS,
+    generate: generateQuadraticSystemVariants,
   },
   double_inequalities: {
     label: 'Двойные неравенства',

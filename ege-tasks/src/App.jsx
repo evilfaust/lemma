@@ -17,6 +17,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, TableOutlined, FileMarkdownOutlined,
   CalculatorOutlined, ExperimentOutlined, LineChartOutlined, FieldNumberOutlined,
   PercentageOutlined, HomeOutlined, CalendarOutlined, ProfileOutlined, ColumnWidthOutlined,
+  MergeCellsOutlined, BlockOutlined,
   BorderHorizontalOutlined
 } from '@ant-design/icons';
 // ── Ленивая загрузка страниц-компонентов ────────────────────────────────────
@@ -102,6 +103,8 @@ const LinearEquationsGenerator = lazy(() => import('./components/LinearEquations
 const QuadraticEquationsGenerator = lazy(() => import('./components/QuadraticEquationsGenerator'));
 const QuadraticInequalitiesGenerator = lazy(() => import('./components/QuadraticInequalitiesGenerator'));
 const LinearInequalitiesGenerator = lazy(() => import('./components/LinearInequalitiesGenerator'));
+const LinearSystemsGenerator = lazy(() => import('./components/LinearSystemsGenerator'));
+const QuadraticSystemsGenerator = lazy(() => import('./components/QuadraticSystemsGenerator'));
 const DoubleInequalitiesGenerator = lazy(() => import('./components/DoubleInequalitiesGenerator'));
 const MarathonGenerator = lazy(() => import('./components/MarathonGenerator'));
 const CrosswordGenerator = lazy(() => import('./components/CrosswordGenerator'));
@@ -211,6 +214,8 @@ export const R = {
   QUADRATIC_INEQUALITIES: '/app/equations/quadratic-inequalities',
   LINEAR_INEQUALITIES: '/app/equations/inequalities',
   DOUBLE_INEQUALITIES: '/app/equations/double-inequalities',
+  LINEAR_SYSTEMS:      '/app/equations/linear-systems',
+  QUADRATIC_SYSTEMS:   '/app/equations/quadratic-systems',
   // Теория
   THEORY:              '/app/theory',
   THEORY_NEW:          '/app/theory/articles/new',
@@ -318,6 +323,10 @@ const ROUTE_META = [
   { re: /^\/app\/arith\/ege-base/,        menuKey: 'ege-base-oral',    menuGroup: 'arith', title: 'Устный счёт — Действия с десятичными' },
   { re: /^\/app\/arith\/fractions/,       menuKey: 'fractions-oral',   menuGroup: 'arith', title: 'Устный счёт — Действия с обыкновенными дробями' },
   { re: /^\/app\/arith\/mixed/,           menuKey: 'oral-mixed',       menuGroup: 'arith', title: 'Устный счёт — Смешанная работа' },
+  // Порядок важен: /linear-systems и /quadratic-systems обязаны стоять до
+  // /linear и /quadratic — иначе их перехватят более общие шаблоны
+  { re: /^\/app\/equations\/linear-systems/, menuKey: 'linear-systems', menuGroup: 'equations', title: 'Уравнения — Системы линейных неравенств' },
+  { re: /^\/app\/equations\/quadratic-systems/, menuKey: 'quadratic-systems', menuGroup: 'equations', title: 'Уравнения — Системы квадратных неравенств' },
   { re: /^\/app\/equations\/linear/,      menuKey: 'linear-equations', menuGroup: 'equations', title: 'Уравнения — Линейные уравнения' },
   { re: /^\/app\/equations\/quadratic-inequalities/, menuKey: 'quadratic-inequalities', menuGroup: 'equations', title: 'Уравнения — Квадратные неравенства' },
   { re: /^\/app\/equations\/quadratic/,   menuKey: 'quadratic-equations', menuGroup: 'equations', title: 'Уравнения — Квадратные уравнения' },
@@ -403,6 +412,8 @@ const MENU_KEY_PATH = {
   'quadratic-inequalities': R.QUADRATIC_INEQUALITIES,
   'linear-inequalities':    R.LINEAR_INEQUALITIES,
   'double-inequalities':    R.DOUBLE_INEQUALITIES,
+  'linear-systems':         R.LINEAR_SYSTEMS,
+  'quadratic-systems':      R.QUADRATIC_SYSTEMS,
   'theory-browser':         R.THEORY,
   'theory-editor':          R.THEORY_NEW,
   'theory-print':           R.THEORY_PRINT,
@@ -780,6 +791,8 @@ function AppLayout() {
         { key: 'quadratic-inequalities', icon: <BorderHorizontalOutlined />, label: 'Квадратные неравенства' },
         { key: 'linear-inequalities', icon: <LineChartOutlined />, label: 'Линейные неравенства' },
         { key: 'double-inequalities', icon: <ColumnWidthOutlined />, label: 'Двойные неравенства' },
+        { key: 'linear-systems', icon: <MergeCellsOutlined />, label: 'Системы линейных неравенств' },
+        { key: 'quadratic-systems', icon: <BlockOutlined />, label: 'Системы квадратных неравенств' },
       ],
     },
     {
@@ -1083,6 +1096,8 @@ function App() {
               <Route path={R.QUADRATIC_INEQUALITIES} element={<QuadraticInequalitiesGenerator />} />
               <Route path={R.LINEAR_INEQUALITIES} element={<LinearInequalitiesGenerator />} />
               <Route path={R.DOUBLE_INEQUALITIES} element={<DoubleInequalitiesGenerator />} />
+              <Route path={R.LINEAR_SYSTEMS} element={<LinearSystemsGenerator />} />
+              <Route path={R.QUADRATIC_SYSTEMS} element={<QuadraticSystemsGenerator />} />
 
               {/* Теория — просмотр (viewer тоже) */}
               <Route path={R.THEORY}            element={<TheoryPage />} />

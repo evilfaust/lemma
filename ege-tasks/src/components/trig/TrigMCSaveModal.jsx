@@ -25,6 +25,8 @@ export const GENERATOR_LABELS = {
   quadratic_inequalities:  'Квадратные неравенства',
   linear_inequalities:     'Линейные неравенства',
   double_inequalities:     'Двойные неравенства',
+  linear_systems:          'Системы линейных неравенств',
+  quadratic_systems:       'Системы квадратных неравенств',
 };
 
 // Инструкция-префикс, записываемая в statement_md задачи
@@ -42,6 +44,8 @@ const GENERATOR_INSTRUCTIONS = {
   quadratic_inequalities:  'Решите неравенство:',
   linear_inequalities:     'Решите неравенство:',
   double_inequalities:     'Решите двойное неравенство:',
+  linear_systems:          'Решите систему неравенств:',
+  quadratic_systems:       'Решите систему неравенств:',
 };
 
 // Соответствие generator_type → title темы (должно совпадать с migration 1772000023)
