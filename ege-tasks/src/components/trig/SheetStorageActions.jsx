@@ -23,7 +23,9 @@ const { TextArea } = Input;
 // `instruction` — строка над заданиями («Решите систему:»). У части генераторов
 // она собирается по выбранным категориям, поэтому передаётся сюда; остальным
 // хватает инструкции из реестра листов.
-export function SheetStorageActions({ storage, hasData, generator, instruction }) {
+export function SheetStorageActions({
+  storage, hasData, generator, instruction, exportMd = true,
+}) {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [saveOpen, setSaveOpen] = useState(false);
@@ -125,10 +127,14 @@ export function SheetStorageActions({ storage, hasData, generator, instruction }
         Загрузить лист
       </Button>
 
-      <SheetExportMd
-        snapshot={storage.exportData ? { ...storage.exportData, instruction } : null}
-        hasData={hasData}
-      />
+      {/* Выгрузка в .md разбирает снимок «варианты × задания»; у листов другой
+          формы (например у классификатора) своей выгрузки пока нет. */}
+      {exportMd && (
+        <SheetExportMd
+          snapshot={storage.exportData ? { ...storage.exportData, instruction } : null}
+          hasData={hasData}
+        />
+      )}
 
       {/* ── Сохранение ── */}
       <Modal

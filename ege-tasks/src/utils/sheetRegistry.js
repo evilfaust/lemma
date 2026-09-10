@@ -224,6 +224,17 @@ export const SHEET_GENERATORS = {
     route: '/app/trig/mixed',
     kind: 'sections',
   },
+
+  // ── Классификация (лист-«сортировщик») ──
+  // Третья форма снимка: не «варианты × задания», а `{ buckets, items }` —
+  // карманы-типы и банк уравнений с разметкой учителя. Уравнения пишет
+  // учитель, поэтому чистой функции генерации у листа нет.
+  classify_equations: {
+    label: 'Сортировщик: типы уравнений',
+    route: '/app/gamification/classify',
+    instruction: 'Определите тип уравнения:',
+    kind: 'classify',
+  },
 };
 
 export const SHEET_GENERATOR_TYPES = Object.keys(SHEET_GENERATORS);
@@ -242,7 +253,7 @@ export function sheetGeneratorRoute(type) {
   return SHEET_GENERATORS[type]?.route || null;
 }
 
-// Форма снимка заданий: 'flat' (Variant[][]) или 'sections'
+// Форма снимка заданий: 'flat' (Variant[][]), 'sections' или 'classify'
 export function sheetKind(type) {
   return SHEET_GENERATORS[type]?.kind || 'flat';
 }

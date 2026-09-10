@@ -17,7 +17,7 @@ import {
   MenuFoldOutlined, MenuUnfoldOutlined, TableOutlined, FileMarkdownOutlined,
   CalculatorOutlined, ExperimentOutlined, LineChartOutlined, FieldNumberOutlined,
   PercentageOutlined, HomeOutlined, CalendarOutlined, ProfileOutlined, ColumnWidthOutlined,
-  MergeCellsOutlined, BlockOutlined,
+  MergeCellsOutlined, BlockOutlined, FilterOutlined,
   BorderHorizontalOutlined
 } from '@ant-design/icons';
 // ── Ленивая загрузка страниц-компонентов ────────────────────────────────────
@@ -107,6 +107,7 @@ const LinearSystemsGenerator = lazy(() => import('./components/LinearSystemsGene
 const QuadraticSystemsGenerator = lazy(() => import('./components/QuadraticSystemsGenerator'));
 const DoubleInequalitiesGenerator = lazy(() => import('./components/DoubleInequalitiesGenerator'));
 const MarathonGenerator = lazy(() => import('./components/MarathonGenerator'));
+const ClassifySheetGenerator = lazy(() => import('./components/classify/ClassifySheetGenerator'));
 const CrosswordGenerator = lazy(() => import('./components/CrosswordGenerator'));
 const EgeScoreCalculator = lazy(() => import('./components/EgeScoreCalculator'));
 const MCTestGenerator = lazy(() => import('./components/MCTestGenerator'));
@@ -168,6 +169,7 @@ export const R = {
   CRYPTOGRAM:          '/app/gamification/cryptogram',
   ROUTE_SHEET:         '/app/gamification/route-sheet',
   MARATHON:            '/app/gamification/marathon',
+  CLASSIFY:            '/app/gamification/classify',
   CROSSWORD:           '/app/gamification/crossword',
   // Работы
   WORKS:               '/app/works',
@@ -298,6 +300,7 @@ const ROUTE_META = [
   { re: /^\/app\/gamification\/route/,     menuKey: 'route-sheet',       menuGroup: 'gamification-group', title: 'Маршрутный лист' },
   { re: /^\/app\/gamification\/marathon/,  menuKey: 'marathon',          menuGroup: 'gamification-group', title: 'Марафон — подготовка и проведение' },
   { re: /^\/app\/gamification\/crossword/, menuKey: 'crossword',         menuGroup: 'gamification-group', title: 'Генератор кроссвордов' },
+  { re: /^\/app\/gamification\/classify/,  menuKey: 'classify',          menuGroup: 'gamification-group', title: 'Сортировщик — лист на классификацию' },
   { re: /^\/app\/works$/,                  menuKey: 'work-manager',              title: 'Мои работы' },
   { re: /^\/app\/students$/,               menuKey: 'students', menuGroup: 'students-group', title: 'Прогресс учеников' },
   { re: /^\/app\/import/,                  menuKey: 'import',                    title: 'Импорт задач' },
@@ -378,6 +381,7 @@ const MENU_KEY_PATH = {
   'route-sheet':            R.ROUTE_SHEET,
   marathon:                 R.MARATHON,
   crossword:                R.CROSSWORD,
+  classify:                 R.CLASSIFY,
   'work-manager':           R.WORKS,
   'work-import':            R.WORK_IMPORT,
   students:                 R.STUDENTS,
@@ -727,6 +731,7 @@ function AppLayout() {
         { key: 'route-sheet',     icon: <BranchesOutlined />,  label: 'Маршрутный лист' },
         { key: 'marathon',        icon: <TrophyOutlined />,    label: 'Марафон' },
         { key: 'crossword',       icon: <AppstoreOutlined />,  label: 'Кроссворды' },
+        { key: 'classify',        icon: <FilterOutlined />,    label: 'Сортировщик', editOnly: true },
       ],
     },
     { key: 'work-manager', icon: <SolutionOutlined />, label: 'Мои работы', section: 'works' },
@@ -1146,6 +1151,7 @@ function App() {
                 <Route path={R.SUMMER_CAMPAIGN}   element={<VacationCampaignDetail />} />
                 <Route path={R.SUMMER_INDIVIDUAL} element={<SummerProgramList />} />
                 <Route path={R.SUMMER_STUDENT}    element={<StudentProgramEditor />} />
+                <Route path={R.CLASSIFY}          element={<ClassifySheetGenerator />} />
               </Route>
             </Route>
 

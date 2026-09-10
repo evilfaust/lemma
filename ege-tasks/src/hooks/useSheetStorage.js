@@ -44,15 +44,23 @@ export function useSheetStorage({
   onLoadRef.current = onLoad;
 
   const buildPayload = useCallback((overrides = {}) => {
-    const flat = sheetKind(generator) === 'flat';
-    const variantsCount = Array.isArray(tasksData) ? tasksData.length : 0;
-    const questionsCount = flat
-      ? (tasksData?.[0]?.length ?? 0)
-      : (tasksData?.[0]?.sections?.reduce((s, sec) => s + (sec.tasks?.length || 0), 0) ?? 0);
+    const kind = sheetKind(generator);
+    const flat = kind === 'flat';
+    // У листа-классификатора вариантов нет вовсе, а «заданий» столько, сколько
+    // уравнений в банке — счётчики в списке листов должны говорить правду.
+    const classify = kind === 'classify';
+    const variantsCount = classify
+      ? 1
+      : (Array.isArray(tasksData) ? tasksData.length : 0);
+    const questionsCount = classify
+      ? (tasksData?.items?.length ?? 0)
+      : (flat
+        ? (tasksData?.[0]?.length ?? 0)
+        : (tasksData?.[0]?.sections?.reduce((s, sec) => s + (sec.tasks?.length || 0), 0) ?? 0));
 
     return {
       generator,
-      kind: sheetKind(generator),
+      kind,
       title: (overrides.title ?? title ?? '').trim() || 'Лист без названия',
       settings: settings ?? {},
       layout: layout ?? [],

@@ -1,0 +1,234 @@
+/* Лист-классификатор: одна вёрстка на печать и на экранный предпросмотр.
+   Общие правила ниже задают вид листа, а @media print и .cls-screen-root
+   отвечают только за размер страницы и её окружение. */
+
+.cls-print-root { display: none; }
+
+/* ─── Общий вид листа ─────────────────────────────────────────────────────── */
+.cls-page {
+  box-sizing: border-box;
+  font-family: 'Times New Roman', Times, serif;
+  line-height: 1.35;
+  color: #000;
+  background: #fff;
+}
+
+.cls-fs-s .cls-page { font-size: 10.5pt; }
+.cls-fs-m .cls-page { font-size: 12pt; }
+.cls-fs-l .cls-page { font-size: 13.5pt; }
+
+.cls-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4mm 8mm;
+  padding-bottom: 2mm;
+  border-bottom: 0.4mm solid #000;
+  margin-bottom: 3mm;
+  font-size: 0.92em;
+}
+.cls-field { white-space: nowrap; }
+.cls-field--fio { flex: 1; min-width: 60mm; }
+.cls-line {
+  display: inline-block;
+  border-bottom: 0.25mm solid #000;
+  vertical-align: baseline;
+}
+.cls-line--name  { width: 55mm; }
+.cls-line--short { width: 22mm; }
+.cls-line--num   { width: 12mm; margin: 0 3mm 0 1mm; }
+.cls-line--expr  { flex: 1; }
+
+.cls-title {
+  font-size: 1.15em;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 2mm;
+}
+.cls-instruction {
+  font-size: 0.92em;
+  font-style: italic;
+  margin-bottom: 3mm;
+  text-align: justify;
+}
+.cls-running {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85em;
+  color: #444;
+  border-bottom: 0.2mm solid #999;
+  padding-bottom: 1mm;
+  margin-bottom: 3mm;
+}
+
+/* ─── Банк уравнений ──────────────────────────────────────────────────────── */
+.cls-bank {
+  display: grid;
+  gap: 1.5mm 8mm;
+  border: 0.35mm solid #000;
+  padding: 3mm 4mm;
+  margin-bottom: 4mm;
+}
+.cls-bank--1col { grid-template-columns: 1fr; }
+.cls-bank--2col { grid-template-columns: 1fr 1fr; }
+.cls-bank-item {
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+  min-width: 0;
+}
+.cls-bank-num { min-width: 7mm; }
+.cls-bank-expr { overflow-x: hidden; }
+
+/* ─── Таблица «тип → номера» ──────────────────────────────────────────────── */
+.cls-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.cls-table th,
+.cls-table td {
+  border: 0.3mm solid #000;
+  padding: 1.5mm 2mm;
+  vertical-align: middle;
+}
+.cls-table th {
+  font-size: 0.85em;
+  font-weight: bold;
+  text-align: center;
+}
+.cls-th-nums { width: 42%; }
+.cls-th-sum  { width: 18mm; }
+.cls-td-type { line-height: 1.25; }
+.cls-td-nums { height: 11mm; }
+.cls-td-sum  { text-align: center; font-weight: bold; }
+.cls-type-label { display: block; }
+.cls-type-hint {
+  display: block;
+  font-size: 0.82em;
+  font-style: italic;
+  color: #333;
+}
+
+/* ─── Карман с местом на решение ──────────────────────────────────────────── */
+.cls-bucket {
+  border: 0.35mm solid #000;
+  padding: 2mm 3mm 3mm;
+  margin-bottom: 4mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.cls-bucket-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1mm 4mm;
+  border-bottom: 0.25mm solid #666;
+  padding-bottom: 1.2mm;
+  margin-bottom: 2mm;
+}
+.cls-bucket-label { font-weight: bold; }
+.cls-bucket-hint  { font-size: 0.85em; font-style: italic; color: #333; }
+.cls-bucket-points,
+.cls-bucket-sum {
+  margin-left: auto;
+  font-size: 0.85em;
+  white-space: nowrap;
+}
+.cls-bucket-sum { font-weight: bold; }
+
+.cls-slot { margin-bottom: 2mm; }
+.cls-slot:last-child { margin-bottom: 0; }
+.cls-slot-prompt {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 1mm;
+}
+.cls-slot-num { font-size: 0.9em; }
+.cls-solve-line {
+  border-bottom: 0.2mm dotted #666;
+  height: 6.5mm;
+}
+
+/* ─── Ключ учителя ────────────────────────────────────────────────────────── */
+.cls-key-bucket {
+  border: 0.3mm solid #000;
+  padding: 2mm 3mm;
+  margin-bottom: 3mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.cls-key-bucket--warn { border-style: dashed; }
+.cls-key-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 4mm;
+  border-bottom: 0.2mm solid #999;
+  padding-bottom: 1mm;
+  margin-bottom: 1.5mm;
+}
+.cls-key-label { font-weight: bold; }
+.cls-key-meta  { font-size: 0.85em; color: #333; white-space: nowrap; }
+.cls-key-row {
+  display: flex;
+  align-items: baseline;
+  gap: 2mm;
+  padding: 0.6mm 0;
+  font-size: 0.95em;
+}
+.cls-key-num { min-width: 7mm; }
+.cls-key-also {
+  font-size: 0.8em;
+  font-style: italic;
+  color: #444;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* ─── Печать ──────────────────────────────────────────────────────────────── */
+@media print {
+  /* Показываем только лист: остальное приложение скрыто, а корень печати
+     прижат к началу страницы — иначе Chrome масштабирует буклет как часть
+     общего потока (грабли КИМ-печати). */
+  body:has(.cls-print-root) { visibility: hidden; }
+  .cls-print-root {
+    display: block !important;
+    visibility: visible;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+  .cls-print-root * { visibility: visible; }
+
+  .cls-page {
+    width: 100%;
+    min-height: 100vh;
+    padding: 10mm 14mm 8mm 16mm;
+    page-break-after: always;
+    break-after: page;
+  }
+  .cls-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}
+
+/* ─── Экранный предпросмотр ───────────────────────────────────────────────── */
+.cls-screen-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 8px 32px;
+  background: #e8e8e8;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.cls-screen-root .cls-page {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm 14mm 8mm 16mm;
+  border: 1.5px solid #bbb;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.10);
+}
