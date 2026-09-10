@@ -111,7 +111,8 @@ export const DEFAULT_CLASSIFY_SETTINGS = {
   showOther: true,
   showPoints: false,
   showHints: true,
-  showTable: true,        // таблица «тип → номера» на первой странице
+  showClassField: true,   // поле «Класс» в шапке
+  showTable: false,       // таблица «тип → номера» на первой странице
   bankColumns: 2,
   fontSize: 's',
 };
@@ -279,32 +280,33 @@ export function slotsForBucket(stat, stats, settings = {}) {
 // печати. Точность здесь не нужна: важно не дать карману разорваться между
 // страницами, поэтому раскладка считается заранее, а не отдаётся браузеру.
 const MM = {
-  bucketHeader: 10,   // название кармана и признак
-  checksum: 5,
-  slotPrompt: 5,      // строка «№ ___» над полем (само уравнение пишется в клетке)
-  slotGap: 2,
-  bucketPadding: 5,   // рамка кармана: отступы сверху и снизу вместе
+  bucketHeader: 9,    // название кармана, признак и волосяной разделитель
+  bucketPadding: 4.5, // рамка кармана: отступы сверху и снизу вместе
   bucketGap: 3.5,
 
-  // Первая страница: шапка, заголовок, инструкция, банк и таблица
-  pageHead: 30,
-  bankRow: 7,
-  bankFrame: 8,
+  // Первая страница: шапка с полями ученика, блок задания, банк и таблица
+  pageHead: 26,
+  note: 13,
+  bankRow: 8,
+  bankFrame: 10,
   tableHead: 10,
   tableRow: 12,
 };
 
-/** Высота одного места: строка «№ ___ уравнение» плюс поле решения. */
-export function slotHeightMm(settings = {}) {
+/**
+ * Высота клеточного поля кармана. Мест под отдельные уравнения на листе нет —
+ * поле сплошное, но его высота пропорциональна числу уравнений, которые в этот
+ * карман идут: столько места ученику и понадобится.
+ */
+export function solveHeightMm(slots, settings = {}) {
   const cells = Math.max(1, settings.solveCells ?? DEFAULT_CLASSIFY_SETTINGS.solveCells);
-  return MM.slotPrompt + cells * CELL_MM + MM.slotGap;
+  return Math.max(1, slots) * cells * CELL_MM;
 }
 
 export function bucketHeightMm(slots, settings = {}) {
   return MM.bucketHeader
-    + (settings.showChecksum ? MM.checksum : 0)
     + MM.bucketPadding
-    + slots * slotHeightMm(settings)
+    + solveHeightMm(slots, settings)
     + MM.bucketGap;
 }
 
@@ -357,10 +359,10 @@ export function paginateBuckets(stats, settings = {}) {
 export function bankPageHeightMm(items = [], bucketCount = 0, settings = {}) {
   const columns = settings.bankColumns === 1 ? 1 : 2;
   const bank = Math.ceil(items.length / columns) * MM.bankRow + MM.bankFrame;
-  const table = settings.showTable === false
-    ? 0
-    : MM.tableHead + bucketCount * MM.tableRow;
-  return MM.pageHead + bank + table;
+  const table = settings.showTable
+    ? MM.tableHead + bucketCount * MM.tableRow
+    : 0;
+  return MM.pageHead + MM.note + bank + table;
 }
 
 /** Перемешать банк: номера уравнений меняются, вместе с ними и суммы. */

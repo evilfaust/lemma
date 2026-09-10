@@ -117,8 +117,8 @@ export default function ClassifySheetGenerator() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Tooltip title="Высота места под одно решение, в клетках по 5 мм">
-                    <span style={{ fontSize: 12, flex: 1 }}>Высота, клеток</span>
+                  <Tooltip title="Сколько клеток по 5 мм отводится на одно уравнение — из них складывается высота поля в типе">
+                    <span style={{ fontSize: 12, flex: 1 }}>Клеток на уравнение</span>
                   </Tooltip>
                   <InputNumber
                     size="small" min={1} max={20}
@@ -144,8 +144,8 @@ export default function ClassifySheetGenerator() {
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Tooltip title="Поровну — лист не выдаёт, сколько уравнений в каком типе">
-                    <span style={{ fontSize: 12, flex: 1 }}>Мест в типе</span>
+                  <Tooltip title="Сколько уравнений вмещает поле типа. Поровну — лист не выдаёт, сколько уравнений в каком типе">
+                    <span style={{ fontSize: 12, flex: 1 }}>Вмещает уравнений</span>
                   </Tooltip>
                   <Segmented
                     size="small"
@@ -160,7 +160,7 @@ export default function ClassifySheetGenerator() {
 
                 {settings.slotMode === 'uniform' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 12, flex: 1 }}>Мест поровну (0 — по максимуму)</span>
+                    <span style={{ fontSize: 12, flex: 1 }}>По скольку (0 — по максимуму)</span>
                     <InputNumber
                       size="small" min={0} max={10}
                       value={settings.slotsPerBucket}
@@ -193,6 +193,12 @@ export default function ClassifySheetGenerator() {
                   onChange={e => updateSetting('showHints', e.target.checked)}
                 >
                   Печатать признак типа
+                </Checkbox>
+                <Checkbox
+                  checked={settings.showClassField}
+                  onChange={e => updateSetting('showClassField', e.target.checked)}
+                >
+                  Поле «Класс» в шапке
                 </Checkbox>
                 <Checkbox
                   checked={settings.showPoints}

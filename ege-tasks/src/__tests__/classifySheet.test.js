@@ -4,7 +4,7 @@ import {
   bucketsFromPreset, createItem, sheetStats, slotsForBucket,
   paginateBuckets, bucketHeightMm, shuffleItems, classifyWarnings,
   printableBuckets, bankPageHeightMm, PAGE_LIMIT_MM,
-  normalizeClassifySettings, slotHeightMm, solveWidthMm, contentWidthMm,
+  normalizeClassifySettings, solveHeightMm, solveWidthMm, contentWidthMm,
   PAGE_MM, CELL_MM,
 } from '../utils/classifySheet';
 import { fillLineCounts } from '../components/shared/PrintFill';
@@ -106,10 +106,11 @@ describe('места в кармане', () => {
 
 describe('раскладка страниц решения', () => {
   it('карман не разрывается между страницами и не теряется', () => {
+    const settings = { ...SETTINGS, bucketColumns: 1 };
     const buckets = bucketsFromPreset();       // все типы библиотеки
-    const items = buckets.map(b => createItem({ bucketId: b.id }));
-    const stats = sheetStats(buckets, items, SETTINGS);
-    const pages = paginateBuckets(stats, SETTINGS);
+    const items = buckets.flatMap(b => [createItem({ bucketId: b.id }), createItem({ bucketId: b.id })]);
+    const stats = sheetStats(buckets, items, settings);
+    const pages = paginateBuckets(stats, settings);
 
     const placed = pages.flat().map(p => p.bucket.id);
     expect(placed).toEqual(stats.buckets.map(s => s.bucket.id));
@@ -178,8 +179,9 @@ describe('раскладка страниц решения', () => {
   it('выше место для решения — больше страниц', () => {
     const buckets = bucketsFromPreset(['noC', 'noB', 'vieta', 'full']);
     const items = buckets.map(b => createItem({ bucketId: b.id }));
-    const short = paginateBuckets(sheetStats(buckets, items, SETTINGS), { ...SETTINGS, solveCells: 2 });
-    const long = paginateBuckets(sheetStats(buckets, items, SETTINGS), { ...SETTINGS, solveCells: 14 });
+    const stats = sheetStats(buckets, items, SETTINGS);
+    const short = paginateBuckets(stats, { ...SETTINGS, bucketColumns: 1, solveCells: 2 });
+    const long = paginateBuckets(stats, { ...SETTINGS, bucketColumns: 1, solveCells: 20 });
     expect(long.length).toBeGreaterThan(short.length);
   });
 });
@@ -213,15 +215,15 @@ describe('банк уравнений', () => {
 
   it('ловит переполнение первой страницы — она одна и не разбивается', () => {
     const buckets = bucketsFromPreset();
-    const many = Array.from({ length: 60 }, () => createItem({ latex: 'x^2 = 1' }));
+    const many = Array.from({ length: 70 }, () => createItem({ latex: 'x^2 = 1' }));
     expect(bankPageHeightMm(many, buckets.length + 1, SETTINGS)).toBeGreaterThan(PAGE_LIMIT_MM);
     expect(classifyWarnings(buckets, many, SETTINGS)
       .some(w => w.startsWith('Первая страница переполнена'))).toBe(true);
 
-    // без таблицы классификации тот же банк на страницу помещается
-    const noTable = { ...SETTINGS, showTable: false, bankColumns: 2 };
-    expect(bankPageHeightMm(many.slice(0, 40), buckets.length + 1, noTable))
-      .toBeLessThan(PAGE_LIMIT_MM);
+    // таблица классификации, если её включить, съедает страницу заметно быстрее
+    const withTable = { ...SETTINGS, showTable: true };
+    expect(bankPageHeightMm(many.slice(0, 20), buckets.length + 1, withTable))
+      .toBeGreaterThan(bankPageHeightMm(many.slice(0, 20), buckets.length + 1, SETTINGS));
   });
 });
 
@@ -279,10 +281,12 @@ describe('добор из генератора квадратных уравне
 });
 
 describe('клетка и поля листа', () => {
-  it('высота места кратна клетке плюс строка «№ ___ уравнение»', () => {
-    const h4 = slotHeightMm({ solveCells: 4 });
-    const h6 = slotHeightMm({ solveCells: 6 });
-    expect(h6 - h4).toBe(2 * CELL_MM);
+  it('поле кармана — сплошная клетка, высота по числу уравнений в нём', () => {
+    // мест под отдельные уравнения нет: высота просто кратна клетке
+    expect(solveHeightMm(1, { solveCells: 4 })).toBe(4 * CELL_MM);
+    expect(solveHeightMm(3, { solveCells: 4 })).toBe(12 * CELL_MM);
+    // пустой карман всё равно получает поле — иначе в него нечего вписать
+    expect(solveHeightMm(0, { solveCells: 4 })).toBe(4 * CELL_MM);
   });
 
   it('клеточное поле уже колонки страницы — рамка кармана съедает своё', () => {

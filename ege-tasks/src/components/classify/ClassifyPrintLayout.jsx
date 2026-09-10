@@ -1,66 +1,87 @@
 import MathInline from '../shared/MathInline';
-import ClassifyItemView from './ClassifyItemView';
 import PrintFill from '../shared/PrintFill';
+import ClassifyItemView from './ClassifyItemView';
 import {
   sheetStats, paginateBuckets, normalizeClassifySettings,
-  pagePaddingCss, solveWidthMm, CELL_MM, OTHER_BUCKET_ID,
+  pagePaddingCss, solveWidthMm, solveHeightMm, CELL_MM, OTHER_BUCKET_ID,
 } from '../../utils/classifySheet';
 import './ClassifyPrintLayout.css';
 
 /**
  * Печать листа-классификатора.
  *
- * Лист двухэтапный и это его смысл, а не оформление: на первой странице
- * ученик только опознаёт типы и заполняет таблицу «тип → номера», и здесь же
- * напечатана контрольная сумма номеров — разбиение проверяется до того, как
- * начнётся счёт. Решения идут на следующих страницах, куда уравнение надо
- * переписать своей рукой (переписывание и есть момент, когда тип становится
- * осознанным выбором).
+ * Смысл листа в том, что ученик сначала опознаёт тип уравнения и лишь потом
+ * решает: на первой странице банк уравнений вперемешку, дальше — карманы по
+ * типам, куда уравнение надо переписать своей рукой. Переписывание и есть тот
+ * момент, когда тип становится осознанным выбором.
  *
- * Тот же компонент рисует экранный предпросмотр (`screenMode`) — иначе учитель
- * увидит лист только в диалоге печати.
+ * В кармане нет расчерченных мест под отдельные уравнения — только заголовок и
+ * сплошная клетка: ученик сам решает, сколько места занять, и сам подписывает
+ * номера. Высота клетки при этом считается по числу уравнений, которые в этот
+ * карман идут (см. `slotsForBucket`).
+ *
+ * Стилистика — общая с печатным движком `components/print-sheet/`.
+ * Тот же компонент рисует экранный предпросмотр (`screenMode`).
  */
 
-const DEFAULT_INSTRUCTION = 'Определите тип каждого уравнения. Впишите его номер '
-  + 'в таблицу, а затем перепишите уравнение в нужный раздел и решите самым коротким способом.';
+const DEFAULT_INSTRUCTION = 'Определите тип каждого уравнения, перепишите его в нужный '
+  + 'раздел и решите самым коротким способом. Номер уравнения подпишите сами.';
 
-function Header({ settings }) {
+function Header({ title, settings }) {
   if (settings.showHeader === false) return null;
   return (
-    <div className="cls-header">
-      <span className="cls-field cls-field--fio">ФИО: <span className="cls-line cls-line--name" /></span>
-      <span className="cls-field">Класс: <span className="cls-line cls-line--short" /></span>
-      <span className="cls-field">Дата: <span className="cls-line cls-line--short" /></span>
+    <div className="cls-head">
+      <div className="cls-eyebrow">Классификация уравнений</div>
+      <div className="cls-title">{title || 'Разложи по типам'}</div>
+      <div className="cls-fields">
+        <div className="cls-field cls-field--wide">
+          <span className="cls-field-label">Фамилия, имя</span>
+          <span className="cls-field-rule" />
+        </div>
+        {settings.showClassField !== false && (
+          <div className="cls-field">
+            <span className="cls-field-label">Класс</span>
+            <span className="cls-field-rule" />
+          </div>
+        )}
+        <div className="cls-field">
+          <span className="cls-field-label">Дата</span>
+          <span className="cls-field-rule" />
+        </div>
+      </div>
     </div>
   );
 }
 
-// ─── Страница 1: банк уравнений и таблица классификации ──────────────────────
+// ─── Страница 1: банк уравнений (и таблица, если она включена) ───────────────
 function BankPage({ title, items, stats, settings }) {
   const columns = settings.bankColumns === 1 ? 1 : 2;
 
   return (
     <div className="cls-page" style={{ padding: pagePaddingCss() }}>
-      <Header settings={settings} />
-      {title && <div className="cls-title">{title}</div>}
-      <div className="cls-instruction">{settings.instruction || DEFAULT_INSTRUCTION}</div>
+      <Header title={title} settings={settings} />
+
+      <div className="cls-note">
+        <span className="cls-note-label">Задание. </span>
+        <span className="cls-note-text">{settings.instruction || DEFAULT_INSTRUCTION}</span>
+      </div>
 
       <div className={`cls-bank cls-bank--${columns}col`}>
         {items.map((item, index) => (
           <div className="cls-bank-item" key={item.id || index}>
-            <span className="cls-bank-num">{index + 1})</span>
+            <span className="cls-bank-num">{index + 1}</span>
             <span className="cls-bank-expr"><ClassifyItemView item={item} /></span>
           </div>
         ))}
       </div>
 
-      {settings.showTable !== false && (
+      {settings.showTable && (
         <table className="cls-table">
           <thead>
             <tr>
               <th className="cls-th-type">Тип уравнения</th>
               <th className="cls-th-nums">Номера уравнений</th>
-              {settings.showChecksum && <th className="cls-th-sum">Сумма<br />номеров</th>}
+              {settings.showChecksum && <th className="cls-th-sum">Сумма номеров</th>}
             </tr>
           </thead>
           <tbody>
@@ -85,29 +106,10 @@ function BankPage({ title, items, stats, settings }) {
   );
 }
 
-// ─── Страницы решений: карманы ───────────────────────────────────────────────
-function SolveSlot({ settings, columns }) {
-  const heightMm = Math.max(1, settings.solveCells) * CELL_MM;
-  return (
-    <div className="cls-slot">
-      {/* Само уравнение ученик переписывает в клетку, здесь только его номер */}
-      <div className="cls-slot-prompt">
-        <span className="cls-slot-num">№</span>
-        <span className="cls-line cls-line--num" />
-      </div>
-      <div className="cls-solve" style={{ height: `${heightMm}mm` }}>
-        <PrintFill
-          fill={settings.fill}
-          heightMm={heightMm}
-          widthMm={solveWidthMm(columns)}
-          cellMm={CELL_MM}
-        />
-      </div>
-    </div>
-  );
-}
-
+// ─── Карман: заголовок и сплошная клетка ─────────────────────────────────────
 function BucketBlock({ stat, settings, showChecksum, columns }) {
+  const heightMm = solveHeightMm(stat.slots, settings);
+
   return (
     <div className="cls-bucket">
       <div className="cls-bucket-head">
@@ -122,9 +124,15 @@ function BucketBlock({ stat, settings, showChecksum, columns }) {
           <span className="cls-bucket-sum">Σ номеров = {stat.checksum || '—'}</span>
         )}
       </div>
-      {Array.from({ length: stat.slots }, (_, i) => (
-        <SolveSlot key={i} settings={settings} columns={columns} />
-      ))}
+
+      <div className="cls-solve" style={{ height: `${heightMm}mm` }}>
+        <PrintFill
+          fill={settings.fill}
+          heightMm={heightMm}
+          widthMm={solveWidthMm(columns)}
+          cellMm={CELL_MM}
+        />
+      </div>
     </div>
   );
 }
@@ -135,7 +143,10 @@ function KeyPage({ title, stats, settings }) {
 
   return (
     <div className="cls-page cls-page--key" style={{ padding: pagePaddingCss() }}>
-      <div className="cls-title">Ключ: {title || 'лист-классификатор'}</div>
+      <div className="cls-head">
+        <div className="cls-eyebrow">Ключ учителя</div>
+        <div className="cls-title">{title || 'Разложи по типам'}</div>
+      </div>
 
       {stats.buckets.map(stat => (
         <div className="cls-key-bucket" key={stat.bucket.id}>
@@ -148,7 +159,7 @@ function KeyPage({ title, stats, settings }) {
           </div>
           {stat.entries.map(({ number, item }) => (
             <div className="cls-key-row" key={item.id || number}>
-              <span className="cls-key-num">{number})</span>
+              <span className="cls-key-num">{number}</span>
               <span className="cls-key-expr"><ClassifyItemView item={item} /></span>
               {item.answerLatex && (
                 <span className="cls-key-answer">
@@ -173,7 +184,7 @@ function KeyPage({ title, stats, settings }) {
           </div>
           {stats.unassigned.map(({ number, item }) => (
             <div className="cls-key-row" key={item.id || number}>
-              <span className="cls-key-num">{number})</span>
+              <span className="cls-key-num">{number}</span>
               <span className="cls-key-expr"><ClassifyItemView item={item} /></span>
             </div>
           ))}
@@ -196,12 +207,12 @@ export default function ClassifyPrintLayout({
   const stats = sheetStats(buckets, items, settings);
   const pages = paginateBuckets(stats, settings);
   const fontSize = settings.fontSize || 's';
+  const columns = settings.bucketColumns === 2 ? 2 : 1;
 
   // Контрольная сумма нужна ровно один раз: в таблице первой страницы, а если
   // таблицы нет — в заголовке кармана. Напечатанная дважды, она превращает
   // страницу решений в шпаргалку по классификации.
-  const sumInBucket = Boolean(settings.showChecksum) && settings.showTable === false;
-  const columns = settings.bucketColumns === 2 ? 2 : 1;
+  const sumInBucket = Boolean(settings.showChecksum) && !settings.showTable;
 
   const inner = (
     <>
@@ -210,9 +221,9 @@ export default function ClassifyPrintLayout({
       {pages.map((page, pageIndex) => (
         <div className="cls-page" key={`p${pageIndex}`} style={{ padding: pagePaddingCss() }}>
           {settings.showRunningTitle !== false && (
-            <div className="cls-running">
-              {title || 'Разложи по типам'}
-              <span className="cls-running-page">стр. {pageIndex + 2}</span>
+            <div className="cls-runhead">
+              <span>{title || 'Разложи по типам'}</span>
+              <span>стр. {pageIndex + 2}</span>
             </div>
           )}
           <div className={`cls-buckets cls-buckets--${columns}col`}>

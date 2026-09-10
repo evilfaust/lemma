@@ -1,113 +1,184 @@
 /* Лист-классификатор: одна вёрстка на печать и на экранный предпросмотр.
    Общие правила ниже задают вид листа, а @media print и .cls-screen-root
-   отвечают только за размер страницы и её окружение. */
+   отвечают только за размер страницы и её окружение.
+
+   Стилистика — та же, что у печатного движка `components/print-sheet/`
+   (входная контрольная): строго монохромный лист без цвета, иерархия держится
+   кеглем и четырьмя толщинами линеек:
+     0.5mm  — рамка шапки (единственная «жирная» линия)
+     0.35mm — линии для заполнения (ФИО, номер)
+     0.25mm — рамки блоков
+     0.2pt  — волосяные: клетка, разделители
+   Кегли в миллиметрах: лист печатается, а не читается с экрана. */
 
 .cls-print-root { display: none; }
+
+.cls-print-root,
+.cls-screen-root {
+  --cls-ink:    #101010;
+  --cls-ink-2:  #303030;
+  --cls-ink-3:  #5A5A5A;
+  --cls-ink-4:  #8A8A8A;
+  --cls-rule:   #111111;
+  --cls-rule-2: #9A9A9A;
+  --cls-hair:   #CFCFCF;
+}
 
 /* ─── Общий вид листа ─────────────────────────────────────────────────────── */
 .cls-page {
   box-sizing: border-box;
-  font-family: 'Times New Roman', Times, serif;
-  line-height: 1.35;
-  color: #000;
   background: #fff;
+  color: var(--cls-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
 }
 
-.cls-fs-s .cls-page { font-size: 10.5pt; }
-.cls-fs-m .cls-page { font-size: 12pt; }
-.cls-fs-l .cls-page { font-size: 13.5pt; }
+.cls-fs-s .cls-page { font-size: 3.6mm; }
+.cls-fs-m .cls-page { font-size: 3.9mm; }
+.cls-fs-l .cls-page { font-size: 4.3mm; }
 
-.cls-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4mm 8mm;
-  padding-bottom: 2mm;
-  border-bottom: 0.4mm solid #000;
-  margin-bottom: 3mm;
-  font-size: 0.92em;
+/* ─── Шапка первой страницы ───────────────────────────────────────────────── */
+.cls-head {
+  padding-bottom: 3.5mm;
+  margin-bottom: 4.5mm;
+  border-bottom: 0.5mm solid var(--cls-rule);
 }
-.cls-field { white-space: nowrap; }
-.cls-field--fio { flex: 1; min-width: 60mm; }
-.cls-line {
-  display: inline-block;
-  border-bottom: 0.25mm solid #000;
-  vertical-align: baseline;
+.cls-eyebrow {
+  font-size: 2.6mm;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--cls-ink-3);
 }
-.cls-line--name  { width: 55mm; }
-.cls-line--short { width: 22mm; }
-.cls-line--num   { width: 12mm; margin: 0 3mm 0 1mm; }
-.cls-line--expr  { flex: 1; }
-
 .cls-title {
-  font-size: 1.15em;
-  font-weight: bold;
-  text-align: center;
-  margin-bottom: 2mm;
+  font-size: 6mm;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.12;
+  margin: 1.6mm 0 0;
 }
-.cls-instruction {
-  font-size: 0.92em;
-  font-style: italic;
-  margin-bottom: 3mm;
-  text-align: justify;
-}
-.cls-running {
+.cls-fields {
   display: flex;
+  gap: 6mm;
+  margin-top: 4mm;
+}
+.cls-field {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 1.8mm;
+  min-width: 0;
+}
+.cls-field--wide { flex: 2.4; }
+.cls-field-label {
+  font-size: 2.8mm;
+  color: var(--cls-ink-3);
+  white-space: nowrap;
+}
+.cls-field-rule {
+  flex: 1;
+  height: 4.6mm;
+  border-bottom: 0.35mm solid var(--cls-ink-3);
+}
+
+/* Инструкция — хайрлайн-бокс с меткой врезкой */
+.cls-note {
+  padding: 2.4mm 3mm;
+  border: 0.25mm solid var(--cls-rule-2);
+  margin-bottom: 4mm;
+}
+.cls-note-label {
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cls-note-text {
+  font-size: 2.95mm;
+  line-height: 1.42;
+  color: var(--cls-ink-2);
+  margin: 0;
+}
+
+/* Колонтитул страниц решения */
+.cls-runhead {
+  display: flex;
+  align-items: flex-end;
   justify-content: space-between;
-  font-size: 0.85em;
-  color: #444;
-  border-bottom: 0.2mm solid #999;
-  padding-bottom: 1mm;
-  margin-bottom: 3mm;
+  gap: 6mm;
+  padding-bottom: 1.6mm;
+  margin-bottom: 4mm;
+  border-bottom: 0.25mm solid var(--cls-rule-2);
+  font-size: 2.8mm;
+  color: var(--cls-ink-3);
 }
 
 /* ─── Банк уравнений ──────────────────────────────────────────────────────── */
 .cls-bank {
   display: grid;
-  gap: 1.5mm 8mm;
-  border: 0.35mm solid #000;
-  padding: 3mm 4mm;
+  gap: 2.5mm 6mm;
+  border: 0.25mm solid var(--cls-rule-2);
+  padding: 3mm 3.5mm;
   margin-bottom: 4mm;
 }
 .cls-bank--1col { grid-template-columns: 1fr; }
 .cls-bank--2col { grid-template-columns: 1fr 1fr; }
 .cls-bank-item {
   display: flex;
-  align-items: baseline;
-  gap: 2mm;
+  align-items: center;
+  gap: 2.6mm;
   min-width: 0;
 }
-.cls-bank-num { min-width: 7mm; }
-.cls-bank-expr { overflow-x: hidden; }
+.cls-bank-num {
+  flex: 0 0 6mm;
+  height: 6mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.3mm solid var(--cls-rule);
+  font-size: 3mm;
+  font-weight: 650;
+  line-height: 1;
+}
+.cls-bank-expr {
+  min-width: 0;
+  overflow-x: hidden;
+}
 
-/* ─── Таблица «тип → номера» ──────────────────────────────────────────────── */
+/* ─── Таблица «тип → номера» (по флажку) ──────────────────────────────────── */
 .cls-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
+  margin-bottom: 4mm;
 }
 .cls-table th,
 .cls-table td {
-  border: 0.3mm solid #000;
-  padding: 1.5mm 2mm;
+  border: 0.25mm solid var(--cls-rule-2);
+  padding: 1.6mm 2mm;
   vertical-align: middle;
 }
 .cls-table th {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: 2.6mm;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cls-ink-3);
   text-align: center;
 }
 .cls-th-nums { width: 42%; }
-.cls-th-sum  { width: 18mm; }
+.cls-th-sum  { width: 20mm; }
 .cls-td-type { line-height: 1.25; }
 .cls-td-nums { height: 11mm; }
-.cls-td-sum  { text-align: center; font-weight: bold; }
-.cls-type-label { display: block; }
+.cls-td-sum  { text-align: center; font-weight: 650; }
+.cls-type-label { display: block; font-size: 3.2mm; }
 .cls-type-hint {
   display: block;
-  font-size: 0.82em;
-  font-style: italic;
-  color: #333;
+  font-size: 2.7mm;
+  color: var(--cls-ink-3);
+  margin-top: 0.4mm;
 }
 
 /* ─── Карманы: один или два в ряд ─────────────────────────────────────────── */
@@ -123,8 +194,8 @@
 .cls-buckets--2col .cls-bucket { min-width: 0; }
 
 .cls-bucket {
-  border: 0.35mm solid #000;
-  padding: 1.5mm 3mm 2mm;
+  border: 0.25mm solid var(--cls-rule-2);
+  padding: 2mm 2.5mm 2.5mm;
   margin-bottom: 3.5mm;
   break-inside: avoid;
   page-break-inside: avoid;
@@ -133,44 +204,43 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 1mm 4mm;
-  border-bottom: 0.25mm solid #666;
-  padding-bottom: 1mm;
-  margin-bottom: 1.5mm;
+  gap: 0.8mm 3mm;
+  padding-bottom: 1.4mm;
+  margin-bottom: 2mm;
+  border-bottom: 0.2pt solid var(--cls-hair);
 }
-.cls-bucket-label { font-weight: bold; }
-.cls-bucket-hint  { font-size: 0.85em; font-style: italic; color: #333; }
+.cls-bucket-label {
+  font-size: 3.3mm;
+  font-weight: 650;
+  line-height: 1.15;
+}
+.cls-bucket-hint {
+  font-size: 2.7mm;
+  color: var(--cls-ink-3);
+}
 .cls-bucket-points,
 .cls-bucket-sum {
   margin-left: auto;
-  font-size: 0.85em;
+  font-size: 2.7mm;
+  color: var(--cls-ink-3);
   white-space: nowrap;
 }
-.cls-bucket-sum { font-weight: bold; }
+.cls-bucket-sum { font-weight: 650; color: var(--cls-ink); }
 
-.cls-slot { margin-bottom: 2mm; }
-.cls-slot:last-child { margin-bottom: 0; }
-.cls-slot-prompt {
-  display: flex;
-  align-items: baseline;
-  margin-bottom: 1mm;
-}
-.cls-slot-num { font-size: 0.85em; }
-
-/* Поле для решения в клетку. Размеры задаются inline из общих констант
+/* Поле для решения в клетку. Высота задаётся inline из общих констант
    (utils/classifySheet.js), здесь только рамка и отсечка линий: PrintFill
    рисует их абсолютом, и без overflow они полезли бы за карман. */
 .cls-solve {
   position: relative;
   overflow: hidden;
-  border: 0.2mm solid #b0b0b0;
+  border: 0.2pt solid var(--cls-hair);
   background: #fff;
 }
 
 /* ─── Ключ учителя ────────────────────────────────────────────────────────── */
 .cls-key-bucket {
-  border: 0.3mm solid #000;
-  padding: 2mm 3mm;
+  border: 0.25mm solid var(--cls-rule-2);
+  padding: 2mm 2.5mm;
   margin-bottom: 3mm;
   break-inside: avoid;
   page-break-inside: avoid;
@@ -180,24 +250,23 @@
   display: flex;
   justify-content: space-between;
   gap: 4mm;
-  border-bottom: 0.2mm solid #999;
-  padding-bottom: 1mm;
-  margin-bottom: 1.5mm;
+  border-bottom: 0.2pt solid var(--cls-hair);
+  padding-bottom: 1.2mm;
+  margin-bottom: 1.6mm;
 }
-.cls-key-label { font-weight: bold; }
-.cls-key-meta  { font-size: 0.85em; color: #333; white-space: nowrap; }
+.cls-key-label { font-weight: 650; font-size: 3.2mm; }
+.cls-key-meta  { font-size: 2.7mm; color: var(--cls-ink-3); white-space: nowrap; }
 .cls-key-row {
   display: flex;
   align-items: baseline;
-  gap: 2mm;
-  padding: 0.6mm 0;
-  font-size: 0.95em;
+  gap: 2.4mm;
+  padding: 0.7mm 0;
+  font-size: 3.1mm;
 }
-.cls-key-num { min-width: 7mm; }
+.cls-key-num { min-width: 6mm; color: var(--cls-ink-3); }
 .cls-key-also {
-  font-size: 0.8em;
-  font-style: italic;
-  color: #444;
+  font-size: 2.6mm;
+  color: var(--cls-ink-3);
   margin-left: auto;
   white-space: nowrap;
 }
@@ -237,13 +306,12 @@
   align-items: center;
   gap: 16px;
   padding: 16px 8px 32px;
-  background: #e8e8e8;
+  background: #E9EAEE;
   min-height: 100%;
   box-sizing: border-box;
 }
 .cls-screen-root .cls-page {
   width: 210mm;
   min-height: 297mm;
-  border: 1.5px solid #bbb;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.10);
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
 }
