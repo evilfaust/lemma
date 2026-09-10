@@ -105,7 +105,9 @@ export const DEFAULT_CLASSIFY_SETTINGS = {
   showChecksum: true,     // «Σ номеров = 27» под карманом
   slotMode: 'uniform',    // 'uniform' — мест поровну, 'auto' — по числу уравнений
   slotsPerBucket: 0,      // 0 = автоматически (максимум по карманам)
-  solveLines: 2,          // линеек на решение в одном месте
+  fill: 'grid',           // разлиновка места решения: клетка / линейка / пусто
+  solveCells: 4,          // высота места решения в клетках по 5 мм
+  bucketColumns: 2,       // карманов в ряд на странице решений
   showOther: true,
   showPoints: false,
   showHints: true,
@@ -113,6 +115,63 @@ export const DEFAULT_CLASSIFY_SETTINGS = {
   bankColumns: 2,
   fontSize: 's',
 };
+
+// Поля листа. Узкие намеренно: место на решение дороже полей, а лист не
+// подшивают — слева оставлено чуть больше остальных, чтобы клетка не упиралась
+// в край. Значения отсюда уходят в inline-стиль страницы, чтобы вёрстка и
+// расчёт раскладки не разъезжались.
+export const PAGE_MM = {
+  width: 210,
+  height: 297,
+  top: 8,
+  right: 10,
+  bottom: 6,
+  left: 12,
+};
+
+export const CELL_MM = 5;
+
+/** Сколько миллиметров по высоте реально доступно содержимому страницы. */
+export const PAGE_LIMIT_MM = PAGE_MM.height - PAGE_MM.top - PAGE_MM.bottom;
+
+/** Ширина колонки текста на странице — она же ширина клеточного поля. */
+export function contentWidthMm() {
+  return PAGE_MM.width - PAGE_MM.left - PAGE_MM.right;
+}
+
+// Зазор между карманами, стоящими в ряд
+const COLUMN_GAP_MM = 4;
+
+/**
+ * Ширина клеточного поля внутри кармана: колонка страницы минус зазор между
+ * карманами, рамка кармана и её отступы. Нужна точно — по ней считается число
+ * вертикальных линий, а лишние ломают масштаб печати.
+ */
+export function solveWidthMm(columns = 1) {
+  const cols = columns === 2 ? 2 : 1;
+  const bucketWidth = (contentWidthMm() - (cols - 1) * COLUMN_GAP_MM) / cols;
+  return bucketWidth - 7;
+}
+
+export function pagePaddingCss() {
+  return `${PAGE_MM.top}mm ${PAGE_MM.right}mm ${PAGE_MM.bottom}mm ${PAGE_MM.left}mm`;
+}
+
+/**
+ * Настройки листа с подставленными дефолтами.
+ *
+ * Первая версия листа мерила место решения линейками (`solveLines`); после
+ * перехода на клетку та же высота пересчитывается в клетки, иначе сохранённый
+ * лист молча поменял бы раскладку.
+ */
+export function normalizeClassifySettings(settings = {}) {
+  const next = { ...DEFAULT_CLASSIFY_SETTINGS, ...settings };
+  if (settings.solveCells === undefined && settings.solveLines !== undefined) {
+    next.solveCells = Math.max(2, Math.round((settings.solveLines * 8) / CELL_MM));
+    next.fill = settings.fill || 'lines';
+  }
+  return next;
+}
 
 let seq = 0;
 function uid(prefix) {
@@ -220,13 +279,12 @@ export function slotsForBucket(stat, stats, settings = {}) {
 // печати. Точность здесь не нужна: важно не дать карману разорваться между
 // страницами, поэтому раскладка считается заранее, а не отдаётся браузеру.
 const MM = {
-  page: 297,
-  margins: 24,        // поля сверху и снизу вместе
-  bucketHeader: 11,   // название кармана и признак
+  bucketHeader: 10,   // название кармана и признак
   checksum: 5,
-  slotPrompt: 7.5,    // строка «№ ___ уравнение»
-  solveLine: 6.5,     // высота линейки — та же, что в ClassifyPrintLayout.css
-  bucketGap: 5,
+  slotPrompt: 5,      // строка «№ ___» над полем (само уравнение пишется в клетке)
+  slotGap: 2,
+  bucketPadding: 5,   // рамка кармана: отступы сверху и снизу вместе
+  bucketGap: 3.5,
 
   // Первая страница: шапка, заголовок, инструкция, банк и таблица
   pageHead: 30,
@@ -236,35 +294,54 @@ const MM = {
   tableRow: 12,
 };
 
+/** Высота одного места: строка «№ ___ уравнение» плюс поле решения. */
+export function slotHeightMm(settings = {}) {
+  const cells = Math.max(1, settings.solveCells ?? DEFAULT_CLASSIFY_SETTINGS.solveCells);
+  return MM.slotPrompt + cells * CELL_MM + MM.slotGap;
+}
+
 export function bucketHeightMm(slots, settings = {}) {
-  const lines = Math.max(1, settings.solveLines ?? 3);
   return MM.bucketHeader
     + (settings.showChecksum ? MM.checksum : 0)
-    + slots * (MM.slotPrompt + lines * MM.solveLine)
+    + MM.bucketPadding
+    + slots * slotHeightMm(settings)
     + MM.bucketGap;
 }
 
 /**
  * Раскладка карманов по страницам решения. Карман целиком помещается на одну
  * страницу: разорванный пополам карман на бумаге читается как два разных.
- * Карман выше страницы (много мест × много линеек) занимает свою страницу —
+ * Карман выше страницы (много мест × высокое поле) занимает свою страницу —
  * иначе он не поместится никуда и потеряется.
+ *
+ * В два ряда карманы выравниваются по строкам, поэтому строка стоит столько,
+ * сколько самый высокий карман в ней: считать надо по строкам, а не по сумме
+ * карманов, иначе последняя строка сползёт на следующий лист уже в браузере.
  */
 export function paginateBuckets(stats, settings = {}) {
-  const limit = MM.page - MM.margins;
+  const cols = settings.bucketColumns === 2 ? 2 : 1;
+  const sized = stats.buckets.map((stat) => {
+    const slots = slotsForBucket(stat, stats, settings);
+    return { ...stat, slots, height: bucketHeightMm(slots, settings) };
+  });
+
+  const rows = [];
+  for (let i = 0; i < sized.length; i += cols) {
+    const row = sized.slice(i, i + cols);
+    rows.push({ row, height: Math.max(...row.map(b => b.height)) });
+  }
+
   const pages = [];
   let page = [];
   let used = 0;
 
-  stats.buckets.forEach((stat) => {
-    const slots = slotsForBucket(stat, stats, settings);
-    const height = bucketHeightMm(slots, settings);
-    if (page.length && used + height > limit) {
+  rows.forEach(({ row, height }) => {
+    if (page.length && used + height > PAGE_LIMIT_MM) {
       pages.push(page);
       page = [];
       used = 0;
     }
-    page.push({ ...stat, slots, height });
+    page.push(...row);
     used += height;
   });
 
@@ -285,8 +362,6 @@ export function bankPageHeightMm(items = [], bucketCount = 0, settings = {}) {
     : MM.tableHead + bucketCount * MM.tableRow;
   return MM.pageHead + bank + table;
 }
-
-export const PAGE_LIMIT_MM = MM.page - MM.margins;
 
 /** Перемешать банк: номера уравнений меняются, вместе с ними и суммы. */
 export function shuffleItems(items = []) {

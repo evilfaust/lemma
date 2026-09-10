@@ -103,12 +103,43 @@ export default function ClassifySheetGenerator() {
             <TrigSettingsSection label="Лист">
               <Space direction="vertical" size={8} style={{ width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, flex: 1 }}>Линеек на решение</span>
+                  <span style={{ fontSize: 12, flex: 1 }}>Место для решения</span>
+                  <Segmented
+                    size="small"
+                    options={[
+                      { value: 'grid', label: 'Клетка' },
+                      { value: 'lines', label: 'Линейка' },
+                      { value: 'blank', label: 'Пусто' },
+                    ]}
+                    value={settings.fill}
+                    onChange={v => updateSetting('fill', v)}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tooltip title="Высота места под одно решение, в клетках по 5 мм">
+                    <span style={{ fontSize: 12, flex: 1 }}>Высота, клеток</span>
+                  </Tooltip>
                   <InputNumber
-                    size="small" min={1} max={10}
-                    value={settings.solveLines}
-                    onChange={v => updateSetting('solveLines', v ?? 3)}
+                    size="small" min={1} max={20}
+                    value={settings.solveCells}
+                    onChange={v => updateSetting('solveCells', v ?? 4)}
                     style={{ width: 64 }}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--ink-4)', minWidth: 36 }}>
+                    {Math.max(1, settings.solveCells || 1) * 5} мм
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tooltip title="Два в ряд экономят почти половину бумаги">
+                    <span style={{ fontSize: 12, flex: 1 }}>Типов в ряд</span>
+                  </Tooltip>
+                  <Segmented
+                    size="small"
+                    options={[{ value: 1, label: '1' }, { value: 2, label: '2' }]}
+                    value={settings.bucketColumns}
+                    onChange={v => updateSetting('bucketColumns', v)}
                   />
                 </div>
 

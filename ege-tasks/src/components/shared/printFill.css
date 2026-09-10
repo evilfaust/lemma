@@ -1,0 +1,22 @@
+/* Разлиновка (клетка/линейка) для печатных вёрсток — см. PrintFill.jsx.
+   Линии в физических единицах: при печати они уходят вектором, а не пикселями. */
+
+.pfill { position: absolute; inset: 0; }
+
+.pfill-h {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 0.2pt solid #d8d8d8;
+  pointer-events: none;
+}
+
+.pfill-v {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 0.2pt solid #d8d8d8;
+  pointer-events: none;
+}

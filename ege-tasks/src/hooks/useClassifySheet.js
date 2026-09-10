@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   DEFAULT_CLASSIFY_SETTINGS,
+  normalizeClassifySettings,
   bucketsFromPreset,
   createBucket,
   createItem,
@@ -117,7 +118,7 @@ export function useClassifySheet() {
 
   const applySheet = useCallback((sheet) => {
     setTitle(sheet.title || 'Разложи по типам');
-    setSettings({ ...DEFAULT_CLASSIFY_SETTINGS, ...(sheet.settings || {}) });
+    setSettings(normalizeClassifySettings(sheet.settings || {}));
     const data = sheet.tasksData || {};
     setBuckets(Array.isArray(data.buckets) ? data.buckets : []);
     setItems(Array.isArray(data.items) ? data.items : []);

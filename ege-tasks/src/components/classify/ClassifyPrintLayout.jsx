@@ -1,7 +1,9 @@
 import MathInline from '../shared/MathInline';
 import ClassifyItemView from './ClassifyItemView';
+import PrintFill from '../shared/PrintFill';
 import {
-  sheetStats, paginateBuckets, OTHER_BUCKET_ID,
+  sheetStats, paginateBuckets, normalizeClassifySettings,
+  pagePaddingCss, solveWidthMm, CELL_MM, OTHER_BUCKET_ID,
 } from '../../utils/classifySheet';
 import './ClassifyPrintLayout.css';
 
@@ -38,7 +40,7 @@ function BankPage({ title, items, stats, settings }) {
   const columns = settings.bankColumns === 1 ? 1 : 2;
 
   return (
-    <div className="cls-page">
+    <div className="cls-page" style={{ padding: pagePaddingCss() }}>
       <Header settings={settings} />
       {title && <div className="cls-title">{title}</div>}
       <div className="cls-instruction">{settings.instruction || DEFAULT_INSTRUCTION}</div>
@@ -84,23 +86,28 @@ function BankPage({ title, items, stats, settings }) {
 }
 
 // ─── Страницы решений: карманы ───────────────────────────────────────────────
-function SolveSlot({ settings }) {
-  const lines = Math.max(1, settings.solveLines ?? 3);
+function SolveSlot({ settings, columns }) {
+  const heightMm = Math.max(1, settings.solveCells) * CELL_MM;
   return (
     <div className="cls-slot">
+      {/* Само уравнение ученик переписывает в клетку, здесь только его номер */}
       <div className="cls-slot-prompt">
         <span className="cls-slot-num">№</span>
         <span className="cls-line cls-line--num" />
-        <span className="cls-line cls-line--expr" />
       </div>
-      {Array.from({ length: lines }, (_, i) => (
-        <div className="cls-solve-line" key={i} />
-      ))}
+      <div className="cls-solve" style={{ height: `${heightMm}mm` }}>
+        <PrintFill
+          fill={settings.fill}
+          heightMm={heightMm}
+          widthMm={solveWidthMm(columns)}
+          cellMm={CELL_MM}
+        />
+      </div>
     </div>
   );
 }
 
-function BucketBlock({ stat, settings, showChecksum }) {
+function BucketBlock({ stat, settings, showChecksum, columns }) {
   return (
     <div className="cls-bucket">
       <div className="cls-bucket-head">
@@ -116,7 +123,7 @@ function BucketBlock({ stat, settings, showChecksum }) {
         )}
       </div>
       {Array.from({ length: stat.slots }, (_, i) => (
-        <SolveSlot key={i} settings={settings} />
+        <SolveSlot key={i} settings={settings} columns={columns} />
       ))}
     </div>
   );
@@ -127,7 +134,7 @@ function KeyPage({ title, stats, settings }) {
   const bucketName = new Map(stats.buckets.map(s => [s.bucket.id, s.bucket.label]));
 
   return (
-    <div className="cls-page cls-page--key">
+    <div className="cls-page cls-page--key" style={{ padding: pagePaddingCss() }}>
       <div className="cls-title">Ключ: {title || 'лист-классификатор'}</div>
 
       {stats.buckets.map(stat => (
@@ -180,9 +187,12 @@ export default function ClassifyPrintLayout({
   title,
   buckets = [],
   items = [],
-  settings = {},
+  settings: rawSettings = {},
   screenMode = false,
 }) {
+  // Лист мог быть сохранён версией с линейками вместо клетки — приводим
+  // настройки к текущей форме здесь, а не в каждом блоке вёрстки.
+  const settings = normalizeClassifySettings(rawSettings);
   const stats = sheetStats(buckets, items, settings);
   const pages = paginateBuckets(stats, settings);
   const fontSize = settings.fontSize || 's';
@@ -191,27 +201,31 @@ export default function ClassifyPrintLayout({
   // таблицы нет — в заголовке кармана. Напечатанная дважды, она превращает
   // страницу решений в шпаргалку по классификации.
   const sumInBucket = Boolean(settings.showChecksum) && settings.showTable === false;
+  const columns = settings.bucketColumns === 2 ? 2 : 1;
 
   const inner = (
     <>
       <BankPage title={title} items={items} stats={stats} settings={settings} />
 
       {pages.map((page, pageIndex) => (
-        <div className="cls-page" key={`p${pageIndex}`}>
+        <div className="cls-page" key={`p${pageIndex}`} style={{ padding: pagePaddingCss() }}>
           {settings.showRunningTitle !== false && (
             <div className="cls-running">
               {title || 'Разложи по типам'}
               <span className="cls-running-page">стр. {pageIndex + 2}</span>
             </div>
           )}
-          {page.map(stat => (
-            <BucketBlock
-              key={stat.bucket.id}
-              stat={stat}
-              settings={settings}
-              showChecksum={sumInBucket && stat.bucket.id !== OTHER_BUCKET_ID}
-            />
-          ))}
+          <div className={`cls-buckets cls-buckets--${columns}col`}>
+            {page.map(stat => (
+              <BucketBlock
+                key={stat.bucket.id}
+                stat={stat}
+                settings={settings}
+                columns={columns}
+                showChecksum={sumInBucket && stat.bucket.id !== OTHER_BUCKET_ID}
+              />
+            ))}
+          </div>
         </div>
       ))}
 

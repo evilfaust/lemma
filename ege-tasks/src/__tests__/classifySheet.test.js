@@ -4,7 +4,10 @@ import {
   bucketsFromPreset, createItem, sheetStats, slotsForBucket,
   paginateBuckets, bucketHeightMm, shuffleItems, classifyWarnings,
   printableBuckets, bankPageHeightMm, PAGE_LIMIT_MM,
+  normalizeClassifySettings, slotHeightMm, solveWidthMm, contentWidthMm,
+  PAGE_MM, CELL_MM,
 } from '../utils/classifySheet';
+import { fillLineCounts } from '../components/shared/PrintFill';
 import { parseBulkEquations } from '../components/classify/BulkAddModal';
 import {
   bucketForCategory, generateItemsForClassify, presetKeysForCategories,
@@ -114,35 +117,69 @@ describe('раскладка страниц решения', () => {
   });
 
   it('страница не переполняется по высоте', () => {
+    const settings = { ...SETTINGS, bucketColumns: 1 };
     const buckets = bucketsFromPreset();
     const items = buckets.flatMap(b => [createItem({ bucketId: b.id }), createItem({ bucketId: b.id })]);
-    const stats = sheetStats(buckets, items, SETTINGS);
-    const pages = paginateBuckets(stats, SETTINGS);
+    const pages = paginateBuckets(sheetStats(buckets, items, settings), settings);
 
     pages.forEach((page) => {
       const height = page.reduce((s, p) => s + p.height, 0);
       // Переполнение допускается только когда карман один и он сам выше листа
-      if (page.length > 1) expect(height).toBeLessThanOrEqual(297 - 24);
+      if (page.length > 1) expect(height).toBeLessThanOrEqual(PAGE_LIMIT_MM);
     });
   });
 
   it('карман выше листа занимает свою страницу целиком', () => {
     const buckets = bucketsFromPreset(['vieta', 'full']);
     const items = Array.from({ length: 12 }, () => createItem({ bucketId: buckets[0].id }));
-    const settings = { ...SETTINGS, slotMode: 'auto', solveLines: 8 };
+    const settings = { ...SETTINGS, slotMode: 'auto', solveCells: 8, bucketColumns: 1 };
     const stats = sheetStats(buckets, items, settings);
     const pages = paginateBuckets(stats, settings);
 
-    expect(bucketHeightMm(12, settings)).toBeGreaterThan(297);
+    expect(bucketHeightMm(12, settings)).toBeGreaterThan(PAGE_MM.height);
     expect(pages[0]).toHaveLength(1);
     expect(pages[0][0].bucket.presetKey).toBe('vieta');
   });
 
-  it('больше линеек — больше страниц', () => {
+  it('два типа в ряд экономят бумагу, но карманы не теряются', () => {
+    const buckets = bucketsFromPreset();
+    const items = buckets.flatMap(b => [createItem({ bucketId: b.id }), createItem({ bucketId: b.id })]);
+    const one = { ...SETTINGS, bucketColumns: 1 };
+    const two = { ...SETTINGS, bucketColumns: 2 };
+
+    const pagesOne = paginateBuckets(sheetStats(buckets, items, one), one);
+    const pagesTwo = paginateBuckets(sheetStats(buckets, items, two), two);
+
+    expect(pagesTwo.length).toBeLessThan(pagesOne.length);
+    expect(pagesTwo.flat()).toHaveLength(pagesOne.flat().length);
+  });
+
+  it('в два ряда строка стоит столько, сколько высокий карман в ней', () => {
+    const buckets = bucketsFromPreset(['vieta', 'full', 'noC', 'noB']);
+    // у первого кармана мест втрое больше — строка выйдет по нему
+    const items = [
+      ...Array.from({ length: 3 }, () => createItem({ bucketId: buckets[0].id })),
+      createItem({ bucketId: buckets[1].id }),
+      createItem({ bucketId: buckets[2].id }),
+      createItem({ bucketId: buckets[3].id }),
+    ];
+    const settings = { ...SETTINGS, bucketColumns: 2, slotMode: 'auto', solveCells: 12 };
+    const pages = paginateBuckets(sheetStats(buckets, items, settings), settings);
+
+    pages.forEach((page) => {
+      let used = 0;
+      for (let i = 0; i < page.length; i += 2) {
+        used += Math.max(...page.slice(i, i + 2).map(b => b.height));
+      }
+      if (page.length > 2) expect(used).toBeLessThanOrEqual(PAGE_LIMIT_MM);
+    });
+  });
+
+  it('выше место для решения — больше страниц', () => {
     const buckets = bucketsFromPreset(['noC', 'noB', 'vieta', 'full']);
     const items = buckets.map(b => createItem({ bucketId: b.id }));
-    const short = paginateBuckets(sheetStats(buckets, items, SETTINGS), { ...SETTINGS, solveLines: 1 });
-    const long = paginateBuckets(sheetStats(buckets, items, SETTINGS), { ...SETTINGS, solveLines: 8 });
+    const short = paginateBuckets(sheetStats(buckets, items, SETTINGS), { ...SETTINGS, solveCells: 2 });
+    const long = paginateBuckets(sheetStats(buckets, items, SETTINGS), { ...SETTINGS, solveCells: 14 });
     expect(long.length).toBeGreaterThan(short.length);
   });
 });
@@ -238,5 +275,51 @@ describe('добор из генератора квадратных уравне
     expect(keys).not.toContain('askSum');
     expect(keys).not.toContain('buildByRoots');
     expect(keys).toContain('perfectSquare');
+  });
+});
+
+describe('клетка и поля листа', () => {
+  it('высота места кратна клетке плюс строка «№ ___ уравнение»', () => {
+    const h4 = slotHeightMm({ solveCells: 4 });
+    const h6 = slotHeightMm({ solveCells: 6 });
+    expect(h6 - h4).toBe(2 * CELL_MM);
+  });
+
+  it('клеточное поле уже колонки страницы — рамка кармана съедает своё', () => {
+    expect(solveWidthMm()).toBeLessThan(contentWidthMm());
+    expect(contentWidthMm()).toBe(PAGE_MM.width - PAGE_MM.left - PAGE_MM.right);
+    // в два ряда поле примерно вдвое уже, но всё ещё шире 80 мм — решение влезает
+    expect(solveWidthMm(2)).toBeLessThan(solveWidthMm(1) / 2 + 5);
+    expect(solveWidthMm(2)).toBeGreaterThan(80);
+  });
+
+  it('линии клетки не выходят за поле — иначе Chrome ужимает лист', () => {
+    const heightMm = 20;
+    const widthMm = solveWidthMm();
+    const { h, v } = fillLineCounts({ fill: 'grid', heightMm, widthMm, cellMm: CELL_MM });
+
+    // последняя линия строго внутри блока
+    expect(h * CELL_MM).toBeLessThan(heightMm);
+    expect(v * CELL_MM).toBeLessThan(widthMm);
+    // и при этом клетка действительно расчерчена, а не одна линия
+    expect(h).toBe(3);
+    expect(v).toBeGreaterThan(30);
+  });
+
+  it('линейка рисует только горизонтали, «пусто» — ничего', () => {
+    expect(fillLineCounts({ fill: 'lines', heightMm: 24, widthMm: 100 })).toEqual({ h: 2, v: 0 });
+    expect(fillLineCounts({ fill: 'blank', heightMm: 24, widthMm: 100 })).toEqual({ h: 0, v: 0 });
+    expect(fillLineCounts({ fill: 'grid', heightMm: 0, widthMm: 100 })).toEqual({ h: 0, v: 0 });
+  });
+
+  it('лист прошлой версии переезжает с линеек на клетку без потери высоты', () => {
+    const legacy = normalizeClassifySettings({ solveLines: 3, bankColumns: 1 });
+    expect(legacy.solveCells).toBe(5);        // 3 линейки по 8 мм ≈ 5 клеток
+    expect(legacy.fill).toBe('lines');        // разлиновку сохранённого листа не меняем
+    expect(legacy.bankColumns).toBe(1);       // прочие настройки целы
+
+    const fresh = normalizeClassifySettings({});
+    expect(fresh.fill).toBe('grid');
+    expect(fresh.solveCells).toBe(4);
   });
 });
