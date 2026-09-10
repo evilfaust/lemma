@@ -4,7 +4,7 @@ import {
   bucketsFromPreset, createItem, sheetStats, slotsForBucket,
   paginateBuckets, bucketHeightMm, shuffleItems, classifyWarnings,
   printableBuckets, bankPageHeightMm, PAGE_LIMIT_MM,
-  normalizeClassifySettings, solveHeightMm, solveWidthMm, contentWidthMm,
+  normalizeClassifySettings, isClassifyOnly, solveHeightMm, solveWidthMm, contentWidthMm,
   PAGE_MM, CELL_MM,
 } from '../utils/classifySheet';
 import { fillLineCounts } from '../components/shared/PrintFill';
@@ -220,9 +220,9 @@ describe('банк уравнений', () => {
     expect(classifyWarnings(buckets, many, SETTINGS)
       .some(w => w.startsWith('Первая страница переполнена'))).toBe(true);
 
-    // таблица классификации, если её включить, съедает страницу заметно быстрее
-    const withTable = { ...SETTINGS, showTable: true };
-    expect(bankPageHeightMm(many.slice(0, 20), buckets.length + 1, withTable))
+    // в режиме «только классификация» страницу занимает ещё и таблица типов
+    const classifyOnly = { ...SETTINGS, mode: 'classify' };
+    expect(bankPageHeightMm(many.slice(0, 20), buckets.length + 1, classifyOnly))
       .toBeGreaterThan(bankPageHeightMm(many.slice(0, 20), buckets.length + 1, SETTINGS));
   });
 });
@@ -277,6 +277,36 @@ describe('добор из генератора квадратных уравне
     expect(keys).not.toContain('askSum');
     expect(keys).not.toContain('buildByRoots');
     expect(keys).toContain('perfectSquare');
+  });
+});
+
+describe('режим «только классификация»', () => {
+  it('страниц с карманами не печатает вовсе — лист остаётся одностраничным', () => {
+    const buckets = bucketsFromPreset();
+    const items = buckets.map(b => createItem({ bucketId: b.id }));
+    const settings = { ...SETTINGS, mode: 'classify' };
+
+    expect(isClassifyOnly(settings)).toBe(true);
+    expect(paginateBuckets(sheetStats(buckets, items, settings), settings)).toEqual([]);
+    // а в обычном режиме карманы на месте
+    expect(paginateBuckets(sheetStats(buckets, items, SETTINGS), SETTINGS).length)
+      .toBeGreaterThan(0);
+  });
+
+  it('суммы всё равно считаются — их печатает таблица', () => {
+    const buckets = bucketsFromPreset(['vieta', 'full']);
+    const items = [
+      createItem({ bucketId: buckets[0].id }),
+      createItem({ bucketId: buckets[1].id }),
+      createItem({ bucketId: buckets[0].id }),
+    ];
+    const stats = sheetStats(buckets, items, { ...SETTINGS, mode: 'classify' });
+    expect(stats.buckets.find(s => s.bucket.presetKey === 'vieta').checksum).toBe(4);
+  });
+
+  it('лист, сохранённый до режимов, открывается полным', () => {
+    expect(normalizeClassifySettings({ showTable: true }).mode).toBe('full');
+    expect(normalizeClassifySettings({ mode: 'classify' }).mode).toBe('classify');
   });
 });
 

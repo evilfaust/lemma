@@ -2,7 +2,7 @@ import MathInline from '../shared/MathInline';
 import PrintFill from '../shared/PrintFill';
 import ClassifyItemView from './ClassifyItemView';
 import {
-  sheetStats, paginateBuckets, normalizeClassifySettings,
+  sheetStats, paginateBuckets, normalizeClassifySettings, isClassifyOnly,
   pagePaddingCss, solveWidthMm, solveHeightMm, CELL_MM, OTHER_BUCKET_ID,
 } from '../../utils/classifySheet';
 import './ClassifyPrintLayout.css';
@@ -24,8 +24,13 @@ import './ClassifyPrintLayout.css';
  * Тот же компонент рисует экранный предпросмотр (`screenMode`).
  */
 
-const DEFAULT_INSTRUCTION = 'Определите тип каждого уравнения, перепишите его в нужный '
+// Два режима — два разных задания, и путать их нельзя: в одном лист про выбор
+// способа решения, в другом только про опознание типа.
+const INSTRUCTION_FULL = 'Определите тип каждого уравнения, перепишите его в нужный '
   + 'раздел и решите самым коротким способом. Номер уравнения подпишите сами.';
+
+const INSTRUCTION_CLASSIFY = 'Определите тип каждого уравнения и впишите его номер '
+  + 'в соответствующую строку таблицы. Решать уравнения не нужно.';
 
 function Header({ title, settings }) {
   if (settings.showHeader === false) return null;
@@ -53,9 +58,10 @@ function Header({ title, settings }) {
   );
 }
 
-// ─── Страница 1: банк уравнений (и таблица, если она включена) ───────────────
+// ─── Страница 1: банк уравнений (и таблица в режиме «только классификация») ──
 function BankPage({ title, items, stats, settings }) {
   const columns = settings.bankColumns === 1 ? 1 : 2;
+  const classifyOnly = isClassifyOnly(settings);
 
   return (
     <div className="cls-page" style={{ padding: pagePaddingCss() }}>
@@ -63,7 +69,9 @@ function BankPage({ title, items, stats, settings }) {
 
       <div className="cls-note">
         <span className="cls-note-label">Задание. </span>
-        <span className="cls-note-text">{settings.instruction || DEFAULT_INSTRUCTION}</span>
+        <span className="cls-note-text">
+          {settings.instruction || (classifyOnly ? INSTRUCTION_CLASSIFY : INSTRUCTION_FULL)}
+        </span>
       </div>
 
       <div className={`cls-bank cls-bank--${columns}col`}>
@@ -75,7 +83,7 @@ function BankPage({ title, items, stats, settings }) {
         ))}
       </div>
 
-      {settings.showTable && (
+      {classifyOnly && (
         <table className="cls-table">
           <thead>
             <tr>
@@ -209,10 +217,9 @@ export default function ClassifyPrintLayout({
   const fontSize = settings.fontSize || 's';
   const columns = settings.bucketColumns === 2 ? 2 : 1;
 
-  // Контрольная сумма нужна ровно один раз: в таблице первой страницы, а если
-  // таблицы нет — в заголовке кармана. Напечатанная дважды, она превращает
-  // страницу решений в шпаргалку по классификации.
-  const sumInBucket = Boolean(settings.showChecksum) && !settings.showTable;
+  // Контрольная сумма нужна ровно один раз: в режиме «только классификация» —
+  // в таблице, иначе — в заголовке кармана.
+  const sumInBucket = Boolean(settings.showChecksum) && !isClassifyOnly(settings);
 
   const inner = (
     <>

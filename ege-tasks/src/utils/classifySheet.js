@@ -102,6 +102,10 @@ export const OTHER_BUCKET = {
 };
 
 export const DEFAULT_CLASSIFY_SETTINGS = {
+  // Режим листа:
+  //   'full'     — банк, затем карманы с клеткой (классификация и решение)
+  //   'classify' — только банк и таблица «тип → номера», одна страница
+  mode: 'full',
   showChecksum: true,     // «Σ номеров = 27» под карманом
   slotMode: 'uniform',    // 'uniform' — мест поровну, 'auto' — по числу уравнений
   slotsPerBucket: 0,      // 0 = автоматически (максимум по карманам)
@@ -112,7 +116,6 @@ export const DEFAULT_CLASSIFY_SETTINGS = {
   showPoints: false,
   showHints: true,
   showClassField: true,   // поле «Класс» в шапке
-  showTable: false,       // таблица «тип → номера» на первой странице
   bankColumns: 2,
   fontSize: 's',
 };
@@ -171,7 +174,15 @@ export function normalizeClassifySettings(settings = {}) {
     next.solveCells = Math.max(2, Math.round((settings.solveLines * 8) / CELL_MM));
     next.fill = settings.fill || 'lines';
   }
+  // Листы до режимов знали флажок «таблица» вместе с карманами; таблица теперь
+  // живёт только в своём режиме, поэтому такой лист открывается полным.
+  if (!settings.mode) next.mode = 'full';
   return next;
+}
+
+/** Лист только на опознание типов: одна страница, карманов с клеткой нет. */
+export function isClassifyOnly(settings = {}) {
+  return settings.mode === 'classify';
 }
 
 let seq = 0;
@@ -321,6 +332,7 @@ export function bucketHeightMm(slots, settings = {}) {
  * карманов, иначе последняя строка сползёт на следующий лист уже в браузере.
  */
 export function paginateBuckets(stats, settings = {}) {
+  if (isClassifyOnly(settings)) return [];
   const cols = settings.bucketColumns === 2 ? 2 : 1;
   const sized = stats.buckets.map((stat) => {
     const slots = slotsForBucket(stat, stats, settings);
@@ -359,7 +371,7 @@ export function paginateBuckets(stats, settings = {}) {
 export function bankPageHeightMm(items = [], bucketCount = 0, settings = {}) {
   const columns = settings.bankColumns === 1 ? 1 : 2;
   const bank = Math.ceil(items.length / columns) * MM.bankRow + MM.bankFrame;
-  const table = settings.showTable
+  const table = isClassifyOnly(settings)
     ? MM.tableHead + bucketCount * MM.tableRow
     : 0;
   return MM.pageHead + MM.note + bank + table;
@@ -401,8 +413,9 @@ export function classifyWarnings(buckets = [], items = [], settings = {}) {
 
   const firstPage = bankPageHeightMm(items, stats.buckets.length, settings);
   if (firstPage > PAGE_LIMIT_MM) {
-    warnings.push('Первая страница переполнена: уменьшите шрифт, число уравнений '
-      + 'или снимите таблицу классификации');
+    warnings.push(isClassifyOnly(settings)
+      ? 'Страница переполнена: уменьшите шрифт, число уравнений или число типов'
+      : 'Первая страница переполнена: уменьшите шрифт или число уравнений');
   }
 
   return warnings;

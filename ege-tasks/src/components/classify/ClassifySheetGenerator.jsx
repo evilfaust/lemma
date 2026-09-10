@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import { useClassifySheet } from '../../hooks/useClassifySheet';
 import { useSheetStorage } from '../../hooks/useSheetStorage';
-import { paginateBuckets } from '../../utils/classifySheet';
+import { paginateBuckets, isClassifyOnly } from '../../utils/classifySheet';
 import {
   TrigGeneratorLayout, TrigSettingsSection, TrigActions,
   TrigStatBadge,
@@ -73,6 +73,7 @@ export default function ClassifySheetGenerator() {
     setCatalogOpen(false);
   };
 
+  const classifyOnly = isClassifyOnly(settings);
   const pageCount = 1 + paginateBuckets(stats, settings).length + (settings.showKey ? 1 : 0);
   const hasData = items.length > 0 || buckets.length > 0;
 
@@ -103,6 +104,22 @@ export default function ClassifySheetGenerator() {
             <TrigSettingsSection label="Лист">
               <Space direction="vertical" size={8} style={{ width: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Tooltip title="«Только классификация» — одна страница: банк и таблица «тип → номера», без места на решение">
+                    <span style={{ fontSize: 12, flex: 1 }}>Режим листа</span>
+                  </Tooltip>
+                  <Segmented
+                    size="small"
+                    options={[
+                      { value: 'full', label: 'С решением' },
+                      { value: 'classify', label: 'Только типы' },
+                    ]}
+                    value={settings.mode}
+                    onChange={v => updateSetting('mode', v)}
+                  />
+                </div>
+
+                {!classifyOnly && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, flex: 1 }}>Место для решения</span>
                   <Segmented
                     size="small"
@@ -115,7 +132,9 @@ export default function ClassifySheetGenerator() {
                     onChange={v => updateSetting('fill', v)}
                   />
                 </div>
+                )}
 
+                {!classifyOnly && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Tooltip title="Сколько клеток по 5 мм отводится на одно уравнение — из них складывается высота поля в типе">
                     <span style={{ fontSize: 12, flex: 1 }}>Клеток на уравнение</span>
@@ -130,7 +149,9 @@ export default function ClassifySheetGenerator() {
                     {Math.max(1, settings.solveCells || 1) * 5} мм
                   </span>
                 </div>
+                )}
 
+                {!classifyOnly && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Tooltip title="Два в ряд экономят почти половину бумаги">
                     <span style={{ fontSize: 12, flex: 1 }}>Типов в ряд</span>
@@ -142,6 +163,7 @@ export default function ClassifySheetGenerator() {
                     onChange={v => updateSetting('bucketColumns', v)}
                   />
                 </div>
+                )}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Tooltip title="Сколько уравнений вмещает поле типа. Поровну — лист не выдаёт, сколько уравнений в каком типе">
@@ -170,12 +192,6 @@ export default function ClassifySheetGenerator() {
                   </div>
                 )}
 
-                <Checkbox
-                  checked={settings.showTable}
-                  onChange={e => updateSetting('showTable', e.target.checked)}
-                >
-                  Таблица «тип → номера» на первой странице
-                </Checkbox>
                 <Checkbox
                   checked={settings.showChecksum}
                   onChange={e => updateSetting('showChecksum', e.target.checked)}
