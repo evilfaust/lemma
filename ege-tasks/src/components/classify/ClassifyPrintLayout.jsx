@@ -2,7 +2,7 @@ import MathInline from '../shared/MathInline';
 import PrintFill from '../shared/PrintFill';
 import ClassifyItemView from './ClassifyItemView';
 import {
-  sheetStats, paginateBuckets, normalizeClassifySettings, isClassifyOnly,
+  sheetStats, planSheet, normalizeClassifySettings, isClassifyOnly,
   pagePaddingCss, solveWidthMm, solveHeightMm, CELL_MM, OTHER_BUCKET_ID,
 } from '../../utils/classifySheet';
 import './ClassifyPrintLayout.css';
@@ -58,10 +58,13 @@ function Header({ title, settings }) {
   );
 }
 
-// ─── Страница 1: банк уравнений (и таблица в режиме «только классификация») ──
-function BankPage({ title, items, stats, settings }) {
+// ─── Страница 1: банк уравнений, под ним — первые карманы ───────────────────
+// Низ первой страницы под коротким банком иначе просто пустует, а лишняя
+// страница на класс из 30 человек — это лишняя пачка бумаги.
+function BankPage({ title, items, stats, settings, buckets, showChecksum }) {
   const columns = settings.bankColumns === 1 ? 1 : 2;
   const classifyOnly = isClassifyOnly(settings);
+  const bucketColumns = settings.bucketColumns === 2 ? 2 : 1;
 
   return (
     <div className="cls-page" style={{ padding: pagePaddingCss() }}>
@@ -109,6 +112,20 @@ function BankPage({ title, items, stats, settings }) {
             ))}
           </tbody>
         </table>
+      )}
+
+      {buckets.length > 0 && (
+        <div className={`cls-buckets cls-buckets--${bucketColumns}col`}>
+          {buckets.map(stat => (
+            <BucketBlock
+              key={stat.bucket.id}
+              stat={stat}
+              settings={settings}
+              columns={bucketColumns}
+              showChecksum={showChecksum && stat.bucket.id !== OTHER_BUCKET_ID}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -213,7 +230,7 @@ export default function ClassifyPrintLayout({
   // настройки к текущей форме здесь, а не в каждом блоке вёрстки.
   const settings = normalizeClassifySettings(rawSettings);
   const stats = sheetStats(buckets, items, settings);
-  const pages = paginateBuckets(stats, settings);
+  const { firstBuckets, pages } = planSheet(stats, settings, items);
   const fontSize = settings.fontSize || 's';
   const columns = settings.bucketColumns === 2 ? 2 : 1;
 
@@ -223,7 +240,14 @@ export default function ClassifyPrintLayout({
 
   const inner = (
     <>
-      <BankPage title={title} items={items} stats={stats} settings={settings} />
+      <BankPage
+        title={title}
+        items={items}
+        stats={stats}
+        settings={settings}
+        buckets={firstBuckets}
+        showChecksum={sumInBucket}
+      />
 
       {pages.map((page, pageIndex) => (
         <div className="cls-page" key={`p${pageIndex}`} style={{ padding: pagePaddingCss() }}>

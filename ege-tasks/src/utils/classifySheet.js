@@ -330,8 +330,12 @@ export function bucketHeightMm(slots, settings = {}) {
  * В два ряда карманы выравниваются по строкам, поэтому строка стоит столько,
  * сколько самый высокий карман в ней: считать надо по строкам, а не по сумме
  * карманов, иначе последняя строка сползёт на следующий лист уже в браузере.
+ *
+ * `firstFreeMm` — сколько места осталось под банком на первой странице. Если
+ * оно задано, первый элемент результата — карманы, которые туда влезли (может
+ * быть пустым массивом: индексы страниц от этого не съезжают).
  */
-export function paginateBuckets(stats, settings = {}) {
+export function paginateBuckets(stats, settings = {}, firstFreeMm = 0) {
   if (isClassifyOnly(settings)) return [];
   const cols = settings.bucketColumns === 2 ? 2 : 1;
   const sized = stats.buckets.map((stat) => {
@@ -345,15 +349,20 @@ export function paginateBuckets(stats, settings = {}) {
     rows.push({ row, height: Math.max(...row.map(b => b.height)) });
   }
 
+  const shared = firstFreeMm > 0;
   const pages = [];
   let page = [];
   let used = 0;
+  let limit = shared ? firstFreeMm : PAGE_LIMIT_MM;
 
   rows.forEach(({ row, height }) => {
-    if (page.length && used + height > PAGE_LIMIT_MM) {
+    // На первой странице карманов может не оказаться вовсе — тогда она
+    // закрывается пустой, чтобы дальше нумерация шла как обычно.
+    if ((page.length || limit !== PAGE_LIMIT_MM) && used + height > limit) {
       pages.push(page);
       page = [];
       used = 0;
+      limit = PAGE_LIMIT_MM;
     }
     page.push(...row);
     used += height;
@@ -361,6 +370,33 @@ export function paginateBuckets(stats, settings = {}) {
 
   if (page.length) pages.push(page);
   return pages;
+}
+
+// Запас под низом первой страницы: высоты блоков считаются приблизительно, и
+// без него карман, влезший «впритык», перенёсся бы уже в браузере — с разрывом.
+const FIRST_PAGE_RESERVE_MM = 5;
+
+/**
+ * План листа целиком: что уходит под банк на первой странице, что на
+ * следующие. Считается в одном месте, потому что и печать, и счётчик страниц
+ * в редакторе обязаны говорить одно и то же.
+ */
+export function planSheet(stats, settings = {}, items = []) {
+  const bankMm = bankPageHeightMm(items, stats.buckets.length, settings);
+  const free = isClassifyOnly(settings)
+    ? 0
+    : Math.max(0, PAGE_LIMIT_MM - bankMm - FIRST_PAGE_RESERVE_MM);
+
+  const paged = paginateBuckets(stats, settings, free);
+  const firstBuckets = free > 0 ? (paged[0] || []) : [];
+  const pages = free > 0 ? paged.slice(1) : paged;
+
+  return {
+    firstBuckets,
+    pages,
+    freeFirstMm: free,
+    pageCount: 1 + pages.length + (settings.showKey ? 1 : 0),
+  };
 }
 
 /**

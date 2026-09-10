@@ -4,7 +4,8 @@ import {
   bucketsFromPreset, createItem, sheetStats, slotsForBucket,
   paginateBuckets, bucketHeightMm, shuffleItems, classifyWarnings,
   printableBuckets, bankPageHeightMm, PAGE_LIMIT_MM,
-  normalizeClassifySettings, isClassifyOnly, solveHeightMm, solveWidthMm, contentWidthMm,
+  normalizeClassifySettings, isClassifyOnly, planSheet,
+  solveHeightMm, solveWidthMm, contentWidthMm,
   PAGE_MM, CELL_MM,
 } from '../utils/classifySheet';
 import { fillLineCounts } from '../components/shared/PrintFill';
@@ -277,6 +278,65 @@ describe('добор из генератора квадратных уравне
     expect(keys).not.toContain('askSum');
     expect(keys).not.toContain('buildByRoots');
     expect(keys).toContain('perfectSquare');
+  });
+});
+
+describe('карманы на первой странице', () => {
+  const sheetOf = (n, bucketCount = 6) => {
+    const buckets = bucketsFromPreset(
+      ['noC', 'noB', 'vieta', 'binomSquare', 'perfectSquare', 'full'].slice(0, bucketCount),
+    );
+    const items = Array.from({ length: n }, (_, i) => createItem({
+      latex: 'x^2 = 1', bucketId: buckets[i % buckets.length].id,
+    }));
+    return { buckets, items };
+  };
+
+  it('короткий банк — карманы начинаются под ним, а не с новой страницы', () => {
+    const { buckets, items } = sheetOf(14);
+    const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+
+    expect(plan.firstBuckets.length).toBeGreaterThanOrEqual(2);
+    expect(plan.pageCount).toBeLessThan(4);
+  });
+
+  it('длинный банк — первая страница остаётся под банк', () => {
+    const { buckets, items } = sheetOf(40);
+    const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+    expect(plan.firstBuckets).toEqual([]);
+  });
+
+  it('ни один карман не теряется и не печатается дважды', () => {
+    [10, 14, 22, 40].forEach((n) => {
+      const { buckets, items } = sheetOf(n);
+      const stats = sheetStats(buckets, items, SETTINGS);
+      const plan = planSheet(stats, SETTINGS, items);
+
+      const placed = [...plan.firstBuckets, ...plan.pages.flat()].map(b => b.bucket.id);
+      expect(placed).toEqual(stats.buckets.map(s => s.bucket.id));
+      expect(new Set(placed).size).toBe(placed.length);
+    });
+  });
+
+  it('карманы первой страницы влезают в остаток под банком', () => {
+    const { buckets, items } = sheetOf(14);
+    const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+
+    let used = 0;
+    for (let i = 0; i < plan.firstBuckets.length; i += 2) {
+      used += Math.max(...plan.firstBuckets.slice(i, i + 2).map(b => b.height));
+    }
+    expect(used).toBeLessThanOrEqual(plan.freeFirstMm);
+  });
+
+  it('в режиме «только типы» карманов на первой странице нет', () => {
+    const { buckets, items } = sheetOf(14);
+    const settings = { ...SETTINGS, mode: 'classify' };
+    const plan = planSheet(sheetStats(buckets, items, settings), settings, items);
+
+    expect(plan.firstBuckets).toEqual([]);
+    expect(plan.pages).toEqual([]);
+    expect(plan.pageCount).toBe(1);
   });
 });
 

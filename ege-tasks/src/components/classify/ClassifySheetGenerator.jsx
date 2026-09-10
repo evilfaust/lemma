@@ -8,7 +8,7 @@ import {
 } from '@ant-design/icons';
 import { useClassifySheet } from '../../hooks/useClassifySheet';
 import { useSheetStorage } from '../../hooks/useSheetStorage';
-import { paginateBuckets, isClassifyOnly } from '../../utils/classifySheet';
+import { planSheet, isClassifyOnly } from '../../utils/classifySheet';
 import {
   TrigGeneratorLayout, TrigSettingsSection, TrigActions,
   TrigStatBadge,
@@ -74,7 +74,7 @@ export default function ClassifySheetGenerator() {
   };
 
   const classifyOnly = isClassifyOnly(settings);
-  const pageCount = 1 + paginateBuckets(stats, settings).length + (settings.showKey ? 1 : 0);
+  const { pageCount } = planSheet(stats, settings, items);
   const hasData = items.length > 0 || buckets.length > 0;
 
   return (
