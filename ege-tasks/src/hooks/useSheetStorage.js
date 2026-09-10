@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../shared/services/pocketbase';
 import { sheetKind } from '../utils/sheetRegistry';
@@ -185,9 +185,20 @@ export function useSheetStorage({
     return () => { alive = false; };
   }, [requestedId, generator, applyRecord, searchParams, setSearchParams]);
 
+  // Снимок листа для выгрузки в `.md` — те же данные, что уходят в
+  // `generator_sheets`, но без служебных полей записи (см. utils/sheetMarkdown).
+  const exportData = useMemo(() => ({
+    generator,
+    title,
+    settings,
+    tasksData,
+    layout: layout ?? [],
+  }), [generator, title, settings, tasksData, layout]);
+
   return {
     sheetId,
     sheetTitle,
+    exportData,
     saving,
     list,
     listLoading,

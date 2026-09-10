@@ -282,6 +282,7 @@ export default function LinearSystemsGenerator() {
                     storage={sheet.storage}
                     hasData={Boolean(tasksData)}
                     generator="linear_systems"
+                    instruction={instruction}
                   />
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Button

@@ -159,6 +159,7 @@ export default function AdditionFormulasGenerator() {
                 storage={sheet.storage}
                 hasData={Boolean(tasksData)}
                 generator="addition_formulas"
+                instruction={instruction}
               />
               {tasksData && <Button block onClick={reset}>Сбросить</Button>}
             </TrigActions>

@@ -160,6 +160,7 @@ export default function DoubleAngleGenerator() {
                 storage={sheet.storage}
                 hasData={Boolean(tasksData)}
                 generator="double_angle"
+                instruction={instruction}
               />
               {tasksData && <Button block onClick={reset}>Сбросить</Button>}
             </TrigActions>

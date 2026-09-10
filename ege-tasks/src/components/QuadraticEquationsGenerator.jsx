@@ -272,6 +272,7 @@ export default function QuadraticEquationsGenerator() {
                     storage={sheet.storage}
                     hasData={Boolean(tasksData)}
                     generator="quadratic_equations"
+                    instruction={instruction}
                   />
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Button

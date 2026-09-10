@@ -9,16 +9,21 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { sheetGeneratorLabel, sheetGeneratorRoute } from '../../utils/sheetRegistry';
+import { SheetExportMd } from './SheetExportMd';
 
 const { TextArea } = Input;
 
-// Кнопки «Сохранить лист» / «Загрузить» для генераторов + обе модалки.
-// Ставится внутрь <TrigActions>; модалки уходят в портал, поэтому место
-// в дереве значения не имеет.
+// Кнопки «Сохранить лист» / «Загрузить» / «Экспорт .md» для генераторов
+// + их модалки. Ставится внутрь <TrigActions>; модалки уходят в портал,
+// поэтому место в дереве значения не имеет.
 //
 // Лист сохраняется в `generator_sheets` целиком (настройки + задания + порядок),
 // в банк задач при этом ничего не пишется.
-export function SheetStorageActions({ storage, hasData, generator }) {
+//
+// `instruction` — строка над заданиями («Решите систему:»). У части генераторов
+// она собирается по выбранным категориям, поэтому передаётся сюда; остальным
+// хватает инструкции из реестра листов.
+export function SheetStorageActions({ storage, hasData, generator, instruction }) {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [saveOpen, setSaveOpen] = useState(false);
@@ -119,6 +124,11 @@ export function SheetStorageActions({ storage, hasData, generator }) {
       <Button block icon={<FolderOpenOutlined />} onClick={openList}>
         Загрузить лист
       </Button>
+
+      <SheetExportMd
+        snapshot={storage.exportData ? { ...storage.exportData, instruction } : null}
+        hasData={hasData}
+      />
 
       {/* ── Сохранение ── */}
       <Modal

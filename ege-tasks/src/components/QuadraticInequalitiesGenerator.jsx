@@ -281,6 +281,7 @@ export default function QuadraticInequalitiesGenerator() {
                     storage={sheet.storage}
                     hasData={Boolean(tasksData)}
                     generator="quadratic_inequalities"
+                    instruction={instruction}
                   />
                   <div style={{ display: 'flex', gap: 6 }}>
                     <Button
