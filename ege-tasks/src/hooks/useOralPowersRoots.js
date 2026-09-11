@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import { generateByCategories } from '../utils/questionPlan';
 import { isFiniteDecimalAnswer } from '../utils/oralAnswerFilter';
+import {
+  fsuRootGenerators, FSU_ROOT_LABELS, FSU_ROOT_KEYS, fsuDefaults,
+} from '../utils/shortMultiplication';
 import { useApplySheet } from './useApplySheet';
 
 // ─── Вспомогательные ─────────────────────────────────────────────────────────
@@ -312,6 +315,10 @@ function genDecimalTimesRoot() {
   return { exprLatex: p.expr, resultLatex: p.ans };
 }
 
+// Раздел говорит корнями — ФСУ здесь убирает иррациональность:
+// сопряжённые множители и свёртка квадрата дают рациональный ответ
+const FSU_GENERATORS_PR = fsuRootGenerators({ style: 'auto' });
+
 // ─── Маппинг категорий ────────────────────────────────────────────────────────
 const GENERATORS_PR = {
   simpleSqrt:       genSimpleSqrt,
@@ -329,6 +336,7 @@ const GENERATORS_PR = {
   powerOfPower:     genPowerOfPower,
   irrationalExp:    genIrrationalExp,
   decimalTimesRoot: genDecimalTimesRoot,
+  ...FSU_GENERATORS_PR,
 };
 
 export const CATEGORY_LABELS_PR = {
@@ -347,6 +355,7 @@ export const CATEGORY_LABELS_PR = {
   powerOfPower:     '(aᵖ)ᵠ',
   irrationalExp:    'Иррациональные показатели',
   decimalTimesRoot: 'Дес. дробь × корень',
+  ...FSU_ROOT_LABELS,
 };
 
 export const DEFAULT_SETTINGS_PR = {
@@ -374,6 +383,7 @@ export const DEFAULT_SETTINGS_PR = {
     powerOfPower:     true,
     irrationalExp:    true,
     decimalTimesRoot: true,
+    ...fsuDefaults(FSU_ROOT_KEYS),
   },
 };
 

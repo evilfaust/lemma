@@ -1,6 +1,11 @@
 import { useState, useCallback } from 'react';
-import { isFiniteDecimalAnswer } from '../utils/oralAnswerFilter';
+import {
+  isFiniteDecimalAnswer, isIntegerAnswer, hasNegativeNumber, toImproperFraction,
+} from '../utils/oralAnswerFilter';
 import { generateByCategories } from '../utils/questionPlan';
+import {
+  fsuGenerators, FSU_LABELS, FSU_KEYS, fsuDefaults,
+} from '../utils/shortMultiplication';
 import { useApplySheet } from './useApplySheet';
 
 // ─── Вспомогательные функции ──────────────────────────────────────────────────
@@ -459,6 +464,193 @@ function genNegSigns() {
   return { exprLatex: tex, resultLatex };
 }
 
+
+// ─── Блок «Целые числа» ──────────────────────────────────────────────────────
+
+// Категория 12: порядок действий — 7 + 3 · 4, (13 - 8) · 6, 48 : 6 - 5
+function genIntOrder() {
+  const b = randInt(2, 9);
+  const c = randInt(2, 9);
+  const kind = rand(['mulAdd', 'mulSub', 'divAdd', 'divSub', 'bracketMul', 'mulBracket']);
+
+  if (kind === 'mulAdd') {
+    const a = randInt(2, 40);
+    return { exprLatex: `${a} + ${b} \\cdot ${c}`, resultLatex: String(a + b * c) };
+  }
+  if (kind === 'mulSub') {
+    const a = b * c + randInt(1, 40);
+    return { exprLatex: `${a} - ${b} \\cdot ${c}`, resultLatex: String(a - b * c) };
+  }
+  if (kind === 'divAdd') {
+    const a = randInt(2, 40);
+    return { exprLatex: `${a} + ${b * c} : ${c}`, resultLatex: String(a + b) };
+  }
+  if (kind === 'divSub') {
+    const a = b + randInt(1, 40);
+    return { exprLatex: `${a} - ${b * c} : ${c}`, resultLatex: String(a - b) };
+  }
+  if (kind === 'bracketMul') {
+    const a = randInt(2, 20);
+    return { exprLatex: `(${a} + ${b}) \\cdot ${c}`, resultLatex: String((a + b) * c) };
+  }
+  const a = b + randInt(1, 20);
+  return { exprLatex: `${c} \\cdot (${a} - ${b})`, resultLatex: String(c * (a - b)) };
+}
+
+// Категория 13: умножение приёмом — 18 · 5, 24 · 25, 17 · 11, 19 · 99
+const HANDY_FACTORS = [4, 5, 9, 11, 15, 20, 25, 50, 99, 101];
+
+function genMulRound() {
+  const k = rand(HANDY_FACTORS);
+  const n = randInt(11, k >= 99 ? 19 : 49);
+  if (n * k > 3000) return null;
+  const exprLatex = Math.random() < 0.5
+    ? `${n} \\cdot ${k}`
+    : `${k} \\cdot ${n}`;
+  return { exprLatex, resultLatex: String(n * k) };
+}
+
+// Категория 14: степени целых — 13², 7³, 2⁸, (-4)³
+function genIntPowers() {
+  const kind = rand(['square', 'square', 'cube', 'pow2', 'pow3', 'pow5', 'negSquare', 'negCube']);
+
+  if (kind === 'square') {
+    const n = randInt(11, 25);
+    return { exprLatex: `${n}^2`, resultLatex: String(n * n) };
+  }
+  if (kind === 'cube') {
+    const n = randInt(2, 10);
+    return { exprLatex: `${n}^3`, resultLatex: String(n ** 3) };
+  }
+  if (kind === 'pow2') {
+    const k = randInt(4, 10);
+    return { exprLatex: `2^{${k}}`, resultLatex: String(2 ** k) };
+  }
+  if (kind === 'pow3') {
+    const k = randInt(3, 5);
+    return { exprLatex: `3^{${k}}`, resultLatex: String(3 ** k) };
+  }
+  if (kind === 'pow5') {
+    const k = randInt(2, 4);
+    return { exprLatex: `5^{${k}}`, resultLatex: String(5 ** k) };
+  }
+  if (kind === 'negSquare') {
+    const n = randInt(2, 12);
+    return { exprLatex: `(-${n})^2`, resultLatex: String(n * n) };
+  }
+  const n = randInt(2, 6);
+  return { exprLatex: `(-${n})^3`, resultLatex: String(-(n ** 3)) };
+}
+
+// ─── Блок «Знаки и скобки» ───────────────────────────────────────────────────
+
+// Категория 15: модуль — |-7| + |3 - 10|
+function genAbsValue() {
+  const abs = (tex) => `\\left|${tex}\\right|`;
+  const kind = rand(['sum', 'diff', 'product', 'outerMinus']);
+
+  if (kind === 'sum') {
+    const a = randInt(2, 15);
+    const b = randInt(2, 15);
+    const c = randInt(2, 15);
+    return {
+      exprLatex: `${abs(`-${a}`)} + ${abs(`${b} - ${c}`)}`,
+      resultLatex: String(a + Math.abs(b - c)),
+    };
+  }
+  if (kind === 'diff') {
+    const a = randInt(2, 15);
+    const b = randInt(2, 15);
+    const c = randInt(2, 12);
+    return {
+      exprLatex: `${abs(`${a} - ${b}`)} - ${abs(`-${c}`)}`,
+      resultLatex: String(Math.abs(a - b) - c),
+    };
+  }
+  if (kind === 'product') {
+    const a = randInt(2, 12);
+    const b = randInt(2, 12);
+    const c = randInt(2, 9);
+    return {
+      exprLatex: `${abs(`${a} - ${b}`)} \\cdot ${abs(`-${c}`)}`,
+      resultLatex: String(Math.abs(a - b) * c),
+    };
+  }
+  const a = randInt(2, 15);
+  const b = randInt(2, 15);
+  if (a === b) return null;                 // -|0| — задание ни о чём
+  return {
+    exprLatex: `-${abs(`${a} - ${b}`)}`,
+    resultLatex: String(-Math.abs(a - b)),
+  };
+}
+
+// Категория 16: знак произведения — (-2) · (-3) · (-5)
+function genSignProduct() {
+  const count = rand([2, 3, 3, 4]);
+  const nums = Array.from({ length: count }, () => randInt(2, 6));
+  // Минусов от одного до всех: ученик считает их чётность, а не только модуль
+  const negCount = randInt(1, count);
+  const signs = nums.map((_, i) => (i < negCount ? -1 : 1));
+  // Перемешиваем, чтобы минусы не шли подряд с начала
+  for (let i = signs.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [signs[i], signs[j]] = [signs[j], signs[i]];
+  }
+
+  const product = nums.reduce((acc, n, i) => acc * n * signs[i], 1);
+  if (Math.abs(product) > 400) return null;
+
+  const parts = nums.map((n, i) => (signs[i] < 0 ? `(-${n})` : String(n)));
+  return { exprLatex: parts.join(' \\cdot '), resultLatex: String(product) };
+}
+
+// ─── Блок «Проценты и доли» ──────────────────────────────────────────────────
+const PERCENTS = [1, 5, 10, 12, 15, 20, 25, 30, 40, 50, 60, 75, 80, 90, 110, 120, 150, 200];
+const PERCENT_BASES = [20, 30, 40, 50, 60, 80, 90, 120, 140, 150, 200, 240, 300, 400, 500, 600, 800];
+
+// Категория 17: процент от числа — 20% от 45
+function genPercentOf() {
+  const p = rand(PERCENTS);
+  const n = rand(PERCENT_BASES);
+  const [rn, rd] = reduceFrac(p * n, 100);
+  if (rd !== 1 && rd !== 2 && rd !== 4 && rd !== 5 && rd !== 10) return null;
+  if (Math.abs(rn / rd) > 900) return null;
+  return {
+    exprLatex: `${p}\\% \\text{ от } ${n}`,
+    resultLatex: rd === 1 ? String(rn) : fmtDecimal(rn / rd),
+  };
+}
+
+// Категория 18: процент от десятичной дроби — 40% от 2,5
+function genPercentOfDec() {
+  const p = rand([5, 10, 20, 25, 30, 40, 50, 60, 75, 80]);
+  const tenths = randInt(5, 99);            // 0,5 … 9,9
+  const value = (p * tenths) / 1000;
+  // Ответ должен быть не длиннее двух знаков после запятой
+  if (Math.abs(value * 100 - Math.round(value * 100)) > 1e-9) return null;
+  return {
+    exprLatex: `${p}\\% \\text{ от } ${fmtDecimal(tenths / 10)}`,
+    resultLatex: fmtDecimal(value),
+  };
+}
+
+// Категория 19: доля от числа — 3/8 от 40
+function genPartOfNumber() {
+  const d = rand([2, 3, 4, 5, 6, 8, 10]);
+  const n = rand(coprimeNumerators(d));
+  const mult = randInt(2, 12);
+  return {
+    exprLatex: `\\dfrac{${n}}{${d}} \\text{ от } ${d * mult}`,
+    resultLatex: String(n * mult),
+  };
+}
+
+// ─── Блок «Формулы сокращённого умножения» ──────────────────────────────────
+// Общий модуль `utils/shortMultiplication`: арифметика говорит и целыми, и
+// десятичными, поэтому домен выбирается на каждое задание (целые — чаще).
+const FSU_GENERATORS = fsuGenerators({ domains: ['int', 'int', 'dec'], style: 'auto' });
+
 // ─── Маппинг категорий ────────────────────────────────────────────────────────
 const GENERATORS = {
   fracTimesInt:     genFracTimesInt,
@@ -472,6 +664,15 @@ const GENERATORS = {
   decimalDiv:       genDecimalDiv,
   decimalSimple:    genDecimalSimple,
   negSigns:         genNegSigns,
+  intOrder:         genIntOrder,
+  mulRound:         genMulRound,
+  intPowers:        genIntPowers,
+  absValue:         genAbsValue,
+  signProduct:      genSignProduct,
+  percentOf:        genPercentOf,
+  percentOfDec:     genPercentOfDec,
+  partOfNumber:     genPartOfNumber,
+  ...FSU_GENERATORS,
 };
 
 export const CATEGORY_LABELS = {
@@ -486,7 +687,46 @@ export const CATEGORY_LABELS = {
   decimalDiv:      'Деление десятичных',
   decimalSimple:   'Десятичные ± целое',
   negSigns:        'Минусы и скобки',
+  intOrder:        'Порядок действий: 7 + 3 · 4',
+  mulRound:        'Умножение приёмом: 24 · 25',
+  intPowers:       'Степени целых: 13², 2⁸',
+  absValue:        'Модуль: |−7| + |3 − 10|',
+  signProduct:     'Знак произведения: (−2)·(−3)·(−5)',
+  percentOf:       'Процент от числа: 20% от 45',
+  percentOfDec:    'Процент от десятичной: 40% от 2,5',
+  partOfNumber:    'Доля от числа: ⅜ от 40',
+  ...FSU_LABELS,
 };
+
+// Блоки по темам — они же порядок чекбоксов в UI. Три последних блока
+// выключены по умолчанию: лист «как было» состоит из дробей, десятичных и
+// знаков, а целые, проценты и ФСУ учитель включает под конкретный урок.
+export const CATEGORY_GROUPS_ORAL = [
+  {
+    label: 'Блок 1. Целые числа',
+    keys: ['intOrder', 'mulRound', 'intPowers'],
+  },
+  {
+    label: 'Блок 2. Обыкновенные дроби',
+    keys: ['fracTimesInt', 'intDivFrac', 'fracDivInt', 'fracDivFrac', 'timesReciprocal', 'mixedArith'],
+  },
+  {
+    label: 'Блок 3. Десятичные дроби',
+    keys: ['decimalSimple', 'decimalDiv', 'mulPow10', 'decimalPower'],
+  },
+  {
+    label: 'Блок 4. Знаки и скобки',
+    keys: ['negSigns', 'absValue', 'signProduct'],
+  },
+  {
+    label: 'Блок 5. Проценты и доли',
+    keys: ['percentOf', 'percentOfDec', 'partOfNumber'],
+  },
+  {
+    label: 'Блок 6. Формулы сокращённого умножения',
+    keys: FSU_KEYS,
+  },
+];
 
 // ─── Настройки по умолчанию ───────────────────────────────────────────────────
 export const DEFAULT_SETTINGS = {
@@ -499,6 +739,9 @@ export const DEFAULT_SETTINGS = {
   columnsCount:   2,      // 2 колонки заданий на листе
   fontSize:       's',    // размер шрифта: s | m | l
   decimalOnly:    false,  // только целые / конечные десятичные ответы
+  integerOnly:    false,  // только целые ответы
+  allowNegative:  true,   // отрицательные числа в условии и в ответе
+  answerForm:     'mixed', // дробный ответ: смешанное число или неправильная дробь
   categories: {
     fracTimesInt:    true,
     intDivFrac:      true,
@@ -511,13 +754,27 @@ export const DEFAULT_SETTINGS = {
     decimalDiv:      true,
     decimalSimple:   true,
     negSigns:        true,
+    absValue:        false,
+    signProduct:     false,
+    intOrder:        false,
+    mulRound:        false,
+    intPowers:       false,
+    percentOf:       false,
+    percentOfDec:    false,
+    partOfNumber:    false,
+    ...fsuDefaults(FSU_KEYS),
   },
 };
 
 // ─── Чистая функция генерации (для смешанных работ) ──────────────────────────
 export function generateOralCountingVariants(settings) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
-  const { decimalOnly } = s;
+  const { decimalOnly, integerOnly } = s;
+  const allowNegative = s.allowNegative !== false;
+  const improper = s.answerForm === 'improper';
+  // Узкие ограничения отсеивают большую часть случайных чисел — даём генератору
+  // больше попыток, иначе позиция уйдёт в другую категорию по fallback.
+  const narrow = decimalOnly || integerOnly || !allowNegative;
 
   return generateByCategories({
     categories: s.categories,
@@ -525,12 +782,15 @@ export function generateOralCountingVariants(settings) {
     known: (k) => Boolean(GENERATORS[k]),
     questionsCount: s.questionsCount,
     variantsCount: s.variantsCount,
-    attempts: decimalOnly ? 300 : 80,
+    attempts: narrow ? 300 : 80,
     make: (cat) => {
       const q = GENERATORS[cat]();
       if (!q) return null;
+      if (integerOnly && !isIntegerAnswer(q.resultLatex)) return null;
       if (decimalOnly && !isFiniteDecimalAnswer(q.resultLatex)) return null;
-      return { ...q, cat };
+      if (!allowNegative && hasNegativeNumber(q.exprLatex, q.resultLatex)) return null;
+      const resultLatex = improper ? toImproperFraction(q.resultLatex) : q.resultLatex;
+      return { ...q, resultLatex, cat };
     },
   });
 }

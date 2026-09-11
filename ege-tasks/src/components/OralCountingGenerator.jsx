@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import {
-  Button, Slider, Checkbox, Space, Switch, Divider, Segmented,
+  Button, Slider, Checkbox, Space, Switch, Divider, Segmented, Tooltip,
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
   CalculatorOutlined, FormOutlined,
 } from '@ant-design/icons';
-import { useOralCounting, CATEGORY_LABELS } from '../hooks/useOralCounting';
+import {
+  useOralCounting, CATEGORY_LABELS, CATEGORY_GROUPS_ORAL,
+} from '../hooks/useOralCounting';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
 import { SheetOrderPanel } from './trig/SheetOrderPanel';
@@ -23,23 +25,29 @@ import {
   TrigActions,
   TrigPreviewPane,
   TrigStatBadge,
+  TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
 
-// ─── Порядок категорий в UI ───────────────────────────────────────────────────
-const CATEGORY_ORDER = [
-  'fracTimesInt',
-  'intDivFrac',
-  'fracDivInt',
-  'fracDivFrac',
-  'timesReciprocal',
-  'mixedArith',
-  'decimalPower',
-  'mulPow10',
-  'decimalDiv',
-  'decimalSimple',
-  'negSigns',
+// Вид дробного ответа: смешанное число привычнее в 5–6 классе,
+// неправильная дробь — когда лист готовит к действиям с дробями.
+const ANSWER_FORMS = [
+  { value: 'mixed',    label: '1¾' },
+  { value: 'improper', label: '7/4' },
 ];
+
+// Ограничение на ответ: «любой» / целые и конечные десятичные / только целые
+const ANSWER_MODES = [
+  { value: 'any', label: 'Любой' },
+  { value: 'dec', label: '0,5' },
+  { value: 'int', label: 'Целый' },
+];
+
+function answerMode(settings) {
+  if (settings.integerOnly) return 'int';
+  if (settings.decimalOnly) return 'dec';
+  return 'any';
+}
 
 
 export default function OralCountingGenerator() {
@@ -72,6 +80,14 @@ export default function OralCountingGenerator() {
     settings.categories, settings.questionsCount, settings.categoryCounts,
   );
 
+  const toggleBlock = (keys, checked) => keys.forEach(k => updateCategory(k, checked));
+
+  // Ограничение на ответ — два флага, но для учителя это один выбор
+  const setAnswerMode = (mode) => {
+    updateSetting('decimalOnly', mode === 'dec');
+    updateSetting('integerOnly', mode === 'int');
+  };
+
   const handlePrint = () => {
     const style = document.createElement('style');
     style.id = 'oral-print-page-style';
@@ -95,21 +111,33 @@ export default function OralCountingGenerator() {
         title={title}
         onTitleChange={setTitle}
         titlePlaceholder="Название листа"
-        leftWidth={320}
+        leftWidth={350}
         left={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
-            {/* Категории заданий */}
-            <TrigSettingsSection label="Категории заданий">
-              <CategoryChecklist
-                  keys={CATEGORY_ORDER}
+            {/* Категории заданий — по блокам, у блока общий чекбокс */}
+            {CATEGORY_GROUPS_ORAL.map(group => (
+              <TrigSettingsSection
+                key={group.label}
+                label={
+                  <TrigBlockToggle
+                    label={group.label}
+                    keys={group.keys}
+                    categories={settings.categories}
+                    onToggleBlock={toggleBlock}
+                  />
+                }
+              >
+                <CategoryChecklist
+                  keys={group.keys}
                   labels={CATEGORY_LABELS}
                   categories={settings.categories}
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
                 />
-            </TrigSettingsSection>
+              </TrigSettingsSection>
+            ))}
 
             {/* Параметры */}
             <TrigSettingsSection label="Параметры">
@@ -137,6 +165,34 @@ export default function OralCountingGenerator() {
                 marks={{ 1: '1', 8: '8', 16: '16', 32: '32' }}
                 size="small"
               />
+              <Divider style={{ margin: '10px 0' }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 13 }}>Ответ:</span>
+                <Segmented
+                  size="small"
+                  options={ANSWER_MODES}
+                  value={answerMode(settings)}
+                  onChange={setAnswerMode}
+                />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 13 }}>Дробь:</span>
+                <Segmented
+                  size="small"
+                  options={ANSWER_FORMS}
+                  value={settings.answerForm || 'mixed'}
+                  onChange={v => updateSetting('answerForm', v)}
+                  disabled={answerMode(settings) !== 'any'}
+                />
+              </div>
+              <Tooltip title="Блок «Знаки и скобки» без отрицательных чисел заданий не даёт">
+                <Checkbox
+                  checked={settings.allowNegative !== false}
+                  onChange={e => updateSetting('allowNegative', e.target.checked)}
+                >
+                  <span style={{ fontSize: 13 }}>Отрицательные числа</span>
+                </Checkbox>
+              </Tooltip>
             </TrigSettingsSection>
 
             {/* Печать и вид */}
@@ -155,12 +211,6 @@ export default function OralCountingGenerator() {
                   onChange={e => updateSetting('showTeacherKey', e.target.checked)}
                 >
                   Лист ответов (учитель)
-                </Checkbox>
-                <Checkbox
-                  checked={!!settings.decimalOnly}
-                  onChange={e => updateSetting('decimalOnly', e.target.checked)}
-                >
-                  Только целые / десятичные ответы
                 </Checkbox>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 13 }}>Шрифт:</span>

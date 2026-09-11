@@ -23,8 +23,10 @@ import {
   TrigActions,
   TrigPreviewPane,
   TrigStatBadge,
+  TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
+import { FSU_DEC_KEYS } from '../utils/shortMultiplication';
 
 const CATEGORY_GROUPS = [
   {
@@ -46,6 +48,10 @@ const CATEGORY_GROUPS = [
   {
     label: 'Спецзадачи',
     keys: ['trickFraction'],
+  },
+  {
+    label: 'Формулы сокращённого умножения',
+    keys: FSU_DEC_KEYS,
   },
 ];
 
@@ -91,6 +97,8 @@ export default function OralEgeBaseGenerator() {
     }, 1500);
   };
 
+  const toggleBlock = (keys, checked) => keys.forEach(k => updateCategory(k, checked));
+
   const enabledCount = Object.values(settings.categories).filter(Boolean).length;
   const varCount = tasksData?.length ?? 0;
   const qCount = tasksData?.[0]?.length ?? plannedCount;
@@ -107,7 +115,17 @@ export default function OralEgeBaseGenerator() {
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
             {CATEGORY_GROUPS.map(group => (
-              <TrigSettingsSection key={group.label} label={group.label}>
+              <TrigSettingsSection
+                key={group.label}
+                label={
+                  <TrigBlockToggle
+                    label={group.label}
+                    keys={group.keys}
+                    categories={settings.categories}
+                    onToggleBlock={toggleBlock}
+                  />
+                }
+              >
                 <CategoryChecklist
                   keys={group.keys}
                   labels={CATEGORY_LABELS_EGE}

@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import { generateByCategories } from '../utils/questionPlan';
 import { isFiniteDecimalAnswer } from '../utils/oralAnswerFilter';
+import {
+  fsuGenerators, FSU_DEC_LABELS, FSU_DEC_KEYS, fsuDefaults,
+} from '../utils/shortMultiplication';
 import { useApplySheet } from './useApplySheet';
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -217,6 +220,9 @@ function genTrickFraction() {
   return { exprLatex: p.expr, resultLatex: p.ans };
 }
 
+// Раздел говорит десятичными — ФСУ здесь тоже на десятичных дробях
+const FSU_GENERATORS_EGE = fsuGenerators({ domain: 'dec', style: 'dec' });
+
 // ─── Маппинг ─────────────────────────────────────────────────────────────────
 const GENERATORS_EGE = {
   sumTimes:      genSumTimes,
@@ -229,6 +235,7 @@ const GENERATORS_EGE = {
   divByDiff:     genDivByDiff,
   diffDiv:       genDiffDiv,
   trickFraction: genTrickFraction,
+  ...FSU_GENERATORS_EGE,
 };
 
 export const CATEGORY_LABELS_EGE = {
@@ -242,6 +249,7 @@ export const CATEGORY_LABELS_EGE = {
   divByDiff:     'a / (b − c)',
   diffDiv:       '(a − b) / c',
   trickFraction: 'Хитрая дробь (= 1)',
+  ...FSU_DEC_LABELS,
 };
 
 export const DEFAULT_SETTINGS_EGE = {
@@ -264,6 +272,7 @@ export const DEFAULT_SETTINGS_EGE = {
     divByDiff:     true,
     diffDiv:       true,
     trickFraction: true,
+    ...fsuDefaults(FSU_DEC_KEYS),
   },
 };
 

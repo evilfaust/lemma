@@ -1,6 +1,9 @@
 import { useState, useCallback } from 'react';
 import { generateByCategories } from '../utils/questionPlan';
 import { isFiniteDecimalAnswer } from '../utils/oralAnswerFilter';
+import {
+  fsuGenerators, FSU_MIX_LABELS, FSU_MIX_KEYS, fsuDefaults,
+} from '../utils/shortMultiplication';
 import { useApplySheet } from './useApplySheet';
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
@@ -214,6 +217,9 @@ function genFracPlusFracDivFrac() {
   return { exprLatex: p.expr, resultLatex: p.ans };
 }
 
+// Раздел говорит обыкновенными дробями — ФСУ здесь на смешанных числах
+const FSU_GENERATORS_FR = fsuGenerators({ domain: 'mix', style: 'mix' });
+
 // ─── Маппинг ─────────────────────────────────────────────────────────────────
 const GENERATORS_FR = {
   sumFracTimesInt:       genSumFracTimesInt,
@@ -227,6 +233,7 @@ const GENERATORS_FR = {
   fracDecMix:            genFracDecMix,
   fracProdMinusFrac:     genFracProdMinusFrac,
   fracPlusFracDivFrac:   genFracPlusFracDivFrac,
+  ...FSU_GENERATORS_FR,
 };
 
 export const CATEGORY_LABELS_FR = {
@@ -241,6 +248,7 @@ export const CATEGORY_LABELS_FR = {
   fracDecMix:            'Смесь дробей и десятичных',
   fracProdMinusFrac:     'a/b · c/d − e/f',
   fracPlusFracDivFrac:   'a/b + c/d : e/f',
+  ...FSU_MIX_LABELS,
 };
 
 export const DEFAULT_SETTINGS_FR = {
@@ -264,6 +272,7 @@ export const DEFAULT_SETTINGS_FR = {
     fracDecMix:            true,
     fracProdMinusFrac:     true,
     fracPlusFracDivFrac:   true,
+    ...fsuDefaults(FSU_MIX_KEYS),
   },
 };
 

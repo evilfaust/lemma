@@ -70,7 +70,10 @@ import {
   DEFAULT_SETTINGS_DBL,
 } from './useDoubleInequalities';
 
-// Дефолтный набор включённых категорий (все true)
+// Дефолтный набор включённых категорий (все true) — для разделов, у которых
+// своих дефолтов по категориям нет. Там, где раздел сам решает, что включено
+// (новые блоки вроде ФСУ выключены), берём `DEFAULT_SETTINGS_*.categories`:
+// иначе смешанная работа включала бы то, чего в самом разделе нет по умолчанию.
 const allTrue = (labels) => Object.fromEntries(Object.keys(labels).map(k => [k, true]));
 
 export const ORAL_TYPES = [
@@ -81,7 +84,7 @@ export const ORAL_TYPES = [
     equationMode: false,
     generator:    generateOralCountingVariants,
     categoryLabels: CL_ORAL,
-    defaultCategories: allTrue(CL_ORAL),
+    defaultCategories: DS_ORAL.categories,
     defaultSettings: DS_ORAL,
   },
   {
@@ -91,7 +94,7 @@ export const ORAL_TYPES = [
     equationMode: false,
     generator:    generateEgeBaseVariants,
     categoryLabels: CATEGORY_LABELS_EGE,
-    defaultCategories: allTrue(CATEGORY_LABELS_EGE),
+    defaultCategories: DEFAULT_SETTINGS_EGE.categories,
     defaultSettings: DEFAULT_SETTINGS_EGE,
   },
   {
@@ -101,7 +104,7 @@ export const ORAL_TYPES = [
     equationMode: false,
     generator:    generateFractionsVariants,
     categoryLabels: CATEGORY_LABELS_FR,
-    defaultCategories: allTrue(CATEGORY_LABELS_FR),
+    defaultCategories: DEFAULT_SETTINGS_FR.categories,
     defaultSettings: DEFAULT_SETTINGS_FR,
   },
   {
@@ -111,7 +114,7 @@ export const ORAL_TYPES = [
     equationMode: false,
     generator:    generatePowersRootsVariants,
     categoryLabels: CATEGORY_LABELS_PR,
-    defaultCategories: allTrue(CATEGORY_LABELS_PR),
+    defaultCategories: DEFAULT_SETTINGS_PR.categories,
     defaultSettings: DEFAULT_SETTINGS_PR,
   },
   {
