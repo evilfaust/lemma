@@ -4,7 +4,7 @@ import {
   bucketsFromPreset, createItem, sheetStats, slotsForBucket,
   paginateBuckets, bucketHeightMm, shuffleItems, classifyWarnings,
   printableBuckets, bankPageHeightMm, PAGE_LIMIT_MM,
-  normalizeClassifySettings, isClassifyOnly, planSheet,
+  normalizeClassifySettings, isClassifyOnly, planSheet, stretchPage,
   solveHeightMm, solveWidthMm, contentWidthMm,
   PAGE_MM, CELL_MM,
 } from '../utils/classifySheet';
@@ -415,5 +415,90 @@ describe('клетка и поля листа', () => {
     const fresh = normalizeClassifySettings({});
     expect(fresh.fill).toBe('grid');
     expect(fresh.solveCells).toBe(4);
+  });
+});
+
+describe('карманы растягиваются до низа страницы', () => {
+  const build = (nItems, keys) => {
+    const buckets = bucketsFromPreset(keys);
+    const items = Array.from({ length: nItems }, (_, i) => createItem({
+      latex: 'x^2 = 1', bucketId: buckets[i % buckets.length].id,
+    }));
+    return { buckets, items };
+  };
+
+  // высота страницы = сумма строк, строка стоит по самому высокому карману
+  const pageHeight = (page) => {
+    let used = 0;
+    for (let i = 0; i < page.length; i += 2) {
+      used += Math.max(...page.slice(i, i + 2).map(b => b.height));
+    }
+    return used;
+  };
+
+  it('не оставляет внизу страницы пустого места больше клетки', () => {
+    [[12, 6], [14, 6], [24, 8], [18, 5]].forEach(([n, typeCount]) => {
+      const keys = ['noC', 'noB', 'vieta', 'binomSquare', 'perfectSquare', 'full', 'noRoots', 'productZero']
+        .slice(0, typeCount);
+      const { buckets, items } = build(n, keys);
+      const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+
+      if (plan.firstBuckets.length) {
+        const left = plan.freeFirstMm - pageHeight(plan.firstBuckets);
+        expect(left, `первая страница, ${n} уравнений`).toBeLessThan(CELL_MM * 2);
+        expect(left).toBeGreaterThanOrEqual(0);
+      }
+      plan.pages.forEach((page, i) => {
+        const left = PAGE_LIMIT_MM - pageHeight(page);
+        expect(left, `страница ${i + 2}, ${n} уравнений`).toBeLessThan(CELL_MM * 3);
+        expect(left).toBeGreaterThanOrEqual(0);
+      });
+    });
+  });
+
+  it('высота поля кратна клетке — иначе нижний ряд обрезан', () => {
+    const { buckets, items } = build(14, ['noC', 'noB', 'vieta', 'binomSquare', 'perfectSquare', 'full']);
+    const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+
+    [...plan.firstBuckets, ...plan.pages.flat()].forEach((b) => {
+      expect(b.fieldMm % CELL_MM).toBe(0);
+      expect(b.fieldMm).toBeGreaterThanOrEqual(solveHeightMm(b.slots, SETTINGS));
+    });
+  });
+
+  it('карманы одной строки одинаковой высоты — иначе под коротким дыра', () => {
+    const { buckets, items } = build(14, ['noC', 'noB', 'vieta', 'binomSquare', 'perfectSquare', 'full']);
+    const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+
+    [plan.firstBuckets, ...plan.pages].forEach((page) => {
+      for (let i = 0; i + 1 < page.length; i += 2) {
+        expect(page[i].fieldMm).toBe(page[i + 1].fieldMm);
+      }
+    });
+  });
+
+  it('не оставляет последнюю страницу с одиноким карманом', () => {
+    // жадная раскладка складывала всё наверх, а последний тип уезжал один
+    const { buckets, items } = build(12, ['noC', 'noB', 'vieta', 'binomSquare', 'perfectSquare', 'full']);
+    const plan = planSheet(sheetStats(buckets, items, SETTINGS), SETTINGS, items);
+    const last = plan.pages[plan.pages.length - 1];
+
+    expect(plan.pages.length).toBeGreaterThan(0);
+    expect(last.length).toBeGreaterThan(1);
+  });
+
+  it('одинокая строка не раздувается во весь лист', () => {
+    const page = [{
+      bucket: { id: 'b1' }, slots: 1, fieldMm: 20, chromeMm: 18, height: 38,
+    }];
+    const [stretched] = stretchPage(page, PAGE_LIMIT_MM, 1);
+    expect(stretched.fieldMm).toBeLessThanOrEqual(20 * 3);
+    expect(stretched.fieldMm).toBeGreaterThan(20);
+  });
+
+  it('когда место уже занято, ничего не растягивает', () => {
+    const page = [{ bucket: { id: 'b1' }, slots: 3, fieldMm: 200, chromeMm: 18, height: 218 }];
+    const [same] = stretchPage(page, 210, 1);
+    expect(same.fieldMm).toBe(200);
   });
 });

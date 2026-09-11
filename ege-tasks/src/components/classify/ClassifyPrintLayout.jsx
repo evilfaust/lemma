@@ -135,7 +135,9 @@ function BankPage({ title, items, stats, settings, buckets, showChecksum }) {
 
 // ─── Карман: заголовок и сплошная клетка ─────────────────────────────────────
 function BucketBlock({ stat, settings, showChecksum, columns }) {
-  const heightMm = solveHeightMm(stat.slots, settings);
+  // Высоту поля назначает раскладка (planSheet): она растягивает карманы до
+  // низа страницы, поэтому считать её здесь заново нельзя.
+  const heightMm = stat.fieldMm ?? solveHeightMm(stat.slots, settings);
 
   return (
     <div className="cls-bucket">

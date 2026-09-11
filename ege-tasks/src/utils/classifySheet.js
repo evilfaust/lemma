@@ -287,11 +287,13 @@ export function slotsForBucket(stat, stats, settings = {}) {
   return Math.max(stats.maxCount, 1);
 }
 
-// Высоты в миллиметрах — приблизительные, но соотношения те же, что в CSS
-// печати. Точность здесь не нужна: важно не дать карману разорваться между
-// страницами, поэтому раскладка считается заранее, а не отдаётся браузеру.
+// Высоты в миллиметрах — соотношения те же, что в CSS печати. Раскладка
+// считается заранее, а не отдаётся браузеру: иначе карман рвётся между
+// страницами, а поля растянуть по месту вообще нечем.
 const MM = {
-  bucketHeader: 9,    // название кармана, признак и волосяной разделитель
+  headerLine: 4.4,    // строка заголовка кармана
+  headerPad: 3.6,     // отступ под заголовком и волосяной разделитель
+  headerChar: 1.75,   // средняя ширина символа в заголовке
   bucketPadding: 4.5, // рамка кармана: отступы сверху и снизу вместе
   bucketGap: 3.5,
 
@@ -307,18 +309,37 @@ const MM = {
 /**
  * Высота клеточного поля кармана. Мест под отдельные уравнения на листе нет —
  * поле сплошное, но его высота пропорциональна числу уравнений, которые в этот
- * карман идут: столько места ученику и понадобится.
+ * карман идут: столько места ученику и понадобится. Дальше поле растягивается
+ * до низа страницы (см. stretchPage), поэтому это только нижняя граница.
  */
 export function solveHeightMm(slots, settings = {}) {
   const cells = Math.max(1, settings.solveCells ?? DEFAULT_CLASSIFY_SETTINGS.solveCells);
   return Math.max(1, slots) * cells * CELL_MM;
 }
 
-export function bucketHeightMm(slots, settings = {}) {
-  return MM.bucketHeader
-    + MM.bucketPadding
-    + solveHeightMm(slots, settings)
-    + MM.bucketGap;
+/**
+ * Заголовок кармана: длинное название в узкой колонке переносится на вторую
+ * строку, и без этого раскладка занижает высоту — растянутая «впритык»
+ * страница переполняется уже в браузере.
+ */
+export function bucketHeaderMm(bucket = null, settings = {}, columns = 1) {
+  if (!bucket) return MM.headerPad + MM.headerLine;
+  const cols = columns === 2 ? 2 : 1;
+  const width = (contentWidthMm() - (cols - 1) * COLUMN_GAP_MM) / cols - 6;
+  const perLine = Math.max(8, Math.floor(width / MM.headerChar));
+  const text = [bucket.label || '', settings.showHints ? (bucket.hint || '') : '']
+    .filter(Boolean).join('  ');
+  const lines = Math.max(1, Math.ceil(text.length / perLine));
+  return MM.headerPad + lines * MM.headerLine;
+}
+
+/** Всё, что в кармане не поле: заголовок, рамка и зазор до следующего. */
+export function bucketChromeMm(bucket = null, settings = {}, columns = 1) {
+  return bucketHeaderMm(bucket, settings, columns) + MM.bucketPadding + MM.bucketGap;
+}
+
+export function bucketHeightMm(slots, settings = {}, bucket = null, columns = 1) {
+  return bucketChromeMm(bucket, settings, columns) + solveHeightMm(slots, settings);
 }
 
 /**
@@ -340,9 +361,13 @@ export function paginateBuckets(stats, settings = {}, firstFreeMm = 0) {
   const cols = settings.bucketColumns === 2 ? 2 : 1;
   const sized = stats.buckets.map((stat) => {
     const slots = slotsForBucket(stat, stats, settings);
-    return { ...stat, slots, height: bucketHeightMm(slots, settings) };
+    const fieldMm = solveHeightMm(slots, settings);
+    const chromeMm = bucketChromeMm(stat.bucket, settings, cols);
+    return { ...stat, slots, fieldMm, chromeMm, height: fieldMm + chromeMm };
   });
 
+  // Строка — это карманы, стоящие в ряд; стоит она столько, сколько самый
+  // высокий карман в ней.
   const rows = [];
   for (let i = 0; i < sized.length; i += cols) {
     const row = sized.slice(i, i + cols);
@@ -350,31 +375,105 @@ export function paginateBuckets(stats, settings = {}, firstFreeMm = 0) {
   }
 
   const shared = firstFreeMm > 0;
+  const limitAt = index => (index === 0 && shared ? firstFreeMm : PAGE_LIMIT_MM);
+
+  // Шаг 1 — жадно: сколько строк влезает, столько и кладём.
   const pages = [];
   let page = [];
   let used = 0;
-  let limit = shared ? firstFreeMm : PAGE_LIMIT_MM;
 
-  rows.forEach(({ row, height }) => {
+  rows.forEach((row) => {
+    const limit = limitAt(pages.length);
     // На первой странице карманов может не оказаться вовсе — тогда она
     // закрывается пустой, чтобы дальше нумерация шла как обычно.
-    if ((page.length || limit !== PAGE_LIMIT_MM) && used + height > limit) {
+    if ((page.length || (shared && !pages.length)) && used + row.height > limit) {
       pages.push(page);
       page = [];
       used = 0;
-      limit = PAGE_LIMIT_MM;
     }
-    page.push(...row);
-    used += height;
+    page.push(row);
+    used += row.height;
   });
-
   if (page.length) pages.push(page);
-  return pages;
+
+  // Шаг 2 — выровнять хвост. Жадная раскладка любит оставить на последней
+  // странице одну строку, и она растягивается на весь лист: один тип во весь
+  // рост, а перед ним плотная страница. Переносим строки вниз, пока соседние
+  // страницы не сравняются.
+  const pageHeight = p => p.reduce((sum, r) => sum + r.height, 0);
+  for (let pass = 0; pass < rows.length; pass += 1) {
+    let moved = false;
+    for (let i = pages.length - 1; i > 0; i -= 1) {
+      const prev = pages[i - 1];
+      const cur = pages[i];
+      if (prev.length <= cur.length + 1) continue;
+      const candidate = prev[prev.length - 1];
+      if (pageHeight(cur) + candidate.height > limitAt(i)) continue;
+      prev.pop();
+      cur.unshift(candidate);
+      moved = true;
+    }
+    if (!moved) break;
+  }
+
+  return pages.map(p => p.flatMap(r => r.row));
 }
 
-// Запас под низом первой страницы: высоты блоков считаются приблизительно, и
-// без него карман, влезший «впритык», перенёсся бы уже в браузере — с разрывом.
+// Запас под низом страницы: высоты блоков считаются приблизительно, и без
+// него карман, влезший «впритык», перенёсся бы уже в браузере — с разрывом.
 const FIRST_PAGE_RESERVE_MM = 5;
+const PAGE_RESERVE_MM = 6;
+
+// Во сколько раз поле может вырасти относительно естественной высоты
+const MAX_STRETCH = 3;
+
+/**
+ * Растянуть карманы страницы до её низа.
+ *
+ * Пустая нижняя треть листа — это выброшенная бумага и, что важнее, меньше
+ * места ученику там, где оно нужно. Свободное место раздаётся строкам поровну
+ * и ТОЛЬКО целыми клетками: поле в клетку с обрезанным нижним рядом выглядит
+ * как брак печати.
+ *
+ * Внутри строки поля выравниваются по самому высокому: рядом стоящие карманы
+ * разной высоты оставляют дыру под коротким, а заодно выдают, в каком типе
+ * уравнений меньше.
+ */
+export function stretchPage(page = [], availableMm = 0, columns = 1) {
+  if (!page.length) return page;
+  const cols = columns === 2 ? 2 : 1;
+
+  const rows = [];
+  for (let i = 0; i < page.length; i += cols) rows.push(page.slice(i, i + cols));
+
+  const rowField = rows.map(row => Math.max(...row.map(b => b.fieldMm)));
+  const rowChrome = rows.map(row => Math.max(...row.map(b => b.chromeMm)));
+  const natural = rows.reduce((sum, _, i) => sum + rowField[i] + rowChrome[i], 0);
+
+  const freeCells = Math.max(0, Math.floor((availableMm - natural) / CELL_MM));
+  // Потолок: одинокая строка на странице иначе растягивается во весь лист —
+  // поле под один тип на 26 см выглядит ошибкой вёрстки, а не щедростью.
+  const maxCells = rows.map((_, i) => Math.floor((rowField[i] * (MAX_STRETCH - 1)) / CELL_MM));
+
+  const extra = new Array(rows.length).fill(0);
+  let left = freeCells;
+  let guard = 0;
+  while (left > 0 && guard < 10000) {
+    const before = left;
+    for (let i = 0; i < rows.length && left > 0; i += 1) {
+      if (extra[i] >= maxCells[i]) continue;
+      extra[i] += 1;
+      left -= 1;
+    }
+    guard += 1;
+    if (left === before) break;      // все строки упёрлись в потолок
+  }
+
+  return rows.flatMap((row, i) => {
+    const fieldMm = rowField[i] + extra[i] * CELL_MM;
+    return row.map(b => ({ ...b, fieldMm, height: fieldMm + b.chromeMm }));
+  });
+}
 
 /**
  * План листа целиком: что уходит под банк на первой странице, что на
@@ -387,7 +486,15 @@ export function planSheet(stats, settings = {}, items = []) {
     ? 0
     : Math.max(0, PAGE_LIMIT_MM - bankMm - FIRST_PAGE_RESERVE_MM);
 
-  const paged = paginateBuckets(stats, settings, free);
+  const cols = settings.bucketColumns === 2 ? 2 : 1;
+  const restAvailable = PAGE_LIMIT_MM - PAGE_RESERVE_MM;
+
+  // Карманы сначала раскладываются по страницам «как есть», и лишь потом
+  // растягиваются: растянутые высоты сдвинули бы саму раскладку.
+  const paged = paginateBuckets(stats, settings, free).map(
+    (page, index) => stretchPage(page, index === 0 && free > 0 ? free : restAvailable, cols),
+  );
+
   const firstBuckets = free > 0 ? (paged[0] || []) : [];
   const pages = free > 0 ? paged.slice(1) : paged;
 
