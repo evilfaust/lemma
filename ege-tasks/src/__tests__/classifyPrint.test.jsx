@@ -90,3 +90,71 @@ describe('печать листа-классификатора', () => {
     expect(render(14, { showClassField: false }).html).not.toContain(label);
   });
 });
+
+// ─── LaTeX в подписях ────────────────────────────────────────────────────────
+// Формулы в названии типа, признаке, заголовке и инструкции печатаются через
+// KaTeX, а не сырым текстом с долларами. Проверяем по разметке: `.katex` в
+// нужном блоке и отсутствие «$» в видимом тексте.
+describe('печать: формулы в подписях', () => {
+  const withMath = () => {
+    const buckets = bucketsFromPreset(['noC']);
+    buckets[0].label = 'Неполное: $ax^2 + bx = 0$';
+    buckets[0].hint = 'выносим $x$ за скобку';
+    const items = [createItem({ latex: 'x^2 - 5x = 0', bucketId: buckets[0].id })];
+    return { buckets, items };
+  };
+
+  const html = (extra = {}) => {
+    const { buckets, items } = withMath();
+    return renderToStaticMarkup(
+      <ClassifyPrintLayout
+        title="Уравнения вида $ax^2 + c = 0$"
+        buckets={buckets}
+        items={items}
+        settings={settingsOf(extra)}
+      />,
+    );
+  };
+
+  it('название типа и признак идут в KaTeX, а не текстом с долларами', () => {
+    const out = html();
+    const head = out.split('cls-bucket-head')[1] || '';
+    expect(head).toContain('katex');
+    expect(head.split('cls-solve')[0]).not.toContain('$ax^2');
+  });
+
+  it('заголовок листа рендерится', () => {
+    const out = html();
+    const title = out.split('cls-title')[1]?.split('</div>')[0] || '';
+    expect(title).toContain('katex');
+  });
+
+  it('инструкция учителя рендерится', () => {
+    const out = html({ instruction: 'Решите все уравнения вида $ax^2=c$ устно.' });
+    const note = out.split('cls-note-text')[1]?.split('</div>')[0] || '';
+    expect(note).toContain('katex');
+    expect(note).not.toContain('$ax^2=c$');
+  });
+
+  it('в режиме «только типы» формулы есть и в таблице', () => {
+    const out = html({ mode: 'classify' });
+    const cell = out.split('cls-td-type')[1]?.split('</td>')[0] || '';
+    expect(cell).toContain('katex');
+  });
+
+  it('ключ учителя тоже с формулами', () => {
+    const out = html({ showKey: true });
+    const key = out.split('cls-page--key')[1] || '';
+    expect(key).toContain('katex');
+  });
+
+  it('подпись без формул остаётся обычным текстом', () => {
+    const buckets = bucketsFromPreset(['noC']);
+    const items = [createItem({ latex: 'x^2 - 5x = 0', bucketId: buckets[0].id })];
+    const out = renderToStaticMarkup(
+      <ClassifyPrintLayout title="Лист" buckets={buckets} items={items} settings={settingsOf()} />,
+    );
+    // Юникодные подписи пресета («ax² + bx = 0») печатаются как были
+    expect(out).toContain('ax² + bx = 0');
+  });
+});

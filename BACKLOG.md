@@ -215,7 +215,8 @@ Chrome считает ширину документа по ним и ужима�
 поэтому тултип возможен только от панели настроек рядом):
 `WorkPrintPreview` (`.wpv-overlay`), `WorksheetGridPrint` (`.wgp-root`),
 КИМ (`EgeVariantGenerator.css`), `TDFPrintView`, `MarathonWorksheetPrint`,
-`GeometryTaskPreview`, `KtpPrintView`, маршрутный лист.
+`GeometryTaskPreview`, `KtpPrintView`. Маршрутный лист вылечен в v3.9.182
+(канон скопирован в `RouteSheetPrintLayout.css`).
 
 Проверять быстро и без браузера: собрать стенд с реальным CSS + `<div
 class="ant-tooltip" style="position:absolute;left:1050px">` и напечатать

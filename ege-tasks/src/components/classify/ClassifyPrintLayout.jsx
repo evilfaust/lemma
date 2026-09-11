@@ -1,4 +1,5 @@
 import MathInline from '../shared/MathInline';
+import MathText from '../shared/MathText';
 import PrintFill from '../shared/PrintFill';
 import ClassifyItemView from './ClassifyItemView';
 import {
@@ -37,7 +38,7 @@ function Header({ title, settings }) {
   return (
     <div className="cls-head">
       <div className="cls-eyebrow">Классификация уравнений</div>
-      <div className="cls-title">{title || 'Разложи по типам'}</div>
+      <div className="cls-title"><MathText text={title || 'Разложи по типам'} /></div>
       <div className="cls-fields">
         <div className="cls-field cls-field--wide">
           <span className="cls-field-label">Фамилия, имя</span>
@@ -72,9 +73,10 @@ function BankPage({ title, items, stats, settings, buckets, showChecksum }) {
 
       <div className="cls-note">
         <span className="cls-note-label">Задание. </span>
-        <span className="cls-note-text">
-          {settings.instruction || (classifyOnly ? INSTRUCTION_CLASSIFY : INSTRUCTION_FULL)}
-        </span>
+        <MathText
+          className="cls-note-text"
+          text={settings.instruction || (classifyOnly ? INSTRUCTION_CLASSIFY : INSTRUCTION_FULL)}
+        />
       </div>
 
       <div className={`cls-bank cls-bank--${columns}col`}>
@@ -99,9 +101,9 @@ function BankPage({ title, items, stats, settings, buckets, showChecksum }) {
             {stats.buckets.map(stat => (
               <tr key={stat.bucket.id}>
                 <td className="cls-td-type">
-                  <span className="cls-type-label">{stat.bucket.label || '—'}</span>
+                  <MathText className="cls-type-label" text={stat.bucket.label || '—'} />
                   {settings.showHints && stat.bucket.hint && (
-                    <span className="cls-type-hint">{stat.bucket.hint}</span>
+                    <MathText className="cls-type-hint" text={stat.bucket.hint} />
                   )}
                 </td>
                 <td className="cls-td-nums" />
@@ -138,9 +140,9 @@ function BucketBlock({ stat, settings, showChecksum, columns }) {
   return (
     <div className="cls-bucket">
       <div className="cls-bucket-head">
-        <span className="cls-bucket-label">{stat.bucket.label || '—'}</span>
+        <MathText className="cls-bucket-label" text={stat.bucket.label || '—'} />
         {settings.showHints && stat.bucket.hint && (
-          <span className="cls-bucket-hint">{stat.bucket.hint}</span>
+          <MathText className="cls-bucket-hint" text={stat.bucket.hint} />
         )}
         {settings.showPoints && stat.bucket.points > 0 && (
           <span className="cls-bucket-points">{stat.bucket.points} б. за уравнение</span>
@@ -170,13 +172,13 @@ function KeyPage({ title, stats, settings }) {
     <div className="cls-page cls-page--key" style={{ padding: pagePaddingCss() }}>
       <div className="cls-head">
         <div className="cls-eyebrow">Ключ учителя</div>
-        <div className="cls-title">{title || 'Разложи по типам'}</div>
+        <div className="cls-title"><MathText text={title || 'Разложи по типам'} /></div>
       </div>
 
       {stats.buckets.map(stat => (
         <div className="cls-key-bucket" key={stat.bucket.id}>
           <div className="cls-key-head">
-            <span className="cls-key-label">{stat.bucket.label || '—'}</span>
+            <MathText className="cls-key-label" text={stat.bucket.label || '—'} />
             <span className="cls-key-meta">
               {stat.count} шт. · номера: {stat.numbers.join(', ') || '—'}
               {settings.showChecksum ? ` · Σ = ${stat.checksum}` : ''}
@@ -192,9 +194,10 @@ function KeyPage({ title, stats, settings }) {
                 </span>
               )}
               {item.alsoFits?.length > 0 && (
-                <span className="cls-key-also">
-                  также: {item.alsoFits.map(id => bucketName.get(id)).filter(Boolean).join(', ')}
-                </span>
+                <MathText
+                  className="cls-key-also"
+                  text={`также: ${item.alsoFits.map(id => bucketName.get(id)).filter(Boolean).join(', ')}`}
+                />
               )}
             </div>
           ))}
@@ -253,7 +256,7 @@ export default function ClassifyPrintLayout({
         <div className="cls-page" key={`p${pageIndex}`} style={{ padding: pagePaddingCss() }}>
           {settings.showRunningTitle !== false && (
             <div className="cls-runhead">
-              <span>{title || 'Разложи по типам'}</span>
+              <MathText text={title || 'Разложи по типам'} />
               <span>стр. {pageIndex + 2}</span>
             </div>
           )}

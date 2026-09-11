@@ -20,6 +20,7 @@ import EquationBankPanel from './EquationBankPanel';
 import BulkAddModal from './BulkAddModal';
 import QuadImportModal from './QuadImportModal';
 import ClassifyPrintLayout from './ClassifyPrintLayout';
+import MathText from '../shared/MathText';
 
 const { TextArea } = Input;
 
@@ -254,9 +255,22 @@ export default function ClassifySheetGenerator() {
                   value={settings.instruction || ''}
                   onChange={e => updateSetting('instruction', e.target.value)}
                   autoSize={{ minRows: 2, maxRows: 5 }}
-                  placeholder="Инструкция на листе (по умолчанию — стандартная)"
+                  placeholder="Инструкция на листе (формулы — в $…$)"
                   style={{ fontSize: 12 }}
                 />
+                {/* Инструкцию печатает лист, а формулы в ней рендерятся — значит
+                    учитель должен видеть их здесь, а не узнавать на печати. */}
+                {/\$[^$\n]+\$/.test(settings.instruction || '') && (
+                  <div style={{
+                    padding: '5px 8px',
+                    background: 'var(--bg-sunken)',
+                    borderRadius: 'var(--radius)',
+                    fontSize: 12,
+                    color: 'var(--ink-2)',
+                  }}>
+                    <MathText text={settings.instruction} />
+                  </div>
+                )}
               </Space>
             </TrigSettingsSection>
 

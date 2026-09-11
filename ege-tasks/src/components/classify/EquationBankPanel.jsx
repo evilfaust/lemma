@@ -3,6 +3,7 @@ import {
   DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined,
 } from '@ant-design/icons';
 import MathInline from '../shared/MathInline';
+import MathText from '../shared/MathText';
 import ClassifyItemView from './ClassifyItemView';
 import { OTHER_BUCKET_ID, OTHER_BUCKET } from '../../utils/classifySheet';
 
@@ -23,10 +24,12 @@ export function EquationBankPanel({
   onRemove,
   onMove,
 }) {
+  // label у Ant Select — ReactNode, поэтому формула в названии типа рендерится
+  // и в списке, и в закрытом поле.
   const options = [
     { value: '', label: 'Без типа' },
-    ...buckets.map(b => ({ value: b.id, label: b.label || 'Без названия' })),
-    ...(settings.showOther ? [{ value: OTHER_BUCKET_ID, label: OTHER_BUCKET.label }] : []),
+    ...buckets.map(b => ({ value: b.id, label: <MathText text={b.label || 'Без названия'} /> })),
+    ...(settings.showOther ? [{ value: OTHER_BUCKET_ID, label: <MathText text={OTHER_BUCKET.label} /> }] : []),
   ];
 
   if (!items.length) {

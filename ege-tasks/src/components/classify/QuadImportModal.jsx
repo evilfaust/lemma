@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Modal, InputNumber, Alert, Checkbox, Divider } from 'antd';
+import MathText from '../shared/MathText';
 import {
   QUAD_IMPORT_GROUPS, QUAD_IMPORT_LABELS,
   generateItemsForClassify, presetKeysForCategories,
@@ -87,7 +88,7 @@ export function QuadImportModal({ open, onClose, buckets, onAdd, onAddBuckets })
                     style={{ width: 56 }}
                   />
                   <span style={{ fontSize: 12, color: 'var(--ink-2)', minWidth: 0 }}>
-                    {QUAD_IMPORT_LABELS[cat]}
+                    <MathText text={QUAD_IMPORT_LABELS[cat]} />
                   </span>
                 </div>
               ))}

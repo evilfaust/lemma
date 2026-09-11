@@ -6,7 +6,13 @@ import {
   PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined,
   AppstoreAddOutlined,
 } from '@ant-design/icons';
+import MathText from '../shared/MathText';
 import { QUAD_BUCKET_PRESET } from '../../utils/classifySheet';
+
+// Строка, в которой есть что рендерить. Превью показываем только тогда: у
+// подписи «Неполное: свободный коэффициент равен нулю» рендерить нечего, а
+// лишняя строка на каждый тип съедает панель.
+const hasMath = (...parts) => parts.some(t => /\$[^$\n]+\$/.test(String(t || '')));
 
 /**
  * Карманы листа — типы уравнений. Правятся прямо в списке: название и признак
@@ -98,7 +104,7 @@ export function BucketsPanel({
               <Input
                 size="small"
                 value={bucket.hint}
-                placeholder="Признак: ax² + bx = 0"
+                placeholder="Признак: $ax^2 + bx = 0$"
                 onChange={e => onPatch(bucket.id, { hint: e.target.value })}
                 style={{ flex: 1 }}
               />
@@ -115,6 +121,20 @@ export function BucketsPanel({
                 </Tooltip>
               )}
             </div>
+
+            {hasMath(bucket.label, bucket.hint) && (
+              <div style={{
+                marginTop: 6, paddingTop: 5,
+                borderTop: '1px dashed var(--rule-soft)',
+                fontSize: 12, color: 'var(--ink-2)',
+                display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap',
+              }}>
+                <MathText text={bucket.label} />
+                {bucket.hint && (
+                  <span style={{ color: 'var(--ink-3)' }}><MathText text={bucket.hint} /></span>
+                )}
+              </div>
+            )}
           </div>
         ))}
 
@@ -166,11 +186,11 @@ export function BucketsPanel({
                 />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 500 }}>
-                    {preset.label}
+                    <MathText text={preset.label} />
                     {already && <Tag style={{ marginLeft: 8 }}>уже на листе</Tag>}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
-                    {preset.hint} · {preset.method}
+                    <MathText text={preset.hint} /> · <MathText text={preset.method} />
                   </div>
                 </div>
               </label>

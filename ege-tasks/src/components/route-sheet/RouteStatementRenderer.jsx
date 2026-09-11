@@ -1,11 +1,17 @@
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
+import { CIRCLE_CLASS } from '../../utils/routeSheet';
 
-const PH_RE = /\[[①②③④⑤⑥⑦⑧⑨]\]/g;
+// Класс кружковых цифр — общий с разбором цепочки (utils/routeSheet.js): маршрут
+// бывает длиннее девяти задач, и плейсхолдер [⑫] должен рисоваться так же.
+const PH_RE = new RegExp(`\\[${CIRCLE_CLASS}\\]`, 'g');
 
-// Внутри LaTeX: [①] → \textcolor{#c0c0c0}{\text{①}}
+// Внутри LaTeX: [①] → \textcolor{…}{\text{①}}. Рамкой (\fcolorbox), как вне
+// формулы, не обводим: у кружковой цифры нет метрик в шрифтах KaTeX, и рамка
+// съезжает под базовую линию — на печати читается как посторонний значок.
+// Серый — ink-3 листа: бледно-серый #c0c0c0 на ч/б принтере почти пропадал.
 function injectIntoLatex(tex) {
-  return tex.replace(PH_RE, m => `\\textcolor{#c0c0c0}{\\text{${m[1]}}}`);
+  return tex.replace(PH_RE, m => `\\textcolor{#5A5A5A}{\\text{${m[1]}}}`);
 }
 
 function renderKatex(tex, display) {
@@ -22,7 +28,9 @@ function renderKatex(tex, display) {
 }
 
 // Разбивает на: блочный LaTeX, инлайн LaTeX, плейсхолдер, обычный текст
-const SPLIT_RE = /(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$|\[[①②③④⑤⑥⑦⑧⑨]\])/g;
+const PH_ONE_RE = new RegExp(`^\\[${CIRCLE_CLASS}\\]$`);
+
+const SPLIT_RE = new RegExp(`(\\$\\$[\\s\\S]+?\\$\\$|\\$[^$\\n]+?\\$|\\[${CIRCLE_CLASS}\\])`, 'g');
 
 export default function RouteStatementRenderer({ content }) {
   if (!content) return null;
@@ -49,7 +57,7 @@ export default function RouteStatementRenderer({ content }) {
             />
           );
         }
-        if (/^\[[①②③④⑤⑥⑦⑧⑨]\]$/.test(part)) {
+        if (PH_ONE_RE.test(part)) {
           // Плейсхолдер вне LaTeX
           return <span key={i} className="rs-ph">{part[1]}</span>;
         }

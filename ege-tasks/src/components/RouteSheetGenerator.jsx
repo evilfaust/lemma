@@ -1,21 +1,24 @@
 import { useState, useCallback } from 'react';
 import { printPaged } from '../utils/printPage';
 import {
-  App, Button, Divider, Input, Modal, List, Popconfirm,
-  Space, Switch, Tooltip, Typography,
+  Alert, App, Button, Checkbox, Input, InputNumber, Modal, List,
+  Popconfirm, Segmented, Space, Tooltip, Typography,
 } from 'antd';
 import {
   DeleteOutlined, EditOutlined, PlusOutlined, PrinterOutlined,
   SaveOutlined, UpOutlined, DownOutlined, FolderOpenOutlined,
   ThunderboltOutlined, CheckOutlined, CloseOutlined, ReloadOutlined,
-  ApartmentOutlined, ArrowDownOutlined,
+  ApartmentOutlined, ArrowDownOutlined, ImportOutlined, ExportOutlined,
 } from '@ant-design/icons';
 import useRouteSheet, { circleNum } from '../hooks/useRouteSheet';
+import { solveHeightMm } from '../utils/routeSheet';
 import RouteSheetPrintLayout from './route-sheet/RouteSheetPrintLayout';
 import './route-sheet/RouteSheetPrintLayout.css';
 import TaskSelectModal from './TaskSelectModal';
 import RouteTaskEditor from './route-sheet/RouteTaskEditor';
 import RouteChainGeneratorDrawer from './route-sheet/RouteChainGeneratorDrawer';
+import RouteImportModal from './route-sheet/RouteImportModal';
+import { buildRouteMarkdown, routeMarkdownFilename } from '../utils/routeImport';
 import MathRenderer from '../shared/components/MathRenderer';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
@@ -24,7 +27,6 @@ import {
   TrigSettingsSection,
   TrigActions,
   TrigPreviewPane,
-  TrigPreviewCard,
   TrigStatBadge,
 } from './trig/TrigGeneratorLayout';
 
@@ -254,22 +256,24 @@ export default function RouteSheetGenerator() {
     title, setTitle,
     tasks,
     effectiveLinks,
+    issues,
     savedId,
-    showTeacherKey, setShowTeacherKey,
-    addTask, removeTask, moveTask, updateTask,
+    settings, updateSetting,
+    addTask, addLocalTasks, replaceTasks, removeTask, moveTask, updateTask,
     reset, loadFromSaved,
     save, update,
   } = useRouteSheet();
 
+  const [view, setView] = useState('chain');
   const [editingId, setEditingId] = useState(null);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
   const [loadingSheets, setLoadingSheets] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [aiSaving, setAiSaving] = useState(false);
 
   const handleAddTask = useCallback((task) => {
     addTask(task);
@@ -278,35 +282,34 @@ export default function RouteSheetGenerator() {
 
   const handleSaveTaskEdit = useCallback(async (taskId, fields) => {
     updateTask(taskId, fields);
-    try {
-      await api.updateTask(taskId, { statement_md: fields.statement_md, answer: fields.answer });
-    } catch {
-      message.error('Ошибка при сохранении задачи в базе');
+    // Задача из банка правится и в банке; задача, живущая только в этом листе
+    // (импорт, ИИ), в базе не существует — `updateTask` ответил бы 404.
+    const task = tasks.find(t => t.id === taskId);
+    if (task && !task.__local) {
+      try {
+        await api.updateTask(taskId, { statement_md: fields.statement_md, answer: fields.answer });
+      } catch {
+        message.error('Ошибка при сохранении задачи в базе');
+      }
     }
     setEditingId(null);
-  }, [updateTask, message]);
+  }, [updateTask, tasks, message]);
 
-  const handleAiTasksReady = useCallback(async (taskSpecs) => {
-    setAiSaving(true);
-    try {
-      for (const spec of taskSpecs) {
-        const record = await api.createTask({
-          statement_md: spec.statement_md,
-          answer: spec.answer,
-          source: 'route',
-          has_image: false,
-        });
-        addTask(record);
-      }
-      message.success(`Добавлено ${taskSpecs.length} задач в маршрут`);
-    } catch {
-      message.error('Ошибка при сохранении задач');
-    } finally {
-      setAiSaving(false);
-    }
-  }, [addTask, message]);
+  // Сочинённые цепочки в банк задач НЕ пишем: «уменьшите [②] в [①] раз» вне
+  // своего листа бессмысленна (тот же вывод, что у листов генераторов). Они
+  // живут снимком внутри маршрута.
+  const handleAiTasksReady = useCallback((taskSpecs) => {
+    addLocalTasks(taskSpecs);
+    message.success(`Добавлено ${taskSpecs.length} задач в маршрут`);
+  }, [addLocalTasks, message]);
 
-  const handlePrint = useCallback(() => printPaged(), []);
+  // 🚨 `margin: 0` — поля рисует сам лист (padding страницы). Поля из @page
+  // перебивает пункт «Поля: Нет» в диалоге печати Chrome, и лист тогда
+  // печатается впритык к краю бумаги.
+  const handlePrint = useCallback(
+    () => printPaged({ size: 'A4 portrait', margin: '0' }),
+    [],
+  );
 
   const handleSave = useCallback(async () => {
     if (!tasks.length) { message.warning('Добавьте хотя бы одну задачу'); return; }
@@ -320,6 +323,27 @@ export default function RouteSheetGenerator() {
       setSaving(false);
     }
   }, [tasks, savedId, save, update, message]);
+
+  const handleImport = useCallback((mode, { title: importedTitle, tasks: importedTasks }) => {
+    if (mode === 'replace') {
+      replaceTasks(importedTasks);
+      if (importedTitle) setTitle(importedTitle);
+    } else {
+      addLocalTasks(importedTasks);
+    }
+    message.success(`Загружено ${importedTasks.length} задач`);
+  }, [replaceTasks, addLocalTasks, setTitle, message]);
+
+  const handleExportMd = useCallback(() => {
+    const md = buildRouteMarkdown({ title, tasks });
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = routeMarkdownFilename(title);
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [title, tasks]);
 
   const handleOpenLoad = useCallback(async () => {
     setLoadingSheets(true);
@@ -343,11 +367,92 @@ export default function RouteSheetGenerator() {
   // ─── Left panel ──────────────────────────────────────────────────────────────
   const left = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10, overflowY: 'auto' }}>
-      <TrigSettingsSection label="Параметры листа">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Switch checked={showTeacherKey} onChange={setShowTeacherKey} size="small" />
-          <span style={{ fontSize: 13, color: 'var(--ink-2)' }}>Страница ключа учителя</span>
-        </div>
+      {issues.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`Цепочка: ${issues.length} замечани${issues.length === 1 ? 'е' : 'й'}`}
+          description={(
+            <ul style={{ margin: 0, paddingLeft: 16, fontSize: 12 }}>
+              {issues.slice(0, 6).map((text, i) => <li key={i}>{text}</li>)}
+            </ul>
+          )}
+        />
+      )}
+
+      <TrigSettingsSection label="Печать листа">
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, flex: 1 }}>Место для решения</span>
+            <Segmented
+              size="small"
+              options={[
+                { value: 'grid', label: 'Клетка' },
+                { value: 'lines', label: 'Линейка' },
+                { value: 'blank', label: 'Пусто' },
+              ]}
+              value={settings.fill}
+              onChange={v => updateSetting('fill', v)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Tooltip title="Сколько клеток по 5 мм отводится на решение одной задачи. 0 — места нет, только строка ответа">
+              <span style={{ fontSize: 12, flex: 1 }}>Клеток на задачу</span>
+            </Tooltip>
+            <InputNumber
+              size="small" min={0} max={24}
+              value={settings.solveCells}
+              onChange={v => updateSetting('solveCells', v ?? 0)}
+              style={{ width: 64 }}
+            />
+            <span style={{ fontSize: 11, color: 'var(--ink-4)', minWidth: 36 }}>
+              {solveHeightMm(settings)} мм
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, flex: 1 }}>Кегль</span>
+            <Segmented
+              size="small"
+              options={[{ value: 's', label: 'S' }, { value: 'm', label: 'M' }, { value: 'l', label: 'L' }]}
+              value={settings.fontSize}
+              onChange={v => updateSetting('fontSize', v)}
+            />
+          </div>
+
+          <Checkbox
+            checked={settings.showInstruction}
+            onChange={e => updateSetting('showInstruction', e.target.checked)}
+          >
+            Печатать инструкцию
+          </Checkbox>
+          <Checkbox
+            checked={settings.showClassField}
+            onChange={e => updateSetting('showClassField', e.target.checked)}
+          >
+            Поле «Класс» в шапке
+          </Checkbox>
+          <Checkbox
+            checked={settings.showKey}
+            onChange={e => updateSetting('showKey', e.target.checked)}
+          >
+            Страница ключа для учителя
+          </Checkbox>
+
+          {settings.showInstruction && (
+            <div>
+              <label style={labelStyle}>Своя инструкция (пусто — текст по умолчанию)</label>
+              <TextArea
+                value={settings.instruction}
+                onChange={e => updateSetting('instruction', e.target.value)}
+                rows={3}
+                size="small"
+                placeholder="Как решать этот лист"
+              />
+            </div>
+          )}
+        </Space>
       </TrigSettingsSection>
 
       <TrigSettingsSection label="Добавить задачи">
@@ -357,10 +462,12 @@ export default function RouteSheetGenerator() {
             block
             icon={<ThunderboltOutlined />}
             onClick={() => setAiDrawerOpen(true)}
-            loading={aiSaving}
             style={{ background: '#fa8c16', borderColor: '#fa8c16' }}
           >
             AI-генерация цепочки
+          </Button>
+          <Button block icon={<ImportOutlined />} onClick={() => setImportOpen(true)}>
+            Загрузить готовый маршрут
           </Button>
           <Button block icon={<PlusOutlined />} onClick={() => setSelectModalOpen(true)}>
             Добавить из базы задач
@@ -400,6 +507,9 @@ export default function RouteSheetGenerator() {
             <Button block type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
               Печать
             </Button>
+            <Button block icon={<ExportOutlined />} onClick={handleExportMd}>
+              Выгрузить .md
+            </Button>
           </TrigActions>
         </TrigSettingsSection>
       )}
@@ -415,35 +525,54 @@ export default function RouteSheetGenerator() {
       emptyHint="Сгенерируйте задачи с помощью AI или добавьте из базы"
       summary={tasks.length > 0 ? [
         <TrigStatBadge key="n">{tasks.length} задач</TrigStatBadge>,
-        showTeacherKey && <TrigStatBadge key="key" tone="success">+ ключ учителя</TrigStatBadge>,
+        settings.showKey && <TrigStatBadge key="key" tone="success">+ ключ учителя</TrigStatBadge>,
+        <Segmented
+          key="view"
+          size="small"
+          options={[
+            { value: 'chain', label: 'Цепочка' },
+            { value: 'sheet', label: 'Лист' },
+          ]}
+          value={view}
+          onChange={setView}
+        />,
       ].filter(Boolean) : null}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-        {tasks.map((task, idx) => (
-          <div key={task.id}>
-            {idx > 0 && <ChainConnector fromIndex={idx - 1} />}
-            {editingId === task.id ? (
-              <TaskRowEditor
-                task={task}
-                index={idx}
-                previousTasks={tasks.slice(0, idx)}
-                onSave={(fields) => handleSaveTaskEdit(task.id, fields)}
-                onCancel={() => setEditingId(null)}
-              />
-            ) : (
-              <TaskRow
-                task={task}
-                index={idx}
-                total={tasks.length}
-                onRemove={removeTask}
-                onMoveUp={(i) => moveTask(i, i - 1)}
-                onMoveDown={(i) => moveTask(i, i + 1)}
-                onEdit={setEditingId}
-              />
-            )}
-          </div>
-        ))}
-      </div>
+      {view === 'chain' ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {tasks.map((task, idx) => (
+            <div key={task.id}>
+              {idx > 0 && <ChainConnector fromIndex={idx - 1} />}
+              {editingId === task.id ? (
+                <TaskRowEditor
+                  task={task}
+                  index={idx}
+                  previousTasks={tasks.slice(0, idx)}
+                  onSave={(fields) => handleSaveTaskEdit(task.id, fields)}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <TaskRow
+                  task={task}
+                  index={idx}
+                  total={tasks.length}
+                  onRemove={removeTask}
+                  onMoveUp={(i) => moveTask(i, i - 1)}
+                  onMoveDown={(i) => moveTask(i, i + 1)}
+                  onEdit={setEditingId}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <RouteSheetPrintLayout
+          title={title}
+          tasks={tasks}
+          settings={settings}
+          screenMode
+        />
+      )}
     </TrigPreviewPane>
   );
 
@@ -464,7 +593,7 @@ export default function RouteSheetGenerator() {
         <RouteSheetPrintLayout
           title={title}
           tasks={tasks}
-          showTeacherKey={showTeacherKey}
+          settings={settings}
         />
       )}
 
@@ -486,6 +615,14 @@ export default function RouteSheetGenerator() {
         onSaved={(task) => { addTask(task); setEditorOpen(false); message.success('Задача создана и добавлена'); }}
         previousTasks={tasks}
         insertIndex={tasks.length}
+      />
+
+      {/* Загрузка готового маршрута текстом */}
+      <RouteImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onApply={handleImport}
+        hasTasks={tasks.length > 0}
       />
 
       {/* AI-генерация */}
