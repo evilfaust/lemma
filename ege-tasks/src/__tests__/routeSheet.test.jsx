@@ -165,6 +165,22 @@ describe('RouteSheetPrintLayout — печать', () => {
     expect(page.querySelectorAll('.rs-answer-box')).toHaveLength(3);
   });
 
+  it('🚨 зона измерения живёт СНАРУЖИ печатного корня', () => {
+    // Печатный корень на экране `display: none`, а у потомков скрытого
+    // элемента нет раскладки: offsetHeight = 0 у всех задач, пагинация решает,
+    // что они ничего не весят, и валит лист на одну страницу — браузер потом
+    // рвёт её сам и оставляет дыры в конце листов. Перебить `display:none`
+    // предка стилями на самой зоне нельзя, поэтому она обязана быть снаружи.
+    const { container } = renderSheet();
+    const measure = container.querySelector('.rs-measure');
+    expect(measure).not.toBeNull();
+    expect(measure.closest('.rs-root')).toBeNull();
+    expect(measure.closest('.rs-screen-root')).toBeNull();
+    // Кегль на ней свой: снаружи корня она его не унаследует, а меряться
+    // обязана тем же шрифтом, которым печатается.
+    expect(measure.className).toContain('rs-fs-');
+  });
+
   it('в зоне измерения задача «голая» — без места для решения', () => {
     const { container } = renderSheet({ solveCells: 6 });
     const measure = container.querySelector('.rs-measure');
@@ -228,6 +244,7 @@ describe('RouteSheetPrintLayout — печать', () => {
     );
     expect(container.querySelector('.rs-screen-root')).not.toBeNull();
     expect(container.querySelector('.rs-root')).toBeNull();
+    expect(container.querySelector('.rs-measure').closest('.rs-screen-root')).toBeNull();
     expect(container.querySelectorAll('.rs-page').length).toBeGreaterThan(0);
   });
 });

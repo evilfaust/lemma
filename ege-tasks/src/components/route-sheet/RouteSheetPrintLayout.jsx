@@ -232,19 +232,8 @@ export default function RouteSheetPrintLayout({
   // браузером, чем пустой лист, если печать успела раньше useLayoutEffect.
   const list = pages?.length ? pages : (items.length ? [items] : []);
 
-  const inner = (
+  const pagesMarkup = (
     <>
-      {/* Фаза измерения — вне экрана, шириной полосы набора. Задачи меряются
-          «голыми»: без места для решения. */}
-      <div className="rs-measure" aria-hidden="true" style={{ width: `${contentWidthMm()}mm` }}>
-        <div ref={headRef}>{header}</div>
-        {items.map(it => (
-          <div key={it.__key} ref={(el) => { taskRefs.current[it.__key] = el; }}>
-            <StudentTask task={it} index={it.__no} settings={settings} />
-          </div>
-        ))}
-      </div>
-
       {list.map((pageItems, pageIndex) => (
         <section className="rs-page" key={`p${pageIndex}`} style={{ padding: pagePaddingCss() }}>
           {pageIndex === 0 ? header : (
@@ -274,6 +263,37 @@ export default function RouteSheetPrintLayout({
     </>
   );
 
-  const cls = `${screenMode ? 'rs-screen-root' : 'rs-root'} rs-fs-${settings.fontSize}`;
-  return <div className={cls}>{inner}</div>;
+  const fs = `rs-fs-${settings.fontSize}`;
+  const cls = `${screenMode ? 'rs-screen-root' : 'rs-root'} ${fs}`;
+
+  return (
+    <>
+      {/* 🚨 Зона измерения живёт СНАРУЖИ корня и никогда не внутри него.
+          Печатный корень на экране `display: none`, а у потомков скрытого
+          элемента нет раскладки вообще: offsetHeight у всех задач = 0,
+          пагинация решает, что они ничего не весят, и сваливает лист на одну
+          страницу — при печати браузер рвёт её сам, оставляя дыры в конце
+          листов. CSS на самой зоне тут не спасает: перебить `display: none`
+          предка нельзя.
+          По той же причине класс кегля (`rs-fs-*`) висит и на зоне: снаружи
+          корня она его не унаследует, а меряться обязана тем же шрифтом,
+          которым печатается.
+          Задачи меряются «голыми» — без места для решения, его высота
+          прибавляется арифметически. */}
+      <div
+        className={`rs-measure ${fs}`}
+        aria-hidden="true"
+        style={{ width: `${contentWidthMm()}mm` }}
+      >
+        <div ref={headRef}>{header}</div>
+        {items.map(it => (
+          <div key={it.__key} ref={(el) => { taskRefs.current[it.__key] = el; }}>
+            <StudentTask task={it} index={it.__no} settings={settings} />
+          </div>
+        ))}
+      </div>
+
+      <div className={cls}>{pagesMarkup}</div>
+    </>
+  );
 }

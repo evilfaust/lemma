@@ -20,7 +20,8 @@
 .rs-root { display: none; }
 
 .rs-root,
-.rs-screen-root {
+.rs-screen-root,
+.rs-measure {
   --rs-ink:    #101010;
   --rs-ink-2:  #303030;
   --rs-ink-3:  #5A5A5A;
@@ -55,9 +56,9 @@
   print-color-adjust: exact;
 }
 
-.rs-fs-s .rs-page, .rs-fs-s .rs-measure { font-size: 3.6mm; }
-.rs-fs-m .rs-page, .rs-fs-m .rs-measure { font-size: 3.9mm; }
-.rs-fs-l .rs-page, .rs-fs-l .rs-measure { font-size: 4.3mm; }
+.rs-fs-s .rs-page, .rs-measure.rs-fs-s { font-size: 3.6mm; }
+.rs-fs-m .rs-page, .rs-measure.rs-fs-m { font-size: 3.9mm; }
+.rs-fs-l .rs-page, .rs-measure.rs-fs-l { font-size: 4.3mm; }
 
 /* Зона измерения наследует вид страницы — иначе меряется не то, что печатается */
 .rs-measure {
