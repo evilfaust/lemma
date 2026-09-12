@@ -192,6 +192,8 @@
   align-items: start;
 }
 .cls-buckets--2col .cls-bucket { min-width: 0; }
+/* Одинокий карман в ряду разворачивается на обе колонки */
+.cls-buckets--2col .cls-bucket--full { grid-column: 1 / -1; }
 
 .cls-bucket {
   border: 0.25mm solid var(--cls-rule-2);
@@ -201,6 +203,7 @@
   page-break-inside: avoid;
 }
 .cls-bucket-head {
+  box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -272,30 +275,92 @@
 }
 
 /* ─── Печать ──────────────────────────────────────────────────────────────── */
+/* Рецепт целиком повторяет печатный движок `print-sheet/printSheet.css`:
+   он выстрадан на КИМах и Генераторе, отступать от него незачем. */
 @media print {
-  /* Показываем только лист: остальное приложение скрыто, а корень печати
-     прижат к началу страницы — иначе Chrome масштабирует буклет как часть
-     общего потока (грабли КИМ-печати). */
-  body:has(.cls-print-root) { visibility: hidden; }
+  /* 🚨 Ширину печатной области Chrome берёт по ВСЕМУ документу, а не по листу.
+     visibility:hidden прячет интерфейс, но оставляет его в потоке — любой
+     элемент правее 210 мм включает shrink-to-fit, и лист печатается в ~60–75%
+     масштаба. Клетка 5 мм при этом становится 3,5 мм, а волосяные линии
+     сливаются в серую рябь — та самая «странная клетка». */
+  html:has(.cls-print-root),
+  body:has(.cls-print-root) {
+    width: 210mm !important;
+    min-width: 0 !important;
+    max-width: 210mm !important;
+    overflow: hidden !important;
+  }
+
+  /* Порталы Ant Design живут прямо в <body>, вне листа, и держат экранные
+     координаты — это и есть главный «хвост», роняющий масштаб печати. */
+  body:has(.cls-print-root) .ant-tooltip,
+  body:has(.cls-print-root) .ant-popover,
+  body:has(.cls-print-root) .ant-dropdown,
+  body:has(.cls-print-root) .ant-select-dropdown,
+  body:has(.cls-print-root) .ant-picker-dropdown,
+  body:has(.cls-print-root) .ant-modal-root,
+  body:has(.cls-print-root) .ant-modal-wrap,
+  body:has(.cls-print-root) .ant-modal-mask,
+  body:has(.cls-print-root) .ant-drawer,
+  body:has(.cls-print-root) .ant-message,
+  body:has(.cls-print-root) .ant-notification {
+    display: none !important;
+  }
+
+  body:has(.cls-print-root) {
+    visibility: hidden;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.cls-print-root) .cls-print-root,
+  body:has(.cls-print-root) .cls-print-root * {
+    visibility: visible;
+  }
+
   .cls-print-root {
     display: block !important;
-    visibility: visible;
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+    overflow: visible;
   }
-  .cls-print-root * { visibility: visible; }
 
-  .cls-page {
-    width: 100%;
-    min-height: 100vh;
-    page-break-after: always;
-    break-after: page;
+  /* Оболочка приложения не должна создавать контекст позиционирования и
+     обрезку: лист позиционируется от НАЧАЛА печатной области, иначе уезжает
+     вниз-вправо и хвост обрезается (грабля КИМ). */
+  body:has(.cls-print-root) #root,
+  body:has(.cls-print-root) .ant-app,
+  body:has(.cls-print-root) .ant-layout,
+  body:has(.cls-print-root) .ant-layout-content,
+  body:has(.cls-print-root) .ant-layout-content > div {
+    position: static !important;
+    overflow: visible !important;
   }
-  .cls-page:last-child {
-    page-break-after: auto;
+
+  body:has(.cls-print-root) .no-print { display: none !important; }
+
+  /* Лист — в миллиметрах, а НЕ в 100vh: при печати vh считается от вьюпорта
+     окна, а не от страницы. И 296 мм, а не 297: доля миллиметра от округлений
+     печати выдавливает пустую страницу после каждого листа. */
+  .cls-page {
+    width: 210mm;
+    max-width: 100%;
+    min-height: 296mm;
+    margin: 0 auto;
+    break-after: page;
+    page-break-after: always;
+  }
+  .cls-page:last-of-type {
     break-after: auto;
+    page-break-after: auto;
   }
 }
 

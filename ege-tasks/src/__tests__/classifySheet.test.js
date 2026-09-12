@@ -4,7 +4,7 @@ import {
   bucketsFromPreset, createItem, sheetStats, slotsForBucket,
   paginateBuckets, bucketHeightMm, shuffleItems, classifyWarnings,
   printableBuckets, bankPageHeightMm, PAGE_LIMIT_MM,
-  normalizeClassifySettings, isClassifyOnly, planSheet, stretchPage,
+  normalizeClassifySettings, isClassifyOnly, planSheet, stretchPage, restPageAvailableMm,
   solveHeightMm, solveWidthMm, contentWidthMm,
   PAGE_MM, CELL_MM,
 } from '../utils/classifySheet';
@@ -449,8 +449,9 @@ describe('карманы растягиваются до низа страниц
         expect(left).toBeGreaterThanOrEqual(0);
       }
       plan.pages.forEach((page, i) => {
-        const left = PAGE_LIMIT_MM - pageHeight(page);
-        expect(left, `страница ${i + 2}, ${n} уравнений`).toBeLessThan(CELL_MM * 3);
+        // карманам достаётся страница без колонтитула и без запаса на печать
+        const left = restPageAvailableMm() - pageHeight(page);
+        expect(left, `страница ${i + 2}, ${n} уравнений`).toBeLessThan(CELL_MM * 2);
         expect(left).toBeGreaterThanOrEqual(0);
       });
     });

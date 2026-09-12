@@ -138,10 +138,14 @@ function BucketBlock({ stat, settings, showChecksum, columns }) {
   // Высоту поля назначает раскладка (planSheet): она растягивает карманы до
   // низа страницы, поэтому считать её здесь заново нельзя.
   const heightMm = stat.fieldMm ?? solveHeightMm(stat.slots, settings);
+  const fieldColumns = stat.fullWidth ? 1 : columns;
 
   return (
-    <div className="cls-bucket">
-      <div className="cls-bucket-head">
+    <div className={`cls-bucket${stat.fullWidth ? ' cls-bucket--full' : ''}`}>
+      <div
+        className="cls-bucket-head"
+        style={stat.headerMm ? { minHeight: `${stat.headerMm}mm` } : undefined}
+      >
         <MathText className="cls-bucket-label" text={stat.bucket.label || '—'} />
         {settings.showHints && stat.bucket.hint && (
           <MathText className="cls-bucket-hint" text={stat.bucket.hint} />
@@ -154,11 +158,16 @@ function BucketBlock({ stat, settings, showChecksum, columns }) {
         )}
       </div>
 
-      <div className="cls-solve" style={{ height: `${heightMm}mm` }}>
+      {/* Ширина задаётся явно и кратна клетке — линии рисуются по этим же
+          миллиметрам, и правый столбец не оказывается обрезанным. */}
+      <div
+        className="cls-solve"
+        style={{ height: `${heightMm}mm`, width: `${solveWidthMm(fieldColumns)}mm` }}
+      >
         <PrintFill
           fill={settings.fill}
           heightMm={heightMm}
-          widthMm={solveWidthMm(columns)}
+          widthMm={solveWidthMm(fieldColumns)}
           cellMm={CELL_MM}
         />
       </div>

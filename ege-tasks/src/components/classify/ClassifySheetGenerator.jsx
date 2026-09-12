@@ -80,6 +80,11 @@ export default function ClassifySheetGenerator() {
 
   return (
     <>
+      {/* 🚨 Экранная часть обязана быть в `no-print`: при печати она остаётся в
+          потоке (visibility скрывает, но места не освобождает), и физические
+          листы перестают совпадать с нашими страницами — лист рвётся посередине
+          и добавляются пустые страницы. Так же сделано во входной контрольной. */}
+      <div className="no-print">
       <TrigGeneratorLayout
         icon={<AppstoreOutlined style={{ fontSize: 14 }} />}
         title={title}
@@ -381,6 +386,7 @@ export default function ClassifySheetGenerator() {
           </div>
         }
       />
+      </div>
 
       {/* Печатная вёрстка */}
       <ClassifyPrintLayout

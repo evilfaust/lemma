@@ -135,8 +135,12 @@ export const PAGE_MM = {
 
 export const CELL_MM = 5;
 
+// При печати лист считается по 296 мм, а не по 297: доля миллиметра от
+// округлений выдавливает лишнюю пустую страницу (см. ClassifyPrintLayout.css).
+export const PRINT_PAGE_MM = 296;
+
 /** Сколько миллиметров по высоте реально доступно содержимому страницы. */
-export const PAGE_LIMIT_MM = PAGE_MM.height - PAGE_MM.top - PAGE_MM.bottom;
+export const PAGE_LIMIT_MM = PRINT_PAGE_MM - PAGE_MM.top - PAGE_MM.bottom;
 
 /** Ширина колонки текста на странице — она же ширина клеточного поля. */
 export function contentWidthMm() {
@@ -154,7 +158,9 @@ const COLUMN_GAP_MM = 4;
 export function solveWidthMm(columns = 1) {
   const cols = columns === 2 ? 2 : 1;
   const bucketWidth = (contentWidthMm() - (cols - 1) * COLUMN_GAP_MM) / cols;
-  return bucketWidth - 7;
+  // Ширина кратна клетке: иначе справа остаётся обрезанный столбец шириной
+  // с остаток, и поле выглядит как неудачно обрезанная тетрадная страница.
+  return Math.floor((bucketWidth - 7) / CELL_MM) * CELL_MM;
 }
 
 export function pagePaddingCss() {
@@ -297,13 +303,19 @@ const MM = {
   bucketPadding: 4.5, // рамка кармана: отступы сверху и снизу вместе
   bucketGap: 3.5,
 
-  // Первая страница: шапка с полями ученика, блок задания, банк и таблица
-  pageHead: 26,
-  note: 13,
-  bankRow: 8,
+  // Первая страница: шапка с полями ученика, блок задания, банк и таблица.
+  // Значения сняты с реальной печати (Chrome, замер offsetHeight), а не
+  // прикинуты: раскладка растягивает карманы впритык, и заниженная на
+  // полтора сантиметра шапка выдавливала лист на лишнюю страницу.
+  pageHead: 30,      // шапка 25,7 + отступ 4,5
+  note: 19,          // блок «Задание» 15,3 + отступ 4
+  bankRow: 8.7,
   bankFrame: 10,
   tableHead: 10,
   tableRow: 12,
+
+  // Колонтитул страниц решения («название · стр. N»)
+  runhead: 13,
 };
 
 /**
@@ -358,12 +370,14 @@ export function bucketHeightMm(slots, settings = {}, bucket = null, columns = 1)
  */
 export function paginateBuckets(stats, settings = {}, firstFreeMm = 0) {
   if (isClassifyOnly(settings)) return [];
+  const restLimit = restPageAvailableMm();
   const cols = settings.bucketColumns === 2 ? 2 : 1;
   const sized = stats.buckets.map((stat) => {
     const slots = slotsForBucket(stat, stats, settings);
     const fieldMm = solveHeightMm(slots, settings);
+    const headerMm = bucketHeaderMm(stat.bucket, settings, cols);
     const chromeMm = bucketChromeMm(stat.bucket, settings, cols);
-    return { ...stat, slots, fieldMm, chromeMm, height: fieldMm + chromeMm };
+    return { ...stat, slots, fieldMm, headerMm, chromeMm, height: fieldMm + chromeMm };
   });
 
   // Строка — это карманы, стоящие в ряд; стоит она столько, сколько самый
@@ -375,7 +389,7 @@ export function paginateBuckets(stats, settings = {}, firstFreeMm = 0) {
   }
 
   const shared = firstFreeMm > 0;
-  const limitAt = index => (index === 0 && shared ? firstFreeMm : PAGE_LIMIT_MM);
+  const limitAt = index => (index === 0 && shared ? firstFreeMm : restLimit);
 
   // Шаг 1 — жадно: сколько строк влезает, столько и кладём.
   const pages = [];
@@ -421,8 +435,11 @@ export function paginateBuckets(stats, settings = {}, firstFreeMm = 0) {
 
 // Запас под низом страницы: высоты блоков считаются приблизительно, и без
 // него карман, влезший «впритык», перенёсся бы уже в браузере — с разрывом.
-const FIRST_PAGE_RESERVE_MM = 5;
-const PAGE_RESERVE_MM = 6;
+// Запас в 8 мм, а не «впритык»: рамки, округления кегля и перенос заголовка
+// дают пару миллиметров сверх расчёта, а перебор стоит целого листа — строка
+// карманов уезжает на следующую страницу и лист рвётся посередине.
+const FIRST_PAGE_RESERVE_MM = 8;
+const PAGE_RESERVE_MM = 8;
 
 // Во сколько раз поле может вырасти относительно естественной высоты
 const MAX_STRETCH = 3;
@@ -447,7 +464,13 @@ export function stretchPage(page = [], availableMm = 0, columns = 1) {
   for (let i = 0; i < page.length; i += cols) rows.push(page.slice(i, i + cols));
 
   const rowField = rows.map(row => Math.max(...row.map(b => b.fieldMm)));
-  const rowChrome = rows.map(row => Math.max(...row.map(b => b.chromeMm)));
+  // Заголовки в строке равняются по самому высокому: у одного типа название
+  // в одну строку, у соседа в две — и низ полей расходился бы на полсантиметра.
+  // Выровненный заголовок входит и в высоту строки, иначе страница переполнится.
+  const rowHeader = rows.map(row => Math.max(...row.map(b => b.headerMm || 0)));
+  const rowChrome = rows.map((row, i) => Math.max(
+    ...row.map(b => b.chromeMm - (b.headerMm || 0)),
+  ) + rowHeader[i]);
   const natural = rows.reduce((sum, _, i) => sum + rowField[i] + rowChrome[i], 0);
 
   const freeCells = Math.max(0, Math.floor((availableMm - natural) / CELL_MM));
@@ -471,8 +494,23 @@ export function stretchPage(page = [], availableMm = 0, columns = 1) {
 
   return rows.flatMap((row, i) => {
     const fieldMm = rowField[i] + extra[i] * CELL_MM;
-    return row.map(b => ({ ...b, fieldMm, height: fieldMm + b.chromeMm }));
+    // Одинокий карман в ряду занимает обе колонки: иначе рядом с ним остаётся
+    // пустая половина листа.
+    const fullWidth = cols === 2 && row.length === 1;
+    return row.map(b => ({
+      ...b,
+      fieldMm,
+      fullWidth,
+      headerMm: rowHeader[i],
+      chromeMm: rowChrome[i],
+      height: fieldMm + rowChrome[i],
+    }));
   });
+}
+
+/** Высота, доступная карманам на странице решений (без колонтитула и запаса). */
+export function restPageAvailableMm() {
+  return PAGE_LIMIT_MM - MM.runhead - PAGE_RESERVE_MM;
 }
 
 /**
@@ -487,7 +525,9 @@ export function planSheet(stats, settings = {}, items = []) {
     : Math.max(0, PAGE_LIMIT_MM - bankMm - FIRST_PAGE_RESERVE_MM);
 
   const cols = settings.bucketColumns === 2 ? 2 : 1;
-  const restAvailable = PAGE_LIMIT_MM - PAGE_RESERVE_MM;
+  // На страницах решений сверху стоит колонтитул — его высота карманам не
+  // достаётся, иначе последняя строка сползает на новый лист.
+  const restAvailable = restPageAvailableMm();
 
   // Карманы сначала раскладываются по страницам «как есть», и лишь потом
   // растягиваются: растянутые высоты сдвинули бы саму раскладку.
