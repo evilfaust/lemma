@@ -2,6 +2,10 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '../../shared/services/pocketbase';
 import './MarathonLiveBoard.css';
 
+// Fallback-опрос: SSE может молча умереть (разрыв сети, сон ноутбука,
+// выключенный эфир) — раньше дашборд в этом случае просто замирал.
+const POLL_MS = 15000;
+
 /* ================================================================
    Helpers
    ================================================================ */
@@ -173,12 +177,14 @@ export default function MarathonLiveBoard({ marathonId }) {
   const [popScores, setPopScores] = useState({});
   const [isFrozen, setIsFrozen] = useState(false);
   const [isLightTheme, setIsLightTheme] = useState(false);
+  const [offAir, setOffAir] = useState(false);   // эфир выключен → читать марафон нельзя
 
   // ---- Refs ----
   const prevScoresRef = useRef({});
   const rowRefs = useRef({});
   const prevPositionsRef = useRef({});
   const handleEventRef = useRef(null);
+  const applyRecordRef = useRef(null);
   const marathonRef = useRef(null);
   marathonRef.current = marathon;
 
@@ -252,18 +258,22 @@ export default function MarathonLiveBoard({ marathonId }) {
     });
   }, []);
 
-  // ---- Handle PocketBase real-time event ----
+  // ---- Apply a fresh marathon record (realtime event or fallback poll) ----
 
-  const handleEvent = useCallback((event) => {
-    if (event.action !== 'update') return;
+  const applyRecord = useCallback((record) => {
     if (isFrozen) return;
-    const newTracking = event.record.tracking_data || {};
     const currentMarathon = marathonRef.current;
     if (!currentMarathon) return;
 
+    // Состав участников и набор заданий учитель правит прямо во время
+    // марафона — тянем их из свежей записи, expand с задачами оставляем свой
+    // (в realtime-событии и в опросе задач нет).
+    setMarathon(prev => (prev ? { ...prev, ...record, expand: prev.expand } : prev));
+
+    const newTracking = record.tracking_data || {};
     const tasks = currentMarathon.expand?.tasks || [];
-    const taskCount = (currentMarathon.task_order || []).length || tasks.length;
-    const students = currentMarathon.students || [];
+    const taskCount = (record.task_order || currentMarathon.task_order || []).length || tasks.length;
+    const students = record.students || currentMarathon.students || [];
 
     setTrackingData(prev => {
       // Diff: find who got new points
@@ -304,8 +314,14 @@ export default function MarathonLiveBoard({ marathonId }) {
     });
   }, [addFloatingPlus, flashRow, popScore, triggerConfetti, recordPositions, isFrozen]);
 
-  // Keep ref current every render (after handleEvent is defined)
+  const handleEvent = useCallback((event) => {
+    if (event.action !== 'update') return;
+    applyRecord(event.record);
+  }, [applyRecord]);
+
+  // Keep refs current every render (after the callbacks are defined)
   handleEventRef.current = handleEvent;
+  applyRecordRef.current = applyRecord;
 
   // ---- Load marathon ----
   useEffect(() => {
@@ -324,8 +340,11 @@ export default function MarathonLiveBoard({ marathonId }) {
           scores[s] = calcTotalScore(s, data.tracking_data || {}, taskCount);
         });
         prevScoresRef.current = scores;
-      } catch {
-        if (!cancelled) setError('Марафон не найден или ошибка загрузки');
+      } catch (e) {
+        // 404 здесь почти всегда значит «эфир выключен»: дашборд открыт на
+        // ученическом домене без учительского токена, а marathons.viewRule
+        // пускает анонима только при live_public = true.
+        if (!cancelled) setError(e?.status === 404 ? 'off-air' : 'load');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -353,6 +372,21 @@ export default function MarathonLiveBoard({ marathonId }) {
       setConnected(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [marathon, marathonId]);
+
+  // ---- Fallback poll (SSE может молча оборваться / эфир выключили) ----
+  useEffect(() => {
+    if (!marathon) return;
+    const iv = setInterval(async () => {
+      try {
+        const fresh = await api.getMarathon(marathonId, { expand: '' });
+        setOffAir(false);
+        applyRecordRef.current?.(fresh);
+      } catch (e) {
+        if (e?.status === 404 || e?.status === 403) setOffAir(true);
+      }
+    }, POLL_MS);
+    return () => clearInterval(iv);
   }, [marathon, marathonId]);
 
   // ---- FLIP: apply after trackingData changes ----
@@ -413,8 +447,16 @@ export default function MarathonLiveBoard({ marathonId }) {
     return (
       <div className="mlb-root">
         <div className="mlb-error">
-          <span style={{ fontSize: 32 }}>⚠️</span>
-          <span>{error || 'Марафон не найден'}</span>
+          <span style={{ fontSize: 32 }}>{error === 'off-air' ? '📡' : '⚠️'}</span>
+          {error === 'off-air' ? (
+            <span>
+              Эфир выключен.<br />
+              В трекере марафона нажмите «Live-дашборд» — эфир включится,
+              и эта страница заработает.
+            </span>
+          ) : (
+            <span>Марафон не найден или ошибка загрузки</span>
+          )}
         </div>
       </div>
     );
@@ -466,7 +508,12 @@ export default function MarathonLiveBoard({ marathonId }) {
             {isFrozen ? '❄️ Заморожен' : '▶ Заморозить'}
           </button>
 
-          {connected ? (
+          {offAir ? (
+            <div className="mlb-offline-badge" title="Учитель выключил эфир — данные больше не обновляются">
+              <span className="mlb-offline-dot" />
+              Эфир выключен
+            </div>
+          ) : connected ? (
             <div className="mlb-live-badge">
               <span className="mlb-live-dot" />
               LIVE

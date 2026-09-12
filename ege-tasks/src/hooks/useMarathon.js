@@ -32,6 +32,9 @@ export function useMarathon() {
   // 'idle' | 'dirty' | 'saving' | 'saved'
   const [saveStatus, setSaveStatus] = useState('idle');
   const [startedAt, setStartedAt] = useState(null); // ISO datetime когда нажали «Старт»
+  // «Эфир»: пока true — live-дашборд читается без учительской авторизации
+  // (marathons.viewRule, миграция 1784700000). Вне эфира марафон приватен.
+  const [livePublic, setLivePublic] = useState(false);
 
   // Ref для дебаунса автосохранения
   const autosaveTimerRef = useRef(null);
@@ -233,6 +236,19 @@ export function useMarathon() {
     }
   }, [savedId]);
 
+  // Включить/выключить эфир для live-дашборда
+  const setLive = useCallback(async (next) => {
+    if (!savedId) return;
+    setLivePublic(next);
+    try {
+      await api.updateMarathon(savedId, { live_public: next });
+    } catch (e) {
+      console.error('Error toggling marathon live:', e);
+      setLivePublic(!next); // откатить тумблер, если сервер не принял
+      throw e;
+    }
+  }, [savedId]);
+
   const loadMarathon = useCallback((item) => {
     setTitle(item.title || 'Марафон');
     setClassNumber(item.class_number || 8);
@@ -248,6 +264,7 @@ export function useMarathon() {
     setTasks([...ordered, ...extra]);
     setStudents(item.students || []);
     setTrackingData(item.tracking_data || {});
+    setLivePublic(!!item.live_public);
     setSavedId(item.id);
   }, []);
 
@@ -267,6 +284,7 @@ export function useMarathon() {
     setTrackingData({});
     setSavedId(null);
     setStartedAt(null);
+    setLivePublic(false);
   }, []);
 
   // Подсчёт решённых задач для студента
@@ -314,6 +332,7 @@ export function useMarathon() {
     resetTaskForStudent,
     saveMarathon,
     saveTracking,
+    livePublic, setLive,
     loadMarathon,
     loadSavedList,
     deleteMarathon,

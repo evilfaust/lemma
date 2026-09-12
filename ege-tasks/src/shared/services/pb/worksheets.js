@@ -360,9 +360,11 @@ export const worksheetsApi = {
     }
   },
 
-  async getMarathon(id) {
+  // expand: 'tasks' по умолчанию; для live-опроса дашборда передаём '' —
+  // задачи там не нужны, а запись с expand весит десятки КБ.
+  async getMarathon(id, { expand = 'tasks' } = {}) {
     try {
-      return await pb.collection('marathons').getOne(id, { expand: 'tasks' });
+      return await pb.collection('marathons').getOne(id, expand ? { expand } : {});
     } catch (error) {
       console.error('Error fetching marathon:', error);
       throw error;

@@ -55,6 +55,7 @@ export default function MarathonGenerator() {
     addStudent, removeStudent, updateStudentName,
     saveMarathon, saveTracking, loadMarathon, loadSavedList, deleteMarathon, reset,
     initTracking,
+    livePublic, setLive,
   } = useMarathon();
 
   // --- Фазы и подвкладки ---
@@ -721,15 +722,45 @@ export default function MarathonGenerator() {
         </div>
 
         {savedId && (
-          <button
-            className="btn is-primary"
-            onClick={() => {
-              const base = import.meta.env.VITE_STUDENT_URL || `${window.location.origin}/student`;
-              window.open(`${base}/marathon-live/${savedId}`, '_blank');
-            }}
-          >
-            <DashboardOutlined /> Live-дашборд
-          </button>
+          <>
+            <button
+              className="btn is-primary"
+              onClick={async () => {
+                // Дашборд живёт на ученическом домене и читает марафон без
+                // учительского токена — значит нужен включённый «эфир»
+                // (marathons.viewRule, миграция 1784700000).
+                if (!livePublic) {
+                  try {
+                    await setLive(true);
+                  } catch {
+                    message.error('Не удалось включить эфир — дашборд не откроется');
+                    return;
+                  }
+                }
+                const base = import.meta.env.VITE_STUDENT_URL || `${window.location.origin}/student`;
+                window.open(`${base}/marathon-live/${savedId}`, '_blank');
+              }}
+            >
+              <DashboardOutlined /> Live-дашборд
+            </button>
+
+            {livePublic && (
+              <button
+                className="btn"
+                title="Пока эфир включён, дашборд открывается по ссылке без входа"
+                onClick={async () => {
+                  try {
+                    await setLive(false);
+                    message.success('Эфир выключен — дашборд больше не открывается по ссылке');
+                  } catch {
+                    message.error('Не удалось выключить эфир');
+                  }
+                }}
+              >
+                📡 В эфире — выключить
+              </button>
+            )}
+          </>
         )}
 
         <button className="btn" onClick={handleInitTracking}>
