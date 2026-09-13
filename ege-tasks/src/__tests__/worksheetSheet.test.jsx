@@ -7,6 +7,7 @@ import PrintSheet from '../components/print-sheet/PrintSheet';
 import { hasFigure } from '../components/print-sheet/SheetTask';
 import { figureSizeVars } from '../utils/kimImageSize';
 import {
+  attachTail, pageContentPx,
   paginateFixedCount, paginateIntoColumns, MM, SOLUTION_GAP_MM, SOLUTION_SPACE_MM,
   TASK_GAP_PX, MARGIN_PRESETS, HALF_MARGIN_PRESETS, columnWidthMm, bodyWidthMm,
   bodyFirstMm, bodyRestMm, isHalfSheet, marginsOf, minFirstCapMm, pageClassName,
@@ -184,6 +185,55 @@ describe('Лист задач — хвостовой блок (шифровка)
   it('без renderTail блока нет', () => {
     const { container } = sheet();
     expect(container.querySelector('.ps-crypt')).toBeNull();
+  });
+
+  it('печатается во всю ширину листа, а не внутри колонки', () => {
+    const { container } = sheet({
+      columns: 2,
+      renderTail: () => <section className="ps-crypt">Шифровка по ответам</section>,
+    });
+    expect(container.querySelector('.ps-col .ps-crypt')).toBeNull();
+    expect(container.querySelector('.ps-page--tail .ps-tail .ps-crypt')).not.toBeNull();
+  });
+
+  it('меряется шириной листа — в зоне шапки, а не колонки', () => {
+    const { container } = sheet({
+      columns: 2,
+      renderTail: () => <section className="ps-crypt">Шифровка по ответам</section>,
+    });
+    expect(container.querySelectorAll('.ps-measure--head .ps-crypt').length).toBe(1);
+  });
+});
+
+describe('attachTail — хвост во всю ширину', () => {
+  const page = (keys) => ({ columns: [keys.map(k => ({ __key: k }))], solutionMm: 0 });
+  const heights = new Map([['a', 100], ['b', 100], ['c', 100]]);
+
+  it('считает высоту страницы по самой длинной колонке', () => {
+    const two = { columns: [[{ __key: 'a' }, { __key: 'b' }], [{ __key: 'c' }]] };
+    expect(pageContentPx(two, heights, 10)).toBe(210);
+  });
+
+  it('оставляет хвост на последней странице, когда место есть', () => {
+    const pages = attachTail([page(['a']), page(['b'])], 50, 1000, 1000, heights, 10);
+    expect(pages.map(p => p.tail)).toEqual([false, true]);
+  });
+
+  it('уводит хвост на свою страницу, когда места под задачами нет', () => {
+    const pages = attachTail([page(['a']), page(['b'])], 950, 1000, 1000, heights, 10);
+    expect(pages.map(p => p.tail)).toEqual([false, false, true]);
+    expect(pages[2].columns[0]).toEqual([]);
+  });
+
+  it('неизмеренный хвост (высота 0) не теряется', () => {
+    const pages = attachTail([page(['a'])], 0, 1000, 1000, heights, 10);
+    expect(pages[0].tail).toBe(true);
+  });
+
+  it('на пустом листе хвост получает собственную страницу', () => {
+    expect(attachTail([], 100, 1000, 1000, heights, 10)).toEqual([
+      { columns: [[]], solutionMm: 0, tail: true },
+    ]);
   });
 });
 

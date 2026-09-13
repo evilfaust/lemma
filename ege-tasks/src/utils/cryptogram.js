@@ -187,3 +187,99 @@ export function buildCryptogramForVariant({
     entries: shuffle([...realEntries, ...decoyEntries], random),
   };
 }
+
+/* ─── Настройки печатного листа ──────────────────────────────────────────────
+   Лист шифровки печатается движком `components/print-sheet` (тем же, что
+   входная контрольная), поэтому настройки — его же язык: формат страницы,
+   колонки, поля, кегль, шапка. Хранятся вместе с шифровкой в
+   `cryptograms.settings` (миграция 1784900000): «две копии на листе, узкие
+   поля, 10 pt» — свойство конкретного листа, а не вкус учителя вообще.
+
+   Шифровки, сохранённые до появления настроек, приходят без поля вовсе —
+   нормализация и есть то место, где они получают печатный вид. */
+
+export const DEFAULT_CRYPTOGRAM_SETTINGS = {
+  mode: 'single',          // 'single' — A4; 'duo' — две одинаковые копии на листе
+  headerMode: 'full',      // полная шапка с инструкцией / компактная строка
+  columns: 2,              // колонок с задачами
+  margins: 'normal',
+  fontScale: 1,
+  fontFamily: 'sans',
+  answerStyle: 'box',      // поле ответа у задачи: none | line | box
+  solutionSpace: 'none',   // место для решения: none | s | m | l | xl
+  solutionFill: 'grid',
+  figureSize: 'm',
+  showFigures: true,
+  showFooter: true,
+  showStudentFields: true,
+  showClassField: true,
+  showTasksCount: true,
+  showKey: true,           // лист ответов для учителя
+  showDefinition: true,    // «Узнай: …» под строкой ответа
+  eyebrow: 'Шифровка по ответам',
+  subtitle: '',
+  classLabel: '',
+  dateLabel: '',
+  duration: null,
+  instruction: '',         // пусто = текст по умолчанию (CryptogramSheet)
+  notes: '',
+  notesTitle: 'Дополнительная информация',
+  footerNote: '',
+  cryptTitle: 'Шифровка по ответам',
+};
+
+/**
+ * Компактный режим — не только «две копии»: на половине A4 полная шапка съела
+ * бы треть высоты, поэтому вместе с форматом переключается и всё, что делает
+ * лист короче. Обратный пресет возвращает канон A4.
+ */
+export const CRYPTOGRAM_MODE_PRESETS = {
+  duo: {
+    headerMode: 'compact',
+    columns: 2,
+    margins: 'narrow',
+    fontScale: 0.9,
+    answerStyle: 'box',
+    solutionSpace: 'none',
+    showFooter: false,
+  },
+  single: {
+    headerMode: 'full',
+    columns: 2,
+    margins: 'normal',
+    fontScale: 1,
+    answerStyle: 'box',
+    showFooter: true,
+  },
+};
+
+const oneOf = (value, allowed, fallback) => (allowed.includes(value) ? value : fallback);
+
+export function normalizeCryptogramSettings(settings = {}) {
+  const d = DEFAULT_CRYPTOGRAM_SETTINGS;
+  const next = { ...d, ...(settings || {}) };
+
+  next.mode = oneOf(next.mode, ['single', 'duo'], d.mode);
+  next.headerMode = oneOf(next.headerMode, ['full', 'compact'], d.headerMode);
+  next.margins = oneOf(next.margins, ['normal', 'narrow'], d.margins);
+  next.fontFamily = oneOf(next.fontFamily, ['sans', 'serif'], d.fontFamily);
+  next.answerStyle = oneOf(next.answerStyle, ['none', 'line', 'box'], d.answerStyle);
+  next.solutionSpace = oneOf(next.solutionSpace, ['none', 's', 'm', 'l', 'xl'], d.solutionSpace);
+  next.solutionFill = oneOf(next.solutionFill, ['blank', 'lines', 'grid'], d.solutionFill);
+  next.figureSize = oneOf(next.figureSize, ['s', 'm', 'l', 'xl'], d.figureSize);
+  next.columns = next.columns === 1 ? 1 : 2;
+  next.fontScale = Number(next.fontScale) > 0 ? Number(next.fontScale) : d.fontScale;
+  next.duration = Number(next.duration) > 0 ? Number(next.duration) : null;
+
+  ['showFigures', 'showFooter', 'showStudentFields', 'showClassField',
+    'showTasksCount', 'showKey', 'showDefinition'].forEach((key) => {
+    next[key] = next[key] !== false;
+  });
+
+  ['eyebrow', 'subtitle', 'classLabel', 'dateLabel', 'instruction', 'notes',
+    'notesTitle', 'footerNote', 'cryptTitle'].forEach((key) => {
+    next[key] = String(next[key] ?? '');
+  });
+
+  return next;
+}

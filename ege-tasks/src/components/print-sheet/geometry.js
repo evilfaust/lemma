@@ -94,6 +94,14 @@ export const TASK_GAP_MM = 7;
 /** Колонка номера задачи: квадрат 6.5mm + зазор 3.5mm. */
 export const NUM_COL_MM = 10;
 
+/**
+ * Колонка номера, когда вместо номера стоит метка (`task.numberLabel`).
+ * У шифровки это номера клеток ответа — «3, 7» в квадрат 6.5mm не влезает,
+ * поэтому колонка расширяется до 10mm + тот же зазор 3.5mm. Ширина общая для
+ * всего листа: разная у соседних задач развалила бы выключку условий.
+ */
+export const NUM_COL_WIDE_MM = 13.5;
+
 /** Отступ зоны решения от условия (`.ps-solution { margin-top }`). */
 export const SOLUTION_GAP_MM = 2.6;
 
@@ -229,6 +237,50 @@ export function paginateFixedCount(items, heights, perPage, firstCapPx, restCapP
     });
   }
   return pages;
+}
+
+/**
+ * Высота самой длинной колонки страницы, px. По ней видно, сколько места на
+ * странице осталось под хвостовой блок.
+ */
+export function pageContentPx(page, heights, gapPx = TASK_GAP_PX) {
+  const cols = page?.columns || [];
+  return cols.reduce((tallest, col) => {
+    const h = col.reduce((sum, it) => sum + (heights.get(it.__key) || 0), 0)
+      + gapPx * Math.max(0, col.length - 1);
+    return Math.max(tallest, h);
+  }, 0);
+}
+
+/**
+ * Прикрепляет хвостовой блок (шифровка) к странице.
+ *
+ * Хвост печатается ВО ВСЮ ШИРИНУ листа, под колонками, и в раскладку по
+ * колонкам не идёт: таблица «ответ → буква» и строка клеток в половине полосы
+ * набора ломаются переносами. Поэтому он живёт отдельно — на последней
+ * странице варианта, если под колонками осталось место, иначе на своей.
+ *
+ * Вызывается, только когда хвост есть: нулевая высота значит «ещё не
+ * измерен» (в первом проходе и в тестах на jsdom), и терять блок из-за этого
+ * нельзя — он просто остаётся на последней странице.
+ *
+ * @param {number} tailPx — высота хвоста, измеренная ШИРИНОЙ ЛИСТА
+ * @returns {Array} те же страницы с полем `tail: boolean`
+ */
+export function attachTail(pages, tailPx, firstCapPx, restCapPx, heights, gapPx = TASK_GAP_PX) {
+  const out = pages.map(p => ({ ...p, tail: false }));
+  if (!out.length) return [{ columns: [[]], solutionMm: 0, tail: true }];
+
+  const lastIdx = out.length - 1;
+  const cap = lastIdx === 0 ? firstCapPx : restCapPx;
+  const used = pageContentPx(out[lastIdx], heights, gapPx);
+
+  if (used + gapPx + tailPx <= cap) {
+    out[lastIdx].tail = true;
+  } else {
+    out.push({ columns: [[]], solutionMm: 0, tail: true });
+  }
+  return out;
 }
 
 /**

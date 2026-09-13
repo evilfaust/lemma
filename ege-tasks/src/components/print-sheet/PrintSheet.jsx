@@ -1,11 +1,11 @@
-import { useState, useRef, useMemo, useLayoutEffect, useEffect, Fragment } from 'react';
+import { useState, useRef, useMemo, useLayoutEffect, useEffect } from 'react';
 import SheetHeader from './SheetHeader';
 import SheetTask from './SheetTask';
 import AnswerKeyPage from './AnswerKeyPage';
 import { figureSizeVars } from '../../utils/kimImageSize';
 import {
   MM, TASK_GAP_PX, SOLUTION_GAP_MM, SOLUTION_SPACE_MM, COLUMN_GAP_MM,
-  bodyFirstMm, bodyRestMm, bodyWidthMm, columnWidthMm, marginsOf,
+  attachTail, bodyFirstMm, bodyRestMm, bodyWidthMm, columnWidthMm, marginsOf,
   isHalfSheet, minFirstCapMm, pageClassName, pageHeightMm,
   paginateByHeight, paginateFixedCount, paginateIntoColumns,
 } from './geometry';
@@ -41,11 +41,7 @@ function VariantPages({
     [variant.tasks, variant.number]
   );
 
-  const tailKey = `${variant.number}-tail`;
-  const items = useMemo(
-    () => (tail ? [...tasks, { __key: tailKey, __kind: 'tail' }] : tasks),
-    [tasks, tail, tailKey]
-  );
+  const items = tasks;
 
   // Зона решения: фиксированная (S/M/L/XL) или «N на лист» — тогда высоту
   // считает пагинация из остатка страницы.
@@ -61,6 +57,7 @@ function VariantPages({
   const [tick, setTick] = useState(0);
   const taskRefs = useRef({});
   const headRef = useRef(null);
+  const tailRef = useRef(null);
 
   // Перемер при смене содержимого/настроек — в ключ входит ТЕКСТ, а не только id
   // (правка задачи не меняет id, но меняет высоту).
@@ -95,6 +92,7 @@ function VariantPages({
     });
 
     const headPx = headRef.current?.offsetHeight || 0;
+    const tailPx = tail ? (tailRef.current?.offsetHeight || 0) : 0;
     const withFoot = options.showFooter !== false;
     const firstCap = Math.max(
       bodyFirstMm(withFoot, margins, pageFormat) * MM - headPx,
@@ -103,12 +101,14 @@ function VariantPages({
     const restCap = bodyRestMm(withFoot, margins, pageFormat) * MM;
 
     if (fitMode) {
-      const tailPx = tail ? (heights.get(tailKey) || 0) : 0;
+      // Здесь место под хвост уже вычтено из остатка страницы самой
+      // пагинацией — остаётся отметить, на какой странице он печатается.
       const raw = paginateFixedCount(
         tasks, heights, options.tasksPerPage, firstCap, restCap, TASK_GAP_PX, tailPx
       );
-      if (tail && raw.length) raw[raw.length - 1].items = [...raw[raw.length - 1].items, { __key: tailKey, __kind: 'tail' }];
-      setPages(raw.map(p => ({ columns: [p.items], solutionMm: p.solutionMm })));
+      setPages(raw.map((p, i) => ({
+        columns: [p.items], solutionMm: p.solutionMm, tail: !!tail && i === raw.length - 1,
+      })));
       return;
     }
 
@@ -117,22 +117,18 @@ function VariantPages({
     const extraPx = fixedSolutionMm > 0 ? (fixedSolutionMm + SOLUTION_GAP_MM) * MM : 0;
     const withSolution = new Map();
     items.forEach((it) => {
-      const h = heights.get(it.__key) || 0;
-      withSolution.set(it.__key, it.__kind === 'tail' ? h : h + extraPx);
+      withSolution.set(it.__key, (heights.get(it.__key) || 0) + extraPx);
     });
 
-    if (columns > 1) {
-      setPages(
-        paginateIntoColumns(items, withSolution, firstCap, restCap, TASK_GAP_PX, columns)
-          .map(pageCols => ({ columns: pageCols, solutionMm: fixedSolutionMm }))
-      );
-      return;
-    }
+    const raw = columns > 1
+      ? paginateIntoColumns(items, withSolution, firstCap, restCap, TASK_GAP_PX, columns)
+        .map(pageCols => ({ columns: pageCols, solutionMm: fixedSolutionMm }))
+      : paginateByHeight(items, withSolution, firstCap, restCap)
+        .map(pageItems => ({ columns: [pageItems], solutionMm: fixedSolutionMm }));
 
-    setPages(
-      paginateByHeight(items, withSolution, firstCap, restCap)
-        .map(pageItems => ({ columns: [pageItems], solutionMm: fixedSolutionMm }))
-    );
+    setPages(tail
+      ? attachTail(raw, tailPx, firstCap, restCap, withSolution, TASK_GAP_PX)
+      : raw.map(p => ({ ...p, tail: false })));
   }, [measureKey, tick]);
 
   // 🚨 Чертежи грузятся асинхронно. Пока <img> не загружен, его высота — 0
@@ -176,20 +172,16 @@ function VariantPages({
   const colWidthMm = columnWidthMm(margins, columns, pageFormat);
 
   const renderItem = (item, solutionMm) => (
-    item.__kind === 'tail'
-      ? <Fragment key={item.__key}>{tail}</Fragment>
-      : (
-        <SheetTask
-          key={item.__key}
-          task={item}
-          number={item.__no}
-          taskIndex={item.__no - 1}
-          options={options}
-          solutionMm={solutionMm}
-          contentWidthMm={colWidthMm}
-          editing={editing ? { ...editing, variantIndex } : null}
-        />
-      )
+    <SheetTask
+      key={item.__key}
+      task={item}
+      number={item.__no}
+      taskIndex={item.__no - 1}
+      options={options}
+      solutionMm={solutionMm}
+      contentWidthMm={colWidthMm}
+      editing={editing ? { ...editing, variantIndex } : null}
+    />
   );
 
   return (
@@ -198,20 +190,22 @@ function VariantPages({
           шириной колонки, «голыми» (без зоны решения и без кнопок правки). */}
       <div className="ps-measure ps-measure--head" aria-hidden="true">
         <div ref={headRef}>{header}</div>
+        {tail && <div ref={tailRef}>{tail}</div>}
       </div>
 
       <div className="ps-measure" aria-hidden="true">
         {items.map(it => (
           <div key={it.__key} ref={(el) => { taskRefs.current[it.__key] = el; }}>
-            {it.__kind === 'tail'
-              ? tail
-              : <SheetTask task={it} number={it.__no} taskIndex={it.__no - 1} options={options} />}
+            <SheetTask task={it} number={it.__no} taskIndex={it.__no - 1} options={options} />
           </div>
         ))}
       </div>
 
       {list.map((page, i) => (
-        <section className={pageClassName(pageFormat, pageOffset + i)} key={`${variant.number}-p${i}`}>
+        <section
+          className={`${pageClassName(pageFormat, pageOffset + i)}${page.tail ? ' ps-page--tail' : ''}`}
+          key={`${variant.number}-p${i}`}
+        >
           {i === 0 ? header : (
             <div className="ps-runhead">
               <span>{meta.title}{meta.classLabel ? ` · ${meta.classLabel}` : ''}</span>
@@ -228,6 +222,8 @@ function VariantPages({
               ))
               : (page.columns[0] || []).map(item => renderItem(item, page.solutionMm))}
           </div>
+
+          {page.tail && <div className="ps-tail">{tail}</div>}
 
           {options.showFooter !== false && (
             <div className="ps-foot">
@@ -257,12 +253,16 @@ function VariantPages({
  * @param {Object} editing — правка на экране: { dragDropHandlers, onEditTask,
  *   onReplaceTask }; в печать не идёт
  * @param {Function} renderTail — (variant) => ReactNode, блок в конце варианта
- *   (шифровка); участвует в пагинации как обычный элемент
+ *   (шифровка). Печатается во всю ширину листа под колонками; в пагинации
+ *   участвует своей высотой — не влез под задачами, уезжает на свою страницу
  * @param {number} columns — колонок на листе (1 или 2); раскладку считает
  *   пагинация, задачи меряются шириной колонки
  * @param {'normal'|'narrow'} margins — поля листа (см. MARGIN_PRESETS)
  * @param {'a4'|'half'} pageFormat — 'half' печатает две страницы (варианта) на
  *   одном листе A4: страница становится половиной высоты, лист режется поперёк
+ * @param {ReactNode} keyExtra — блок в конце листа ответов (у шифровки —
+ *   загаданная фраза)
+ * @param {Function} onPageCounts — (map номер варианта → число страниц)
  */
 export default function PrintSheet({
   variants = [],
@@ -278,8 +278,15 @@ export default function PrintSheet({
   columns = 1,
   margins = 'normal',
   pageFormat = 'a4',
+  keyExtra = null,
+  onPageCounts = null,
 }) {
   const [pageCounts, setPageCounts] = useState({});
+
+  // Сколько страниц занял каждый вариант — наружу. По этому числу генератор
+  // шифровки понимает, что лист перестал влезать в половину A4, и говорит об
+  // этом учителю ДО печати.
+  useEffect(() => { onPageCounts?.(pageCounts); }, [pageCounts]);
 
   const opts = { ...DEFAULT_OPTIONS, ...options };
   // Обратная совместимость: входная контрольная передаёт answerLine.
@@ -368,6 +375,7 @@ export default function PrintSheet({
           pageNumber={offset + 1}
           showFooter={opts.showFooter}
           pageClass={pageClassName(pageFormat, offset)}
+          extra={keyExtra}
         />
       )}
     </div>

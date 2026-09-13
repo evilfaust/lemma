@@ -130,6 +130,13 @@
   min-height: 0;
 }
 
+/* Хвостовой блок (шифровка) — во всю ширину листа, под колонками. Полосу
+   набора он не делит: таблица «ответ → буква» и строка клеток в половинной
+   ширине рассыпаются переносами. На такой странице `.ps-body` перестаёт
+   растягиваться, иначе хвост уехал бы к самому подвалу. */
+.ps-page--tail .ps-body { flex: 0 0 auto; }
+.ps-tail { margin-top: 4mm; }
+
 /* Две колонки: раскладку считает пагинация (paginateIntoColumns), CSS только
    рисует сетку. `column-count` не годится — браузер режет задачи посередине и
    пагинация перестаёт совпадать с печатью. */
@@ -353,6 +360,19 @@
   font-weight: 650;
   line-height: 1;
   color: var(--ps-ink);
+}
+
+/* Вместо номера — метка (`task.numberLabel`): у шифровки это номера клеток
+   ответа, «3, 7» в квадрат 6.5mm не влезает. Ширина продублирована в
+   geometry.js (NUM_COL_WIDE_MM) — по ней считается ширина зоны решения. */
+.ps-task-num--label {
+  flex: 0 0 10mm;
+  height: auto;
+  min-height: 6.5mm;
+  padding: 0.8mm 0.6mm;
+  font-size: 2.9mm;
+  line-height: 1.15;
+  text-align: center;
 }
 
 .ps-task-main { flex: 1 1 auto; min-width: 0; }
@@ -621,6 +641,56 @@
 }
 .ps-col .ps-crypt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
+/* Карточки «ответ над буквой» вместо строк «ответ | буква». На листе шифровки
+   записей 12–20 (задачи + обманки), и столбиком они занимают треть высоты от
+   сетки в четыре колонки. */
+.ps-crypt--chips .ps-crypt-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.4mm;
+  border: 0;
+}
+.ps-crypt--chips .ps-crypt-cell {
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  min-height: 0;
+  min-width: 11mm;
+  padding: 0;
+  border: 0.25mm solid var(--ps-rule-2);
+}
+.ps-crypt--chips .ps-crypt-answer {
+  flex: 0 0 auto;
+  padding: 0.6mm 1.4mm;
+  text-align: center;
+  border-bottom: 0.25mm solid var(--ps-rule-2);
+  font-size: 2.9mm;
+}
+.ps-crypt--chips .ps-crypt-letter {
+  padding: 0.4mm 1.4mm;
+  text-align: center;
+}
+.ps-col .ps-crypt--chips .ps-crypt-grid { grid-template-columns: none; }
+
+/* Лист шифровки живёт на половине A4 не реже, чем на целом: блок держим
+   плотным, а подпись строки ответа ставим В СТРОКУ с клетками — отдельной
+   строкой она стоила ещё 4 мм, то есть половину задачи. */
+.ps-crypt--chips { padding: 2.5mm 3mm; }
+.ps-crypt--chips .ps-crypt-note { margin-bottom: 1.8mm; }
+.ps-crypt--chips .ps-crypt-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 2.5mm;
+  margin-top: 2.2mm;
+}
+.ps-crypt--chips .ps-crypt-result-label {
+  flex: 0 0 auto;
+  margin: 0;
+  padding-top: 1.6mm;
+}
+.ps-crypt--chips .ps-crypt-def { margin-top: 2mm; }
+
 .ps-crypt-result { margin-top: 3mm; }
 .ps-crypt-result-label {
   font-size: 2.8mm;
@@ -631,14 +701,42 @@
   display: flex;
   flex-wrap: wrap;
   gap: 1.6mm;
-  align-items: flex-end;
+  align-items: flex-start;
 }
 .ps-crypt-slot {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4mm;
+}
+.ps-crypt-box {
   width: 6mm;
   height: 7mm;
   border-bottom: 0.4mm solid var(--ps-rule);
 }
+/* С номерами клетка становится настоящей клеткой: ученик вписывает букву не
+   «по порядку», а в клетку с нужным номером — линии снизу для этого мало. */
+.ps-crypt--numbered .ps-crypt-box {
+  border: 0.3mm solid var(--ps-rule);
+}
+.ps-crypt-slot-num {
+  font-size: 2.3mm;
+  line-height: 1;
+  color: var(--ps-ink-3);
+}
 .ps-crypt-gap { width: 4mm; height: 1mm; }
+
+/* Определение загаданного слова — то, ради чего шифровка и разгадывается. */
+.ps-crypt-def {
+  margin-top: 2.5mm;
+  padding-left: 2.5mm;
+  border-left: 0.35mm solid var(--ps-rule-2);
+  font-size: 2.9mm;
+  line-height: 1.4;
+  color: var(--ps-ink-2);
+}
+.ps-crypt-def-label { font-weight: 650; }
+
 .ps-crypt-warn {
   font-size: 2.9mm;
   color: var(--ps-ink-2);
@@ -688,6 +786,23 @@
 }
 .ps-key-answer { flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .ps-key-dash { color: var(--ps-ink-4); }
+/* Приписка справа в ячейке ключа — у шифровки буква, которую даёт этот ответ. */
+.ps-key-badge {
+  flex: 0 0 auto;
+  padding-left: 1.5mm;
+  font-weight: 700;
+  font-size: 3.6mm;
+}
+
+/* Блок под сеткой ключа (загаданная фраза шифровки). */
+.ps-key-extra {
+  margin-top: 4mm;
+  padding-top: 3mm;
+  border-top: 0.25mm solid var(--ps-rule-2);
+  font-size: 3.4mm;
+  line-height: 1.5;
+}
+.ps-key-extra strong { font-weight: 650; letter-spacing: 0.08em; }
 
 /* KaTeX внутри листа не должен раздувать строку */
 .ps-root .katex { font-size: 1.04em; }
@@ -771,6 +886,21 @@
   body:has(.ps-root) .ant-layout-content > div {
     position: static !important;
     overflow: visible !important;
+  }
+
+  /* То же самое — любому предку листа, а не только оболочке приложения.
+     Лист живёт не обязательно первым потомком Content: в «Шифровке» он лежит в
+     правой панели двухпанельной раскладки, у которой своя flex-геометрия и
+     `overflow: auto`. Такой предок обрезал бы страницы со второй и дальше.
+     `*:has(.ps-root)` берёт ровно цепочку предков — сам лист под селектор не
+     попадает. */
+  body:has(.ps-root) *:has(.ps-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
   }
 
   .ps-measure { display: none !important; }

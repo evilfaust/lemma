@@ -5,7 +5,7 @@ import { api } from '../../services/pocketbase';
 import { filterTaskText } from '../../utils/filterTaskText';
 import { figureSizeVars, KIM_IMAGE_SIZE_OPTIONS } from '../../utils/kimImageSize';
 import SolutionFill from './SolutionFill';
-import { BODY_W_MM, NUM_COL_MM } from './geometry';
+import { BODY_W_MM, NUM_COL_MM, NUM_COL_WIDE_MM } from './geometry';
 
 /**
  * Есть ли у задачи чертёж: внешняя картинка, картинка markdown или наш SVG.
@@ -29,6 +29,11 @@ export const hasFigure = (task) => {
  * @param {Object} editing — правка на экране: { dragDropHandlers, onEditTask,
  *   onReplaceTask, variantIndex }. В зоне измерения не передаётся — кнопки
  *   позиционированы абсолютно и высоту не меняют, но лишний рендер ни к чему.
+ *
+ * `task.numberLabel` подменяет порядковый номер меткой: у шифровки в квадрате
+ * стоят не «1, 2, 3», а номера клеток ответа, куда пойдёт найденная буква.
+ * Колонка номера под метку шире (NUM_COL_WIDE_MM) — это учитывает и ширина
+ * зоны решения.
  */
 export default function SheetTask({
   task, number, taskIndex, options, solutionMm = 0, editing, contentWidthMm = BODY_W_MM,
@@ -41,6 +46,7 @@ export default function SheetTask({
     showAnswersInline = false,
   } = options;
 
+  const numberLabel = task.numberLabel || '';
   const raw = task.statement_md || '';
   const text = hideTaskPrefixes ? filterTaskText(raw) : raw;
   const imageUrl = task.has_image ? api.getTaskImageUrl(task) : null;
@@ -87,7 +93,9 @@ export default function SheetTask({
       onDrop={dnd ? (e => dnd.handleDrop(e, vi, taskIndex)) : undefined}
       onDragEnd={dnd ? dnd.handleDragEnd : undefined}
     >
-      <div className="ps-task-num">{number}</div>
+      <div className={numberLabel ? 'ps-task-num ps-task-num--label' : 'ps-task-num'}>
+        {numberLabel || number}
+      </div>
 
       <div className="ps-task-main">
         {showBox ? (
@@ -110,7 +118,7 @@ export default function SheetTask({
             <SolutionFill
               fill={solutionFill}
               heightMm={solutionMm}
-              widthMm={contentWidthMm - NUM_COL_MM}
+              widthMm={contentWidthMm - (numberLabel ? NUM_COL_WIDE_MM : NUM_COL_MM)}
             />
           </div>
         )}

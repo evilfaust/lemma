@@ -1,12 +1,11 @@
-import { useState, useCallback } from 'react';
-import katex from 'katex';
+import { useState, useCallback, useMemo } from 'react';
 import {
   Input, Button, Typography, Space, Alert,
   Divider, Tag, App, Tooltip, Popconfirm, Select, Spin, Switch,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, ArrowUpOutlined, ArrowDownOutlined,
-  PrinterOutlined, ReloadOutlined, KeyOutlined, InfoCircleOutlined,
+  PrinterOutlined, ReloadOutlined, KeyOutlined,
   ThunderboltOutlined, SaveOutlined, FolderOpenOutlined, BulbOutlined,
 } from '@ant-design/icons';
 import { Modal, List } from 'antd';
@@ -14,7 +13,12 @@ import { api } from '../shared/services/pocketbase';
 import MathRenderer from '../shared/components/MathRenderer';
 import TaskSelectModal from './TaskSelectModal';
 import { filterTaskText } from '../utils/filterTaskText';
-import { buildCryptogramForVariant, getCryptogramLetterCount, getCryptogramUniqueLetterCount, normalizeCryptogramPhrase } from '../utils/cryptogram';
+import {
+  buildCryptogramForVariant, getCryptogramLetterCount, getCryptogramUniqueLetterCount,
+  normalizeCryptogramSettings, CRYPTOGRAM_MODE_PRESETS,
+} from '../utils/cryptogram';
+import CryptogramSheet from './cryptogram/CryptogramSheet';
+import CryptogramPrintSettings from './cryptogram/CryptogramPrintSettings';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -22,12 +26,11 @@ import {
   TrigSettingsSection,
   TrigActions,
   TrigPreviewPane,
-  TrigPreviewCard,
   TrigStatBadge,
 } from './trig/TrigGeneratorLayout';
 import './CryptogramGenerator.css';
 
-const { Text, Paragraph } = Typography;
+const { Text } = Typography;
 
 const DEFINE_API = import.meta.env.VITE_DEFINE_API_URL || 'https://l.oipav.ru/define';
 
@@ -43,139 +46,6 @@ const EXAM_TYPE_LABELS = {
 
 const topicLabel = (t) => t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title;
 
-/* ── Рендер ответа с KaTeX (без обёртки в $...$) ────────────────────────── */
-function MathAnswer({ text }) {
-  if (!text) return null;
-  let html;
-  try {
-    html = katex.renderToString(text, { throwOnError: false, displayMode: false });
-  } catch {
-    return <span>{text}</span>;
-  }
-  return <span dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-/* ── Печатный блок шифровки ─────────────────────────────────────────────── */
-function CryptogramPrintBlock({ tasks, phrase, title, stripPrefixes, description }) {
-  const variant = { tasks, number: 1 };
-  const cryptogram = buildCryptogramForVariant({ variant, phrase });
-
-  return (
-    <div className="cgp-root">
-      {/* Шапка */}
-      <div className="cgp-header">
-        <div className="cgp-title">{title || 'Шифровка'}</div>
-        <div className="cgp-subtitle">Имя: ______________________ Класс: ________</div>
-      </div>
-
-      {/* Задачи — 2 колонки */}
-        <div className="cgp-tasks">
-        {tasks.map((task, idx) => (
-          <div key={task.id} className="cgp-task">
-            <div className="cgp-task-num">
-              {cryptogram?.valid && cryptogram.answerKey?.[idx]?.positions?.length > 0
-                ? cryptogram.answerKey[idx].positions.join(', ')
-                : `${idx + 1}.`}
-            </div>
-            <div className="cgp-task-body">
-              {task.has_image && api.getTaskImageUrl(task) && (
-                <img
-                  src={api.getTaskImageUrl(task)}
-                  alt=""
-                  className="cgp-task-img"
-                />
-              )}
-              <MathRenderer text={stripPrefixes ? filterTaskText(task.statement_md || '') : (task.statement_md || '')} />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Блок шифровки */}
-      {cryptogram.valid ? (
-        <div className="cgp-crypto-block">
-          <div className="cgp-crypto-note">
-            Найди свой ответ в таблице и впиши букву в клетки с теми номерами, которые указаны у задачи. Лишние строки — обманки.
-          </div>
-
-          {/* Таблица ответ → буква */}
-          <table className="cgp-table">
-            <tbody>
-              <tr>
-                {cryptogram.entries.map((entry, i) => (
-                  <td key={i} className={`cgp-td-answer${entry.isDecoy ? ' cgp-td--decoy' : ''}`}>
-                    <MathAnswer text={entry.answer} />
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                {cryptogram.entries.map((entry, i) => (
-                  <td key={i} className={`cgp-td-letter${entry.isDecoy ? ' cgp-td--decoy' : ''}`}>
-                    {entry.letter}
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-
-          {/* Строка-ответ */}
-          <div className="cgp-result">
-                <div className="cgp-result-cells">
-              {cryptogram.answerCells.map((cell, i) =>
-                cell.type === 'space'
-                  ? <span key={i} className="cgp-result-gap" />
-                  : (
-                    <span key={i} className="cgp-result-slot">
-                      <span className="cgp-result-answer">{cell.posNum}</span>
-                      <span className="cgp-result-cell" />
-                    </span>
-                  )
-              )}
-                </div>
-                {description && (
-                  <div className="cgp-definition">
-                    <span className="cgp-definition-label">Узнай: </span>
-                    {description}
-                  </div>
-                )}
-              </div>
-        </div>
-      ) : (
-        cryptogram.warnings.length > 0 && (
-          <div className="cgp-warning-print">{cryptogram.warnings.join(' ')}</div>
-        )
-      )}
-
-      {/* Ключ учителя (печатается после page-break) */}
-      <div className="cgp-teacher-key">
-        <div className="cgp-teacher-key-title">Ключ учителя — {title || 'Шифровка'}</div>
-        <div className="cgp-teacher-answers">
-              {tasks.map((task, idx) => {
-                const entry = cryptogram.answerKey?.[idx];
-                return (
-                  <div key={task.id} className="cgp-teacher-answer-item">
-                    <span className="cgp-ta-num">{idx + 1}.</span>
-                <span className="cgp-ta-answer">
-                  <MathRenderer text={task.answer || '—'} />
-                </span>
-                    {entry?.letter && (
-                      <span className="cgp-ta-letter">
-                        → {entry.letter}
-                        {entry.positions?.length > 0 ? ` (${entry.positions.join(', ')})` : ''}
-                      </span>
-                    )}
-                  </div>
-                );
-          })}
-        </div>
-        <div className="cgp-teacher-phrase">
-          Слово / фраза: <strong>{normalizeCryptogramPhrase(phrase)}</strong>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Основной компонент ─────────────────────────────────────────────────── */
 export default function CryptogramGenerator() {
   const { message } = App.useApp();
@@ -189,7 +59,10 @@ export default function CryptogramGenerator() {
   const [defLoading, setDefLoading] = useState(false);
   const [selectModalOpen, setSelectModalOpen] = useState(false);
   const [stripPrefixes, setStripPrefixes] = useState(true);
-  const [twoPerPage, setTwoPerPage] = useState(false);
+
+  // Настройки печатного листа (движок print-sheet)
+  const [settings, setSettings] = useState(() => normalizeCryptogramSettings({}));
+  const [pageCounts, setPageCounts] = useState({});
 
   // Генератор задач
   const [genContext, setGenContext] = useState(null);
@@ -208,6 +81,18 @@ export default function CryptogramGenerator() {
   const uniqueLetterCount = getCryptogramUniqueLetterCount(phrase);
   const taskCount = tasks.length;
   const canPrint = taskCount > 0 && uniqueLetterCount > 0 && taskCount === uniqueLetterCount;
+
+  const patchSettings = useCallback((patch) => {
+    setSettings(prev => normalizeCryptogramSettings({ ...prev, ...patch }));
+  }, []);
+
+  // Смена режима тянет за собой пресет: на половине A4 полная шапка не
+  // оставила бы места задачам, а на целом листе компактная выглядит сиротливо.
+  const handleModeChange = useCallback((mode) => {
+    setSettings(prev => normalizeCryptogramSettings({
+      ...prev, ...(CRYPTOGRAM_MODE_PRESETS[mode] || {}), mode,
+    }));
+  }, []);
 
   /* ── Управление задачами ── */
   const handleAddTask = useCallback((task) => {
@@ -310,6 +195,7 @@ export default function CryptogramGenerator() {
         tasks: tasks.map(t => t.id),
         task_order: tasks.map(t => t.id),
         strip_prefixes: stripPrefixes,
+        settings,
       };
       const record = savedId
         ? await api.updateCryptogram(savedId, data)
@@ -321,7 +207,7 @@ export default function CryptogramGenerator() {
     } finally {
       setSaving(false);
     }
-  }, [phrase, tasks, title, stripPrefixes, savedId, message]);
+  }, [phrase, tasks, title, description, stripPrefixes, settings, savedId, message]);
 
   /* ── Загрузка ── */
   const handleOpenLoad = useCallback(async () => {
@@ -342,6 +228,9 @@ export default function CryptogramGenerator() {
     setPhrase(item.phrase || '');
     setDescription(item.description || '');
     setStripPrefixes(item.strip_prefixes !== false);
+    // Шифровки, сохранённые до появления настроек листа, приходят без поля —
+    // нормализация даёт им печатный вид по умолчанию.
+    setSettings(normalizeCryptogramSettings(item.settings));
     const ordered = (item.task_order || [])
       .map(id => item.expand?.tasks?.find?.(t => t.id === id))
       .filter(Boolean);
@@ -363,6 +252,9 @@ export default function CryptogramGenerator() {
   }, [savedId, message]);
 
   /* ── Печать ── */
+  // Поля листа рисует сам движок (padding .ps-page), поэтому @page нулевой.
+  // Инъекция последним стилем перебивает глобальный `@page { margin: 10mm 8mm }`
+  // из TaskWorksheet.css — иначе поля удваиваются.
   const handlePrint = () => {
     if (!canPrint) {
       message.warning(
@@ -372,21 +264,34 @@ export default function CryptogramGenerator() {
       );
       return;
     }
+    const styleId = 'cryptogram-print-page-style';
+    document.getElementById(styleId)?.remove();
     const style = document.createElement('style');
-    style.id = 'cgp-print-page-style';
-    style.textContent = '@page { size: A5 portrait; margin: 0; }';
+    style.id = styleId;
+    style.textContent = '@page { size: A4 portrait; margin: 0; }';
     document.head.appendChild(style);
+    const cleanup = () => {
+      document.getElementById(styleId)?.remove();
+      window.removeEventListener('afterprint', cleanup);
+    };
+    window.addEventListener('afterprint', cleanup);
     window.print();
-    setTimeout(() => {
-      const s = document.getElementById('cgp-print-page-style');
-      if (s) document.head.removeChild(s);
-    }, 1500);
   };
 
   /* ── Рендер превью шифровки ── */
-  const variant = { tasks, number: 1 };
-  const cryptogram = phrase ? buildCryptogramForVariant({ variant, phrase }) : null;
+  const cryptogram = phrase
+    ? buildCryptogramForVariant({ variant: { tasks, number: 1 }, phrase })
+    : null;
   const previewReady = Boolean(cryptogram?.valid);
+
+  // В компактном режиме копия обязана уместиться в половину листа — иначе
+  // резать нечего: одна шифровка займёт оба листа.
+  const duoOverflow = useMemo(() => {
+    if (settings.mode !== 'duo') return 0;
+    const counts = Object.values(pageCounts);
+    return counts.length ? Math.max(...counts) : 0;
+  }, [settings.mode, pageCounts]);
+
   const resetAll = () => {
     setTasks([]);
     setPhrase('');
@@ -395,6 +300,7 @@ export default function CryptogramGenerator() {
     setSavedId(null);
     setGenTopic(null);
     setGenSubtopic(null);
+    setSettings(normalizeCryptogramSettings({}));
   };
 
   return (
@@ -406,7 +312,12 @@ export default function CryptogramGenerator() {
         titlePlaceholder="Например: Шифровка — Тема 7"
         leftWidth={380}
         left={
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, gap: 10 }}>
+            <div style={{
+              flex: 1, minHeight: 0, overflow: 'auto',
+              display: 'flex', flexDirection: 'column', gap: 10,
+              margin: '0 -4px', padding: '0 4px 4px',
+            }}>
             <TrigSettingsSection label="Фраза">
             <Input
               value={phrase}
@@ -576,14 +487,16 @@ export default function CryptogramGenerator() {
               )}
             </TrigSettingsSection>
 
-            <TrigSettingsSection label="Опции">
+            <TrigSettingsSection label="Печатный лист">
+              <CryptogramPrintSettings
+                settings={settings}
+                patch={patchSettings}
+                onMode={handleModeChange}
+              />
+              <Divider style={{ margin: '10px 0 8px' }} />
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Switch size="small" checked={stripPrefixes} onChange={setStripPrefixes} />
                 <Text style={{ fontSize: 12 }}>Срезать «Вычислите», «Найдите» и т.д.</Text>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                <Switch size="small" checked={twoPerPage} onChange={setTwoPerPage} />
-                <Text style={{ fontSize: 12 }}>2 работы на одном листе</Text>
               </div>
               {savedId && (
                 <div style={{ marginTop: 8, fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)' }}>
@@ -591,6 +504,7 @@ export default function CryptogramGenerator() {
                 </div>
               )}
             </TrigSettingsSection>
+            </div>
 
             <TrigActions>
               <Button type="primary" icon={<PrinterOutlined />} block disabled={!canPrint} onClick={handlePrint}>
@@ -620,62 +534,35 @@ export default function CryptogramGenerator() {
               <TrigStatBadge key="letters" tone="accent">{letterCount} букв</TrigStatBadge>,
               <TrigStatBadge key="unique">{uniqueLetterCount} уник.</TrigStatBadge>,
               <TrigStatBadge key="tasks" tone="success">{taskCount} задач</TrigStatBadge>,
+              <TrigStatBadge key="mode">{settings.mode === 'duo' ? '2 на листе' : 'A4'}</TrigStatBadge>,
             ] : null}
           >
             {previewReady && (
               <>
-                <TrigPreviewCard title="Таблица шифровки" meta={`${cryptogram.entries.length} карточек`}>
-                  <div style={{ marginBottom: 12 }}>
-                    <Text strong style={{ fontSize: 13 }}>Таблица (в перемешанном виде):</Text>
-                  </div>
-                  <div className="cg-preview-table">
-                    {cryptogram.entries.map((entry, i) => (
-                      <div key={i} className={`cg-preview-cell${entry.isDecoy ? ' cg-preview-cell--decoy' : ''}`}>
-                        <div className="cg-preview-answer">
-                          <MathAnswer text={entry.answer} />
-                        </div>
-                        <div className="cg-preview-letter">{entry.letter}</div>
-                      </div>
-                    ))}
-                  </div>
-                </TrigPreviewCard>
-
-                <TrigPreviewCard title="Строка ответа" meta={`${letterCount} позиций`}>
-                  <div className="cg-preview-result">
-                    {cryptogram.answerCells.map((cell, i) =>
-                      cell.type === 'space'
-                        ? <span key={i} className="cg-preview-gap" />
-                        : (
-                          <span key={i} className="cg-preview-answer-slot">
-                            <span className="cg-preview-answer-val">{cell.posNum}</span>
-                            <span className="cg-preview-cell-box" />
-                          </span>
-                        )
-                    )}
-                  </div>
-                  <div style={{ marginTop: 12 }}>
-                    <Text type="secondary" style={{ fontSize: 11 }}>
-                      <InfoCircleOutlined style={{ marginRight: 4 }} />
-                      Номера у задач показывают, в какие клетки ответа нужно вписать найденную букву. Серые ячейки — обманки.
-                    </Text>
-                  </div>
-                </TrigPreviewCard>
+                {duoOverflow > 1 && (
+                  <Alert
+                    className="no-print"
+                    type="warning"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message="Копия не помещается в половину листа"
+                    description={`Шифровка занимает ${duoOverflow} половинки, и разрезать лист пополам не получится. Уберите пару задач, уменьшите кегль, включите узкие поля или компактную шапку.`}
+                  />
+                )}
+                <CryptogramSheet
+                  tasks={tasks}
+                  phrase={phrase}
+                  title={title}
+                  description={description}
+                  settings={settings}
+                  stripPrefixes={stripPrefixes}
+                  onPageCounts={setPageCounts}
+                />
               </>
             )}
           </TrigPreviewPane>
         }
       />
-
-      {/* ── Скрытый блок для печати ── */}
-      {canPrint && (twoPerPage ? (
-        <div className="cgp-sheet-wrap">
-          <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
-          <div className="cgp-sheet-divider" />
-          <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
-        </div>
-      ) : (
-        <CryptogramPrintBlock tasks={tasks} phrase={phrase} title={title} stripPrefixes={stripPrefixes} description={description} />
-      ))}
 
       <TaskSelectModal
         visible={selectModalOpen}

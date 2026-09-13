@@ -5,10 +5,15 @@ import MathRenderer from '../MathRenderer';
  *
  * `pageClass` приходит снаружи: в формате «2 на листе» ключ — такая же половина
  * A4, как страницы вариантов, и её место в паре считает общая нумерация.
+ *
+ * Ячейка ключа читается вместе с листом ученика: номер берётся из
+ * `task.numberLabel` (у шифровки это номера клеток), а `task.keyBadge` печатает
+ * приписку справа — букву, которую даёт этот ответ. `extra` — блок под сеткой
+ * (у шифровки там загаданная фраза).
  */
 export default function AnswerKeyPage({
   variants, variantLabel, meta, brand, pageNumber, showFooter, showVariantTitle = true,
-  pageClass = 'ps-page',
+  pageClass = 'ps-page', extra = null,
 }) {
   return (
     <section className={`${pageClass} ps-page--key`}>
@@ -25,15 +30,17 @@ export default function AnswerKeyPage({
             <div className="ps-key-grid">
               {(v.tasks || []).map((t, i) => (
                 <div className="ps-key-cell" key={t.id || i}>
-                  <span className="ps-key-num">{i + 1}</span>
+                  <span className="ps-key-num">{t.numberLabel || i + 1}</span>
                   <span className="ps-key-answer">
                     {t.answer ? <MathRenderer text={t.answer} /> : <span className="ps-key-dash">—</span>}
                   </span>
+                  {t.keyBadge && <span className="ps-key-badge">{t.keyBadge}</span>}
                 </div>
               ))}
             </div>
           </div>
         ))}
+        {extra}
       </div>
 
       {showFooter && (

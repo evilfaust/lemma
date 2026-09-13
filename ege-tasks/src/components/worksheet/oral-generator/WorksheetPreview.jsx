@@ -1,6 +1,6 @@
 import PrintableWorksheet from '../../PrintableWorksheet';
 import PrintSheet from '../../print-sheet/PrintSheet';
-import SheetCryptogram from './SheetCryptogram';
+import SheetCryptogram from '../../print-sheet/SheetCryptogram';
 
 export default function WorksheetPreview({
   printRef,
