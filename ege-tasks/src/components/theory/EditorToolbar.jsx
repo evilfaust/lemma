@@ -6,14 +6,15 @@ import {
   CodeOutlined, PictureOutlined, LinkOutlined,
   MinusOutlined, FunctionOutlined, ContainerOutlined, DownOutlined,
   InboxOutlined, ScissorOutlined, ReloadOutlined, BorderHorizontalOutlined,
-  DashOutlined, LineChartOutlined, RiseOutlined
+  DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
 import FormulaPalette from './FormulaPalette';
 import CropModal from '../shared/CropModal';
 import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
-import { findPlotAtCursor } from '../../utils/plotSnippet';
+import GridPaperModal from '../shared/GridPaperModal';
+import { findPlotAtCursor, findGridAtCursor } from '../../utils/plotSnippet';
 import { materialsApi } from '../../shared/services/pb/filesClient';
 import { dataUrlToFile } from '../../utils/cropImage';
 import './EditorToolbar.css';
@@ -68,6 +69,9 @@ export default function EditorToolbar({ editorRef }) {
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
   const [numlineOpen, setNumlineOpen] = useState(false);
+  // Поле «в клетку»: null | { spec?, format?, range? } — правка, если курсор
+  // стоял внутри готового поля.
+  const [grid, setGrid] = useState(null);
   // Конструктор координатной плоскости: null | { kind, spec?, format?, range? }.
   // spec/range заполнены, когда курсор стоял внутри готового чертежа — тогда
   // конструктор открывается на правку, а не на вставку.
@@ -85,6 +89,14 @@ export default function EditorToolbar({ editorRef }) {
     setPlot(found
       ? { kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
       : { kind });
+  }, [editorRef]);
+
+  const openGrid = useCallback(() => {
+    const view = editorRef.current?.view;
+    const found = view
+      ? findGridAtCursor(view.state.doc.toString(), view.state.selection.main.head)
+      : null;
+    setGrid(found ? { spec: found.spec, format: found.format, range: [found.start, found.end] } : {});
   }, [editorRef]);
 
   const handleTableInsert = useCallback((tableMarkdown) => {
@@ -291,6 +303,10 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<RiseOutlined />}
             onClick={() => openPlot('vectors')} />
         </Tooltip>
+        <Tooltip title="Место для записи: поле в клетку, в линейку или чистое">
+          <Button size="small" type="text" className="tf-btn" icon={<BorderOuterOutlined />}
+            onClick={() => openGrid()} />
+        </Tooltip>
         <Tooltip title="Ссылка">
           <Button size="small" type="text" className="tf-btn" icon={<LinkOutlined />}
             onClick={() => setLinkModalOpen(true)} />
@@ -414,6 +430,20 @@ export default function EditorToolbar({ editorRef }) {
         onInsert={(snippet) => {
           insertIntoEditor(editorRef.current, { text: snippet });
           setNumlineOpen(false);
+        }}
+      />
+
+      {/* Modal: конструктор места для записи (клетка / линейка / чистое поле) */}
+      <GridPaperModal
+        open={!!grid}
+        initialSpec={grid?.spec || null}
+        defaultFormat={grid?.format || 'block'}
+        onCancel={() => setGrid(null)}
+        onInsert={(snippet) => {
+          if (!grid?.range || !replaceInEditor(editorRef.current, grid.range, snippet)) {
+            insertIntoEditor(editorRef.current, { text: snippet });
+          }
+          setGrid(null);
         }}
       />
 

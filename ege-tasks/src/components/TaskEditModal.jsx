@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App, Tooltip, Tag, Collapse, Row, Col, Dropdown } from 'antd';
-import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined, ExportOutlined, TableOutlined, ReloadOutlined, ClearOutlined, DashOutlined, LineChartOutlined, RiseOutlined } from '@ant-design/icons';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined, ExportOutlined, TableOutlined, ReloadOutlined, ClearOutlined, DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import TaskStatementRenderer from './TaskStatementRenderer';
 import RefreshFromSdamgiaModal from './RefreshFromSdamgiaModal';
@@ -10,6 +10,7 @@ import CropModal from './shared/CropModal';
 import LatexField from './shared/LatexField';
 import NumberLineModal from './shared/NumberLineModal';
 import PlotModal from './shared/PlotModal';
+import GridPaperModal from './shared/GridPaperModal';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
 import { dataUrlToFile } from '../utils/cropImage';
 import { api, aiHeaders } from '../services/pocketbase';
@@ -18,7 +19,7 @@ import { useImageUpload } from '../hooks';
 import { parseMatchingTask } from '../utils/parseMatchingTask';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { TABLE_SNIPPETS } from '../utils/markdownTables';
-import { findPlotAtCursor } from '../utils/plotSnippet';
+import { findPlotAtCursor, findGridAtCursor } from '../utils/plotSnippet';
 import { insertAtCaret } from '../utils/caretInsert';
 
 const DEFINE_API_BASE = import.meta.env.VITE_DEFINE_API_URL?.replace('/define', '') || 'https://l.oipav.ru';
@@ -90,6 +91,9 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [numlineTarget, setNumlineTarget] = useState(null);
   // Конструктор координатной плоскости: { field, kind: 'function'|'vectors' }
   const [plotTarget, setPlotTarget] = useState(null);
+  // Конструктор поля «в клетку» (место, куда ученик пишет решение):
+  // { field, spec?, format?, range? } — spec/range заполнены при правке.
+  const [gridTarget, setGridTarget] = useState(null);
 
   // Картинки задачи из коллекции task_images, сгруппированы по ролям.
   // Используются для подмены ![image](внешний_url) на локальный в превью.
@@ -514,6 +518,21 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     setter(next);
     caretRef.current[fieldName] = { start: from + body.length, end: from + body.length };
   }, [form]);
+
+  const insertGrid = useCallback((snippet) => {
+    if (gridTarget?.range) replaceRange(gridTarget.field, gridTarget.range, snippet);
+    else insertSnippet(gridTarget?.field, snippet);
+    setGridTarget(null);
+  }, [insertSnippet, replaceRange, gridTarget]);
+
+  // Кнопка «Клетка»: курсор внутри готового поля → правка этого поля.
+  const openGrid = useCallback((field) => {
+    const pos = fieldCaret(field)?.start;
+    const found = pos == null ? null : findGridAtCursor(form.getFieldValue(field) || '', pos);
+    setGridTarget(found
+      ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
+      : { field });
+  }, [form, fieldCaret]);
 
   const insertPlot = useCallback((snippet) => {
     if (plotTarget?.range) replaceRange(plotTarget.field, plotTarget.range, snippet);
@@ -1170,6 +1189,16 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   Векторы
                 </Button>
               </Tooltip>
+              <Tooltip title="Место для записи решения: поле в клетку, в линейку или чистое. Вставляется в ячейку таблицы («условие | решение») либо отдельным блоком">
+                <Button
+                  size="small"
+                  icon={<BorderOuterOutlined />}
+                  onClick={() => openGrid('statement_md')}
+                  style={{ fontWeight: 400 }}
+                >
+                  Клетка
+                </Button>
+              </Tooltip>
             </span>
           }
           rules={[{ required: isCreateMode, message: 'Введите текст задания' }]}
@@ -1376,6 +1405,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       onCancel={() => setNumlineTarget(null)}
       onInsert={insertNumline}
       defaultFormat="inline"
+    />
+
+    {/* Конструктор места для записи решения (клетка/линейка) — тоже снаружи. */}
+    <GridPaperModal
+      open={!!gridTarget}
+      initialSpec={gridTarget?.spec || null}
+      defaultFormat={gridTarget?.format || 'inline'}
+      onCancel={() => setGridTarget(null)}
+      onInsert={insertGrid}
     />
 
     {/* Конструктор координатной плоскости — тоже вне основного Modal. */}

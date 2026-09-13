@@ -9,6 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import DOMPurify from 'dompurify'
 import { numberLineSvgFromSpec } from '../utils/numberLine'
 import { coordPlotSvgFromSpec } from '../utils/coordPlot'
+import { gridPaperSvgFromSpec } from '../utils/gridPaper'
 import { prepareMarkdownTables } from '../utils/markdownTables'
 import remarkTableModifiers from '../utils/remarkTableModifiers'
 import '../shared/components/markdownTables.css'  // стили классов md-table--*
@@ -273,6 +274,27 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
     (_, body) => {
       const spec = decodeEntities(body)
       return `<span class="coordplot-inline" style="display:inline-block;vertical-align:middle">${coordPlotSvgFromSpec(spec, { width: 200, maxHeight: 200 })}</span>`
+    },
+  )
+
+  // Поле «в клетку» под рукописное решение: fenced-блок ```grid (алиасы
+  // ```cells / ```клетка). Не чертёж, а место для записи — поэтому блок
+  // на всю ширину колонки, без центрирования и без масштабирования.
+  result = result.replace(
+    /<pre><code class="language-(?:grid|cells|клетка)">([\s\S]*?)<\/code><\/pre>/g,
+    (_, body) => {
+      const spec = decodeEntities(body)
+      return `<div class="grid-paper-block" style="margin:10px 0">${gridPaperSvgFromSpec(spec)}</div>`
+    },
+  )
+
+  // Inline-форма для ячеек таблиц: <code>grid: 10x6</code> → поле в клетку,
+  // занимающее ячейку целиком.
+  result = result.replace(
+    /<code>(?:grid|cells|клетка):\s*([\s\S]*?)<\/code>/gi,
+    (_, body) => {
+      const spec = decodeEntities(body)
+      return `<span class="grid-paper-inline" style="display:block">${gridPaperSvgFromSpec(spec)}</span>`
     },
   )
 

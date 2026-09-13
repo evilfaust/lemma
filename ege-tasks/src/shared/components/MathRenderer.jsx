@@ -4,21 +4,32 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import NumberLineSVG from '../../components/shared/NumberLineSVG';
 import CoordPlotSVG from '../../components/shared/CoordPlotSVG';
+import GridPaperSVG from '../../components/shared/GridPaperSVG';
 import { prepareMarkdownTables } from '../../utils/markdownTables';
 import remarkTableModifiers from '../../utils/remarkTableModifiers';
 import './markdownTables.css';
 
 // Из <pre>-узла react-markdown достаёт fenced-блок чертежа (```numline /
-// ```plot / ```vectors) и его содержимое. Возвращает { kind, spec } либо null,
-// если это обычный блок кода.
+// ```plot / ```vectors / ```grid) и его содержимое. Возвращает { kind, spec }
+// либо null, если это обычный блок кода.
+// `\b` не годится: у кириллического алиаса ```клетка границы слова нет.
+const DRAWING_LANG = /language-(numline|plot|vectors|grid|cells|клетка)(?![a-z0-9-])/i;
+
+function drawingKind(lang) {
+  const l = lang.toLowerCase();
+  if (l === 'numline') return 'numline';
+  if (l === 'plot' || l === 'vectors') return 'plot';
+  return 'grid';
+}
+
 function extractDrawingSpec(children) {
   const child = Array.isArray(children) ? children[0] : children;
   const cls = child?.props?.className || '';
-  const m = /language-(numline|plot|vectors)\b/.exec(cls);
+  const m = DRAWING_LANG.exec(cls);
   if (!m) return null;
   const raw = child.props.children;
   const text = Array.isArray(raw) ? raw.join('') : raw;
-  return { kind: m[1] === 'numline' ? 'numline' : 'plot', spec: String(text ?? '').replace(/\n$/, '') };
+  return { kind: drawingKind(m[1]), spec: String(text ?? '').replace(/\n$/, '') };
 }
 
 // Unicode-символы вне ASCII, которых нет в дефолтных шрифтах KaTeX
@@ -76,6 +87,12 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
     // координатная плоскость (график функции / векторы). Иначе — обычный <pre>.
     pre: ({ children, ...props }) => {
       const drawing = extractDrawingSpec(children);
+      // Поле в клетку — НЕ чертёж: его нельзя масштабировать под ширину блока
+      // (клетка обязана остаться 5 мм) и нельзя прятать в режиме «без чертежей»
+      // — это место, куда ученик пишет решение. Поэтому мимо .mr-figure.
+      if (drawing?.kind === 'grid') {
+        return <GridPaperSVG spec={drawing.spec} style={{ margin: '8px 0' }} />;
+      }
       if (drawing) {
         return (
           // `mr-figure` — зацепка для печатных листов: по ней (и только по ней)
@@ -101,6 +118,10 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
       }
       if (!className && /^(plot|vectors):/i.test(str)) {
         return <CoordPlotSVG spec={str.replace(/^(plot|vectors):\s*/i, '')} width={200} maxHeight={200} />;
+      }
+      // `grid: 10x6` — поле в клетку под запись решения прямо в ячейке.
+      if (!className && /^(grid|cells|клетка):/i.test(str)) {
+        return <GridPaperSVG spec={str.replace(/^(grid|cells|клетка):\s*/i, '')} />;
       }
       return <code className={className} {...props}>{children}</code>;
     },
