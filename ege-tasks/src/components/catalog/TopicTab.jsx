@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Select, Tooltip, App } from 'antd';
+import { Card, Table, Space, Button, Modal, Form, Input, InputNumber, Select, Switch, Tag, Tooltip, App } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOutlined } from '@ant-design/icons';
 
 const EXAM_TYPE_OPTIONS = [
@@ -42,6 +42,7 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
       exam_type:   topic?.exam_type   || null,
       exam_part:   topic?.exam_part   || null,
       order:       topic?.order       || null,
+      archived:    topic?.archived    || false,
       description: topic?.description || '',
     });
   };
@@ -106,7 +107,21 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
           }}
           columns={[
             { title: '№', dataIndex: 'ege', width: 60, sorter: (a, b) => (a.ege || 0) - (b.ege || 0) },
-            { title: 'Тема', dataIndex: 'title', sorter: (a, b) => (a.title || '').localeCompare(b.title || '') },
+            {
+              title: 'Тема',
+              dataIndex: 'title',
+              sorter: (a, b) => (a.title || '').localeCompare(b.title || ''),
+              render: (title, record) => (
+                <Space size={6}>
+                  <span>{title}</span>
+                  {record.raw?.archived && (
+                    <Tooltip title="Задание убрано из экзамена: задачи доступны, но в полный вариант тема не попадает">
+                      <Tag color="default">архив</Tag>
+                    </Tooltip>
+                  )}
+                </Space>
+              ),
+            },
             { title: 'Порядок', dataIndex: 'order', width: 90, sorter: (a, b) => (a.order || 0) - (b.order || 0) },
             { title: 'Кол-во', dataIndex: 'count', width: 90, sorter: (a, b) => a.count - b.count },
             {
@@ -148,6 +163,14 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
           </Form.Item>
           <Form.Item name="order" label="Порядок сортировки">
             <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item
+            name="archived"
+            label="Архивная тема"
+            valuePropName="checked"
+            tooltip="Задание убрали из экзамена. Задачи остаются в каталоге и в генераторе листов, но в сборку полного варианта тема не идёт"
+          >
+            <Switch />
           </Form.Item>
           <Form.Item name="description" label="Описание">
             <Input.TextArea rows={3} />

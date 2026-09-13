@@ -46,15 +46,17 @@ const { Option } = Select;
 const APP_BRAND = '© Лемма 2025–2026 уч. г.';
 
 /**
- * Генератор полных вариантов ЕГЭ профильного уровня (19 заданий: 1–12 краткий
- * ответ, 13–19 развёрнутый ответ).
+ * Генератор полных вариантов ЕГЭ профильного уровня (структура КИМ-2027:
+ * 20 заданий, 1–13 краткий ответ, 14–20 развёрнутый ответ).
  */
 const EgeProfileVariantGenerator = () => {
   const { message } = App.useApp();
   const { egeProfileTopics, subtopics, tags, topics, years, sources, tasksSnapshot } = useReferenceData();
   const printRef = useRef();
 
-  // Темы профиля по порядку заданий 1→19 (exam_part, затем ege_number)
+  // Темы профиля по порядку заданий 1→20 (exam_part, затем ege_number).
+  // Архивные темы (задания, убранные из КИМа) сюда уже не попадают — отфильтрованы
+  // в ReferenceDataContext.
   const profileTopics = useMemo(
     () => [...egeProfileTopics].sort(
       (a, b) => (a.exam_part || 0) - (b.exam_part || 0) || a.ege_number - b.ege_number
@@ -62,7 +64,7 @@ const EgeProfileVariantGenerator = () => {
     [egeProfileTopics]
   );
 
-  // Настройки каждого слота (19 строк)
+  // Настройки каждого слота (по строке на задание, сейчас 20)
   const [slots, setSlots] = useState([]);
 
   // Настройки генерации
@@ -419,7 +421,7 @@ const EgeProfileVariantGenerator = () => {
         message="Генератор вариантов ЕГЭ (профильный уровень)"
         description={
           <div>
-            <div>📋 Полный вариант ЕГЭ — 19 заданий: №1–12 краткий ответ, №13–19 развёрнутый</div>
+            <div>📋 Полный вариант ЕГЭ — 20 заданий: №1–13 краткий ответ, №14–20 развёрнутый</div>
             <div>📊 Колонка «Успеваемость» показывает % правильных ответов учеников по теме</div>
             <div>📌 Фиксация конкретных задач по любому номеру</div>
             <div>🖨️ Обычная печать (с листом решений) или в стиле КИМ (официальный бланк)</div>

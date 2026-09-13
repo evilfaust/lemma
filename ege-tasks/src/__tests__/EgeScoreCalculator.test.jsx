@@ -23,12 +23,11 @@ describe('EgeScoreCalculator', () => {
     expect(primaryLabels.length).toBeGreaterThan(0);
   });
 
-  it('содержит 19 номеров заданий', () => {
+  it('содержит 20 номеров заданий (структура КИМ-2027)', () => {
     const { container } = renderCalc();
     // Через клик-обработчик: каждый tile с onClick — по числу заданий
     const clickable = container.querySelectorAll('[style*="cursor: pointer"]');
-    // Минимум 19 кликабельных тайлов
-    expect(clickable.length).toBeGreaterThanOrEqual(19);
+    expect(clickable.length).toBeGreaterThanOrEqual(20);
   });
 
   it('показывает заголовки "Часть 1" и "Часть 2"', () => {
@@ -62,10 +61,10 @@ describe('EgeScoreCalculator', () => {
   it('у заданий с max>1 видна цифра >1 после нескольких кликов', () => {
     const { container } = renderCalc();
     const tiles = container.querySelectorAll('div[style*="width: 52px"]');
-    // Задание 13 (индекс 12) имеет max=2 — не isSimple, балл отображается цифрой
-    const task13 = tiles[12];
-    fireEvent.click(task13); // → 1
-    fireEvent.click(task13); // → 2
-    expect(task13.textContent).toContain('2');
+    // Задание 14 (индекс 13) — первое в части 2, max=2: балл отображается цифрой
+    const task14 = tiles[13];
+    fireEvent.click(task14); // → 1
+    fireEvent.click(task14); // → 2
+    expect(task14.textContent).toContain('2');
   });
 });

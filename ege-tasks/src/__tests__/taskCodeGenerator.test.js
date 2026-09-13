@@ -8,16 +8,25 @@ describe('validateTaskCode', () => {
     expect(validateTaskCode('21-999')).toBe(true);
   });
 
+  it('принимает коды архивных тем A{N}-{seq}', () => {
+    // архив — задание, убранное из КИМа: тема живёт, но номер уже занят другой
+    expect(validateTaskCode('A12-001')).toBe(true);
+    expect(validateTaskCode('A16-289')).toBe(true);
+  });
+
+  it('принимает счётчик длиннее трёх цифр (большие темы)', () => {
+    expect(validateTaskCode('16-1026')).toBe(true);
+  });
+
   it('принимает тригонометрические коды T{N}-{seq}', () => {
     expect(validateTaskCode('T1-001')).toBe(true);
     expect(validateTaskCode('T12-042')).toBe(true);
     expect(validateTaskCode('T7-100')).toBe(true);
   });
 
-  it('отклоняет коды без трёх цифр в seq', () => {
+  it('отклоняет коды короче трёх цифр в seq', () => {
     expect(validateTaskCode('14-01')).toBe(false);
     expect(validateTaskCode('14-1')).toBe(false);
-    expect(validateTaskCode('14-9999')).toBe(false);
   });
 
   it('отклоняет коды без разделителя', () => {

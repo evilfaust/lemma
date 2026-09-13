@@ -14,6 +14,9 @@ function nextCode(existingCodes, prefix) {
 
 /**
  * Префикс кодов темы: `T{N}-` для тригонометрии, `{ege_number}-` для остальных.
+ * У архивной темы (задание убрано из КИМа, `archived`) префикс получает `A`:
+ * A12-001 — чтобы коды не сталкивались с темой, занявшей этот номер в новой
+ * структуре экзамена.
  * Бросает, если у обычной темы нет номера ЕГЭ.
  */
 export function taskCodePrefix(topic) {
@@ -26,7 +29,7 @@ export function taskCodePrefix(topic) {
   if (!egeNumber && egeNumber !== 0) {
     throw new Error(`У темы "${topic.title || topic.id}" не указан ege_number`);
   }
-  return `${egeNumber}-`;
+  return `${topic.archived ? 'A' : ''}${egeNumber}-`;
 }
 
 /**
@@ -59,17 +62,7 @@ export async function generateTaskCode(topicId, topic = null) {
   const tasks = await api.getTasks({ topic: topicId });
   const codes = tasks.map(t => t.code).filter(Boolean);
 
-  if (topic.exam_type === 'trig') {
-    const idMatch = topic.id.match(/(\d+)$/);
-    const n = idMatch ? parseInt(idMatch[1], 10) : 0;
-    return nextCode(codes, `T${n}-`);
-  }
-
-  const egeNumber = topic.ege_number;
-  if (!egeNumber && egeNumber !== 0) {
-    throw new Error(`У темы "${topic.title || topic.id}" не указан ege_number`);
-  }
-  return nextCode(codes, `${egeNumber}-`);
+  return nextCode(codes, taskCodePrefix(topic));
 }
 
 /**
@@ -88,5 +81,7 @@ export async function generateTrigTaskCodes(topicId, count) {
 }
 
 export function validateTaskCode(code) {
-  return /^(T\d+|\d+)-\d{3}$/.test(code);
+  // A — архивная тема, T — тригонометрический генератор; в больших темах
+  // счётчик уже перевалил за 999, поэтому хвост от трёх цифр и длиннее.
+  return /^(T\d+|A?\d+)-\d{3,}$/.test(code);
 }

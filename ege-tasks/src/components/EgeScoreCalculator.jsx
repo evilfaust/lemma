@@ -4,7 +4,7 @@ import { CheckOutlined } from '@ant-design/icons';
 
 const { Title, Text } = Typography;
 
-// Структура заданий профильного ЕГЭ по математике
+// Структура заданий профильного ЕГЭ по математике (КИМ-2027: 20 заданий, 33 балла)
 const TASKS = [
   { num: 1,  max: 1, part: 1 },
   { num: 2,  max: 1, part: 1 },
@@ -18,18 +18,24 @@ const TASKS = [
   { num: 10, max: 1, part: 1 },
   { num: 11, max: 1, part: 1 },
   { num: 12, max: 1, part: 1 },
-  { num: 13, max: 2, part: 2 },
-  { num: 14, max: 3, part: 2 },
-  { num: 15, max: 2, part: 2 },
+  { num: 13, max: 1, part: 1 },
+  { num: 14, max: 2, part: 2 },
+  { num: 15, max: 3, part: 2 },
   { num: 16, max: 2, part: 2 },
-  { num: 17, max: 3, part: 2 },
-  { num: 18, max: 4, part: 2 },
+  { num: 17, max: 2, part: 2 },
+  { num: 18, max: 3, part: 2 },
   { num: 19, max: 4, part: 2 },
+  { num: 20, max: 4, part: 2 },
 ];
 
-const MAX_PRIMARY = TASKS.reduce((s, t) => s + t.max, 0); // 31
+const PART1_COUNT = TASKS.filter(t => t.part === 1).length;                        // 13
+const MAX_PART1 = TASKS.filter(t => t.part === 1).reduce((s, t) => s + t.max, 0);  // 13
+const MAX_PART2 = TASKS.filter(t => t.part === 2).reduce((s, t) => s + t.max, 0);  // 20
+const MAX_PRIMARY = MAX_PART1 + MAX_PART2;                                        // 33
 
-// Шкала перевода первичных → тестовые баллы (профильная математика 2025)
+// Шкала перевода первичных → тестовые баллы. Для 2027 ФИПИ шкалу ещё не
+// публиковал — пока ориентируемся на действующую (работа 2026 года, 32 балла),
+// поэтому перевод у верхней границы приблизительный.
 const SCALE = [
   0,  // 0
   6,  // 1
@@ -168,7 +174,7 @@ function TaskTile({ task, score, onClick }) {
 }
 
 export default function EgeScoreCalculator() {
-  const [scores, setScores] = useState(Array(19).fill(0));
+  const [scores, setScores] = useState(Array(TASKS.length).fill(0));
   const [manualPrimary, setManualPrimary] = useState(16);
 
   const handleClick = (idx) => {
@@ -180,16 +186,16 @@ export default function EgeScoreCalculator() {
     });
   };
 
-  const handleReset = () => setScores(Array(19).fill(0));
+  const handleReset = () => setScores(Array(TASKS.length).fill(0));
 
   const primary = scores.reduce((s, v) => s + v, 0);
   const test = toTestScore(primary);
   const grade = getGradeInfo(test);
 
-  const part1Tasks = TASKS.slice(0, 12);
-  const part2Tasks = TASKS.slice(12);
-  const part1Score = scores.slice(0, 12).reduce((s, v) => s + v, 0);
-  const part2Score = scores.slice(12).reduce((s, v) => s + v, 0);
+  const part1Tasks = TASKS.slice(0, PART1_COUNT);
+  const part2Tasks = TASKS.slice(PART1_COUNT);
+  const part1Score = scores.slice(0, PART1_COUNT).reduce((s, v) => s + v, 0);
+  const part2Score = scores.slice(PART1_COUNT).reduce((s, v) => s + v, 0);
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '24px 16px' }}>
@@ -235,11 +241,11 @@ export default function EgeScoreCalculator() {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: '#aaa' }}>Часть 1</div>
-              <div style={{ fontSize: 18, fontWeight: 600, color: '#555' }}>{part1Score} / 12</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#555' }}>{part1Score} / {MAX_PART1}</div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: 11, color: '#aaa' }}>Часть 2</div>
-              <div style={{ fontSize: 18, fontWeight: 600, color: '#555' }}>{part2Score} / 19</div>
+              <div style={{ fontSize: 18, fontWeight: 600, color: '#555' }}>{part2Score} / {MAX_PART2}</div>
             </div>
             <button
               onClick={handleReset}
@@ -282,8 +288,8 @@ export default function EgeScoreCalculator() {
             <TaskTile
               key={task.num}
               task={task}
-              score={scores[12 + i]}
-              onClick={() => handleClick(12 + i)}
+              score={scores[PART1_COUNT + i]}
+              onClick={() => handleClick(PART1_COUNT + i)}
             />
           ))}
         </div>
@@ -352,7 +358,7 @@ export default function EgeScoreCalculator() {
           { range: '0–26',   pRange: '0–4 перв.',  color: '#ff4d4f', bg: '#fff1f0' },
           { range: '27–44',  pRange: '5–7 перв.',  color: '#fa8c16', bg: '#fff7e6' },
           { range: '45–60',  pRange: '8–10 перв.', color: '#1677ff', bg: '#e6f4ff' },
-          { range: '61–100', pRange: '11–32 перв.',color: '#52c41a', bg: '#f6ffed' },
+          { range: '61–100', pRange: `11–${MAX_PRIMARY} перв.`, color: '#52c41a', bg: '#f6ffed' },
         ].map(({ range, pRange, color, bg }) => (
           <div
             key={range}
@@ -368,8 +374,9 @@ export default function EgeScoreCalculator() {
       </div>
 
       <div style={{ color: '#bbb', fontSize: 11 }}>
-        Профильная математика ЕГЭ 2025 · ФИПИ / Рособрнадзор ·
-        максимум 32 первичных балла · минимальный балл для аттестата: 27 тестовых (5 первичных)
+        Профильная математика ЕГЭ 2027 (проект КИМ) · ФИПИ / Рособрнадзор ·
+        максимум {MAX_PRIMARY} первичных балла · минимальный балл для аттестата: 27 тестовых (5 первичных) ·
+        шкала перевода — прошлогодняя, для 2027 ещё не опубликована
       </div>
     </div>
   );

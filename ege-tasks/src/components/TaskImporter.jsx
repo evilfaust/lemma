@@ -1087,8 +1087,8 @@ export default function TaskImporter() {
               value={newTopicExamPart}
               onChange={setNewTopicExamPart}
               options={[
-                { value: 1, label: 'Часть 1 (краткий ответ, № 1–12)' },
-                { value: 2, label: 'Часть 2 (развёрнутое решение, № 13–19)' },
+                { value: 1, label: 'Часть 1 (краткий ответ, № 1–13)' },
+                { value: 2, label: 'Часть 2 (развёрнутое решение, № 14–20)' },
               ]}
             />
           </div>

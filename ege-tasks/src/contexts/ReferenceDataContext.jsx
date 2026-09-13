@@ -90,10 +90,12 @@ export function ReferenceDataProvider({ children }) {
       .sort((a, b) => a.ege_number - b.ege_number);
   }, [topics]);
 
-  // Темы ЕГЭ профильного уровня (часть 1 → часть 2, по ege_number)
+  // Темы ЕГЭ профильного уровня (часть 1 → часть 2, по ege_number).
+  // archived — темы, снятые с боевой нумерации (задания, убранные из КИМ-2027):
+  // задачи в них живы и доступны в каталоге, но вариант ЕГЭ из них не собирается.
   const egeProfileTopics = useMemo(() => {
     return topics
-      .filter(t => t.exam_type === 'ege_profile')
+      .filter(t => t.exam_type === 'ege_profile' && !t.archived)
       .sort((a, b) => (a.exam_part || 0) - (b.exam_part || 0) || a.ege_number - b.ege_number);
   }, [topics]);
 
