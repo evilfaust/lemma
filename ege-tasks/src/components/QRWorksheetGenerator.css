@@ -31,6 +31,14 @@
   .qr-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
   .qr-print-root * { visibility: visible; }
 
+  /* Клетки сетки залиты фоном (чёрные метки QR, ключ учителя). Без этого
+     Chrome печатает их белыми, пока в диалоге печати не включён «Фон». */
+  .qr-print-root,
+  .qr-print-root * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .qr-student-page,
   .qr-teacher-page {
     width: 210mm;

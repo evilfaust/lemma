@@ -104,3 +104,15 @@ describe('fillQRGrid', () => {
     expect(grid[0][0]).toHaveProperty('isAnswer');
   });
 });
+
+describe('сетка помнит матрицу (восстановление после загрузки листа)', () => {
+  // Матрица в БД не хранится: useQRWorksheet.loadFromSaved восстанавливает её
+  // из сетки по isAnswer. Если инвариант сломается — предзакрашенные зоны
+  // (finder/timing/format) напечатаются сплошным серым, без чёрных меток QR.
+  it('isAnswer повторяет чёрные модули матрицы', async () => {
+    const matrix = await urlToQRMatrix('https://student.oipav.ru/student/abc123');
+    const grid = fillQRGrid(matrix, [17, 23, 36, 24]);
+    const restored = grid.map(row => row.map(cell => !!cell.isAnswer));
+    expect(restored).toEqual(matrix);
+  });
+});

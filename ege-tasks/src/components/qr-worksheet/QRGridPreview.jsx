@@ -117,7 +117,7 @@ export default function QRGridPreview({
               (zone === 'format' && preFillFormat);
 
             if (isPreFilled) {
-              const isBlack = matrix?.[ri]?.[ci] ?? false;
+              const isBlack = matrix?.[ri]?.[ci] ?? !!cell.isAnswer;
               return (
                 <div
                   key={`${ri}-${ci}`}

@@ -123,8 +123,12 @@ export function useQRWorksheet() {
     setTitle(record.title || 'QR-лист');
     setQrUrl(record.qr_url || '');
     setCustomAnswers(record.custom_answers || {});
-    setGrid(record.grid || null);
-    setMatrix(null);
+    const savedGrid = record.grid || null;
+    setGrid(savedGrid);
+    // Матрица в БД не хранится — восстанавливаем её из сетки:
+    // isAnswer === чёрный модуль QR (см. fillQRGrid). Без этого предзакрашенные
+    // зоны (finder/timing/format) печатались сплошным серым, без чёрных меток.
+    setMatrix(savedGrid ? savedGrid.map(row => row.map(cell => !!cell?.isAnswer)) : null);
     setMode('student');
     setError(null);
     // tasks берём из expand, чтобы иметь полные объекты

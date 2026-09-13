@@ -67,7 +67,9 @@ export default function QRPrintLayout({
                 (zone === 'format' && preFillFormat);
 
               if (isPreFilled) {
-                const isBlack = matrix?.[ri]?.[ci] ?? false;
+                // matrix может отсутствовать (загруженный лист) — в сетке
+                // isAnswer хранит ровно то же самое: чёрный модуль QR.
+                const isBlack = matrix?.[ri]?.[ci] ?? !!cell.isAnswer;
                 return (
                   <td
                     key={ci}
