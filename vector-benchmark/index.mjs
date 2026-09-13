@@ -25,6 +25,7 @@ import { buildText, buildGeoText } from './2-embed.mjs';
 
 const DIM = 1024;
 const VEC_DB = new URL('./data/vec.db', import.meta.url).pathname;
+const CLUSTERS_FILE = new URL('./data/dedup-clusters.json', import.meta.url).pathname;
 // Пачка пуша: 200 векторов VPS вставлял дольше 30-секундного таймаута ниже —
 // клиент считал пачку потерянной и слал повтор, хотя вставка уже прошла (04.09.2026).
 const PUSH_BATCH = 50;
@@ -33,6 +34,10 @@ const START = Date.now();
 const FULL = process.argv.includes('--full');
 const PUSH = process.argv.includes('--push');
 const FORCE_DEDUP = process.argv.includes('--dedup');
+// Залить уже посчитанные кластеры из data/dedup-clusters.json, не считая заново.
+// Счёт кластеров — это ~35 минут KNN по всему банку, и обрыв связи на заливке
+// (у нас так падал DNS) не должен стоить повторного прогона.
+const UPLOAD_CLUSTERS_ONLY = process.argv.includes('--upload-clusters');
 const GEO = process.argv.includes('--geometry');
 const HELP = process.argv.includes('--help') || process.argv.includes('-h');
 
@@ -456,16 +461,28 @@ async function main() {
   }
 
   // Шаг 4 — дедуп (только по флагу; для геометрии не считается)
-  if (GEO && FORCE_DEDUP) {
+  if (PUSH && UPLOAD_CLUSTERS_ONLY) {
+    log('\n[4/4] Заливаю кластеры из data/dedup-clusters.json (без пересчёта)...');
+    const clusters = JSON.parse(fs.readFileSync(CLUSTERS_FILE, 'utf8'));
+    const rc = await uploadClusters(clusters);
+    log(`   ✓ Залито: ${rc.exact_dup} точных + ${rc.param_family} параметрических.`);
+  } else if (GEO && FORCE_DEDUP) {
     log('\n[4/4] Дедуп для геометрии не поддерживается (--dedup игнорируется).');
   } else if (PUSH && FORCE_DEDUP) {
-    log('\n[4/4] Пересчитываю кластеры дублей (это долго, ~5-6 мин)...');
+    log('\n[4/4] Пересчитываю кластеры дублей (KNN по всему банку, ~35 мин на 27k задач)...');
     try {
       const clusters = computeClusters(db, taskMeta);
+      // Сначала на диск, потом на VPS: если заливка упадёт (сеть/DNS), кластеры
+      // доставляются повторным запуском с `--upload-clusters`.
+      fs.writeFileSync(CLUSTERS_FILE, JSON.stringify(clusters));
+      log(`   кластеров посчитано: ${clusters.length} → data/dedup-clusters.json`);
       const rc = await uploadClusters(clusters);
       log(`   ✓ Дубли пересчитаны и залиты: ${rc.exact_dup} точных + ${rc.param_family} параметрических.`);
     } catch (e) {
       log(`   ⚠ пересчёт дублей не удался: ${e.message}`);
+      if (fs.existsSync(CLUSTERS_FILE)) {
+        log('     кластеры сохранены локально — дошлите: node index.mjs --push --upload-clusters');
+      }
     }
   } else if (PUSH && !GEO) {
     log('\n[4/4] Дубли НЕ пересчитывались (для этого нужен флаг --dedup или `npm run dedup`).');
