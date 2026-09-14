@@ -6,7 +6,7 @@ import {
   ClockCircleOutlined, SearchOutlined, SortAscendingOutlined, FormOutlined,
   PushpinOutlined, PushpinFilled, FolderOutlined, DownOutlined, CameraOutlined,
   ShareAltOutlined, CopyOutlined, UserOutlined, SwapOutlined, ImportOutlined,
-  ExperimentOutlined,
+  ExperimentOutlined, TrophyOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import SessionPanel from './worksheet/SessionPanel';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
 import ScanBlankModal from './worksheet/ScanBlankModal';
+import SendToMarathonModal from './worksheet/SendToMarathonModal';
 import GeneratorSheetsTab from './worksheet/GeneratorSheetsTab';
 import TeacherResultsDashboard from './worksheet/TeacherResultsDashboard';
 import MathRenderer from './MathRenderer';
@@ -71,6 +72,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
   };
 
   const [scanWork, setScanWork] = useState(null); // работа, для которой сканируем бланки
+  const [marathonWork, setMarathonWork] = useState(null); // работа, которую отправляем в марафон
 
   // ── Общие работы (шаринг, v3.9.118) ──
   const [sharedWorks, setSharedWorks] = useState([]);
@@ -799,6 +801,16 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                         🧬
                       </Button>
                     </Tooltip>
+                    {canEdit && (
+                      <Tooltip title="Отправить задачи работы в марафон">
+                        <Button
+                          type="text"
+                          size="small"
+                          icon={<TrophyOutlined />}
+                          onClick={e => { e.stopPropagation(); setMarathonWork(work); }}
+                        />
+                      </Tooltip>
+                    )}
                     {canEdit && aiEnabled && (
                       <Tooltip title="Проверить бумажные бланки (фото)">
                         <Button
@@ -1161,6 +1173,12 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
         excludeTaskIds={parallelExclude}
         onOpenWork={onEditWork}
       />
+      <SendToMarathonModal
+        open={!!marathonWork}
+        work={marathonWork}
+        onClose={() => setMarathonWork(null)}
+      />
+
       <ScanBlankModal
         open={!!scanWork}
         work={scanWork}

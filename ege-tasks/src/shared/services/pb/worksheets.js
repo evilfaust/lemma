@@ -380,6 +380,22 @@ export const worksheetsApi = {
     }
   },
 
+  // Работа → марафон: задачи работы становятся карточками марафона.
+  // Ученики и трекинг заполняются уже в самом марафоне.
+  async createMarathonFromWork(work, taskIds = [], { title = null, classNumber = null } = {}) {
+    const ids = [...new Set(taskIds.filter(Boolean))];
+    const rec = await this.createMarathon({
+      title: title || work?.title || 'Марафон',
+      class_number: classNumber ?? work?.class ?? 8,
+      tasks: ids,
+      task_order: ids,
+      students: [],
+      tracking_data: {},
+    });
+    _logAudit('create', 'marathons', rec.id, rec.title);
+    return rec;
+  },
+
   async updateMarathon(id, data) {
     try {
       return await pb.collection('marathons').update(id, data);

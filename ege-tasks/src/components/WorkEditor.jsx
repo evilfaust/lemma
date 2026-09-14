@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, Tabs, Form, Input, InputNumber, Select, Button, Space, Switch, Typography, Tooltip, Alert, Empty, Tag, Popconfirm, Modal, App } from 'antd';
-import { SaveOutlined, CopyOutlined, EditOutlined, SwapOutlined, DeleteOutlined, PlusOutlined, ExportOutlined, FileMarkdownOutlined, NodeIndexOutlined, PrinterOutlined, RetweetOutlined } from '@ant-design/icons';
+import { SaveOutlined, CopyOutlined, EditOutlined, SwapOutlined, DeleteOutlined, PlusOutlined, ExportOutlined, FileMarkdownOutlined, NodeIndexOutlined, PrinterOutlined, RetweetOutlined, TrophyOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import TaskStatementRenderer from './TaskStatementRenderer';
 import { api } from '../services/pocketbase';
@@ -13,6 +13,7 @@ import TeacherResultsDashboard from './worksheet/TeacherResultsDashboard';
 import WorksheetVectorTools from './worksheet/oral-generator/WorksheetVectorTools';
 import SimilarSwapModal from './worksheet/SimilarSwapModal';
 import WorkPrintPreview from './worksheet/WorkPrintPreview';
+import SendToMarathonModal from './worksheet/SendToMarathonModal';
 import WorksheetGridPrint from './worksheet/WorksheetGridPrint';
 import WorkLessonLinks from './worksheet/WorkLessonLinks';
 import WorkOverlapWarning from './worksheet/WorkOverlapWarning';
@@ -85,6 +86,7 @@ const WorkEditor = ({
   const [similarRef, setSimilarRef] = useState(null); // { variantIndex, taskIndex, task }
   const [saving, setSaving] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [marathonOpen, setMarathonOpen] = useState(false);
   const [worksheetPrintOpen, setWorksheetPrintOpen] = useState(false);
   const [showAnswers, setShowAnswers] = useState(false);
   const [resultsSessionId, setResultsSessionId] = useState(null);
@@ -381,6 +383,13 @@ const WorkEditor = ({
             <Tooltip title="Предпросмотр и печать листа (или экспорт в PDF)">
               <Button icon={<PrinterOutlined />} onClick={() => setPrintOpen(true)}>
                 Печать / PDF
+              </Button>
+            </Tooltip>
+          )}
+          {totalTasksCount > 0 && work?.id && (
+            <Tooltip title="Собрать марафон из задач этой работы">
+              <Button icon={<TrophyOutlined />} onClick={() => setMarathonOpen(true)}>
+                В марафон
               </Button>
             </Tooltip>
           )}
@@ -747,6 +756,13 @@ const WorkEditor = ({
           }}
         />
       )}
+
+      <SendToMarathonModal
+        open={marathonOpen}
+        work={work}
+        variants={variants}
+        onClose={() => setMarathonOpen(false)}
+      />
 
       <SimilarSwapModal
         open={!!similarRef}

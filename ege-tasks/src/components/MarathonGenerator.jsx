@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Button, Card, Input, InputNumber, Space, List, Tag, Tooltip,
   Modal, Empty, Spin, message, Popconfirm, Typography, Switch,
@@ -77,6 +78,40 @@ export default function MarathonGenerator() {
   const [showBulk, setShowBulk] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null); // имя редактируемого
   const [editingValue, setEditingValue] = useState('');
+
+  // --- Открытие марафона по ссылке ?marathon=<id> ---
+  // Так в марафон попадает работа («Мои работы» → 🏆): марафон уже создан,
+  // здесь его остаётся загрузить.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedId = searchParams.get('marathon');
+  const openedRef = useRef(null);
+
+  useEffect(() => {
+    if (!requestedId || openedRef.current === requestedId) return;
+    openedRef.current = requestedId;
+
+    let alive = true;
+    api.getMarathon(requestedId)
+      .then((rec) => {
+        if (!alive) return;
+        loadMarathon(rec);
+        setPhase('prep');
+      })
+      .catch((e) => {
+        console.error('Не удалось открыть марафон:', e);
+        message.error('Не удалось открыть марафон');
+      })
+      .finally(() => {
+        if (!alive) return;
+        // Параметр отработал — убираем из адреса, чтобы «Новый марафон» не
+        // выглядел как повторное открытие сохранённого.
+        const next = new URLSearchParams(searchParams);
+        next.delete('marathon');
+        setSearchParams(next, { replace: true });
+      });
+
+    return () => { alive = false; };
+  }, [requestedId, loadMarathon, searchParams, setSearchParams]);
 
   // Ждём рендера print-блока + загрузки картинок, потом печатаем
   useEffect(() => {
