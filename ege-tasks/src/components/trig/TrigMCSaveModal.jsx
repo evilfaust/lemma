@@ -25,6 +25,7 @@ export const GENERATOR_LABELS = {
   quadratic_inequalities:  'Квадратные неравенства',
   linear_inequalities:     'Линейные неравенства',
   double_inequalities:     'Двойные неравенства',
+  interval_method:         'Метод интервалов',
   linear_systems:          'Системы линейных неравенств',
   quadratic_systems:       'Системы квадратных неравенств',
 };
@@ -44,6 +45,7 @@ const GENERATOR_INSTRUCTIONS = {
   quadratic_inequalities:  'Решите неравенство:',
   linear_inequalities:     'Решите неравенство:',
   double_inequalities:     'Решите двойное неравенство:',
+  interval_method:         'Решите неравенство методом интервалов:',
   linear_systems:          'Решите систему неравенств:',
   quadratic_systems:       'Решите систему неравенств:',
 };

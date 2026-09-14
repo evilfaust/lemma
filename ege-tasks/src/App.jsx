@@ -18,7 +18,7 @@ import {
   CalculatorOutlined, ExperimentOutlined, LineChartOutlined, FieldNumberOutlined,
   PercentageOutlined, HomeOutlined, CalendarOutlined, ProfileOutlined, ColumnWidthOutlined,
   MergeCellsOutlined, BlockOutlined, FilterOutlined,
-  BorderHorizontalOutlined
+  BorderHorizontalOutlined, NodeIndexOutlined
 } from '@ant-design/icons';
 // ── Ленивая загрузка страниц-компонентов ────────────────────────────────────
 // Все компоненты ниже используются ТОЛЬКО как элементы маршрутов (через page-
@@ -106,6 +106,7 @@ const LinearInequalitiesGenerator = lazy(() => import('./components/LinearInequa
 const LinearSystemsGenerator = lazy(() => import('./components/LinearSystemsGenerator'));
 const QuadraticSystemsGenerator = lazy(() => import('./components/QuadraticSystemsGenerator'));
 const DoubleInequalitiesGenerator = lazy(() => import('./components/DoubleInequalitiesGenerator'));
+const IntervalMethodGenerator = lazy(() => import('./components/IntervalMethodGenerator'));
 const MarathonGenerator = lazy(() => import('./components/MarathonGenerator'));
 const ClassifySheetGenerator = lazy(() => import('./components/classify/ClassifySheetGenerator'));
 const CrosswordGenerator = lazy(() => import('./components/CrosswordGenerator'));
@@ -216,6 +217,7 @@ export const R = {
   QUADRATIC_INEQUALITIES: '/app/equations/quadratic-inequalities',
   LINEAR_INEQUALITIES: '/app/equations/inequalities',
   DOUBLE_INEQUALITIES: '/app/equations/double-inequalities',
+  INTERVAL_METHOD:     '/app/equations/interval-method',
   LINEAR_SYSTEMS:      '/app/equations/linear-systems',
   QUADRATIC_SYSTEMS:   '/app/equations/quadratic-systems',
   // Теория
@@ -335,6 +337,7 @@ const ROUTE_META = [
   { re: /^\/app\/equations\/quadratic/,   menuKey: 'quadratic-equations', menuGroup: 'equations', title: 'Уравнения — Квадратные уравнения' },
   { re: /^\/app\/equations\/double-inequalities/, menuKey: 'double-inequalities', menuGroup: 'equations', title: 'Уравнения — Двойные неравенства' },
   { re: /^\/app\/equations\/inequalities/, menuKey: 'linear-inequalities', menuGroup: 'equations', title: 'Уравнения — Линейные неравенства' },
+  { re: /^\/app\/equations\/interval-method/, menuKey: 'interval-method', menuGroup: 'equations', title: 'Уравнения — Метод интервалов' },
   { re: /^\/app\/theory\/print/,           menuKey: 'theory-print',     menuGroup: 'theory', title: 'Теория — Конспекты', noMargin: true },
   { re: /^\/app\/theory\/categories/,      menuKey: 'theory-categories', menuGroup: 'theory', title: 'Теория — Категории' },
   { re: /^\/app\/theory$/,                 menuKey: 'theory-browser',   menuGroup: 'theory', title: 'Теория — Библиотека' },
@@ -416,6 +419,7 @@ const MENU_KEY_PATH = {
   'quadratic-inequalities': R.QUADRATIC_INEQUALITIES,
   'linear-inequalities':    R.LINEAR_INEQUALITIES,
   'double-inequalities':    R.DOUBLE_INEQUALITIES,
+  'interval-method':        R.INTERVAL_METHOD,
   'linear-systems':         R.LINEAR_SYSTEMS,
   'quadratic-systems':      R.QUADRATIC_SYSTEMS,
   'theory-browser':         R.THEORY,
@@ -796,6 +800,7 @@ function AppLayout() {
         { key: 'quadratic-inequalities', icon: <BorderHorizontalOutlined />, label: 'Квадратные неравенства' },
         { key: 'linear-inequalities', icon: <LineChartOutlined />, label: 'Линейные неравенства' },
         { key: 'double-inequalities', icon: <ColumnWidthOutlined />, label: 'Двойные неравенства' },
+        { key: 'interval-method', icon: <NodeIndexOutlined />, label: 'Метод интервалов' },
         { key: 'linear-systems', icon: <MergeCellsOutlined />, label: 'Системы линейных неравенств' },
         { key: 'quadratic-systems', icon: <BlockOutlined />, label: 'Системы квадратных неравенств' },
       ],
@@ -1101,6 +1106,7 @@ function App() {
               <Route path={R.QUADRATIC_INEQUALITIES} element={<QuadraticInequalitiesGenerator />} />
               <Route path={R.LINEAR_INEQUALITIES} element={<LinearInequalitiesGenerator />} />
               <Route path={R.DOUBLE_INEQUALITIES} element={<DoubleInequalitiesGenerator />} />
+              <Route path={R.INTERVAL_METHOD} element={<IntervalMethodGenerator />} />
               <Route path={R.LINEAR_SYSTEMS} element={<LinearSystemsGenerator />} />
               <Route path={R.QUADRATIC_SYSTEMS} element={<QuadraticSystemsGenerator />} />
 

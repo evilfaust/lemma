@@ -60,6 +60,10 @@ import {
   generateDoubleInequalityVariants,
   CATEGORY_LABELS_DBL,
 } from '../hooks/useDoubleInequalities';
+import {
+  generateIntervalMethodVariants,
+  CATEGORY_LABELS_INTERVAL,
+} from '../hooks/useIntervalMethod';
 import { generateTrigExpressionsVariants }      from '../hooks/useTrigExpressions';
 import { generateInverseTrigVariants }          from '../hooks/useInverseTrig';
 import { generateReductionFormulasVariants }    from '../hooks/useReductionFormulas';
@@ -165,6 +169,13 @@ export const SHEET_GENERATORS = {
     instruction: 'Решите двойное неравенство:',
     categoryLabels: CATEGORY_LABELS_DBL,
     generate: generateDoubleInequalityVariants,
+  },
+  interval_method: {
+    label: 'Метод интервалов',
+    route: '/app/equations/interval-method',
+    instruction: 'Решите неравенство методом интервалов:',
+    categoryLabels: CATEGORY_LABELS_INTERVAL,
+    generate: generateIntervalMethodVariants,
   },
 
   // ── Тригонометрия ──

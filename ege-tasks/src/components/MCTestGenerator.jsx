@@ -37,6 +37,7 @@ const GENERATOR_LABELS = {
   quadratic_inequalities:  'Квадратные неравенства',
   linear_inequalities:     'Линейные неравенства',
   double_inequalities:     'Двойные неравенства',
+  interval_method:         'Метод интервалов',
 };
 
 function SourceBadge({ test }) {

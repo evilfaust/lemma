@@ -58,6 +58,7 @@ const PROMPT_BY_GENERATOR = {
   quadratic_inequalities:  'answer',
   linear_inequalities:     'answer',
   double_inequalities:     'answer',
+  interval_method:         'answer',
   linear_systems:          'answer',
   quadratic_systems:       'answer',
 };

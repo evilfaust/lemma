@@ -65,6 +65,12 @@ import {
 } from './useLinearInequalities';
 
 import {
+  generateIntervalMethodVariants,
+  CATEGORY_LABELS_INTERVAL,
+  DEFAULT_SETTINGS_INTERVAL,
+} from './useIntervalMethod';
+
+import {
   generateDoubleInequalityVariants,
   CATEGORY_LABELS_DBL,
   DEFAULT_SETTINGS_DBL,
@@ -179,6 +185,17 @@ export const ORAL_TYPES = [
     categoryLabels: CATEGORY_LABELS_INEQ,
     defaultCategories: DEFAULT_SETTINGS_INEQ.categories,
     defaultSettings: DEFAULT_SETTINGS_INEQ,
+  },
+  {
+    type:         'interval_method',
+    label:        'Метод интервалов',
+    instruction:  'Решите неравенства методом интервалов:',
+    equationMode: true,
+    promptMode:   'answer',   // ответ — объединение промежутков
+    generator:    generateIntervalMethodVariants,
+    categoryLabels: CATEGORY_LABELS_INTERVAL,
+    defaultCategories: DEFAULT_SETTINGS_INTERVAL.categories,
+    defaultSettings: DEFAULT_SETTINGS_INTERVAL,
   },
   {
     type:         'double_inequalities',
