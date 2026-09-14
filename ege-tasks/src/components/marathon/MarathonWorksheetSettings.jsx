@@ -1,7 +1,6 @@
-import { Alert, Divider, InputNumber, Segmented, Space, Switch, Tooltip, Typography } from 'antd';
+import { Alert, Divider, InputNumber, Segmented, Space, Switch } from 'antd';
 import { FONT_PT_OPTIONS, MAX_SHEETS, countsFor } from '../../utils/marathonWorksheet';
-
-const { Text } = Typography;
+import SettingRow from './SettingRow';
 
 const MODE_OPTIONS = [
   { value: 'work', label: 'С местом для решения' },
@@ -30,15 +29,7 @@ const FILL_OPTIONS_LIST = [
   { value: 'copies', label: 'Столько копий' },
 ];
 
-const Row = ({ label, hint, children }) => {
-  const text = <Text style={{ fontSize: 13 }}>{label}</Text>;
-  return (
-    <Space size={6}>
-      {hint ? <Tooltip title={hint}>{text}</Tooltip> : text}
-      {children}
-    </Space>
-  );
-};
+const Row = SettingRow;
 
 /**
  * Настройки отрезного листа марафона. Режим меняет плотность листа и наличие

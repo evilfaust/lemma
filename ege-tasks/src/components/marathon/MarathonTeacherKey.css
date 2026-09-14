@@ -1,0 +1,134 @@
+/* Ключи марафона на экране (вкладка «Лист учителя»). */
+
+.mtk {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mtk-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mtk-search { width: 280px; max-width: 100%; }
+
+.mtk-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-700, #2c3a55);
+  cursor: pointer;
+}
+
+.mtk-badges {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.mtk-table {
+  border: 1px solid var(--ink-200, #d8e0ec);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.mtk-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(120px, 0.45fr);
+  gap: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ink-100, #eef2f8);
+  align-items: start;
+}
+
+.mtk-row:first-child { border-top: 0; }
+
+.mtk-row--head {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--ink-400, #8294b1);
+  background: var(--ink-100, #eef2f8);
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.mtk-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-700, #2c3a55);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.mtk-statement {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-800, #1a2236);
+  min-width: 0;
+}
+
+.mtk-statement p { margin: 0 0 4px; }
+.mtk-statement p:last-child { margin-bottom: 0; }
+.mtk-statement img { max-width: 160px; max-height: 90px; object-fit: contain; }
+
+.mtk-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ink-400, #8294b1);
+}
+
+.mtk-code { font-family: var(--font-mono, monospace); }
+
+.mtk-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 11px;
+  color: var(--brand, #4f56e3);
+  cursor: pointer;
+}
+.mtk-link:hover { text-decoration: underline; }
+
+.mtk-muted { color: var(--ink-300, #b3c0d4); }
+
+.mtk-solution {
+  margin-top: 6px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--ink-200, #d8e0ec);
+  background: var(--paper, #f7f9fc);
+  border-radius: 0 8px 8px 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-700, #2c3a55);
+}
+
+.mtk-answer {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-900, #0d1424);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.mtk-empty {
+  padding: 18px 12px;
+  text-align: center;
+  color: var(--ink-400, #8294b1);
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .mtk-row { grid-template-columns: 28px minmax(0, 1fr); }
+  .mtk-row--head span:last-child { display: none; }
+  .mtk-answer { grid-column: 2; }
+}

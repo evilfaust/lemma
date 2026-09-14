@@ -1,0 +1,322 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Лист карточек марафона.
+
+   Раскладка своя (плитка карточек на A4), оформление — общее с движком
+   `print-sheet` и отрезным листом: строго монохром (карточки печатаются пачкой
+   на ч/б принтере), иерархия на кегле и четырёх толщинах линеек:
+     0.35mm — линия поля «Ответ»
+     0.3mm  — квадрат номера задачи
+     0.25mm — рамка карточки
+     0.2pt  — волосяные: разделители шапки и подвала
+
+   🚨 Размеры карточки и зоны условия считает utils/marathonCards.js и передаёт
+   inline: высота карточки известна заранее, иначе длинное условие растянет
+   ячейку сетки и лист поедет.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mcp-root {
+  --mc-ink:    #101010;
+  --mc-ink-3:  #5A5A5A;
+  --mc-ink-4:  #8A8A8A;
+  --mc-rule:   #111111;
+  --mc-rule-2: #9A9A9A;
+  --mc-hair:   #CFCFCF;
+
+  color: var(--mc-ink);
+  max-width: 100%;
+}
+
+/* ── Экранная обвязка ─────────────────────────────────────────────────────── */
+
+.mcp-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.mcp-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Зона измерения условий — вне экрана, ширина = ширине условия в карточке. */
+.mcp-measure {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+.mcp-root--serif .mcp-measure .mcp-text {
+  font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif;
+}
+
+/* ── Лист A4 ──────────────────────────────────────────────────────────────── */
+
+.mcp-sheet {
+  width: 210mm;
+  height: 296mm;   /* не 297: округления печати выдавливали пустую страницу */
+  padding: 4mm;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #D5D7DD;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  margin: 0 auto;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  overflow: hidden;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Колонки и зазор приходят inline — их считает cardSizeMm(). */
+.mcp-grid {
+  display: grid;
+  align-content: start;
+  justify-content: start;
+}
+
+/* ── Карточка ─────────────────────────────────────────────────────────────── */
+
+.mcp-card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  border: 0.25mm solid var(--mc-rule-2);
+  overflow: hidden;
+  background: #fff;
+}
+
+.mcp-card--empty {
+  border-style: dashed;
+  border-color: var(--mc-hair);
+}
+
+/* Шапка: номер, название марафона, марка. Заливки нет — монохром. */
+.mcp-head {
+  display: flex;
+  align-items: center;
+  gap: 2.2mm;
+  padding: 0 2.2mm;
+  border-bottom: 0.2pt solid var(--mc-hair);
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+
+/* Номер задачи — стандартный квадрат движка print-sheet (6.5 мм): от кегля
+   условия не зависит, чтобы листы проекта читались одинаково. */
+.mcp-num {
+  flex: 0 0 6.5mm;
+  height: 6.5mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.3mm solid var(--mc-rule);
+  font-size: 3.3mm;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--mc-ink);
+}
+
+.mcp-head-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 2.6mm;
+  letter-spacing: 0.04em;
+  color: var(--mc-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mcp-head-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 2.2mm;
+  flex: 0 0 auto;
+}
+
+.mcp-diff {
+  font-size: 2.3mm;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mc-ink-4);
+}
+
+.mcp-mark {
+  font-size: 2.3mm;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--mc-ink-4);
+}
+
+/* ── Условие ──────────────────────────────────────────────────────────────── */
+
+.mcp-body {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 2mm 2.2mm;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.mcp-text {
+  /* font-size приходит inline: кегль подбирается под длину условия */
+  line-height: 1.4;
+  color: var(--mc-ink);
+}
+
+.mcp-root--serif .mcp-text {
+  font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif;
+}
+
+.mcp-text p { margin: 0 0 1mm; }
+.mcp-text p:last-child { margin-bottom: 0; }
+.mcp-text .katex { font-size: 1em; }
+.mcp-text .katex-display { margin: 0.3em 0; }
+
+/* Чертёж — под условием по центру: карточка узкая, обтекание тут не читается. */
+.mcp-fig {
+  margin: 1.5mm auto 0;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mcp-fig img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* ── Подвал: поле «Ответ» и код задачи ────────────────────────────────────── */
+
+.mcp-foot {
+  margin-top: auto;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 2mm;
+  padding: 0 2.2mm 1.8mm;
+  box-sizing: border-box;
+}
+
+.mcp-answer {
+  display: flex;
+  align-items: baseline;
+  gap: 1.8mm;
+  flex: 1;
+  min-width: 0;
+}
+
+.mcp-answer-label {
+  font-size: 2.6mm;
+  color: var(--mc-ink-3);
+  white-space: nowrap;
+}
+
+.mcp-answer-line {
+  flex: 1;
+  height: 4mm;
+  border-bottom: 0.35mm solid var(--mc-ink-3);
+  min-width: 12mm;
+}
+
+.mcp-code {
+  font-size: 2.3mm;
+  color: var(--mc-ink-4);
+  white-space: nowrap;
+  margin-left: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Печать
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: любой элемент
+     правее 210 мм включает shrink-to-fit и лист печатается в ~60% масштаба. */
+  html:has(.mcp-root),
+  body:has(.mcp-root) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется (см. CLAUDE.md). */
+  body:has(.mcp-root) { visibility: hidden; }
+  body:has(.mcp-root) .mcp-root { visibility: visible; }
+
+  /* Порталы Ant живут в <body> вне .no-print и держат экранные координаты —
+     тултип настройки где-то на left: 1000px роняет масштаб печати. */
+  body:has(.mcp-root) .ant-tooltip,
+  body:has(.mcp-root) .ant-popover,
+  body:has(.mcp-root) .ant-dropdown,
+  body:has(.mcp-root) .ant-select-dropdown,
+  body:has(.mcp-root) .ant-modal-root,
+  body:has(.mcp-root) .no-print { display: none !important; }
+
+  /* Оболочка приложения не должна создавать контекст позиционирования и
+     обрезку: лист абсолютный от начала печатной области. */
+  body:has(.mcp-root) #root,
+  body:has(.mcp-root) .ant-app,
+  body:has(.mcp-root) .ant-layout,
+  body:has(.mcp-root) .ant-layout-content,
+  body:has(.mcp-root) *:has(.mcp-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.mcp-root) .mcp-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+  }
+
+  .mcp-pages { gap: 0; }
+
+  .mcp-sheet {
+    width: 100%;
+    height: 296mm;
+    min-height: 296mm;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .mcp-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  /* Пустое место в конце пачки — без рамки: это просто поле под рез. */
+  .mcp-card--empty { border-color: transparent !important; }
+
+  .mcp-measure { display: none !important; }
+}

@@ -192,8 +192,16 @@ function WorksheetSheet({ slots, settings, geomOf, baseGeom }) {
  * `utils/marathonWorksheet.js` и ставятся inline: число линий разлиновки должно
  * точно совпадать с высотой зоны, иначе Chrome ужимает печать (~65%).
  */
-export default function MarathonWorksheetPrint({ tasks = [], title, onBack }) {
-  const [settings, setSettings] = useState(readStored);
+export default function MarathonWorksheetPrint({ tasks = [], title, onBack, initialMode = null }) {
+  // Режим приходит из вкладки («с местом для решения» / «только карточка») —
+  // выбор сделан до открытия листа, и пресет применяется сразу, а не после
+  // того, как учитель увидит лист в прошлом режиме.
+  const [settings, setSettings] = useState(() => {
+    const stored = readStored();
+    return initialMode && stored.mode !== initialMode
+      ? applyMarathonWorksheetMode(stored, initialMode)
+      : stored;
+  });
 
   const save = useCallback((next) => {
     setSettings(next);

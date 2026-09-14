@@ -379,89 +379,123 @@
   gap: 16px;
 }
 
+/* Параметры марафона: одна строка, без дублей шапки. */
+.marathon-generator .mg-params {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: #fff;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+}
+
+.marathon-generator .mg-param {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.marathon-generator .mg-param-label {
+  font-size: 13px;
+  color: var(--ink-700);
+}
+
+.marathon-generator .mg-param-id {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+/* Заголовок группы на вкладке печати */
+.marathon-generator .mg-tiles-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.marathon-generator .mg-tiles-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ink-800);
+}
+
+/* Плитка задач — экранный список состава карточек. Оформление строгое, как на
+   печати: номер квадратом, монохром, без наклонов и цветных шапок. */
+.marathon-generator .mg-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.marathon-generator .mg-tile {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--ink-200);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.marathon-generator .mg-tile-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ink-100);
+}
+
+.marathon-generator .mg-tile-num {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--ink-700);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-800);
+  flex: 0 0 auto;
+}
+
+.marathon-generator .mg-tile-diff {
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.marathon-generator .mg-tile-code {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--ink-300);
+}
+
+.marathon-generator .mg-tile-body {
+  padding: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink-800);
+  max-height: 150px;
+  overflow: hidden;
+}
+
+.marathon-generator .mg-tile-body p { margin: 0 0 4px; }
+.marathon-generator .mg-tile-body p:last-child { margin-bottom: 0; }
+.marathon-generator .mg-tile-body img { max-width: 100%; max-height: 80px; object-fit: contain; }
+
 .mg-print-actions {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
-}
-
-/* Экранный превью карточек — сетка как на печати */
-.mg-cards-preview {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
-  padding: 16px 0;
-}
-
-.mg-card-preview-item {
-  border: 1px solid #e8e8e8;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-}
-
-.mg-card-preview__header {
-  padding: 8px 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.mg-card-preview__num {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.3);
-  border: 2px solid rgba(255,255,255,0.6);
-  color: #fff;
-  font-weight: 700;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.mg-card-preview__diff {
-  font-size: 12px;
-  font-weight: 700;
-  color: #fff;
-}
-
-.mg-card-preview__body {
-  padding: 10px 12px;
-  font-size: 13px;
-  font-family: 'Times New Roman', Times, serif;
-  line-height: 1.5;
-  flex: 1;
-}
-
-
-/* Экранный превью таблицы учителя */
-.mg-teacher-preview {
-  overflow-x: auto;
-}
-
-.mg-teacher-preview__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.mg-teacher-preview__table th {
-  background: #fafafa;
-  border: 1px solid #e8e8e8;
-  padding: 6px 10px;
-  text-align: left;
-}
-
-.mg-teacher-preview__table td {
-  border: 1px solid #f0f0f0;
-  padding: 6px 10px;
-  vertical-align: top;
 }
 
 /* Экранный превью рейтинга */
@@ -1781,118 +1815,6 @@
 .marathon-generator .task-num.hard { background: var(--hard, #e23d4e); }
 
 /* ================================================
-   Flashcards (карточки учеников — новый вид)
-   ================================================ */
-
-.marathon-generator .cards-toolbar {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  flex-wrap: wrap;
-  margin-bottom: 20px;
-}
-
-.marathon-generator .cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 20px;
-}
-
-.marathon-generator .flashcard {
-  position: relative;
-  background: white;
-  border-radius: 14px;
-  box-shadow: 0 6px 20px -8px rgba(35,42,82,.18), 0 2px 6px -1px rgba(35,42,82,.08);
-  overflow: hidden;
-  transform: rotate(var(--rot, 0deg));
-  transition: transform 0.25s ease, box-shadow 0.25s ease;
-}
-
-.marathon-generator .flashcard:hover {
-  transform: translateY(-3px) rotate(var(--rot, 0deg));
-  box-shadow: 0 18px 32px -12px rgba(35,42,82,.25), 0 4px 10px rgba(35,42,82,.08);
-}
-
-.marathon-generator .flashcard::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(0,0,0,0.022) 1px, transparent 1px);
-  background-size: 12px 12px;
-  pointer-events: none;
-  opacity: .35;
-}
-
-.marathon-generator .fc-header {
-  height: 42px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: white;
-}
-
-.marathon-generator .fc-header.easy {
-  background: linear-gradient(135deg, #1ab86a 0%, #14a85a 60%, #0e8b48 100%);
-}
-
-.marathon-generator .fc-header.med {
-  background: linear-gradient(135deg, #f1b440 0%, #e89a14 60%, #c97c00 100%);
-}
-
-.marathon-generator .fc-header.hard {
-  background: linear-gradient(135deg, #ee5260 0%, #e23d4e 60%, #b9263a 100%);
-}
-
-.marathon-generator .fc-num {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(255,255,255,.22);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.marathon-generator .fc-diff {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-}
-
-.marathon-generator .fc-code {
-  margin-left: auto;
-  opacity: .7;
-  font-size: 10px;
-  font-family: var(--font-mono, monospace);
-}
-
-.marathon-generator .fc-body {
-  padding: 12px 12px 14px;
-  font-size: 12.5px;
-  line-height: 1.5;
-  color: var(--ink-800, #1a2236);
-  min-height: 130px;
-  position: relative;
-}
-
-.marathon-generator .fc-watermark {
-  position: absolute;
-  right: 8px;
-  bottom: 6px;
-  font-family: var(--font-display, "Manrope", sans-serif);
-  font-weight: 700;
-  font-size: 9px;
-  color: var(--ink-200, #d8e0ec);
-  letter-spacing: .12em;
-  pointer-events: none;
-}
-
-/* ================================================
    StatusStrip — KPI + подиум + лидерборд
    ================================================ */
 
@@ -2470,237 +2392,9 @@
 @media print {
   /* Скрываем body целиком, показываем только нужный print-root.
      body:has() — scoped, не ломает печать других разделов. */
-  body:has(.marathon-cards-print-root) { visibility: hidden; }
-  .marathon-cards-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
-  .marathon-cards-print-root * { visibility: visible; }
-
-  body:has(.marathon-teacher-print-root) { visibility: hidden; }
-  .marathon-teacher-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
-  .marathon-teacher-print-root * { visibility: visible; }
-
   body:has(.marathon-rating-print-root) { visibility: hidden; }
   .marathon-rating-print-root { visibility: visible; position: absolute; top: 0; left: 0; width: 100%; }
   .marathon-rating-print-root * { visibility: visible; }
-}
-
-/* === Карточки учеников (6 на A4, сетка 2×3) === */
-
-/* Страница A4 — сетка 2 колонки × 3 строки */
-.mcp-page {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(3, calc(297mm / 3));
-  width: 210mm;
-  height: 297mm;
-  page-break-after: always;
-  break-after: page;
-  box-sizing: border-box;
-}
-
-.mcp-page:last-child {
-  page-break-after: auto;
-  break-after: auto;
-}
-
-/* Слот — ячейка сетки с отступами */
-.mcp-slot {
-  padding: 2.5mm;
-  box-sizing: border-box;
-}
-
-.mcp-slot--empty {
-  /* пустой слот — просто место */
-}
-
-/* Карточка — белый прямоугольник с рамкой и скруглёнными углами */
-.mcp-card {
-  border: 1px solid #c8c8c8;
-  border-radius: 7px;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
-  background: #fff;
-}
-
-/* ── Шапка карточки ── */
-.mcp-header {
-  display: flex;
-  align-items: flex-start;
-  gap: 2.5mm;
-  padding: 3mm 3mm 0 3mm;
-  flex-shrink: 0;
-}
-
-/* Вертикальный логотип Lemma */
-.mcp-logo {
-  height: 26px;
-  width: auto;
-  flex-shrink: 0;
-  display: block;
-  margin-top: 1px;
-}
-
-/* Правая часть шапки: строка с номером + заголовком + горизонтальная линия */
-.mcp-header-right {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.mcp-title-row {
-  display: flex;
-  align-items: center;
-  gap: 2mm;
-  margin-bottom: 2mm;
-}
-
-/* Кружок с номером задачи */
-.mcp-num {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  color: #fff;
-  font-size: 11pt;
-  font-weight: 700;
-  font-family: Arial, sans-serif;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  line-height: 1;
-}
-
-.mcp-title-text {
-  font-size: 9.5pt;
-  font-weight: 700;
-  font-family: Arial, sans-serif;
-  color: #222;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Разделительная линия под шапкой */
-.mcp-rule {
-  height: 1px;
-  background: #444;
-}
-
-/* ── Тело карточки ── */
-.mcp-body {
-  flex: 1;
-  padding: 2.5mm 3mm 2mm 3mm;
-  font-size: 10.5pt;
-  font-family: 'Times New Roman', Times, serif;
-  line-height: 1.45;
-  overflow: hidden;
-  color: #111;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.mcp-body .katex {
-  font-size: 1em;
-}
-
-.mcp-body .katex-display {
-  margin: 0.25em 0;
-}
-
-/* Текст условия */
-.mcp-body-text {
-  flex-shrink: 0;
-}
-
-/* Область рисунка — занимает всё оставшееся место */
-.mcp-body-image {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-top: 2mm;
-  overflow: hidden;
-}
-
-.mcp-task-image {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-  display: block;
-}
-
-
-/* === Лист учителя === */
-
-.marathon-teacher-print-root {
-  font-family: Arial, sans-serif;
-}
-
-.marathon-teacher__header {
-  margin-bottom: 8px;
-}
-
-.marathon-teacher__header h2 {
-  font-size: 14pt;
-  margin: 0 0 4px;
-}
-
-.marathon-teacher__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 9pt;
-}
-
-.marathon-teacher__table th {
-  background: #333;
-  color: #fff;
-  padding: 4px 6px;
-  border: 1px solid #555;
-  text-align: left;
-}
-
-.marathon-teacher__table td {
-  border: 1px solid #ccc;
-  padding: 4px 6px;
-  vertical-align: top;
-}
-
-.marathon-teacher__table tr {
-  page-break-inside: avoid;
-  break-inside: avoid;
-}
-
-@media print {
-  .marathon-teacher__table thead {
-    display: table-header-group;
-  }
-  .marathon-teacher__table tr {
-    page-break-inside: avoid;
-    break-inside: avoid;
-  }
-}
-
-.marathon-teacher__row--even td {
-  background: #f9f9f9;
-}
-
-.marathon-teacher__col-statement { width: 33%; }
-.marathon-teacher__col-solution { width: 67%; }
-
-.marathon-teacher__task-num {
-  font-weight: 700;
-  font-size: 9pt;
-}
-
-.marathon-teacher__answer {
-  margin-top: 4px;
-  font-size: 8.5pt;
-  color: #333;
 }
 
 /* === Рейтинговый бланк === */

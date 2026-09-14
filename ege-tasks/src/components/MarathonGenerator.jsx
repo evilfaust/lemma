@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Button, Card, Input, InputNumber, Space, List, Tag, Tooltip,
-  Modal, Empty, Spin, message, Popconfirm, Typography, Switch,
+  Modal, Empty, Spin, message, Popconfirm, Typography,
 } from 'antd';
 import {
   PlusOutlined, DeleteOutlined, SaveOutlined, FolderOpenOutlined, CheckCircleOutlined,
@@ -20,10 +20,14 @@ import MarathonTeacherSheetFull from './marathon/MarathonTeacherSheetFull';
 import MarathonRatingPrint from './marathon/MarathonRatingPrint';
 import MarathonWorksheetPrint from './marathon/MarathonWorksheetPrint';
 import MarathonTracker from './marathon/MarathonTracker';
+import MarathonTeacherKey from './marathon/MarathonTeacherKey';
+import PrintOption from './marathon/PrintOption';
+import SheetThumb from './marathon/SheetThumb';
 import StatusStrip from './marathon/StatusStrip';
 import QueueStrip from './marathon/QueueStrip';
 import QueueBoard from './marathon/QueueBoard';
 import MathRenderer from '../shared/components/MathRenderer';
+import { cardFormatLabel, cardGrid, readCardSettings } from '../utils/marathonCards';
 import './MarathonGenerator.css';
 
 const { Text } = Typography;
@@ -68,9 +72,11 @@ export default function MarathonGenerator() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
-  const [printMode, setPrintMode] = useState(null); // 'cards' | 'teacher' | 'rating' | null
-  const [showLogo, setShowLogo] = useState(true);
+  const [printMode, setPrintMode] = useState(null); // 'rating' | null
   const [trackerMode, setTrackerMode] = useState('grid'); // 'grid' | 'queue'
+  // Печатные листы открываются во весь экран (там же их настройки и предпросмотр)
+  const [worksheetMode, setWorksheetMode] = useState(null); // 'work' | 'card' | null
+  const [showCards,        setShowCards]        = useState(false);
   const [showWorksheet,    setShowWorksheet]    = useState(false);
   const [showAnswerSheet,  setShowAnswerSheet]  = useState(false);
   const [showTeacherFull,  setShowTeacherFull]  = useState(false);
@@ -121,11 +127,9 @@ export default function MarathonGenerator() {
     if (existing) existing.remove();
     const style = document.createElement('style');
     style.id = styleId;
-    if (printMode === 'rating') {
-      style.textContent = '@page { size: A4 landscape; margin: 10mm 12mm; }';
-    } else {
-      style.textContent = '@page { size: A4 portrait; margin: 0; }';
-    }
+    // Остался один режим — рейтинговый бланк (альбомный). Карточки и листы
+    // учителя печатаются со своих экранов через printPaged().
+    style.textContent = '@page { size: A4 landscape; margin: 10mm 12mm; }';
     document.head.appendChild(style);
     const timer = setTimeout(() => {
       window.print();
@@ -226,6 +230,10 @@ export default function MarathonGenerator() {
 
   const handlePrint = (type) => setPrintMode(type);
 
+  // Плотность листа карточек живёт в localStorage (её ставят на самом листе) —
+  // перечитываем при возврате оттуда, чтобы схема на вкладке не врала.
+  const cardSettings = useMemo(() => readCardSettings(), [showCards]);
+
   const handleInitTracking = () => {
     if (!students.length) return message.warning('Добавьте учеников');
     if (!tasks.length) return message.warning('Добавьте задачи');
@@ -297,55 +305,24 @@ export default function MarathonGenerator() {
   // Подвкладка: Содержимое (задачи + ученики + параметры)
   const contentTab = (
     <div className="mg-setup">
-      {/* Основные параметры */}
-      <Card size="small" title="Параметры марафона" className="mg-card">
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Space wrap>
-            <div>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Название</Text>
-              <Input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                style={{ width: 300 }}
-                placeholder="Марафон по алгебре"
-              />
-            </div>
-            <div>
-              <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>Класс</Text>
-              <InputNumber
-                value={classNumber}
-                onChange={setClassNumber}
-                min={5} max={11}
-                style={{ width: 80 }}
-              />
-            </div>
-          </Space>
-
-          <Space>
-            <Button
-              icon={<SaveOutlined />}
-              type="primary"
-              onClick={handleSave}
-              loading={saving}
-            >
-              {savedId ? 'Обновить' : 'Сохранить'}
-            </Button>
-            <Button icon={<FolderOpenOutlined />} onClick={handleLoad}>
-              Загрузить
-            </Button>
-            <Popconfirm title="Сбросить всё?" onConfirm={reset}>
-              <Button icon={<ReloadOutlined />} danger>
-                Новый
-              </Button>
-            </Popconfirm>
-          </Space>
-          {savedId && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              ID: {savedId}
-            </Text>
-          )}
-        </Space>
-      </Card>
+      {/* Название и кнопки сохранения живут в шапке страницы — здесь они
+          дублировались, и «Новый» стоял там, где ждёшь «Сохранить». */}
+      <div className="mg-params">
+        <span className="mg-param">
+          <span className="mg-param-label">Класс</span>
+          <InputNumber
+            size="small"
+            value={classNumber}
+            onChange={setClassNumber}
+            min={5} max={11}
+            style={{ width: 72 }}
+          />
+        </span>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          Название марафона и сохранение — в шапке страницы.
+        </Text>
+        {savedId && <span className="mg-param-id">ID: {savedId}</span>}
+      </div>
 
       {/* Задачи */}
       <Card
@@ -523,122 +500,143 @@ export default function MarathonGenerator() {
     </div>
   );
 
-  // Подвкладка: Рабочий лист (отрезные блоки: с местом для решения / только карточка)
+  // ── Вкладки печати ───────────────────────────────────────────────────────
+  // Каждый лист описан одинаково: схема раскладки, что это за лист, что внутри
+  // и кнопка. Настройки и предпросмотр — на экране самого листа.
+
+  const noTasks = tasks.length === 0;
+  const emptyTasks = <Empty description="Добавьте задачи в разделе «Содержимое»" />;
+
+  // Метка сложности на плитке — только когда задачи РАЗНЫЕ. Одинаковая метка на
+  // всех карточках ничего не сообщает и читается как украшение.
+  const mixedDifficulty = new Set(tasks.map(t => t.difficulty || 1)).size > 1;
+
+  const openWorksheet = (mode) => {
+    setWorksheetMode(mode);
+    setShowWorksheet(true);
+  };
+
+  // Подвкладка: Рабочий лист (отрезные блоки: с местом для решения / карточка)
   const worksheetTab = (
     <div className="mg-print-tab">
-      {tasks.length === 0 ? (
-        <Empty description="Добавьте задачи в разделе «Содержимое»" />
-      ) : (
-        <div className="mg-print-actions">
-          <Button
-            type="primary"
-            icon={<PrinterOutlined />}
-            onClick={() => setShowWorksheet(true)}
-            size="large"
-          >
-            Открыть рабочий лист
-          </Button>
-          <Text type="secondary" style={{ fontSize: 13 }}>
-            Отрезные блоки: поле ФИ, клетки попыток и условие задачи — лист режется по
-            пунктиру, блок достаётся ученику. Два режима: «с местом для решения»
-            (клетка / линейка, 2–5 на лист) и «только карточка» без места для записи
-            (3–8 на лист). Оформление — как у входной контрольной.
+      {noTasks ? emptyTasks : (
+        <>
+          <PrintOption
+            thumb={<SheetThumb variant="work" count={3} />}
+            title="С местом для решения"
+            desc="Лист режется по пунктиру, блок достаётся ученику: поле ФИ, клетки попыток, условие и место под запись."
+            bullets={['2–6 блоков на лист', 'клетка, линейка или пусто', 'чертёж в углу зоны решения']}
+            actions={(
+              <Button type="primary" icon={<PrinterOutlined />} onClick={() => openWorksheet('work')}>
+                Открыть лист
+              </Button>
+            )}
+          />
+          <PrintOption
+            thumb={<SheetThumb variant="work" count={5} solution={false} />}
+            title="Только карточка"
+            desc="Те же отрезные блоки во всю ширину листа, но без места для записи: ученик решает в тетради, а задач на лист влезает больше."
+            bullets={['3–12 блоков на лист', 'чертёж внутри карточки', 'без поля ФИ и клеток попыток']}
+            actions={(
+              <Button icon={<PrinterOutlined />} onClick={() => openWorksheet('card')}>
+                Открыть лист
+              </Button>
+            )}
+          />
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            Печатаете на весь класс — включите на листе «Заполнять лист»: пачка закончится
+            ровно на краю листа, без пустого хвоста.
           </Text>
-        </div>
+        </>
       )}
     </div>
   );
 
-  // Подвкладка: Карточки учеников (flashcard-превью)
+  // Подвкладка: Карточки задач (плитка карточек на A4)
   const cardsTab = (
     <div className="mg-print-tab">
-      {tasks.length === 0 ? (
-        <Empty description="Добавьте задачи в разделе «Содержимое»" />
-      ) : (
+      {noTasks ? emptyTasks : (
         <>
-          <div className="cards-toolbar">
-            <button
-              className="btn is-primary"
-              onClick={() => handlePrint('cards')}
-            >
-              <PrinterOutlined /> Печать карточек (A6, 4 на лист)
-            </button>
-            <Space>
-              <Switch size="small" checked={showLogo} onChange={setShowLogo} />
-              <Text type="secondary" style={{ fontSize: 13 }}>Логотип</Text>
-            </Space>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Каждая карточка — одна задача. Распечатайте и разрежьте по пунктиру.
-            </Text>
+          <PrintOption
+            thumb={<SheetThumb variant="cards" count={cardSettings.count} cols={cardGrid(cardSettings.count).cols} />}
+            title="Карточки задач"
+            desc="Лист A4 режется на равные карточки: номер, название марафона и условие. Ученик берёт карточку и решает в тетради."
+            bullets={[
+              `сейчас ${cardSettings.count} на лист · ${cardFormatLabel(cardSettings.count)}`,
+              'от 1 до 12 карточек на лист',
+              'поле «Ответ», код задачи и сложность — по выбору',
+            ]}
+            actions={(
+              <Button type="primary" icon={<PrinterOutlined />} onClick={() => setShowCards(true)}>
+                Открыть карточки
+              </Button>
+            )}
+          />
+
+          <div className="mg-tiles-head">
+            <span className="mg-tiles-title">Что попадёт на карточки</span>
+            <Text type="secondary" style={{ fontSize: 12 }}>{tasks.length} задач в порядке марафона</Text>
           </div>
 
-          <div className="cards-grid">
-            {tasks.map((task, idx) => {
-              const diff = task.difficulty || 1;
-              const diffClass = { 1: 'easy', 2: 'med', 3: 'hard' }[diff];
-              // Детерминированный наклон по task.id
-              const rot = ((task.id.charCodeAt(0) + task.id.charCodeAt(1)) % 7) - 3;
-              return (
-                <div
-                  key={task.id}
-                  className="flashcard"
-                  style={{ '--rot': `${rot * 0.4}deg` }}
-                >
-                  <div className={`fc-header ${diffClass}`}>
-                    <span className="fc-num">{idx + 1}</span>
-                    <span className="fc-diff">{DIFFICULTY_LABEL[diff]}</span>
-                    <span className="fc-code">{task.code}</span>
-                  </div>
-                  <div className="fc-body">
-                    <MathRenderer content={task.statement_md || ''} />
-                    <span className="fc-watermark">LEMMA</span>
-                  </div>
+          <div className="mg-tiles">
+            {tasks.map((task, idx) => (
+              <div key={task.id} className="mg-tile">
+                <div className="mg-tile-head">
+                  <span className="mg-tile-num">{idx + 1}</span>
+                  {mixedDifficulty && (
+                    <span className="mg-tile-diff">
+                      {DIFFICULTY_LABEL[task.difficulty] || DIFFICULTY_LABEL[1]}
+                    </span>
+                  )}
+                  {task.code && <span className="mg-tile-code">{task.code}</span>}
                 </div>
-              );
-            })}
+                <div className="mg-tile-body">
+                  <MathRenderer content={task.statement_md || ''} />
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}
     </div>
   );
 
-  // Подвкладка: Лист учителя (два варианта)
+  // Подвкладка: Лист учителя — ключи на экране + два печатных листа
   const teacherTab = (
     <div className="mg-print-tab">
-      {tasks.length === 0 ? (
-        <Empty description="Добавьте задачи в разделе «Содержимое»" />
-      ) : (
-        <Space direction="vertical" size={16} style={{ width: '100%' }}>
-          {/* Вариант 1: компактный лист ответов */}
-          <div className="mg-print-actions">
-            <Button
-              type="primary"
-              icon={<PrinterOutlined />}
-              onClick={() => setShowAnswerSheet(true)}
-              size="large"
-            >
-              Лист ответов
-            </Button>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              Сетка карточек на одном A4: номер + чертёж + ответ. Без условия.
-              Удобно для большого набора простых задач.
-            </Text>
+      {noTasks ? emptyTasks : (
+        <>
+          <Card size="small" title="Ключи марафона" className="mg-card">
+            <MarathonTeacherKey tasks={tasks} />
+          </Card>
+
+          <div className="mg-tiles-head">
+            <span className="mg-tiles-title">Распечатать</span>
           </div>
 
-          {/* Вариант 2: полный лист учителя */}
-          <div className="mg-print-actions">
-            <Button
-              icon={<PrinterOutlined />}
-              onClick={() => setShowTeacherFull(true)}
-              size="large"
-            >
-              Полный лист учителя
-            </Button>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              Таблица с условием, ответом и решением. Для сложных задач, где нужен контекст при проверке.
-            </Text>
-          </div>
-        </Space>
+          <PrintOption
+            thumb={<SheetThumb variant="answers" count={9} cols={3} />}
+            title="Лист ответов"
+            desc="Один A4: номер, чертёж и ответ, без условий. Лист, с которым стоят у доски, когда очередь идёт подряд."
+            bullets={['сетка подбирается по числу задач', 'чертежи отключаются тумблером']}
+            actions={(
+              <Button type="primary" icon={<PrinterOutlined />} onClick={() => setShowAnswerSheet(true)}>
+                Открыть
+              </Button>
+            )}
+          />
+          <PrintOption
+            thumb={<SheetThumb variant="table" />}
+            title="Полный лист учителя"
+            desc="Таблица с условием, ответом и решением. Для сложных задач, где при проверке нужен контекст."
+            bullets={['условие + ответ + решение', 'печатается на несколько листов']}
+            actions={(
+              <Button icon={<PrinterOutlined />} onClick={() => setShowTeacherFull(true)}>
+                Открыть
+              </Button>
+            )}
+          />
+        </>
       )}
     </div>
   );
@@ -646,21 +644,24 @@ export default function MarathonGenerator() {
   // Подвкладка: Печатный бланк рейтинга
   const ratingTab = (
     <div className="mg-print-tab">
-      <div className="mg-print-actions">
-        <Button
-          type="primary"
-          icon={<PrinterOutlined />}
-          onClick={() => handlePrint('rating')}
-          className="marathon-print-rating-trigger"
-          disabled={!students.length || !tasks.length}
-        >
-          Печать рейтингового бланка (A4)
-        </Button>
-        <Text type="secondary" style={{ fontSize: 12 }}>
-          Бланк для ручного заполнения во время марафона.
-          Кружки — попытки, галочка — задача решена.
-        </Text>
-      </div>
+      <PrintOption
+        thumb={<SheetThumb variant="table" />}
+        title="Бланк рейтинга"
+        desc="Таблица «ученик × задача» для ручного заполнения во время марафона: кружки — попытки, галочка — задача решена."
+        bullets={['A4 альбомный', `${students.length} учеников × ${tasks.length} задач`]}
+        disabled={!students.length || !tasks.length}
+        actions={(
+          <Button
+            type="primary"
+            icon={<PrinterOutlined />}
+            onClick={() => handlePrint('rating')}
+            className="marathon-print-rating-trigger"
+            disabled={!students.length || !tasks.length}
+          >
+            Печать бланка
+          </Button>
+        )}
+      />
 
       {students.length > 0 && tasks.length > 0 ? (
         <div className="mg-rating-preview">
@@ -886,7 +887,18 @@ export default function MarathonGenerator() {
       <MarathonWorksheetPrint
         tasks={tasks}
         title={title}
-        onBack={() => setShowWorksheet(false)}
+        initialMode={worksheetMode}
+        onBack={() => { setShowWorksheet(false); setWorksheetMode(null); }}
+      />
+    );
+  }
+
+  if (showCards) {
+    return (
+      <MarathonCardsPrint
+        tasks={tasks}
+        title={title}
+        onBack={() => setShowCards(false)}
       />
     );
   }
@@ -936,15 +948,15 @@ export default function MarathonGenerator() {
             <button className="btn" onClick={handleLoad}>
               <FolderOpenOutlined /> Загрузить
             </button>
-            {(!savedId || saveStatus === 'dirty' || saveStatus === 'idle') && (
-              <button
-                className="btn is-primary"
-                onClick={handleSave}
-                disabled={saving}
-              >
-                <SaveOutlined /> {savedId ? 'Обновить' : 'Сохранить'}
-              </button>
-            )}
+            {/* Кнопка видна всегда: в «Содержимом» её дубля больше нет, а
+                исчезающее главное действие читается как поломка. */}
+            <button
+              className="btn is-primary"
+              onClick={handleSave}
+              disabled={saving || !tasks.length}
+            >
+              <SaveOutlined /> {savedId ? 'Обновить' : 'Сохранить'}
+            </button>
             {phase === 'live' && students.length > 0 && tasks.length > 0 && (
               <button className="btn" onClick={handleExportCSV} title="Экспорт результатов CSV">
                 ↓ CSV
@@ -1073,10 +1085,7 @@ export default function MarathonGenerator() {
         )}
       </Modal>
 
-      {/* ---- Блоки для печати ---- */}
-      {printMode === 'cards' && (
-        <MarathonCardsPrint tasks={tasks} title={title} showLogo={showLogo} />
-      )}
+      {/* ---- Блок для печати (рейтинговый бланк) ---- */}
       {printMode === 'rating' && (
         <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />
       )}
