@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { App, Button, Checkbox, Collapse, Input, Spin, Tooltip } from 'antd';
+import { App, Button, Checkbox, Collapse, Input, Modal, Spin, Tooltip } from 'antd';
 import {
   ArrowLeftOutlined, SaveOutlined, PlusOutlined, FontSizeOutlined,
-  ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined, EyeOutlined,
+  ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined, EyeOutlined, EditOutlined,
 } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import LatexField from '../shared/LatexField';
 import TaskSelectModal from '../TaskSelectModal';
+import TaskEditModal from '../TaskEditModal';
 import { api } from '../../shared/services/pocketbase';
+import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { R } from '../../App';
 import './listki.css';
 
@@ -18,6 +20,7 @@ export default function ListokEditor() {
   const { sheetId } = useParams();
   const navigate = useNavigate();
   const { modal, message } = App.useApp();
+  const { topics, subtopics, tags, sources, years, reloadData } = useReferenceData();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sheet, setSheet] = useState(null);
@@ -25,6 +28,10 @@ export default function ListokEditor() {
   const [intro, setIntro] = useState('');
   const [items, setItems] = useState([]);
   const [pickOpen, setPickOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [editingHeading, setEditingHeading] = useState(null); // listok_items type=heading
+  const [headingDraft, setHeadingDraft] = useState('');
+  const [headingSaving, setHeadingSaving] = useState(false);
 
   const reload = async () => {
     const its = await api.getListokItems(sheetId);
@@ -90,6 +97,37 @@ export default function ListokEditor() {
     try { await api.removeListokItem(it.id); } catch (e) { console.error(e); message.error('Ошибка удаления'); reload(); }
   };
 
+  // ── Правка самой задачи (общий банк) ──────────────────────────────────
+  const openTaskEditor = async (taskId) => {
+    try {
+      const full = await api.getTask(taskId);
+      setEditingTask(full);
+    } catch (e) { console.error(e); message.error('Не удалось загрузить задачу'); }
+  };
+
+  const saveTask = async (taskId, data) => {
+    try {
+      await api.updateTask(taskId, data);
+      message.success('Задача сохранена');
+      await reload();
+      reloadData?.();
+    } catch (e) { console.error(e); message.error('Ошибка сохранения задачи'); throw e; }
+  };
+
+  // ── Правка заголовка-раздела ──────────────────────────────────────────
+  const openHeadingEditor = (it) => { setHeadingDraft(it.heading_text || ''); setEditingHeading(it); };
+  const saveHeading = async () => {
+    if (!editingHeading) return;
+    setHeadingSaving(true);
+    try {
+      await api.updateListokItem(editingHeading.id, { heading_text: headingDraft.trim() });
+      setEditingHeading(null);
+      await reload();
+      message.success('Заголовок сохранён');
+    } catch (e) { console.error(e); message.error('Ошибка сохранения заголовка'); }
+    finally { setHeadingSaving(false); }
+  };
+
   if (loading) return <div style={{ padding: 48, textAlign: 'center' }}><Spin size="large" /></div>;
   if (!sheet) return null;
 
@@ -145,6 +183,15 @@ export default function ListokEditor() {
                 </>
               )}
               <div className="listok-row-actions">
+                {it.type === 'heading' ? (
+                  <Tooltip title="Править заголовок раздела">
+                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openHeadingEditor(it)} />
+                  </Tooltip>
+                ) : it.task ? (
+                  <Tooltip title="Редактировать задачу (правка идёт в общий банк задач)">
+                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openTaskEditor(it.task)} />
+                  </Tooltip>
+                ) : null}
                 <Tooltip title="Выше"><Button size="small" type="text" icon={<ArrowUpOutlined />} disabled={idx === 0} onClick={() => move(idx, -1)} /></Tooltip>
                 <Tooltip title="Ниже"><Button size="small" type="text" icon={<ArrowDownOutlined />} disabled={idx === items.length - 1} onClick={() => move(idx, 1)} /></Tooltip>
                 <Tooltip title="Убрать"><Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(it)} /></Tooltip>
@@ -153,6 +200,35 @@ export default function ListokEditor() {
           ))}
         </ol>
       )}
+
+      <TaskEditModal
+        task={editingTask}
+        visible={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        onSave={saveTask}
+        allTags={tags}
+        allSources={sources}
+        allYears={years}
+        allSubtopics={subtopics}
+        allTopics={topics}
+      />
+
+      <Modal
+        title="Заголовок-раздел"
+        open={!!editingHeading}
+        onCancel={() => setEditingHeading(null)}
+        onOk={saveHeading}
+        okText="Сохранить"
+        cancelText="Отмена"
+        confirmLoading={headingSaving}
+      >
+        <Input
+          value={headingDraft}
+          onChange={(e) => setHeadingDraft(e.target.value)}
+          onPressEnter={saveHeading}
+          placeholder="Например: Дополнительные задачи"
+        />
+      </Modal>
 
       <TaskSelectModal
         visible={pickOpen}
