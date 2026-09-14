@@ -117,6 +117,20 @@
   font-size: 6mm;
 }
 
+/* Лист без чертежей: карточка = номер + ответ (неравенства, устный счёт). */
+
+.mtas-sheet--nofig .mtas-card { min-height: 13mm; }
+/* Ответ занимает всю карточку под номером: иначе при коротком ответе под
+   серым блоком оставалась белая полоска до min-height. */
+.mtas-sheet--nofig .mtas-card__answer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5.5mm;
+  padding: 2mm;
+}
+
 /* Нижняя строка с ответом */
 
 .mtas-card__answer {
@@ -157,18 +171,45 @@
     print-color-adjust: exact;
   }
 
-  body:has(.mtas-root) * {
-    visibility: hidden;
-  }
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется (см. CLAUDE.md).
+     visibility наследуется, поэтому достаточно вернуть её корню листа. */
+  body:has(.mtas-root) { visibility: hidden; }
+  body:has(.mtas-root) .mtas-root { visibility: visible; }
 
-  body:has(.mtas-root) .mtas-root,
-  body:has(.mtas-root) .mtas-root * {
-    visibility: visible;
-  }
-
+  /* Порталы Ant живут в <body> вне листа и держат экранные координаты —
+     тултип тумблера «Чертежи» иначе ронял бы масштаб печати. */
   body:has(.mtas-root) .mtas-toolbar,
-  body:has(.mtas-root) .ant-card {
+  body:has(.mtas-root) .ant-card,
+  body:has(.mtas-root) .ant-tooltip,
+  body:has(.mtas-root) .ant-popover,
+  body:has(.mtas-root) .ant-dropdown,
+  body:has(.mtas-root) .ant-select-dropdown,
+  body:has(.mtas-root) .ant-modal-root,
+  body:has(.mtas-root) .no-print {
     display: none !important;
+  }
+
+  /* Ширину печатной области Chrome берёт по всему документу: всё, что правее
+     210 мм, включает shrink-to-fit и ужимает лист. */
+  html:has(.mtas-root),
+  body:has(.mtas-root) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.mtas-root) #root,
+  body:has(.mtas-root) .ant-app,
+  body:has(.mtas-root) .ant-layout,
+  body:has(.mtas-root) .ant-layout-content,
+  body:has(.mtas-root) *:has(.mtas-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
   }
 
   body:has(.mtas-root) .mtas-root {
@@ -182,9 +223,9 @@
   }
 
   .mtas-sheet {
-    width: 210mm;
-    height: 297mm;
-    min-height: 297mm;
+    width: 100%;
+    height: 296mm;   /* не 297: округления печати выдавливали пустую страницу */
+    min-height: 296mm;
     margin: 0;
     border: 0;
     padding: 8mm 8mm 6mm;

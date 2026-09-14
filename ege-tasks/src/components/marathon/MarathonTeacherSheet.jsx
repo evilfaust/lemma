@@ -1,34 +1,37 @@
-import { useState } from 'react';
-import { Button, Space, Typography } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Space, Switch, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
+import { printPaged } from '../../utils/printPage';
+import { answerSheetColumns, hasAnyFigure } from '../../utils/marathonWorksheet';
 import './MarathonTeacherSheet.css';
 
 const { Text } = Typography;
 
 /**
- * Лист ответов для учителя:
- * один A4, сетка карточек — номер + чертёж + ответ.
+ * Лист ответов для учителя: один A4, сетка карточек — номер + чертёж + ответ.
  * Условие не отображается.
+ *
+ * Чертежи отключаются тумблером: на марафоне по неравенствам картинок нет, и
+ * колонка с ними — пустые прочерки на весь лист. По умолчанию тумблер стоит по
+ * самим задачам (есть ли у кого-то чертёж), дальше решает учитель.
  */
 export default function MarathonTeacherSheet({ tasks, title, onBack }) {
-  const [printing, setPrinting] = useState(false);
+  const autoFigures = useMemo(() => hasAnyFigure(tasks), [tasks]);
+  const [showFigures, setShowFigures] = useState(autoFigures);
 
-  const handlePrint = () => {
-    const style = document.createElement('style');
-    style.textContent = '@page { size: A4 portrait; margin: 0; }';
-    document.head.appendChild(style);
-    window.print();
-    setTimeout(() => style.remove(), 1500);
-  };
+  // Новый набор задач — снова решаем по задачам (марафон сменился).
+  useEffect(() => { setShowFigures(autoFigures); }, [autoFigures]);
+
+  const handlePrint = () => printPaged();
 
   if (!tasks || !tasks.length) return null;
 
   const n = tasks.length;
 
-  // Автовыбор числа колонок
-  const cols = n <= 6 ? 2 : n <= 12 ? 3 : n <= 20 ? 4 : 5;
+  // Автовыбор числа колонок: без чертежей карточка ниже и уже
+  const cols = answerSheetColumns(n, showFigures);
 
   // Высота картинки зависит от числа колонок и строк
   const rows = Math.ceil(n / cols);
@@ -44,12 +47,18 @@ export default function MarathonTeacherSheet({ tasks, title, onBack }) {
     <div className="mtas-root">
       {/* Панель управления */}
       {onBack && (
-        <div className="mtas-toolbar">
+        <div className="mtas-toolbar no-print">
           <Space>
             <Button icon={<ArrowLeftOutlined />} onClick={onBack}>Назад</Button>
             <Text type="secondary">
               Лист ответов · {n} задач
             </Text>
+            <Tooltip title="Показывать чертежи задач. Без них на карточке остаются только номер и ответ — нужно, когда чертежей нет (неравенства, устный счёт).">
+              <Space size={6}>
+                <Switch size="small" checked={showFigures} onChange={setShowFigures} />
+                <Text style={{ fontSize: 13 }}>Чертежи</Text>
+              </Space>
+            </Tooltip>
           </Space>
           <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
             Печать (A4)
@@ -59,7 +68,7 @@ export default function MarathonTeacherSheet({ tasks, title, onBack }) {
 
       {/* A4 лист */}
       <div
-        className="mtas-sheet"
+        className={`mtas-sheet${showFigures ? '' : ' mtas-sheet--nofig'}`}
         style={{
           '--mtas-cols': cols,
           '--mtas-img-h': `${imgH}mm`,
@@ -71,26 +80,28 @@ export default function MarathonTeacherSheet({ tasks, title, onBack }) {
 
         <div className="mtas-grid">
           {tasks.map((task, idx) => {
-            const imageUrl = api.getTaskImageUrl(task);
+            const imageUrl = showFigures ? api.getTaskImageUrl(task) : '';
 
             return (
               <div key={task.id} className="mtas-card">
                 {/* Номер */}
                 <div className="mtas-card__num">№{idx + 1}</div>
 
-                {/* Картинка */}
-                <div className="mtas-card__img-wrap">
-                  {imageUrl ? (
-                    <img
-                      src={imageUrl}
-                      alt=""
-                      crossOrigin="anonymous"
-                      className="mtas-card__img"
-                    />
-                  ) : (
-                    <div className="mtas-card__no-img">—</div>
-                  )}
-                </div>
+                {/* Картинка — только когда чертежи включены */}
+                {showFigures && (
+                  <div className="mtas-card__img-wrap">
+                    {imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt=""
+                        crossOrigin="anonymous"
+                        className="mtas-card__img"
+                      />
+                    ) : (
+                      <div className="mtas-card__no-img">—</div>
+                    )}
+                  </div>
+                )}
 
                 {/* Ответ */}
                 <div className="mtas-card__answer">

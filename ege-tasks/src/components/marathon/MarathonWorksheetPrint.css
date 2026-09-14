@@ -1,15 +1,33 @@
-/* ===== Marathon Worksheet Print ===== */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Отрезной лист марафона.
+
+   Раскладка своя (N блоков на A4 + линии разреза), оформление — общее с
+   движком `print-sheet`: строго монохром (лист живёт на ч/б принтере),
+   иерархия на кегле и четырёх толщинах линеек:
+     0.5mm  — ничего (жирной линии на отрезном листе нет намеренно)
+     0.35mm — линии для заполнения (ФИ)
+     0.25mm — рамка блока, клетки попыток
+     0.2pt  — волосяные: разрез, разделители внутри блока, клетка
+
+   🚨 Высоты блока, условия и клетки считает utils/marathonWorksheet.js и
+   передаёт inline: число линий клетки обязано совпадать с реальной высотой,
+   иначе Chrome ужимает печать (memory print_grid_overshoot).
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 .mwsp-root {
-  --ink: #151515;
-  --paper: #ffffff;
-  --grid-color: #c4cedf;
-  --border: #b0b8cc;
-  color: var(--ink);
+  --mw-ink:    #101010;
+  --mw-ink-3:  #5A5A5A;
+  --mw-ink-4:  #8A8A8A;
+  --mw-rule:   #111111;
+  --mw-rule-2: #9A9A9A;
+  --mw-hair:   #CFCFCF;
+  --mw-grid:   #D8D8D8;
+
+  color: var(--mw-ink);
   max-width: 100%;
 }
 
-/* ── Toolbar ─────────────────────────────────────── */
+/* ── Экранная обвязка ──────────────────────────────────────────────────────── */
 
 .mwsp-toolbar {
   display: flex;
@@ -20,48 +38,60 @@
   flex-wrap: wrap;
 }
 
-/* ── Страницы ────────────────────────────────────── */
-
 .mwsp-pages {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  align-items: center;
 }
 
-/* ── Лист A4 ─────────────────────────────────────── */
+/* Зона измерения условий — вне экрана. Ширина = ширине условия в блоке,
+   иначе высота занижена и клетке достаётся не столько места, сколько считали. */
+.mwsp-measure {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+.mwsp-root--serif .mwsp-measure .mwsp-task-text {
+  font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif;
+}
+
+/* ── Лист A4 ──────────────────────────────────────────────────────────────── */
 
 .mwsp-sheet {
   width: 210mm;
-  height: 297mm;
+  height: 296mm;   /* не 297: округления печати выдавливали пустую страницу */
   padding: 4mm;
   box-sizing: border-box;
-  background: var(--paper);
-  border: 1.5px solid #c0c0c0;
+  background: #fff;
+  border: 1px solid #D5D7DD;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
   overflow: hidden;
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-/* ── Слот: вмещает CutLine + Block ──────────────── */
-
 .mwsp-slot {
-  flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  flex: 0 0 auto;
 }
 
-/* ── Линия разреза ───────────────────────────────── */
+/* ── Линия разреза ────────────────────────────────────────────────────────── */
 
 .mwsp-cut-line {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  flex: 0 0 5mm;
   height: 5mm;
   padding: 0 1mm;
   -webkit-print-color-adjust: exact;
@@ -70,32 +100,28 @@
 
 .mwsp-cut-dash {
   flex: 1;
-  border-top: 1pt dashed #000;
+  border-top: 0.2pt dashed var(--mw-rule-2);
 }
 
 .mwsp-cut-icon {
-  font-size: 3.8mm;
+  font-size: 3.2mm;
   line-height: 1;
-  color: #000;
+  color: var(--mw-ink-4);
   padding: 0 1.5mm;
-  /* ✂ смотрит вправо вдоль линии */
   display: inline-block;
   transform: rotate(270deg) scaleX(-1);
   -webkit-print-color-adjust: exact;
   print-color-adjust: exact;
 }
 
-/* ── Блок одной задачи ───────────────────────────── */
+/* ── Блок задачи ──────────────────────────────────────────────────────────── */
 
 .mwsp-block {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  border: 0.7pt solid #000;
-  border-radius: 1.5mm;
-  overflow: hidden;
   box-sizing: border-box;
+  border: 0.25mm solid var(--mw-rule-2);
+  overflow: hidden;
 }
 
 .mwsp-block--empty {
@@ -103,130 +129,162 @@
   pointer-events: none;
 }
 
-/* ── Шапка блока: ФИ + квадратики ───────────────── */
-
+/* Шапка: поле ФИ + клетки попыток. Фона нет — монохром без заливок. */
 .mwsp-header {
   display: flex;
   align-items: center;
-  gap: 3mm;
-  padding: 1.5mm 2.5mm;
-  border-bottom: 0.5pt solid #000;
-  flex-shrink: 0;
-  background: #f8f9fb;
+  gap: 4mm;
+  padding: 1.6mm 2.5mm;
+  border-bottom: 0.2pt solid var(--mw-hair);
+  flex: 0 0 auto;
 }
 
 .mwsp-name-area {
   display: flex;
   align-items: baseline;
-  gap: 1.5mm;
+  gap: 1.8mm;
   flex: 1;
   min-width: 0;
 }
 
 .mwsp-name-label {
   font-size: 2.8mm;
-  font-weight: 600;
+  color: var(--mw-ink-3);
   white-space: nowrap;
-  color: #000;
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .mwsp-name-line {
   flex: 1;
-  border-bottom: 0.7pt solid #000;
+  height: 4.4mm;
+  border-bottom: 0.35mm solid var(--mw-ink-3);
   min-width: 20mm;
 }
 
-/* Квадратики попыток */
+/* Клетки попыток */
 
 .mwsp-attempts {
   display: flex;
-  gap: 1.5mm;
+  gap: 1.4mm;
   align-items: flex-end;
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
 .mwsp-attempt-unit {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.6mm;
+  gap: 0.5mm;
 }
 
 .mwsp-attempt-n {
-  font-size: 2mm;
-  color: #000;
-  font-weight: 700;
+  font-size: 2.3mm;
   line-height: 1;
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--mw-ink-4);
 }
 
 .mwsp-attempt-box {
   width: 6mm;
   height: 6mm;
-  border: 0.7pt solid #000;
   box-sizing: border-box;
-  background: #fff;
+  border: 0.25mm solid var(--mw-rule-2);
 }
 
-/* ── Область условия задачи ──────────────────────── */
+/* ── Условие ──────────────────────────────────────────────────────────────── */
 
 .mwsp-content {
   display: flex;
-  align-items: baseline;
-  gap: 1mm;
+  align-items: flex-start;
+  gap: 3.5mm;
   padding: 1.5mm 2.5mm;
-  flex-shrink: 0;
+  box-sizing: border-box;
+  flex: 0 0 auto;
   overflow: hidden;
 }
 
+/* Номер задачи — квадрат, как на листах входной контрольной */
+/* Номер задачи — стандартный квадрат движка print-sheet (6.5 мм): от кегля
+   условия не зависит, чтобы листы проекта читались одинаково. */
 .mwsp-task-num {
-  /* font-size задаётся inline из TEXT_SIZE_CFG */
-  font-weight: 700;
-  flex-shrink: 0;
-  white-space: nowrap;
-  color: var(--ink);
-  line-height: 1.25;
-  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  flex: 0 0 6.5mm;
+  height: 6.5mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.3mm solid var(--mw-rule);
+  font-size: 3.3mm;
+  font-weight: 650;
+  line-height: 1;
+  color: var(--mw-ink);
+}
+
+.mwsp-task-body {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .mwsp-task-text {
-  /* font-size задаётся inline из TEXT_SIZE_CFG */
-  line-height: 1.25;
-  font-style: italic;
-  flex: 1;
-  overflow: hidden;
-  font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", Georgia, serif;
+  /* font-size приходит inline из TEXT_SIZE_MM */
+  line-height: 1.4;
+  color: var(--mw-ink);
 }
 
-.mwsp-task-text p {
-  margin: 0 0 0.3mm;
+.mwsp-root--serif .mwsp-task-text {
+  font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif;
 }
 
-.mwsp-task-text .katex {
-  font-size: 0.92em;
+.mwsp-task-text p { margin: 0 0 1mm; }
+.mwsp-task-text p:last-child { margin-bottom: 0; }
+.mwsp-task-text .katex { font-size: 1em; }
+
+.mwsp-task-code {
+  margin-top: 1mm;
+  font-size: 2.4mm;
+  color: var(--mw-ink-4);
 }
 
-/* ── Клетка для решения ──────────────────────────── */
+/* Чертёж в самой карточке (режим без места для решения) */
+.mwsp-card-drawing {
+  margin-top: 1.5mm;
+  /* max-width / max-height приходят inline из DRAWING_SIZE_CFG */
+}
+
+.mwsp-card-drawing img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+/* ── Место для решения ────────────────────────────────────────────────────── */
 
 .mwsp-grid {
-  flex: 1;
-  min-height: 0;
+  flex: 0 0 auto;
   position: relative;
   overflow: hidden;
-  border-top: 0.5pt solid #000;
+  border-top: 0.2pt solid var(--mw-hair);
+  background: #fff;
 }
 
-/* Линии клетки — нативные HTML-элементы с физическими единицами.
-   mm для позиций → точный шаг 5 мм при печати.
-   pt для толщины → стабильная hairline-линия на любом dpi. */
+.mwsp-grid-label {
+  position: absolute;
+  top: 1mm;
+  left: 2mm;
+  z-index: 2;
+  font-size: 2.3mm;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--mw-ink-4);
+}
+
+/* Линии — обычные div'ы с физическими mm/pt: нативные векторы в PDF. */
 
 .mwsp-h-line {
   position: absolute;
   left: 0;
   right: 0;
   height: 0;
-  border-top: 0.2pt solid #e1e3e8;
+  border-top: 0.2pt solid var(--mw-grid);
   pointer-events: none;
 }
 
@@ -235,20 +293,18 @@
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 0.2pt solid #e1e3e8;
+  border-left: 0.2pt solid var(--mw-grid);
   pointer-events: none;
 }
 
-/* Чертёж поверх клетки — верхний левый угол */
-
+/* Чертёж поверх клетки — правый верхний угол, чтобы не мешать записи */
 .mwsp-grid-drawing {
   position: absolute;
-  top: 2mm;
-  left: 2mm;
+  top: 1.5mm;
+  right: 1.5mm;
   z-index: 1;
   background: #fff;
-  padding: 1mm;
-  border-radius: 0.8mm;
+  padding: 0.8mm;
   /* max-width задаётся inline из DRAWING_SIZE_CFG */
 }
 
@@ -259,31 +315,53 @@
   display: block;
 }
 
-/* ═══════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════════
    Печать
-═══════════════════════════════════════════════════ */
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 @media print {
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: любой элемент
+     правее 210 мм включает shrink-to-fit и лист печатается в ~60% масштаба.
+     Отсюда жёсткая ширина корня документа и overflow: hidden. */
+  html:has(.mwsp-root),
   body:has(.mwsp-root) {
+    width: 210mm !important;
+    max-width: 210mm !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: hidden !important;
     background: #fff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
 
-  body:has(.mwsp-root) * {
-    visibility: hidden;
-  }
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется (см. CLAUDE.md). */
+  body:has(.mwsp-root) { visibility: hidden; }
+  body:has(.mwsp-root) .mwsp-root { visibility: visible; }
 
-  body:has(.mwsp-root) .mwsp-root,
-  body:has(.mwsp-root) .mwsp-root * {
-    visibility: visible;
-  }
+  /* Порталы Ant живут в <body> вне .no-print и держат экранные координаты —
+     тултип настройки где-то на left: 1000px ронял масштаб печати. */
+  body:has(.mwsp-root) .ant-tooltip,
+  body:has(.mwsp-root) .ant-popover,
+  body:has(.mwsp-root) .ant-dropdown,
+  body:has(.mwsp-root) .ant-select-dropdown,
+  body:has(.mwsp-root) .ant-modal-root,
+  body:has(.mwsp-root) .no-print { display: none !important; }
 
-  body:has(.mwsp-root) .mwsp-toolbar,
-  body:has(.mwsp-root) .ant-card {
-    display: none !important;
+  /* Оболочка приложения не должна создавать контекст позиционирования и
+     обрезку: лист абсолютный от начала печатной области. */
+  body:has(.mwsp-root) #root,
+  body:has(.mwsp-root) .ant-app,
+  body:has(.mwsp-root) .ant-layout,
+  body:has(.mwsp-root) .ant-layout-content,
+  body:has(.mwsp-root) *:has(.mwsp-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
   }
 
   body:has(.mwsp-root) .mwsp-root {
@@ -296,38 +374,25 @@
     background: #fff;
   }
 
-  .mwsp-pages {
-    gap: 0;
-  }
+  .mwsp-pages { gap: 0; }
 
   .mwsp-sheet {
-    width: 210mm;
-    height: 297mm;
-    min-height: 297mm;
+    width: 100%;
+    height: 296mm;
+    min-height: 296mm;
     margin: 0;
     border: 0;
-    padding: 4mm;
     box-shadow: none;
-  }
-
-  .mwsp-pages .mwsp-sheet {
     break-after: page;
     page-break-after: always;
   }
 
-  .mwsp-pages .mwsp-sheet:last-child {
+  .mwsp-sheet:last-child {
     break-after: auto;
     page-break-after: auto;
   }
 
-  .mwsp-block--empty {
-    border-color: transparent !important;
-  }
+  .mwsp-block--empty { border-color: transparent !important; }
 
-  .mwsp-header {
-    background: #fff;
-  }
-
-
-
+  .mwsp-measure { display: none !important; }
 }
