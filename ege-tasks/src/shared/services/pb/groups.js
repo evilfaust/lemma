@@ -1,4 +1,4 @@
-import { pb, _logAudit, andOwner, andOwnerOrFree, currentTeacher } from './client.js';
+import { pb, _logAudit, andOwner, andOwnerOrFree, andMineOrCoTaught, currentTeacher } from './client.js';
 import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { registerGroupColors } from '../../utils/groupColors';
@@ -22,11 +22,13 @@ export const groupsApi = {
       const parts = [];
       if (!includeArchived) parts.push('archived != true');
       if (wantedYear) parts.push(`(year = "${escapeFilter(wantedYear)}" || year = "")`);
-      const filter = andOwner(parts.join(' && '));
+      // Мои классы + те, где я второй учитель (`co_teachers`).
+      const filter = andMineOrCoTaught(parts.join(' && '), { groupPath: '', shareField: 'co_teachers' });
       const list = await pb.collection('teaching_groups').getFullList({
         ...(filter ? { filter } : {}),
         // Ручной порядок (sort_order), затем — новые сверху для одинакового sort_order.
         sort: 'sort_order,-created',
+        expand: 'owner,co_teachers',
       });
       registerGroupColors(list);
       return list;
@@ -45,7 +47,7 @@ export const groupsApi = {
 
   async getTeachingGroup(id) {
     try {
-      const rec = await pb.collection('teaching_groups').getOne(id);
+      const rec = await pb.collection('teaching_groups').getOne(id, { expand: 'owner,co_teachers' });
       registerGroupColors([rec]);
       return rec;
     } catch (error) {
@@ -76,6 +78,32 @@ export const groupsApi = {
       console.error('Error updating teaching group:', error);
       throw error;
     }
+  },
+
+  // Второй учитель класса: список коллег, которые ведут класс вместе с
+  // владельцем. 🚨 Это единственный источник со-ведения — правила уроков,
+  // посещаемости, учеников и членств выводят доступ отсюда (миграция
+  // 1786200000). Убрали коллегу — доступ пропал во всех разделах сразу.
+  async setGroupCoTeachers(groupId, teacherIds = []) {
+    try {
+      const rec = await pb.collection('teaching_groups').update(groupId, {
+        co_teachers: teacherIds,
+      }, { expand: 'owner,co_teachers' });
+      const names = (rec.expand?.co_teachers || [])
+        .map((t) => t.name || t.username).filter(Boolean).join(', ');
+      _logAudit('update', 'teaching_groups', groupId,
+        names ? `ведут класс ${rec.name}: ${names}` : `класс ${rec.name} ведёт только владелец`);
+      return rec;
+    } catch (error) {
+      console.error('Error setting co-teachers:', error);
+      throw error;
+    }
+  },
+
+  // Класс чужой — я в нём второй учитель, а не владелец.
+  isCoTaughtGroup(group) {
+    const t = currentTeacher();
+    return !!(t && group?.owner && group.owner !== t.id);
   },
 
   // Переупорядочить группы: orderedIds — желаемый порядок (сверху вниз).

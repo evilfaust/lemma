@@ -28,6 +28,7 @@ import StudentEditModal from '../students/StudentEditModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { WorkspacePageHeader, EmptyState, SectionCard, Chip, groupTone, groupHex } from './ui';
 import CourseMembersSection from './course/CourseMembersSection';
+import CoTeachersSection from './CoTeachersSection';
 
 const { Text } = Typography;
 
@@ -246,6 +247,8 @@ export default function GroupDetail() {
           </div>
         </SectionCard>
       </div>
+
+      <CoTeachersSection group={group} onChanged={load} />
 
       {group.kind === 'course' ? (
         <CourseMembersSection group={group} allStudents={allStudents} />

@@ -379,6 +379,12 @@ export default function TodayDashboard() {
                     {lessonTopic(l) && <div className="td-lesson__topic">{lessonTopic(l)}</div>}
                     <div className="td-lesson__metarow">
                       <Chip tone={tone} dot>{status === 'now' ? 'идёт сейчас' : status === 'done' ? 'проведён' : 'запланирован'}</Chip>
+                      {/* Урок коллеги: я здесь второй учитель, а не ведущий */}
+                      {teacher?.id && l.owner && l.owner !== teacher.id && (
+                        <span className="td-minichip" title="Вы второй учитель на этом уроке">
+                          ведёт {l.expand?.owner?.name || l.expand?.owner?.username || 'коллега'}
+                        </span>
+                      )}
                       {mats > 0 && <span className="td-minichip">📎 {mats}</span>}
                       {needPrep && <span className="td-minichip td-minichip--warn">материалы не готовы</span>}
                     </div>

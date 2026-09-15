@@ -82,6 +82,9 @@ export default function EventInspector({
                   </div>
                   <div className="ci-meta">
                     <div><ClockCircleOutlined /> {dayjs(start).format('D MMMM, HH:mm')}–{dayjs(end).format('HH:mm')}</div>
+                    {r.isForeign && (
+                      <div><UserOutlined /> Ведёт: {r.ownerName || 'коллега'} · вы второй учитель</div>
+                    )}
                   </div>
 
                   {note && (

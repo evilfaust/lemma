@@ -116,8 +116,10 @@ export default function TeacherCalendar() {
   useEffect(() => { load(); }, [load]);
 
   const events = useMemo(
-    () => buildEvents({ lessons, deadlines, todos, schoolEvents, filters, groupFilter }),
-    [lessons, deadlines, todos, schoolEvents, filters, groupFilter],
+    () => buildEvents({
+      lessons, deadlines, todos, schoolEvents, filters, groupFilter, myTeacherId: teacher?.id,
+    }),
+    [lessons, deadlines, todos, schoolEvents, filters, groupFilter, teacher?.id],
   );
 
   const summary = useMemo(

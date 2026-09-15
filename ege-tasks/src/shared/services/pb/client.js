@@ -30,6 +30,32 @@ export function andOwner(filter = '') {
   return filter ? `(${filter}) && ${own}` : own;
 }
 
+/**
+ * Фильтр «моё + со-ведение + то, чем со мной поделились» — для уроков и всего,
+ * что висит на классе (`teaching_groups.co_teachers`, `lessons.shared_with`,
+ * миграции 1786100000/1786200000).
+ *
+ * 🚨 В отличие от `andOwner`, для superadmin фильтр НЕ снимается: иначе
+ * календарь завуча завалило бы уроками всей школы. Видимость здесь — про роль
+ * в конкретном классе, а не про права в системе.
+ *
+ * groupPath  — путь до группы от текущей коллекции ('group', 'teaching_group',
+ *              'lesson.group'); пустая строка = поле со-ведущих лежит на самой
+ *              записи (это сама группа).
+ * shareField — поле точечного доступа ('shared_with' у урока, 'co_teachers'
+ *              у группы).
+ */
+export function andMineOrCoTaught(filter = '', { groupPath = 'group', shareField = '' } = {}) {
+  const t = currentTeacher();
+  // Ученический контур без teacher-auth — хелпер прозрачен, как и andOwner.
+  if (!t) return filter;
+  const parts = [`owner = "${t.id}"`];
+  if (groupPath) parts.push(`${groupPath}.co_teachers ?= "${t.id}"`);
+  if (shareField) parts.push(`${shareField} ?= "${t.id}"`);
+  const mine = `(${parts.join(' || ')})`;
+  return filter ? `(${filter}) && ${mine}` : mine;
+}
+
 // Вариант для учеников: мои ИЛИ ничьи (саморегистрация из ученического
 // приложения владельца не имеет — такие записи видны всем учителям,
 // пока не привязаны; модель привязки — следующий этап).

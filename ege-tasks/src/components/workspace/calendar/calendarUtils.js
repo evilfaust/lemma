@@ -20,10 +20,18 @@ export function deadlineTitle(s) {
     || 'Работа';
 }
 
-// Урок → RBC-событие.
-export function lessonToEvent(l) {
+/** Инициалы учителя для метки чужого урока: «Иванов И.» → «ИИ». */
+export function initialsOf(name = '') {
+  return String(name).trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]).filter(Boolean).join('').toUpperCase();
+}
+
+// Урок → RBC-событие. myTeacherId — чтобы отличить свой урок от чужого
+// (со-ведение класса или точечный доступ): у чужого на чипе метка ведущего.
+export function lessonToEvent(l, myTeacherId = '') {
   const start = new Date(l.date_plan);
   const hasMaterials = Array.isArray(l.materials) && l.materials.length > 0;
+  const ownerName = l.expand?.owner?.name || l.expand?.owner?.username || '';
   return {
     id: l.id,
     title: l.title,
@@ -33,6 +41,9 @@ export function lessonToEvent(l) {
       type: 'lesson',
       raw: l,
       groupId: l.group || '',
+      ownerId: l.owner || '',
+      ownerName,
+      isForeign: !!(myTeacherId && l.owner && l.owner !== myTeacherId),
       // Сама запись группы — в ней лежит выбранный учителем цвет; по одному id
       // цвет тоже находится (реестр), но так он обновляется сразу после правки.
       group: l.expand?.group || null,
@@ -145,7 +156,9 @@ export function todoToEvent(t) {
  * Собрать события под текущие фильтры.
  * filters: { school, lesson, deadline, todo } (bool), groupFilter: id|null.
  */
-export function buildEvents({ lessons, deadlines, todos, schoolEvents = [], filters, groupFilter }) {
+export function buildEvents({
+  lessons, deadlines, todos, schoolEvents = [], filters, groupFilter, myTeacherId = '',
+}) {
   const out = [];
   if (filters.school) {
     // Школьное мероприятие ничьё и без класса — фильтр по группе его не прячет.
@@ -154,7 +167,7 @@ export function buildEvents({ lessons, deadlines, todos, schoolEvents = [], filt
   if (filters.lesson) {
     lessons
       .filter((l) => !groupFilter || l.group === groupFilter)
-      .forEach((l) => out.push(lessonToEvent(l)));
+      .forEach((l) => out.push(lessonToEvent(l, myTeacherId)));
   }
   if (filters.deadline) {
     // У дедлайна нет группы — фильтр по группе его не прячет (как и раньше).

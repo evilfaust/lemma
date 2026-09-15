@@ -2,6 +2,7 @@ import {
   ClockCircleOutlined, PaperClipOutlined, CheckOutlined, FlagFilled, BankOutlined,
 } from '@ant-design/icons';
 import { groupHex } from '../ui';
+import { initialsOf } from './calendarUtils';
 import { useCalendarCtx } from './CalendarContext';
 
 /**
@@ -60,6 +61,12 @@ export default function EventChip({ event }) {
     : (r.hasMaterials ? <PaperClipOutlined className="cal-chip-tail" /> : null);
   return (
     <span className="cal-chip cal-chip--lesson">
+      {/* Чужой урок (веду вторым учителем или мне его расшарили) — метка ведущего */}
+      {r.isForeign && (
+        <span className="cal-chip-owner" title={`Ведёт: ${r.ownerName || 'коллега'}`}>
+          {initialsOf(r.ownerName) || '—'}
+        </span>
+      )}
       <span className="cal-chip-text">{event.title}</span>
       {tail}
     </span>

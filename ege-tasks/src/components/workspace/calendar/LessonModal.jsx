@@ -12,6 +12,7 @@ import AttendanceRoster from '../AttendanceRoster';
 import { Chip } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
+import LessonAccessBar from './LessonAccessBar';
 import { api } from '../../../shared/services/pocketbase';
 
 /**
@@ -265,6 +266,8 @@ export default function LessonModal({
         </Space>
       )}
     >
+      <LessonAccessBar lesson={initial} canEdit={canEdit} onShared={() => {}} />
+
       <Form form={form} layout="vertical" onFinish={handleFinish} style={{ marginTop: 8 }} disabled={!canEdit}>
         <Form.Item name="title" label="Тема урока" rules={[{ required: true, message: 'Введите тему' }]}>
           <Input placeholder="Тема урока" maxLength={500} autoFocus />

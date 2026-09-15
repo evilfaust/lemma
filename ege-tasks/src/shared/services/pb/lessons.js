@@ -1,4 +1,4 @@
-import { pb, _logAudit, andOwner } from './client.js';
+import { pb, _logAudit, andOwner, andMineOrCoTaught, currentTeacher } from './client.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { registerGroupColors } from '../../utils/groupColors';
 
@@ -6,17 +6,20 @@ import { registerGroupColors } from '../../utils/groupColors';
 export const lessonsApi = {
   // ── Lessons (уроки) ────────────────────────────────────────────────────────
   // opts: { from?, to? (ISO), groupId? }
+  // Отдаёт мои уроки + уроки классов, которые я веду вторым учителем, + уроки,
+  // расшаренные мне точечно (`shared_with`). Владелец приезжает в expand —
+  // по нему календарь помечает чужой урок именами ведущего.
   async getLessons({ from, to, groupId } = {}) {
     try {
       const parts = [];
       if (from) parts.push(`date_plan >= "${escapeFilter(from)}"`);
       if (to) parts.push(`date_plan <= "${escapeFilter(to)}"`);
       if (groupId) parts.push(`group = "${escapeFilter(groupId)}"`);
-      const filter = andOwner(parts.join(' && '));
+      const filter = andMineOrCoTaught(parts.join(' && '), { shareField: 'shared_with' });
       const list = await pb.collection('lessons').getFullList({
         ...(filter ? { filter } : {}),
         sort: 'date_plan',
-        expand: 'group,ktp_entry',
+        expand: 'group,ktp_entry,owner',
       });
       // Цвет группы берём прямо отсюда: урок прошлогодней группы рисуется на
       // сетке даже тогда, когда сама группа в пикеры уже не попадает.
@@ -30,7 +33,7 @@ export const lessonsApi = {
 
   async getLesson(id) {
     try {
-      return await pb.collection('lessons').getOne(id, { expand: 'group,ktp_entry' });
+      return await pb.collection('lessons').getOne(id, { expand: 'group,ktp_entry,owner' });
     } catch (error) {
       console.error('Error fetching lesson:', error);
       throw error;
@@ -63,6 +66,26 @@ export const lessonsApi = {
       console.error('Error updating lesson:', error);
       throw error;
     }
+  },
+
+  // Точечный доступ к одному уроку: разовая замена, открытый урок.
+  // Постоянный тандем — не сюда, а в `co_teachers` класса.
+  async shareLesson(id, teacherIds = []) {
+    try {
+      const rec = await pb.collection('lessons').update(id, { shared_with: teacherIds });
+      _logAudit('update', 'lessons', id,
+        teacherIds.length ? `доступ к уроку у ${teacherIds.length} коллег: ${rec.title || id}` : `доступ к уроку закрыт: ${rec.title || id}`);
+      return rec;
+    } catch (error) {
+      console.error('Error sharing lesson:', error);
+      throw error;
+    }
+  },
+
+  // Урок чужой — я вижу его как со-учитель класса или по точечному доступу.
+  isForeignLesson(lesson) {
+    const t = currentTeacher();
+    return !!(t && lesson?.owner && lesson.owner !== t.id);
   },
 
   async deleteLesson(id) {

@@ -29,6 +29,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
+import { teacherLabel } from './CoTeachersSection';
 import { WorkspacePageHeader, EmptyState, Chip, GroupColorPicker, groupHex } from './ui';
 import { collectAcademicYears, currentAcademicYear } from '../../utils/academicYear';
 
@@ -136,7 +137,7 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
 export default function GroupManager() {
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, teacher } = useAuth();
 
   const [groups, setGroups] = useState([]);
   const [counts, setCounts] = useState({}); // groupId -> кол-во учеников
@@ -262,6 +263,13 @@ export default function GroupManager() {
             <div className="ws-tile__name">
               {g.name}
               {g.kind === 'course' && <Tag color="purple" style={{ marginLeft: 6 }}>курс</Tag>}
+              {/* Класс коллеги: я веду его вторым учителем */}
+              {teacher?.id && g.owner && g.owner !== teacher.id && (
+                <Tag color="geekblue" style={{ marginLeft: 6 }}
+                  title={`Ведёт ${teacherLabel(g.expand?.owner)} — вы второй учитель`}>
+                  второй учитель
+                </Tag>
+              )}
               {g.archived && <Tag style={{ marginLeft: 6 }}>архив</Tag>}
             </div>
             {g.subject && <div className="ws-tile__sub">{g.subject}</div>}

@@ -120,6 +120,19 @@
 /* Урок — белый текст на цветном фоне группы (фон даёт eventPropGetter) */
 .cal-chip--lesson { color: #fff; }
 
+/* Метка ведущего на чужом уроке (со-ведение класса / точечный доступ) */
+.cal-chip-owner {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  padding: 2px 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.28);
+  color: inherit;
+}
+
 /* Школьное мероприятие — мягкая полоса общего дела (цвет даёт eventPropGetter
    по типу события или выбору автора; здесь — только форма) */
 .rbc-evt-school {
