@@ -1,0 +1,373 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Бумажный бланк рейтинга марафона.
+
+   Форма для руки: строки — ученики, столбцы — задачи, в клетке квадратики
+   попыток. Оформление общее с движком `print-sheet` и прочими листами
+   марафона — монохром, миллиметры, четыре толщины линеек:
+     0.35mm — линия поля «дата», рамка «Итого»
+     0.3mm  — линия под шапкой таблицы
+     0.25mm — квадратик попытки, группирующая линия каждые 5 задач
+     0.2pt  — волосяные: сетка строк и колонок
+
+   🚨 Ширины колонок и высоты строк приходят inline из utils/marathonRating.js:
+   таблица, которая «разберётся сама», на 17 задачах ужимает колонки до 4 мм.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mrp-root {
+  /* 🚨 Серой краски на листе нет: светло-серая линия (#CFCFCF) на ч/б
+     принтере пропадает вовсе, а серая подпись читается как брак печати.
+     Вся краска чёрная, иерархию держит ТОЛЬКО толщина линии и кегль.
+     Единственное исключение — заливка полос строк: это фон, а не краска. */
+  --mr-ink:    #000000;
+  --mr-ink-3:  #000000;
+  --mr-ink-4:  #000000;
+  --mr-rule:   #000000;
+  --mr-rule-2: #000000;
+  --mr-hair:   #000000;
+  --mr-zebra:  #ECECEC;
+
+  color: var(--mr-ink);
+  max-width: 100%;
+}
+
+/* ── Экранная обвязка ─────────────────────────────────────────────────────── */
+
+.mrp-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.mrp-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  overflow-x: auto;   /* альбомный лист шире экрана — прокручиваем, а не сжимаем */
+}
+
+/* ── Лист ─────────────────────────────────────────────────────────────────── */
+
+.mrp-sheet {
+  box-sizing: border-box;
+  background: #fff;
+  border: 1px solid #D5D7DD;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  overflow: hidden;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* ── Шапка листа ──────────────────────────────────────────────────────────── */
+
+.mrp-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6mm;
+  flex: 0 0 auto;
+  border-bottom: 0.3mm solid var(--mr-rule);
+  padding-bottom: 1.5mm;
+  box-sizing: border-box;
+}
+
+.mrp-title-main {
+  display: flex;
+  align-items: baseline;
+  gap: 3mm;
+  min-width: 0;
+}
+
+.mrp-title-text {
+  font-size: 4.6mm;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mrp-title-kind {
+  font-size: 2.8mm;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mr-ink-4);
+  white-space: nowrap;
+}
+
+.mrp-title-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 4mm;
+  font-size: 2.9mm;
+  color: var(--mr-ink-3);
+  white-space: nowrap;
+}
+
+.mrp-date {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1.5mm;
+}
+
+.mrp-date i {
+  display: inline-block;
+  width: 24mm;
+  border-bottom: 0.35mm solid var(--mr-ink-3);
+}
+
+/* ── Легенда ──────────────────────────────────────────────────────────────── */
+
+.mrp-legend {
+  display: flex;
+  align-items: center;
+  gap: 5mm;
+  flex: 0 0 auto;
+  padding: 0 0.5mm;
+  box-sizing: border-box;
+  font-size: 2.8mm;
+  color: var(--mr-ink-3);
+}
+
+.mrp-legend-label { color: var(--mr-ink); }
+
+.mrp-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.4mm;
+}
+
+.mrp-legend-text { white-space: nowrap; }
+
+/* ── Таблица ──────────────────────────────────────────────────────────────── */
+
+.mrp-table {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 0.2pt solid var(--mr-hair);
+  border-top: 0;
+  box-sizing: border-box;
+}
+
+.mrp-row {
+  display: flex;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border-top: 0.2pt solid var(--mr-hair);
+}
+
+.mrp-row.is-alt { background: var(--mr-zebra); }
+
+/* Каждые пять строк — линия потолще, как и каждые пять задач по горизонтали:
+   на широком листе глаз не соскальзывает на соседнего ученика. */
+.mrp-row.is-group { border-top: 0.25mm solid var(--mr-rule); }
+
+/* Шапка таблицы — без заливки: чёрная плашка на ч/б принтере даёт серую кашу
+   и съедает тонер на каждом бланке. Держит линия под шапкой. */
+.mrp-row--head {
+  border-top: 0;
+  border-bottom: 0.3mm solid var(--mr-rule);
+  align-items: stretch;
+}
+
+.mrp-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 0 1.2mm;
+  border-left: 0.2pt solid var(--mr-hair);
+  overflow: hidden;
+}
+
+.mrp-cell:first-child { border-left: 0; }
+
+/* Каждые пять задач — линия потолще: глаз не сбивается со счёта колонок. */
+.mrp-cell.is-group { border-left: 0.25mm solid var(--mr-rule-2); }
+
+.mrp-cell--index {
+  font-size: 2.6mm;
+  color: var(--mr-ink-4);
+  padding: 0 0.8mm;
+}
+
+.mrp-cell--name {
+  justify-content: flex-start;
+  font-size: 3mm;
+  color: var(--mr-ink);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.mrp-cell--tasknum {
+  font-size: 3.2mm;
+  font-weight: 650;
+}
+
+.mrp-cell--total {
+  font-size: 2.8mm;
+  letter-spacing: 0.04em;
+  border-left: 0.35mm solid var(--mr-rule);
+}
+
+.mrp-row--head .mrp-cell--index,
+.mrp-row--head .mrp-cell--name {
+  font-size: 2.6mm;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mr-ink-4);
+}
+
+/* ── Клетка попыток ───────────────────────────────────────────────────────── */
+
+.mrp-cell--task {
+  gap: 1mm;
+  padding: 0 1.2mm;
+}
+
+.mrp-marks {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1mm;
+  flex: 1;
+  min-width: 0;
+}
+
+.mrp-mark {
+  width: 3.4mm;
+  height: 3.4mm;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  border: 0.25mm solid var(--mr-rule-2);
+  border-radius: 0.5mm;
+  background: #fff;
+}
+
+.mrp-mark.is-filled {
+  background: var(--mr-rule);
+  border-color: var(--mr-rule);
+}
+
+/* Перечёркнутый квадрат в легенде — «не решил». */
+.mrp-mark.is-crossed {
+  position: relative;
+  overflow: hidden;
+}
+
+.mrp-mark.is-crossed::before,
+.mrp-mark.is-crossed::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -20%;
+  width: 140%;
+  border-top: 0.25mm solid var(--mr-rule-2);
+}
+
+.mrp-mark.is-crossed::before { transform: rotate(45deg); }
+.mrp-mark.is-crossed::after  { transform: rotate(-45deg); }
+
+/* Клетка под балл цифрой */
+.mrp-score {
+  height: 4.4mm;
+  box-sizing: border-box;
+  border-left: 0.2pt dashed var(--mr-rule-2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Печать
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: элемент правее
+     листа включает shrink-to-fit и бланк печатается в ~60% масштаба. */
+  html:has(.mrp-root--landscape),
+  body:has(.mrp-root--landscape) {
+    width: 297mm !important;
+    max-width: 297mm !important;
+  }
+
+  html:has(.mrp-root--portrait),
+  body:has(.mrp-root--portrait) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+  }
+
+  html:has(.mrp-root),
+  body:has(.mrp-root) {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется (см. CLAUDE.md). */
+  body:has(.mrp-root) { visibility: hidden; }
+  body:has(.mrp-root) .mrp-root { visibility: visible; }
+
+  /* Порталы Ant живут в <body> вне .no-print и держат экранные координаты. */
+  body:has(.mrp-root) .ant-tooltip,
+  body:has(.mrp-root) .ant-popover,
+  body:has(.mrp-root) .ant-dropdown,
+  body:has(.mrp-root) .ant-select-dropdown,
+  body:has(.mrp-root) .ant-modal-root,
+  body:has(.mrp-root) .no-print { display: none !important; }
+
+  body:has(.mrp-root) #root,
+  body:has(.mrp-root) .ant-app,
+  body:has(.mrp-root) .ant-layout,
+  body:has(.mrp-root) .ant-layout-content,
+  body:has(.mrp-root) *:has(.mrp-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.mrp-root) .mrp-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+  }
+
+  .mrp-pages {
+    gap: 0;
+    overflow: visible;
+  }
+
+  .mrp-sheet {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .mrp-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

@@ -75,7 +75,7 @@
 }
 
 .mtsf-table tbody td {
-  border: 0.5pt solid #bbb;
+  border: 0.5pt solid #000;
   padding: 2mm;
   vertical-align: top;
 }
@@ -143,14 +143,14 @@
 }
 
 .mtsf-no-answer {
-  color: #aaa;
+  color: #000;
   font-style: italic;
   font-weight: 400;
 }
 
 .mtsf-solution {
   font-size: 2.8mm;
-  color: #333;
+  color: #000;
   line-height: 1.3;
 }
 

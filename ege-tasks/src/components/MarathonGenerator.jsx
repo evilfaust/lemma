@@ -72,11 +72,11 @@ export default function MarathonGenerator() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
-  const [printMode, setPrintMode] = useState(null); // 'rating' | null
   const [trackerMode, setTrackerMode] = useState('grid'); // 'grid' | 'queue'
   // Печатные листы открываются во весь экран (там же их настройки и предпросмотр)
   const [worksheetMode, setWorksheetMode] = useState(null); // 'work' | 'card' | null
   const [showCards,        setShowCards]        = useState(false);
+  const [showRating,       setShowRating]       = useState(false);
   const [showWorksheet,    setShowWorksheet]    = useState(false);
   const [showAnswerSheet,  setShowAnswerSheet]  = useState(false);
   const [showTeacherFull,  setShowTeacherFull]  = useState(false);
@@ -118,29 +118,6 @@ export default function MarathonGenerator() {
 
     return () => { alive = false; };
   }, [requestedId, loadMarathon, searchParams, setSearchParams]);
-
-  // Ждём рендера print-блока + загрузки картинок, потом печатаем
-  useEffect(() => {
-    if (!printMode) return;
-    const styleId = 'marathon-print-page-style';
-    const existing = document.getElementById(styleId);
-    if (existing) existing.remove();
-    const style = document.createElement('style');
-    style.id = styleId;
-    // Остался один режим — рейтинговый бланк (альбомный). Карточки и листы
-    // учителя печатаются со своих экранов через printPaged().
-    style.textContent = '@page { size: A4 landscape; margin: 10mm 12mm; }';
-    document.head.appendChild(style);
-    const timer = setTimeout(() => {
-      window.print();
-      setTimeout(() => {
-        const s = document.getElementById(styleId);
-        if (s) s.remove();
-        setPrintMode(null);
-      }, 1000);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [printMode]);
 
   // --- Обработчики ---
 
@@ -227,8 +204,6 @@ export default function MarathonGenerator() {
       message.error('Ошибка удаления');
     }
   };
-
-  const handlePrint = (type) => setPrintMode(type);
 
   // Плотность листа карточек живёт в localStorage (её ставят на самом листе) —
   // перечитываем при возврате оттуда, чтобы схема на вкладке не врала.
@@ -642,54 +617,34 @@ export default function MarathonGenerator() {
   );
 
   // Подвкладка: Печатный бланк рейтинга
+  const ratingReady = students.length > 0 && tasks.length > 0;
   const ratingTab = (
     <div className="mg-print-tab">
       <PrintOption
         thumb={<SheetThumb variant="table" />}
         title="Бланк рейтинга"
-        desc="Таблица «ученик × задача» для ручного заполнения во время марафона: кружки — попытки, галочка — задача решена."
-        bullets={['A4 альбомный', `${students.length} учеников × ${tasks.length} задач`]}
-        disabled={!students.length || !tasks.length}
+        desc="Лист для руки: строки — ученики, столбцы — задачи, в клетке квадратики попыток. Закрасили удачную — балл читается по ней же."
+        bullets={[
+          ratingReady
+            ? `${students.length} учеников × ${tasks.length} задач`
+            : 'нужны ученики и задачи',
+          'альбомный или книжный лист',
+          'не влезло — переносится на следующий лист с шапкой',
+        ]}
+        disabled={!ratingReady}
         actions={(
           <Button
             type="primary"
             icon={<PrinterOutlined />}
-            onClick={() => handlePrint('rating')}
-            className="marathon-print-rating-trigger"
-            disabled={!students.length || !tasks.length}
+            onClick={() => setShowRating(true)}
+            disabled={!ratingReady}
           >
-            Печать бланка
+            Открыть бланк
           </Button>
         )}
       />
-
-      {students.length > 0 && tasks.length > 0 ? (
-        <div className="mg-rating-preview">
-          <table className="mg-rating-preview__table">
-            <thead>
-              <tr>
-                <th>Ученик</th>
-                {tasks.map((_, i) => <th key={i}>{i + 1}</th>)}
-                <th>Итого</th>
-              </tr>
-            </thead>
-            <tbody>
-              {students.map(name => (
-                <tr key={name}>
-                  <td>{name}</td>
-                  {tasks.map((_, i) => (
-                    <td key={i} style={{ textAlign: 'center', color: '#ccc', fontSize: 10 }}>
-                      ○○○
-                    </td>
-                  ))}
-                  <td></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <Empty description="Добавьте учеников и задачи" />
+      {!ratingReady && (
+        <Empty description="Добавьте учеников и задачи в разделе «Содержимое»" />
       )}
     </div>
   );
@@ -903,6 +858,18 @@ export default function MarathonGenerator() {
     );
   }
 
+  if (showRating) {
+    return (
+      <MarathonRatingPrint
+        students={students}
+        tasks={tasks}
+        title={title}
+        classNumber={classNumber}
+        onBack={() => setShowRating(false)}
+      />
+    );
+  }
+
   if (showAnswerSheet) {
     return (
       <MarathonTeacherSheet
@@ -1085,10 +1052,6 @@ export default function MarathonGenerator() {
         )}
       </Modal>
 
-      {/* ---- Блок для печати (рейтинговый бланк) ---- */}
-      {printMode === 'rating' && (
-        <MarathonRatingPrint students={students} taskCount={tasks.length} title={title} />
-      )}
     </div>
   );
 }

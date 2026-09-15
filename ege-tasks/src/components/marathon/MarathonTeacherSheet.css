@@ -113,7 +113,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ccc;
+  color: #000;
   font-size: 6mm;
 }
 
@@ -153,7 +153,7 @@
 }
 
 .mtas-card__no-answer {
-  color: #aaa;
+  color: #000;
   font-weight: 400;
   font-style: italic;
 }
