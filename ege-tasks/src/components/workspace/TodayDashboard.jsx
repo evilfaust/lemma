@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { App, Checkbox, Spin } from 'antd';
 import {
-  CalendarOutlined, CheckOutlined, CheckSquareOutlined, ClockCircleOutlined, EditOutlined,
-  FileTextOutlined, InboxOutlined, PlusOutlined, PushpinFilled, ToolOutlined, WarningOutlined,
+  BankOutlined, CalendarOutlined, CheckOutlined, CheckSquareOutlined, ClockCircleOutlined,
+  EditOutlined, FileTextOutlined, InboxOutlined, PlusOutlined, PushpinFilled, ToolOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
@@ -11,6 +12,7 @@ import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Chip, groupHex, TONE_HEX, SectionCard } from './ui';
 import { lessonStartEnd, lessonProgress } from './lessonTime';
+import { KIND_COLORS } from '../../shared/services/pb/schoolEvents';
 import WeekNavigator from './today/WeekNavigator';
 import NowHero from './today/NowHero';
 import KpiCluster from './today/KpiCluster';
@@ -57,6 +59,7 @@ export default function TodayDashboard() {
   const [deadlines, setDeadlines] = useState([]);
   const [notes, setNotes] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [schoolEvents, setSchoolEvents] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const now = useMemo(() => new Date(nowTick), [nowTick]);
@@ -84,8 +87,12 @@ export default function TodayDashboard() {
     try {
       const from = ws.startOf('day').toISOString();
       const to = ws.add(6, 'day').endOf('day').toISOString();
-      const l = await api.getLessons({ from, to });
+      const [l, se] = await Promise.all([
+        api.getLessons({ from, to }),
+        api.getSchoolEvents({ from, to }).catch(() => []),
+      ]);
       setWeekLessons(l);
+      setSchoolEvents(se);
       if (ws.isSame(dayjs().startOf('week'), 'day')) setThisWeekLessons(l);
     } catch {
       message.error('Не удалось загрузить расписание');
@@ -95,6 +102,14 @@ export default function TodayDashboard() {
   }, [message]);
 
   useEffect(() => { loadWeek(weekStart); }, [weekStart, loadWeek]);
+
+  // Школьные мероприятия выбранного дня: многодневное (каникулы) показывается
+  // в каждый день диапазона, поэтому сравниваем не дату начала, а вхождение.
+  const daySchoolEvents = useMemo(() => schoolEvents.filter((e) => {
+    const start = dayjs(e.date_start).startOf('day');
+    const end = dayjs(e.date_end || e.date_start).endOf('day');
+    return !selectedDate.isBefore(start) && !selectedDate.isAfter(end);
+  }), [schoolEvents, selectedDate]);
 
   // ── Производные ──
   const countByDay = useMemo(() => {
@@ -320,6 +335,19 @@ export default function TodayDashboard() {
             actionLabel="+ Урок"
             onAction={() => navigate('/app/calendar')}
           >
+            {daySchoolEvents.length > 0 && (
+              <div className="td-school">
+                {daySchoolEvents.map((e) => {
+                  const hex = groupHex(e.color || KIND_COLORS[e.kind] || 'slate');
+                  return (
+                    <span key={e.id} className="td-school__item"
+                      style={{ color: hex.ink, background: hex.soft, borderColor: hex.base }}>
+                      <BankOutlined /> {e.title}
+                    </span>
+                  );
+                })}
+              </div>
+            )}
             {selectedLessons.length ? selectedLessons.map((l, i) => {
               const last = i === selectedLessons.length - 1;
               const { start, end } = lessonStartEnd(l);

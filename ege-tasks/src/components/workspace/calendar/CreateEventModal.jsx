@@ -3,11 +3,14 @@ import { Modal, Segmented, Form, Input, Select, DatePicker, App } from 'antd';
 import dayjs from 'dayjs';
 import { PAIRS } from '../lessonTime';
 import { api } from '../../../shared/services/pocketbase';
+import SchoolEventFields from './SchoolEventFields';
+import { schoolEventFormToData } from './calendarUtils';
 
 const TYPES = [
   { value: 'lesson', label: 'Урок' },
   { value: 'deadline', label: 'Дедлайн' },
   { value: 'todo', label: 'Дело' },
+  { value: 'school', label: 'Мероприятие' },
 ];
 
 /**
@@ -31,6 +34,9 @@ export default function CreateEventModal({
       form.setFieldsValue({
         title: '', group: undefined, work: undefined,
         date: base, due: base,
+        // школьное мероприятие
+        kind: 'other', color: '', note_md: '', all_day: true,
+        date_start: base, date_end: null,
       });
     }
   }, [open, initType, initPair, day, form]);
@@ -59,6 +65,8 @@ export default function CreateEventModal({
           time_slot: pair || '',
           materials: [],
         });
+      } else if (type === 'school') {
+        await api.createSchoolEvent(schoolEventFormToData(v));
       } else if (type === 'deadline') {
         await api.createSession({
           work: v.work,
@@ -95,7 +103,8 @@ export default function CreateEventModal({
     >
       <Segmented block options={TYPES} value={type} onChange={setType} style={{ margin: '8px 0 16px' }} />
       <Form form={form} layout="vertical">
-        {type === 'deadline' ? (
+        {type === 'school' && <SchoolEventFields form={form} />}
+        {type !== 'school' && (type === 'deadline' ? (
           <Form.Item name="work" label="Работа" rules={[{ required: true, message: 'Выберите работу' }]}>
             <Select
               showSearch
@@ -109,15 +118,15 @@ export default function CreateEventModal({
             rules={[{ required: true, message: 'Введите название' }]}>
             <Input placeholder={type === 'lesson' ? 'Тема урока' : 'Например: проверить тетради'} maxLength={500} autoFocus />
           </Form.Item>
-        )}
+        ))}
 
-        {type !== 'deadline' && (
+        {type !== 'deadline' && type !== 'school' && (
           <Form.Item name="group" label="Группа">
             <Select allowClear placeholder="Группа" options={groups.map((g) => ({ value: g.id, label: g.name }))} />
           </Form.Item>
         )}
 
-        {type === 'lesson' ? (
+        {type !== 'school' && (type === 'lesson' ? (
           <>
             <Form.Item label="Пара по расписанию">
               <div className="ce-pairs">
@@ -142,7 +151,7 @@ export default function CreateEventModal({
               style={{ width: '100%' }}
             />
           </Form.Item>
-        )}
+        ))}
       </Form>
     </Modal>
   );

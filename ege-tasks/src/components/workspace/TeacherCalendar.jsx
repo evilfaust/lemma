@@ -22,10 +22,12 @@ import RightRail from './calendar/RightRail';
 import EventInspector from './calendar/EventInspector';
 import CreateEventModal from './calendar/CreateEventModal';
 import RepeatLessonModal from './calendar/RepeatLessonModal';
+import SchoolEventModal from './calendar/SchoolEventModal';
 import { CalendarContext, useCalendarCtx } from './calendar/CalendarContext';
 import {
   buildEvents, sortMonthEvents, weekSummary, todayTodos, periodTitle,
 } from './calendar/calendarUtils';
+import { KIND_COLORS } from '../../shared/services/pb/schoolEvents';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import './TeacherCalendar.css';
@@ -70,15 +72,16 @@ function MonthDateCell({ children, value }) {
 export default function TeacherCalendar() {
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, teacher } = useAuth();
 
   const [groups, setGroups] = useState([]);
   const [works, setWorks] = useState([]);
   const [lessons, setLessons] = useState([]);
   const [deadlines, setDeadlines] = useState([]);
   const [todos, setTodos] = useState([]);
+  const [schoolEvents, setSchoolEvents] = useState([]);
 
-  const [filters, setFilters] = useState({ lesson: true, deadline: true, todo: true });
+  const [filters, setFilters] = useState({ school: true, lesson: true, deadline: true, todo: true });
   const [groupFilter, setGroupFilter] = useState(null);
   const [view, setView] = useState(Views.MONTH);
   const [date, setDate] = useState(new Date());
@@ -92,17 +95,19 @@ export default function TeacherCalendar() {
   const [createState, setCreateState] = useState(null); // { type, day, pair } | null
   const [repeatBase, setRepeatBase] = useState(null);   // урок для «Повторить серией»
   const [repeating, setRepeating] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null); // школьное мероприятие в правке
 
   const load = useCallback(async () => {
     try {
-      const [g, l, d, w, t] = await Promise.all([
+      const [g, l, d, w, t, se] = await Promise.all([
         api.getTeachingGroups(),
         api.getLessons(),
         api.getSessionsWithDeadline(),
         api.getWorks(),
         api.getTodos(),
+        api.getSchoolEvents(),
       ]);
-      setGroups(g); setLessons(l); setDeadlines(d); setWorks(w); setTodos(t);
+      setGroups(g); setLessons(l); setDeadlines(d); setWorks(w); setTodos(t); setSchoolEvents(se);
     } catch {
       message.error('Не удалось загрузить календарь');
     }
@@ -111,8 +116,8 @@ export default function TeacherCalendar() {
   useEffect(() => { load(); }, [load]);
 
   const events = useMemo(
-    () => buildEvents({ lessons, deadlines, todos, filters, groupFilter }),
-    [lessons, deadlines, todos, filters, groupFilter],
+    () => buildEvents({ lessons, deadlines, todos, schoolEvents, filters, groupFilter }),
+    [lessons, deadlines, todos, schoolEvents, filters, groupFilter],
   );
 
   const summary = useMemo(
@@ -121,10 +126,11 @@ export default function TeacherCalendar() {
   );
   const railTodos = useMemo(() => todayTodos(todos), [todos]);
   const counts = useMemo(() => ({
+    school: schoolEvents.length,
     lesson: lessons.filter((l) => !groupFilter || l.group === groupFilter).length,
     deadline: deadlines.length,
     todo: todos.filter((t) => !t.done && (!groupFilter || t.group === groupFilter)).length,
-  }), [lessons, deadlines, todos, groupFilter]);
+  }), [lessons, deadlines, todos, schoolEvents, groupFilter]);
 
   // ── Переключение действий с делом (оптимистично) ──
   const toggleTodo = useCallback(async (todo) => {
@@ -170,6 +176,14 @@ export default function TeacherCalendar() {
   // ── eventPropGetter: фон/класс обёртки по типу ──
   const eventPropGetter = useCallback((event) => {
     const r = event.resource || {};
+    if (r.type === 'school') {
+      // Цвет автора, иначе — по типу мероприятия (каникулы зелёные и т.д.).
+      const hex = groupHex(r.color || KIND_COLORS[r.kind] || 'slate');
+      return {
+        className: 'rbc-evt-school',
+        style: { backgroundColor: hex.soft, borderLeftColor: hex.base, color: hex.ink },
+      };
+    }
     if (r.type === 'deadline') return { className: 'rbc-evt-deadline-soft' };
     if (r.type === 'todo') return { className: `rbc-evt-todo${r.done ? ' is-done' : ''}` };
     const hex = groupHex(r.group || r.groupId || '');
@@ -213,6 +227,7 @@ export default function TeacherCalendar() {
     const r = event.resource;
     setSelected(null);
     if (r.type === 'lesson') { setEditing(r.raw); setModalOpen(true); }
+    else if (r.type === 'school') { setEditingEvent(r.raw); }
     else if (r.type === 'todo') { navigate('/app/todos'); }
   };
 
@@ -220,6 +235,7 @@ export default function TeacherCalendar() {
     const r = event.resource;
     try {
       if (r.type === 'lesson') await api.deleteLesson(r.raw.id);
+      else if (r.type === 'school') await api.deleteSchoolEvent(r.raw.id);
       else if (r.type === 'todo') await api.deleteTodo(r.raw.id);
       setSelected(null);
       load();
@@ -386,7 +402,7 @@ export default function TeacherCalendar() {
             eventPropGetter={eventPropGetter}
             dayPropGetter={dayPropGetter}
             components={components}
-            draggableAccessor={() => canEdit}
+            draggableAccessor={(e) => canEdit && e.resource?.type !== 'school'}
             dayLayoutAlgorithm="no-overlap"
             allDayAccessor="allDay"
             style={{ height: 'calc(100vh - 250px)', minHeight: 520 }}
@@ -422,6 +438,7 @@ export default function TeacherCalendar() {
         onOpenNote={handleOpenNoteById}
         canEdit={canEdit}
         canDelete={canDelete}
+        myTeacherId={teacher?.id}
       />
 
       <CreateEventModal
@@ -448,6 +465,13 @@ export default function TeacherCalendar() {
         onOpenMaterial={handleOpenMaterial}
         onRepeat={(lesson) => { setModalOpen(false); setEditing(null); setRepeatBase(lesson); }}
         onCancel={() => { setModalOpen(false); setEditing(null); }}
+      />
+
+      <SchoolEventModal
+        open={!!editingEvent}
+        initial={editingEvent}
+        onClose={() => setEditingEvent(null)}
+        onSaved={load}
       />
 
       <RepeatLessonModal

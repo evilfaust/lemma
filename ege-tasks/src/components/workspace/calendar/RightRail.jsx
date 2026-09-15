@@ -3,8 +3,8 @@ import { PlusOutlined, CheckOutlined, FlagFilled } from '@ant-design/icons';
 import { groupHex, Chip, GroupColorPicker } from '../ui';
 import { dueChip } from './calendarUtils';
 
-const SWATCH = { lesson: '#2B4BFF', deadline: '#D97706', todo: '#0D9488' };
-const FILTER_LABEL = { lesson: 'Уроки', deadline: 'Дедлайны', todo: 'Дела' };
+const SWATCH = { school: '#475569', lesson: '#2B4BFF', deadline: '#D97706', todo: '#0D9488' };
+const FILTER_LABEL = { school: 'Школьные', lesson: 'Уроки', deadline: 'Дедлайны', todo: 'Дела' };
 
 function Metric({ label, value, color }) {
   return (
@@ -39,7 +39,7 @@ export default function RightRail({
       {/* b) Фильтры «Показывать на сетке» */}
       <div className="cr-block">
         <div className="cr-block-title">Показывать на сетке</div>
-        {['lesson', 'deadline', 'todo'].map((k) => (
+        {['school', 'lesson', 'deadline', 'todo'].map((k) => (
           <div key={k} className="cr-filter">
             <span className="cr-swatch" style={{ background: SWATCH[k] }} />
             <span className="cr-filter-label">{FILTER_LABEL[k]}</span>

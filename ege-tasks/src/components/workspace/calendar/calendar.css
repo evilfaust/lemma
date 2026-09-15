@@ -120,6 +120,15 @@
 /* Урок — белый текст на цветном фоне группы (фон даёт eventPropGetter) */
 .cal-chip--lesson { color: #fff; }
 
+/* Школьное мероприятие — мягкая полоса общего дела (цвет даёт eventPropGetter
+   по типу события или выбору автора; здесь — только форма) */
+.rbc-evt-school {
+  border: 1px solid transparent !important;
+  border-left-width: 3px !important;
+  font-weight: 600;
+}
+.cal-chip--school { color: inherit; }
+
 /* Дедлайн — мягкий янтарный */
 .rbc-evt-deadline-soft {
   background-color: #FEF3C7 !important;

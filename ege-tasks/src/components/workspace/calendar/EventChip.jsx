@@ -1,5 +1,5 @@
 import {
-  ClockCircleOutlined, PaperClipOutlined, CheckOutlined, FlagFilled,
+  ClockCircleOutlined, PaperClipOutlined, CheckOutlined, FlagFilled, BankOutlined,
 } from '@ant-design/icons';
 import { groupHex } from '../ui';
 import { useCalendarCtx } from './CalendarContext';
@@ -31,6 +31,15 @@ export default function EventChip({ event }) {
         </span>
         <span className="cal-chip-text">{event.title}</span>
         {r.priority === 'high' && !done && <FlagFilled className="cal-flag" />}
+      </span>
+    );
+  }
+
+  if (r.type === 'school') {
+    return (
+      <span className="cal-chip cal-chip--school">
+        <BankOutlined className="cal-chip-ico" />
+        <span className="cal-chip-text">{event.title}</span>
       </span>
     );
   }

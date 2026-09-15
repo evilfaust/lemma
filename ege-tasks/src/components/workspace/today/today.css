@@ -311,3 +311,24 @@
   .td-weeknav { width: 100%; justify-content: space-between; }
   .td-weeknav__day { min-width: 0; flex: 1; }
 }
+
+/* ── Школьные мероприятия в расписании дня (общий календарь) ── */
+.td-school {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 0 10px;
+  margin-bottom: 10px;
+  border-bottom: 1px dashed var(--rule-soft);
+}
+.td-school__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  border-left-width: 3px;
+}

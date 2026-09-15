@@ -6,8 +6,10 @@
 import dayjs from 'dayjs';
 import { endForLesson } from '../lessonTime';
 
-// Порядок типов в ячейке месяца: дедлайн → урок → дело.
-export const TYPE_ORDER = { deadline: 0, lesson: 1, todo: 2 };
+// Порядок типов в ячейке месяца: школьное → дедлайн → урок → дело.
+// Мероприятие сверху намеренно: оно меняет весь день (педсовет, каникулы),
+// и учитель должен увидеть его раньше, чем свои уроки.
+export const TYPE_ORDER = { school: 0, deadline: 1, lesson: 2, todo: 3 };
 
 // Заголовок дедлайна из связанной сущности.
 export function deadlineTitle(s) {
@@ -38,6 +40,69 @@ export function lessonToEvent(l) {
       status: l.status || 'planned',
       hasMaterials,
     },
+  };
+}
+
+/**
+ * Школьное мероприятие → all-day событие (`school_events`).
+ * Многодневное (каникулы, неделя математики) отдаётся ОДНИМ событием с
+ * диапазоном — react-big-calendar сам растянет полосу по неделям.
+ */
+export function schoolEventToEvent(e) {
+  const start = new Date(e.date_start);
+  const allDay = e.all_day !== false;
+  const endSource = e.date_end || e.date_start;
+  const end = allDay
+    ? dayjs(endSource).endOf('day').toDate()
+    : new Date(e.date_end || e.date_start);
+  return {
+    id: `se_${e.id}`,
+    title: e.title,
+    start,
+    end,
+    allDay,
+    resource: {
+      type: 'school',
+      raw: e,
+      groupId: '',
+      kind: e.kind || 'other',
+      color: e.color || '',
+      ownerId: e.owner || '',
+      ownerName: e.expand?.owner?.name || e.expand?.owner?.username || '',
+      multiDay: !!e.date_end && !dayjs(e.date_end).isSame(e.date_start, 'day'),
+    },
+  };
+}
+
+/**
+ * Значения формы мероприятия → запись для PB. Пустой «по» пишем пустой строкой
+ * (в PB это «однодневное»), а не датой начала: иначе однодневные и многодневные
+ * события стали бы неразличимы.
+ */
+export function schoolEventFormToData(v = {}) {
+  const allDay = v.all_day !== false;
+  const end = v.date_end ? (allDay ? dayjs(v.date_end).endOf('day') : dayjs(v.date_end)) : null;
+  return {
+    title: (v.title || '').trim(),
+    kind: v.kind || 'other',
+    color: v.color || '',
+    note_md: v.note_md || '',
+    all_day: allDay,
+    date_start: (allDay ? dayjs(v.date_start).startOf('day') : dayjs(v.date_start)).toISOString(),
+    date_end: end ? end.toISOString() : '',
+  };
+}
+
+/** Запись PB → значения формы. */
+export function schoolEventToForm(e = {}, fallbackDay = null) {
+  return {
+    title: e.title || '',
+    kind: e.kind || 'other',
+    color: e.color || '',
+    note_md: e.note_md || '',
+    all_day: e.all_day !== false,
+    date_start: e.date_start ? dayjs(e.date_start) : dayjs(fallbackDay || undefined),
+    date_end: e.date_end ? dayjs(e.date_end) : null,
   };
 }
 
@@ -78,10 +143,14 @@ export function todoToEvent(t) {
 
 /**
  * Собрать события под текущие фильтры.
- * filters: { lesson, deadline, todo } (bool), groupFilter: id|null.
+ * filters: { school, lesson, deadline, todo } (bool), groupFilter: id|null.
  */
-export function buildEvents({ lessons, deadlines, todos, filters, groupFilter }) {
+export function buildEvents({ lessons, deadlines, todos, schoolEvents = [], filters, groupFilter }) {
   const out = [];
+  if (filters.school) {
+    // Школьное мероприятие ничьё и без класса — фильтр по группе его не прячет.
+    schoolEvents.forEach((e) => out.push(schoolEventToEvent(e)));
+  }
   if (filters.lesson) {
     lessons
       .filter((l) => !groupFilter || l.group === groupFilter)

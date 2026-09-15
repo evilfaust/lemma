@@ -4,18 +4,20 @@ import { Button, Popconfirm } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined,
   TeamOutlined, FlagFilled, CloseOutlined, PaperClipOutlined, FileTextOutlined,
-  EyeOutlined, RightOutlined,
+  EyeOutlined, RightOutlined, BankOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { Chip, GroupChip, LessonStatusChip, groupHex } from '../ui';
 import { lessonStartEnd } from '../lessonTime';
 import { api } from '../../../shared/services/pocketbase';
 import { deadlineTitle } from './calendarUtils';
+import { KIND_LABELS, KIND_COLORS } from '../../../shared/services/pb/schoolEvents';
 import FilePreviewModal from '../FilePreviewModal';
 
 const TYPE_CHIP = {
   lesson: { tone: 'blue', label: 'Урок' },
   deadline: { tone: 'amber', label: 'Дедлайн' },
   todo: { tone: 'teal', label: 'Дело' },
+  school: { tone: 'slate', label: 'Школьное' },
 };
 
 /**
@@ -24,6 +26,7 @@ const TYPE_CHIP = {
  */
 export default function EventInspector({
   event, onClose, onEdit, onDelete, onToggleTodo, onOpenWork, onOpenNote, canEdit, canDelete,
+  myTeacherId = '',
 }) {
   const open = !!event;
   const r = event?.resource || {};
@@ -121,6 +124,51 @@ export default function EventInspector({
                       </Popconfirm>
                     )}
                   </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Школьное мероприятие ── */}
+            {type === 'school' && (() => {
+              const e = r.raw;
+              const hex = groupHex(r.color || KIND_COLORS[r.kind] || 'slate');
+              const start = dayjs(e.date_start);
+              const end = e.date_end ? dayjs(e.date_end) : null;
+              const allDay = e.all_day !== false;
+              const fmt = allDay ? 'D MMMM YYYY' : 'D MMMM YYYY, HH:mm';
+              // Правит и удаляет только автор — у остальных PB вернёт 403.
+              const mine = !!myTeacherId && e.owner === myTeacherId;
+              return (
+                <div className="ci-body">
+                  <div className="ci-title">{e.title}</div>
+                  <div className="ci-chips">
+                    <Chip tone="neutral" dot={false} style={{ color: hex.ink, background: hex.soft }}>
+                      <BankOutlined /> {KIND_LABELS[r.kind] || 'Мероприятие'}
+                    </Chip>
+                    {allDay && <Chip tone="neutral" dot={false}>весь день</Chip>}
+                  </div>
+                  <div className="ci-meta">
+                    <div>
+                      <ClockCircleOutlined />{' '}
+                      {end && !end.isSame(start, 'day')
+                        ? `${start.format('D MMMM')} — ${end.format(fmt)}`
+                        : start.format(fmt)}
+                    </div>
+                    {r.ownerName && <div><UserOutlined /> Завёл: {r.ownerName}</div>}
+                  </div>
+                  {e.note_md && <div className="ci-warn" style={{ whiteSpace: 'pre-wrap' }}>{e.note_md}</div>}
+                  {canEdit && mine && (
+                    <div className="ci-actions">
+                      <Button icon={<EditOutlined />} onClick={() => onEdit(event)}>Изменить</Button>
+                      {canDelete && (
+                        <Popconfirm title="Удалить мероприятие?" description="Оно пропадёт у всех учителей."
+                          okText="Удалить" cancelText="Отмена"
+                          okButtonProps={{ danger: true }} onConfirm={() => onDelete(event)}>
+                          <Button danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })()}

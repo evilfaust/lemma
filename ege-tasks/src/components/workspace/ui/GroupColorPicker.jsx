@@ -4,14 +4,19 @@ import {
 } from './groupColor';
 
 /**
- * Палитра цвета класса: «авто» (оттенок по id, как было до v3.9.203) плюс
- * 13 оттенков. Поле формы Ant Design — value/onChange, пустая строка = авто.
+ * Палитра цвета: «авто» плюс 13 оттенков. Поле формы Ant Design —
+ * value/onChange, пустая строка = авто.
  *
- * autoKey — id (или имя) группы: по нему рисуется превью автоцвета, чтобы
- * учитель видел, от чего отказывается.
+ * autoKey  — id (или имя) сущности: по нему рисуется превью автоцвета, чтобы
+ *            учитель видел, от чего отказывается (класс красится по хешу id).
+ * autoTone — готовый оттенок вместо хеша: у школьных мероприятий «авто» = цвет
+ *            по типу события, а не по случайному id.
+ * autoLabel — подпись кнопки «авто» (например «по типу»).
  */
-export default function GroupColorPicker({ value = '', onChange, autoKey = '' }) {
-  const auto = TONE_HEX[autoGroupTone(autoKey)];
+export default function GroupColorPicker({
+  value = '', onChange, autoKey = '', autoTone = '', autoLabel = 'авто',
+}) {
+  const auto = TONE_HEX[autoTone] || TONE_HEX[autoGroupTone(autoKey)];
   const pick = (v) => onChange?.(v === value ? '' : v);
 
   return (
@@ -23,7 +28,7 @@ export default function GroupColorPicker({ value = '', onChange, autoKey = '' })
         title="Цвет подберётся автоматически"
       >
         <span className="ws-palette__dot" style={{ background: auto.base }} />
-        авто
+        {autoLabel}
       </button>
       {GROUP_COLORS.map((tone) => (
         <button
