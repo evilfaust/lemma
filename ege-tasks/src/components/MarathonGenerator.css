@@ -31,9 +31,12 @@
   --radius-lg: 16px;
   --font-display: "Manrope", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-
-  background: var(--paper);
 }
+
+/* Фона у раздела нет намеренно: страница живёт в белой карточке роута
+   (App.jsx → Content), и своя «бумажная» подложка рисовалась серым
+   прямоугольником, который обрывался там, где кончался контент. Глубину дают
+   сами блоки — белые карточки с рамкой, как в «Моём пространстве». */
 
 /* ---- Sticky header ---- */
 

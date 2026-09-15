@@ -5,11 +5,9 @@ import './PrintOption.css';
  * кнопка. Один вид на все вкладки печати марафона — раньше там лежали голая
  * кнопка и абзац текста, и вкладки читались как набор случайных кнопок.
  */
-export default function PrintOption({
-  thumb, title, desc, bullets = [], actions, disabled = false, tone = 'default',
-}) {
+export default function PrintOption({ thumb, title, desc, bullets = [], actions, disabled = false }) {
   return (
-    <div className={`mg-opt${disabled ? ' is-disabled' : ''}${tone === 'quiet' ? ' mg-opt--quiet' : ''}`}>
+    <div className={`mg-opt${disabled ? ' is-disabled' : ''}`}>
       {thumb && <div className="mg-opt-thumb">{thumb}</div>}
 
       <div className="mg-opt-main">
