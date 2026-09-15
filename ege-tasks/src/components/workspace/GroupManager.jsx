@@ -29,7 +29,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
-import { WorkspacePageHeader, EmptyState, Chip, groupHex } from './ui';
+import { WorkspacePageHeader, EmptyState, Chip, GroupColorPicker, groupHex } from './ui';
 import { collectAcademicYears, currentAcademicYear } from '../../utils/academicYear';
 
 const { Text } = Typography;
@@ -50,6 +50,7 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
             hours_per_week: null,
             umk: '',
             year: currentAcademicYear(),
+            color: '',
             kind: 'class',
             conference_url: '',
             board_url: '',
@@ -84,6 +85,13 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
           rules={[{ required: true, message: 'Введите название (напр. «9А»)' }]}
         >
           <Input placeholder={kind === 'course' ? 'Летний интенсив 10 кл.' : '9А'} maxLength={100} autoFocus />
+        </Form.Item>
+        <Form.Item
+          name="color"
+          label="Цвет"
+          tooltip="Цветом группа помечена везде: события календаря, «Сегодня», журнал, КТП, заметки. «Авто» — цвет подбирается по группе сам."
+        >
+          <GroupColorPicker autoKey={initial?.id || initial?.name || ''} />
         </Form.Item>
         {kind === 'course' && (
           <>
@@ -148,7 +156,7 @@ export default function GroupManager() {
     try {
       // Годы собираем по всем группам, включая архивные, — иначе прошлый год
       // пропадёт из селектора сразу после перевода.
-      const all = await api.getTeachingGroups({ includeArchived: true });
+      const all = await api.getTeachingGroups({ includeArchived: true, allYears: true });
       const years = collectAcademicYears(all);
       setKnownYears(years);
       // Год из состояния мог оказаться пустым (первый запуск, все группы без
@@ -233,7 +241,7 @@ export default function GroupManager() {
   const stop = (e) => e.stopPropagation();
 
   const renderCard = (g, index) => {
-    const hex = groupHex(g.id || g.name);
+    const hex = groupHex(g);
     const n = counts[g.id] ?? 0;
     const initials = (g.name || '?').replace(/[«»"]/g, '').trim().slice(0, 2).toUpperCase();
     const meta = [

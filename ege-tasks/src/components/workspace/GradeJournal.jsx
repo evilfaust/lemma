@@ -79,7 +79,8 @@ export default function GradeJournal() {
     (async () => {
       setLoadingGroups(true);
       try {
-        const list = await api.getTeachingGroups();
+        // Журнал — исторический экран: прошлогодний класс должен открываться.
+        const list = await api.getTeachingGroups({ allYears: true });
         setGroups(list);
         if (list.length && !groupId) setGroupId(list[0].id);
       } catch {

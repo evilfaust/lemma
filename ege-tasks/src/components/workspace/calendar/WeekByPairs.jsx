@@ -86,7 +86,7 @@ export default function WeekByPairs({ date, events }) {
               {items.map((e) => {
                 const r = e.resource;
                 if (r.type === 'todo') {
-                  const accent = r.groupId ? groupHex(r.groupId).base : '#0D9488';
+                  const accent = (r.group || r.groupId) ? groupHex(r.group || r.groupId).base : '#0D9488';
                   return (
                     <div key={e.id} className={`cw-ad cw-ad--todo${r.done ? ' is-done' : ''}`}
                       onClick={() => onSelectEvent(e)} role="button" tabIndex={0}>
@@ -130,7 +130,7 @@ export default function WeekByPairs({ date, events }) {
                   onClick={(e) => { if (e.target === e.currentTarget && !cell.length) onCreateInSlot(d.toDate(), p.key); }}>
                   {cell.map((e) => {
                     const r = e.resource;
-                    const hex = groupHex(r.groupId);
+                    const hex = groupHex(r.group || r.groupId);
                     const muted = r.status === 'done' || r.status === 'cancelled';
                     return (
                       <div key={e.id}

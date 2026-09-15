@@ -15,7 +15,7 @@ export default function EventChip({ event }) {
 
   if (r.type === 'todo') {
     const done = r.done;
-    const accent = r.groupId ? groupHex(r.groupId).base : '#0D9488';
+    const accent = (r.group || r.groupId) ? groupHex(r.group || r.groupId).base : '#0D9488';
     return (
       <span className={`cal-chip cal-chip--todo${done ? ' is-done' : ''}`}>
         <span

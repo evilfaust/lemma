@@ -288,7 +288,8 @@ export default function NotesWorkspace() {
   const load = useCallback(async (selectId) => {
     setLoading(true);
     try {
-      const [list, g] = await Promise.all([api.getNotes(), api.getTeachingGroups()]);
+      // Заметки живут дольше учебного года — классы берём за все годы.
+      const [list, g] = await Promise.all([api.getNotes(), api.getTeachingGroups({ allYears: true })]);
       setNotes(list);
       setGroups(g);
       const wanted = selectId || searchParams.get('note');

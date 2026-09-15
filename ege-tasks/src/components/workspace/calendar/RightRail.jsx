@@ -1,6 +1,6 @@
-import { Switch, Button } from 'antd';
+import { Switch, Button, Popover } from 'antd';
 import { PlusOutlined, CheckOutlined, FlagFilled } from '@ant-design/icons';
-import { groupHex, Chip } from '../ui';
+import { groupHex, Chip, GroupColorPicker } from '../ui';
 import { dueChip } from './calendarUtils';
 
 const SWATCH = { lesson: '#2B4BFF', deadline: '#D97706', todo: '#0D9488' };
@@ -21,7 +21,7 @@ function Metric({ label, value, color }) {
  */
 export default function RightRail({
   summary, filters, setFilters, counts, groups, groupFilter, setGroupFilter,
-  today, onToggleTodo, onSelectTodo, onCreateTodo, canEdit,
+  today, onToggleTodo, onSelectTodo, onCreateTodo, onSetGroupColor, canEdit,
 }) {
   return (
     <aside className="cal-rail">
@@ -58,17 +58,46 @@ export default function RightRail({
             >
               Все группы
             </span>
-            {groups.map((g) => (
-              <span
-                key={g.id}
-                className={`cr-pill${groupFilter === g.id ? ' is-active' : ''}`}
-                onClick={() => setGroupFilter(groupFilter === g.id ? null : g.id)}
-                role="button" tabIndex={0}
-              >
-                <span className="cr-dot" style={{ background: groupHex(g.id).base }} />
-                {g.name}
-              </span>
-            ))}
+            {groups.map((g) => {
+              // Точка легенды — она же кнопка смены цвета класса: цвет правят
+              // там, где он мешает, не уходя в «Классы и группы».
+              const dot = (
+                <span
+                  className={`cr-dot${canEdit && onSetGroupColor ? ' cr-dot--edit' : ''}`}
+                  style={{ background: groupHex(g).base }}
+                  title={canEdit && onSetGroupColor ? 'Цвет класса' : undefined}
+                  onClick={(e) => { if (canEdit && onSetGroupColor) e.stopPropagation(); }}
+                />
+              );
+              return (
+                <span
+                  key={g.id}
+                  className={`cr-pill${groupFilter === g.id ? ' is-active' : ''}`}
+                  onClick={() => setGroupFilter(groupFilter === g.id ? null : g.id)}
+                  role="button" tabIndex={0}
+                >
+                  {canEdit && onSetGroupColor ? (
+                    <Popover
+                      trigger="click"
+                      placement="left"
+                      title={`Цвет · ${g.name}`}
+                      content={(
+                        <div style={{ maxWidth: 208 }}>
+                          <GroupColorPicker
+                            value={g.color || ''}
+                            autoKey={g.id}
+                            onChange={(tone) => onSetGroupColor(g, tone)}
+                          />
+                        </div>
+                      )}
+                    >
+                      {dot}
+                    </Popover>
+                  ) : dot}
+                  {g.name}
+                </span>
+              );
+            })}
           </div>
         )}
       </div>
@@ -81,7 +110,7 @@ export default function RightRail({
         ) : (
           <div className="cr-todos">
             {today.map((t) => {
-              const accent = t.group ? groupHex(t.group).base : '#0D9488';
+              const accent = t.group ? groupHex(t.expand?.group || t.group).base : '#0D9488';
               const chip = dueChip(t.due_date);
               return (
                 <div key={t.id} className="cr-todo" onClick={() => onSelectTodo(t)} role="button" tabIndex={0}>

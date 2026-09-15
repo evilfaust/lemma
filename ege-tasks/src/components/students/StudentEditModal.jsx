@@ -48,7 +48,7 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
     setLoading(true);
     (async () => {
       const [groupsData, teachersData, studentsData, extData] = await Promise.all([
-        api.getTeachingGroups({ includeArchived: true }).catch(() => []),
+        api.getTeachingGroups({ includeArchived: true, allYears: true }).catch(() => []),
         api.getTeachers().catch(() => []),
         api.getStudents().catch(() => []),
         api.getExtResults().catch(() => []),

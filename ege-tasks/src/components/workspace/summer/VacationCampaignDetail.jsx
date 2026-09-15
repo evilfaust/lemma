@@ -392,7 +392,7 @@ export default function VacationCampaignDetail() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [camp, grps] = await Promise.all([api.getCampaign(campaignId), api.getTeachingGroups()]);
+      const [camp, grps] = await Promise.all([api.getCampaign(campaignId), api.getTeachingGroups({ allYears: true })]);
       setCampaign(camp);
       setGroups(grps);
       setBlocks(camp.template_config?.blocks || []);

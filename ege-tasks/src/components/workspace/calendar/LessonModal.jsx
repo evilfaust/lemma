@@ -11,6 +11,7 @@ import MaterialPickerModal from '../MaterialPickerModal';
 import AttendanceRoster from '../AttendanceRoster';
 import { Chip } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
+import { groupOptions } from './calendarUtils';
 import { api } from '../../../shared/services/pocketbase';
 
 /**
@@ -25,8 +26,10 @@ export default function LessonModal({
   const watchedGroup = Form.useWatch('group', form);
   const worksMap = useMemo(() => new Map((works || []).map((w) => [w.id, w.title])), [works]);
   const selectedGroup = useMemo(
-    () => (groups || []).find((g) => g.id === watchedGroup) || null,
-    [groups, watchedGroup],
+    () => (groups || []).find((g) => g.id === watchedGroup)
+      // группа прошлого года в списки пикеров не попадает — берём из самой записи
+      || (initial?.expand?.group?.id === watchedGroup ? initial.expand.group : null),
+    [groups, watchedGroup, initial],
   );
   const isCourse = selectedGroup?.kind === 'course';
   const [fileMaterials, setFileMaterials] = useState([]);
@@ -269,7 +272,7 @@ export default function LessonModal({
         </Form.Item>
         <Space size="large" style={{ display: 'flex' }}>
           <Form.Item name="group" label="Группа" style={{ flex: 1 }}>
-            <Select allowClear placeholder="Группа" options={groups.map((g) => ({ value: g.id, label: g.name }))} />
+            <Select allowClear placeholder="Группа" options={groupOptions(groups, initial?.expand?.group)} />
           </Form.Item>
           <Form.Item name="status" label="Статус" style={{ flex: 1 }}>
             <Select options={[

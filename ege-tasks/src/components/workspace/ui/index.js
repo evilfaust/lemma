@@ -4,5 +4,9 @@ import './workspace-ui.css';
 export { default as WorkspacePageHeader } from './WorkspacePageHeader';
 export { default as EmptyState } from './EmptyState';
 export { default as SectionCard } from './SectionCard';
+export { default as GroupColorPicker } from './GroupColorPicker';
 export { Chip, GroupChip, LessonStatusChip, SubmitChip } from './Chip';
-export { groupTone, groupHex, GROUP_TONES, TONE_HEX } from './groupColor';
+export {
+  groupTone, groupHex, autoGroupTone, isGroupColor, registerGroupColors,
+  GROUP_TONES, GROUP_COLORS, GROUP_COLOR_LABELS, TONE_HEX,
+} from './groupColor';

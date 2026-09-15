@@ -1,5 +1,6 @@
 import { pb, _logAudit, andOwner } from './client.js';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { registerGroupColors } from '../../utils/groupColors';
 
 // Учительское фло, фаза 4: API уроков (lessons) + источники событий календаря.
 export const lessonsApi = {
@@ -12,11 +13,15 @@ export const lessonsApi = {
       if (to) parts.push(`date_plan <= "${escapeFilter(to)}"`);
       if (groupId) parts.push(`group = "${escapeFilter(groupId)}"`);
       const filter = andOwner(parts.join(' && '));
-      return await pb.collection('lessons').getFullList({
+      const list = await pb.collection('lessons').getFullList({
         ...(filter ? { filter } : {}),
         sort: 'date_plan',
         expand: 'group,ktp_entry',
       });
+      // Цвет группы берём прямо отсюда: урок прошлогодней группы рисуется на
+      // сетке даже тогда, когда сама группа в пикеры уже не попадает.
+      registerGroupColors(list.map((l) => l.expand?.group).filter(Boolean));
+      return list;
     } catch (error) {
       console.error('Error fetching lessons:', error);
       return [];

@@ -132,7 +132,7 @@ export default function VacationCampaignList() {
   const load = async () => {
     setLoading(true);
     try {
-      const [c, g] = await Promise.all([api.getCampaigns(), api.getTeachingGroups()]);
+      const [c, g] = await Promise.all([api.getCampaigns(), api.getTeachingGroups({ allYears: true })]);
       setCampaigns(c);
       setGroups(g);
     } catch {

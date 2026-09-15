@@ -135,7 +135,7 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         api.getAttemptsForRegisteredStudents(),
         api.getWorks({ includeArchived: true }),
         api.getAchievements(),
-        api.getTeachingGroups({ includeArchived: true }).catch(() => []),
+        api.getTeachingGroups({ includeArchived: true, allYears: true }).catch(() => []),
         api.getTeachers().catch(() => []),
       ]);
       setGroups(groupsData);

@@ -14,6 +14,24 @@
   --c-amber-soft:  #FEF3C7;
   --c-rose:        #E11D48;
   --c-rose-soft:   #FFE4E6;
+  /* цвет класса выбирается вручную (teaching_groups.color) — палитра шире пяти
+     тематических оттенков, чтобы соседние группы не сливались */
+  --c-indigo:       #4F46E5;
+  --c-indigo-soft:  #E0E7FF;
+  --c-fuchsia:      #C026D3;
+  --c-fuchsia-soft: #FAE8FF;
+  --c-pink:         #DB2777;
+  --c-pink-soft:    #FCE7F3;
+  --c-orange:       #EA580C;
+  --c-orange-soft:  #FFEDD5;
+  --c-lime:         #65A30D;
+  --c-lime-soft:    #ECFCCB;
+  --c-green:        #16A34A;
+  --c-green-soft:   #DCFCE7;
+  --c-cyan:         #0891B2;
+  --c-cyan-soft:    #CFFAFE;
+  --c-slate:        #475569;
+  --c-slate-soft:   #E2E8F0;
 
   /* ── Уровни сложности ── */
   --lvl-1: #0D9488;
@@ -92,6 +110,14 @@
 .lemma-chip-violet  { color: var(--c-violet); background: var(--c-violet-soft); }
 .lemma-chip-amber   { color: var(--c-amber);  background: var(--c-amber-soft); }
 .lemma-chip-rose    { color: var(--c-rose);   background: var(--c-rose-soft); }
+.lemma-chip-indigo  { color: var(--c-indigo);  background: var(--c-indigo-soft); }
+.lemma-chip-fuchsia { color: var(--c-fuchsia); background: var(--c-fuchsia-soft); }
+.lemma-chip-pink    { color: var(--c-pink);    background: var(--c-pink-soft); }
+.lemma-chip-orange  { color: var(--c-orange);  background: var(--c-orange-soft); }
+.lemma-chip-lime    { color: var(--c-lime);    background: var(--c-lime-soft); }
+.lemma-chip-green   { color: var(--c-green);   background: var(--c-green-soft); }
+.lemma-chip-cyan    { color: var(--c-cyan);    background: var(--c-cyan-soft); }
+.lemma-chip-slate   { color: var(--c-slate);   background: var(--c-slate-soft); }
 .lemma-chip-neutral { color: var(--ink-3);    background: var(--bg-sunken); }
 /* модификатор — чип без ведущей точки (для статусов с собственной семантикой) */
 .lemma-chip--nodot::before { display: none; }

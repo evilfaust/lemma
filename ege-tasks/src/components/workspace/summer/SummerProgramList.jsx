@@ -18,7 +18,7 @@ export default function SummerProgramList() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    api.getTeachingGroups().then((g) => {
+    api.getTeachingGroups({ allYears: true }).then((g) => {
       setGroups(g);
       if (g.length) setGroupId(g[0].id);
     }).catch(() => message.error('Не удалось загрузить группы'));

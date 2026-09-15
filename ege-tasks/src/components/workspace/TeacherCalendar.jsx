@@ -12,7 +12,7 @@ import 'dayjs/locale/ru';
 import localeData from 'dayjs/plugin/localeData';
 import weekday from 'dayjs/plugin/weekday';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
-import { WorkspacePageHeader, groupHex } from './ui';
+import { WorkspacePageHeader, groupHex, registerGroupColors } from './ui';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import LessonModal from './calendar/LessonModal';
@@ -142,6 +142,26 @@ export default function TeacherCalendar() {
 
   const openInspector = useCallback((event) => setSelected(event), []);
 
+  // ── Цвет класса из легенды (оптимистично) ──
+  // Меняем и сам список групп, и копию группы в expand'ах уроков/дел: события
+  // берут цвет оттуда, поэтому сетка перекрашивается сразу.
+  const setGroupColor = useCallback(async (group, color) => {
+    if (!canEdit || group.color === color) return;
+    const paint = (rec) => (rec?.expand?.group?.id === group.id
+      ? { ...rec, expand: { ...rec.expand, group: { ...rec.expand.group, color } } }
+      : rec);
+    setGroups((prev) => prev.map((g) => (g.id === group.id ? { ...g, color } : g)));
+    setLessons((prev) => prev.map(paint));
+    setTodos((prev) => prev.map(paint));
+    registerGroupColors([{ ...group, color }]);
+    try {
+      await api.updateTeachingGroup(group.id, { color });
+    } catch {
+      message.error('Не удалось сохранить цвет класса');
+      load();
+    }
+  }, [canEdit, load, message]);
+
   const openCreate = useCallback((day, pair) => {
     if (!canEdit) return;
     setCreateState({ type: 'lesson', day, pair });
@@ -152,7 +172,7 @@ export default function TeacherCalendar() {
     const r = event.resource || {};
     if (r.type === 'deadline') return { className: 'rbc-evt-deadline-soft' };
     if (r.type === 'todo') return { className: `rbc-evt-todo${r.done ? ' is-done' : ''}` };
-    const hex = groupHex(r.groupId || '');
+    const hex = groupHex(r.group || r.groupId || '');
     let cls = 'rbc-evt-lesson';
     if (r.status === 'done') cls += ' rbc-evt-done';
     else if (r.status === 'cancelled') cls += ' rbc-evt-cancelled';
@@ -386,6 +406,7 @@ export default function TeacherCalendar() {
             onToggleTodo={toggleTodo}
             onSelectTodo={(t) => openInspector({ id: `td_${t.id}`, title: t.title, resource: { type: 'todo', raw: t, groupId: t.group || '', groupName: t.expand?.group?.name, done: !!t.done, priority: t.priority } })}
             onCreateTodo={() => setCreateState({ type: 'todo', day: new Date(), pair: null })}
+            onSetGroupColor={setGroupColor}
             canEdit={canEdit}
           />
         )}

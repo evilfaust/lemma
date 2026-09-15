@@ -135,7 +135,7 @@ export default function TodayDashboard() {
         startStr: dayjs(start).format('HH:mm'),
         endStr: dayjs(end).format('HH:mm'),
         groupName: l.expand?.group?.name || '',
-        groupColor: groupHex(l.group || l.expand?.group?.name).base,
+        groupColor: groupHex(l.expand?.group || l.group).base,
         subject: l.title,
         topic: lessonTopic(l),
         mats: matCount(l),
@@ -328,7 +328,7 @@ export default function TodayDashboard() {
               const tone = status === 'done' ? 'teal' : status === 'now' ? 'blue' : 'neutral';
               const dotColor = status === 'done' ? '#0D9488' : status === 'now' ? '#2B4BFF' : '#9AA0AC';
               const dotRing = status === 'done' ? '#D1FAE5' : status === 'now' ? '#E7ECFF' : '#F3F4F6';
-              const ghex = groupHex(l.group || l.expand?.group?.name);
+              const ghex = groupHex(l.expand?.group || l.group);
               const mats = matCount(l);
               const needPrep = mats === 0 && status !== 'done';
               return (
@@ -387,7 +387,7 @@ export default function TodayDashboard() {
           >
             {prepBacklog.length ? prepBacklog.map((l) => {
               const d = dayjs(l.date_plan);
-              const hex = groupHex(l.group || l.expand?.group?.name);
+              const hex = groupHex(l.expand?.group || l.group);
               return (
                 <div key={l.id} className="td-prep" onClick={() => navigate('/app/calendar')}>
                   <span className="td-prep__date" style={{ color: hex.base, background: hex.soft }}>
@@ -484,7 +484,7 @@ export default function TodayDashboard() {
                 </span>
                 <span className="td-note__title">{n.title?.trim() || 'Без названия'}</span>
                 {n.expand?.group?.name && (
-                  <span className="lemma-chip" style={{ color: groupHex(n.group || n.expand.group.name).base, background: groupHex(n.group || n.expand.group.name).soft }}>
+                  <span className="lemma-chip" style={{ color: groupHex(n.expand.group).base, background: groupHex(n.expand.group).soft }}>
                     {n.expand.group.name}
                   </span>
                 )}

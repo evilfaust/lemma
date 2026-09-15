@@ -252,7 +252,7 @@ export default function GroupDetail() {
       ) : (
       <SectionCard
         icon={<TeamOutlined />}
-        iconColor={groupHex(group.id || group.name).base}
+        iconColor={groupHex(group).base}
         title={`Ученики (${students.length})`}
         extra={canEdit && (
           <Space size={6} style={{ marginLeft: 'auto' }}>

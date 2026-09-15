@@ -131,7 +131,7 @@ export default function KtpList() {
   const stop = (e) => e.stopPropagation();
 
   const renderCard = (c) => {
-    const hex = c.expand?.group?.name ? groupHex(c.group || c.expand.group.name) : TONE_HEX.violet;
+    const hex = c.expand?.group?.name ? groupHex(c.expand.group) : TONE_HEX.violet;
     return (
       <div key={c.id} className={`ws-tile${c.archived ? ' ws-tile--muted' : ''}`} onClick={() => navigate(`/app/ktp/${c.id}`)}>
         <div className="ws-tile__top">

@@ -288,3 +288,60 @@
 }
 .ws-stat__value--alert { color: var(--c-rose); }
 .ws-stat__value--ok    { color: var(--c-teal); }
+
+/* ── Палитра цвета класса (GroupColorPicker) ── */
+.ws-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.ws-palette__auto,
+.ws-palette__swatch {
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  cursor: pointer;
+  padding: 0;
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.ws-palette__auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+  border-color: var(--rule);
+}
+.ws-palette__auto.is-active {
+  color: var(--ink);
+  border-color: var(--ink-4);
+}
+.ws-palette__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.ws-palette__swatch {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 11px;
+}
+.ws-palette__auto:hover,
+.ws-palette__swatch:hover { transform: translateY(-1px); }
+.ws-palette__swatch.is-active {
+  box-shadow: 0 0 0 2px var(--bg-raised), 0 0 0 3px var(--ink-2);
+}
+.ws-palette__auto:focus-visible,
+.ws-palette__swatch:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 4px var(--accent);
+}

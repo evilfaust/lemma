@@ -149,7 +149,7 @@ export default function EventInspector({
             {/* ── Дело ── */}
             {type === 'todo' && (() => {
               const t = r.raw;
-              const accent = r.groupId ? groupHex(r.groupId).base : '#0D9488';
+              const accent = (r.group || r.groupId) ? groupHex(r.group || r.groupId).base : '#0D9488';
               return (
                 <div className="ci-body">
                   <div className="ci-todo-title-row">

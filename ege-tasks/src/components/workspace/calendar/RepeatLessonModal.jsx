@@ -41,7 +41,7 @@ export default function RepeatLessonModal({ open, base, groups = [], saving, onC
   }, [open, base?.id]);
 
   const groupName = useMemo(
-    () => groups.find((g) => g.id === base?.group)?.name || '',
+    () => groups.find((g) => g.id === base?.group)?.name || base?.expand?.group?.name || '',
     [groups, base],
   );
 

@@ -31,6 +31,9 @@ export function lessonToEvent(l) {
       type: 'lesson',
       raw: l,
       groupId: l.group || '',
+      // Сама запись группы — в ней лежит выбранный учителем цвет; по одному id
+      // цвет тоже находится (реестр), но так он обновляется сразу после правки.
+      group: l.expand?.group || null,
       groupName: l.expand?.group?.name,
       status: l.status || 'planned',
       hasMaterials,
@@ -65,6 +68,7 @@ export function todoToEvent(t) {
       type: 'todo',
       raw: t,
       groupId: t.group || '',
+      group: t.expand?.group || null,
       groupName: t.expand?.group?.name,
       done: !!t.done,
       priority: t.priority || 'normal',
@@ -93,6 +97,19 @@ export function buildEvents({ lessons, deadlines, todos, filters, groupFilter })
       .forEach((t) => { const e = todoToEvent(t); if (e) out.push(e); });
   }
   return out;
+}
+
+/**
+ * Опции селектора групп. Списки групп во всех пикерах — только текущего
+ * учебного года, поэтому у старого урока его собственная группа добавляется
+ * отдельно (иначе в модалке вместо названия окажется голый id).
+ */
+export function groupOptions(groups = [], extra = null) {
+  const opts = groups.map((g) => ({ value: g.id, label: g.name }));
+  if (extra?.id && !groups.some((g) => g.id === extra.id)) {
+    opts.push({ value: extra.id, label: extra.year ? `${extra.name} · ${extra.year}` : extra.name });
+  }
+  return opts;
 }
 
 // Сортировка событий внутри ячейки месяца: deadline → lesson → todo, затем время.

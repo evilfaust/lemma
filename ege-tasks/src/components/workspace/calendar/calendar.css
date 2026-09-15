@@ -272,6 +272,9 @@
 }
 .cr-pill.is-active { background: #F7F9FF; border-color: #2B4BFF; color: #1A34D1; }
 .cr-dot { width: 8px; height: 8px; border-radius: 999px; flex: none; }
+/* точка-кнопка: клик по ней открывает палитру цвета класса */
+.cr-dot--edit { width: 10px; height: 10px; cursor: pointer; box-shadow: 0 0 0 2px transparent; transition: box-shadow .12s ease; }
+.cr-dot--edit:hover { box-shadow: 0 0 0 3px rgba(13, 19, 33, .12); }
 
 .cr-todos { display: flex; flex-direction: column; gap: 2px; }
 .cr-todo {

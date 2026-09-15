@@ -1,23 +1,42 @@
 import { pb, _logAudit, andOwner, andOwnerOrFree, currentTeacher } from './client.js';
 import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { registerGroupColors } from '../../utils/groupColors';
+import { currentAcademicYear } from '../../../utils/academicYear';
 
 // Учительское фло, фаза 1: API классов/групп (коллекция `teaching_groups`).
 // `owner` подставляется автоматически из токена залогиненного учителя.
 export const groupsApi = {
   // ── Классы/группы (teaching_groups) ───────────────────────────────────────
-  // `year` — учебный год («2025/2026»); без него отдаются группы всех лет.
-  async getTeachingGroups({ includeArchived = false, year = '' } = {}) {
-    try {
+  // Год: по умолчанию отдаются группы ТЕКУЩЕГО учебного года (плюс группы без
+  // года — они старше самого поля). Прошлогодние, которые не перевели на новый
+  // год, в пикерах и легендах только мешают. Историческим экранам (список
+  // классов, журнал, летние кампании, карточка ученика) нужен `allYears: true`,
+  // конкретный год просит `year`.
+  //
+  // 🚨 Если в текущем году групп нет вовсе (перевод ещё не делали), фильтр
+  // снимается: пустой календарь и невозможность выбрать группу в уроке —
+  // хуже, чем лишние строки в списке.
+  async getTeachingGroups({ includeArchived = false, year = '', allYears = false } = {}) {
+    const load = async (wantedYear) => {
       const parts = [];
       if (!includeArchived) parts.push('archived != true');
-      if (year) parts.push(`year = "${escapeFilter(year)}"`);
+      if (wantedYear) parts.push(`(year = "${escapeFilter(wantedYear)}" || year = "")`);
       const filter = andOwner(parts.join(' && '));
-      return await pb.collection('teaching_groups').getFullList({
+      const list = await pb.collection('teaching_groups').getFullList({
         ...(filter ? { filter } : {}),
         // Ручной порядок (sort_order), затем — новые сверху для одинакового sort_order.
         sort: 'sort_order,-created',
       });
+      registerGroupColors(list);
+      return list;
+    };
+
+    try {
+      if (year) return await load(year);
+      if (allYears) return await load('');
+      const list = await load(currentAcademicYear());
+      return list.length ? list : await load('');
     } catch (error) {
       console.error('Error fetching teaching groups:', error);
       throw error;
@@ -26,7 +45,9 @@ export const groupsApi = {
 
   async getTeachingGroup(id) {
     try {
-      return await pb.collection('teaching_groups').getOne(id);
+      const rec = await pb.collection('teaching_groups').getOne(id);
+      registerGroupColors([rec]);
+      return rec;
     } catch (error) {
       console.error('Error fetching teaching group:', error);
       throw error;

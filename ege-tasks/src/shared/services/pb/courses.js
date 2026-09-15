@@ -1,6 +1,7 @@
 import { pb, _logAudit, andOwner } from './client.js';
 import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { registerGroupColors } from '../../utils/groupColors';
 
 // Курсы (онлайн-интенсивы в малых группах) — надстройка над teaching_groups
 // (kind='course'), членство (course_members) и витрина уроков для учеников
@@ -33,10 +34,12 @@ export const coursesApi = {
     try {
       const parts = ['kind = "course"'];
       if (!includeArchived) parts.push('archived != true');
-      return await pb.collection('teaching_groups').getFullList({
+      const list = await pb.collection('teaching_groups').getFullList({
         filter: andOwner(parts.join(' && ')),
         sort: 'sort_order,-created',
       });
+      registerGroupColors(list);
+      return list;
     } catch (error) {
       console.error('Error fetching courses:', error);
       return [];
