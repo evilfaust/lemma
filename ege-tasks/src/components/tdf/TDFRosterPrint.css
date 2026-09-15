@@ -1,0 +1,233 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ТДФ — ведомость устного опроса («ученик × пункт»).
+
+   Оформление общее с движком `print-sheet` и бланком рейтинга марафона:
+   🚨 только чёрная краска (серая линия на ч/б принтере пропадает), иерархия —
+   кегль и толщина линеек:
+     0.35mm — линия даты
+     0.25mm — рамка таблицы, шапка, колонка имени
+     0.2pt  — волосяные: линии строк и колонок
+
+   Геометрия (лист, поля, колонки, высота шапки) считается в
+   `utils/tdfRoster.js` и приходит сюда inline. Меняешь одно — меняй оба.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tdfr-root {
+  --tdfr-ink:  #000000;
+  --tdfr-rule: #000000;
+  --tdfr-hair: #000000;
+  --tdfr-zebra: #ECECEC;   /* единственное светлое место: фон полосы, а не краска */
+
+  color: var(--tdfr-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  min-height: 100vh;
+  background: #E9EAEE;
+  padding-bottom: 24px;
+}
+
+/* ── Экранная панель ──────────────────────────────────────────────────────── */
+
+.tdfr-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #D5D7DD;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tdfr-toolbar__row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tdfr-toolbar__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #0D1321;
+  margin-right: auto;
+}
+.tdfr-toolbar__hint { font-size: 12px; color: #646A76; }
+
+.tdfr-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 12px 0;
+  overflow-x: auto;
+}
+
+/* ── Лист ─────────────────────────────────────────────────────────────────── */
+
+.tdfr-sheet {
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tdfr-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6mm;
+  border-bottom: 0.25mm solid var(--tdfr-rule);
+  padding-bottom: 1.5mm;
+  margin-bottom: 2mm;
+}
+.tdfr-title__main { display: flex; align-items: baseline; gap: 3mm; min-width: 0; }
+.tdfr-title__text { font-size: 12pt; font-weight: 700; letter-spacing: -0.01em; }
+.tdfr-title__kind {
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.tdfr-title__meta { display: flex; gap: 4mm; font-size: 8pt; white-space: nowrap; }
+.tdfr-date { display: inline-flex; align-items: baseline; gap: 1.5mm; }
+.tdfr-date i { display: inline-block; width: 24mm; border-bottom: 0.35mm solid var(--tdfr-rule); }
+
+/* ── Таблица ──────────────────────────────────────────────────────────────── */
+
+.tdfr-table {
+  border: 0.25mm solid var(--tdfr-rule);
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+.tdfr-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 0.2pt solid var(--tdfr-hair);
+  box-sizing: border-box;
+}
+.tdfr-row:last-child { border-bottom: none; }
+.tdfr-row.is-zebra { background: var(--tdfr-zebra); }
+
+.tdfr-row--head {
+  border-bottom: 0.25mm solid var(--tdfr-rule);
+  background: none;
+}
+.tdfr-row--head .tdfr-cell {
+  font-size: 7.5pt;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tdfr-row--head .tdfr-cell--name { justify-content: flex-start; }
+
+/* 🚨 box-sizing обязателен: ширины колонок приходят из расчёта в миллиметрах и
+   складываются ровно в полосу набора. Без него рамки каждой ячейки (13 штук по
+   0.2pt плюс группирующие 0.25 мм) добавляют лишние ~2 мм, и правые колонки —
+   «Итого» с «Оценкой» — выдавливаются за край листа. */
+.tdfr-cell {
+  box-sizing: border-box;
+  border-right: 0.2pt solid var(--tdfr-hair);
+  display: flex;
+  align-items: center;
+  padding: 0 1.2mm;
+  min-width: 0;
+  overflow: hidden;
+}
+.tdfr-cell:last-child { border-right: none; }
+
+.tdfr-cell--idx { justify-content: center; font-size: 7.5pt; }
+.tdfr-cell--name {
+  font-size: 9pt;
+  border-right: 0.25mm solid var(--tdfr-rule);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tdfr-cell--task { justify-content: center; }
+/* Группирующая линия каждые пять пунктов — глаз не сбивается со счёта колонок */
+.tdfr-cell--task.is-group { border-left: 0.25mm solid var(--tdfr-rule); }
+.tdfr-cell--total { border-left: 0.25mm solid var(--tdfr-rule); justify-content: center; font-size: 7.5pt; }
+
+/* ── Расшифровка номеров ──────────────────────────────────────────────────── */
+
+.tdfr-legend {
+  list-style: none;
+  margin: 2.5mm 0 0;
+  padding: 0;
+  columns: 2;
+  column-gap: 6mm;
+  font-size: 7.5pt;
+  line-height: 1.35;
+}
+.tdfr-legend__item {
+  break-inside: avoid;
+  display: flex;
+  gap: 1.5mm;
+  margin-bottom: 0.6mm;
+}
+.tdfr-legend__num { font-weight: 700; min-width: 5mm; }
+.tdfr-legend__text { min-width: 0; }
+
+/* ── Печать ───────────────────────────────────────────────────────────────── */
+
+@media print {
+  @page { margin: 0; }
+
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: элемент правее
+     листа включает shrink-to-fit и бланк печатается в ~60% масштаба. */
+  html:has(.tdfr-root--landscape),
+  body:has(.tdfr-root--landscape) { width: 297mm !important; max-width: 297mm !important; }
+
+  html:has(.tdfr-root--portrait),
+  body:has(.tdfr-root--portrait) { width: 210mm !important; max-width: 210mm !important; }
+
+  html:has(.tdfr-root),
+  body:has(.tdfr-root) {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.tdfr-root) { visibility: hidden; }
+  body:has(.tdfr-root) .tdfr-root { visibility: visible; }
+
+  body:has(.tdfr-root) .ant-tooltip,
+  body:has(.tdfr-root) .ant-popover,
+  body:has(.tdfr-root) .ant-dropdown,
+  body:has(.tdfr-root) .ant-select-dropdown,
+  body:has(.tdfr-root) .ant-modal-root,
+  body:has(.tdfr-root) .no-print { display: none !important; }
+
+  body:has(.tdfr-root) #root,
+  body:has(.tdfr-root) .ant-app,
+  body:has(.tdfr-root) .ant-layout,
+  body:has(.tdfr-root) .ant-layout-content,
+  body:has(.tdfr-root) *:has(.tdfr-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.tdfr-root) .tdfr-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+    min-height: 0;
+  }
+
+  .tdfr-pages { padding: 0; gap: 0; overflow: visible; }
+  .tdfr-sheet { box-shadow: none; break-after: page; page-break-after: always; }
+  .tdfr-sheet:last-child { break-after: auto; page-break-after: auto; }
+}

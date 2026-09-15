@@ -1,0 +1,198 @@
+/* ТДФ — экранный слой раздела. Опирается на токены theme/tokens.css и общий
+   UI-язык workspace/ui (.ws-header, .ws-grid, .ws-tile, .lemma-chip).
+   Печать живёт отдельно (TDFPrintView.css, язык движка print-sheet). */
+
+/* ── Панель фильтров над сеткой наборов ── */
+.tdf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.tdf-toolbar__spacer { flex: 1 1 auto; }
+
+/* ── Карточка набора ── */
+.tdf-tile__desc {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 6px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Состав набора: чипы «Теор. 5 · Опр. 3» */
+.tdf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 11px;
+}
+.tdf-chips__count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: 3px;
+}
+
+/* Строка «чего не хватает» — набор виден как готовый или недоделанный */
+.tdf-gaps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 9px;
+  font-size: 12px;
+  color: var(--c-amber);
+}
+.tdf-gaps--ok { color: var(--c-teal); }
+.tdf-gaps b { font-variant-numeric: tabular-nums; }
+
+/* Значок класса на карточке */
+.tdf-badge {
+  background: var(--c-violet-soft);
+  color: var(--c-violet);
+  font-variant-numeric: tabular-nums;
+}
+.tdf-badge--empty { background: var(--bg-sunken); color: var(--ink-4); }
+
+/* Кнопки в подвале карточки — не «съедаются» hover-прозрачностью действий */
+.tdf-tile__foot-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* ── Сводка раздела в шапке ── */
+.tdf-summary {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.tdf-summary b {
+  color: var(--ink);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Редактор конспекта: строки пунктов ─────────────────────────────────── */
+.tdf-rows { display: flex; flex-direction: column; gap: 6px; }
+
+.tdf-row {
+  display: grid;
+  grid-template-columns: 30px minmax(150px, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  padding: 11px 13px;
+  cursor: grab;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tdf-row:hover { border-color: var(--rule); box-shadow: var(--shadow-sm); }
+.tdf-row--over { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+.tdf-row--dragging { opacity: 0.45; }
+
+.tdf-row__handle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--ink-4);
+  padding-top: 2px;
+}
+.tdf-row__num {
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.tdf-row__name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+  margin-bottom: 5px;
+}
+.tdf-row__body { font-size: 12.5px; color: var(--ink-2); line-height: 1.45; }
+.tdf-row__body .katex { font-size: 1em; }
+
+.tdf-row__aside { display: flex; gap: 10px; align-items: flex-start; min-width: 0; }
+.tdf-row__thumb {
+  width: 74px;
+  height: 54px;
+  flex-shrink: 0;
+  border: 1px solid var(--rule-soft);
+  border-radius: 6px;
+  background: #fff;
+  object-fit: contain;
+  padding: 2px;
+}
+.tdf-row__notation { font-size: 12.5px; min-width: 0; }
+
+/* Пустое поле называется вслух — пункт «недоделан», а не «пуст без причины» */
+.tdf-row__missing {
+  font-size: 12px;
+  color: var(--ink-4);
+  font-style: italic;
+}
+
+.tdf-row__actions { display: flex; align-items: center; gap: 3px; }
+
+/* Заголовок раздела в конспекте */
+.tdf-section {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 13px;
+  margin-top: 6px;
+  border-radius: 10px;
+  background: var(--bg-sunken);
+  border: 1px solid transparent;
+  cursor: grab;
+}
+.tdf-section--over { border-color: var(--accent); background: var(--accent-soft); }
+.tdf-section__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  flex: 1;
+  min-width: 0;
+}
+
+/* Полоса состояния набора над списком */
+.tdf-statbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  padding: 11px 14px;
+  margin-bottom: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+.tdf-statbar b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tdf-statbar__chips { display: flex; flex-wrap: wrap; gap: 5px; margin-left: auto; }
+
+@media (max-width: 900px) {
+  .tdf-row {
+    grid-template-columns: 26px 1fr auto;
+    grid-template-areas: 'handle name actions' '. body body' '. aside aside';
+  }
+  .tdf-row__handle { grid-area: handle; }
+  .tdf-row__main   { grid-area: name; }
+  .tdf-row__center { grid-area: body; }
+  .tdf-row__aside  { grid-area: aside; }
+  .tdf-row__actions { grid-area: actions; }
+}

@@ -1,31 +1,140 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Table, Button, Space, Typography, Modal, Form, Input, InputNumber,
-  Popconfirm, message, Tag, Tooltip,
+  Button, Space, Modal, Form, Input, InputNumber, Popconfirm, Spin,
+  message, Tooltip, Select, Dropdown,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, FileTextOutlined,
-  UnorderedListOutlined, CreditCardOutlined,
+  UnorderedListOutlined, CreditCardOutlined, FormOutlined, SearchOutlined,
+  CopyOutlined, MoreOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
+import { WorkspacePageHeader, EmptyState, Chip } from '../workspace/ui';
+import { tdfStats, tdfComposition } from './tdfTypes';
+import './tdf.css';
 
-const { Title, Text } = Typography;
-
-const TYPE_LABELS = {
-  theorem: { label: 'Теорема', color: 'blue' },
-  definition: { label: 'Определение', color: 'green' },
-  formula: { label: 'Формула', color: 'purple' },
-  axiom: { label: 'Аксиома', color: 'orange' },
-  property: { label: 'Свойство', color: 'cyan' },
-  criterion: { label: 'Признак', color: 'magenta' },
-  corollary: { label: 'Следствие', color: 'gold' },
+const plural = (n, forms) => {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1];
+  return forms[2];
 };
+
+/** Что в наборе недоделано. Учитель видит это, не открывая конспект. */
+function GapsLine({ stats }) {
+  if (stats.total === 0) return null;
+
+  const gaps = [];
+  if (stats.noFormulation) gaps.push(<span key="f"><b>{stats.noFormulation}</b> без формулировки</span>);
+  if (stats.noNotation) gaps.push(<span key="n"><b>{stats.noNotation}</b> без краткой записи</span>);
+  if (stats.noDrawing) gaps.push(<span key="d"><b>{stats.noDrawing}</b> без чертежа</span>);
+
+  if (gaps.length === 0) {
+    return <div className="tdf-gaps tdf-gaps--ok">Все пункты заполнены</div>;
+  }
+  return <div className="tdf-gaps">{gaps}</div>;
+}
+
+function SetTile({ set, stats, variants, canEdit, canDelete, onOpenEditor, onOpenVariants, onOpenFlashcards, onEdit, onDuplicate, onDelete }) {
+  const composition = tdfComposition(stats);
+  const stop = (e) => e.stopPropagation();
+  const primary = () => (canEdit ? onOpenEditor(set.id) : onOpenFlashcards?.(set.id));
+
+  const menu = {
+    items: [
+      { key: 'edit', label: 'Переименовать', icon: <EditOutlined /> },
+      { key: 'duplicate', label: 'Дублировать набор', icon: <CopyOutlined /> },
+    ],
+    onClick: ({ key, domEvent }) => {
+      domEvent?.stopPropagation?.();
+      if (key === 'edit') onEdit(set);
+      else onDuplicate(set);
+    },
+  };
+
+  return (
+    <article className="ws-tile" onClick={primary}>
+      <div className="ws-tile__top">
+        <span className={`ws-tile__badge tdf-badge${set.class_number ? '' : ' tdf-badge--empty'}`}>
+          {set.class_number ? `${set.class_number} кл` : '—'}
+        </span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="ws-tile__name" title={set.title}>{set.title}</div>
+          <div className="ws-tile__sub">
+            {stats.total} {plural(stats.total, ['пункт', 'пункта', 'пунктов'])}
+            {stats.sections > 0 && ` · ${stats.sections} ${plural(stats.sections, ['раздел', 'раздела', 'разделов'])}`}
+            {` · ${variants.length} ${plural(variants.length, ['вариант', 'варианта', 'вариантов'])}`}
+          </div>
+        </div>
+        {(canEdit || canDelete) && (
+          <div className="ws-tile__actions" onClick={stop}>
+            {canEdit && (
+              <Dropdown menu={menu} trigger={['click']}>
+                <Button size="small" type="text" icon={<MoreOutlined />} />
+              </Dropdown>
+            )}
+            {canDelete && (
+              <Popconfirm
+                title="Удалить этот набор?"
+                description="Пункты и варианты будут удалены вместе с ним."
+                onConfirm={() => onDelete(set.id)}
+                okText="Удалить"
+                cancelText="Отмена"
+                okButtonProps={{ danger: true }}
+              >
+                <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            )}
+          </div>
+        )}
+      </div>
+
+      {set.description && <div className="tdf-tile__desc">{set.description}</div>}
+
+      {composition.length > 0 && (
+        <div className="tdf-chips">
+          {composition.map(t => (
+            <Chip key={t.value} tone={t.tone} title={t.label}>
+              {t.short}<span className="tdf-chips__count">{t.count}</span>
+            </Chip>
+          ))}
+        </div>
+      )}
+
+      <GapsLine stats={stats} />
+
+      <div className="ws-tile__foot" onClick={stop}>
+        <div className="tdf-tile__foot-actions">
+          {canEdit && (
+            <Button size="small" icon={<FileTextOutlined />} onClick={() => onOpenEditor(set.id)}>
+              Конспект
+            </Button>
+          )}
+          {canEdit && (
+            <Tooltip title="Бланки опроса: выбрать пункты и распечатать по вариантам">
+              <Button size="small" icon={<UnorderedListOutlined />} onClick={() => onOpenVariants(set.id)}>
+                Варианты
+              </Button>
+            </Tooltip>
+          )}
+          <Tooltip title="Карточки-флипы для самопроверки">
+            <Button size="small" icon={<CreditCardOutlined />} onClick={() => onOpenFlashcards?.(set.id)}>
+              Карточки
+            </Button>
+          </Tooltip>
+        </div>
+      </div>
+    </article>
+  );
+}
 
 export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashcards }) {
   const { canEdit, canDelete } = useAuth();
-  const [sets, setSets] = useState([]);
+  const [overview, setOverview] = useState({ sets: [], itemsBySet: {}, variantsBySet: {} });
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [classFilter, setClassFilter] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSet, setEditingSet] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -34,14 +143,43 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
   const loadSets = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.getTdfSets();
-      setSets(data);
+      setOverview(await api.getTdfOverview());
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => { loadSets(); }, [loadSets]);
+
+  const { sets, itemsBySet, variantsBySet } = overview;
+
+  // Сводка по всем наборам — подпись в шапке раздела.
+  const totals = useMemo(() => {
+    let items = 0;
+    let variants = 0;
+    for (const s of sets) {
+      items += tdfStats(itemsBySet[s.id] || []).total;
+      variants += (variantsBySet[s.id] || []).length;
+    }
+    return { sets: sets.length, items, variants };
+  }, [sets, itemsBySet, variantsBySet]);
+
+  const classOptions = useMemo(() => {
+    const classes = [...new Set(sets.map(s => s.class_number).filter(Boolean))].sort((a, b) => a - b);
+    return [
+      { value: 'all', label: 'Все классы' },
+      ...classes.map(c => ({ value: String(c), label: `${c} класс` })),
+    ];
+  }, [sets]);
+
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return sets.filter(s => {
+      if (classFilter !== 'all' && String(s.class_number || '') !== classFilter) return false;
+      if (!q) return true;
+      return `${s.title} ${s.description || ''}`.toLowerCase().includes(q);
+    });
+  }, [sets, query, classFilter]);
 
   const openCreate = () => {
     setEditingSet(null);
@@ -65,10 +203,10 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
       setSaving(true);
       if (editingSet) {
         await api.updateTdfSet(editingSet.id, values);
-        message.success('ТДФ обновлён');
+        message.success('Набор обновлён');
       } else {
         await api.createTdfSet({ ...values, order: sets.length });
-        message.success('ТДФ создан');
+        message.success('Набор создан');
       }
       setModalOpen(false);
       loadSets();
@@ -80,109 +218,113 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
     }
   };
 
+  const handleDuplicate = async (set) => {
+    const hide = message.loading('Копируем набор с пунктами и чертежами…', 0);
+    try {
+      await api.duplicateTdfSet(set.id);
+      message.success('Копия набора создана');
+      loadSets();
+    } catch {
+      message.error('Не удалось скопировать набор');
+    } finally {
+      hide();
+    }
+  };
+
   const handleDelete = async (id) => {
     try {
       await api.deleteTdfSet(id);
-      message.success('ТДФ удалён');
+      message.success('Набор удалён');
       loadSets();
     } catch {
       message.error('Ошибка удаления');
     }
   };
 
-  const columns = [
-    {
-      title: 'Название',
-      dataIndex: 'title',
-      key: 'title',
-      render: (text, record) => (
-        <Space direction="vertical" size={2}>
-          <Text strong>{text}</Text>
-          {record.description && <Text type="secondary" style={{ fontSize: 12 }}>{record.description}</Text>}
-        </Space>
-      ),
-    },
-    {
-      title: 'Класс',
-      dataIndex: 'class_number',
-      key: 'class_number',
-      width: 80,
-      render: (v) => v ? <Tag>{v} кл.</Tag> : '—',
-    },
-    {
-      title: 'Действия',
-      key: 'actions',
-      width: 310,
-      render: (_, record) => (
-        <Space>
-          {canEdit && (
-            <Tooltip title="Редактировать конспект">
-              <Button
-                icon={<FileTextOutlined />}
-                onClick={() => onOpenEditor(record.id)}
-              >
-                Конспект
-              </Button>
-            </Tooltip>
-          )}
-          {canEdit && (
-            <Tooltip title="Варианты опросников">
-              <Button
-                icon={<UnorderedListOutlined />}
-                onClick={() => onOpenVariants(record.id)}
-              >
-                Варианты
-              </Button>
-            </Tooltip>
-          )}
-          <Tooltip title="Карточки-флипы для самопроверки">
-            <Button
-              icon={<CreditCardOutlined />}
-              onClick={() => onOpenFlashcards?.(record.id)}
-            >
-              Карточки
-            </Button>
-          </Tooltip>
-          {canEdit && <Button icon={<EditOutlined />} onClick={() => openEdit(record)} />}
-          {canDelete && (
-            <Popconfirm
-              title="Удалить этот ТДФ?"
-              description="Все пункты и варианты будут удалены."
-              onConfirm={() => handleDelete(record.id)}
-              okText="Удалить"
-              cancelText="Отмена"
-              okButtonProps={{ danger: true }}
-            >
-              <Button icon={<DeleteOutlined />} danger />
-            </Popconfirm>
-          )}
-        </Space>
-      ),
-    },
-  ];
+  const subtitle = loading
+    ? 'Загружаем наборы…'
+    : `${totals.sets} ${plural(totals.sets, ['набор', 'набора', 'наборов'])} · ${totals.items} ${plural(totals.items, ['пункт', 'пункта', 'пунктов'])} · ${totals.variants} ${plural(totals.variants, ['вариант', 'варианта', 'вариантов'])} опроса`;
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <Title level={3} style={{ margin: 0 }}>ТДФ — Теоремы, Определения, Формулы</Title>
-        {canEdit && (
+      <WorkspacePageHeader
+        icon={<FormOutlined />}
+        accent="violet"
+        title="ТДФ — теоремы, определения, формулы"
+        subtitle={subtitle}
+        extra={canEdit && (
           <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
-            Новый ТДФ
+            Новый набор
           </Button>
         )}
-      </div>
-
-      <Table
-        dataSource={sets}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={false}
-        locale={{ emptyText: 'Нет ТДФ-наборов. Создайте первый!' }}
       />
 
+      {sets.length > 0 && (
+        <div className="tdf-toolbar">
+          <Input
+            allowClear
+            prefix={<SearchOutlined style={{ color: 'var(--ink-4)' }} />}
+            placeholder="Поиск по названию"
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            style={{ width: 260 }}
+          />
+          <Select
+            value={classFilter}
+            onChange={setClassFilter}
+            options={classOptions}
+            style={{ width: 150 }}
+          />
+          <div className="tdf-toolbar__spacer" />
+          {visible.length !== sets.length && (
+            <span style={{ fontSize: 12.5, color: 'var(--ink-3)' }}>
+              Показано {visible.length} из {sets.length}
+            </span>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 48 }}><Spin size="large" /></div>
+      ) : sets.length === 0 ? (
+        <EmptyState
+          title="Наборов ТДФ пока нет"
+          description="Набор — это конспект по теме: теоремы, определения и формулы с чертежами. Из него собираются бланки устного опроса и карточки для самопроверки."
+          cta={canEdit ? 'Создать первый набор' : undefined}
+          ctaIcon={<PlusOutlined />}
+          onCta={openCreate}
+        />
+      ) : visible.length === 0 ? (
+        <EmptyState
+          title="Ничего не нашлось"
+          description="Попробуйте другой запрос или снимите фильтр по классу."
+          cta="Сбросить фильтры"
+          ctaType="default"
+          onCta={() => { setQuery(''); setClassFilter('all'); }}
+        />
+      ) : (
+        <div className="ws-grid">
+          {visible.map(set => (
+            <SetTile
+              key={set.id}
+              set={set}
+              stats={tdfStats(itemsBySet[set.id] || [])}
+              variants={variantsBySet[set.id] || []}
+              canEdit={canEdit}
+              canDelete={canDelete}
+              onOpenEditor={onOpenEditor}
+              onOpenVariants={onOpenVariants}
+              onOpenFlashcards={onOpenFlashcards}
+              onEdit={openEdit}
+              onDuplicate={handleDuplicate}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+
       <Modal
-        title={editingSet ? 'Редактировать ТДФ' : 'Новый ТДФ'}
+        title={editingSet ? 'Набор ТДФ' : 'Новый набор ТДФ'}
         open={modalOpen}
         onOk={handleSave}
         onCancel={() => setModalOpen(false)}
@@ -192,13 +334,13 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="title" label="Название" rules={[{ required: true, message: 'Введите название' }]}>
-            <Input placeholder="Например: Параллельные прямые, 7 класс" />
+            <Input placeholder="Например: Параллельные прямые" />
           </Form.Item>
           <Form.Item name="class_number" label="Класс">
             <InputNumber min={1} max={12} style={{ width: '100%' }} placeholder="7" />
           </Form.Item>
-          <Form.Item name="description" label="Описание">
-            <Input.TextArea rows={2} placeholder="Краткое описание (необязательно)" />
+          <Form.Item name="description" label="Описание" extra="Видно на карточке набора — чем этот конспект отличается от соседнего.">
+            <Input.TextArea rows={2} placeholder="Необязательно" />
           </Form.Item>
         </Form>
       </Modal>

@@ -1,0 +1,207 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ТДФ — лист карточек. Оформление общее с движком `print-sheet` и карточками
+   марафона: 🚨 только чёрная краска (карточки печатаются пачкой на ч/б
+   принтере), миллиметры, номер квадратом 6.5 мм, волосяные линейки.
+
+   Размеры карточек считает `utils/tdfCards.js` и передаёт inline.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tdfc-root {
+  --tdfc-ink:  #000000;
+  --tdfc-rule: #000000;
+  --tdfc-hair: #000000;
+
+  color: var(--tdfc-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  min-height: 100vh;
+  background: #E9EAEE;
+  padding-bottom: 24px;
+}
+.tdfc-root--serif .tdfc-question,
+.tdfc-root--serif .tdfc-answer { font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif; }
+
+/* ── Экранная панель ── */
+.tdfc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #D5D7DD;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tdfc-toolbar__row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tdfc-toolbar__title { font-size: 15px; font-weight: 600; letter-spacing: -0.015em; color: #0D1321; margin-right: auto; }
+.tdfc-toolbar__hint { font-size: 12px; color: #646A76; }
+
+.tdfc-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 12px 0;
+  overflow-x: auto;
+}
+
+/* ── Лист ── */
+.tdfc-sheet {
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  overflow: hidden;
+}
+
+/* ── Карточка ── */
+.tdfc-card {
+  box-sizing: border-box;
+  border: 0.25mm solid var(--tdfc-rule);
+  padding: 4mm;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Пустое место на последнем листе: рамка нужна — по ней режут пачку ровно */
+.tdfc-card--empty { border-style: dashed; border-width: 0.2pt; }
+
+.tdfc-head {
+  display: flex;
+  align-items: center;
+  gap: 2mm;
+  border-bottom: 0.2pt solid var(--tdfc-hair);
+  padding-bottom: 1.2mm;
+  margin-bottom: 2mm;
+  flex: 0 0 auto;
+}
+.tdfc-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 6.5mm;
+  height: 6.5mm;
+  border: 0.25mm solid var(--tdfc-rule);
+  font-size: 9pt;
+  font-weight: 700;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+.tdfc-type {
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tdfc-set {
+  margin-left: auto;
+  font-size: 6.5pt;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 50%;
+}
+
+.tdfc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+  overflow: hidden;
+  min-height: 0;
+}
+.tdfc-question {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.3;
+  min-height: 0;
+  overflow: hidden;
+}
+.tdfc-question p { margin: 0; }
+
+.tdfc-fig { flex: 0 0 auto; text-align: center; }
+.tdfc-fig img { max-width: 100%; object-fit: contain; }
+
+.tdfc-answer {
+  flex: 0 0 auto;
+  border-top: 0.2pt solid var(--tdfc-hair);
+  padding-top: 1.5mm;
+  font-size: 0.72em;
+  line-height: 1.3;
+  max-height: 45%;
+  overflow: hidden;
+}
+.tdfc-answer__label {
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.8mm;
+}
+.tdfc-answer__short { margin-top: 1mm; }
+.tdfc-answer p { margin: 0 0 0.8mm; }
+
+/* ── Печать ── */
+@media print {
+  @page { margin: 0; }
+
+  html:has(.tdfc-root),
+  body:has(.tdfc-root) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  body:has(.tdfc-root) { visibility: hidden; }
+  body:has(.tdfc-root) .tdfc-root { visibility: visible; }
+
+  body:has(.tdfc-root) .ant-tooltip,
+  body:has(.tdfc-root) .ant-popover,
+  body:has(.tdfc-root) .ant-dropdown,
+  body:has(.tdfc-root) .ant-select-dropdown,
+  body:has(.tdfc-root) .ant-modal-root,
+  body:has(.tdfc-root) .no-print { display: none !important; }
+
+  body:has(.tdfc-root) #root,
+  body:has(.tdfc-root) .ant-app,
+  body:has(.tdfc-root) .ant-layout,
+  body:has(.tdfc-root) .ant-layout-content,
+  body:has(.tdfc-root) *:has(.tdfc-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.tdfc-root) .tdfc-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+    min-height: 0;
+  }
+
+  .tdfc-pages { padding: 0; gap: 0; overflow: visible; }
+  .tdfc-sheet { box-shadow: none; break-after: page; page-break-after: always; }
+  .tdfc-sheet:last-child { break-after: auto; page-break-after: auto; }
+}

@@ -237,9 +237,10 @@ Chrome считает ширину документа по ним и ужима�
 Те же корни уязвимы, но не проверены (у них на самом листе нет Ant-контролов,
 поэтому тултип возможен только от панели настроек рядом):
 `WorkPrintPreview` (`.wpv-overlay`), `WorksheetGridPrint` (`.wgp-root`),
-КИМ (`EgeVariantGenerator.css`), `TDFPrintView`, `MarathonWorksheetPrint`,
+КИМ (`EgeVariantGenerator.css`), `MarathonWorksheetPrint`,
 `GeometryTaskPreview`, `KtpPrintView`. Маршрутный лист вылечен в v3.9.182
-(канон скопирован в `RouteSheetPrintLayout.css`).
+(канон скопирован в `RouteSheetPrintLayout.css`), ТДФ — в v3.9.204
+(`TDFPrintView.css`, `TDFCardsPrint.css`, `TDFRosterPrint.css`).
 
 Проверять быстро и без браузера: собрать стенд с реальным CSS + `<div
 class="ant-tooltip" style="position:absolute;left:1050px">` и напечатать

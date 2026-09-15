@@ -1,168 +1,164 @@
-/* Контейнер всего экрана */
+/* ТДФ — карточки-флипы. Цвета и типографика — токены theme/tokens.css. */
+
 .tdf-flashcards-container {
-  max-width: 560px;
+  max-width: 620px;
   margin: 0 auto;
   padding: 16px 16px 32px;
+  font-family: var(--font-body);
 }
 
-.tdf-flashcards-topbar {
-  margin-bottom: 16px;
+.tdf-flashcards-topbar { margin-bottom: 12px; }
+
+.tdf-flashcards-h {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  margin: 0 0 8px;
 }
 
-/* Экран настроек */
-.tdf-flashcards-settings {
-  padding: 8px 0;
+.tdf-flashcards-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
 
-/* Сессия */
-.tdf-flashcards-session {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.tdf-flashcards-note {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  line-height: 1.45;
+  margin-top: 6px;
 }
 
-/* 3D карточка */
-.tdf-flashcard {
-  perspective: 1200px;
-  cursor: pointer;
-  user-select: none;
+.tdf-flashcards-progress { margin-bottom: 18px; }
+.tdf-flashcards-block { margin-bottom: 18px; display: flex; flex-direction: column; gap: 7px; }
+.tdf-flashcards-types { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.tdf-flashcards-session { display: flex; flex-direction: column; gap: 14px; }
+.tdf-flashcards-counter {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-4);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
 }
 
+/* ── Карточка ── */
+.tdf-flashcard { perspective: 1200px; cursor: pointer; user-select: none; }
 .tdf-flashcard-inner {
   position: relative;
   width: 100%;
   transform-style: preserve-3d;
   transition: transform 0.4s ease;
 }
-
-.tdf-flashcard--flipped .tdf-flashcard-inner {
-  transform: rotateY(180deg);
-}
+.tdf-flashcard--flipped .tdf-flashcard-inner { transform: rotateY(180deg); }
 
 .tdf-flashcard-front,
 .tdf-flashcard-back {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   border-radius: 12px;
-  padding: 20px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  border: 1.5px solid #e0e0e0;
-  background: #fff;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-  min-height: 200px;
+  gap: 14px;
+  border: 1px solid var(--rule);
+  background: var(--bg-raised);
+  box-shadow: 0 4px 18px rgba(13, 19, 33, 0.07);
+  min-height: 240px;
   box-sizing: border-box;
 }
 
-/* По умолчанию: фронт задаёт высоту, бек — абсолютный поверх */
-.tdf-flashcard-front {
-  position: relative;
-  width: 100%;
-}
-
+.tdf-flashcard-front { position: relative; width: 100%; }
 .tdf-flashcard-back {
   position: absolute;
   inset: 0;
   transform: rotateY(180deg);
-  background: #f6ffed;
-  border-color: #b7eb8f;
+  border-color: var(--c-teal);
+  box-shadow: 0 4px 18px rgba(13, 148, 136, 0.10);
 }
+.tdf-flashcard--flipped .tdf-flashcard-front { position: absolute; inset: 0; }
+.tdf-flashcard--flipped .tdf-flashcard-back { position: relative; inset: auto; width: 100%; }
 
-/* Флип: бек задаёт высоту, фронт — абсолютный поверх */
-.tdf-flashcard--flipped .tdf-flashcard-front {
-  position: absolute;
-  inset: 0;
+.tdf-flashcard-head { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.tdf-flashcard-ask {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
 }
+.tdf-flashcard-title { font-size: 14px; font-weight: 600; color: var(--ink); }
 
-.tdf-flashcard--flipped .tdf-flashcard-back {
-  position: relative;
-  inset: auto;
-  width: 100%;
-}
-
-.tdf-flashcard-type {
+/* Лицо: вопрос крупно и по центру — карточку видно с задней парты */
+.tdf-flashcard-question {
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  justify-content: center;
+  text-align: center;
+  font-size: 19px;
+  line-height: 1.4;
+  color: var(--ink);
+  overflow: auto;
 }
-
-.tdf-flashcard-name {
-  font-weight: 600;
-  font-size: 14px;
-  color: #333;
-}
+.tdf-flashcard-question .tdf-flashcard-title { font-size: 19px; font-weight: 600; }
+.tdf-flashcard-figure { max-width: 100%; max-height: 240px; object-fit: contain; }
 
 .tdf-flashcard-content {
   flex: 1;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: var(--ink);
   overflow: auto;
 }
 
-.tdf-flashcard-formulation {
-  padding: 10px 12px;
-  background: #f0f7ff;
-  border: 1px solid #91caff;
-  border-radius: 6px;
-  font-size: 13px;
-  line-height: 1.6;
+.tdf-flashcard-notation {
+  padding: 9px 12px;
+  background: var(--bg-sunken);
+  border-radius: 8px;
+  font-size: 13.5px;
 }
+.tdf-flashcard-notation .tdf-flashcard-label { margin-bottom: 4px; }
 
-.tdf-flashcard-formulation-label {
-  font-size: 11px;
-  color: #1677ff;
-  font-weight: 600;
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
+.tdf-flashcard-drawing { display: flex; justify-content: center; }
+.tdf-flashcard-drawing img { max-width: 100%; max-height: 200px; border-radius: 6px; }
 
 .tdf-flashcard-hint {
   text-align: center;
-  font-size: 11px;
-  color: #bbb;
-  font-style: italic;
+  font-size: 11.5px;
+  color: var(--ink-4);
   margin-top: auto;
 }
 
-.tdf-flashcard-short-notation {
-  padding: 8px 12px;
-  background: #fff;
-  border: 1px solid #d9d9d9;
-  border-radius: 6px;
-  font-size: 13px;
+/* ── Кнопки и клавиши ── */
+.tdf-flashcards-actions { display: flex; gap: 12px; }
+.tdf-flashcards-know:not(:disabled) { border-color: var(--c-teal); color: var(--c-teal); }
+.tdf-flashcards-keys {
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--ink-4);
 }
 
-.tdf-flashcard-short-label {
-  font-size: 11px;
-  color: #888;
-  margin-bottom: 4px;
-}
-
-.tdf-flashcard-drawing {
-  display: flex;
-  justify-content: center;
-  padding-top: 4px;
-}
-
-/* Кнопки ответа */
-.tdf-flashcards-actions {
-  display: flex;
-  gap: 12px;
-}
-
-/* Экран результатов */
+/* ── Итог ── */
 .tdf-flashcards-results {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 24px 0;
+  gap: 6px;
+  padding: 20px 0;
   width: 100%;
 }
-
-.tdf-flashcards-results .ant-space {
+.tdf-flashcards-unknown {
   width: 100%;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--bg-raised);
 }
+.tdf-flashcards-unknown ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
+.tdf-flashcards-unknown li { margin-bottom: 2px; }
+.tdf-flashcards-results .ant-space { width: 100%; }

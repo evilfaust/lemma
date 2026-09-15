@@ -1,517 +1,396 @@
-/* ТДФ — Печатный вид */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ТДФ — печатный лист (эталонный конспект и бланк устного опроса).
 
-/* Глобальный @page — без size (ориентация задаётся динамически в handlePrint) */
-@page { margin: 0; }
+   Раскладка своя — таблица «№ | название и формулировка | чертёж | краткая
+   запись», — а оформление общее с движком `components/print-sheet`:
 
-.tdf-print-wrapper {
-  background: #f5f5f5;
+   🚨 Только чёрная краска. Лист печатается на ч/б принтере: светло-серая
+   линия пропадает вовсе (клетки для записи не видно), серая подпись читается
+   как брак печати. Иерархию держат ТОЛЬКО кегль и четыре толщины линеек:
+     0.5mm  — рамка шапки, единственная «жирная» линия листа
+     0.35mm — линии для заполнения (ФИО, дата, оценка)
+     0.25mm — рамка таблицы и ячеек
+     0.2pt  — волосяные: разделители строк, клетка 5 мм, линовка
+
+   🚨 Геометрия (лист, поля, колонка номера) продублирована в
+   `utils/tdfSheet.js` — там по ней считается пагинация. Меняешь одно —
+   меняй оба.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tdfp-root {
+  --tdf-ink:    #000000;   /* основной текст */
+  --tdf-ink-2:  #000000;   /* подписи типов, метаданные */
+  --tdf-rule:   #000000;   /* рамка шапки */
+  --tdf-rule-2: #000000;   /* рамка таблицы и ячеек */
+  --tdf-hair:   #000000;   /* волосяные разделители */
+  --tdf-grid:   #000000;   /* клетка и линовка */
+
+  --tdf-pad-x:   8mm;
+  --tdf-pad-top: 7mm;
+  --tdf-pad-bot: 6mm;
+
+  color: var(--tdf-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+
   min-height: 100vh;
+  background: #E9EAEE;
+  padding-bottom: 24px;
 }
 
-/* ── Фаза 1: скрытый блок для замера высот строк ── */
-.tdf-measure-root {
-  position: absolute;
-  top: 0;
-  left: 0;
-  visibility: hidden;
-  pointer-events: none;
-  overflow: hidden;
-  width: 297mm;
-  padding: 5mm;
-  box-sizing: border-box;
-  font-family: 'Times New Roman', serif;
-  font-size: 11pt;
-  z-index: -1;
-}
+/* Антиква для формулировок — под стать формулам KaTeX */
+.tdfp-root--serif .tdfp-text,
+.tdfp-root--serif .tdfp-name { font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif; }
 
-.tdf-measure-root--portrait {
-  width: 210mm;
-  font-size: 9pt;
-}
+/* ── Экранная панель настроек ─────────────────────────────────────────────── */
 
-/* ── Контейнер всех страниц ── */
-.tdf-print-book {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 16px 0;
-}
-
-.tdf-print-controls {
-  padding: 12px 24px;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
-  display: flex;
-  align-items: center;
-  gap: 16px;
+.tdfp-toolbar {
   position: sticky;
   top: 0;
   z-index: 10;
-}
-
-.tdf-print-page {
   background: #fff;
-  margin: 16px auto;
-  padding: 5mm;
+  border-bottom: 1px solid #D5D7DD;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tdfp-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.tdfp-toolbar__title {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: #0D1321;
+  margin-right: auto;
+}
+.tdfp-toolbar__hint { font-size: 12px; color: #646A76; }
+
+/* ── Зона измерения (вне экрана) ──────────────────────────────────────────── */
+/* 🚨 Ширина = ширине полосы набора: строки, измеренные в другой ширине,
+   ломают пагинацию (высоты занижены, хвост уезжает с листа). */
+.tdfp-measure {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── Лист ─────────────────────────────────────────────────────────────────── */
+
+.tdfp-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 12px 0;
+  overflow-x: auto;
+}
+
+.tdfp-page {
   width: 297mm;
-  min-height: 210mm;
+  min-height: 209mm;
+  padding: var(--tdf-pad-top) var(--tdf-pad-x) var(--tdf-pad-bot);
   box-sizing: border-box;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.12);
-  font-size: 11pt;
-  font-family: 'Times New Roman', serif;
-}
-
-/* Книжная ориентация — компактная версия */
-.tdf-print-page--portrait {
-  width: 210mm;
-  min-height: 297mm;
-  font-size: 9pt;
-}
-
-.tdf-print-page--portrait .tdf-thead-row th.tdf-th {
-  font-size: 8.5pt;
-  padding: 3px 4px;
-}
-
-.tdf-print-page--portrait .tdf-item-row .tdf-cell {
-  padding: 3px 4px;
-}
-
-.tdf-print-page--portrait .tdf-cell-name-formulation,
-.tdf-print-page--portrait .tdf-cell-drawing,
-.tdf-print-page--portrait .tdf-cell-notation {
-  font-size: 9pt;
-}
-
-.tdf-print-page--portrait .tdf-formulation-content {
-  font-size: 9pt;
-}
-
-.tdf-print-page--portrait .tdf-drawing-img {
-  max-height: 65px;
-}
-
-.tdf-print-page--portrait .tdf-type-vertical {
-  font-size: 6.5pt;
-}
-
-.tdf-print-page--portrait .tdf-section-header-row .tdf-section-header-cell {
-  font-size: 9.5pt;
-  padding: 3px 6px;
-}
-
-.tdf-print-page--portrait .tdf-header-title {
-  font-size: 11pt;
-}
-
-/* Шапка документа внутри thead (повторяется на каждой странице) */
-.tdf-doc-header-cell {
-  border: none !important;
-  padding: 4px 0 6px 0;
-  border-bottom: 1.5px solid #333 !important;
-}
-
-.tdf-doc-header-inner {
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
+  flex-direction: column;
 }
+.tdfp-page--portrait { width: 210mm; min-height: 296mm; }
 
-/* Шапка (старый div, оставлен для совместимости, не используется) */
-.tdf-header {
-  margin-bottom: 8px;
-  border-bottom: 1.5px solid #333;
-  padding-bottom: 6px;
+/* ── Шапка листа ──────────────────────────────────────────────────────────── */
+
+.tdfp-head {
+  border: 0.5mm solid var(--tdf-rule);
+  padding: 2.5mm 3mm;
+  margin-bottom: 3mm;
+}
+.tdfp-head__top {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 16px;
-}
-
-.tdf-header-title {
-  font-size: 13pt;
-  font-weight: 700;
-}
-
-.tdf-header-class {
-  font-weight: 400;
-}
-
-.tdf-header-meta {
-  display: flex;
-  gap: 20px;
-  font-size: 10pt;
   align-items: baseline;
+  justify-content: space-between;
+  gap: 4mm;
 }
-
-.tdf-header-name-field {
+.tdfp-head__title {
+  font-size: 12pt;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.tdfp-head__kind {
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
+.tdfp-head__variant {
+  font-size: 10pt;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.tdfp-head__fields {
+  display: flex;
+  gap: 6mm;
+  margin-top: 3mm;
+  font-size: 9pt;
+}
+.tdfp-head__field { display: flex; align-items: baseline; gap: 1.5mm; flex: 1; }
+.tdfp-head__field--date { flex: 0 0 38mm; }
+.tdfp-head__field-line {
+  flex: 1;
+  border-bottom: 0.35mm solid var(--tdf-rule);
+  height: 4.5mm;
+}
+.tdfp-head__note {
+  margin-top: 2.5mm;
+  font-size: 8.5pt;
+  line-height: 1.35;
+}
 
-/* Таблица */
-.tdf-table {
+/* ── Таблица пунктов ──────────────────────────────────────────────────────── */
+
+.tdfp-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-}
-
-.tdf-thead-row th.tdf-th {
-  background: #f0f0f0;
-  border: 1px solid #888;
-  padding: 5px 6px;
   font-size: 10pt;
-  font-weight: 700;
-  text-align: center;
-  vertical-align: middle;
+  /* Не растягиваем таблицу по высоте листа: в бланке высоту строк задаёт
+     расчёт (stretchRowHeights), а конспект из двух пунктов, растянутый на весь
+     A4, выглядит как ошибка вёрстки, а не как лист. */
+  flex: 0 0 auto;
 }
+.tdfp-page--portrait .tdfp-table { font-size: 9pt; }
 
-/* Заголовок раздела */
-.tdf-section-header-row .tdf-section-header-cell {
-  background: #e8e8e8;
-  border: 1px solid #888;
-  padding: 4px 8px;
-  font-weight: 700;
-  font-size: 11pt;
-  text-align: center;
-  letter-spacing: 0.02em;
-}
-
-/* Пункт */
-.tdf-item-row .tdf-cell {
-  border: 1px solid #888;
-  padding: 5px 6px;
-  vertical-align: top;
-  min-height: 40px;
-}
-
-.tdf-cell-num {
-  text-align: center;
+.tdfp-thead th {
+  border: 0.25mm solid var(--tdf-rule-2);
+  padding: 1.2mm 2mm;
+  font-size: 7.5pt;
   font-weight: 600;
-  font-size: 10pt;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
 }
 
-.tdf-num-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-
-.tdf-num-value {
-  font-weight: 700;
-}
-
-.tdf-type-vertical {
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-  font-size: 7pt;
-  color: #555;
-  font-style: italic;
-  white-space: nowrap;
-  letter-spacing: 0.03em;
-}
-
-/* Объединённый столбец: тема + формулировка */
-.tdf-cell-name-formulation {
-  font-size: 10pt;
-}
-
-.tdf-item-name {
-  font-weight: 700;
-  margin-bottom: 3px;
-}
-
-.tdf-formulation-content {
-  font-weight: 400;
-  font-size: 10pt;
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px dashed #ccc;
-}
-
-.tdf-cell-drawing,
-.tdf-cell-notation {
-  font-size: 10.5pt;
-}
-
-.tdf-math-content {
-  word-break: break-word;
-}
-
-.tdf-drawing-img {
-  max-width: 100%;
-  max-height: 90px;
-  object-fit: contain;
-  display: block;
-  margin: 0 auto;
-}
-
-.tdf-empty {
-  color: #aaa;
-}
-
-/* Пустое поле для записи (blank без клетки) — границу ячейки рисует <td>. */
-.tdf-blank-area {
-  min-height: 60px;
-  width: 100%;
-}
-
-/* Клеточное поле — positioned-контейнер с div-линиями.
-   Высота задаётся inline в фазе 2 (точная высота строки), min-height — фолбэк
-   для фазы измерения. Это div (не <td>) → relative безопасен, не ломает
-   table-layout при печати. Клетка = div-линии с физическими mm/pt единицами →
-   нативный вектор в PDF (вместо растрового background-image). См. CLAUDE.md. */
-.tdf-grid-field {
-  position: relative;
-  width: 100%;
-  min-height: 60px;
+.tdfp-cell {
+  border: 0.25mm solid var(--tdf-rule-2);
+  padding: 1.5mm 2mm;
+  vertical-align: top;
   overflow: hidden;
 }
 
-/* Имя пункта поверх клетки — белый фон, чтобы текст не попадал на линии */
-.tdf-item-name--overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
+/* Колонка номера: квадрат 6.5 мм — канон печатных листов */
+.tdfp-cell--num { padding: 1.5mm 1mm; text-align: center; }
+.tdfp-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 6.5mm;
+  height: 6.5mm;
+  border: 0.25mm solid var(--tdf-rule-2);
+  font-size: 9pt;
+  font-weight: 700;
+  line-height: 1;
+}
+.tdfp-type {
+  display: block;
+  margin-top: 1.2mm;
+  font-size: 6pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tdf-ink-2);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.tdfp-name {
+  font-size: 10pt;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 1mm;
+}
+.tdfp-page--portrait .tdfp-name { font-size: 9pt; }
+
+.tdfp-text { line-height: 1.35; }
+.tdfp-text p { margin: 0 0 1mm; }
+.tdfp-text p:last-child { margin-bottom: 0; }
+
+.tdfp-fig { text-align: center; }
+.tdfp-fig img { max-width: 100%; object-fit: contain; }
+
+.tdfp-empty { color: var(--tdf-ink-2); }
+
+/* ── Поле для записи (бланк) ──────────────────────────────────────────────── */
+/* Клетку держим в обычном positioned-div, НЕ в <td>: position:relative на
+   ячейке ломает table-layout при печати (грабля, пойманная в июне 2026). */
+.tdfp-field {
+  position: relative;
+  overflow: hidden;
+  min-height: 12mm;
+}
+/* Название пункта лежит поверх клетки — ученику видно, о чём вопрос */
+.tdfp-field .tdfp-name {
+  position: relative;
   z-index: 1;
   background: #fff;
-  padding: 0 3px 1px;
-  border-radius: 2px;
-  max-width: 100%;
+  display: inline-block;
+  padding-right: 1.5mm;
 }
 
-/* Контейнер линий — заполняет клеточное поле, лишние линии клипуются */
-.tdf-grid-lines {
-  position: absolute;
-  inset: 0;
+/* ── Подвал ───────────────────────────────────────────────────────────────── */
+
+.tdfp-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6mm;
+  margin-top: 2.5mm;
+  font-size: 8.5pt;
+}
+.tdfp-foot__score { display: flex; align-items: baseline; gap: 1.5mm; min-width: 45mm; }
+.tdfp-foot__line {
+  flex: 1;
+  border-bottom: 0.35mm solid var(--tdf-rule);
+  height: 4mm;
+}
+.tdfp-foot__page { font-variant-numeric: tabular-nums; }
+
+/* ── Компактные полоски гео-формул ────────────────────────────────────────── */
+
+.tdfp-page--geo { display: flex; flex-direction: column; gap: 0; }
+.tdfp-strip {
+  flex: 1 1 0;
+  border: 0.25mm solid var(--tdf-rule-2);
+  padding: 2.5mm 3mm;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
-  pointer-events: none;
 }
-
-.tdf-h-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 0;
-  border-top: 0.2pt solid #d0d0d0;
-  pointer-events: none;
+.tdfp-strip + .tdfp-strip { margin-top: 4mm; }
+.tdfp-strip__head {
+  display: flex;
+  align-items: baseline;
+  gap: 4mm;
+  border-bottom: 0.25mm solid var(--tdf-rule-2);
+  padding-bottom: 1.5mm;
+  margin-bottom: 2mm;
 }
+.tdfp-strip__title { font-size: 10pt; font-weight: 700; }
+.tdfp-strip__fio { display: flex; align-items: baseline; gap: 1.5mm; flex: 1; font-size: 8.5pt; }
+.tdfp-strip__fio-line { flex: 1; border-bottom: 0.35mm solid var(--tdf-rule); height: 4mm; }
 
-.tdf-v-line {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  border-left: 0.2pt solid #d0d0d0;
-  pointer-events: none;
+.tdfp-strip__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2.5mm 4mm;
+  flex: 1;
 }
-
-/* Stretch-режим: строки имеют явно заданную высоту — таблица не должна растягиваться сама */
-.tdf-table--stretch {
-  /* height: 100% убран — конфликтует с явными высотами <tr> при печати */
+.tdfp-strip__item {
+  display: flex;
+  gap: 2mm;
+  align-items: flex-start;
+  flex: 0 1 auto;
+  max-width: 48%;
 }
+.tdfp-strip__num { font-size: 8.5pt; font-weight: 700; min-width: 5mm; }
+.tdfp-strip__fig { flex: 0 0 auto; }
+.tdfp-strip__fig img { max-height: 22mm; max-width: 34mm; object-fit: contain; }
+.tdfp-strip__fig--empty { width: 22mm; height: 18mm; border: 0.2pt dashed var(--tdf-hair); }
+.tdfp-strip__formulas { min-width: 42mm; }
+.tdfp-strip__name { font-size: 8pt; font-weight: 600; margin-bottom: 1mm; }
+.tdfp-strip__hint { font-size: 7.5pt; margin-bottom: 1mm; }
+.tdfp-strip__row { display: flex; align-items: baseline; gap: 1.5mm; margin-bottom: 1.5mm; }
+.tdfp-strip__lhs { font-size: 9pt; white-space: nowrap; }
+.tdfp-strip__line { flex: 1; min-width: 26mm; border-bottom: 0.35mm solid var(--tdf-rule); height: 4mm; }
 
-/* Подвал */
-.tdf-footer {
-  margin-top: 10px;
-  font-size: 11pt;
-  text-align: right;
-}
+/* ── Печать ───────────────────────────────────────────────────────────────── */
 
-/* Печать */
 @media print {
-  /* Перекрываем браузерные дефолтные поля для чётных/нечётных страниц */
+  /* Поля задаёт printPaged; :left/:right нужны отдельно — иначе Chrome
+     добавляет собственные поля чётным и нечётным страницам. */
+  @page { margin: 0; }
   @page :left { margin: 0; }
   @page :right { margin: 0; }
 
-  .no-print {
-    display: none !important;
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: элемент правее
+     листа включает shrink-to-fit и лист печатается в ~60% масштаба. */
+  html:has(.tdfp-root--landscape),
+  body:has(.tdfp-root--landscape) { width: 297mm !important; max-width: 297mm !important; }
+
+  html:has(.tdfp-root--portrait),
+  body:has(.tdfp-root--portrait) { width: 210mm !important; max-width: 210mm !important; }
+
+  html:has(.tdfp-root),
+  body:has(.tdfp-root) {
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
-  .tdf-print-wrapper {
-    background: transparent;
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется (см. CLAUDE.md). */
+  body:has(.tdfp-root) { visibility: hidden; }
+  body:has(.tdfp-root) .tdfp-root { visibility: visible; }
+
+  /* Порталы Ant живут в <body> вне .no-print и держат экранные координаты. */
+  body:has(.tdfp-root) .ant-tooltip,
+  body:has(.tdfp-root) .ant-popover,
+  body:has(.tdfp-root) .ant-dropdown,
+  body:has(.tdfp-root) .ant-select-dropdown,
+  body:has(.tdfp-root) .ant-modal-root,
+  body:has(.tdfp-root) .no-print { display: none !important; }
+
+  body:has(.tdfp-root) #root,
+  body:has(.tdfp-root) .ant-app,
+  body:has(.tdfp-root) .ant-layout,
+  body:has(.tdfp-root) .ant-layout-content,
+  body:has(.tdfp-root) *:has(.tdfp-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.tdfp-root) .tdfp-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
     min-height: 0;
   }
 
-  .tdf-measure-root {
-    display: none !important;
-  }
+  .tdfp-pages { padding: 0; gap: 0; overflow: visible; }
 
-  .tdf-print-book {
-    display: block;
-    padding: 0;
-    margin: 0;
-  }
-
-  .tdf-print-page {
-    margin: 0;
-    /* явные 4 значения: top right bottom left */
-    padding: 5mm;
-    width: 297mm;
-    height: 210mm;
+  .tdfp-page {
     box-shadow: none;
-    box-sizing: border-box;
-    overflow: hidden;
+    width: 100%;
     break-after: page;
     page-break-after: always;
-    break-inside: avoid-page;
   }
+  .tdfp-page:last-child { break-after: auto; page-break-after: auto; }
 
-  .tdf-print-page:last-child {
-    break-after: auto !important;
-    page-break-after: auto !important;
-  }
-
-  .tdf-print-page--portrait {
-    width: 210mm;
-    height: 297mm;
-  }
+  .tdfp-table { break-inside: auto; }
+  .tdfp-row { break-inside: avoid; }
 }
-
-/* ════════════════════════════════════════════════════════════════════════ */
-/* Компактный формат «геометрические формулы» — две полоски на A4 portrait  */
-/* ════════════════════════════════════════════════════════════════════════ */
-
-.tdf-print-page--geo {
-  width: 210mm;
-  min-height: 297mm;
-  padding: 8mm 5mm;
-  display: flex;
-  gap: 4mm;
-  font-family: 'Times New Roman', serif;
-  font-size: 11pt;
-}
-
-.tdf-geo-strip {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;          /* предотвращает overflow flex-children */
-  padding: 0 2mm;
-  border-right: 1px dashed #ccc;
-}
-.tdf-geo-strip:last-child { border-right: none; }
-
-.tdf-geo-title {
-  text-align: center;
-  font-size: 13pt;
-  font-weight: bold;
-  text-decoration: underline;
-  margin: 0 0 4mm 0;
-}
-
-.tdf-geo-fio {
-  display: flex;
-  align-items: baseline;
-  gap: 3mm;
-  margin-bottom: 5mm;
-  font-size: 11pt;
-}
-.tdf-geo-fio-line {
-  flex: 1;
-  border-bottom: 1px solid #000;
-  height: 1.1em;
-}
-
-.tdf-geo-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3mm;
-  flex: 1;
-}
-
-.tdf-geo-item {
-  display: grid;
-  grid-template-columns: 7mm 38mm 1fr;
-  align-items: start;
-  gap: 2mm;
-  min-height: 20mm;
-}
-
-.tdf-geo-num {
-  font-size: 11pt;
-  padding-top: 1mm;
-}
-
-.tdf-geo-figure {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  padding-top: 1mm;
-}
-.tdf-geo-figure img {
-  max-width: 100%;
-  max-height: 32mm;
-  object-fit: contain;
-}
-.tdf-geo-figure--empty {
-  height: 24mm;
-  border: 1px dashed #bbb;
-  width: 100%;
-}
-
-/* Правая колонка: название → подсказка → слоты «S = ___» */
-.tdf-geo-formulas {
-  display: flex;
-  flex-direction: column;
-  gap: 1.2mm;
-  min-width: 0;
-  padding-top: 1mm;
-}
-.tdf-geo-name {
-  font-size: 10pt;
-  font-weight: 600;
-  line-height: 1.2;
-}
-.tdf-geo-hint {
-  font-size: 8.5pt;
-  font-style: italic;
-  color: #444;
-  margin-bottom: 0.5mm;
-}
-.tdf-geo-formula-row {
-  display: flex;
-  align-items: baseline;
-  gap: 1.5mm;
-  font-style: italic;
-  font-size: 11pt;
-  min-height: 5mm;
-}
-.tdf-geo-formula-lhs {
-  flex-shrink: 0;
-}
-.tdf-geo-formula-line {
-  flex: 1;
-  border-bottom: 1px solid #000;
-  height: 1em;
-  min-width: 18mm;
-}
-.tdf-geo-formula-shown {
-  font-size: 10pt;
-  line-height: 1.3;
-}
-.tdf-geo-formula-shown .katex {
-  font-size: 1em !important;
-}
-
-/* Print specifics */
-@media print {
-  .tdf-print-page--geo {
-    width: 210mm;
-    height: 297mm;
-    padding: 8mm 5mm;
-    box-shadow: none;
-    box-sizing: border-box;
-    overflow: hidden;
-    break-after: page;
-    page-break-after: always;
-    break-inside: avoid-page;
-  }
-  .tdf-geo-strip { border-right-color: #888; }
-}
-

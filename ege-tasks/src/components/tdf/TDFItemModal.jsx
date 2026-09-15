@@ -12,20 +12,11 @@ import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
 import GeoGebraApplet from '../GeoGebraApplet';
 import { dataUrlToFile } from '../../utils/cropImage';
+import { TDF_TYPE_OPTIONS } from './tdfTypes';
 
 const { Text } = Typography;
 const { TextArea } = Input;
 
-const TYPE_OPTIONS = [
-  { value: 'theorem',          label: 'Теорема' },
-  { value: 'definition',       label: 'Определение' },
-  { value: 'formula',          label: 'Формула' },
-  { value: 'axiom',            label: 'Аксиома' },
-  { value: 'property',         label: 'Свойство' },
-  { value: 'criterion',        label: 'Признак' },
-  { value: 'corollary',        label: 'Следствие' },
-  { value: 'geometry_formula', label: 'Геом. формула' },
-];
 
 async function remoteToDataUrl(url) {
   const blob = await fetch(url).then(r => r.blob());
@@ -100,6 +91,7 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
         section_title:          item.section_title || '',
         type,
         name:                   item.name || '',
+        question_md:            item.question_md || '',
         formulation_md:         item.formulation_md || '',
         short_notation_md:      item.short_notation_md || '',
         formula_control_hidden: item.formula_control_hidden ?? true,
@@ -232,6 +224,7 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
       } else {
         fields.type              = values.type || '';
         fields.name              = values.name || '';
+        fields.question_md       = values.question_md || '';
         fields.formulation_md    = values.formulation_md || '';
         fields.short_notation_md = values.short_notation_md || '';
         if (values.type === 'geometry_formula') {
@@ -489,11 +482,18 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
           ) : (
             <>
               <Form.Item name="type" label="Тип">
-                <Select options={TYPE_OPTIONS} placeholder="Выберите тип" allowClear
+                <Select options={TDF_TYPE_OPTIONS} placeholder="Выберите тип" allowClear
                   onChange={val => setItemType(val)} />
               </Form.Item>
               <Form.Item name="name" label={isGeoFormula ? 'Название формулы' : 'Название / тема'}>
                 <Input placeholder={isGeoFormula ? 'Например: Площадь трапеции' : 'Например: Признак 1 (накрест лежащие углы)'} />
+              </Form.Item>
+              <Form.Item
+                name="question_md"
+                label="Вопрос для карточки"
+                extra="Необязательно. Если пусто, карточка спросит по названию («Сформулируйте теорему: …»). Здесь можно задать свою формулировку вопроса — например, «Когда две прямые параллельны?»."
+              >
+                <Input placeholder="Свой вопрос вместо названия" />
               </Form.Item>
               {isGeoFormula ? (
                 <>

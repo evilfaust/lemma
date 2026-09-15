@@ -1,28 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button, Checkbox, Progress, Segmented, Space, Spin, Tag, Typography } from 'antd';
 import {
-  Button, Checkbox, Progress, Space, Spin, Tag, Typography,
-} from 'antd';
-import {
-  ArrowLeftOutlined, CheckOutlined, CloseOutlined, RedoOutlined,
-  SettingOutlined,
+  ArrowLeftOutlined, CheckOutlined, CloseOutlined, RedoOutlined, SettingOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
+import { Chip, EmptyState } from '../workspace/ui';
+import { TDF_TYPES, TDF_TYPE_VALUES, tdfTypeLabel, tdfTypeTone } from './tdfTypes';
+import { shuffleArray } from '../../utils/shuffle';
 import './TDFFlashcards.css';
 
-const { Text, Title } = Typography;
-
-const TYPE_LABELS = {
-  theorem: 'Теорема', definition: 'Определение', formula: 'Формула',
-  axiom: 'Аксиома', property: 'Свойство', criterion: 'Признак', corollary: 'Следствие',
-};
-const TYPE_COLORS = {
-  theorem: 'blue', definition: 'green', formula: 'purple', axiom: 'orange',
-  property: 'cyan', criterion: 'magenta', corollary: 'gold',
-};
-const ALL_TYPES = Object.keys(TYPE_LABELS);
-
-// Локальное хранилище прогресса по набору
+/* ── Прогресс по набору живёт в браузере учителя ── */
 function loadProgress(setId) {
   try {
     const raw = localStorage.getItem(`tdf-flashcards-${setId}`);
@@ -34,14 +22,53 @@ function loadProgress(setId) {
 function saveProgress(setId, data) {
   try {
     localStorage.setItem(`tdf-flashcards-${setId}`, JSON.stringify(data));
-  } catch {}
+  } catch { /* приватное окно */ }
 }
 
-// Карточка (3D flip)
-function FlashCard({ item, isFlipped, onFlip }) {
-  const drawingUrl = item.drawing_image
-    ? api.getTdfItemDrawingUrl(item)
-    : null;
+const QUESTION_MODES = [
+  { value: 'name', label: 'По названию' },
+  { value: 'drawing', label: 'По чертежу' },
+  { value: 'notation', label: 'По краткой записи' },
+];
+
+const ASK_LABEL = {
+  theorem: 'Сформулируйте теорему',
+  definition: 'Дайте определение',
+  formula: 'Запишите формулу',
+  axiom: 'Сформулируйте аксиому',
+  property: 'Сформулируйте свойство',
+  criterion: 'Сформулируйте признак',
+  corollary: 'Сформулируйте следствие',
+  geometry_formula: 'Запишите формулу',
+};
+
+/**
+ * Что показать на лицевой стороне.
+ *
+ * 🚨 Раньше лицо показывало `formulation_md` — то есть саму формулировку
+ * теоремы, а оборот повторял её же. Карточка не спрашивала, а сразу отвечала.
+ * Теперь лицо — вопрос: собственный текст пункта (`question_md`), либо чертёж,
+ * либо краткая запись, либо название с подводкой по типу.
+ */
+export function questionFor(item, mode) {
+  if ((item.question_md || '').trim()) return { kind: 'md', value: item.question_md };
+  if (mode === 'drawing' && item.drawing_image) return { kind: 'drawing' };
+  if (mode === 'notation' && (item.short_notation_md || '').trim()) {
+    return { kind: 'notation', value: item.short_notation_md };
+  }
+  return { kind: 'name', value: item.name || '' };
+}
+
+/** Сколько пунктов колоды режим действительно может спросить своим способом. */
+export function modeCoverage(items, mode) {
+  if (mode === 'drawing') return items.filter(i => i.drawing_image).length;
+  if (mode === 'notation') return items.filter(i => (i.short_notation_md || '').trim()).length;
+  return items.length;
+}
+
+function FlashCard({ item, mode, isFlipped, onFlip }) {
+  const drawingUrl = item.drawing_image ? api.getTdfItemDrawingUrl(item) : null;
+  const question = questionFor(item, mode);
 
   return (
     <div
@@ -51,49 +78,50 @@ function FlashCard({ item, isFlipped, onFlip }) {
       aria-label="Перевернуть карточку"
     >
       <div className="tdf-flashcard-inner">
-        {/* Лицевая сторона: вопрос */}
+        {/* Лицо — вопрос */}
         <div className="tdf-flashcard-front">
-          <div className="tdf-flashcard-type">
-            <Tag color={TYPE_COLORS[item.type] || 'default'}>
-              {TYPE_LABELS[item.type] || item.type}
-            </Tag>
-            {item.name && <span className="tdf-flashcard-name">{item.name}</span>}
+          <div className="tdf-flashcard-head">
+            <Chip tone={tdfTypeTone(item.type)}>{tdfTypeLabel(item.type)}</Chip>
+            <span className="tdf-flashcard-ask">
+              {question.kind === 'md' ? 'Вопрос' : (ASK_LABEL[item.type] || 'Ответьте')}
+            </span>
           </div>
-          {item.formulation_md && (
-            <div className="tdf-flashcard-content">
-              <MathRenderer content={item.formulation_md} />
-            </div>
-          )}
-          {!item.formulation_md && (
-            <Text type="secondary">Нет формулировки</Text>
-          )}
-          <div className="tdf-flashcard-hint">нажмите, чтобы увидеть краткую запись и чертёж</div>
+
+          <div className="tdf-flashcard-question">
+            {question.kind === 'drawing' && (
+              <img src={drawingUrl} alt="чертёж" className="tdf-flashcard-figure" />
+            )}
+            {question.kind === 'notation' && <MathRenderer content={question.value} />}
+            {question.kind === 'md' && <MathRenderer content={question.value} />}
+            {question.kind === 'name' && <span className="tdf-flashcard-title">{question.value || '—'}</span>}
+          </div>
+
+          <div className="tdf-flashcard-hint">нажмите, чтобы проверить себя</div>
         </div>
 
-        {/* Обратная сторона: ответ */}
+        {/* Оборот — ответ */}
         <div className="tdf-flashcard-back">
-          <div className="tdf-flashcard-type">
-            <Tag color={TYPE_COLORS[item.type] || 'default'}>
-              {TYPE_LABELS[item.type] || item.type}
-            </Tag>
-            {item.name && <span className="tdf-flashcard-name">{item.name}</span>}
+          <div className="tdf-flashcard-head">
+            <Chip tone={tdfTypeTone(item.type)}>{tdfTypeLabel(item.type)}</Chip>
+            {item.name && <span className="tdf-flashcard-title">{item.name}</span>}
           </div>
+
           <div className="tdf-flashcard-content">
-            {item.formulation_md ? (
-              <MathRenderer content={item.formulation_md} />
-            ) : (
-              <Text type="secondary">Нет формулировки</Text>
-            )}
+            {item.formulation_md
+              ? <MathRenderer content={item.formulation_md} />
+              : <Typography.Text type="secondary">Формулировка не заполнена</Typography.Text>}
           </div>
+
           {item.short_notation_md && (
-            <div className="tdf-flashcard-short-notation">
-              <div className="tdf-flashcard-short-label">Краткая запись:</div>
+            <div className="tdf-flashcard-notation">
+              <div className="tdf-flashcard-label">Краткая запись</div>
               <MathRenderer content={item.short_notation_md} />
             </div>
           )}
-          {drawingUrl && (
+
+          {drawingUrl && question.kind !== 'drawing' && (
             <div className="tdf-flashcard-drawing">
-              <img src={drawingUrl} alt="Чертёж" style={{ maxWidth: '100%', maxHeight: 220, borderRadius: 4 }} />
+              <img src={drawingUrl} alt="чертёж" />
             </div>
           )}
         </div>
@@ -102,65 +130,91 @@ function FlashCard({ item, isFlipped, onFlip }) {
   );
 }
 
-// Экран настроек сессии
 function SettingsScreen({ tdfSet, items, onStart, savedProgress }) {
-  const [filterTypes, setFilterTypes] = useState(ALL_TYPES);
+  const [filterTypes, setFilterTypes] = useState(TDF_TYPE_VALUES);
   const [shuffled, setShuffled] = useState(true);
   const [onlyUnknown, setOnlyUnknown] = useState(false);
+  const [mode, setMode] = useState('name');
+
+  const real = useMemo(() => items.filter(i => !i.is_section_header), [items]);
 
   const available = useMemo(() => {
-    let result = items.filter(it => !it.is_section_header && filterTypes.includes(it.type));
-    if (onlyUnknown) {
-      result = result.filter(it => savedProgress[it.id] !== 'know');
-    }
+    let result = real.filter(it => filterTypes.includes(it.type));
+    if (onlyUnknown) result = result.filter(it => savedProgress[it.id] !== 'know');
     return result;
-  }, [items, filterTypes, onlyUnknown, savedProgress]);
+  }, [real, filterTypes, onlyUnknown, savedProgress]);
 
   const knownCount = useMemo(
-    () => items.filter(it => !it.is_section_header && savedProgress[it.id] === 'know').length,
-    [items, savedProgress]
+    () => real.filter(it => savedProgress[it.id] === 'know').length,
+    [real, savedProgress]
   );
-  const totalItems = items.filter(it => !it.is_section_header).length;
+  const unknownCount = useMemo(
+    () => real.filter(it => savedProgress[it.id] === 'dont-know').length,
+    [real, savedProgress]
+  );
+
+  // Сколько карточек режим спросит своим способом — остальные уйдут по названию.
+  const coverage = modeCoverage(available, mode);
+  const presentTypes = useMemo(() => {
+    const present = new Set(real.map(i => i.type));
+    return TDF_TYPES.filter(t => present.has(t.value));
+  }, [real]);
+
+  if (real.length === 0) {
+    return (
+      <EmptyState
+        title="В наборе нет пунктов"
+        description="Сначала соберите конспект — карточки строятся из его пунктов."
+      />
+    );
+  }
 
   return (
     <div className="tdf-flashcards-settings">
-      <Title level={4} style={{ marginBottom: 4 }}>{tdfSet?.title || 'Карточки'}</Title>
-      {tdfSet?.class_number && (
-        <Tag style={{ marginBottom: 16 }}>{tdfSet.class_number} класс</Tag>
-      )}
+      <h2 className="tdf-flashcards-h">{tdfSet?.title || 'Карточки'}</h2>
+      {tdfSet?.class_number && <Tag style={{ marginBottom: 14 }}>{tdfSet.class_number} класс</Tag>}
 
-      {totalItems > 0 && (
-        <div style={{ marginBottom: 16 }}>
-          <Text type="secondary" style={{ fontSize: 12 }}>Прогресс: знаю {knownCount} из {totalItems}</Text>
-          <Progress
-            percent={Math.round((knownCount / totalItems) * 100)}
-            size="small"
-            strokeColor="#52c41a"
-            style={{ margin: '4px 0 0' }}
-          />
+      <div className="tdf-flashcards-progress">
+        <div className="tdf-flashcards-label">
+          Знаю {knownCount} из {real.length}
+          {unknownCount > 0 && ` · отмечено «не знаю»: ${unknownCount}`}
         </div>
-      )}
+        <Progress
+          percent={Math.round((knownCount / real.length) * 100)}
+          size="small"
+          strokeColor="var(--c-teal)"
+          style={{ margin: '4px 0 0' }}
+        />
+      </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, marginBottom: 8 }}>Типы пунктов:</div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-          {ALL_TYPES.map(type => (
+      <div className="tdf-flashcards-block">
+        <div className="tdf-flashcards-label">Как спрашивать</div>
+        <Segmented value={mode} onChange={setMode} options={QUESTION_MODES} />
+        <div className="tdf-flashcards-note">
+          {mode === 'name' && 'На лицевой стороне — название пункта, на обороте — формулировка.'}
+          {mode === 'drawing' && `Показываем чертёж, вспоминаем формулировку. Чертёж есть у ${coverage} из ${available.length} — остальные спросим по названию.`}
+          {mode === 'notation' && `Показываем краткую запись, вспоминаем формулировку. Запись есть у ${coverage} из ${available.length} — остальные спросим по названию.`}
+        </div>
+      </div>
+
+      <div className="tdf-flashcards-block">
+        <div className="tdf-flashcards-label">Типы пунктов</div>
+        <div className="tdf-flashcards-types">
+          {presentTypes.map(t => (
             <Tag.CheckableTag
-              key={type}
-              checked={filterTypes.includes(type)}
-              onChange={(checked) =>
-                setFilterTypes(prev =>
-                  checked ? [...prev, type] : prev.filter(t => t !== type)
-                )
-              }
+              key={t.value}
+              checked={filterTypes.includes(t.value)}
+              onChange={(checked) => setFilterTypes(prev => (
+                checked ? [...prev, t.value] : prev.filter(x => x !== t.value)
+              ))}
             >
-              {TYPE_LABELS[type]}
+              {t.label}
             </Tag.CheckableTag>
           ))}
         </div>
       </div>
 
-      <Space direction="vertical" size={8} style={{ marginBottom: 20 }}>
+      <Space direction="vertical" size={8} style={{ marginBottom: 18 }}>
         <Checkbox checked={shuffled} onChange={e => setShuffled(e.target.checked)}>
           Перемешать карточки
         </Checkbox>
@@ -169,7 +223,7 @@ function SettingsScreen({ tdfSet, items, onStart, savedProgress }) {
           onChange={e => setOnlyUnknown(e.target.checked)}
           disabled={knownCount === 0}
         >
-          Только «не знаю» ({items.filter(it => !it.is_section_header && savedProgress[it.id] === 'dont-know').length})
+          Только те, что ещё не выучены
         </Checkbox>
       </Space>
 
@@ -177,7 +231,7 @@ function SettingsScreen({ tdfSet, items, onStart, savedProgress }) {
         type="primary"
         size="large"
         disabled={available.length === 0}
-        onClick={() => onStart({ filtered: available, shuffled })}
+        onClick={() => onStart({ filtered: available, shuffled, mode })}
         block
       >
         Начать ({available.length} карточек)
@@ -186,89 +240,70 @@ function SettingsScreen({ tdfSet, items, onStart, savedProgress }) {
   );
 }
 
-// Экран результатов
 function ResultsScreen({ deck, results, onRestart, onRestartUnknown, onBack }) {
   const knownCount = Object.values(results).filter(v => v === 'know').length;
   const total = deck.length;
   const pct = total > 0 ? Math.round((knownCount / total) * 100) : 0;
-
   const unknown = deck.filter(item => results[item.id] !== 'know');
 
   return (
     <div className="tdf-flashcards-results">
-      <Title level={4}>Результаты</Title>
+      <h2 className="tdf-flashcards-h">Итог</h2>
 
-      <div style={{ marginBottom: 20 }}>
-        <Progress
-          type="circle"
-          percent={pct}
-          strokeColor={pct >= 70 ? '#52c41a' : pct >= 40 ? '#faad14' : '#ff4d4f'}
-        />
-        <div style={{ marginTop: 12, fontSize: 15 }}>
-          <Text strong>{knownCount}</Text>
-          <Text type="secondary"> из </Text>
-          <Text strong>{total}</Text>
-          <Text type="secondary"> — знаю</Text>
-        </div>
+      <Progress
+        type="circle"
+        percent={pct}
+        strokeColor={pct >= 70 ? 'var(--c-teal)' : pct >= 40 ? 'var(--c-amber)' : 'var(--c-rose)'}
+      />
+      <div className="tdf-flashcards-label" style={{ marginTop: 12 }}>
+        знаю {knownCount} из {total}
       </div>
 
-      <Space direction="vertical" size={10} style={{ width: '100%' }}>
+      {unknown.length > 0 && (
+        <div className="tdf-flashcards-unknown">
+          <div className="tdf-flashcards-label">Осталось повторить</div>
+          <ul>
+            {unknown.slice(0, 8).map(i => <li key={i.id}>{i.name || '—'}</li>)}
+            {unknown.length > 8 && <li>…и ещё {unknown.length - 8}</li>}
+          </ul>
+        </div>
+      )}
+
+      <Space direction="vertical" size={10} style={{ width: '100%', marginTop: 14 }}>
         {unknown.length > 0 && (
-          <Button
-            type="primary"
-            icon={<RedoOutlined />}
-            onClick={onRestartUnknown}
-            block
-          >
-            Повторить «не знаю» ({unknown.length})
+          <Button type="primary" icon={<RedoOutlined />} onClick={onRestartUnknown} block>
+            Повторить непройденные ({unknown.length})
           </Button>
         )}
-        <Button icon={<RedoOutlined />} onClick={onRestart} block>
-          Начать заново
-        </Button>
-        <Button icon={<SettingOutlined />} onClick={onBack} block>
-          Настройки
-        </Button>
+        <Button icon={<RedoOutlined />} onClick={onRestart} block>Начать заново</Button>
+        <Button icon={<SettingOutlined />} onClick={onBack} block>Настройки</Button>
       </Space>
     </div>
   );
 }
 
-// Экран выбора набора (когда setId не передан)
 function SetSelectorScreen({ onSelect }) {
   const [sets, setSets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getTdfSets()
-      .then(setSets)
-      .finally(() => setLoading(false));
+    api.getTdfSets().then(setSets).finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
-  }
+  if (loading) return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
 
   if (sets.length === 0) {
-    return (
-      <div style={{ textAlign: 'center', padding: 48, color: '#888' }}>
-        Наборов ТДФ нет. Создайте набор в разделе «ТДФ — Наборы».
-      </div>
-    );
+    return <EmptyState title="Наборов ТДФ нет" description="Создайте набор в разделе «ТДФ — Наборы»." />;
   }
 
   return (
     <div className="tdf-flashcards-settings">
-      <Title level={4} style={{ marginBottom: 16 }}>Выберите набор</Title>
+      <h2 className="tdf-flashcards-h">Выберите набор</h2>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {sets.map(s => (
           <Button key={s.id} block onClick={() => onSelect(s)} style={{ height: 'auto', padding: '10px 16px', textAlign: 'left' }}>
-            <div>
-              <span style={{ fontWeight: 500 }}>{s.title}</span>
-              {s.class_number && (
-                <Tag style={{ marginLeft: 8 }}>{s.class_number} класс</Tag>
-              )}
-            </div>
+            <span style={{ fontWeight: 500 }}>{s.title}</span>
+            {s.class_number && <Tag style={{ marginLeft: 8 }}>{s.class_number} класс</Tag>}
           </Button>
         ))}
       </div>
@@ -276,20 +311,19 @@ function SetSelectorScreen({ onSelect }) {
   );
 }
 
-// Основной компонент
 export default function TDFFlashcards({ setId: initialSetId, onBack }) {
   const [activeSetId, setActiveSetId] = useState(initialSetId || null);
   const [tdfSet, setTdfSet] = useState(null);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(!!initialSetId);
 
-  // Фазы: 'settings' | 'session' | 'results'
-  const [phase, setPhase] = useState('settings');
-  const [deck, setDeck] = useState([]); // текущая колода
+  const [phase, setPhase] = useState('settings');  // settings | session | results
+  const [deck, setDeck] = useState([]);
+  const [mode, setMode] = useState('name');
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [results, setResults] = useState({}); // {itemId: 'know'|'dont-know'}
-  const [progress, setProgress] = useState({}); // localStorage прогресс
+  const [results, setResults] = useState({});
+  const [progress, setProgress] = useState({});
 
   useEffect(() => {
     if (!activeSetId) return;
@@ -303,15 +337,9 @@ export default function TDFFlashcards({ setId: initialSetId, onBack }) {
       .finally(() => setLoading(false));
   }, [activeSetId]);
 
-  const handleStart = useCallback(({ filtered, shuffled }) => {
-    let deck = [...filtered];
-    if (shuffled) {
-      for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [deck[i], deck[j]] = [deck[j], deck[i]];
-      }
-    }
-    setDeck(deck);
+  const handleStart = useCallback(({ filtered, shuffled, mode: askMode }) => {
+    setDeck(shuffled ? shuffleArray([...filtered]) : [...filtered]);
+    setMode(askMode);
     setCurrentIndex(0);
     setIsFlipped(false);
     setResults({});
@@ -322,13 +350,13 @@ export default function TDFFlashcards({ setId: initialSetId, onBack }) {
 
   const handleAnswer = useCallback((answer) => {
     const item = deck[currentIndex];
-    const newResults = { ...results, [item.id]: answer };
-    setResults(newResults);
-
-    // Сохраняем в localStorage
-    const newProgress = { ...progress, [item.id]: answer };
-    setProgress(newProgress);
-    saveProgress(activeSetId, newProgress);
+    if (!item) return;
+    setResults(prev => ({ ...prev, [item.id]: answer }));
+    setProgress(prev => {
+      const next = { ...prev, [item.id]: answer };
+      saveProgress(activeSetId, next);
+      return next;
+    });
 
     if (currentIndex + 1 >= deck.length) {
       setPhase('results');
@@ -336,78 +364,72 @@ export default function TDFFlashcards({ setId: initialSetId, onBack }) {
       setCurrentIndex(prev => prev + 1);
       setIsFlipped(false);
     }
-  }, [deck, currentIndex, results, progress, activeSetId]);
+  }, [deck, currentIndex, activeSetId]);
+
+  // Клавиатура: карточки часто гоняют с проектора, мышь там мешает.
+  useEffect(() => {
+    if (phase !== 'session') return undefined;
+    const onKey = (e) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === 'Space' || e.code === 'Enter') { e.preventDefault(); handleFlip(); }
+      else if (isFlipped && (e.key === '1' || e.key === 'ArrowRight')) handleAnswer('know');
+      else if (isFlipped && (e.key === '0' || e.key === 'ArrowLeft')) handleAnswer('dont-know');
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase, isFlipped, handleFlip, handleAnswer]);
 
   const handleRestartUnknown = useCallback(() => {
-    const unknown = deck.filter(item => results[item.id] !== 'know');
-    setDeck(unknown);
+    setDeck(deck.filter(item => results[item.id] !== 'know'));
     setCurrentIndex(0);
     setIsFlipped(false);
     setResults({});
     setPhase('session');
   }, [deck, results]);
 
-  const handleRestart = useCallback(() => {
-    setPhase('settings');
-  }, []);
-
   if (!activeSetId) {
     return (
       <div className="tdf-flashcards-container">
         <div className="tdf-flashcards-topbar">
-          <Button icon={<ArrowLeftOutlined />} type="text" onClick={onBack}>
-            Назад к ТДФ
-          </Button>
+          <Button icon={<ArrowLeftOutlined />} type="text" onClick={onBack}>Назад к ТДФ</Button>
         </div>
         <SetSelectorScreen onSelect={(s) => { setActiveSetId(s.id); setPhase('settings'); }} />
       </div>
     );
   }
 
-  if (loading) {
-    return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
-  }
+  if (loading) return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
 
   return (
     <div className="tdf-flashcards-container">
       <div className="tdf-flashcards-topbar">
-        <Button icon={<ArrowLeftOutlined />} type="text" onClick={initialSetId ? onBack : () => setActiveSetId(null)}>
+        <Button
+          icon={<ArrowLeftOutlined />}
+          type="text"
+          onClick={initialSetId ? onBack : () => setActiveSetId(null)}
+        >
           {initialSetId ? 'Назад к ТДФ' : 'Выбрать другой набор'}
         </Button>
       </div>
 
       {phase === 'settings' && (
-        <SettingsScreen
-          tdfSet={tdfSet}
-          items={items}
-          onStart={handleStart}
-          savedProgress={progress}
-        />
+        <SettingsScreen tdfSet={tdfSet} items={items} onStart={handleStart} savedProgress={progress} />
       )}
 
       {phase === 'session' && deck.length > 0 && (
         <div className="tdf-flashcards-session">
-          {/* Прогресс-бар */}
-          <div style={{ marginBottom: 16 }}>
+          <div>
             <Progress
               percent={Math.round((currentIndex / deck.length) * 100)}
               size="small"
               showInfo={false}
-              strokeColor="#1890ff"
+              strokeColor="var(--accent)"
             />
-            <div style={{ textAlign: 'center', fontSize: 12, color: '#888', marginTop: 4 }}>
-              {currentIndex + 1} / {deck.length}
-            </div>
+            <div className="tdf-flashcards-counter">{currentIndex + 1} / {deck.length}</div>
           </div>
 
-          {/* Карточка */}
-          <FlashCard
-            item={deck[currentIndex]}
-            isFlipped={isFlipped}
-            onFlip={handleFlip}
-          />
+          <FlashCard item={deck[currentIndex]} mode={mode} isFlipped={isFlipped} onFlip={handleFlip} />
 
-          {/* Кнопки ответа (активны только после флипа) */}
           <div className="tdf-flashcards-actions">
             <Button
               size="large"
@@ -424,10 +446,14 @@ export default function TDFFlashcards({ setId: initialSetId, onBack }) {
               icon={<CheckOutlined />}
               onClick={() => handleAnswer('know')}
               disabled={!isFlipped}
-              style={{ flex: 1, borderColor: '#52c41a', color: '#52c41a' }}
+              className="tdf-flashcards-know"
+              style={{ flex: 1 }}
             >
               Знаю
             </Button>
+          </div>
+          <div className="tdf-flashcards-keys">
+            пробел — перевернуть · 1 или → — знаю · 0 или ← — не знаю
           </div>
         </div>
       )}
@@ -436,9 +462,9 @@ export default function TDFFlashcards({ setId: initialSetId, onBack }) {
         <ResultsScreen
           deck={deck}
           results={results}
-          onRestart={handleRestart}
+          onRestart={() => setPhase('settings')}
           onRestartUnknown={handleRestartUnknown}
-          onBack={handleRestart}
+          onBack={() => setPhase('settings')}
         />
       )}
     </div>
