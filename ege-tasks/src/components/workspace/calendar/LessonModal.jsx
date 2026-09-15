@@ -11,7 +11,7 @@ import MaterialPickerModal from '../MaterialPickerModal';
 import AttendanceRoster from '../AttendanceRoster';
 import { Chip } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
-import { groupOptions } from './calendarUtils';
+import { groupOptions, resolveGroup } from './calendarUtils';
 import { api } from '../../../shared/services/pocketbase';
 
 /**
@@ -26,9 +26,8 @@ export default function LessonModal({
   const watchedGroup = Form.useWatch('group', form);
   const worksMap = useMemo(() => new Map((works || []).map((w) => [w.id, w.title])), [works]);
   const selectedGroup = useMemo(
-    () => (groups || []).find((g) => g.id === watchedGroup)
-      // группа прошлого года в списки пикеров не попадает — берём из самой записи
-      || (initial?.expand?.group?.id === watchedGroup ? initial.expand.group : null),
+    // Группа прошлого года в списки пикеров не попадает — берём из самой записи.
+    () => resolveGroup(groups, watchedGroup, initial?.expand?.group),
     [groups, watchedGroup, initial],
   );
   const isCourse = selectedGroup?.kind === 'course';

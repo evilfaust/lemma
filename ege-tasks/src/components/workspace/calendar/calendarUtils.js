@@ -112,6 +112,17 @@ export function groupOptions(groups = [], extra = null) {
   return opts;
 }
 
+/**
+ * Запись группы по её id: сначала в списке пикера, затем — группа самой записи
+ * (прошлогодняя в список не попадает). Пустой id — это «группа не выбрана»,
+ * и никакая запись ему не подходит.
+ */
+export function resolveGroup(groups = [], groupId = '', ownGroup = null) {
+  if (!groupId) return null;
+  return (groups || []).find((g) => g.id === groupId)
+    || (ownGroup?.id === groupId ? ownGroup : null);
+}
+
 // Сортировка событий внутри ячейки месяца: deadline → lesson → todo, затем время.
 export function sortMonthEvents(a, b) {
   const ta = TYPE_ORDER[a.resource?.type] ?? 9;
