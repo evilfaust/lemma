@@ -27,6 +27,7 @@ import { api } from '../../shared/services/pocketbase';
 import StudentEditModal from '../students/StudentEditModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { WorkspacePageHeader, EmptyState, SectionCard, Chip, groupTone, groupHex } from './ui';
+import GroupCampaignsSection from './summer/GroupCampaignsSection';
 import CourseMembersSection from './course/CourseMembersSection';
 import CoTeachersSection from './CoTeachersSection';
 
@@ -249,6 +250,8 @@ export default function GroupDetail() {
       </div>
 
       <CoTeachersSection group={group} onChanged={load} />
+
+      <GroupCampaignsSection group={group} />
 
       {group.kind === 'course' ? (
         <CourseMembersSection group={group} allStudents={allStudents} />

@@ -4,6 +4,7 @@ import { App, Card, List, Select, Space, Spin, Tag, Typography } from 'antd';
 import { RightOutlined } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import { WorkspacePageHeader, EmptyState, GroupChip } from '../ui';
+import { groupSelectLabel } from './groupLabel';
 
 const { Text } = Typography;
 
@@ -27,10 +28,14 @@ export default function SummerProgramList() {
   useEffect(() => {
     if (!groupId) { setStudents([]); return; }
     setLoading(true);
-    Promise.all([api.getStudentsByGroup(groupId), api.getStudyPrograms({ group: groupId })])
-      .then(([st, progs]) => {
-        setStudents(st.filter((s) => !s.external)); // внешним летнее ДЗ не выдаём
-        setPrograms(Object.fromEntries(progs.map((p) => [p.student, p])));
+    api.getStudentsByGroup(groupId)
+      .then(async (st) => {
+        const roster = st.filter((s) => !s.external); // внешним летнее ДЗ не выдаём
+        setStudents(roster);
+        // Программы ищем по ученикам, а не по группе: после перевода на новый
+        // учебный год программа осталась на прошлогодней группе, и фильтр по
+        // группе показывал бы «программа не собрана» у всего класса.
+        setPrograms(await api.getStudyProgramsByStudents(roster.map((s) => s.id)));
       })
       .catch(() => message.error('Не удалось загрузить учеников'))
       .finally(() => setLoading(false));
@@ -50,7 +55,7 @@ export default function SummerProgramList() {
             placeholder="Выберите группу"
             value={groupId}
             onChange={setGroupId}
-            options={groups.map((g) => ({ value: g.id, label: `${g.name}${g.grade ? ` · ${g.grade} кл.` : ''}` }))}
+            options={groups.map((g) => ({ value: g.id, label: groupSelectLabel(g) }))}
           />
         }
       />

@@ -11,6 +11,8 @@ import {
 import dayjs from 'dayjs';
 import { api } from '../../../shared/services/pocketbase';
 import { WorkspacePageHeader, Chip, GroupChip } from '../ui';
+import { groupSelectLabel } from './groupLabel';
+import { buildGroupLineage } from '../../../utils/yearRollover';
 import MaterialPickerModal from '../MaterialPickerModal';
 import {
   computeCampaignProgress, lastActivityLabel, PACE, PACE_LABEL, PACE_TONE,
@@ -78,7 +80,7 @@ function EditCampaignModal({ open, campaign, groups, onClose, onSave }) {
         </Form.Item>
         <Form.Item name="group" label="Группа">
           <Select allowClear placeholder="Выберите группу"
-            options={groups.map((g) => ({ value: g.id, label: `${g.name}${g.grade ? ` · ${g.grade} кл.` : ''}` }))}
+            options={groups.map((g) => ({ value: g.id, label: groupSelectLabel(g) }))}
           />
         </Form.Item>
         <Form.Item name="year" label="Год">
@@ -402,7 +404,18 @@ export default function VacationCampaignDetail() {
         groupId ? api.getStudentsByGroup(groupId) : Promise.resolve([]),
         api.getCampaignPrograms(campaignId),
       ]);
-      setStudents(st.filter((s) => !s.external));
+      // Ростер = состав класса ∪ те, у кого в этой кампании уже есть программа.
+      // Второе слагаемое — страховка: ученик мог уехать из класса (перевод на
+      // новый год, переход к другому учителю), но его задание с проверкой никуда
+      // не делось и должно оставаться на странице.
+      const byId = new Map(st.filter((x) => !x.external).map((x) => [x.id, x]));
+      for (const prog of Object.values(progs)) {
+        const stu = prog.expand?.student;
+        if (stu && !stu.external && !byId.has(stu.id)) byId.set(stu.id, stu);
+      }
+      setStudents([...byId.values()].sort(
+        (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru'),
+      ));
       setPrograms(progs);
     } catch {
       message.error('Не удалось загрузить кампанию');
@@ -539,6 +552,12 @@ export default function VacationCampaignDetail() {
   );
 
   const group = useMemo(() => groups.find((g) => g.id === campaign?.group), [groups, campaign]);
+  // Куда уехал класс после перевода на новый учебный год: кампания остаётся на
+  // прошлогодней группе, а искать её учитель идёт в новый класс.
+  const successor = useMemo(
+    () => (campaign?.group ? buildGroupLineage(groups, campaign.group).descendants.at(-1) : null),
+    [groups, campaign],
+  );
 
   const rosterColumns = [
     {
@@ -701,6 +720,11 @@ export default function VacationCampaignDetail() {
             {campaign.season && <Chip tone="violet">{campaign.season}</Chip>}
             {campaign.year && <Text type="secondary">{campaign.year}</Text>}
             {group && <GroupChip id={group.id}>{group.name}</GroupChip>}
+            {successor && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                класс продолжается как <GroupChip id={successor.id}>{successor.name}</GroupChip>
+              </Text>
+            )}
             <Tag color={STATUS_COLOR[campaign.status] || 'default'}>
               {STATUS_LABEL[campaign.status] || campaign.status}
             </Tag>

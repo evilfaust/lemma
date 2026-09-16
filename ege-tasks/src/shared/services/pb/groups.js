@@ -3,6 +3,7 @@ import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { registerGroupColors } from '../../utils/groupColors';
 import { currentAcademicYear } from '../../../utils/academicYear';
+import { selectRosterMemberships } from '../../../utils/yearRollover';
 
 // Учительское фло, фаза 1: API классов/групп (коллекция `teaching_groups`).
 // `owner` подставляется автоматически из токена залогиненного учителя.
@@ -155,33 +156,31 @@ export const groupsApi = {
   // (миграция 1784300000): он переживает перевод на новый учебный год, поэтому
   // группа прошлого года остаётся с учениками, а не пустеет.
   //
-  // scope: 'auto' (по умолчанию) — действующие члены, а если их нет (группа
-  //        прошлого года, все переведены/выпущены) — все, кто в ней состоял;
+  // scope: 'auto' (по умолчанию) — состав группы «на её собственный год»:
+  //        действующие члены плюс те, кого перевели/выпустили в прошлые годы;
   //        'active' — только действующие; 'all' — вся история группы.
+  //        Разбор случаев и почему «просто активные» не годятся —
+  //        в `selectRosterMemberships` (utils/yearRollover.js).
   async getStudentsByGroup(groupId, { scope = 'auto' } = {}) {
     try {
       const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru');
-      const fromMemberships = async (onlyActive) => {
-        const parts = [`group = "${escapeFilter(groupId)}"`];
-        if (onlyActive) parts.push('status = "active"');
-        const rows = await pb.collection('group_memberships').getFullList({
-          filter: parts.join(' && '),
-          expand: 'student',
-        });
-        const seen = new Set();
-        return rows
-          .map((m) => m.expand?.student)
-          .filter((st) => st && !seen.has(st.id) && seen.add(st.id))
-          .sort(byName);
-      };
 
       try {
-        if (scope !== 'all') {
-          const active = await fromMemberships(true);
-          if (active.length || scope === 'active') return active;
+        // Одним запросом вся история группы: решение, кого показывать, чистое
+        // и покрыто тестами, а не размазано по фильтрам PocketBase.
+        const rows = await pb.collection('group_memberships').getFullList({
+          filter: `group = "${escapeFilter(groupId)}"`,
+          expand: 'student',
+        });
+        if (rows.length) {
+          const picked = selectRosterMemberships(rows, { scope, currentYear: currentAcademicYear() });
+          const seen = new Set();
+          const students = picked
+            .map((m) => m.expand?.student)
+            .filter((st) => st && !seen.has(st.id) && seen.add(st.id))
+            .sort(byName);
+          if (students.length || scope === 'active') return students;
         }
-        const historic = await fromMemberships(false);
-        if (historic.length) return historic;
       } catch (e) {
         // Коллекции ещё нет (фронт задеплоен раньше миграции) — не роняем экран,
         // работаем по прямой связи, как до v3.9.171.
@@ -207,13 +206,20 @@ export const groupsApi = {
     if (!ids.length) return {};
     const counts = Object.fromEntries(ids.map((id) => [id, 0]));
     try {
+      // Без фильтра по статусу: у прошлогодней группы карточка должна показывать
+      // тот состав, что и её ростер (см. `selectRosterMemberships`), иначе класс,
+      // из которого перевели всех кроме одного, выглядит как класс на одного.
       const rows = await getFullListByOr(
         'group_memberships', 'group', ids,
-        { fields: 'id,group,student' },
-        { extraFilter: 'status = "active"' },
+        { fields: 'id,group,student,status,year' },
       );
-      for (const r of rows) {
-        if (counts[r.group] !== undefined) counts[r.group] += 1;
+      const byGroup = new Map(ids.map((id) => [id, []]));
+      for (const r of rows) byGroup.get(r.group)?.push(r);
+      const currentYear = currentAcademicYear();
+      for (const [gid, list] of byGroup) {
+        counts[gid] = new Set(
+          selectRosterMemberships(list, { currentYear }).map((m) => m.student),
+        ).size;
       }
     } catch (e) {
       // Коллекции ещё нет — считаем по прямой связи (поведение до v3.9.171).

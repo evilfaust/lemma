@@ -1,5 +1,6 @@
 import { pb, _logAudit, andOwner } from './client.js';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { getFullListByOr } from './chunked.js';
 
 // Индивидуальные летние программы (study_programs + study_program_items).
 // owner ставится из токена учителя; мутации значимых записей логируются в audit_log.
@@ -40,6 +41,33 @@ export const programsApi = {
     } catch (error) {
       console.error('Error fetching student study program:', error);
       return null;
+    }
+  },
+
+  // Программы сразу по списку учеников — для экранов, где ростер уже на руках.
+  //
+  // 🚨 Ищем по ученику, а не по `study_programs.group`: перевод на новый учебный
+  // год создаёт НОВУЮ группу, а программа остаётся привязанной к прошлогодней.
+  // Фильтр по группе после перевода находил пустоту — каникулярное задание
+  // выглядело потерянным. Возвращаем { studentId → последняя программа }.
+  async getStudyProgramsByStudents(studentIds = [], { season = '', year } = {}) {
+    const ids = [...new Set(studentIds.filter(Boolean))];
+    if (!ids.length) return {};
+    try {
+      const extra = [];
+      if (season) extra.push(`season = "${escapeFilter(season)}"`);
+      if (year) extra.push(`year = ${Number(year)}`);
+      const rows = await getFullListByOr(
+        'study_programs', 'student', ids,
+        { sort: '-created' },
+        extra.length ? { extraFilter: extra.join(' && ') } : {},
+      );
+      const out = {};
+      for (const p of rows) if (!out[p.student]) out[p.student] = p; // сортировка: свежая первой
+      return out;
+    } catch (error) {
+      console.error('Error fetching study programs by students:', error);
+      return {};
     }
   },
 

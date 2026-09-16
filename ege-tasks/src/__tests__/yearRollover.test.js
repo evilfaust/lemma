@@ -7,6 +7,7 @@ import {
 import {
   buildRolloverPlan, summarizeRolloverPlan, validateRolloverPlan,
   suggestNextGroupName, GROUP_ACTIONS, STUDENT_ACTIONS,
+  buildGroupLineage, groupLineageIds, selectRosterMemberships,
 } from '../utils/yearRollover';
 
 describe('academicYear', () => {
@@ -171,5 +172,80 @@ describe('validateRolloverPlan', () => {
     const plan = base();
     plan.toYear = '';
     expect(validateRolloverPlan(plan)).toContain('Не указан целевой учебный год');
+  });
+});
+
+describe('цепочка групп по годам (prev_group)', () => {
+  const groups = [
+    { id: 'g10', name: '10 кл',   year: '2025/2026' },
+    { id: 'g11', name: '11 БАЗА', year: '2026/2027', prev_group: 'g10' },
+    { id: 'g9',  name: '9 кл',    year: '2024/2025' },
+    { id: 'gx',  name: 'Кружок',  year: '2026/2027' },
+  ];
+  // g9 → g10 доклеиваем отдельно, чтобы проверить цепочку длиной больше одной.
+  const chained = groups.map((g) => (g.id === 'g10' ? { ...g, prev_group: 'g9' } : g));
+
+  it('находит, куда уехал класс', () => {
+    const { descendants } = buildGroupLineage(groups, 'g10');
+    expect(descendants.map((g) => g.id)).toEqual(['g11']);
+  });
+
+  it('находит, откуда класс пришёл — на всю глубину', () => {
+    const { ancestors } = buildGroupLineage(chained, 'g11');
+    expect(ancestors.map((g) => g.id)).toEqual(['g10', 'g9']);
+  });
+
+  it('id всей цепочки включают саму группу и идут без дублей', () => {
+    const ids = groupLineageIds(chained, 'g10');
+    expect(ids).toEqual(['g10', 'g9', 'g11']);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('не зацикливается на битой ссылке самой на себя', () => {
+    const loop = [{ id: 'a', prev_group: 'a' }, { id: 'b', prev_group: 'a' }];
+    expect(() => groupLineageIds(loop, 'a')).not.toThrow();
+    expect(groupLineageIds(loop, 'a')).toEqual(['a', 'b']);
+  });
+
+  it('группа без родни даёт пустые списки', () => {
+    expect(buildGroupLineage(groups, 'gx')).toEqual({ ancestors: [], descendants: [] });
+    expect(groupLineageIds(groups, '')).toEqual([]);
+  });
+});
+
+describe('состав группы из журнала членства', () => {
+  const YEAR = '2026/2027';
+  const rows = [
+    { id: 'm1', student: 's1', status: 'active',      year: '2025/2026' },
+    ...Array.from({ length: 11 }, (_, i) => ({
+      id: `m${i + 2}`, student: `t${i}`, status: 'transferred', year: '2025/2026',
+    })),
+  ];
+
+  it('прошлогодний класс не схлопывается до единственного непереведённого', () => {
+    const picked = selectRosterMemberships(rows, { scope: 'auto', currentYear: YEAR });
+    expect(picked).toHaveLength(12);
+  });
+
+  it('выбывший в текущем году в состав не возвращается', () => {
+    const now = [
+      { id: 'a', student: 's1', status: 'active', year: YEAR },
+      { id: 'b', student: 's2', status: 'left',   year: YEAR },
+    ];
+    expect(selectRosterMemberships(now, { scope: 'auto', currentYear: YEAR }).map((m) => m.id)).toEqual(['a']);
+  });
+
+  it('класс, переведённый целиком, показывает исторический состав', () => {
+    const all = rows.filter((m) => m.status === 'transferred');
+    expect(selectRosterMemberships(all, { scope: 'auto', currentYear: YEAR })).toHaveLength(11);
+  });
+
+  it('scope active и all не зависят от года', () => {
+    expect(selectRosterMemberships(rows, { scope: 'active', currentYear: YEAR })).toHaveLength(1);
+    expect(selectRosterMemberships(rows, { scope: 'all', currentYear: YEAR })).toHaveLength(12);
+  });
+
+  it('членство без статуса считается действующим', () => {
+    expect(selectRosterMemberships([{ id: 'x', student: 's' }], { scope: 'active' })).toHaveLength(1);
   });
 });

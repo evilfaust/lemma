@@ -153,3 +153,85 @@ export function validateRolloverPlan(plan) {
   }
   return problems;
 }
+
+// ── Цепочка «тот же класс в другие годы» ────────────────────────────────────
+// Перевод не переносит группу, а создаёт новую с `prev_group` на прошлогоднюю.
+// Поэтому всё, что было привязано к прошлогодней группе (каникулярные кампании,
+// программы, журнал), из нового класса не видно. Эти функции восстанавливают
+// связь: по ним экран находит и предков, и потомков выбранной группы.
+
+/**
+ * Предки и потомки группы по `prev_group`.
+ * @param {Array}  groups  все известные группы (teaching_groups, любые годы)
+ * @param {string} groupId группа, от которой строим цепочку
+ * @returns {{ancestors: Array, descendants: Array}} от ближайшего к дальнему
+ */
+export function buildGroupLineage(groups = [], groupId) {
+  const byId = new Map(groups.filter(Boolean).map((g) => [g.id, g]));
+  const seen = new Set([groupId]);
+
+  const ancestors = [];
+  let cur = byId.get(groupId);
+  while (cur?.prev_group && !seen.has(cur.prev_group)) {
+    const parent = byId.get(cur.prev_group);
+    if (!parent) break;
+    ancestors.push(parent);
+    seen.add(parent.id);
+    cur = parent;
+  }
+
+  const childrenOf = new Map();
+  for (const g of groups) {
+    if (!g?.prev_group) continue;
+    if (!childrenOf.has(g.prev_group)) childrenOf.set(g.prev_group, []);
+    childrenOf.get(g.prev_group).push(g);
+  }
+  const descendants = [];
+  const queue = [...(childrenOf.get(groupId) || [])];
+  while (queue.length) {
+    const g = queue.shift();
+    if (!g || seen.has(g.id)) continue;
+    seen.add(g.id);
+    descendants.push(g);
+    queue.push(...(childrenOf.get(g.id) || []));
+  }
+
+  return { ancestors, descendants };
+}
+
+/** Id всей цепочки, включая саму группу: «этот класс во все годы». */
+export function groupLineageIds(groups = [], groupId) {
+  if (!groupId) return [];
+  const { ancestors, descendants } = buildGroupLineage(groups, groupId);
+  return [groupId, ...ancestors.map((g) => g.id), ...descendants.map((g) => g.id)];
+}
+
+/**
+ * Состав группы из журнала членства.
+ *
+ * 🚨 Почему не «просто активные»: перевод на новый год закрывает членства
+ * статусом `transferred`, но кого-то могут не перевести (ушёл в другую школу,
+ * остался на второй год). Тогда у прошлогодней группы остаётся один активный
+ * член — и правило «есть активные → показываем только их» схлопывало ростер
+ * с двенадцати человек до одного, унося с собой их каникулярные задания.
+ *
+ * @param {Array}  rows        членства группы (group_memberships)
+ * @param {object} [opts]
+ * @param {'auto'|'active'|'all'} [opts.scope='auto']
+ * @param {string} [opts.currentYear] текущий учебный год («2026/2027»)
+ */
+export function selectRosterMemberships(rows = [], { scope = 'auto', currentYear = '' } = {}) {
+  const list = rows.filter(Boolean);
+  const isActive = (m) => (m.status || 'active') === 'active';
+  if (scope === 'all') return list;
+  const active = list.filter(isActive);
+  if (scope === 'active') return active;
+
+  // Группа целиком переведена/выпущена — показываем её исторический состав.
+  if (!active.length) return list;
+
+  // Смешанный случай: закрытые членства ПРОШЛЫХ лет — это состав того года,
+  // он и есть ростер прошлогодней группы. Выбывшие в текущем году — нет.
+  const carried = list.filter((m) => !isActive(m) && m.year && currentYear && m.year !== currentYear);
+  return [...active, ...carried];
+}

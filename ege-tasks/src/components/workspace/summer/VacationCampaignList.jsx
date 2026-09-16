@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   App, Button, Card, DatePicker, Form, Input, List, Modal, Select, Space,
@@ -8,13 +8,15 @@ import { PlusOutlined, RightOutlined, TeamOutlined, UserOutlined } from '@ant-de
 import dayjs from 'dayjs';
 import { api } from '../../../shared/services/pocketbase';
 import { WorkspacePageHeader, EmptyState, GroupChip, Chip } from '../ui';
+import { groupSelectLabel } from './groupLabel';
+import { buildGroupLineage } from '../../../utils/yearRollover';
 
 const { Text } = Typography;
 
 const STATUS_COLOR = { draft: 'default', issued: 'blue', archived: 'default' };
 const STATUS_LABEL = { draft: 'Черновик', issued: 'Выдано', archived: 'Архив' };
 
-function CampaignCard({ campaign, onClick }) {
+function CampaignCard({ campaign, successor, onClick }) {
   const group = campaign.expand?.group;
   return (
     <List.Item
@@ -37,6 +39,12 @@ function CampaignCard({ campaign, onClick }) {
             {campaign.season && <Chip tone="violet">{campaign.season}</Chip>}
             {campaign.year && <Text type="secondary">{campaign.year}</Text>}
             {group && <GroupChip id={group.id}>{group.name}</GroupChip>}
+            {/* Класс перевели на новый год — подсказываем, где искать этих ребят сейчас. */}
+            {successor && (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                → <GroupChip id={successor.id}>{successor.name}</GroupChip>
+              </Text>
+            )}
             {campaign.deadline && (
               <Text type="secondary">
                 до {dayjs(campaign.deadline).format('D MMM')}
@@ -95,7 +103,7 @@ function CreateCampaignModal({ open, groups, onClose, onCreate }) {
           <Select
             allowClear
             placeholder="Выберите группу"
-            options={groups.map((g) => ({ value: g.id, label: `${g.name}${g.grade ? ` · ${g.grade} кл.` : ''}` }))}
+            options={groups.map((g) => ({ value: g.id, label: groupSelectLabel(g) }))}
           />
         </Form.Item>
         <Form.Item name="year" label="Учебный год">
@@ -154,6 +162,14 @@ export default function VacationCampaignList() {
     }
   };
 
+  // Класс после перевода на новый учебный год — это новая запись группы
+  // (`prev_group` ведёт на прошлогоднюю). Кампания остаётся на старой, поэтому
+  // показываем, где эти ребята учатся сейчас.
+  const successorOf = useCallback(
+    (groupId) => buildGroupLineage(groups, groupId).descendants.at(-1) || null,
+    [groups],
+  );
+
   // Разбиваем кампании по годам для группировки
   const byYear = useMemo(() => {
     const map = new Map();
@@ -202,6 +218,7 @@ export default function VacationCampaignList() {
                   <CampaignCard
                     key={c.id}
                     campaign={c}
+                    successor={c.group ? successorOf(c.group) : null}
                     onClick={() => navigate(`/app/summer/campaign/${c.id}`)}
                   />
                 )}
