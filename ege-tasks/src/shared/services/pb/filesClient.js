@@ -31,6 +31,15 @@ pbFiles.autoCancellation(false);
 // Запоминаем последний email подключения для предзаполнения формы.
 const LAST_EMAIL_KEY = 'pbf_last_email';
 
+const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif'];
+
+// Картинка ли запись materials (mime или расширение имени).
+export function isImageMaterial(rec) {
+  const name = String(rec?.original_name || rec?.file || '').toLowerCase();
+  return String(rec?.mime || '').startsWith('image/')
+    || IMAGE_EXTS.some((ext) => name.endsWith(`.${ext}`));
+}
+
 export const CATEGORY_LABELS = {
   textbook: 'Учебник',
   worksheet: 'Рабочий лист',
@@ -83,8 +92,13 @@ export const materialsApi = {
 
   // ── CRUD материалов ─────────────────────────────────────────────────────────
   // folder: undefined/null = без фильтра по папке; '' = корень; id = конкретная папка.
-  async listMaterials({ page = 1, perPage = 40, category = '', search = '', folder, sort = '-created' } = {}) {
+  // kind: 'image' — только картинки (по mime или расширению сохранённого файла:
+  // у части старых записей mime пустой).
+  async listMaterials({ page = 1, perPage = 40, category = '', search = '', folder, kind = '', sort = '-created' } = {}) {
     const parts = [];
+    if (kind === 'image') {
+      parts.push(`(mime ~ "image/" || ${IMAGE_EXTS.map((ext) => `file ~ ".${ext}"`).join(' || ')})`);
+    }
     if (category) parts.push(pbFiles.filter('category = {:c}', { c: category }));
     if (folder != null) {
       parts.push(folder === '' ? 'folder = ""' : pbFiles.filter('folder = {:f}', { f: folder }));

@@ -2,13 +2,17 @@
  * MaterialPickerModal — выбор файлов из «Библиотеки» (pb-files) для прикрепления
  * к уроку (lessons.materials) или заметке (teacher_notes.links).
  *
- * Возвращает массив дескрипторов `{ type:'material', id, title, url }` через onPick.
+ * Возвращает массив дескрипторов `{ type:'material', id, title, url }` через onPick
+ * (вторым аргументом — сами записи materials, если нужен mime/имя файла).
  * Если хранилище не подключено — показывает форму подключения.
+ *
+ * kind='image' — только картинки (с миниатюрой в списке), multiple=false — выбор
+ * одного файла (клик заменяет выбор). Так пикер встраивается в редактор теории.
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Modal, Input, Select, List, Checkbox, Tag, Spin, Empty, Space, Typography, Upload, Button, App, TreeSelect } from 'antd';
+import { Modal, Input, Select, List, Checkbox, Radio, Tag, Spin, Empty, Space, Typography, Upload, Button, App, TreeSelect } from 'antd';
 import { SearchOutlined, FilePdfOutlined, FileOutlined, UploadOutlined } from '@ant-design/icons';
-import { materialsApi, CATEGORY_LABELS } from '../../shared/services/pb/filesClient';
+import { materialsApi, CATEGORY_LABELS, isImageMaterial } from '../../shared/services/pb/filesClient';
 import { useAuth } from '../../contexts/AuthContext';
 import ConnectForm from './StorageConnect';
 import { buildFolderTree } from './folderTree';
@@ -20,7 +24,11 @@ function isPdf(rec) {
   return (rec.mime || '').includes('pdf') || /\.pdf$/i.test(rec.original_name || rec.file || '');
 }
 
-export default function MaterialPickerModal({ open, onClose, onPick, existingIds = [] }) {
+export default function MaterialPickerModal({
+  open, onClose, onPick, existingIds = [],
+  kind = '', multiple = true,
+  title = 'Прикрепить файл из Библиотеки', okText = 'Прикрепить',
+}) {
   const { message } = App.useApp();
   const { canEdit } = useAuth();
   const [connected, setConnected] = useState(() => materialsApi.isConnected());
@@ -42,6 +50,7 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
         search,
         category,
         perPage: 100,
+        kind,
         ...(folderFilter !== undefined ? { folder: folderFilter } : {}),
       });
       setItems(res.items || []);
@@ -51,7 +60,7 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
     } finally {
       setLoading(false);
     }
-  }, [search, category, folderFilter]);
+  }, [search, category, folderFilter, kind]);
 
   useEffect(() => {
     if (open && connected) load();
@@ -74,13 +83,14 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
   const existing = new Set(existingIds);
 
   const confirm = () => {
-    const picked = Object.values(selected).map((rec) => ({
+    const records = Object.values(selected);
+    const picked = records.map((rec) => ({
       type: 'material',
       id: rec.id,
       title: rec.title || rec.original_name || 'Файл',
       url: materialsApi.fileUrl(rec),
     }));
-    onPick(picked);
+    onPick(picked, records);
     onClose();
   };
 
@@ -95,7 +105,7 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
         category: uploadCategory,
       });
       setItems((prev) => [rec, ...prev]);
-      setSelected((prev) => ({ ...prev, [rec.id]: rec }));
+      setSelected((prev) => (multiple ? { ...prev, [rec.id]: rec } : { [rec.id]: rec }));
       onSuccess?.(rec);
       message.success(`Загружено: ${file.name}`);
     } catch (e) {
@@ -109,10 +119,10 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
   return (
     <Modal
       open={open}
-      title="Прикрепить файл из Библиотеки"
+      title={title}
       onCancel={onClose}
       onOk={confirm}
-      okText={`Прикрепить${Object.keys(selected).length ? ` (${Object.keys(selected).length})` : ''}`}
+      okText={`${okText}${multiple && Object.keys(selected).length ? ` (${Object.keys(selected).length})` : ''}`}
       cancelText="Отмена"
       okButtonProps={{ disabled: !connected || Object.keys(selected).length === 0 }}
       width={640}
@@ -124,7 +134,8 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
         <>
           {canEdit && (
             <Space style={{ marginBottom: 12, width: '100%' }} wrap>
-              <Upload multiple customRequest={customUpload} showUploadList={false}>
+              <Upload multiple={multiple} accept={kind === 'image' ? 'image/*' : undefined}
+                customRequest={customUpload} showUploadList={false}>
                 <Button icon={<UploadOutlined />} loading={uploading > 0}>
                   Загрузить с компьютера{uploading > 0 ? `… (${uploading})` : ''}
                 </Button>
@@ -149,7 +160,7 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
           </Space>
           <Spin spinning={loading}>
             {items.length === 0 ? (
-              <Empty description="Нет файлов" />
+              <Empty description={kind === 'image' ? 'Нет картинок' : 'Нет файлов'} />
             ) : (
               <List
                 size="small"
@@ -164,6 +175,7 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
                       onClick={() => {
                         if (already) return;
                         setSelected((prev) => {
+                          if (!multiple) return prev[rec.id] ? {} : { [rec.id]: rec };
                           const next = { ...prev };
                           if (next[rec.id]) delete next[rec.id]; else next[rec.id] = rec;
                           return next;
@@ -171,9 +183,18 @@ export default function MaterialPickerModal({ open, onClose, onPick, existingIds
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minWidth: 0 }}>
-                        <Checkbox checked={checked || already} disabled={already} style={{ flexShrink: 0 }} />
+                        {multiple
+                          ? <Checkbox checked={checked || already} disabled={already} style={{ flexShrink: 0 }} />
+                          : <Radio checked={checked} disabled={already} style={{ flexShrink: 0, marginInlineEnd: 0 }} />}
                         <span style={{ flexShrink: 0, display: 'inline-flex' }}>
-                          {isPdf(rec)
+                          {kind === 'image' && isImageMaterial(rec) ? (
+                            // Миниатюр pb-files не режет — грузим оригинал лениво.
+                            <img src={materialsApi.fileUrl(rec)} alt="" loading="lazy"
+                              style={{
+                                width: 56, height: 40, objectFit: 'contain', borderRadius: 4,
+                                background: 'var(--bg-sunken, #f5f5f5)',
+                              }} />
+                          ) : isPdf(rec)
                             ? <FilePdfOutlined style={{ color: '#d4380d' }} />
                             : <FileOutlined style={{ color: '#1677ff' }} />}
                         </span>

@@ -6,7 +6,8 @@ import {
   CodeOutlined, PictureOutlined, LinkOutlined,
   MinusOutlined, FunctionOutlined, ContainerOutlined, DownOutlined,
   InboxOutlined, ScissorOutlined, ReloadOutlined, BorderHorizontalOutlined,
-  DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined
+  DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined,
+  PaperClipOutlined, FolderOpenOutlined
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
 import FormulaPalette from './FormulaPalette';
@@ -14,6 +15,7 @@ import CropModal from '../shared/CropModal';
 import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
 import GridPaperModal from '../shared/GridPaperModal';
+import MaterialPickerModal from '../workspace/MaterialPickerModal';
 import { findPlotAtCursor, findGridAtCursor } from '../../utils/plotSnippet';
 import { materialsApi } from '../../shared/services/pb/filesClient';
 import { dataUrlToFile } from '../../utils/cropImage';
@@ -41,6 +43,11 @@ function replaceInEditor(editor, [from, to], text) {
   return true;
 }
 
+// Текст ссылки/alt: квадратные скобки ломают markdown-разметку `[..](..)`.
+const mdText = (s) => String(s || '').replace(/[[\]\\]/g, (ch) => `\\${ch}`);
+// Скобки в URL закрыли бы `(...)` раньше времени.
+const mdUrl = (u) => String(u || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
+
 // Каллауты теории (тип → подпись по умолчанию)
 const CALLOUTS = [
   { type: 'condition', label: 'Условие задачи' },
@@ -57,7 +64,10 @@ const CALLOUTS = [
 export default function EditorToolbar({ editorRef }) {
   const { message } = App.useApp();
   const [imageModalOpen, setImageModalOpen] = useState(false);
-  const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'url'
+  const [imageMode, setImageMode] = useState('upload'); // 'upload' | 'library' | 'url'
+  const [libraryImage, setLibraryImage] = useState(null); // { title, url } — выбрана из Библиотеки
+  const [imagePickerOpen, setImagePickerOpen] = useState(false);
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState('');
   const [imageAlt, setImageAlt] = useState('');
   const [imageSize, setImageSize] = useState('M'); // S | M | L | XL — градация размера в превью/печати
@@ -106,7 +116,19 @@ export default function EditorToolbar({ editorRef }) {
   const insertImageMd = useCallback((url, altRaw, size) => {
     const alt = (altRaw || '').trim() || 'Изображение';
     const sizeTag = size ? `{${size}}` : '';
-    insertIntoEditor(editorRef.current, { text: `\n![${alt}](${url})${sizeTag}\n` });
+    insertIntoEditor(editorRef.current, { text: `\n![${mdText(alt)}](${mdUrl(url)})${sizeTag}\n` });
+  }, [editorRef]);
+
+  // Файлы из Библиотеки → ссылки (PDF, методички, листы). Один файл — ссылкой
+  // в место курсора, несколько — списком. Открываются в новой вкладке, в превью
+  // помечены скрепкой (useMarkdownProcessor → .theory-file-link).
+  const insertFileLinks = useCallback((picked) => {
+    if (!picked?.length) return;
+    const link = (f) => `[${mdText(f.title)}](${mdUrl(f.url)})`;
+    const text = picked.length === 1
+      ? link(picked[0])
+      : `\n${picked.map((f) => `- ${link(f)}`).join('\n')}\n`;
+    insertIntoEditor(editorRef.current, { text });
   }, [editorRef]);
 
   const resetImageModal = useCallback(() => {
@@ -115,6 +137,7 @@ export default function EditorToolbar({ editorRef }) {
     setImageAlt('');
     setLocalDataUrl(null);
     setLocalName('image.png');
+    setLibraryImage(null);
     setImageMode('upload');
   }, []);
 
@@ -141,6 +164,12 @@ export default function EditorToolbar({ editorRef }) {
       resetImageModal();
       return;
     }
+    if (imageMode === 'library') {
+      if (!libraryImage) return;
+      insertImageMd(libraryImage.url, imageAlt || libraryImage.title, imageSize);
+      resetImageModal();
+      return;
+    }
     if (!localDataUrl) return;
     if (!materialsApi.isConnected()) {
       message.warning('Хранилище файлов не подключено — войдите в разделе «Библиотека материалов»');
@@ -163,7 +192,7 @@ export default function EditorToolbar({ editorRef }) {
     } finally {
       setUploading(false);
     }
-  }, [imageMode, imageUrl, imageAlt, imageSize, localDataUrl, localName, insertImageMd, resetImageModal, message]);
+  }, [imageMode, imageUrl, imageAlt, imageSize, localDataUrl, localName, libraryImage, insertImageMd, resetImageModal, message]);
 
   const handleLinkInsert = useCallback(() => {
     if (!linkUrl.trim()) return;
@@ -311,6 +340,10 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<LinkOutlined />}
             onClick={() => setLinkModalOpen(true)} />
         </Tooltip>
+        <Tooltip title="Файл из Библиотеки материалов (PDF, методичка, лист) — вставится ссылкой">
+          <Button size="small" type="text" className="tf-btn" icon={<PaperClipOutlined />}
+            onClick={() => setFilePickerOpen(true)} />
+        </Tooltip>
       </div>
 
       {/* Modal: Вставка изображения */}
@@ -322,7 +355,13 @@ export default function EditorToolbar({ editorRef }) {
         okText={imageMode === 'upload' ? 'Загрузить и вставить' : 'Вставить'}
         cancelText="Отмена"
         confirmLoading={uploading}
-        okButtonProps={{ disabled: imageMode === 'url' ? !imageUrl.trim() : !localDataUrl }}
+        okButtonProps={{
+          disabled: {
+            url: !imageUrl.trim(),
+            library: !libraryImage,
+            upload: !localDataUrl,
+          }[imageMode],
+        }}
         width={520}
       >
         <div className="theory-image-insert">
@@ -332,11 +371,34 @@ export default function EditorToolbar({ editorRef }) {
             onChange={setImageMode}
             options={[
               { value: 'upload', label: 'Загрузить файл' },
+              { value: 'library', label: 'Из Библиотеки' },
               { value: 'url', label: 'По ссылке' },
             ]}
           />
 
-          {imageMode === 'upload' ? (
+          {imageMode === 'library' && (
+            <>
+              {!libraryImage ? (
+                <Button block icon={<FolderOpenOutlined />} onClick={() => setImagePickerOpen(true)}>
+                  Выбрать картинку из Библиотеки
+                </Button>
+              ) : (
+                <>
+                  <img src={libraryImage.url} alt="Превью" className="theory-image-insert-preview" />
+                  <Space>
+                    <Button icon={<ReloadOutlined />} onClick={() => setImagePickerOpen(true)}>Выбрать другую</Button>
+                  </Space>
+                </>
+              )}
+              <Input
+                placeholder="Описание (alt текст)"
+                value={imageAlt}
+                onChange={e => setImageAlt(e.target.value)}
+              />
+            </>
+          )}
+
+          {imageMode === 'upload' && (
             <>
               {!materialsApi.isConnected() && (
                 <Alert
@@ -372,7 +434,9 @@ export default function EditorToolbar({ editorRef }) {
                 onChange={e => setImageAlt(e.target.value)}
               />
             </>
-          ) : (
+          )}
+
+          {imageMode === 'url' && (
             <>
               <Input
                 placeholder="URL изображения"
@@ -413,6 +477,29 @@ export default function EditorToolbar({ editorRef }) {
           </div>
         </div>
       </Modal>
+
+      {/* Пикеры Библиотеки: одна картинка для модалки изображения / файлы-ссылки */}
+      <MaterialPickerModal
+        open={imagePickerOpen}
+        onClose={() => setImagePickerOpen(false)}
+        kind="image"
+        multiple={false}
+        title="Картинка из Библиотеки"
+        okText="Выбрать"
+        onPick={(picked) => {
+          const img = picked[0];
+          if (!img) return;
+          setLibraryImage({ title: img.title, url: img.url });
+          setImageAlt((prev) => prev || img.title);
+        }}
+      />
+      <MaterialPickerModal
+        open={filePickerOpen}
+        onClose={() => setFilePickerOpen(false)}
+        title="Файл из Библиотеки"
+        okText="Вставить"
+        onPick={insertFileLinks}
+      />
 
       <CropModal
         open={cropOpen}

@@ -304,6 +304,17 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
     (_, attrs, size) => `<img${attrs} class="theory-img theory-img--${size.toLowerCase()}">`,
   )
 
+  // Внешние ссылки — в новой вкладке: клик в превью редактора иначе уводит со
+  // страницы с несохранённой статьёй. Файлы Библиотеки материалов (pb-files,
+  // /api/files/materials/…) помечаем классом — в вёрстке это скрепка.
+  result = result.replace(
+    /<a href="(https?:\/\/[^"]*)"/g,
+    (_, href) => {
+      const cls = href.includes('/api/files/materials/') ? ' class="theory-file-link"' : ''
+      return `<a href="${href}"${cls} target="_blank" rel="noopener noreferrer"`
+    },
+  )
+
   // Ручной разрыв страницы (печать): :::pagebreak → <div class="theory-pagebreak">
   result = result.replace(
     new RegExp(`<p>\\s*${MARKERS.pagebreak}\\s*</p>|${MARKERS.pagebreak}`, 'g'),
@@ -361,7 +372,7 @@ export function useMarkdownProcessor(markdown, columns = 1) {
           'mtd', 'annotation', 'div', 'table', 'thead', 'tbody', 'tr',
           'th', 'td', 'caption', 'colgroup', 'col',
           'svg', 'g', 'line', 'rect', 'circle', 'path', 'text'],
-        ADD_ATTR: ['class', 'style', 'encoding', 'xmlns', 'aria-hidden',
+        ADD_ATTR: ['class', 'style', 'encoding', 'xmlns', 'aria-hidden', 'target', 'rel',
           'viewBox', 'role', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r',
           'd', 'fill', 'stroke', 'stroke-width', 'width', 'height', 'transform',
           'font-size', 'font-style', 'text-anchor',
