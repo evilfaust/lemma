@@ -1,0 +1,41 @@
+/* Раскладка окна конструктора графика.
+   Панелей стало много (кривые, векторы, точки, подписи, разбор графика), и в
+   одну колонку они не помещались по высоте экрана. Поэтому на широком окне —
+   две колонки: слева чертёж (он же холст кривой), справа настройки. Чертёж
+   прилипает к верху, чтобы его было видно при прокрутке настроек. */
+.plot-modal-grid {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(380px, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.plot-modal-preview {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: center;
+  padding: 10px 8px;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+
+.plot-modal-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Узкое окно (ноутбук, половина экрана, планшет) — прежняя одна колонка. */
+@media (max-width: 1100px) {
+  .plot-modal-grid { grid-template-columns: minmax(0, 1fr); }
+  .plot-modal-preview { position: static; }
+}
+
+[data-theme='dark'] .plot-modal-preview,
+.dark .plot-modal-preview {
+  background: #1f1f1f;
+  border-color: #303030;
+}

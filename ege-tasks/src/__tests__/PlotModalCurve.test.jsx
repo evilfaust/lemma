@@ -3,7 +3,7 @@ import {
 } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { App } from 'antd';
-import PlotModal from '../components/shared/PlotModal';
+import PlotModal, { curveCanvasSize } from '../components/shared/PlotModal';
 import { parseCoordPlot, plotGeometry } from '../utils/coordPlot';
 import { findPlotAtCursor } from '../utils/plotSnippet';
 
@@ -33,8 +33,8 @@ const insert = (onInsert, label = 'Вставить') => {
   return onInsert.mock.calls.at(-1)[0];
 };
 
-// Холст рисуется в окне −5…5 размером CANVAS (600×440) — та же геометрия.
-const GEO = plotGeometry(parseCoordPlot('x -5 5\ny -5 5'), { width: 600, maxHeight: 440 });
+// Холст рисуется в окне −5…5 размером холста конструктора — та же геометрия.
+const GEO = plotGeometry(parseCoordPlot('x -5 5\ny -5 5'), curveCanvasSize());
 
 function overlay() {
   const el = screen.getByTestId('curve-overlay');

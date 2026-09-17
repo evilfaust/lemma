@@ -83,7 +83,10 @@ function MarkRow({ mark, onChange, onRemove }) {
     <Space wrap style={{ width: '100%', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' }}>
       <Space wrap size={6}>
         <span style={{ color: '#888' }}>Точка</span>
-        <Input size="small" style={{ width: 60 }} value={mark.label} maxLength={3} onChange={(e) => patch({ label: e.target.value })} placeholder="A" />
+        <Input size="small" style={{ width: 90 }} maxLength={24} value={mark.label} onChange={(e) => patch({ label: e.target.value })} placeholder="A" />
+        <Tooltip title="Жирная подпись">
+          <Switch size="small" checkedChildren="Ж" unCheckedChildren="Ж" checked={!!mark.bold} onChange={(bold) => patch({ bold })} />
+        </Tooltip>
         <span style={{ color: '#888' }}>в координате</span>
         <InputNumber size="small" step={0.1} style={{ width: 90 }} value={mark.x} onChange={(x) => patch({ x: x ?? 0 })} />
       </Space>
@@ -124,7 +127,7 @@ export default function NumberLineModal({ open, onCancel, onInsert, defaultForma
   const updateShape = (i, next) => setShapes((arr) => arr.map((s, idx) => (idx === i ? next : s)));
   const removeShape = (i) => setShapes((arr) => arr.filter((_, idx) => idx !== i));
 
-  const addMark = () => setMarks((arr) => [...arr, { label: '', x: 0 }]);
+  const addMark = () => setMarks((arr) => [...arr, { label: '', x: 0, bold: false }]);
   const updateMark = (i, next) => setMarks((arr) => arr.map((m, idx) => (idx === i ? next : m)));
   const removeMark = (i) => setMarks((arr) => arr.filter((_, idx) => idx !== i));
 
@@ -171,8 +174,10 @@ export default function NumberLineModal({ open, onCancel, onInsert, defaultForma
         {/* Буква оси */}
         <Space>
           <span style={{ color: '#888' }}>Буква оси:</span>
-          <Input size="small" style={{ width: 64 }} value={axisLabel} maxLength={4} onChange={(e) => setAxisLabel(e.target.value || 'x')} placeholder="x" />
-          <span style={{ color: '#bbb' }}>(x, y, t, n…)</span>
+          <Input size="small" style={{ width: 96 }} maxLength={16} value={axisLabel} onChange={(e) => setAxisLabel(e.target.value || 'x')} placeholder="x" />
+          <Tooltip title="Подписи набираются как формулы: индексы (A_1), дроби \frac{1}{2}, корни \sqrt{2}, греческие буквы (\pi, \varphi). Обыкновенную дробь можно писать и просто «1/2».">
+            <span style={{ color: '#bbb', cursor: 'help' }}>(x, y, t, \varphi… — можно формулой) ?</span>
+          </Tooltip>
         </Space>
 
         {kind === 'intervals' ? (

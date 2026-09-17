@@ -3,6 +3,7 @@ import {
   parseCoordPlot, coordPlotSvg, coordPlotSvgFromSpec, compileExpr, plotToSpec, specToPlotState,
 } from '../utils/coordPlot';
 import { buildPlotSnippet } from '../components/shared/PlotModal';
+import { measureMathSvg } from '../utils/mathSvgText';
 
 const at = (src, x) => compileExpr(src).fn(x);
 
@@ -104,8 +105,8 @@ describe('parseCoordPlot', () => {
     ]);
     expect(m.segments[0]).toMatchObject({ x1: 0, y1: 0, x2: 2, y2: 3, dash: true });
     expect(m.labels[0]).toMatchObject({ x: 2, y: 3, text: 'A', at: 'ne', dist: 1 });
-    expect(m.xticks).toEqual([{ v: -5, label: '−5' }]);
-    expect(m.yticks).toEqual([{ v: 3, label: 'три' }]);
+    expect(m.xticks).toEqual([{ v: -5, label: '−5', bold: false }]);
+    expect(m.yticks).toEqual([{ v: 3, label: 'три', bold: false }]);
   });
 
   it('подпись: направление at + человеческие синонимы', () => {
@@ -168,9 +169,13 @@ describe('coordPlotSvg', () => {
   });
 
   it('экранирует подписи (без инъекции разметки)', () => {
+    // Подпись раскладывается по глифам, поэтому «<b>» приезжает не одним
+    // куском — важно, что угловые скобки экранированы и тега в разметке нет.
     const svg = coordPlotSvgFromSpec('axis <b>x</b> y');
     expect(svg).not.toContain('<b>');
-    expect(svg).toContain('&lt;b&gt;');
+    expect(svg).not.toContain('</b>');
+    expect(svg).toContain('&lt;');
+    expect(svg).toContain('&gt;');
   });
 
   it('разрыв в точке асимптоты: путь состоит из двух кусков', () => {
@@ -180,29 +185,85 @@ describe('coordPlotSvg', () => {
   });
 
   it('подпись точки сдвигается по направлению at', () => {
+    // Выключки text-anchor у подписи больше нет: формула складывается из
+    // нескольких <text>, поэтому её левый край считается по ширине.
+    const w = measureMathSvg('A', { size: 12 }).width;
     const at = (dir) => {
       const svg = coordPlotSvgFromSpec(`point 0 2 fill\nlabel 0 2 A${dir ? ` at ${dir}` : ''}`);
       const tag = /<text[^>]*>A<\/text>/.exec(svg)[0];
       return {
         x: Number(/ x="([-\d.]+)"/.exec(tag)[1]),
         y: Number(/ y="([-\d.]+)"/.exec(tag)[1]),
-        anchor: /text-anchor="(\w+)"/.exec(tag)[1],
+        cx: Number(/<circle cx="([-\d.]+)"/.exec(svg)[1]),
       };
     };
     const base = at(null); // по умолчанию — справа сверху
     expect(at('ne')).toEqual(base);
+    expect(base.x).toBeGreaterThan(base.cx); // справа от точки
+
     const left = at('w');
     expect(left.x).toBeLessThan(base.x);
-    expect(left.anchor).toBe('end');
+    expect(left.x + w).toBeLessThanOrEqual(left.cx); // целиком слева от точки
+
     const below = at('s');
     expect(below.y).toBeGreaterThan(base.y);
-    expect(below.anchor).toBe('middle');
+    expect(Math.abs(below.x + w / 2 - below.cx)).toBeLessThan(0.5); // по центру
 
     // расстояние тянет сдвиг, но не сбивает выравнивание по высоте строки
     const near = at('w');
     const far = at('w 3');
     expect(base.x - far.x).toBeGreaterThan(base.x - near.x);
     expect(far.y).toBe(near.y);
+  });
+
+  it('подписи набираются формулами (индексы, дроби, корни)', () => {
+    const svg = coordPlotSvgFromSpec([
+      'x -3 3',
+      'y -3 3',
+      'label 1 1 M_1',
+      'label -2 2 \\frac{\\pi}{2}',
+      'xtick 2 \\sqrt{2}',
+    ].join('\n'));
+    expect(svg).toContain('>M</text>');
+    expect(svg).toContain('>1</text>'); // индекс отдельным фрагментом
+    expect(svg).toContain('>π</text>');
+    expect(svg).toContain('KaTeX_Math'); // переменная — курсивом матшрифта
+    expect(svg).toContain('<path'); // знак корня у засечки
+  });
+
+  it('флаг bold делает подпись жирной, но слово в тексте не съедается', () => {
+    const m = parseCoordPlot([
+      'label 1 1 x_1 bold',
+      'label 2 2 bold text',
+      'label 0 0 bold',
+      'xtick 3 bold',
+      'ytick 1 всего bold',
+      'vec a 0 0 2 2 bold',
+    ].join('\n'));
+    expect(m.labels[0]).toMatchObject({ text: 'x_1', bold: true });
+    expect(m.labels[1]).toMatchObject({ text: 'bold text', bold: false });
+    expect(m.labels[2]).toMatchObject({ text: 'bold', bold: false });
+    expect(m.xticks[0]).toMatchObject({ v: 3, label: '3', bold: true });
+    expect(m.yticks[0]).toMatchObject({ v: 1, label: 'всего', bold: true });
+    expect(m.vectors[0]).toMatchObject({ label: 'a', bold: true });
+
+    const svg = coordPlotSvg(parseCoordPlot('x -3 3\ny -3 3\nlabel 1 1 A bold'));
+    expect(/<text[^>]*font-weight="bold"[^>]*>A<\/text>/.test(svg)).toBe(true);
+  });
+
+  it('жирность переживает круг «конструктор → DSL → конструктор»', () => {
+    const spec = plotToSpec({
+      view: { xrange: [-3, 3], yrange: [-3, 3] },
+      points: [{
+        x: 1, y: 1, filled: true, label: 'M_1', labelAt: 'ne', labelDist: 1, labelBold: true,
+      }],
+      labels: [{ x: 0, y: 2, text: '\\sqrt{2}', at: 'nw', dist: 1, bold: false }],
+      vectors: [{ label: 'a', x1: 0, y1: 0, x2: 2, y2: 2, bold: true }],
+    });
+    const st = specToPlotState(spec);
+    expect(st.points[0]).toMatchObject({ label: 'M_1', labelBold: true });
+    expect(st.labels[0]).toMatchObject({ text: '\\sqrt{2}', bold: false });
+    expect(st.vectors[0]).toMatchObject({ label: 'a', bold: true });
   });
 
   it('пустая модель всё равно даёт валидный svg с осями', () => {

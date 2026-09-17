@@ -17,7 +17,7 @@ describe('parseNumberLine', () => {
     const m = parseNumberLine('domain 0 3\nray right 1 open');
     expect(m.bars).toEqual([{ from: 1, to: Infinity }]);
     expect(m.points).toEqual([{ x: 1, filled: false }]);
-    expect(m.ticks).toEqual([{ x: 1, label: '1' }]);
+    expect(m.ticks).toEqual([{ x: 1, label: '1', bold: false }]);
   });
 
   it('луч влево: бар от -inf', () => {
@@ -39,7 +39,7 @@ describe('parseNumberLine', () => {
 
   it('tick с явной подписью перекрывает дефолт', () => {
     const m = parseNumberLine('point 1 fill\ntick 1 один');
-    expect(m.ticks).toEqual([{ x: 1, label: 'один' }]);
+    expect(m.ticks).toEqual([{ x: 1, label: 'один', bold: false }]);
   });
 
   it('дедуп тиков по координате, сортировка', () => {
@@ -78,8 +78,12 @@ describe('numberLineSvg', () => {
   });
 
   it('экранирует подпись тика', () => {
+    // Подпись набирается по глифам, поэтому «<b>» приезжает не одним куском —
+    // важно, что угловые скобки экранированы и тега в разметке нет.
     const svg = numberLineSvgFromSpec('tick 1 <b>');
-    expect(svg).toContain('&lt;b&gt;');
+    expect(svg).not.toContain('<b>');
+    expect(svg).toContain('&lt;');
+    expect(svg).toContain('&gt;');
   });
 
   it('буква оси настраивается через axis', () => {
@@ -97,7 +101,7 @@ describe('дробные значения', () => {
 
   it('подпись дроби сохраняется как «1/2» (не «0,5»)', () => {
     const m = parseNumberLine('point 1/2 fill');
-    expect(m.ticks).toEqual([{ x: 0.5, label: '1/2' }]);
+    expect(m.ticks).toEqual([{ x: 0.5, label: '1/2', bold: false }]);
   });
 
   it('svg рисует дробь стопкой: числитель, черта, знаменатель', () => {
@@ -105,9 +109,9 @@ describe('дробные значения', () => {
     // числитель «1» и знаменатель «2» как отдельные text + горизонтальная черта
     expect(svg).toMatch(/>1<\/text>/);
     expect(svg).toMatch(/>2<\/text>/);
-    expect(svg).toMatch(/<line[^>]+stroke="#374151"[^>]+stroke-width="1"/);
-    // холст выше обычного, чтобы знаменатель не обрезался
-    expect(svg).toContain('viewBox="0 0 260 64"');
+    expect(svg).toMatch(/<line[^>]+stroke="#374151"/); // дробная черта
+    // холст выше обычного (48), чтобы знаменатель не обрезался
+    expect(Number(/viewBox="0 0 \d+ (\d+)"/.exec(svg)[1])).toBeGreaterThan(48);
   });
 
   it('дробь не налезает на кружок точки', () => {
@@ -134,12 +138,68 @@ describe('дробные значения', () => {
   });
 });
 
+describe('формулы в подписях', () => {
+  it('подпись набирается как формула: корень, дробь, индекс', () => {
+    const svg = numberLineSvgFromSpec('domain 0 4\ntick 1.41 \\sqrt{2}\ntick 3.14 \\pi');
+    expect(svg).toContain('<path'); // знак корня — путь, а не глиф
+    expect(svg).toContain('>π</text>');
+    expect(svg).toContain('KaTeX_Main'); // шрифт формул, как в условии задачи
+
+    const mark = numberLineSvgFromSpec('scale 0 4 1\nmark A_1 2');
+    expect(mark).toContain('>A</text>');
+    expect(mark).toContain('>1</text>'); // индекс отдельным фрагментом
+  });
+
+  it('обыкновенная дробь «1/2» так и пишется — разворачивается в \\frac сама', () => {
+    const svg = numberLineSvgFromSpec('domain 0 1\npoint 1/2 fill');
+    const tex = numberLineSvgFromSpec('domain 0 1\npoint 0.5 fill\ntick 0.5 \\frac{1}{2}');
+    const bars = (str) => (str.match(/<line/g) || []).length;
+    expect(bars(svg)).toBe(bars(tex)); // и там и там дробная черта
+  });
+
+  it('флаг bold делает подпись жирной, координата при этом цела', () => {
+    const m = parseNumberLine('tick 2 два bold\nmark A 1 bold\naxis t bold');
+    expect(m.ticks[0]).toMatchObject({ x: 2, label: 'два', bold: true });
+    expect(m.marks[0]).toMatchObject({ x: 1, label: 'A', bold: true });
+    expect(m.axisLabel).toBe('t');
+    expect(m.axisBold).toBe(true);
+
+    const bare = parseNumberLine('tick 2 bold');
+    expect(bare.ticks[0]).toMatchObject({ x: 2, bold: true }); // подпись = само число
+
+    const svg = numberLineSvgFromSpec('domain 0 3\ntick 2 два bold');
+    expect(/<text[^>]*font-weight="bold"/.test(svg)).toBe(true);
+  });
+
+  it('жирность переживает круг «конструктор → DSL → разбор»', () => {
+    const spec = pointsToSpec({
+      scale: { from: 0, to: 4, step: 1 },
+      marks: [{ label: 'A', x: 1, bold: true }],
+      axisLabel: 'x',
+    });
+    expect(parseNumberLine(spec).marks[0]).toMatchObject({ label: 'A', bold: true });
+
+    const withTick = shapesToSpec({
+      domain: [0, 3],
+      shapes: [{ type: 'tick', x: '2', label: 'два', bold: true }],
+    });
+    expect(parseNumberLine(withTick).ticks[0]).toMatchObject({ label: 'два', bold: true });
+  });
+
+  it('высокая подпись не вылезает за холст', () => {
+    const svg = numberLineSvgFromSpec('domain 0 4\ntick 2 \\frac{\\pi}{2}');
+    const height = Number(/viewBox="0 0 \d+ (\d+)"/.exec(svg)[1]);
+    const ys = [...svg.matchAll(/<text[^>]*y="([-\d.]+)"/g)].map((m2) => Number(m2[1]));
+    expect(Math.max(...ys)).toBeLessThan(height);
+  });
+});
+
 describe('точечный тип (scale + mark)', () => {
   it('parse: scale задаёт линейку и домен, mark — помеченную точку', () => {
     const m = parseNumberLine('scale -1 5 1\nmark A 0\nmark B 2');
     expect(m.scale).toEqual({ from: -1, to: 5, step: 1 });
     expect(m.domain).toEqual([-1, 5]);
-    expect(m.marks).toEqual([{ x: 0, label: 'A' }, { x: 2, label: 'B' }]);
+    expect(m.marks).toEqual([{ x: 0, label: 'A', bold: false }, { x: 2, label: 'B', bold: false }]);
   });
 
   it('явный domain не перетирается scale', () => {
@@ -149,7 +209,7 @@ describe('точечный тип (scale + mark)', () => {
 
   it('svg рисует засечки, числа и буквы точек', () => {
     const svg = numberLineSvgFromSpec('scale -1 1 1\nmark A 0');
-    expect(svg).toMatch(/>-1<\/text>/);
+    expect(svg).toMatch(/>−1<\/text>/); // минус набирается знаком минуса
     expect(svg).toMatch(/>A<\/text>/);
     expect(svg).toMatch(/<circle[^>]+r="2\.1"/); // помеченная точка (строгий стиль)
   });
@@ -159,7 +219,7 @@ describe('точечный тип (scale + mark)', () => {
     const m = parseNumberLine(spec);
     expect(m.axisLabel).toBe('y');
     expect(m.scale).toEqual({ from: -1, to: 5, step: 1 });
-    expect(m.marks).toEqual([{ x: 0.5, label: 'A' }]);
+    expect(m.marks).toEqual([{ x: 0.5, label: 'A', bold: false }]);
   });
 });
 
@@ -199,7 +259,7 @@ describe('nolabels — прямая без подписей координат',
     const m = parseNumberLine('domain 0 3\nnolabels\nray right 1 open');
     expect(m.hideLabels).toBe(true);
     expect(m.points).toEqual([{ x: 1, filled: false }]);
-    expect(m.ticks).toEqual([{ x: 1, label: '1' }]);
+    expect(m.ticks).toEqual([{ x: 1, label: '1', bold: false }]);
   });
 
   it('labels off / labels on', () => {

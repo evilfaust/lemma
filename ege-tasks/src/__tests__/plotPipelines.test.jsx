@@ -49,6 +49,16 @@ describe('useMarkdownProcessor (теория): координатная плос
     expect(result.current).toContain('<circle');
   });
 
+  it('формула в подписи переживает DOMPurify (шрифт, жирность, корень)', async () => {
+    const { result } = renderHook(() => useMarkdownProcessor(
+      '```plot\nx -3 3\ny -3 3\nlabel 1 1 x_1 bold\nxtick 2 \\sqrt{2}\n```',
+    ));
+    await waitFor(() => expect(result.current).toContain('coordplot-block'));
+    expect(result.current).toContain('font-family="KaTeX_Math');
+    expect(result.current).toContain('font-weight="bold"');
+    expect(result.current).toContain('<path'); // знак корня не вырезан санитайзером
+  });
+
   it('inline-форма `plot: …` даёт компактную картинку', async () => {
     const { result } = renderHook(() => useMarkdownProcessor('в ячейке `plot: x 0 4; vec a 1 1 3 3` конец'));
     await waitFor(() => expect(result.current).toContain('coordplot-inline'));

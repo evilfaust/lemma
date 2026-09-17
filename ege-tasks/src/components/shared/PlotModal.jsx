@@ -4,6 +4,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import CoordPlotSVG from './CoordPlotSVG';
+import './PlotModal.css';
 import CurveCanvas from './CurveCanvas';
 import CurvePanel, { describeCurve } from './CurvePanel';
 import {
@@ -74,7 +75,18 @@ const DEFAULT_SPLINES = [newCurveState('f', [
   { x: -4, y: -3 }, { x: -2, y: 2 }, { x: 1, y: -2 }, { x: 3, y: 3 }, { x: 4.5, y: 1 },
 ].map((n) => ({ ...n, flat: false, slope: null })))];
 // Холст кривой крупнее итоговой картинки — точки ставить мышью удобнее.
-const CANVAS = { width: 600, maxHeight: 440 };
+// На широком окне он стоит в своей колонке рядом с панелью, на узком — над
+// ней, и тогда его приходится ужимать: иначе холст съедает всю высоту экрана,
+// а таблица точек и разбор графика уезжают под прокрутку.
+// Экспортируется, чтобы тесты считали координаты ручек по тем же размерам.
+export const TWO_COLUMN_MIN_WIDTH = 1100; // совпадает с медиазапросом PlotModal.css
+
+export function curveCanvasSize() {
+  const w = typeof window === 'undefined' ? 1440 : window.innerWidth;
+  const h = typeof window === 'undefined' ? 900 : window.innerHeight;
+  if (w > TWO_COLUMN_MIN_WIDTH) return { width: 720, maxHeight: 460 };
+  return { width: Math.max(320, Math.min(600, w - 180)), maxHeight: Math.max(260, Math.round(h * 0.38)) };
+}
 // Части чертежа без своего UI (отрезки, засечки, чужие строки) — конструктор
 // их не показывает, но при правке переписывает как есть.
 const EMPTY_EXTRA = { segments: [], xticks: [], yticks: [], raw: [] };
@@ -144,7 +156,8 @@ function VectorRow({ vec, onChange, onRemove }) {
   return (
     <Space wrap style={rowStyle}>
       <Space wrap size={6}>
-        <Input size="small" style={{ width: 46 }} maxLength={3} value={vec.label} onChange={(e) => patch({ label: e.target.value })} placeholder="a" />
+        <Input size="small" style={{ width: 74 }} maxLength={16} value={vec.label} onChange={(e) => patch({ label: e.target.value })} placeholder="a" />
+        <Tooltip title="Жирная подпись"><Switch size="small" checkedChildren="Ж" unCheckedChildren="Ж" checked={!!vec.bold} onChange={(bold) => patch({ bold })} /></Tooltip>
         <span style={{ color: '#888' }}>из</span>
         <InputNumber {...numProps} value={vec.x1} onChange={(v) => patch({ x1: v ?? 0 })} />
         <InputNumber {...numProps} value={vec.y1} onChange={(v) => patch({ y1: v ?? 0 })} />
@@ -178,7 +191,10 @@ function PointRow({ point, onChange, onRemove }) {
         <Tooltip title="Закрашенная / выколотая">
           <Switch size="small" checkedChildren="●" unCheckedChildren="○" checked={point.filled !== false} onChange={(filled) => patch({ filled })} />
         </Tooltip>
-        <Input size="small" style={{ width: 56 }} maxLength={4} value={point.label} onChange={(e) => patch({ label: e.target.value })} placeholder="подпись" />
+        <Input size="small" style={{ width: 104 }} maxLength={48} value={point.label} onChange={(e) => patch({ label: e.target.value })} placeholder="подпись" />
+        <Tooltip title="Жирная подпись">
+          <Switch size="small" checkedChildren="Ж" unCheckedChildren="Ж" disabled={!point.label} checked={!!point.labelBold} onChange={(labelBold) => patch({ labelBold })} />
+        </Tooltip>
         <Tooltip title="Куда сдвинуть подпись относительно точки — если её перекрывает график">
           <Select
             size="small"
@@ -221,12 +237,15 @@ function LabelRow({ label, onChange, onRemove }) {
         <InputNumber {...numProps} value={label.y} onChange={(v) => patch({ y: v ?? 0 })} />
         <Input
           size="small"
-          style={{ width: 70 }}
-          maxLength={12}
+          style={{ width: 140 }}
+          maxLength={64}
           value={label.text}
           onChange={(e) => patch({ text: e.target.value })}
-          placeholder="текст"
+          placeholder="текст или формула"
         />
+        <Tooltip title="Жирная подпись">
+          <Switch size="small" checkedChildren="Ж" unCheckedChildren="Ж" checked={!!label.bold} onChange={(bold) => patch({ bold })} />
+        </Tooltip>
         <Tooltip title="Куда сдвинуть подпись относительно её координаты — если её перекрывает график">
           <Select
             size="small"
@@ -314,6 +333,10 @@ export default function PlotModal({
   }), [view, mode, curves, splines, annotations, vectors, points, labels, extra, editing]);
   const spec = useMemo(() => plotToSpec(plotState), [plotState]);
 
+  // Размеры холста зависят от окна браузера, поэтому считаются на открытие
+  // модалки (session меняется при каждом открытии).
+  const canvas = useMemo(() => curveCanvasSize(), [session]);
+
   const curve = splines[activeCurve] || null;
   const curveInfo = useMemo(
     () => (curve ? describeCurve(curve) : { error: null, lines: [], kinds: [] }),
@@ -332,10 +355,17 @@ export default function PlotModal({
     { label: String.fromCharCode(97 + arr.length), x1: 0, y1: 0, x2: 2, y2: 3, color: 'ink', side: 'left' },
   ]);
   const addPoint = () => setPoints((arr) => [...arr, {
-    x: 1, y: 1, filled: true, label: '', labelAt: DEFAULT_LABEL_AT, labelDist: DEFAULT_LABEL_DIST, color: 'ink',
+    x: 1,
+    y: 1,
+    filled: true,
+    label: '',
+    labelAt: DEFAULT_LABEL_AT,
+    labelDist: DEFAULT_LABEL_DIST,
+    labelBold: false,
+    color: 'ink',
   }]);
   const addLabel = () => setLabels((arr) => [...arr, {
-    x: 1, y: 1, text: 'A', at: DEFAULT_LABEL_AT, dist: DEFAULT_LABEL_DIST, color: 'ink',
+    x: 1, y: 1, text: 'A', at: DEFAULT_LABEL_AT, dist: DEFAULT_LABEL_DIST, bold: false, color: 'ink',
   }]);
   const upd = (setter) => (i, next) => setter((arr) => arr.map((it, idx) => (idx === i ? next : it)));
   const del = (setter) => (i) => setter((arr) => arr.filter((_, idx) => idx !== i));
@@ -353,8 +383,12 @@ export default function PlotModal({
       onOk={handleInsert}
       okText={editing ? 'Сохранить' : 'Вставить'}
       cancelText="Отмена"
-      width={760}
-      styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
+      // Окно широкое: строки кривых, векторов и точек — это длинные ряды
+      // контролов, на 760px они переносились по три раза. maxWidth в vw/vh
+      // оставляет запас на ноутбуке и на половине экрана.
+      width={1240}
+      style={{ top: 16, maxWidth: '96vw', paddingBottom: 16 }}
+      styles={{ body: { maxHeight: 'calc(100vh - 150px)', overflowY: 'auto' } }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <Segmented
@@ -368,8 +402,9 @@ export default function PlotModal({
           ]}
         />
 
+        <div className="plot-modal-grid">
         {/* Превью: в режиме кривой — холст, на котором точки двигаются мышью */}
-        <div style={{ textAlign: 'center', padding: '10px 8px', background: '#fafafa', border: '1px solid #eee', borderRadius: 6 }}>
+        <div className="plot-modal-preview">
           {mode === 'curve' && curve ? (
             <CurveCanvas
               spec={spec}
@@ -379,8 +414,8 @@ export default function PlotModal({
               onSelect={setSelectedNode}
               onNodesChange={(nodes) => setSplines((arr) => arr.map((c, i) => (i === activeCurve ? { ...c, nodes } : c)))}
               step={step}
-              width={CANVAS.width}
-              maxHeight={CANVAS.maxHeight}
+              width={canvas.width}
+              maxHeight={canvas.maxHeight}
             />
           ) : (
             <CoordPlotSVG spec={spec} />
@@ -396,6 +431,7 @@ export default function PlotModal({
           )}
         </div>
 
+        <div className="plot-modal-controls">
         {/* Окно и клетка */}
         <Space wrap size={8}>
           <span style={{ color: '#888' }}>X от</span>
@@ -416,7 +452,10 @@ export default function PlotModal({
           <Input size="small" style={{ width: 48 }} maxLength={3} value={view.axisX} onChange={(e) => patchView({ axisX: e.target.value || 'x' })} />
           <Input size="small" style={{ width: 48 }} maxLength={3} value={view.axisY} onChange={(e) => patchView({ axisY: e.target.value || 'y' })} />
           <Tooltip title="Подписывать единичный отрезок «1» и начало координат O">
-            <Switch size="small" checked={view.units !== false} onChange={(units) => patchView({ units })} />
+            <Space size={4}>
+              <span style={{ color: '#888' }}>единицы</span>
+              <Switch size="small" checked={view.units !== false} onChange={(units) => patchView({ units })} />
+            </Space>
           </Tooltip>
         </Space>
 
@@ -480,7 +519,7 @@ export default function PlotModal({
             </div>
             <Space>
               <Button size="small" icon={<PlusOutlined />} onClick={addVector}>Вектор</Button>
-              <span style={{ color: '#bbb', fontSize: 12 }}>Подпись рисуется со стрелочкой сверху, как $\vec a$</span>
+              <span style={{ color: '#bbb', fontSize: 12 }}>Подпись рисуется со стрелочкой сверху, как $\vec a$; можно с индексом — <code>F_1</code></span>
             </Space>
           </>
         )}
@@ -494,10 +533,15 @@ export default function PlotModal({
             <LabelRow key={i} label={l} onChange={(next) => upd(setLabels)(i, next)} onRemove={() => del(setLabels)(i)} />
           ))}
         </div>
-        <Space>
+        <Space wrap>
           <Button size="small" icon={<PlusOutlined />} onClick={addPoint}>Точка</Button>
           <Tooltip title="Текст у координаты без кружка — например, отметить пересечение графиков">
             <Button size="small" icon={<PlusOutlined />} onClick={addLabel}>Подпись</Button>
+          </Tooltip>
+          <Tooltip title="Подписи набираются как формулы: индексы и степени (x_1, y^2), дроби \frac{a}{b}, корни \sqrt{2}, греческие буквы (\alpha, \pi), знаки (\le, \pm, \to, \infty), штрих f'(x). Обычные слова пишутся как есть.">
+            <span style={{ color: '#bbb', fontSize: 12, cursor: 'help' }}>
+              в подписи можно формулы: <code>x_1</code>, <code>\frac{'{\pi}{2}'}</code>, <code>\sqrt{'{2}'}</code>, <code>\alpha</code> ?
+            </span>
           </Tooltip>
         </Space>
 
@@ -518,6 +562,8 @@ export default function PlotModal({
             <span style={{ color: '#bbb', cursor: 'help' }}>?</span>
           </Tooltip>
         </Space>
+        </div>
+        </div>
       </div>
     </Modal>
   );

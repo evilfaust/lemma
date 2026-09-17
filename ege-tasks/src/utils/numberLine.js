@@ -28,6 +28,14 @@
 //   tick 1.5 1,5          — подпись под осью (label опционален)
 //   nolabels              — не подписывать координаты под осью (точки без чисел)
 //                           синонимы: labels off / labels on
+//
+// Подписи (tick, mark, буква оси) набираются как формулы — подмножеством LaTeX
+// через mathSvgText.js: `tick 1.41 \sqrt{2}`, `tick 3.14 \pi`, `mark A_1 2`,
+// `axis \varphi`. Обыкновенная дробь по-прежнему пишется просто «1/2» — она
+// сама разворачивается в \frac{1}{2} и печатается стопкой. Последнее слово
+// `bold` делает подпись жирной (`tick 2 два bold`, `mark A 0 bold`).
+
+import { mathSvgText, measureMathSvg, takeTrailingBold } from './mathSvgText';
 
 const DEFAULT_DOMAIN = [0, 5];
 // Строгий монохромный стиль: чернильная ось, штриховка чуть светлее серым,
@@ -76,50 +84,41 @@ function fmtLabel(x) {
   return String(x).replace('.', ',');
 }
 
-// Зазор от оси до верха подписи. У обычного <text> (базовая линия axisY+15,
-// кегль 11) он около 7; дроби даём чуть больше — её верхняя цифра стоит прямо
-// под кружком точки и без запаса читается как приклеенная.
-const LABEL_TOP_GAP = 8.5;
+// Зазор от оси до ВЕРХА подписи. Кружок точки (r 3.4 + обводка) опускается
+// примерно на 4 px ниже оси, так что меньше — и подпись читается приклеенной.
+const LABEL_TOP_GAP = 7;
+// Расстояние от верха холста до оси и зазор от оси до подписи mark над ней.
+const AXIS_TOP = 28;
+const MARK_LABEL_GAP = 8;
 
-// SVG-подпись ПОД осью: дробь a/b — стопкой (числитель/черта/знаменатель),
-// иначе обычный <text>. Возвращает строку SVG-элементов.
-function belowLabelSvg(label, cx, axisY, fs, color) {
-  const m = String(label).match(FRAC_RE);
-  if (!m) {
-    return `<text x="${round2(cx)}" y="${axisY + 15}" font-size="${fs}" text-anchor="middle" fill="${color}">${escapeXml(label)}</text>`;
-  }
-  const neg = m[1] === '-';
-  const num = m[2];
-  const den = m[3];
-  const ffs = fs - 0.5;
-  const half = Math.max(num.length, den.length) * ffs * 0.34 + 1.5;
-  // Числитель начинается сразу под осью и налезал на кружок точки (r 3.4 +
-  // обводка 1.3 → низ кружка ≈ axisY + 4): дробь «слипалась» с точкой. Держим
-  // от оси тот же зазор, что у обычной подписи — 7 px до верха цифры.
-  // Высота цифры ≈ 0.72 кегля, черта на 2.5 ниже базовой линии числителя.
-  const barY = round2(axisY + LABEL_TOP_GAP + 0.72 * ffs + 2.5);
-  const out = [];
-  if (neg) {
-    out.push(`<text x="${round2(cx - half - 2.5)}" y="${round2(barY + ffs * 0.36)}" font-size="${fs}" text-anchor="end" fill="${color}">−</text>`);
-  }
-  out.push(`<text x="${round2(cx)}" y="${round2(barY - 2.5)}" font-size="${ffs}" text-anchor="middle" fill="${color}">${num}</text>`);
-  out.push(`<line x1="${round2(cx - half)}" y1="${round2(barY)}" x2="${round2(cx + half)}" y2="${round2(barY)}" stroke="${color}" stroke-width="1"/>`);
-  out.push(`<text x="${round2(cx)}" y="${round2(barY + ffs)}" font-size="${ffs}" text-anchor="middle" fill="${color}">${den}</text>`);
-  return out.join('');
+// Подпись координаты пишется в DSL как «1/2» — это обыкновенная дробь, а не
+// деление: разворачиваем её в \frac, чтобы верстальщик напечатал стопкой.
+function labelTex(label) {
+  const m = String(label ?? '').trim().match(FRAC_RE);
+  return m ? `${m[1] === '-' ? '-' : ''}\\frac{${m[2]}}{${m[3]}}` : String(label ?? '');
+}
+
+// Сколько места подпись займёт под осью (с зазором) — по этому размеру растёт
+// холст: дробь, корень и степень выше обычной строки.
+function belowLabelHeight(label, fs, bold) {
+  const { ascent, descent } = measureMathSvg(labelTex(label), { size: fs, bold });
+  return LABEL_TOP_GAP + ascent + descent;
+}
+
+// SVG-подпись ПОД осью. Верх подписи всегда на LABEL_TOP_GAP ниже оси, каким бы
+// высоким ни был набор (дробь, корень), — поэтому строка и дробь стоят ровно.
+function belowLabelSvg(label, cx, axisY, fs, color, bold) {
+  const tex = labelTex(label);
+  const { ascent } = measureMathSvg(tex, { size: fs, bold });
+  return mathSvgText(tex, {
+    x: cx, y: axisY + LABEL_TOP_GAP + ascent, size: fs, color, anchor: 'middle', bold,
+  });
 }
 
 const isFilledToken = (tok) => {
   const t = String(tok || '').toLowerCase();
   return t === 'fill' || t === 'closed';
 };
-
-function escapeXml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /**
  * Разбор текстового DSL в модель.
@@ -128,16 +127,16 @@ function escapeXml(s) {
 export function parseNumberLine(spec) {
   const model = {
     domain: [...DEFAULT_DOMAIN], bars: [], points: [], ticks: [],
-    axisLabel: 'x', scale: null, marks: [], hideLabels: false,
+    axisLabel: 'x', axisBold: false, scale: null, marks: [], hideLabels: false,
   };
   if (!spec || typeof spec !== 'string') return model;
   let domainSet = false;
 
-  const tickAt = new Map(); // x → label (label=undefined → формат по значению)
-  const addTick = (x, label) => {
+  const tickAt = new Map(); // x → {label, bold}; label=undefined → формат по значению
+  const addTick = (x, label, bold = false) => {
     if (!Number.isFinite(x)) return;
-    if (label != null) tickAt.set(x, label);
-    else if (!tickAt.has(x)) tickAt.set(x, undefined);
+    if (label != null) tickAt.set(x, { label, bold });
+    else if (!tickAt.has(x)) tickAt.set(x, { label: undefined, bold });
   };
   const addPoint = (x, filled) => {
     if (!Number.isFinite(x)) return;
@@ -166,7 +165,8 @@ export function parseNumberLine(spec) {
     } else if (cmd === 'labels') {
       model.hideLabels = String(p[1] || '').toLowerCase() === 'off';
     } else if (cmd === 'axis' || cmd === 'label') {
-      if (p[1]) model.axisLabel = p.slice(1).join(' ');
+      const { parts, bold } = takeTrailingBold(p.slice(1), 1);
+      if (parts.length) { model.axisLabel = parts.join(' '); model.axisBold = bold; }
     } else if (cmd === 'scale') {
       // Линейка с целыми засечками: scale FROM TO [STEP]
       const from = parseCoord(p[1]);
@@ -177,10 +177,11 @@ export function parseNumberLine(spec) {
         if (!domainSet) model.domain = [from, to];
       }
     } else if (cmd === 'mark') {
-      // Помеченная точка над осью: mark LABEL X
-      const label = p[1];
-      const x = parseCoord(p[2]);
-      if (label && Number.isFinite(x)) model.marks.push({ x, label });
+      // Помеченная точка над осью: mark LABEL X [bold]
+      const { parts, bold } = takeTrailingBold(p.slice(1), 2);
+      const label = parts[0];
+      const x = parseCoord(parts[1]);
+      if (label && Number.isFinite(x)) model.marks.push({ x, label, bold });
     } else if (cmd === 'seg' || cmd === 'segment') {
       const a = parseCoord(p[1]);
       const b = parseCoord(p[2]);
@@ -205,15 +206,18 @@ export function parseNumberLine(spec) {
       addPoint(x, isFilledToken(p[2]));
       addTick(x, coordLabel(p[1]));
     } else if (cmd === 'tick') {
-      const x = parseCoord(p[1]);
-      const label = p.slice(2).join(' ') || undefined;
-      addTick(x, label);
+      // keep = 1: после флага должна остаться хотя бы координата, иначе
+      // «tick 2 bold» потеряло бы саму засечку.
+      const { parts, bold } = takeTrailingBold(p.slice(1), 1);
+      const x = parseCoord(parts[0]);
+      const label = parts.slice(1).join(' ') || undefined;
+      addTick(x, label, bold);
     }
   }
 
   model.ticks = [...tickAt.entries()]
     .sort((a, b) => a[0] - b[0])
-    .map(([x, label]) => ({ x, label }));
+    .map(([x, t]) => ({ x, label: t.label, bold: !!t.bold }));
   return model;
 }
 
@@ -248,15 +252,25 @@ export function numberLineSvg(model, opts = {}) {
   // штриховка и точки встают ровно там же, где у подписанной прямой.
   const hideLabels = !!(model && model.hideLabels);
   const ticks = hideLabels ? [] : (model?.ticks || []).filter((t) => visible(t.x));
-  // Дробные подписи занимают больше места под осью → выше холст и больший отступ.
-  const fracPresent = ticks.some((t) => t.label != null && FRAC_RE.test(String(t.label)));
-  // eslint-disable-next-line no-nested-ternary
-  const H = opts.height || (fracPresent ? 64 : (hideLabels ? 36 : 48));
-  // Дробь опущена ниже (не липнет к точке), поэтому знаменателю нужно больше
-  // места. AXIS_Y при этом не меняется — растёт только поле под осью.
-  // eslint-disable-next-line no-nested-ternary
-  const bottomPad = fracPresent ? 32 : (hideLabels ? 8 : 20);
-  const AXIS_Y = H - bottomPad;
+  // Поле под осью — по самой высокой подписи: строка помещается в прежние 20,
+  // дробь, корень и степень просят больше. Меряем тем же верстальщиком, что и
+  // рисует, поэтому знаменатель не окажется за краем холста.
+  const tickSize = 11;
+  const scaleSize = 10;
+  const below = [
+    ...ticks.map((t) => belowLabelHeight(t.label != null ? t.label : fmtLabel(t.x), tickSize, t.bold)),
+    ...(model?.scale && !hideLabels ? [belowLabelHeight('0', scaleSize, false)] : []),
+  ];
+  const bottomPad = hideLabels ? 8 : Math.max(20, Math.ceil(Math.max(0, ...below)) + 3);
+  // Подпись mark стоит НАД осью — ей тоже нужно место (например, «A_1» с
+  // индексом или дробь). AXIS_TOP — прежнее расстояние от верха холста до оси.
+  const markNeed = (model?.marks || []).map(
+    (m) => MARK_LABEL_GAP + measureMathSvg(labelTex(m.label), { size: 11, bold: m.bold }).ascent,
+  );
+  const AXIS_Y = opts.height
+    ? opts.height - bottomPad
+    : Math.max(AXIS_TOP, Math.ceil(Math.max(0, ...markNeed)) + 2);
+  const H = opts.height || AXIS_Y + bottomPad;
   const span = dmax - dmin || 1;
   const sx = (v) => PAD + ((clampNum(v, dmin, dmax) - dmin) / span) * (W - 2 * PAD);
 
@@ -282,9 +296,16 @@ export function numberLineSvg(model, opts = {}) {
   parts.push(
     `<path d="M${W - PAD},${AXIS_Y} L${W - PAD - 6.5},${AXIS_Y - 3} L${W - PAD - 6.5},${AXIS_Y + 3} Z" fill="${COLORS.axis}"/>`,
   );
-  parts.push(
-    `<text x="${W - 2}" y="${AXIS_Y + 4}" font-size="11" font-style="italic" text-anchor="end" fill="${COLORS.axis}">${escapeXml(axisLabel)}</text>`,
-  );
+  const axisM = measureMathSvg(axisLabel, { size: 11, bold: model?.axisBold });
+  parts.push(mathSvgText(axisLabel, {
+    x: W - 2,
+    // Выключка по середине строки: у «x» это прежние +4 от оси.
+    y: AXIS_Y + (axisM.ascent - axisM.descent) / 2,
+    size: 11,
+    color: COLORS.axis,
+    anchor: 'end',
+    bold: model?.axisBold,
+  }));
 
   // 3) Линейка с целыми засечками (scale): короткие штрихи + числа под осью
   if (model?.scale) {
@@ -294,7 +315,7 @@ export function numberLineSvg(model, opts = {}) {
       parts.push(
         `<line x1="${x}" y1="${AXIS_Y - 3}" x2="${x}" y2="${AXIS_Y + 3}" stroke="${COLORS.axis}" stroke-width="1"/>`,
       );
-      parts.push(belowLabelSvg(fmtLabel(Math.round(v * 1e6) / 1e6), x, AXIS_Y, 10, COLORS.tick));
+      parts.push(belowLabelSvg(fmtLabel(Math.round(v * 1e6) / 1e6), x, AXIS_Y, scaleSize, COLORS.tick));
     }
   }
 
@@ -307,9 +328,17 @@ export function numberLineSvg(model, opts = {}) {
     parts.push(
       `<circle cx="${x}" cy="${AXIS_Y}" r="2.1" fill="${COLORS.mark}"/>`,
     );
-    parts.push(
-      `<text x="${x}" y="${AXIS_Y - 8}" font-size="11" font-style="italic" text-anchor="middle" fill="${COLORS.axis}">${escapeXml(m.label)}</text>`,
-    );
+    // Низ подписи — на MARK_LABEL_GAP выше оси: у формулы с хвостом (дробь,
+    // «y») базовая линия поднимается на её глубину, иначе хвост лёг бы на штрих.
+    const markM = measureMathSvg(labelTex(m.label), { size: 11, bold: m.bold });
+    parts.push(mathSvgText(labelTex(m.label), {
+      x,
+      y: AXIS_Y - MARK_LABEL_GAP - markM.descent,
+      size: 11,
+      color: COLORS.axis,
+      anchor: 'middle',
+      bold: m.bold,
+    }));
   }
 
   // 5) Точки интервалов (выколотые ○ / закрашенные ●)
@@ -323,7 +352,7 @@ export function numberLineSvg(model, opts = {}) {
   //     При nolabels список пуст — цифр под точками нет.
   for (const t of ticks) {
     const label = t.label != null ? t.label : fmtLabel(t.x);
-    parts.push(belowLabelSvg(label, round2(sx(t.x)), AXIS_Y, 11, COLORS.tick));
+    parts.push(belowLabelSvg(label, round2(sx(t.x)), AXIS_Y, tickSize, COLORS.tick, t.bold));
   }
 
   // max-width:100% — чтобы блочная прямая не вылезала в узкой печатной колонке.
@@ -339,10 +368,10 @@ export function numberLineSvgFromSpec(spec, opts) {
  * @param {{domain:[number,number], shapes:Array, axisLabel?:string, showLabels?:boolean}} state
  */
 export function shapesToSpec({
-  domain = DEFAULT_DOMAIN, shapes = [], axisLabel = 'x', showLabels = true,
+  domain = DEFAULT_DOMAIN, shapes = [], axisLabel = 'x', axisBold = false, showLabels = true,
 } = {}) {
   const lines = [`domain ${coordToken(domain[0])} ${coordToken(domain[1])}`];
-  if (axisLabel && axisLabel !== 'x') lines.push(`axis ${axisLabel}`);
+  if ((axisLabel && axisLabel !== 'x') || axisBold) lines.push(`axis ${axisLabel || 'x'}${axisBold ? ' bold' : ''}`);
   if (!showLabels) lines.push('nolabels');
   for (const s of shapes) {
     if (s.type === 'ray') {
@@ -354,7 +383,7 @@ export function shapesToSpec({
     } else if (s.type === 'point') {
       lines.push(`point ${coordToken(s.x)} ${s.filled ? 'fill' : 'open'}`);
     } else if (s.type === 'tick') {
-      lines.push(`tick ${coordToken(s.x)}${s.label ? ` ${s.label}` : ''}`);
+      lines.push(`tick ${coordToken(s.x)}${s.label ? ` ${s.label}` : ''}${s.bold ? ' bold' : ''}`);
     }
   }
   return lines.join('\n');
@@ -364,14 +393,16 @@ export function shapesToSpec({
  * Сериализация «точечного» типа (линейка + помеченные точки A,B,C,D).
  * @param {{scale:{from,to,step}, marks:Array<{label,x}>, axisLabel?:string}} state
  */
-export function pointsToSpec({ scale, marks = [], axisLabel = 'x' } = {}) {
+export function pointsToSpec({
+  scale, marks = [], axisLabel = 'x', axisBold = false,
+} = {}) {
   const lines = [];
-  if (axisLabel && axisLabel !== 'x') lines.push(`axis ${axisLabel}`);
+  if ((axisLabel && axisLabel !== 'x') || axisBold) lines.push(`axis ${axisLabel || 'x'}${axisBold ? ' bold' : ''}`);
   if (scale) {
     lines.push(`scale ${coordToken(scale.from)} ${coordToken(scale.to)} ${scale.step || 1}`);
   }
   for (const m of marks) {
-    if (m.label && m.x != null) lines.push(`mark ${m.label} ${coordToken(m.x)}`);
+    if (m.label && m.x != null) lines.push(`mark ${m.label} ${coordToken(m.x)}${m.bold ? ' bold' : ''}`);
   }
   return lines.join('\n');
 }

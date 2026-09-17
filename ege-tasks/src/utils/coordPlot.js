@@ -41,6 +41,16 @@
 //   xtick -5             — засечка с подписью на оси X (алиас подписи вторым словом)
 //   ytick 3 три          — засечка с подписью на оси Y
 //
+// Подписи (label/text, xtick/ytick, буквы осей, подпись вектора) набираются
+// как формулы — подмножеством LaTeX через mathSvgText.js: индексы и степени
+// (`label 1 -1 M_1`, `y^2`), дроби (`xtick 1.57 \frac{\pi}{2}`), корни
+// (`\sqrt{2}`), греческие буквы, знаки (`\le`, `\pm`, `\to`, `\infty`),
+// штрих (`f'(x)`), `\text{…}`, `\vec{a}`. Обычные слова проходят как есть:
+// латиница — курсивом (переменная), кириллица — прямым шрифтом документа.
+// Последнее слово `bold` в этих командах делает подпись жирной
+// (`label 1 1 x_1 bold`, `xtick 2 bold`, `vec a 0 0 3 2 bold`); подпись,
+// которая сама НАЧИНАЕТСЯ словом bold, остаётся текстом.
+//
 // Кривые по точкам и производная (splineCurve.js). Кривая монотонна между
 // соседними точками, поэтому экстремумы — ровно в заданных точках:
 //   spline f (-5 -3) (-3 2) (0 -1) (3 3)   — кривая f по точкам; внутри скобок
@@ -57,6 +67,9 @@
 //   band -3 3            — отрезок оси x (по умолчанию красный, как на плакатах)
 
 import { buildSpline, antiderivative } from './splineCurve';
+import {
+  mathSvgText, measureMathSvg, mathLineMetrics, takeTrailingBold,
+} from './mathSvgText';
 
 const DEFAULT_VIEW = { xrange: [-5, 5], yrange: [-5, 5], grid: 1 };
 const DEFAULT_WIDTH = 280;
@@ -76,14 +89,6 @@ export const PLOT_COLORS = Object.keys(PALETTE).filter((c) => c !== 'black');
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const colorOf = (name) => PALETTE[String(name || '').toLowerCase()] || PALETTE.ink;
-
-function escapeXml(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /** «1,5» / «-2» / «1/2» → число; иначе NaN. */
 export function num(tok) {
@@ -583,7 +588,7 @@ export function parseCoordPlot(spec) {
       applyCurveCommand(model, parseCurveCommand(line), prims, deferred);
     } else if (cmd === 'vec' || cmd === 'vector') {
       const { rest, mods } = extractMods(line.slice(p[0].length));
-      const parts = rest.split(/\s+/).filter(Boolean);
+      const { parts, bold } = takeTrailingBold(rest.split(/\s+/).filter(Boolean), 2);
       // Первый токен — подпись, если он не число: «vec a 1 4 3 1» / «vec 1 4 3 1»
       const label = Number.isFinite(num(parts[0])) ? '' : (parts.shift() || '');
       const nums = parts.map(num).filter(Number.isFinite);
@@ -593,7 +598,7 @@ export function parseCoordPlot(spec) {
       if (coords) {
         model.vectors.push({
           label, x1: coords[0], y1: coords[1], x2: coords[2], y2: coords[3],
-          color: mods.color || 'ink', side: mods.side || 'left', dash: !!mods.dash,
+          color: mods.color || 'ink', side: mods.side || 'left', dash: !!mods.dash, bold,
         });
       }
     } else if (cmd === 'point' || cmd === 'dot') {
@@ -614,20 +619,27 @@ export function parseCoordPlot(spec) {
       }
     } else if (cmd === 'label' || cmd === 'text') {
       const { rest, mods } = extractMods(line.slice(p[0].length));
-      const parts = rest.split(/\s+/).filter(Boolean);
+      // keep = 3: две координаты и хотя бы одно слово текста, иначе «label 1 1
+      // bold» осталось бы вовсе без подписи.
+      const { parts, bold } = takeTrailingBold(rest.split(/\s+/).filter(Boolean), 3);
       const x = num(parts[0]); const y = num(parts[1]);
+      // Текст подписи — всё, что осталось после координат: это формула
+      // (подмножество LaTeX), пробелы в ней значимы.
       const text = parts.slice(2).join(' ');
       if (Number.isFinite(x) && Number.isFinite(y) && text) {
         model.labels.push({
-          x, y, text, color: mods.color || 'ink',
+          x, y, text, color: mods.color || 'ink', bold,
           at: mods.at || DEFAULT_LABEL_AT, dist: mods.atDist || DEFAULT_LABEL_DIST,
         });
       }
     } else if (cmd === 'xtick' || cmd === 'ytick') {
-      const v = num(p[1]);
+      const { parts, bold } = takeTrailingBold(
+        line.slice(p[0].length).trim().split(/\s+/).filter(Boolean), 1,
+      );
+      const v = num(parts[0]);
       if (Number.isFinite(v)) {
-        const label = p.slice(2).join(' ') || fmtNum(v);
-        (cmd === 'xtick' ? model.xticks : model.yticks).push({ v, label });
+        const label = parts.slice(1).join(' ') || fmtNum(v);
+        (cmd === 'xtick' ? model.xticks : model.yticks).push({ v, label, bold });
       }
     }
   }
@@ -722,6 +734,32 @@ const LABEL_OFFSETS = {
   e: { dx: 8, dy: 0, base: 4, anchor: 'start' },
 };
 
+// Выключка подписи по вертикали. Обычная строка стоит там же, где стояла до
+// появления формул (LABEL_OFFSETS выверены под кегль 12), а дробь или корень
+// дополнительно отодвигаются на то, чем они торчат за пределы строки — иначе
+// числитель наезжает на точку, к которой подпись относится.
+function labelBase(at, text, bold) {
+  const { ascent, descent } = measureMathSvg(text, { size: 12, bold });
+  const line = mathLineMetrics(12);
+  const overAsc = Math.max(0, ascent - line.ascent);
+  const overDesc = Math.max(0, descent - line.descent);
+  if (at.dy < 0) return at.base - overDesc; // подпись сверху — поднимаем
+  if (at.dy > 0) return at.base + overAsc; // снизу — опускаем
+  return at.base + (overAsc - overDesc) / 2; // сбоку — центрируем
+}
+
+// Подпись засечки на оси X: высокой формуле (дробь) нужен зазор от оси.
+function tickDrop(t, size) {
+  const { ascent } = measureMathSvg(t.label, { size, bold: t.bold });
+  return Math.max(0, ascent - mathLineMetrics(size).ascent);
+}
+
+// Подпись засечки на оси Y стоит по центру строки засечки.
+function tickMiddle(t, size) {
+  const { ascent, descent } = measureMathSvg(t.label, { size, bold: t.bold });
+  return (ascent - descent) / 2;
+}
+
 // Треугольная стрелка остриём в (x,y) вдоль единичного вектора (ux,uy).
 function arrowHead(x, y, ux, uy, color, len = 7, half = 3.1) {
   const bx = x - ux * len; const by = y - uy * len;
@@ -729,14 +767,18 @@ function arrowHead(x, y, ux, uy, color, len = 7, half = 3.1) {
   return `<path d="M${r2(x)},${r2(y)} L${r2(bx + px)},${r2(by + py)} L${r2(bx - px)},${r2(by - py)} Z" fill="${color}"/>`;
 }
 
-// Подпись вектора: буква курсивом + стрелочка над ней (аналог \vec{a}).
-function vecLabel(text, cx, cy, color) {
-  const t = escapeXml(text);
+// Подпись вектора: формула + стрелочка над ней (аналог \vec{a}). Ширину
+// стрелки берём у самой подписи — она может быть и «a», и «F_1».
+function vecLabel(text, cx, cy, color, bold) {
+  const { width } = measureMathSvg(text, { size: 12, bold });
   const barY = cy - 10.5;
+  const x0 = cx - width / 2;
   return [
-    `<text x="${r2(cx)}" y="${r2(cy)}" font-size="12" font-style="italic" text-anchor="middle" fill="${color}">${t}</text>`,
-    `<line x1="${r2(cx - 4.5)}" y1="${r2(barY)}" x2="${r2(cx + 3.5)}" y2="${r2(barY)}" stroke="${color}" stroke-width="1"/>`,
-    arrowHead(cx + 4.8, barY, 1, 0, color, 3.2, 1.6),
+    mathSvgText(text, {
+      x: cx, y: cy, size: 12, color, anchor: 'middle', bold,
+    }),
+    `<line x1="${r2(x0)}" y1="${r2(barY)}" x2="${r2(x0 + width - 1)}" y2="${r2(barY)}" stroke="${color}" stroke-width="1"/>`,
+    arrowHead(x0 + width + 0.3, barY, 1, 0, color, 3.2, 1.6),
   ].join('');
 }
 
@@ -800,24 +842,34 @@ export function coordPlotSvg(model, opts = {}) {
   // 2) Оси со стрелками и буквами
   parts.push(`<line x1="${r2(PAD.l)}" y1="${r2(axisX0)}" x2="${r2(W - PAD.r + 4)}" y2="${r2(axisX0)}" stroke="${COLORS.axis}" stroke-width="1.4"/>`);
   parts.push(arrowHead(W - PAD.r + 4, axisX0, 1, 0, COLORS.axis));
-  parts.push(`<text x="${r2(W - 1)}" y="${r2(axisX0 + 12)}" font-size="12" font-style="italic" text-anchor="end" fill="${COLORS.axis}">${escapeXml(m.axisX || 'x')}</text>`);
+  parts.push(mathSvgText(m.axisX || 'x', {
+    x: W - 1, y: axisX0 + 12, size: 12, color: COLORS.axis, anchor: 'end',
+  }));
 
   parts.push(`<line x1="${r2(axisY0)}" y1="${r2(H - PAD.b)}" x2="${r2(axisY0)}" y2="${r2(PAD.t - 4)}" stroke="${COLORS.axis}" stroke-width="1.4"/>`);
   parts.push(arrowHead(axisY0, PAD.t - 4, 0, -1, COLORS.axis));
-  parts.push(`<text x="${r2(axisY0 - 5)}" y="${r2(PAD.t + 2)}" font-size="12" font-style="italic" text-anchor="end" fill="${COLORS.axis}">${escapeXml(m.axisY || 'y')}</text>`);
+  parts.push(mathSvgText(m.axisY || 'y', {
+    x: axisY0 - 5, y: PAD.t + 2, size: 12, color: COLORS.axis, anchor: 'end',
+  }));
 
   // 3) Единичные отрезки и начало координат (как на бланках «Решу ЕГЭ»)
   const xtickAt = new Set(m.xticks.map((t) => t.v));
   const ytickAt = new Set(m.yticks.map((t) => t.v));
   if (m.units) {
     if (inY && 1 >= x0 && 1 <= x1 && !xtickAt.has(1)) {
-      parts.push(`<text x="${r2(sx(1))}" y="${r2(axisX0 + 13)}" font-size="11" text-anchor="middle" fill="${COLORS.label}">1</text>`);
+      parts.push(mathSvgText('1', {
+        x: sx(1), y: axisX0 + 13, size: 11, color: COLORS.label, anchor: 'middle',
+      }));
     }
     if (inX && 1 >= y0 && 1 <= y1 && !ytickAt.has(1)) {
-      parts.push(`<text x="${r2(axisY0 - 5)}" y="${r2(sy(1) + 4)}" font-size="11" text-anchor="end" fill="${COLORS.label}">1</text>`);
+      parts.push(mathSvgText('1', {
+        x: axisY0 - 5, y: sy(1) + 4, size: 11, color: COLORS.label, anchor: 'end',
+      }));
     }
     if (inX && inY) {
-      parts.push(`<text x="${r2(axisY0 - 4)}" y="${r2(axisX0 + 13)}" font-size="11" font-style="italic" text-anchor="end" fill="${COLORS.label}">O</text>`);
+      parts.push(mathSvgText('O', {
+        x: axisY0 - 4, y: axisX0 + 13, size: 11, color: COLORS.label, anchor: 'end',
+      }));
     }
   }
 
@@ -826,13 +878,19 @@ export function coordPlotSvg(model, opts = {}) {
     if (t.v < x0 || t.v > x1) continue;
     const px = r2(sx(t.v));
     parts.push(`<line x1="${px}" y1="${r2(axisX0 - 3)}" x2="${px}" y2="${r2(axisX0 + 3)}" stroke="${COLORS.axis}" stroke-width="1.2"/>`);
-    parts.push(`<text x="${px}" y="${r2(axisX0 + 13)}" font-size="11" text-anchor="middle" fill="${COLORS.label}">${escapeXml(t.label)}</text>`);
+    parts.push(mathSvgText(t.label, {
+      x: px, y: axisX0 + 13 + tickDrop(t, 11), size: 11, color: COLORS.label,
+      anchor: 'middle', bold: t.bold,
+    }));
   }
   for (const t of m.yticks) {
     if (t.v < y0 || t.v > y1) continue;
     const py = r2(sy(t.v));
     parts.push(`<line x1="${r2(axisY0 - 3)}" y1="${py}" x2="${r2(axisY0 + 3)}" y2="${py}" stroke="${COLORS.axis}" stroke-width="1.2"/>`);
-    parts.push(`<text x="${r2(axisY0 - 5)}" y="${r2(py + 4)}" font-size="11" text-anchor="end" fill="${COLORS.label}">${escapeXml(t.label)}</text>`);
+    parts.push(mathSvgText(t.label, {
+      x: axisY0 - 5, y: py + tickMiddle(t, 11), size: 11, color: COLORS.label,
+      anchor: 'end', bold: t.bold,
+    }));
   }
 
   // 4б) Отрезки оси x — промежуток (a; b) поверх оси, под графиками
@@ -872,7 +930,7 @@ export function coordPlotSvg(model, opts = {}) {
     if (v.label) {
       const sgn = v.side === 'right' ? -1 : 1;
       const nx = -uy * sgn; const ny = ux * sgn; // нормаль к вектору
-      parts.push(vecLabel(v.label, (ax + bx) / 2 + nx * 13, (ay + by) / 2 + ny * 13 + 4, col));
+      parts.push(vecLabel(v.label, (ax + bx) / 2 + nx * 13, (ay + by) / 2 + ny * 13 + 4, col, v.bold));
     }
   }
 
@@ -884,8 +942,10 @@ export function coordPlotSvg(model, opts = {}) {
     const at = LABEL_OFFSETS[l.at] || LABEL_OFFSETS[DEFAULT_LABEL_AT];
     const k = labelDist(l.dist);
     const lx = sx(l.x) + at.dx * k;
-    const ly = sy(l.y) + at.dy * k + at.base;
-    parts.push(`<text x="${r2(lx)}" y="${r2(ly)}" font-size="12" font-style="italic" text-anchor="${at.anchor}" fill="${colorOf(l.color)}">${escapeXml(l.text)}</text>`);
+    const ly = sy(l.y) + at.dy * k + labelBase(at, l.text, l.bold);
+    parts.push(mathSvgText(l.text, {
+      x: lx, y: ly, size: 12, color: colorOf(l.color), anchor: at.anchor, bold: l.bold,
+    }));
   }
 
   return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="max-width:100%;height:auto" xmlns="http://www.w3.org/2000/svg" class="coordplot-svg" role="img">${parts.join('')}</svg>`;
@@ -1066,16 +1126,19 @@ export function plotToSpec({
     if (v.color && v.color !== 'ink') s += ` color ${v.color}`;
     if (v.side === 'right') s += ' side right';
     if (v.dash) s += ' dash';
+    if (v.bold) s += ' bold';
     lines.push(s);
   }
   for (const p of points) {
     let s = `point ${numToken(p.x)} ${numToken(p.y)} ${p.filled === false ? 'open' : 'fill'}`;
     if (p.color && p.color !== 'ink') s += ` color ${p.color}`;
     lines.push(s);
-    if (p.label) lines.push(`label ${numToken(p.x)} ${numToken(p.y)} ${p.label}${atToken(p.labelAt, p.labelDist)}`);
+    if (p.label) {
+      lines.push(`label ${numToken(p.x)} ${numToken(p.y)} ${p.label}${atToken(p.labelAt, p.labelDist)}${p.labelBold ? ' bold' : ''}`);
+    }
   }
   for (const l of labels) {
-    if (l.text) lines.push(`label ${numToken(l.x)} ${numToken(l.y)} ${l.text}${atToken(l.at, l.dist)}`);
+    if (l.text) lines.push(`label ${numToken(l.x)} ${numToken(l.y)} ${l.text}${atToken(l.at, l.dist)}${l.bold ? ' bold' : ''}`);
   }
   for (const g of segments) {
     let s = `seg ${numToken(g.x1)} ${numToken(g.y1)} ${numToken(g.x2)} ${numToken(g.y2)}`;
@@ -1087,7 +1150,7 @@ export function plotToSpec({
     for (const t of ticks) {
       // Подпись по умолчанию = само число; такую не выписываем.
       const label = t.label && t.label !== fmtNum(t.v) ? ` ${t.label}` : '';
-      lines.push(`${cmd} ${numToken(t.v)}${label}`);
+      lines.push(`${cmd} ${numToken(t.v)}${label}${t.bold ? ' bold' : ''}`);
     }
   }
   lines.push(...raw);
@@ -1217,7 +1280,7 @@ export function specToPlotState(spec) {
     annotations: curvesPart.annotations,
     vectors: m.vectors.map((v) => ({
       label: v.label, x1: v.x1, y1: v.y1, x2: v.x2, y2: v.y2,
-      color: v.color, side: v.side, dash: !!v.dash,
+      color: v.color, side: v.side, dash: !!v.dash, bold: !!v.bold,
     })),
     points: m.points.filter((p) => !p.ref).map((p) => {
       const l = takeLabel(p);
@@ -1226,6 +1289,7 @@ export function specToPlotState(spec) {
         label: l ? l.text : '',
         labelAt: l ? l.at : DEFAULT_LABEL_AT,
         labelDist: l ? l.dist : DEFAULT_LABEL_DIST,
+        labelBold: l ? !!l.bold : false,
       };
     }),
     labels: free, // подписи не при точке — конструктор их не показывает, но хранит
