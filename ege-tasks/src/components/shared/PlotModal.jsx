@@ -4,13 +4,17 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import CoordPlotSVG from './CoordPlotSVG';
+import CurveCanvas from './CurveCanvas';
+import CurvePanel, { describeCurve } from './CurvePanel';
 import {
   plotToSpec, specToPlotState, compileExpr, PLOT_COLORS,
-  DEFAULT_LABEL_AT, DEFAULT_LABEL_DIST,
+  DEFAULT_LABEL_AT, DEFAULT_LABEL_DIST, newCurveState, derivativePairSpecs,
 } from '../../utils/coordPlot';
 
-// Визуальный конструктор координатной плоскости. Два режима:
+// Визуальный конструктор координатной плоскости. Три режима:
 //  • «График функции» — формула y = f(x) (можно несколько кривых);
+//  • «Кривая по точкам» — график «как в ЕГЭ»: точки ставятся и двигаются
+//    мышью, рядом рисуются производная и первообразная (CurvePanel/CurveCanvas);
 //  • «Векторы» — стрелки на клетчатой плоскости с подписями a, b, …
 // Окно/клетка/точки общие для обоих режимов. На каждый чих собираем DSL
 // (plotToSpec) и показываем живое превью. По «Вставить» отдаём готовый сниппет.
@@ -51,6 +55,12 @@ const LABEL_AT_OPTIONS = [
   { value: 'w', label: '← влево' },
 ];
 
+const MODE_TITLE = {
+  function: 'График функции',
+  curve: 'Кривая по точкам',
+  vectors: 'Векторы на плоскости',
+};
+
 const SIZE_OPTIONS = [
   { value: 220, label: 'S' },
   { value: 280, label: 'M' },
@@ -60,17 +70,34 @@ const SIZE_OPTIONS = [
 const DEFAULT_VIEW = { xrange: [-5, 5], yrange: [-5, 5], grid: 1, axisX: 'x', axisY: 'y', units: true, width: 280 };
 const DEFAULT_CURVES = [{ expr: 'x^2-4', color: 'ink', from: '', to: '', dash: false }];
 const DEFAULT_VECTORS = [{ label: 'a', x1: 0, y1: 0, x2: 3, y2: 2, color: 'ink', side: 'left' }];
+const DEFAULT_SPLINES = [newCurveState('f', [
+  { x: -4, y: -3 }, { x: -2, y: 2 }, { x: 1, y: -2 }, { x: 3, y: 3 }, { x: 4.5, y: 1 },
+].map((n) => ({ ...n, flat: false, slope: null })))];
+// Холст кривой крупнее итоговой картинки — точки ставить мышью удобнее.
+const CANVAS = { width: 600, maxHeight: 440 };
 // Части чертежа без своего UI (отрезки, засечки, чужие строки) — конструктор
 // их не показывает, но при правке переписывает как есть.
 const EMPTY_EXTRA = { segments: [], xticks: [], yticks: [], raw: [] };
 
-// Готовый к вставке сниппет: блочный fenced (```plot) или inline-код
-// (`plot: a; b`) — последний нужен для ячеек markdown-таблиц.
-export function buildPlotSnippet(spec, format) {
-  if (format === 'inline') {
-    return `\`plot: ${spec.replace(/\n/g, '; ')}\``;
+const inlinePlot = (spec) => `\`plot: ${spec.replace(/\n/g, '; ')}\``;
+
+// Готовый к вставке сниппет: блочный fenced (```plot), inline-код
+// (`plot: a; b`) — для ячеек markdown-таблиц — или пара «f′ | f»: однострочная
+// таблица-галерея из двух inline-картинок (как в справочнике «если f′ — то f»).
+export function buildPlotSnippet(spec, format, pair = null) {
+  if (format === 'pair' && pair) {
+    return `\n{галерея}\n| ${inlinePlot(pair.left)} | ${inlinePlot(pair.right)} |\n`;
   }
+  if (format === 'inline') return inlinePlot(spec);
   return `\n\`\`\`plot\n${spec}\n\`\`\`\n`;
+}
+
+// Вкладка при правке: чем блок в основном нарисован.
+function initialMode(st, kind) {
+  if (!st) return kind;
+  if (st.vectors.length && !st.curves.length && !st.splines.length) return 'vectors';
+  if (st.splines.length && !st.curves.length && !st.vectors.length) return 'curve';
+  return kind;
 }
 
 const rowStyle = { width: '100%', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' };
@@ -235,6 +262,11 @@ export default function PlotModal({
   const [view, setView] = useState(DEFAULT_VIEW);
   const [curves, setCurves] = useState(DEFAULT_CURVES);
   const [vectors, setVectors] = useState(DEFAULT_VECTORS);
+  const [splines, setSplines] = useState(DEFAULT_SPLINES);
+  const [annotations, setAnnotations] = useState([]);
+  const [activeCurve, setActiveCurve] = useState(0);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [step, setStep] = useState(0.5);
   const [points, setPoints] = useState([]);
   const [labels, setLabels] = useState([]);
   const [extra, setExtra] = useState(EMPTY_EXTRA);
@@ -254,25 +286,45 @@ export default function PlotModal({
       setView(st ? { ...DEFAULT_VIEW, ...st.view } : DEFAULT_VIEW);
       setCurves(st ? st.curves : DEFAULT_CURVES);
       setVectors(st ? st.vectors : DEFAULT_VECTORS);
+      setSplines(st ? st.splines : DEFAULT_SPLINES);
+      setAnnotations(st ? st.annotations : []);
+      setActiveCurve(0);
+      setSelectedNode(null);
       setPoints(st ? st.points : []);
       setLabels(st ? st.labels : []);
       setExtra(st ? {
         segments: st.segments, xticks: st.xticks, yticks: st.yticks, raw: st.raw,
       } : EMPTY_EXTRA);
-      setMode(st && st.vectors.length && !st.curves.length ? 'vectors' : kind);
+      setMode(initialMode(st, kind));
     }
   }
 
   const patchView = (delta) => setView((v) => ({ ...v, ...delta }));
 
-  const spec = useMemo(() => plotToSpec({
+  // В правке сериализуется всё; при вставке — только то, что на вкладке.
+  const plotState = useMemo(() => ({
     view,
     curves: editing || mode === 'function' ? curves : [],
+    splines: editing || mode === 'curve' ? splines : [],
+    annotations: editing || mode === 'curve' ? annotations : [],
     vectors: editing || mode === 'vectors' ? vectors : [],
     points,
     labels,
     ...extra,
-  }), [view, mode, curves, vectors, points, labels, extra, editing]);
+  }), [view, mode, curves, splines, annotations, vectors, points, labels, extra, editing]);
+  const spec = useMemo(() => plotToSpec(plotState), [plotState]);
+
+  const curve = splines[activeCurve] || null;
+  const curveInfo = useMemo(
+    () => (curve ? describeCurve(curve) : { error: null, lines: [], kinds: [] }),
+    [curve],
+  );
+  const canPair = mode === 'curve' && !!curve;
+  const effectiveFormat = format === 'pair' && !canPair ? 'block' : format;
+  const pair = useMemo(
+    () => (effectiveFormat === 'pair' ? derivativePairSpecs(plotState, activeCurve) : null),
+    [effectiveFormat, plotState, activeCurve],
+  );
 
   const addCurve = (expr = 'x') => setCurves((arr) => [...arr, { expr, color: 'ink', from: '', to: '', dash: false }]);
   const addVector = () => setVectors((arr) => [
@@ -289,19 +341,19 @@ export default function PlotModal({
   const del = (setter) => (i) => setter((arr) => arr.filter((_, idx) => idx !== i));
 
   const handleInsert = () => {
-    onInsert(buildPlotSnippet(spec, format));
+    onInsert(buildPlotSnippet(spec, effectiveFormat, pair));
     setSession(null); // следующее открытие начнётся с чистого листа
   };
 
   return (
     <Modal
-      title={`${editing ? 'Правка: ' : ''}${mode === 'vectors' ? 'Векторы на плоскости' : 'График функции'}`}
+      title={`${editing ? 'Правка: ' : ''}${MODE_TITLE[mode] || MODE_TITLE.function}`}
       open={open}
       onCancel={onCancel}
       onOk={handleInsert}
       okText={editing ? 'Сохранить' : 'Вставить'}
       cancelText="Отмена"
-      width={700}
+      width={760}
       styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -311,13 +363,37 @@ export default function PlotModal({
           onChange={setMode}
           options={[
             { value: 'function', label: 'График функции' },
+            { value: 'curve', label: 'Кривая по точкам' },
             { value: 'vectors', label: 'Векторы' },
           ]}
         />
 
-        {/* Превью */}
+        {/* Превью: в режиме кривой — холст, на котором точки двигаются мышью */}
         <div style={{ textAlign: 'center', padding: '10px 8px', background: '#fafafa', border: '1px solid #eee', borderRadius: 6 }}>
-          <CoordPlotSVG spec={spec} />
+          {mode === 'curve' && curve ? (
+            <CurveCanvas
+              spec={spec}
+              nodes={curve.nodes}
+              kinds={curveInfo.kinds}
+              selected={selectedNode}
+              onSelect={setSelectedNode}
+              onNodesChange={(nodes) => setSplines((arr) => arr.map((c, i) => (i === activeCurve ? { ...c, nodes } : c)))}
+              step={step}
+              width={CANVAS.width}
+              maxHeight={CANVAS.maxHeight}
+            />
+          ) : (
+            <CoordPlotSVG spec={spec} />
+          )}
+          {pair && (
+            <div data-testid="pair-preview" style={{ marginTop: 10, borderTop: '1px dashed #e5e5e5', paddingTop: 8 }}>
+              <div style={{ fontSize: 12, color: '#8c8c8c', marginBottom: 4 }}>Так вставится: слева производная, справа кривая</div>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <CoordPlotSVG spec={pair.left} />
+                <CoordPlotSVG spec={pair.right} />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Окно и клетка */}
@@ -344,7 +420,22 @@ export default function PlotModal({
           </Tooltip>
         </Space>
 
-        {mode === 'function' ? (
+        {mode === 'curve' && (
+          <CurvePanel
+            splines={splines}
+            onSplinesChange={setSplines}
+            active={Math.min(activeCurve, Math.max(splines.length - 1, 0))}
+            onActive={setActiveCurve}
+            annotations={annotations}
+            onAnnotationsChange={setAnnotations}
+            selectedNode={selectedNode}
+            onSelectNode={setSelectedNode}
+            step={step}
+            onStep={setStep}
+            info={curveInfo}
+          />
+        )}
+        {mode === 'function' && (
           <>
             <div>
               {curves.length === 0 ? (
@@ -375,7 +466,8 @@ export default function PlotModal({
               )}
             />
           </>
-        ) : (
+        )}
+        {mode === 'vectors' && (
           <>
             <div>
               {vectors.length === 0 ? (
@@ -414,14 +506,15 @@ export default function PlotModal({
           <span style={{ color: '#888' }}>Формат:</span>
           <Segmented
             size="small"
-            value={format}
+            value={effectiveFormat}
             onChange={setFormat}
             options={[
               { value: 'block', label: 'Отдельным блоком' },
               { value: 'inline', label: 'В строку (для таблиц)' },
+              ...(canPair ? [{ value: 'pair', label: `${curve.name}′ и ${curve.name} рядом` }] : []),
             ]}
           />
-          <Tooltip title="«В строку» — компактный код `plot: …`, который можно вставлять прямо в ячейку markdown-таблицы. «Блоком» — картинка на отдельной строке.">
+          <Tooltip title="«В строку» — компактный код `plot: …`, который можно вставлять прямо в ячейку markdown-таблицы. «Блоком» — картинка на отдельной строке. «Рядом» — две картинки в строку: график производной и сама кривая, как в справочнике «если f′ > 0 — то f возрастает».">
             <span style={{ color: '#bbb', cursor: 'help' }}>?</span>
           </Tooltip>
         </Space>

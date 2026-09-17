@@ -17,16 +17,19 @@ const INLINE_RE = /`(plot|vectors)\s*:([^`\n]*)`/g;
 const GRID_FENCE_OPEN = /^\s{0,3}```(grid|cells|клетка)\s*$/i;
 const GRID_INLINE_RE = /`(grid|cells|клетка)\s*:([^`\n]*)`/gi;
 
-/** Есть ли в DSL команды векторов — от этого зависит вкладка конструктора. */
+/** Какую вкладку конструктора открыть: векторы, кривая по точкам или формула. */
 export function plotKindOf(spec) {
-  return /(^|[\n;])\s*vec(tor)?\s/i.test(String(spec || '')) ? 'vectors' : 'function';
+  const src = String(spec || '');
+  if (/(^|[\n;])\s*vec(tor)?\s/i.test(src)) return 'vectors';
+  if (/(^|[\n;])\s*(spline|curve|deriv|prim)\s/i.test(src)) return 'curve';
+  return 'function';
 }
 
 /**
  * Найти блок ```plot / inline `plot: …`, внутри которого стоит курсор.
  * @param {string} text полный текст поля
  * @param {number} pos позиция каретки
- * @returns {{start:number,end:number,spec:string,format:'block'|'inline',kind:'function'|'vectors'}|null}
+ * @returns {{start:number,end:number,spec:string,format:'block'|'inline',kind:'function'|'curve'|'vectors'}|null}
  */
 /**
  * Общий поиск «сниппета под курсором» для обеих форм записи. Возвращает
@@ -74,13 +77,13 @@ function findSnippetAtCursor(text, pos, fenceOpen, inlineRe) {
  * Найти блок ```plot / inline `plot: …`, внутри которого стоит курсор.
  * @param {string} text полный текст поля
  * @param {number} pos позиция каретки
- * @returns {{start:number,end:number,spec:string,format:'block'|'inline',kind:'function'|'vectors'}|null}
+ * @returns {{start:number,end:number,spec:string,format:'block'|'inline',kind:'function'|'curve'|'vectors'}|null}
  */
 export function findPlotAtCursor(text, pos) {
   const found = findSnippetAtCursor(text, pos, FENCE_OPEN, INLINE_RE);
   if (!found) return null;
   // Пустой ```vectors ещё не содержит команд vec — вкладку берём из алиаса.
-  const kind = plotKindOf(found.spec) === 'vectors' || found.alias === 'vectors' ? 'vectors' : 'function';
+  const kind = found.alias === 'vectors' ? 'vectors' : plotKindOf(found.spec);
   return { start: found.start, end: found.end, spec: found.spec, format: found.format, kind };
 }
 

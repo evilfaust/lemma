@@ -40,6 +40,23 @@
 //                          дальше, когда подпись накрывает график)
 //   xtick -5             — засечка с подписью на оси X (алиас подписи вторым словом)
 //   ytick 3 три          — засечка с подписью на оси Y
+//
+// Кривые по точкам и производная (splineCurve.js). Кривая монотонна между
+// соседними точками, поэтому экстремумы — ровно в заданных точках:
+//   spline f (-5 -3) (-3 2) (0 -1) (3 3)   — кривая f по точкам; внутри скобок
+//                          флаги flat (f′ = 0 без смены знака) и slope K (наклон
+//                          касательной); «(-3; 2)» тоже годится. Без скобок —
+//                          пары чисел подряд. Модификаторы: color, dash, bold,
+//                          hide (задать, но не рисовать), from A to B
+//   deriv f              — график производной f′ (color/dash/bold/from…to)
+//   prim F f 0 1         — первообразная F кривой f, F(0) = 1 (без точки —
+//                          F(левый край) = 0); hide — не рисовать
+//   drop -3 f            — пунктир от оси x до графика (f, f′ или F); solid
+//   mark -3 f' open      — точка на графике в x = −3
+//   tangent 1 f          — касательная к графику в точке x = 1 (from…to)
+//   band -3 3            — отрезок оси x (по умолчанию красный, как на плакатах)
+
+import { buildSpline, antiderivative } from './splineCurve';
 
 const DEFAULT_VIEW = { xrange: [-5, 5], yrange: [-5, 5], grid: 1 };
 const DEFAULT_WIDTH = 280;
@@ -326,6 +343,180 @@ const isFilled = (tok) => {
   return t !== 'open' && t !== 'hollow' && t !== 'o';
 };
 
+// Флаг-слово в хвосте команды (bold, hide, solid, open). Только для команд, где
+// он что-то значит: в тексте подписи слово «bold» должно остаться текстом.
+function takeFlag(s, word) {
+  const re = new RegExp(`(^|\\s)${word}(?=\\s|$)`, 'i');
+  return re.test(s) ? { s: s.replace(re, ' ').trim(), has: true } : { s, has: false };
+}
+
+/**
+ * Разбить DSL на команды: перевод строки и «;», но не «;» внутри скобок —
+ * точку кривой по-русски пишут «(-3; 2)».
+ */
+export function splitPlotCommands(spec) {
+  const out = [];
+  let cur = '';
+  let depth = 0;
+  for (const ch of String(spec || '')) {
+    if (ch === '(') depth += 1;
+    else if (ch === ')') depth = Math.max(depth - 1, 0);
+    if (ch === '\n' || (ch === ';' && depth === 0)) {
+      out.push(cur);
+      cur = '';
+      if (ch === '\n') depth = 0;
+    } else {
+      cur += ch;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+const REF_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+// Штрих производной пишут чем угодно: f', f′, f’.
+const normRef = (tok) => String(tok || '').replace(/[′’‘`´]/g, "'");
+
+/**
+ * Опорные точки кривой: «(x y [flat] [slope K])…» или пары чисел подряд.
+ * @returns {{nodes: Array, error: string|null}}
+ */
+export function parseSplineNodes(text) {
+  const src = String(text || '').trim();
+  const groups = [...src.matchAll(/\(([^()]*)\)/g)].map((mm) => mm[1]);
+  const nodes = [];
+  if (groups.length) {
+    for (const g of groups) {
+      // «;» и «, » — разделители координат; «0,5» — десятичная запятая.
+      const toks = g.replace(/;|,(?=\s)/g, ' ').split(/\s+/).filter(Boolean);
+      const x = num(toks[0]); const y = num(toks[1]);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        return { nodes: [], error: `Непонятная точка «(${g.trim()})»` };
+      }
+      const node = { x, y };
+      for (let k = 2; k < toks.length; k += 1) {
+        const t = toks[k].toLowerCase();
+        if (t === 'flat') node.flat = true;
+        else if (t === 'slope' || t === 'k') {
+          const s = num(toks[k + 1]);
+          if (Number.isFinite(s)) { node.slope = s; k += 1; }
+        }
+      }
+      nodes.push(node);
+    }
+  } else if (src) {
+    const nums = src.split(/\s+/).map(num);
+    if (nums.some((v) => !Number.isFinite(v)) || nums.length % 2) {
+      return { nodes: [], error: 'Точки кривой пишутся парами: (x y) (x y) …' };
+    }
+    for (let k = 0; k < nums.length; k += 2) nodes.push({ x: nums[k], y: nums[k + 1] });
+  }
+  if (nodes.length < 2) return { nodes, error: 'Нужны хотя бы две точки кривой' };
+  return { nodes, error: null };
+}
+
+const CURVE_CMDS = new Set(['spline', 'curve', 'deriv', 'prim', 'tangent', 'drop', 'mark', 'band']);
+// Пустой токен — «числа нет», а не ноль (num('') === 0).
+const optNum = (tok) => (tok == null || tok === '' ? NaN : num(tok));
+
+/**
+ * Одна команда кривых (spline/deriv/prim/tangent/drop/mark/band) → описание
+ * без вычислений. Им пользуются и отрисовка (parseCoordPlot), и конструктор
+ * (specToPlotState) — поэтому синтаксис разбирается ровно в одном месте.
+ * @returns {object|null} null — не команда кривых или она неполная
+ */
+export function parseCurveCommand(line) {
+  const text = String(line || '').trim();
+  const head = text.split(/\s+/)[0] || '';
+  const cmd = head.toLowerCase();
+  if (!CURVE_CMDS.has(cmd)) return null;
+  const { rest: tail, mods } = extractMods(text.slice(head.length));
+  let rest = tail;
+  const flag = (word) => {
+    const r = takeFlag(rest, word);
+    rest = r.s;
+    return r.has;
+  };
+  const style = () => ({
+    color: mods.color || null, dash: !!mods.dash, bold: flag('bold'), from: mods.from, to: mods.to,
+  });
+
+  if (cmd === 'spline' || cmd === 'curve') {
+    const st = style();
+    const hide = flag('hide');
+    const first = rest.split(/\s+/)[0] || '';
+    const named = REF_NAME_RE.test(first);
+    const { nodes, error } = parseSplineNodes(named ? rest.slice(first.length) : rest);
+    return { cmd: 'spline', name: named ? first : 'f', nodes, error, hide, ...st };
+  }
+  if (cmd === 'deriv') {
+    const st = style();
+    const name = normRef(rest.split(/\s+/)[0]).replace(/'+$/, '');
+    return REF_NAME_RE.test(name) ? { cmd, name, ...st } : null;
+  }
+  if (cmd === 'prim') {
+    const st = style();
+    const hide = flag('hide');
+    const parts = rest.split(/\s+/).filter(Boolean);
+    const [name, src] = parts;
+    if (!REF_NAME_RE.test(name || '') || !REF_NAME_RE.test(src || '')) {
+      return { cmd, error: 'prim: нужно «prim F f» — имя первообразной и имя кривой' };
+    }
+    return { cmd, name, src, x0: optNum(parts[2]), y0: optNum(parts[3]), hide, ...st };
+  }
+  if (cmd === 'tangent') {
+    const st = style();
+    const parts = rest.split(/\s+/).filter(Boolean);
+    const x = optNum(parts[0]);
+    return Number.isFinite(x) && parts[1] ? { cmd, x, ref: normRef(parts[1]), ...st } : null;
+  }
+  if (cmd === 'drop' || cmd === 'mark') {
+    const solid = flag('solid');
+    const open = flag('open');
+    const parts = rest.split(/\s+/).filter(Boolean);
+    const x = optNum(parts[0]);
+    return Number.isFinite(x) && parts[1]
+      ? { cmd, x, ref: normRef(parts[1]), color: mods.color || null, solid, open }
+      : null;
+  }
+  const nums = rest.split(/\s+/).filter(Boolean).map(num).filter(Number.isFinite);
+  if (nums.length < 2 || nums[0] === nums[1]) return null;
+  return { cmd: 'band', a: Math.min(nums[0], nums[1]), b: Math.max(nums[0], nums[1]), color: mods.color || null };
+}
+
+// Разобранная команда кривых → модель. Ссылки на кривые копятся в `deferred`
+// и разрешаются после всех строк (resolveCurveRefs).
+function applyCurveCommand(model, c, prims, deferred) {
+  if (!c) return;
+  const draw = (ref, extra = {}) => {
+    const curve = {
+      ref, expr: '', fn: null, error: null, color: c.color || 'ink',
+      from: c.from, to: c.to, dash: !!c.dash, bold: !!c.bold, ...extra,
+    };
+    model.curves.push(curve);
+    deferred.push({ kind: 'curve', curve });
+  };
+  if (c.cmd === 'spline') {
+    const spline = c.error ? null : buildSpline(c.nodes);
+    const error = c.error || (spline && spline.error) || null;
+    if (spline && spline.ok) model.splines[c.name] = spline;
+    if (error) model.errors.push(`Кривая ${c.name}: ${error}`);
+    if (!c.hide) draw(c.name, { error });
+  } else if (c.cmd === 'deriv') {
+    draw(`${c.name}'`);
+  } else if (c.cmd === 'prim') {
+    if (c.error) { model.errors.push(c.error); return; }
+    prims[c.name] = { src: c.src, x0: c.x0, y0: c.y0 };
+    if (!c.hide) draw(c.name);
+  } else if (c.cmd === 'tangent') {
+    draw(c.ref, { tangentAt: c.x });
+  } else if (c.cmd === 'band') {
+    model.bands.push({ a: c.a, b: c.b, color: c.color || 'red' });
+  } else {
+    deferred.push({ kind: c.cmd, x: c.x, ref: c.ref, color: c.color, solid: c.solid, open: c.open });
+  }
+}
+
 /**
  * Разбор текстового DSL в модель координатной плоскости.
  */
@@ -345,10 +536,18 @@ export function parseCoordPlot(spec) {
     labels: [],
     xticks: [],
     yticks: [],
+    bands: [],
+    splines: {}, // имя → сплайн (для разбора графика и тестов)
+    errors: [],
   };
   if (!spec || typeof spec !== 'string') return model;
 
-  for (const rawLine of String(spec).split(/[\n;]/)) {
+  // Ссылки на кривые (f, f′, F) разрешаются после разбора всех строк:
+  // `deriv f` может стоять выше `spline f`.
+  const prims = {};
+  const deferred = [];
+
+  for (const rawLine of splitPlotCommands(spec)) {
     const line = rawLine.trim();
     if (!line || line.startsWith('#')) continue;
     const p = line.split(/\s+/);
@@ -373,12 +572,15 @@ export function parseCoordPlot(spec) {
     } else if (cmd === 'units') {
       model.units = !/^(off|no|0|false)$/i.test(p[1] || '');
     } else if (cmd === 'f' || cmd === 'plot' || cmd === 'func') {
-      const { rest, mods } = extractMods(line.slice(p[0].length));
+      const { rest: tail, mods } = extractMods(line.slice(p[0].length));
+      const { s: rest, has: bold } = takeFlag(tail, 'bold');
       const { fn, error } = compileExpr(rest);
       model.curves.push({
         expr: rest, fn, error, color: mods.color || 'ink',
-        from: mods.from, to: mods.to, dash: !!mods.dash,
+        from: mods.from, to: mods.to, dash: !!mods.dash, bold,
       });
+    } else if (CURVE_CMDS.has(cmd)) {
+      applyCurveCommand(model, parseCurveCommand(line), prims, deferred);
     } else if (cmd === 'vec' || cmd === 'vector') {
       const { rest, mods } = extractMods(line.slice(p[0].length));
       const parts = rest.split(/\s+/).filter(Boolean);
@@ -429,7 +631,76 @@ export function parseCoordPlot(spec) {
       }
     }
   }
+
+  resolveCurveRefs(model, prims, deferred);
   return model;
+}
+
+// Имя → { fn, dfn, domain }: f и f′ у каждой кривой, F и F′ = f у первообразной.
+function curveRefs(splines, prims) {
+  const refs = new Map();
+  for (const [name, s] of Object.entries(splines)) {
+    refs.set(name, { fn: s.f, dfn: s.df, domain: s.domain });
+    refs.set(`${name}'`, { fn: s.df, dfn: s.d2f, domain: s.domain });
+  }
+  for (const [name, pr] of Object.entries(prims)) {
+    const s = splines[pr.src];
+    if (!s || refs.has(name)) continue;
+    const { fn } = antiderivative(s, pr.x0, pr.y0);
+    refs.set(name, { fn, dfn: s.f, domain: s.domain });
+    refs.set(`${name}'`, { fn: s.f, dfn: s.df, domain: s.domain });
+  }
+  return refs;
+}
+
+function resolveCurveRefs(model, prims, deferred) {
+  if (!deferred.length) return;
+  const refs = curveRefs(model.splines, prims);
+  const missing = (ref) => {
+    const msg = `Не найдена кривая «${ref}»`;
+    if (!model.errors.includes(msg)) model.errors.push(msg);
+    return msg;
+  };
+
+  for (const item of deferred) {
+    if (item.kind === 'curve') {
+      const c = item.curve;
+      if (c.error) continue; // кривая с битыми точками — ошибка уже записана
+      const r = refs.get(c.ref);
+      if (!r) { c.error = missing(c.ref); continue; }
+      if (Number.isFinite(c.tangentAt)) {
+        const y0 = r.fn(c.tangentAt);
+        const k = r.dfn(c.tangentAt);
+        if (!Number.isFinite(y0) || !Number.isFinite(k)) {
+          c.error = `Точка x = ${fmtNum(c.tangentAt)} вне кривой «${c.ref}»`;
+          model.errors.push(c.error);
+          continue;
+        }
+        c.fn = (x) => y0 + k * (x - c.tangentAt);
+        c.slope = k;
+        continue;
+      }
+      c.fn = r.fn;
+      // Рисуем ровно по области кривой: выборка графика попадает в её концы.
+      c.from = Number.isFinite(c.from) ? Math.max(c.from, r.domain[0]) : r.domain[0];
+      c.to = Number.isFinite(c.to) ? Math.min(c.to, r.domain[1]) : r.domain[1];
+      continue;
+    }
+    const r = refs.get(item.ref);
+    if (!r) { missing(item.ref); continue; }
+    const y = r.fn(item.x);
+    if (!Number.isFinite(y)) continue;
+    if (item.kind === 'drop') {
+      model.segments.push({
+        ref: item.ref, x1: item.x, y1: 0, x2: item.x, y2: y,
+        color: item.color || 'ink', dash: !item.solid, thin: true,
+      });
+    } else {
+      model.points.push({
+        ref: item.ref, x: item.x, y, filled: !item.open, color: item.color || 'ink',
+      });
+    }
+  }
 }
 
 // ─────────────────────────────────── рендер ─────────────────────────────────
@@ -472,7 +743,12 @@ function vecLabel(text, cx, cy, color) {
 /**
  * Построить SVG-строку координатной плоскости по модели.
  */
-export function coordPlotSvg(model, opts = {}) {
+/**
+ * Геометрия холста: размеры и перевод «координаты ↔ пиксели viewBox».
+ * Её же берёт интерактивный холст конструктора, чтобы клик попадал ровно
+ * туда, куда рисует coordPlotSvg.
+ */
+export function plotGeometry(model, opts = {}) {
   const m = model || parseCoordPlot('');
   const [x0, x1] = m.xrange || DEFAULT_VIEW.xrange;
   const [y0, y1] = m.yrange || DEFAULT_VIEW.yrange;
@@ -485,11 +761,21 @@ export function coordPlotSvg(model, opts = {}) {
   let cell = (wantW - PAD.l - PAD.r) / spanX;
   if (PAD.t + PAD.b + spanY * cell > maxH) cell = (maxH - PAD.t - PAD.b) / spanY;
   cell = Math.max(cell, 4);
-  const W = Math.round(PAD.l + PAD.r + spanX * cell);
-  const H = Math.round(PAD.t + PAD.b + spanY * cell);
+  return {
+    x0, x1, y0, y1, cell,
+    W: Math.round(PAD.l + PAD.r + spanX * cell),
+    H: Math.round(PAD.t + PAD.b + spanY * cell),
+    sx: (v) => PAD.l + (v - x0) * cell,
+    sy: (v) => PAD.t + (y1 - v) * cell,
+    fromScreen: (px, py) => ({ x: x0 + (px - PAD.l) / cell, y: y1 - (py - PAD.t) / cell }),
+  };
+}
 
-  const sx = (v) => PAD.l + (v - x0) * cell;
-  const sy = (v) => PAD.t + (y1 - v) * cell;
+export function coordPlotSvg(model, opts = {}) {
+  const m = model || parseCoordPlot('');
+  const {
+    x0, x1, y0, y1, W, H, sx, sy,
+  } = plotGeometry(m, opts);
   const inX = 0 >= x0 && 0 <= x1;
   const inY = 0 >= y0 && 0 <= y1;
   // Если начало координат вне окна — ось прижимаем к краю, картинка остаётся читаемой.
@@ -549,19 +835,26 @@ export function coordPlotSvg(model, opts = {}) {
     parts.push(`<text x="${r2(axisY0 - 5)}" y="${r2(py + 4)}" font-size="11" text-anchor="end" fill="${COLORS.label}">${escapeXml(t.label)}</text>`);
   }
 
+  // 4б) Отрезки оси x — промежуток (a; b) поверх оси, под графиками
+  for (const b of m.bands || []) {
+    const a = Math.max(b.a, x0); const z = Math.min(b.b, x1);
+    if (!(z > a)) continue;
+    parts.push(`<line x1="${r2(sx(a))}" y1="${r2(axisX0)}" x2="${r2(sx(z))}" y2="${r2(axisX0)}" stroke="${colorOf(b.color)}" stroke-width="2.6"/>`);
+  }
+
   // 5) Графики функций
   for (const c of m.curves) {
     if (!c.fn) continue;
     const d = curvePath(c, { x0, x1, y0, y1, sx, sy });
     if (!d) continue;
     const dash = c.dash ? ' stroke-dasharray="5 4"' : '';
-    parts.push(`<path d="${d}" fill="none" stroke="${colorOf(c.color)}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"${dash}/>`);
+    parts.push(`<path d="${d}" fill="none" stroke="${colorOf(c.color)}" stroke-width="${c.bold ? 2.4 : 1.7}" stroke-linecap="round" stroke-linejoin="round"${dash}/>`);
   }
 
-  // 6) Отрезки
+  // 6) Отрезки (тонкие — выноски от оси к графику)
   for (const s of m.segments) {
-    const dash = s.dash ? ' stroke-dasharray="5 4"' : '';
-    parts.push(`<line x1="${r2(sx(s.x1))}" y1="${r2(sy(s.y1))}" x2="${r2(sx(s.x2))}" y2="${r2(sy(s.y2))}" stroke="${colorOf(s.color)}" stroke-width="1.5"${dash}/>`);
+    const dash = s.dash ? ` stroke-dasharray="${s.thin ? '4 3' : '5 4'}"` : '';
+    parts.push(`<line x1="${r2(sx(s.x1))}" y1="${r2(sy(s.y1))}" x2="${r2(sx(s.x2))}" y2="${r2(sy(s.y2))}" stroke="${colorOf(s.color)}" stroke-width="${s.thin ? 1 : 1.5}"${dash}/>`);
   }
 
   // 7) Векторы: линия + стрелка + подпись со стрелочкой сверху
@@ -681,6 +974,61 @@ const atToken = (at, dist) => {
   return dir === DEFAULT_LABEL_AT && !far ? '' : ` at ${dir}${far}`;
 };
 
+const hasNum = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
+
+// Хвост модификаторов линии: color / from…to / dash / bold.
+function styleTail(o, defColor = 'ink') {
+  let s = '';
+  if (o.color && o.color !== defColor) s += ` color ${o.color}`;
+  if (hasNum(o.from) && hasNum(o.to)) s += ` from ${numToken(o.from)} to ${numToken(o.to)}`;
+  if (o.dash) s += ' dash';
+  if (o.bold) s += ' bold';
+  return s;
+}
+
+const nodeToken = (n) => {
+  let s = `(${numToken(n.x)} ${numToken(n.y)}`;
+  if (n.flat) s += ' flat';
+  if (hasNum(n.slope)) s += ` slope ${numToken(n.slope)}`;
+  return `${s})`;
+};
+
+/** Точки кривой, пригодные к записи: с числами и по возрастанию x. */
+export function cleanCurveNodes(nodes) {
+  return (nodes || [])
+    .filter((n) => hasNum(n.x) && hasNum(n.y))
+    .map((n) => ({ ...n, x: Number(n.x), y: Number(n.y) }))
+    .sort((a, b) => a.x - b.x);
+}
+
+// Кривые по точкам конструктора → строки spline/deriv/prim + разметка.
+function curveLines(splines, annotations) {
+  const lines = [];
+  for (const c of splines) {
+    if (!REF_NAME_RE.test(c.name || '')) continue;
+    const nodes = cleanCurveNodes(c.nodes);
+    lines.push(`spline ${c.name} ${nodes.map(nodeToken).join(' ')}${styleTail(c)}${c.show === false ? ' hide' : ''}`);
+    if (c.deriv && c.deriv.on) lines.push(`deriv ${c.name}${styleTail(c.deriv)}`);
+    if (c.prim && c.prim.on && REF_NAME_RE.test(c.prim.name || '')) {
+      const at = hasNum(c.prim.x0) && hasNum(c.prim.y0) ? ` ${numToken(c.prim.x0)} ${numToken(c.prim.y0)}` : '';
+      lines.push(`prim ${c.prim.name} ${c.name}${at}${styleTail(c.prim)}${c.prim.show === false ? ' hide' : ''}`);
+    }
+  }
+  for (const a of annotations) {
+    if (a.type === 'band') {
+      if (hasNum(a.a) && hasNum(a.b) && Number(a.a) !== Number(a.b)) {
+        lines.push(`band ${numToken(a.a)} ${numToken(a.b)}${a.color && a.color !== 'red' ? ` color ${a.color}` : ''}`);
+      }
+    } else if (hasNum(a.x) && a.ref) {
+      const color = a.color && a.color !== 'ink' ? ` color ${a.color}` : '';
+      if (a.type === 'tangent') lines.push(`tangent ${numToken(a.x)} ${a.ref}${styleTail(a)}`);
+      else if (a.type === 'drop') lines.push(`drop ${numToken(a.x)} ${a.ref}${color}${a.solid ? ' solid' : ''}`);
+      else if (a.type === 'mark') lines.push(`mark ${numToken(a.x)} ${a.ref}${color}${a.open ? ' open' : ''}`);
+    }
+  }
+  return lines;
+}
+
 /**
  * Состояние конструктора → текст DSL.
  * `segments`/`xticks`/`yticks`/`raw` конструктор не редактирует — они приходят
@@ -688,7 +1036,7 @@ const atToken = (at, dist) => {
  * чтобы правка подписи не стирала остальную разметку.
  */
 export function plotToSpec({
-  view = {}, curves = [], vectors = [], points = [], labels = [],
+  view = {}, curves = [], splines = [], annotations = [], vectors = [], points = [], labels = [],
   segments = [], xticks = [], yticks = [], raw = [],
 } = {}) {
   const xr = view.xrange || DEFAULT_VIEW.xrange;
@@ -709,15 +1057,9 @@ export function plotToSpec({
   for (const c of curves) {
     const expr = String(c.expr || '').trim();
     if (!expr) continue;
-    let s = `f ${expr}`;
-    if (c.color && c.color !== 'ink') s += ` color ${c.color}`;
-    if (c.from !== undefined && c.from !== null && c.from !== ''
-      && c.to !== undefined && c.to !== null && c.to !== '') {
-      s += ` from ${numToken(c.from)} to ${numToken(c.to)}`;
-    }
-    if (c.dash) s += ' dash';
-    lines.push(s);
+    lines.push(`f ${expr}${styleTail(c)}`);
   }
+  lines.push(...curveLines(splines, annotations));
   for (const v of vectors) {
     const label = String(v.label || '').trim();
     let s = `vec${label ? ` ${label}` : ''} ${numToken(v.x1)} ${numToken(v.y1)} ${numToken(v.x2)} ${numToken(v.y2)}`;
@@ -762,6 +1104,81 @@ const KNOWN_CMDS = new Set([
 
 const exprToken = (v) => (Number.isFinite(v) ? String(v) : '');
 
+const lineStyle = (c) => ({
+  color: c.color || 'ink', bold: !!c.bold, dash: !!c.dash, from: exprToken(c.from), to: exprToken(c.to),
+});
+
+/** Пустая кривая конструктора с настройками по умолчанию. */
+export function newCurveState(name = 'f', nodes = []) {
+  const upper = name.toUpperCase();
+  return {
+    name,
+    nodes,
+    show: true,
+    ...lineStyle({}),
+    deriv: { on: false, ...lineStyle({}) },
+    prim: {
+      on: false, show: true, name: upper !== name ? upper : `${name}1`, x0: '', y0: '', ...lineStyle({}),
+    },
+  };
+}
+
+/**
+ * Строки кривых (spline/deriv/prim/tangent/drop/mark/band) → кривые и разметка
+ * конструктора. Чего конструктор не выразит (производная неизвестной кривой,
+ * вторая первообразная, битые точки), остаётся в raw дословно.
+ */
+function curveState(lines) {
+  const splines = [];
+  const annotations = [];
+  const rawAt = []; // [порядковый номер строки, строка] — порядок как в исходнике
+  const parsed = [];
+  lines.forEach((line, i) => {
+    const c = parseCurveCommand(line);
+    if (!c || c.error) rawAt.push([i, line]);
+    else parsed.push({ c, line, i });
+  });
+  const keep = (item) => rawAt.push([item.i, item.line]);
+  const byName = new Map();
+  for (const item of parsed) {
+    const { c } = item;
+    if (c.cmd !== 'spline') continue;
+    if (byName.has(c.name)) { keep(item); continue; }
+    const s = newCurveState(c.name, c.nodes.map((n) => ({
+      x: n.x, y: n.y, flat: !!n.flat, slope: Number.isFinite(n.slope) ? n.slope : null,
+    })));
+    Object.assign(s, lineStyle(c), { show: !c.hide });
+    splines.push(s);
+    byName.set(c.name, s);
+  }
+  for (const item of parsed) {
+    const { c } = item;
+    if (c.cmd === 'spline') continue;
+    if (c.cmd === 'deriv') {
+      const s = byName.get(c.name);
+      if (s && !s.deriv.on) s.deriv = { on: true, ...lineStyle(c) };
+      else keep(item);
+    } else if (c.cmd === 'prim') {
+      const s = byName.get(c.src);
+      if (s && !s.prim.on && !byName.has(c.name)) {
+        s.prim = {
+          on: true, show: !c.hide, name: c.name, x0: exprToken(c.x0), y0: exprToken(c.y0), ...lineStyle(c),
+        };
+      } else keep(item);
+    } else if (c.cmd === 'band') {
+      annotations.push({ type: 'band', a: c.a, b: c.b, color: c.color || 'red' });
+    } else if (c.cmd === 'tangent') {
+      annotations.push({ type: 'tangent', x: c.x, ref: c.ref, ...lineStyle(c) });
+    } else {
+      annotations.push({
+        type: c.cmd, x: c.x, ref: c.ref, color: c.color || 'ink', solid: !!c.solid, open: !!c.open,
+      });
+    }
+  }
+  const raw = rawAt.sort((a, b) => a[0] - b[0]).map(([, line]) => line);
+  return { splines, annotations, raw };
+}
+
 /**
  * Текст DSL → состояние конструктора (обратная `plotToSpec`).
  * Подпись, стоящая ровно в точке, приклеивается к этой точке — в конструкторе
@@ -774,9 +1191,11 @@ export function specToPlotState(spec) {
     const i = free.findIndex((l) => l.x === p.x && l.y === p.y);
     return i >= 0 ? free.splice(i, 1)[0] : null;
   };
-  const raw = String(spec || '').split(/[\n;]/)
+  const unknown = splitPlotCommands(spec)
     .map((l) => l.trim())
     .filter((l) => l && !KNOWN_CMDS.has(l.split(/\s+/)[0].toLowerCase()));
+  const curveCmd = (l) => CURVE_CMDS.has(l.split(/\s+/)[0].toLowerCase());
+  const curvesPart = curveState(unknown.filter(curveCmd));
 
   return {
     view: {
@@ -788,15 +1207,19 @@ export function specToPlotState(spec) {
       units: m.units,
       width: m.width, // null = в блоке не было `size`, не дописываем его
     },
-    curves: m.curves.map((c) => ({
-      expr: c.expr, color: c.color, dash: !!c.dash,
+    // Следы кривых по точкам (ref) — не формулы и не точки конструктора: они
+    // живут в splines/annotations, иначе правка продублировала бы их.
+    curves: m.curves.filter((c) => !c.ref).map((c) => ({
+      expr: c.expr, color: c.color, dash: !!c.dash, bold: !!c.bold,
       from: exprToken(c.from), to: exprToken(c.to),
     })),
+    splines: curvesPart.splines,
+    annotations: curvesPart.annotations,
     vectors: m.vectors.map((v) => ({
       label: v.label, x1: v.x1, y1: v.y1, x2: v.x2, y2: v.y2,
       color: v.color, side: v.side, dash: !!v.dash,
     })),
-    points: m.points.map((p) => {
+    points: m.points.filter((p) => !p.ref).map((p) => {
       const l = takeLabel(p);
       return {
         x: p.x, y: p.y, filled: p.filled, color: p.color,
@@ -806,9 +1229,70 @@ export function specToPlotState(spec) {
       };
     }),
     labels: free, // подписи не при точке — конструктор их не показывает, но хранит
-    segments: m.segments,
+    segments: m.segments.filter((s) => !s.ref),
     xticks: m.xticks,
     yticks: m.yticks,
-    raw,
+    raw: [...unknown.filter((l) => !curveCmd(l)), ...curvesPart.raw],
   };
+}
+
+// ───────────────────────── пара «f′ и f рядом» ─────────────────────────
+
+// Окно по Y под производную: её размах на видимой части кривой + поля,
+// кратно клетке, ось x всегда в кадре.
+function derivYRange(nodes, view) {
+  const s = buildSpline(cleanCurveNodes(nodes));
+  const [vx0, vx1] = view.xrange || DEFAULT_VIEW.xrange;
+  const g = Number(view.grid) > 0 ? Number(view.grid) : 1;
+  if (!s.ok) return [-2 * g, 2 * g];
+  const a = Math.max(s.domain[0], vx0);
+  const b = Math.min(s.domain[1], vx1);
+  let lo = 0; let hi = 0;
+  for (let k = 0; k <= 240; k += 1) {
+    const v = s.df(a + ((b - a) * k) / 240);
+    if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  }
+  const pad = Math.max((hi - lo) * 0.12, g * 0.5);
+  const y0 = Math.floor((lo - pad) / g) * g;
+  const y1 = Math.ceil((hi + pad) / g) * g;
+  return y1 - y0 >= 2 * g ? [y0, y1] : [y0 - g, y1 + g];
+}
+
+/**
+ * Две картинки для справочника «если f′ … — то f …»: слева график
+ * производной кривой, справа сама кривая. Выноски и точки на графике
+ * переезжают на левую картинку уже к f′, касательная к f остаётся справа.
+ * @returns {{left:string, right:string}|null}
+ */
+export function derivativePairSpecs(state, index = 0) {
+  const c = state && state.splines && state.splines[index];
+  if (!c) return null;
+  const n = c.name;
+  const off = { ...c.prim, on: false };
+  const annotations = state.annotations || [];
+  const serialize = (list) => [...new Map(list.map((a) => [JSON.stringify(a), a])).values()];
+
+  const right = plotToSpec({
+    ...state,
+    splines: [{ ...c, show: true, deriv: { ...c.deriv, on: false }, prim: off }],
+    annotations: annotations.filter((a) => a.type === 'band' || a.ref === n),
+  });
+  const leftAnn = serialize(annotations.flatMap((a) => {
+    if (a.type === 'band') return [a];
+    if ((a.type === 'drop' || a.type === 'mark') && (a.ref === n || a.ref === `${n}'`)) return [{ ...a, ref: `${n}'` }];
+    if (a.type === 'tangent' && a.ref === `${n}'`) return [a];
+    return [];
+  }));
+  const deriv = c.deriv && c.deriv.on
+    ? c.deriv
+    : { ...lineStyle(c), from: '', to: '' };
+  const left = plotToSpec({
+    view: { ...state.view, yrange: derivYRange(c.nodes, state.view || {}) },
+    splines: [{ ...c, show: false, deriv: { ...deriv, on: true }, prim: off }],
+    annotations: leftAnn,
+    points: state.points || [],
+    labels: state.labels || [],
+    xticks: state.xticks || [],
+  });
+  return { left, right };
 }

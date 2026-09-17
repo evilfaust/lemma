@@ -55,3 +55,27 @@ describe('useMarkdownProcessor (теория): координатная плос
     expect(result.current).toContain('<svg');
   });
 });
+
+// Вставка «f′ и f рядом» из конструктора кривой: однострочная таблица-галерея
+// с двумя inline-картинками. Штрих f′ в теории приходит HTML-сущностью.
+describe('кривая по точкам: пара «f′ | f» в обоих конвейерах', () => {
+  const PAIR = "\n{галерея}\n| `plot: x -5 5; y -3 3; spline f (-4 -2) (-1 2) (3 -2) hide; deriv f; mark -1 f'` "
+    + '| `plot: x -5 5; y -3 3; spline f (-4 -2) (-1 2) (3 -2); drop -1 f` |\n';
+
+  it('MathRenderer: две картинки в одной строке галереи', () => {
+    const { container } = render(<MathRenderer text={PAIR} />);
+    const svgs = container.querySelectorAll('table.md-table--gallery :is(th, td) svg.coordplot-svg');
+    expect(svgs).toHaveLength(2);
+    expect(svgs[0].querySelectorAll('path[stroke-linecap]').length).toBeGreaterThan(0);
+    expect(svgs[0].querySelector('circle')).toBeTruthy(); // mark на f′
+    expect(svgs[1].innerHTML).toContain('stroke-dasharray="4 3"'); // drop к f
+  });
+
+  it('теория: картинки переживают DOMPurify, штрих не ломает ссылку', async () => {
+    const { result } = renderHook(() => useMarkdownProcessor(PAIR));
+    await waitFor(() => expect(result.current).toContain('coordplot-inline'));
+    expect(result.current.match(/<svg/g)).toHaveLength(2);
+    expect(result.current).toContain('<circle');
+    expect(result.current).toContain('stroke-dasharray="4 3"');
+  });
+});
