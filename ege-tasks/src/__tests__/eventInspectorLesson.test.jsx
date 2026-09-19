@@ -43,27 +43,32 @@ const renderInspector = (l, props = {}) => {
 };
 
 describe('EventInspector — статус урока', () => {
-  it('кнопка «Провёл» зовёт переключатель с записью урока', () => {
-    const { onToggleLessonDone } = renderInspector(lesson());
-    fireEvent.click(screen.getByRole('button', { name: /Провёл/ }));
+  it('кружок статуса зовёт переключатель с записью урока', () => {
+    const { container, onToggleLessonDone } = renderInspector(lesson());
+    const btn = container.querySelector('.ci-done');
+    expect(btn.getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(btn);
     expect(onToggleLessonDone).toHaveBeenCalledWith(expect.objectContaining({ id: 'l1' }));
   });
 
-  it('у проведённого урока кнопка возвращает в запланированные', () => {
-    renderInspector(lesson({ status: 'done' }));
-    expect(screen.getByRole('button', { name: /Вернуть в запланированные/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Провёл/ })).toBeNull();
+  it('у проведённого урока кружок отмечен и возвращает в запланированные', () => {
+    const { container } = renderInspector(lesson({ status: 'done' }));
+    const btn = container.querySelector('.ci-done');
+    expect(btn.className).toContain('is-on');
+    expect(btn.getAttribute('aria-label')).toBe('Вернуть в запланированные');
   });
 
-  it('у отменённого урока и без права правки кнопки нет', () => {
-    renderInspector(lesson({ status: 'cancelled' }));
-    expect(screen.queryByRole('button', { name: /Провёл/ })).toBeNull();
-    renderInspector(lesson(), { canEdit: false });
-    expect(screen.queryByRole('button', { name: /Провёл/ })).toBeNull();
+  it('у отменённого урока и без права правки кружка нет', () => {
+    const a = renderInspector(lesson({ status: 'cancelled' }));
+    expect(a.container.querySelector('.ci-done')).toBeNull();
+    const b = renderInspector(lesson(), { canEdit: false });
+    expect(b.container.querySelector('.ci-done')).toBeNull();
   });
 
-  it('посещаемость осталась отдельной кнопкой', () => {
+  it('посещаемость осталась главной кнопкой ряда действий', () => {
     renderInspector(lesson());
-    expect(screen.getByRole('button', { name: /Посещаемость/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Отметить посещаемость/ })).toBeInTheDocument();
+    // Длинной текстовой кнопки статуса в ряду нет — она не помещалась в панель.
+    expect(screen.queryByRole('button', { name: /Провёл|Вернуть в запланированные/ })).toBeNull();
   });
 });

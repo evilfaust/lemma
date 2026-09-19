@@ -4,7 +4,7 @@ import { Button, Popconfirm } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined,
   TeamOutlined, FlagFilled, CloseOutlined, PaperClipOutlined, FileTextOutlined,
-  EyeOutlined, RightOutlined, BankOutlined, UserOutlined, UndoOutlined,
+  EyeOutlined, RightOutlined, BankOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { Chip, GroupChip, LessonStatusChip, groupHex } from '../ui';
 import { lessonStartEnd } from '../lessonTime';
@@ -79,6 +79,27 @@ export default function EventInspector({
                   <div className="ci-chips">
                     {r.groupName && <GroupChip id={r.groupId} name={r.groupName} />}
                     <LessonStatusChip status={r.status} />
+                    {/* Тот же жест, что на блоке урока в сетке: кружок-галочка
+                        переключает planned ⇄ done. */}
+                    {canEdit && r.status !== 'cancelled' && (
+                      <span
+                        className={`ci-done${r.status === 'done' ? ' is-on' : ''}`}
+                        role="checkbox"
+                        aria-checked={r.status === 'done'}
+                        aria-label={r.status === 'done' ? 'Вернуть в запланированные' : 'Отметить проведённым'}
+                        title={r.status === 'done' ? 'Вернуть в запланированные' : 'Отметить проведённым'}
+                        tabIndex={0}
+                        style={r.status === 'done'
+                          ? { borderColor: groupHex(r.group || r.groupId).base, background: groupHex(r.group || r.groupId).base }
+                          : undefined}
+                        onClick={() => onToggleLessonDone(l)}
+                        onKeyDown={(ev) => {
+                          if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onToggleLessonDone(l); }
+                        }}
+                      >
+                        <CheckOutlined />
+                      </span>
+                    )}
                   </div>
                   <div className="ci-meta">
                     <div><ClockCircleOutlined /> {dayjs(start).format('D MMMM, HH:mm')}–{dayjs(end).format('HH:mm')}</div>
@@ -116,17 +137,8 @@ export default function EventInspector({
                   )}
 
                   <div className="ci-actions">
-                    {canEdit && l.status !== 'cancelled' && (
-                      <Button
-                        type={r.status === 'done' ? 'default' : 'primary'}
-                        icon={r.status === 'done' ? <UndoOutlined /> : <CheckOutlined />}
-                        onClick={() => onToggleLessonDone(l)}
-                      >
-                        {r.status === 'done' ? 'Вернуть в запланированные' : 'Провёл'}
-                      </Button>
-                    )}
-                    <Button icon={<TeamOutlined />} onClick={() => onEdit(event)}>
-                      Посещаемость
+                    <Button type="primary" icon={<TeamOutlined />} onClick={() => onEdit(event)}>
+                      Отметить посещаемость
                     </Button>
                     {canEdit && <Button icon={<EditOutlined />} onClick={() => onEdit(event)} />}
                     {canDelete && (
