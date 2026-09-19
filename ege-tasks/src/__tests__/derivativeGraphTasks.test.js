@@ -121,6 +121,64 @@ describe('ответы сверены с картинкой', () => {
   });
 });
 
+describe('соответствие «точка ↔ значение производной»', () => {
+  // Значение из списка («-\\frac{2}{3}», «0{,}5», «-4») → число
+  const texToNumber = (tex) => {
+    const frac = /^(-?)\\frac\{(\d+)\}\{(\d+)\}$/.exec(tex);
+    if (frac) return (frac[1] ? -1 : 1) * (Number(frac[2]) / Number(frac[3]));
+    return Number(tex.replace('{,}', '.'));
+  };
+
+  it('каждая касательная нарисована в подписанной точке, ответ сходится с наклоном', () => {
+    const list = tasksFor('f_tangent_match', 12);
+    expect(list.length).toBeGreaterThan(8);
+
+    for (const t of list) {
+      const { s } = sampleCurve(t);
+      expect(t.matching.points).toEqual(['K', 'L', 'M', 'N']);
+      expect(t.matching.values).toHaveLength(4);
+      // все значения различны — иначе соответствие неоднозначно
+      expect(new Set(t.matching.values).size).toBe(4);
+      expect(t.resultLatex).toMatch(/^[1-4]{4}$/);
+      // ответ — перестановка: каждое значение использовано ровно раз
+      expect([...t.resultLatex].sort().join('')).toBe('1234');
+
+      // абсциссы точек берём из самого чертежа: подпись xtick и касательная
+      const ticks = [...t.plot.matchAll(/^xtick (-?[\d.]+) ([KLMN])(?: bold)?$/gm)]
+        .map((m) => ({ x: Number(m[1]), name: m[2] }));
+      expect(ticks.map((p) => p.name)).toEqual(['K', 'L', 'M', 'N']);
+      for (const p of ticks) {
+        expect(t.plot).toContain(`tangent ${p.x} f`);
+        expect(t.plot).toContain(`drop ${p.x} f`);
+      }
+      // точки идут слева направо
+      const xs = ticks.map((p) => p.x);
+      expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+
+      // и главное: цифра ответа указывает на значение, равное f′ в этой точке
+      [...t.resultLatex].forEach((digit, i) => {
+        const expected = texToNumber(t.matching.values[Number(digit) - 1]);
+        expect(s.df(ticks[i].x)).toBeCloseTo(expected, 6);
+      });
+    }
+  });
+
+  it('в экспорте .md списки идут таблицей, а ответ — четырьмя цифрами', async () => {
+    const { buildSheetMarkdown } = await import('../utils/sheetMarkdown');
+    const task = tasksFor('f_tangent_match', 20)[0];
+    const md = buildSheetMarkdown({
+      generator: 'graph_derivative',
+      title: 'Соответствие',
+      tasksData: [[task]],
+      layout: [],
+    }, { format: 'work' });
+    expect(md).toContain('| ТОЧКИ | ЗНАЧЕНИЯ ПРОИЗВОДНОЙ |');
+    expect(md).toContain('| А) K |');
+    expect(md).toContain('```plot');
+    expect(md).toContain(`ответ: ${task.resultLatex}`);
+  });
+});
+
 describe('лист генератора', () => {
   it('варианты одинаковой длины и план категорий общий', () => {
     const vars = generateGraphVariants({ ...DEFAULT_SETTINGS_GRAPH, variantsCount: 3, questionsCount: 6 });

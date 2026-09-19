@@ -90,7 +90,31 @@
 .gsp-figure svg [fill="#374151"] { fill: #000; }
 .gsp-figure svg line[stroke="#d6dae0"] { stroke: #000; stroke-width: 0.3; }
 
+/* Задание на соответствие: два списка рядом, ответ — клетки под буквами */
+.gsp-match {
+  display: flex;
+  gap: 5mm;
+  font-size: 10pt;
+  line-height: 1.5;
+}
+.gsp-match-col { min-width: 0; }
+.gsp-match-head { font-weight: 700; font-size: 9pt; text-transform: uppercase; }
+.gsp-match-row { white-space: nowrap; }
+
+.gsp-note { font-size: 9pt; }
+
 .gsp-answer { font-size: 10pt; display: flex; align-items: baseline; gap: 2mm; }
+.gsp-answer--cells { align-items: flex-end; }
+.gsp-cells { display: flex; gap: 1mm; }
+/* Буква стоит НАД клеткой в общей колонке: абсолютным позиционированием она
+   наезжала на строку «Запишите в ответ цифры…». */
+.gsp-cell-box { display: flex; flex-direction: column; align-items: center; gap: 0.5mm; }
+.gsp-cell-letter { font-size: 8pt; line-height: 1; }
+.gsp-cell {
+  width: 8mm;
+  height: 8mm;
+  border: var(--gsp-hair) solid var(--gsp-ink);
+}
 .gsp-answer-line { flex: 1 1 auto; border-bottom: var(--gsp-rule) solid var(--gsp-ink); height: 4mm; }
 
 .gsp-divider {

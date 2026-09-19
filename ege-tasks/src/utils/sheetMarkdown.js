@@ -16,6 +16,7 @@
  */
 
 import { sheetKind, sheetGeneratorLabel, getSheetGenerator } from './sheetRegistry';
+import { MATCH_LETTERS } from './derivativeGraphTasks';
 
 export const SHEET_MD_FORMATS = [
   { value: 'compact', label: 'Читаемый лист' },
@@ -109,9 +110,24 @@ export function taskStatement(task) {
   if (expr) return texInline(expr);
   const question = String(task?.question ?? '').trim();
   const plot = String(task?.plot ?? '').trim();
-  if (plot) return [question, '```plot', plot, '```'].filter(Boolean).join('\n');
-  if (question) return question;
-  return '_задание с чертежом — печатается рисунком_';
+  const note = String(task?.note ?? '').trim();
+  const parts = [question, matchingTable(task?.matching)];
+  if (plot) parts.push('```plot', plot, '```');
+  parts.push(note);
+  const body = parts.filter(Boolean).join('\n');
+  return body || '_задание с чертежом — печатается рисунком_';
+}
+
+/** Списки задания на соответствие — markdown-таблицей «точка | значение». */
+function matchingTable(matching) {
+  const points = matching?.points || [];
+  const values = matching?.values || [];
+  if (!points.length || points.length !== values.length) return '';
+  return [
+    '| ТОЧКИ | ЗНАЧЕНИЯ ПРОИЗВОДНОЙ |',
+    '| --- | --- |',
+    ...points.map((p, i) => `| ${MATCH_LETTERS[i]}) ${p} | ${i + 1}) ${texInline(values[i])} |`),
+  ].join('\n');
 }
 
 /**

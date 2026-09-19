@@ -25,15 +25,19 @@
 //   makeGraphTask(cat)                        → одно задание или null
 //   CATEGORY_LABELS_GRAPH / CATEGORY_GROUPS_GRAPH / DEFAULT_SETTINGS_GRAPH
 //
-// Задание: { cat, plot, question, resultLatex, answerValue, note }
+// Задание: { cat, plot, question, resultLatex, answerValue, matching?, note? }
 //   plot     — текст DSL координатной плоскости (`coordPlot.js`),
 //   question — условие обычным текстом (формулы в $…$),
-//   resultLatex — ответ для ключа учителя (число).
+//   matching — задание на соответствие: { points: ['K','L',…], values: [tex] };
+//              ответ тогда четыре цифры («2143»),
+//   note     — строка под списками («Запишите в ответ цифры…»),
+//   resultLatex — ответ для ключа учителя.
 
 import {
   buildSpline, splineAnalysis, splineZeros, splineSignIntervals, integersInIntervals,
 } from './splineCurve';
 import { rand, randInt, chance } from './linearExpr';
+import { shuffleArray } from './shuffle';
 import { generateByCategories } from './questionPlan';
 
 const EPS = 1e-6;
@@ -84,8 +88,8 @@ function xGrid(count, { gapMin = 2, gapMax = 4, maxSpan = MAX_SPAN_X } = {}) {
  * меньше чем на 2 — иначе горка не читается по клеткам.
  * `flat` — добавить стационарную точку (f′ = 0 без смены знака).
  */
-function waveNodes({ turns, ymax = 4, flat = false }) {
-  const xs = xGrid(turns + 2);
+function waveNodes({ turns, ymax = 4, flat = false, maxSpan }) {
+  const xs = xGrid(turns + 2, maxSpan ? { maxSpan } : {});
   if (!xs) return null;
   let dir = chance(0.5) ? 1 : -1;
   const ys = [randInt(-ymax, ymax)];
@@ -159,7 +163,12 @@ function viewOf(nodes, { padX = 1, padY = 1 } = {}) {
   };
 }
 
-const nodeToken = (n) => `(${n.x} ${n.y}${n.flat ? ' flat' : ''}${Number.isFinite(n.slope) ? ` slope ${n.slope}` : ''})`;
+// `slopeToken` — как наклон записать в DSL: у 2/3 десятичная запись бесконечна,
+// и «slope 0.6666666666666666» читалось бы как другое число.
+const nodeToken = (n) => {
+  const slope = n.slopeToken || (Number.isFinite(n.slope) ? String(n.slope) : '');
+  return `(${n.x} ${n.y}${n.flat ? ' flat' : ''}${slope ? ` slope ${slope}` : ''})`;
+};
 
 // Подпись графика («y = f(x)») занимает примерно столько клеток в ширину:
 const LABEL_W = 3;
@@ -349,6 +358,66 @@ function askF(cat) {
 }
 
 /**
+ * Значения производной, которые встречаются в КИМ: целые, половинки и простые
+ * дроби. `token` — запись наклона в DSL, `tex` — как значение печатается в
+ * списке (в KaTeX десятичная запятая берётся в скобки).
+ */
+const SLOPE_VALUES = [
+  { v: 4, token: '4', tex: '4' },
+  { v: 3, token: '3', tex: '3' },
+  { v: 2, token: '2', tex: '2' },
+  { v: 1.5, token: '3/2', tex: '1{,}5' },
+  { v: 1, token: '1', tex: '1' },
+  { v: 2 / 3, token: '2/3', tex: '\\frac{2}{3}' },
+  { v: 0.5, token: '1/2', tex: '0{,}5' },
+];
+
+const negSlope = (s) => ({
+  v: -s.v,
+  token: `-${s.token}`,
+  tex: s.tex.startsWith('\\frac') ? `-${s.tex}` : `-${s.tex}`,
+});
+
+/** Куски кривой, на которых помещается точка касания и виден наклон. */
+function tangentSpots(base, { minDx = 3 } = {}) {
+  return base.slice(0, -1)
+    .map((n, i) => i)
+    .filter((i) => base[i + 1].x - base[i].x >= minDx && Math.abs(base[i + 1].y - base[i].y) >= 2);
+}
+
+/**
+ * Поставить точку касания в середину куска `i` и подобрать ей наклон.
+ *
+ * Наклон не круче соседних секущих: иначе кривая перестала бы быть монотонной
+ * на куске, и сплайн начал бы её «чинить» — заявленное значение производной
+ * разошлось бы с нарисованным. `used` — уже занятые значения: в задании на
+ * соответствие два одинаковых ответа сделали бы его неразрешимым.
+ */
+function tangentAt(base, i, used = [], { decimalOnly = false } = {}) {
+  const a = base[i];
+  const b = base[i + 1];
+  const x0 = a.x + Math.round((b.x - a.x) / 2);
+  const y0 = Math.round((a.y + b.y) / 2);
+  if (x0 <= a.x || x0 >= b.x || y0 === a.y || y0 === b.y) return null;
+
+  const lim = Math.min(Math.abs((y0 - a.y) / (x0 - a.x)), Math.abs((b.y - y0) / (b.x - x0)));
+  const up = b.y > a.y;
+  const pool = SLOPE_VALUES
+    .filter((s) => s.v <= lim + EPS)
+    // Ответ одиночной задачи ученик пишет в бланк, а «2/3» туда не вписать
+    .filter((s) => !decimalOnly || !s.token.includes('/') || s.tex.startsWith('0{,}') || s.tex.startsWith('1{,}'))
+    .map((s) => (up ? s : negSlope(s)))
+    // Различаются и по модулю: «2/3» рядом с «−2/3» ученик читает как опечатку.
+    // Сравниваем модули уже ПОСЛЕ смены знака — иначе проверка мимо.
+    .filter((s) => !used.some((u) => Math.abs(Math.abs(u) - Math.abs(s.v)) < EPS));
+  if (!pool.length) return null;
+  const slope = rand(pool);
+  return {
+    node: { x: x0, y: y0, slope: slope.v, slopeToken: slope.token }, slope,
+  };
+}
+
+/**
  * f′(x₀) по касательной. Точку касания ставим НА СЕРЕДИНЕ монотонного куска —
  * во всех вершинах «пилы» ответ был бы нулём, — задаём ей наклон и сверяем его
  * с моделью: слишком крутую касательную сплайн не выдержит, такое задание
@@ -357,31 +426,18 @@ function askF(cat) {
 function askTangent() {
   const base = waveNodes({ turns: randInt(2, 3) });
   if (!base) return null;
-  // Кусок, на котором помещается точка касания и виден наклон
-  const spots = base.slice(0, -1)
-    .map((n, i) => i)
-    .filter((i) => base[i + 1].x - base[i].x >= 3 && Math.abs(base[i + 1].y - base[i].y) >= 2);
+  const spots = tangentSpots(base);
   if (!spots.length) return null;
   const i = rand(spots);
-  const a = base[i];
-  const b = base[i + 1];
-  const x0 = a.x + Math.round((b.x - a.x) / 2);
-  const y0 = Math.round((a.y + b.y) / 2);
-  if (x0 <= a.x || x0 >= b.x || y0 === a.y || y0 === b.y) return null;
-
-  // Наклон не круче соседних секущих — иначе кривая перестала бы быть
-  // монотонной на куске, и сплайн начал бы её «чинить».
-  const lim = Math.min(Math.abs((y0 - a.y) / (x0 - a.x)), Math.abs((b.y - y0) / (b.x - x0)));
-  const dir = b.y > a.y ? 1 : -1;
-  const pool = [2, 1.5, 1, 0.5].filter((k) => k <= lim + EPS);
-  if (!pool.length) return null;
-  const k = dir * rand(pool);
+  const spot = tangentAt(base, i, [], { decimalOnly: true });
+  if (!spot) return null;
 
   const nodes = [...base];
-  nodes.splice(i + 1, 0, { x: x0, y: y0, slope: k });
+  nodes.splice(i + 1, 0, spot.node);
   const s = scene(nodes, 'f');
   if (!s || s.spline.warning) return null;
-  if (Math.abs(s.spline.df(x0) - k) > 1e-6) return null;
+  const x0 = spot.node.x;
+  if (Math.abs(s.spline.df(x0) - spot.slope.v) > 1e-6) return null;
 
   const extra = [`tangent ${x0} f`, `mark ${x0} f`, `xtick ${x0}`];
   return {
@@ -389,8 +445,77 @@ function askTangent() {
       nodes, name: 'f', label: 'y = f(x)', extra, spline: s.spline,
     }),
     question: `На рисунке изображён график функции $y = f(x)$ и касательная к нему в точке с абсциссой $x_0 = ${fmt(x0)}$. Найдите значение производной $f'(x)$ в точке $x_0$.`,
-    resultLatex: ans(k),
-    answerValue: k,
+    resultLatex: ans(spot.slope.v),
+    answerValue: spot.slope.v,
+  };
+}
+
+// Точки касания подписываются буквами по порядку слева направо, ответы —
+// цифрами под буквами А, Б, В, Г (как в бланке).
+const POINT_NAMES = ['K', 'L', 'M', 'N'];
+export const MATCH_LETTERS = ['А', 'Б', 'В', 'Г'];
+
+/**
+ * Соответствие «точка ↔ значение производной»: к графику проведены четыре
+ * касательные, ученик сопоставляет точкам значения f′ и пишет в ответ четыре
+ * цифры («2143»).
+ *
+ * Каждая касательная живёт на своём монотонном куске: на соседних кусках знаки
+ * наклона разные, поэтому в списке значений сами собой оказываются и
+ * положительные, и отрицательные — как в КИМ.
+ */
+function askTangentMatch() {
+  const base = waveNodes({ turns: randInt(3, 4), maxSpan: 14 });
+  if (!base) return null;
+  const spots = tangentSpots(base, { minDx: 2 });
+  if (spots.length < POINT_NAMES.length) return null;
+
+  const chosen = shuffleArray(spots).slice(0, POINT_NAMES.length).sort((a, b) => a - b);
+  const nodes = [...base];
+  const picked = [];
+  // Вставляем справа налево: индексы левых кусков от этого не съезжают.
+  for (const i of [...chosen].reverse()) {
+    const spot = tangentAt(base, i, picked.map((p) => p.slope.v));
+    if (!spot) return null;
+    nodes.splice(i + 1, 0, spot.node);
+    picked.unshift(spot);
+  }
+
+  const s = scene(nodes, 'f');
+  if (!s || s.spline.warning) return null;
+  // Заявленный наклон обязан совпасть с нарисованным — иначе ответ соврёт
+  for (const p of picked) {
+    if (Math.abs(s.spline.df(p.node.x) - p.slope.v) > 1e-6) return null;
+  }
+
+  // Касательные — короткими отрезками у точки касания: четыре прямые через всё
+  // окно превращают рисунок в паутину, в КИМ их тоже рисуют локально.
+  const TAN_HALF = 3;
+  const extra = picked.flatMap((p, k) => [
+    `tangent ${p.node.x} f from ${p.node.x - TAN_HALF} to ${p.node.x + TAN_HALF}`,
+    `mark ${p.node.x} f`,
+    `drop ${p.node.x} f`,
+    `xtick ${p.node.x} ${POINT_NAMES[k]} bold`,
+  ]);
+
+  // Значения в списке перемешаны, ответ — их номера в порядке точек
+  const values = shuffleArray(picked.map((p) => p.slope));
+  const answer = picked
+    .map((p) => values.findIndex((v) => Math.abs(v.v - p.slope.v) < EPS) + 1)
+    .join('');
+
+  return {
+    plot: buildSpec({
+      nodes, name: 'f', label: '', extra, spline: s.spline,
+    }),
+    question: 'На рисунке изображён график функции, к которому проведены касательные в четырёх точках. Ниже указаны значения производной в данных точках. Пользуясь графиком, поставьте в соответствие каждой точке значение производной в ней.',
+    matching: {
+      points: POINT_NAMES.slice(0, picked.length),
+      values: values.map((v) => v.tex),
+    },
+    note: 'Запишите в ответ цифры, расположив их в порядке, соответствующем буквам: А Б В Г.',
+    resultLatex: answer,
+    answerValue: Number(answer),
   };
 }
 
@@ -534,6 +659,7 @@ export const CATEGORY_LABELS_GRAPH = {
   f_max_value_point: 'Точка наибольшего значения',
   f_min_value_point: 'Точка наименьшего значения',
   f_tangent_slope: 'f′(x₀) по касательной',
+  f_tangent_match: 'Соответствие: точки и f′',
   // График производной
   d_max_count: 'Точки максимума f',
   d_min_count: 'Точки минимума f',
@@ -560,7 +686,7 @@ export const CATEGORY_GROUPS_GRAPH = [
       'f_max_count', 'f_min_count', 'f_extremum_count', 'f_extremum_sum',
       'f_deriv_zero_count', 'f_deriv_pos_int', 'f_deriv_neg_int',
       'f_increase_len', 'f_decrease_len',
-      'f_max_value_point', 'f_min_value_point', 'f_tangent_slope',
+      'f_max_value_point', 'f_min_value_point', 'f_tangent_slope', 'f_tangent_match',
     ],
   },
   {
@@ -588,6 +714,7 @@ const ALL_CATS = CATEGORY_GROUPS_GRAPH.flatMap((g) => g.keys);
 // По умолчанию — самое ходовое: экстремумы по графику f и по графику f′.
 const DEFAULT_ON = [
   'f_max_count', 'f_min_count', 'f_extremum_count', 'f_deriv_pos_int',
+  'f_tangent_slope', 'f_tangent_match',
   'd_max_count', 'd_min_count', 'd_increase_int',
 ];
 
@@ -619,11 +746,12 @@ const ASK_TRIES = 8;
  */
 export function makeGraphTask(cat) {
   const build = () => (cat === 'f_tangent_slope' ? askTangent()
-    : cat === 'p_area' ? askP()
-      : cat.startsWith('f_') ? askF(cat)
-        : cat.startsWith('d_') ? askD(cat)
-          : cat.startsWith('b_') ? askBase(cat)
-            : null);
+    : cat === 'f_tangent_match' ? askTangentMatch()
+      : cat === 'p_area' ? askP()
+        : cat.startsWith('f_') ? askF(cat)
+          : cat.startsWith('d_') ? askD(cat)
+            : cat.startsWith('b_') ? askBase(cat)
+              : null);
   for (let i = 0; i < ASK_TRIES; i += 1) {
     const task = build();
     if (task) return { ...task, cat };
