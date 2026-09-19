@@ -5,16 +5,29 @@ import {
   PrinterOutlined, BookOutlined
 } from '@ant-design/icons';
 import { useMarkdownProcessor, useGeoGebraInjection } from '../hooks';
-import { getPageDimensions, DEFAULT_SETTINGS, printWithPageSize } from '../utils/theoryThemes';
+import {
+  getPageDimensions, DEFAULT_SETTINGS, printWithPageSize,
+  printThemeClass, normalizePrintTheme, loadPrintTheme, savePrintTheme,
+} from '../utils/theoryThemes';
+import { withSheetHead } from '../utils/theorySheetHead';
+import PrintThemeSwitch from './theory/PrintThemeSwitch';
 import { api } from '../services/pocketbase';
 import MathRenderer from './MathRenderer';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
+import './theory/themeSheet.css';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryArticleView.css';
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return '';
+  return new Date(dateStr).toLocaleDateString('ru-RU', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+};
 
 export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const { message } = App.useApp();
@@ -23,6 +36,9 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageSettings, setPageSettings] = useState(DEFAULT_SETTINGS);
+  // Тема, с которой статью сохранил автор (theme_settings.pageSettings.printTheme);
+  // переключатель в панели — разовый выбор читателя и в БД не пишется.
+  const [printTheme, setPrintTheme] = useState(loadPrintTheme);
   const [isExporting, setIsExporting] = useState(false);
   const [relatedTasks, setRelatedTasks] = useState([]);
   const [relatedTags, setRelatedTags] = useState([]);
@@ -52,6 +68,8 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       setArticle(data);
       if (data?.theme_settings) {
         if (data.theme_settings.pageSettings) setPageSettings(data.theme_settings.pageSettings);
+        const saved = data.theme_settings.pageSettings?.printTheme;
+        if (saved) setPrintTheme(normalizePrintTheme(saved));
       }
     } catch (error) {
       message.error('Ошибка при загрузке статьи');
@@ -82,11 +100,24 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
 
   const html = useMarkdownProcessor(article?.content_md || '', pageSettings.columns);
 
+  const cat = article?.expand?.category || categories.find(c => c.id === article?.category);
+  const sheet = normalizePrintTheme(printTheme) === 'sheet';
+
+  // В теме «Лист» перед статьёй печатается шапка листа: на экране заголовок
+  // живёт в .theory-article-header (no-print), то есть в печать не попадает.
+  const printHtml = useMemo(() => withSheetHead(html, {
+    enabled: sheet,
+    eyebrow: cat?.title,
+    title: article?.title,
+    subtitle: article?.summary,
+    meta: [...(article?.tags || []), formatDate(article?.updated)],
+  }), [html, sheet, cat?.title, article?.title, article?.summary, article?.tags, article?.updated]);
+
   // Generate TOC from rendered HTML
   useEffect(() => {
-    if (!html) { setToc([]); return; }
+    if (!printHtml) { setToc([]); return; }
     const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = html;
+    tempDiv.innerHTML = printHtml;
     const headings = tempDiv.querySelectorAll('h1, h2, h3');
     const tocItems = Array.from(headings).map((h, i) => ({
       id: `heading-${i}`,
@@ -94,14 +125,14 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       level: parseInt(h.tagName[1]),
     }));
     setToc(tocItems);
-  }, [html]);
+  }, [printHtml]);
 
   // Add IDs to headings after render
   useEffect(() => {
     if (!previewRef.current) return;
     const headings = previewRef.current.querySelectorAll('h1, h2, h3');
     headings.forEach((h, i) => { h.id = `heading-${i}`; });
-  }, [html]);
+  }, [printHtml]);
 
   const geogebraAppletsById = useMemo(() => {
     const applets = article?.theme_settings?.geogebra_applets;
@@ -114,7 +145,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   }, [article?.theme_settings]);
 
   // Inject GeoGebra images into rendered HTML
-  useGeoGebraInjection(previewRef, html, geogebraAppletsById);
+  useGeoGebraInjection(previewRef, printHtml, geogebraAppletsById);
 
   // IntersectionObserver for active TOC item
   useEffect(() => {
@@ -135,7 +166,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     );
     headings.forEach(h => observer.observe(h));
     return () => observer.disconnect();
-  }, [html, toc.length]);
+  }, [printHtml, toc.length]);
 
   const previewStyles = useMemo(() => {
     const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
@@ -204,13 +235,6 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, []);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '';
-    return new Date(dateStr).toLocaleDateString('ru-RU', {
-      day: 'numeric', month: 'long', year: 'numeric',
-    });
-  };
-
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 60 }}><Spin size="large" /></div>;
   }
@@ -218,8 +242,6 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   if (!article) {
     return <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>Статья не найдена</div>;
   }
-
-  const cat = article.expand?.category || categories.find(c => c.id === article.category);
 
   return (
     <div className="theory-article-view">
@@ -229,6 +251,11 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack}>Назад</Button>
         </div>
         <div className="theory-article-toolbar-right">
+          <PrintThemeSwitch
+            value={printTheme}
+            onChange={(v) => { setPrintTheme(v); savePrintTheme(v); }}
+          />
+          <div className="theory-article-toolbar-divider" />
           {canEdit && (
             <Tooltip title="Редактировать">
               <Button type="text" icon={<EditOutlined />} onClick={() => onEdit?.(articleId)} />
@@ -294,9 +321,9 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
           <div className="theory-article-content-wrapper">
             <div
               ref={previewRef}
-              className="theory-preview-content theory-article-print-area"
+              className={`theory-preview-content theory-article-print-area ${printThemeClass(printTheme)}`}
               style={previewStyles}
-              dangerouslySetInnerHTML={{ __html: html }}
+              dangerouslySetInnerHTML={{ __html: printHtml }}
             />
           </div>
 

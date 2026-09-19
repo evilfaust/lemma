@@ -20,7 +20,9 @@ export const DEFAULT_SETTINGS = {
     marginBottom: 12,
     marginLeft: 10,
     marginRight: 10,
-    fontSize: 16
+    fontSize: 16,
+    // Стиль печати листа — см. § Печатные темы ниже.
+    printTheme: 'classic'
 }
 
 // Печать статьи: поля задаём через @page margin (а не padding'ом листа), чтобы
@@ -39,4 +41,50 @@ export const printWithPageSize = (pageSettings = DEFAULT_SETTINGS) => {
     document.head.appendChild(style)
     window.print()
     setTimeout(() => style.remove(), 1000)
+}
+
+/* ── Печатные темы ──────────────────────────────────────────────────────────
+   Тем две. «Классика» — исторический стиль теории (тёмная плашка H1, цветные
+   каллауты, зебра в таблицах); он остаётся дефолтом, старые статьи печатаются
+   как печатались. «Лист» — язык движка print-sheet (components/print-sheet):
+   только чёрная краска, иерархия кеглем и толщиной линеек (0.5 / 0.35 / 0.25 мм
+   и 0.2 pt), никаких заливок — лист не зависит от галки «печатать фоны» в
+   диалоге браузера и не выцветает на ч/б принтере.
+   Стили темы — components/theory/themeSheet.css.
+   ────────────────────────────────────────────────────────────────────────── */
+
+export const PRINT_THEMES = [
+    { value: 'classic', label: 'Классика' },
+    { value: 'sheet', label: 'Лист' },
+]
+
+export const DEFAULT_PRINT_THEME = 'classic'
+
+export const isPrintTheme = (theme) => PRINT_THEMES.some(t => t.value === theme)
+
+export const normalizePrintTheme = (theme) =>
+    isPrintTheme(theme) ? theme : DEFAULT_PRINT_THEME
+
+// Класс-модификатор на .theory-preview-content (он же печатный корень).
+export const printThemeClass = (theme) =>
+    normalizePrintTheme(theme) === 'sheet' ? 'theory-sheet' : 'theory-classic'
+
+// Выбор темы вне статьи (конспект из нескольких статей) помнится в браузере:
+// своей записи в БД у сборника нет.
+const PRINT_THEME_LS_KEY = 'theory.printTheme'
+
+export const loadPrintTheme = () => {
+    try {
+        return normalizePrintTheme(localStorage.getItem(PRINT_THEME_LS_KEY))
+    } catch {
+        return DEFAULT_PRINT_THEME
+    }
+}
+
+export const savePrintTheme = (theme) => {
+    try {
+        localStorage.setItem(PRINT_THEME_LS_KEY, normalizePrintTheme(theme))
+    } catch {
+        /* приватное окно — переживём */
+    }
 }

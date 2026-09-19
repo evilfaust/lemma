@@ -6,7 +6,12 @@ import {
   ArrowLeftOutlined, TagsOutlined, CheckCircleOutlined, NodeIndexOutlined
 } from '@ant-design/icons';
 import { useMarkdownProcessor, useKeyboardShortcuts, useDocumentStats, useAutosave, loadAutosave, useGeoGebraInjection } from '../hooks';
-import { getPageDimensions, DEFAULT_SETTINGS, printWithPageSize } from '../utils/theoryThemes';
+import {
+  getPageDimensions, DEFAULT_SETTINGS, printWithPageSize,
+  printThemeClass, normalizePrintTheme,
+} from '../utils/theoryThemes';
+import { withSheetHead } from '../utils/theorySheetHead';
+import PrintThemeSwitch from './theory/PrintThemeSwitch';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import EditorToolbar from './theory/EditorToolbar';
@@ -15,6 +20,7 @@ import { Chip } from './workspace/ui';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
+import './theory/themeSheet.css';
 import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryEditor.css';
 
@@ -85,6 +91,15 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
 
   // Process markdown
   const html = useMarkdownProcessor(markdown, pageSettings.columns);
+
+  const sheet = normalizePrintTheme(pageSettings.printTheme) === 'sheet';
+  const printHtml = useMemo(() => withSheetHead(html, {
+    enabled: sheet,
+    eyebrow: categories.find(c => c.id === categoryId)?.title,
+    title,
+    subtitle: summary,
+  }), [html, sheet, categories, categoryId, title, summary]);
+
   const stats = useDocumentStats(markdown);
   const autosaveExtraSettings = useMemo(
     () => ({ geogebra_applets: geogebraApplets }),
@@ -304,7 +319,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   );
 
   // Inject GeoGebra images into editor preview
-  useGeoGebraInjection(previewRef, html, geogebraAppletsById);
+  useGeoGebraInjection(previewRef, printHtml, geogebraAppletsById);
 
   // Preview styles
   const previewStyles = useMemo(() => {
@@ -352,11 +367,24 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     ro.observe(wrap);
     ro.observe(content);
     return () => ro.disconnect();
-  }, [pageWidthPx, html, pageSettings]);
+  }, [pageWidthPx, printHtml, pageSettings]);
+
+  // Пресет задаёт геометрию листа; стиль печати — отдельная настройка и
+  // пресетом не сбрасывается.
+  const applyPreset = (preset) =>
+    setPageSettings(prev => ({ ...preset, printTheme: prev.printTheme }));
 
   // Панель параметров листа (в Popover у кнопки настроек)
   const pageSettingsPanel = (
     <div className="theory-settings-content" style={{ width: 320 }}>
+      <div className="theory-settings-section">
+        <div className="theory-settings-section-title">Стиль печати</div>
+        <PrintThemeSwitch
+          value={pageSettings.printTheme}
+          onChange={v => setPageSettings(prev => ({ ...prev, printTheme: v }))}
+        />
+      </div>
+
       <div className="theory-settings-section">
         <div className="theory-settings-section-title">Формат и ориентация</div>
         <Space wrap>
@@ -417,19 +445,19 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
       <div className="theory-settings-section">
         <div className="theory-settings-section-title">Пресеты</div>
         <div className="theory-settings-presets">
-          <Button size="small" onClick={() => setPageSettings({
+          <Button size="small" onClick={() => applyPreset({
             pageSize: 'A4', orientation: 'portrait', columns: 1,
             marginTop: 12, marginBottom: 12, marginLeft: 10, marginRight: 10, fontSize: 16
           })}>A4 стандарт</Button>
-          <Button size="small" onClick={() => setPageSettings({
+          <Button size="small" onClick={() => applyPreset({
             pageSize: 'A4', orientation: 'landscape', columns: 2,
             marginTop: 10, marginBottom: 10, marginLeft: 15, marginRight: 15, fontSize: 12
           })}>A4 в 2 колонки</Button>
-          <Button size="small" onClick={() => setPageSettings({
+          <Button size="small" onClick={() => applyPreset({
             pageSize: 'A5', orientation: 'portrait', columns: 1,
             marginTop: 15, marginBottom: 15, marginLeft: 15, marginRight: 15, fontSize: 14
           })}>A5 компакт</Button>
-          <Button size="small" onClick={() => setPageSettings({
+          <Button size="small" onClick={() => applyPreset({
             pageSize: 'A4', orientation: 'portrait', columns: 1,
             marginTop: 8, marginBottom: 8, marginLeft: 8, marginRight: 8, fontSize: 11
           })}>A4 плотная</Button>
@@ -585,9 +613,9 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
               >
                 <div
                   ref={previewRef}
-                  className="theory-preview-content"
+                  className={`theory-preview-content ${printThemeClass(pageSettings.printTheme)}`}
                   style={previewStyles}
-                  dangerouslySetInnerHTML={{ __html: html }}
+                  dangerouslySetInnerHTML={{ __html: printHtml }}
                 />
               </div>
             </div>

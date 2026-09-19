@@ -429,9 +429,20 @@
     page-break-inside: avoid;
   }
 
+  /* Таблица режется по строкам, не целиком (v3.9.214) — большая справочная
+     таблица (10+ строк с чертежами) не влезает ни на одну страницу целиком,
+     а «неделимая» версия сначала отступала на пустую страницу, а потом всё
+     равно резала её произвольно. Маленькие таблицы-модификаторы (бланк
+     ответов, галерея) остаются целиком — их собственный break-inside в
+     markdownTables.css специфичнее и побеждает. */
   .theory-article-print-area table {
-    page-break-inside: avoid;
     border-collapse: collapse !important;
+  }
+  .theory-article-print-area thead {
+    display: table-header-group;
+  }
+  .theory-article-print-area tr {
+    page-break-inside: avoid;
   }
 
   .theory-article-print-area td,

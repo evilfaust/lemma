@@ -6,13 +6,28 @@ import {
   BookOutlined, OrderedListOutlined
 } from '@ant-design/icons';
 import { useMarkdownProcessor } from '../hooks';
-import { getPageDimensions, DEFAULT_SETTINGS, printWithPageSize } from '../utils/theoryThemes';
+import {
+  getPageDimensions, DEFAULT_SETTINGS, printWithPageSize,
+  printThemeClass, normalizePrintTheme, loadPrintTheme, savePrintTheme,
+} from '../utils/theoryThemes';
+import { withSheetHead } from '../utils/theorySheetHead';
+import PrintThemeSwitch from './theory/PrintThemeSwitch';
 import { api } from '../services/pocketbase';
 import html2pdf from 'html2pdf.js';
 import 'katex/dist/katex.min.css';
 import './theory/themes.css';
+import './theory/themeSheet.css';
 import './theory/TheoryPrintBuilder.css';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+
+const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+};
 
 export default function TheoryPrintBuilder({ onBack }) {
   const { message } = App.useApp();
@@ -26,6 +41,8 @@ export default function TheoryPrintBuilder({ onBack }) {
   const [includeToc, setIncludeToc] = useState(true);
   const [docTitle, setDocTitle] = useState('Конспект');
   const [pageSettings] = useState(DEFAULT_SETTINGS);
+  // У сборника своей записи в БД нет — выбор темы помнит браузер.
+  const [printTheme, setPrintTheme] = useState(loadPrintTheme);
   const [isExporting, setIsExporting] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
@@ -138,6 +155,22 @@ export default function TheoryPrintBuilder({ onBack }) {
 
   const html = useMarkdownProcessor(combinedMarkdown, pageSettings.columns);
 
+  const sheet = normalizePrintTheme(printTheme) === 'sheet';
+
+  // Шапка листа. Ведущий <h1> забираем только когда он наш — заголовок
+  // конспекта из оглавления; иначе в шапку уехал бы заголовок первой статьи.
+  const headAbsorbsH1 = includeToc && selectedIds.length > 1;
+  const printHtml = useMemo(() => withSheetHead(html, {
+    enabled: sheet,
+    absorbH1: headAbsorbsH1,
+    eyebrow: 'Конспект',
+    title: docTitle,
+    meta: [
+      `${selectedArticles.length} ${plural(selectedArticles.length, 'статья', 'статьи', 'статей')}`,
+      new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }),
+    ],
+  }), [html, sheet, headAbsorbsH1, docTitle, selectedArticles.length]);
+
   const previewStyles = useMemo(() => {
     const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
     return {
@@ -156,11 +189,11 @@ export default function TheoryPrintBuilder({ onBack }) {
 
   // Estimate page count
   const estimatedPages = useMemo(() => {
-    if (!html) return 0;
-    const charCount = html.replace(/<[^>]+>/g, '').length;
+    if (!printHtml) return 0;
+    const charCount = printHtml.replace(/<[^>]+>/g, '').length;
     const charsPerPage = 3000;
     return Math.max(1, Math.ceil(charCount / charsPerPage));
-  }, [html]);
+  }, [printHtml]);
 
   const handleExportPDF = useCallback(async () => {
     if (selectedArticles.length === 0) {
@@ -245,6 +278,11 @@ export default function TheoryPrintBuilder({ onBack }) {
           </Checkbox>
         </div>
         <div className="theory-print-toolbar-right">
+          <PrintThemeSwitch
+            value={printTheme}
+            onChange={(v) => { setPrintTheme(v); savePrintTheme(v); }}
+          />
+          <div className="theory-print-toolbar-divider" />
           <Tooltip title="Печать">
             <Button
               type="text"
@@ -382,9 +420,9 @@ export default function TheoryPrintBuilder({ onBack }) {
               <div className="theory-print-content">
                 <div
                   ref={previewRef}
-                  className="theory-preview-content theory-article-print-area"
+                  className={`theory-preview-content theory-article-print-area ${printThemeClass(printTheme)}`}
                   style={previewStyles}
-                  dangerouslySetInnerHTML={{ __html: html }}
+                  dangerouslySetInnerHTML={{ __html: printHtml }}
                 />
               </div>
             </>

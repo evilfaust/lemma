@@ -1,0 +1,408 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   THEORY — печатная тема «ЛИСТ»
+
+   Язык движка print-sheet (components/print-sheet/printSheet.css), принесённый
+   в теорию. Подключается поверх themes.css классом .theory-sheet на печатном
+   корне .theory-preview-content, поэтому «Классика» остаётся нетронутой.
+
+   Стиль: только чёрная краска. Цвета нет намеренно — статью печатают на ч/б
+   принтере пачкой на класс: тёмная плашка H1 съедает картридж, светло-серая
+   линия таблицы пропадает вовсе, а серая подпись читается как брак печати.
+   Плюс лист перестаёт зависеть от галки «печатать фоны» в диалоге браузера:
+   с ней выключенной «Классика» печатает белый текст H1 на белом.
+
+   Иерархия держится ТОЛЬКО кеглем и толщиной линеек:
+     0.5mm  — линейка под шапкой и H1 (единственная «жирная» на листе)
+     0.35mm — линейка под H2, врезка ключевого каллаута, шапка таблицы
+     0.25mm — рамки каллаутов и ячейки таблиц
+     0.2pt  — волосяные: разделители, граница колонки, клетка чертежа
+
+   Кегли — в em (не в мм, как в print-sheet): размер шрифта листа теория даёт
+   настройкой «Размер шрифта (px)», и жёсткие миллиметры её бы отменили.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.theory-preview-content.theory-sheet {
+    /* Токены оставлены раздельными: это разные роли, просто одного цвета —
+       как --ps-ink/--ps-rule/--ps-hair в движке. */
+    --ths-ink: #000;
+    --ths-rule: #000;
+    --ths-hair: #000;
+    --ths-w-head: 0.5mm;
+    --ths-w-strong: 0.35mm;
+    --ths-w-box: 0.25mm;
+    --ths-w-hair: 0.2pt;
+
+    font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-feature-settings: 'tnum' 1;
+    font-size: 0.92em;
+    line-height: 1.45;
+    color: var(--ths-ink);
+    background: #fff;
+    box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+}
+
+/* ── Шапка листа (utils/theorySheetHead.js) ──────────────────────────────── */
+.theory-preview-content.theory-sheet .theory-sheet-head {
+    padding-bottom: 2.6mm;
+    margin-bottom: 4.5mm;
+    border-bottom: var(--ths-w-head) solid var(--ths-rule);
+    break-after: avoid;
+    page-break-after: avoid;
+    /* Шапка — это ДВА-ЧЕТЫРЕ отдельных div (надзаголовок/название/подзаголовок/
+       метастрока): без break-inside браузер режет между ними, если под конец
+       страницы остаётся места на надзаголовок, но не на название целиком —
+       печать выдавала лист с одиноким «АЛГЕБРА» вверху и названием на
+       следующей странице. break-after на самой шапке этого не ловит: он
+       запрещает разрыв ПОСЛЕ неё, а не ВНУТРИ. */
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.theory-preview-content.theory-sheet .theory-sheet-head__eyebrow {
+    font-size: 0.66em;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ths-ink);
+}
+
+.theory-preview-content.theory-sheet .theory-sheet-head__title {
+    font-size: 1.62em;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.12;
+    margin-top: 1.4mm;
+}
+
+.theory-preview-content.theory-sheet .theory-sheet-head__subtitle {
+    font-size: 0.86em;
+    line-height: 1.3;
+    margin-top: 1mm;
+}
+
+.theory-preview-content.theory-sheet .theory-sheet-head__meta {
+    font-size: 0.78em;
+    margin-top: 1.6mm;
+}
+
+.theory-preview-content.theory-sheet .theory-sheet-head__sep {
+    padding: 0 1.2mm;
+}
+
+/* ── Заголовки ───────────────────────────────────────────────────────────── */
+/* H1 повторяет .ps-title + линейку .ps-head: тёмной плашки нет. Отрицательные
+   поля «Классики» тоже сняты — плашка тянулась в поля листа, линейке это ни к
+   чему и на второй странице давало срез. */
+.theory-preview-content.theory-sheet h1 {
+    font-family: inherit;
+    font-size: 1.5em;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.14;
+    margin: 0 0 4.5mm;
+    padding: 0 0 2.6mm;
+    color: var(--ths-ink);
+    background: none;
+    border-radius: 0;
+    border-bottom: var(--ths-w-head) solid var(--ths-rule);
+}
+
+/* Второй и дальше H1 в сборном конспекте — новая статья, начинаем с листа. */
+.theory-preview-content.theory-sheet h1 ~ h1 {
+    margin-top: 6mm;
+}
+
+/* H2 — надзаголовок .ps-eyebrow, посаженный на линейку 0.35 мм. */
+.theory-preview-content.theory-sheet h2 {
+    font-family: inherit;
+    font-size: 0.74em;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ths-ink);
+    margin: 5.5mm 0 2mm;
+    padding: 0 0 1.2mm;
+    border-left: none;
+    border-bottom: var(--ths-w-strong) solid var(--ths-rule);
+}
+
+/* H3 — прямой полужирный: третий уровень прописных подряд читается кашей. */
+.theory-preview-content.theory-sheet h3 {
+    font-family: inherit;
+    font-size: 1em;
+    font-weight: 650;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ths-ink);
+    margin: 3.6mm 0 1.2mm;
+}
+
+/* ── Текст ───────────────────────────────────────────────────────────────── */
+.theory-preview-content.theory-sheet p {
+    line-height: 1.45;
+    margin: 0 0 1.8mm;
+    color: var(--ths-ink);
+}
+
+/* Серая плашка вокруг жирного — ровно та «краска», ради которой тема и
+   заводилась: на ч/б выходит грязным прямоугольником поперёк строки. */
+.theory-preview-content.theory-sheet strong {
+    font-weight: 700;
+    color: var(--ths-ink);
+    background: none;
+    padding: 0;
+    border-radius: 0;
+}
+
+.theory-preview-content.theory-sheet em {
+    font-style: italic;
+    color: var(--ths-ink);
+}
+
+.theory-preview-content.theory-sheet blockquote {
+    border-left: var(--ths-w-strong) solid var(--ths-rule);
+    border-radius: 0;
+    background: none;
+    color: var(--ths-ink);
+    font-size: 0.95em;
+    padding: 0.2em 0 0.2em 3mm;
+    margin: 2.6mm 0;
+}
+
+.theory-preview-content.theory-sheet hr {
+    border: none;
+    border-top: var(--ths-w-hair) solid var(--ths-hair);
+    margin: 4mm 0;
+}
+
+/* ── Списки ──────────────────────────────────────────────────────────────── */
+.theory-preview-content.theory-sheet li {
+    margin-bottom: 0.7mm;
+    font-size: 1em;
+}
+
+.theory-preview-content.theory-sheet li::marker {
+    color: var(--ths-ink);
+}
+
+/* ── Таблицы ─────────────────────────────────────────────────────────────── */
+/* Шапка — не чёрная плашка со светлым текстом, а прописные на линейке 0.35 мм;
+   зебра убрана: на ч/б это полосы разной степени серого, а не структура. */
+.theory-preview-content.theory-sheet table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 2.6mm 0;
+    font-size: 0.9em;
+}
+
+.theory-preview-content.theory-sheet thead {
+    background: none;
+    color: var(--ths-ink);
+}
+
+.theory-preview-content.theory-sheet th {
+    font-family: inherit;
+    font-size: 0.82em;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--ths-ink);
+    background: none;
+    padding: 1.2mm 2mm;
+    border: var(--ths-w-box) solid var(--ths-rule);
+    border-bottom-width: var(--ths-w-strong);
+    white-space: nowrap;
+}
+
+.theory-preview-content.theory-sheet td {
+    padding: 1.2mm 2mm;
+    border: var(--ths-w-box) solid var(--ths-rule);
+    color: var(--ths-ink);
+    vertical-align: top;
+}
+
+.theory-preview-content.theory-sheet tbody tr:nth-child(even),
+.theory-preview-content.theory-sheet tbody tr:hover {
+    background: none;
+}
+
+/* ── Код ─────────────────────────────────────────────────────────────────── */
+/* Моноширинный — это не «краска», а роль шрифта; цвет и заливка сняты. */
+.theory-preview-content.theory-sheet code {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-size: 0.88em;
+    color: var(--ths-ink);
+    background: none;
+    border: var(--ths-w-hair) solid var(--ths-hair);
+    border-radius: 0;
+    padding: 0 0.8mm;
+}
+
+/* ── Формулы ─────────────────────────────────────────────────────────────── */
+.theory-preview-content.theory-sheet .katex {
+    font-size: 1.04em;
+    color: var(--ths-ink);
+}
+
+.theory-preview-content.theory-sheet .katex-display {
+    margin: 2.8mm 0;
+}
+
+/* ── Колонки ─────────────────────────────────────────────────────────────── */
+.theory-preview-content.theory-sheet .col-section + .col-section {
+    border-left: var(--ths-w-hair) solid var(--ths-hair);
+    padding-left: 5mm;
+}
+
+/* ── Каллауты ────────────────────────────────────────────────────────────── */
+/* Тинты и цветные врезки заменены хайрлайн-рамкой .ps-note. Роль различается
+   толщиной левой врезки и меткой, а не цветом:
+     0.5mm  — определение и теорема (то, что списывают в тетрадь)
+     0.35mm — условие и ответ
+     0.25mm — пример, замечание, доказательство, ч.т.д. */
+.theory-preview-content.theory-sheet .theory-callout {
+    border: var(--ths-w-box) solid var(--ths-rule);
+    border-left-width: var(--ths-w-box);
+    border-radius: 0;
+    background: none;
+    padding: 2mm 3mm;
+    margin: 3mm 0;
+}
+
+.theory-preview-content.theory-sheet .theory-callout__label {
+    font-family: inherit;
+    font-size: 0.72em;
+    font-weight: 650;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ths-ink);
+    margin-bottom: 1.2mm;
+}
+
+.theory-preview-content.theory-sheet .theory-callout--definition,
+.theory-preview-content.theory-sheet .theory-callout--theorem {
+    border-left-width: var(--ths-w-head);
+}
+
+.theory-preview-content.theory-sheet .theory-callout--condition,
+.theory-preview-content.theory-sheet .theory-callout--answer {
+    border-left-width: var(--ths-w-strong);
+}
+
+/* Цвет метки у всех ролей — чёрный (в «Классике» он свой у каждой). */
+.theory-preview-content.theory-sheet .theory-callout .theory-callout__label {
+    color: var(--ths-ink);
+}
+
+/* ── Чертежи (numline / plot / grid) ─────────────────────────────────────── */
+/* Штатная палитра модулей — почти-чёрный #1f2937 и серые подписи. На ч/б это
+   «почти чёрный» и «выцветшая надпись»; переводим в чистую чёрную краску.
+   Клетка чертежа задана светло-серым #d6dae0 — на принтере её нет вовсе,
+   поэтому она становится волосяной чёрной. Стиль в CSS перебивает
+   presentation-атрибуты SVG, поэтому сами модули не трогаем: чертежи
+   «Классики» и ученического приложения остаются прежними. */
+.theory-preview-content.theory-sheet .numline-block svg [stroke="#1f2937"],
+.theory-preview-content.theory-sheet .numline-inline svg [stroke="#1f2937"],
+.theory-preview-content.theory-sheet .coordplot-block svg [stroke="#1f2937"],
+.theory-preview-content.theory-sheet .coordplot-inline svg [stroke="#1f2937"] {
+    stroke: #000;
+}
+
+.theory-preview-content.theory-sheet .numline-block svg [fill="#1f2937"],
+.theory-preview-content.theory-sheet .numline-inline svg [fill="#1f2937"],
+.theory-preview-content.theory-sheet .numline-block svg [fill="#374151"],
+.theory-preview-content.theory-sheet .numline-inline svg [fill="#374151"],
+.theory-preview-content.theory-sheet .numline-block svg [fill="#4b5563"],
+.theory-preview-content.theory-sheet .numline-inline svg [fill="#4b5563"],
+.theory-preview-content.theory-sheet .coordplot-block svg [fill="#1f2937"],
+.theory-preview-content.theory-sheet .coordplot-inline svg [fill="#1f2937"],
+.theory-preview-content.theory-sheet .coordplot-block svg [fill="#374151"],
+.theory-preview-content.theory-sheet .coordplot-inline svg [fill="#374151"] {
+    fill: #000;
+}
+
+/* Клетка координатной плоскости: чёрная, но тоньше линии графика — иначе
+   сетка спорит с кривой. */
+.theory-preview-content.theory-sheet .coordplot-block svg line[stroke="#d6dae0"],
+.theory-preview-content.theory-sheet .coordplot-inline svg line[stroke="#d6dae0"] {
+    stroke: #000;
+    stroke-width: 0.3;
+}
+
+/* ── Разрыв страницы ─────────────────────────────────────────────────────── */
+.theory-preview-content.theory-sheet .theory-pagebreak {
+    border-top: var(--ths-w-hair) dashed var(--ths-hair);
+}
+
+.theory-preview-content.theory-sheet .theory-pagebreak::after {
+    color: var(--ths-ink);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Печать
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media print {
+    /* 🚨 Ширину печатной области Chrome берёт по ВСЕМУ документу, а не по листу.
+       Хром интерфейса спрятан display:none, но порталы Ant Design живут прямо в
+       <body>, вне .no-print, и держат экранные координаты (тултип кнопки печати
+       с left ~1000px). Любой элемент правее листа включает shrink-to-fit: лист
+       печатается в ~60% масштаба, прижатый влево-вверх. Канон движка
+       print-sheet: порталы гасим, документ обрезаем. */
+    body:has(.theory-sheet) .ant-tooltip,
+    body:has(.theory-sheet) .ant-popover,
+    body:has(.theory-sheet) .ant-dropdown,
+    body:has(.theory-sheet) .ant-select-dropdown,
+    body:has(.theory-sheet) .ant-picker-dropdown,
+    body:has(.theory-sheet) .ant-modal-root,
+    body:has(.theory-sheet) .ant-modal-wrap,
+    body:has(.theory-sheet) .ant-modal-mask,
+    body:has(.theory-sheet) .ant-drawer,
+    body:has(.theory-sheet) .ant-message,
+    body:has(.theory-sheet) .ant-notification,
+    body:has(.theory-sheet) .ant-image-preview-root {
+        display: none !important;
+    }
+
+    html:has(.theory-sheet),
+    body:has(.theory-sheet) {
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow: hidden !important;
+        background: #fff !important;
+    }
+
+    /* Любому предку листа — статический контекст без обрезки и масштаба.
+       В редакторе превью живёт в .theory-preview-scaler с transform: scale(),
+       в статье — во flex-колонке с overflow:auto; и то и другое обрезало бы
+       страницы со второй. `*:has(.theory-sheet)` берёт ровно цепочку предков.
+
+       В отличие от движка print-sheet лист НЕ переводится в position:absolute:
+       там корень — пачка страниц фиксированной высоты, здесь — сплошной поток
+       прозы, который браузер сам режет по @page. */
+    body:has(.theory-sheet) *:has(.theory-sheet):not(.no-print) {
+        position: static !important;
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 0 !important;
+        transform: none !important;
+    }
+
+    /* Краска только чёрная, поэтому «печатать фоны» листу не нужно —
+       print-color-adjust НЕ включаем (в «Классике» он обязателен). */
+    .theory-preview-content.theory-sheet {
+        box-shadow: none !important;
+        background: #fff !important;
+    }
+
+    /* Шапку от первого абзаца не отрывать. */
+    .theory-preview-content.theory-sheet .theory-sheet-head,
+    .theory-preview-content.theory-sheet h1,
+    .theory-preview-content.theory-sheet h2,
+    .theory-preview-content.theory-sheet h3 {
+        break-after: avoid;
+        page-break-after: avoid;
+    }
+}

@@ -27,6 +27,13 @@ describe('parseTableDirective', () => {
     expect(parseTableDirective('{без линий, без шапки}')).toEqual(['plain', 'noheader']);
   });
 
+  it('понимает «равные колонки» и синонимы', () => {
+    expect(parseTableDirective('{равные колонки}')).toEqual(['equalcols']);
+    expect(parseTableDirective('{одинаковая ширина}')).toEqual(['equalcols']);
+    expect(parseTableDirective('{equalcols}')).toEqual(['equalcols']);
+    expect(parseTableDirective('{поровну}')).toEqual(['equalcols']);
+  });
+
   it('обычный текст в скобках директивой не считается', () => {
     expect(parseTableDirective('{x + 1}')).toBeNull();
     expect(parseTableDirective('{без линий, чепуха}')).toBeNull();
@@ -160,5 +167,22 @@ describe('MathRenderer — модификаторы таблиц', () => {
     expect(table.className).toContain('md-table--gallery');
     expect(table.querySelectorAll('tr')).toHaveLength(1);
     expect(table.querySelectorAll('svg')).toHaveLength(4);
+  });
+
+  it('{равные колонки} вешает класс, но шапку (в отличие от {галерея}) НЕ трогает', () => {
+    const md = '{равные колонки}\n\n| Слева | Справа |\n| --- | --- |\n| 1 | 2 |';
+    const { container } = render(<MathRenderer text={md} />);
+    const table = container.querySelector('table');
+    expect(table.className).toContain('md-table--equalcols');
+    expect(table.className).not.toContain('md-table--gallery');
+    expect(container.querySelector('thead')).not.toBeNull();
+  });
+
+  it('{равные колонки} комбинируется с другими модификаторами', () => {
+    const md = '{равные колонки, без шапки}\n\n| Слева | Справа |\n| --- | --- |\n| 1 | 2 |';
+    const { container } = render(<MathRenderer text={md} />);
+    const cls = container.querySelector('table').className;
+    expect(cls).toContain('md-table--equalcols');
+    expect(cls).toContain('md-table--noheader');
   });
 });

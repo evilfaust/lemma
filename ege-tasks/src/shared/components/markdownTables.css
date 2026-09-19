@@ -125,6 +125,25 @@ table.md-table--compact td {
   font-size: 0.95em;
 }
 
+/* ── {равные колонки} — столбцы (и картинки/чертежи внутри) одной ширины ────
+   Для таблиц вида «график f′ | график f»: авторы (в т.ч. правленный от руки
+   DSL) не всегда указывают одинаковый `size` у обеих формул, из-за чего
+   колонки выходят разной ширины. Модификатор равняет столбцы таблицы
+   (table-layout: fixed) и растягивает картинку/чертёж на всю ширину ячейки —
+   viewBox держит пропорции svg, искажения нет, просто масштаб. В отличие от
+   {галерея} шапку и рамки НЕ трогает — самостоятельный модификатор, свободно
+   комбинируется с любым другим («{равные колонки, без шапки}»). */
+table.md-table--equalcols {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+table.md-table--equalcols img,
+table.md-table--equalcols svg {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+}
+
 @media print {
   table.md-table--answers th,
   table.md-table--answers td {
