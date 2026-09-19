@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { printPaged } from '../utils/printPage';
 import {
-  Button, Input, InputNumber, Space, Tooltip, Select,
-  Modal, List, Popconfirm, message, Radio,
+  Alert, Button, Input, InputNumber, Space, Tooltip, Select, Segmented, Switch,
+  Modal, List, Popconfirm, message,
 } from 'antd';
 const { TextArea } = Input;
 import {
@@ -12,7 +12,11 @@ import {
 } from '@ant-design/icons';
 import katex from 'katex';
 import { api } from '../services/pocketbase';
-import FormulaSheetPrintLayout from './trig/FormulaSheetPrintLayout';
+import FormulaSheetPrint from './trig/FormulaSheetPrint';
+import {
+  COPY_COUNTS, applyCopies, copyFormatLabel, countFormulas, flattenSections,
+  normalizeFormulaSheetSettings, readFormulaSheetSettings, writeFormulaSheetSettings,
+} from '../utils/formulaSheet';
 import {
   TrigGeneratorLayout,
   TrigSettingsSection,
@@ -42,16 +46,26 @@ const SUBJECT_OPTIONS = [
 ];
 
 const PRINT_MODE_OPTIONS = [
-  { value: 'both',   label: 'Эталон + Проверка' },
-  { value: 'etalon', label: 'Только эталон' },
-  { value: 'blank',  label: 'Только проверка' },
+  { value: 'both',   label: 'Оба листа' },
+  { value: 'etalon', label: 'Эталон' },
+  { value: 'blank',  label: 'Проверка' },
 ];
 
-const COPIES_OPTIONS = [
-  { value: 1, label: '1 / лист' },
-  { value: 2, label: '2 / лист' },
-  { value: 4, label: '4 / лист' },
-];
+const COPIES_OPTIONS = COPY_COUNTS.map(n => ({ value: n, label: String(n) }));
+const COLUMN_OPTIONS = [{ value: 1, label: '1' }, { value: 2, label: '2' }];
+const FONT_OPTIONS = [{ value: 'sans', label: 'Гротеск' }, { value: 'serif', label: 'Антиква' }];
+const TEXT_OPTIONS = [8, 8.5, 9, 10, 11, 12].map(pt => ({ value: pt, label: String(pt) }));
+
+/** Строка панели настроек листа: подпись с подсказкой + контрол. */
+function SettingRow({ label, hint, children }) {
+  const text = <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>{label}</span>;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      {hint ? <Tooltip title={hint}>{text}</Tooltip> : text}
+      {children}
+    </div>
+  );
+}
 
 // ─── Редактор одной формулы ───────────────────────────────────────────────────
 function FormulaEditor({ formula, onChange, onDelete, onMoveUp, onMoveDown, isFirst, isLast }) {
@@ -213,150 +227,6 @@ function SectionEditor({ section, onChange, onDelete, onMoveUp, onMoveDown, isFi
   );
 }
 
-// ─── Один экземпляр для экранного превью ─────────────────────────────────────
-function PreviewCopy({ title, subtitle, sections, previewMode, twoColFormulas, style }) {
-  let n = 1;
-  return (
-    <div style={{
-      fontFamily: 'Times New Roman, serif',
-      fontSize: 11,
-      lineHeight: 1.35,
-      padding: '6px 8px',
-      background: '#fff',
-      border: '1px solid var(--rule)',
-      boxSizing: 'border-box',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      ...style,
-    }}>
-      {/* Шапка */}
-      <div style={{ flexShrink: 0, marginBottom: 4, paddingBottom: 3, borderBottom: '1px solid #555' }}>
-        {title && (
-          <div style={{ fontWeight: 700, fontStyle: 'italic', textAlign: 'center', fontSize: 12, lineHeight: 1.2 }}>
-            {title}
-          </div>
-        )}
-        {subtitle && (
-          <div style={{ fontWeight: 600, fontStyle: 'italic', textAlign: 'center', fontSize: 11, lineHeight: 1.2, color: '#333' }}>
-            {subtitle}
-          </div>
-        )}
-        {previewMode === 'blank' && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 3, fontSize: 10, color: '#555', alignItems: 'baseline' }}>
-            <span style={{ flex: 1 }}>
-              Имя:&nbsp;<span style={{ display: 'inline-block', minWidth: 40, borderBottom: '1px solid #000' }} />
-            </span>
-            <span>Класс:&nbsp;<span style={{ display: 'inline-block', width: 22, borderBottom: '1px solid #000' }} /></span>
-            <span>Дата:&nbsp;<span style={{ display: 'inline-block', width: 22, borderBottom: '1px solid #000' }} /></span>
-          </div>
-        )}
-      </div>
-
-      {/* Формулы */}
-      <div style={{ flex: 1, overflow: 'hidden', columnCount: twoColFormulas ? 2 : 1, columnGap: 12 }}>
-        {sections.map((section, si) => (
-          <div key={si} style={{ breakInside: 'avoid-column', marginBottom: 4 }}>
-            {section.title && (
-              <div style={{ fontWeight: 700, fontSize: 10, marginBottom: 1, paddingBottom: 1, borderBottom: '1px solid #ddd' }}>
-                {section.title}
-              </div>
-            )}
-            {section.formulas.map((f, fi) => {
-              const num = n++;
-              const latex = previewMode === 'etalon'
-                ? `${f.left} = \\boxed{${f.right}}`
-                : `${f.left} =`;
-              return (
-                <div key={fi} style={{
-                  display: 'flex', alignItems: 'baseline', gap: 3,
-                  minHeight: 16, padding: '0.5px 0',
-                  borderBottom: '0.5px dotted #eee',
-                  breakInside: 'avoid',
-                  fontSize: 11,
-                }}>
-                  <span style={{ fontWeight: 700, minWidth: 16, fontSize: 10, fontStyle: 'normal', flexShrink: 0 }}>
-                    {num})
-                  </span>
-                  <span style={{ fontStyle: 'italic' }}>
-                    <MathInline latex={latex} />
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Экранное превью страницы ────────────────────────────────────────────────
-function ScreenPreview({ title, subtitle, sections, previewMode, copiesPerPage }) {
-  if (!sections.length) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>
-        Добавьте секции и формулы слева
-      </div>
-    );
-  }
-
-  // Имитируем A4 пропорции: ширина фиксирована, высота вычисляется
-  const pageW = 560;
-  const pageH = Math.round(pageW * 297 / 210); // ≈ 792px
-
-  const twoColFormulas = copiesPerPage === 1;
-  const copies = Array.from({ length: copiesPerPage });
-
-  // Стиль ячейки в зависимости от режима
-  const copyStyle = (() => {
-    const gap = 1; // px (имитация разделителя)
-    if (copiesPerPage === 1) {
-      return { width: '100%', height: '100%' };
-    }
-    if (copiesPerPage === 2) {
-      return { width: `calc(50% - ${gap}px)`, height: '100%' };
-    }
-    // 4
-    return { width: `calc(50% - ${gap}px)`, height: `calc(50% - ${gap}px)` };
-  })();
-
-  return (
-    <div style={{
-      width: pageW,
-      height: pageH,
-      maxWidth: '100%',
-      background: '#f5f5f5',
-      border: '1px solid var(--rule)',
-      borderRadius: 6,
-      overflow: 'hidden',
-      padding: 8,   // имитация полей 5мм
-      boxSizing: 'border-box',
-      margin: '0 auto',
-    }}>
-      <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexWrap: copiesPerPage === 4 ? 'wrap' : 'nowrap',
-        gap: 2,
-      }}>
-        {copies.map((_, i) => (
-          <PreviewCopy
-            key={i}
-            title={title}
-            subtitle={subtitle}
-            sections={sections}
-            previewMode={previewMode}
-            twoColFormulas={twoColFormulas}
-            style={copyStyle}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 // ─── Модал загрузки ───────────────────────────────────────────────────────────
 function LoadModal({ open, onClose, onLoad }) {
   const [sheets, setSheets] = useState([]);
@@ -431,12 +301,23 @@ export default function FormulaSheetGenerator() {
       ],
     },
   ]);
-  const [printMode, setPrintMode] = useState('both');
-  const [copiesPerPage, setCopiesPerPage] = useState(2);
-  const [previewMode, setPreviewMode] = useState('etalon');
+  const [settings, setSettings] = useState(() => readFormulaSheetSettings());
+  const [fit, setFit] = useState({ overflow: 0, fill: 0 });
   const [savedId, setSavedId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [loadModalOpen, setLoadModalOpen] = useState(false);
+
+  const patch = (p) => setSettings(prev => {
+    const next = normalizeFormulaSheetSettings({ ...prev, ...p });
+    writeFormulaSheetSettings(next);
+    return next;
+  });
+
+  const setCopies = (copies) => setSettings(prev => {
+    const next = applyCopies(prev, copies);
+    writeFormulaSheetSettings(next);
+    return next;
+  });
 
   const updateSection = (idx, updated) =>
     setSections(prev => prev.map((s, i) => i === idx ? updated : s));
@@ -479,9 +360,12 @@ export default function FormulaSheetGenerator() {
     setSavedId(item.id);
   };
 
-  const handlePrint = () => printPaged({ margin: '5mm' });
+  // 🚨 Формат задаём явно: без `size` лист печатается в формат принтера
+  // (в офлайн-проверке вместо A4 выходил Letter). Поля рисует сам лист.
+  const handlePrint = () => printPaged({ size: 'A4 portrait', margin: '0' });
 
-  const totalFormulas = sections.reduce((s, sec) => s + sec.formulas.length, 0);
+  const flatItems = useMemo(() => flattenSections(sections), [sections]);
+  const totalFormulas = countFormulas(flatItems);
   const hasContent = totalFormulas > 0;
 
   return (
@@ -491,7 +375,7 @@ export default function FormulaSheetGenerator() {
         title={title}
         onTitleChange={setTitle}
         titlePlaceholder="Название листа"
-        leftWidth="1fr"
+        leftWidth="380px"
         left={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10, overflowY: 'auto' }}>
 
@@ -526,26 +410,42 @@ export default function FormulaSheetGenerator() {
               </div>
             </TrigSettingsSection>
 
-            <TrigSettingsSection label="Печать">
+            <TrigSettingsSection label="Лист">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-3)', marginBottom: 4 }}>Что печатать</div>
-                  <Radio.Group
-                    size="small" value={printMode}
-                    onChange={e => setPrintMode(e.target.value)}
-                    options={PRINT_MODE_OPTIONS}
-                    optionType="button" buttonStyle="solid"
-                  />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--ink-3)', marginBottom: 4 }}>Копий на листе A4</div>
-                  <Radio.Group
-                    size="small" value={copiesPerPage}
-                    onChange={e => setCopiesPerPage(e.target.value)}
-                    options={COPIES_OPTIONS}
-                    optionType="button" buttonStyle="solid"
-                  />
-                </div>
+                <SettingRow label="Что печатать:">
+                  <Segmented size="small" value={settings.printMode} onChange={v => patch({ printMode: v })} options={PRINT_MODE_OPTIONS} />
+                </SettingRow>
+                <SettingRow
+                  label="Копий на лист:"
+                  hint={`Лист A4 делится на равные копии, между ними — полоса для реза. Копия: ${copyFormatLabel(settings.copies)}`}
+                >
+                  <Segmented size="small" value={settings.copies} onChange={setCopies} options={COPIES_OPTIONS} />
+                </SettingRow>
+                <SettingRow label="Колонок в копии:" hint="Две колонки вмещают вдвое больше формул, но формула должна быть короткой.">
+                  <Segmented size="small" value={settings.columns} onChange={v => patch({ columns: v })} options={COLUMN_OPTIONS} />
+                </SettingRow>
+                <SettingRow label="Кегль, pt:" hint="Размер формул. На плотных листах ставьте мельче.">
+                  <Segmented size="small" value={settings.textSize} onChange={v => patch({ textSize: v })} options={TEXT_OPTIONS} />
+                </SettingRow>
+                <SettingRow label="Шрифт:" hint="Антиква ближе к формулам KaTeX, гротеск — к остальным листам платформы.">
+                  <Segmented size="small" value={settings.font} onChange={v => patch({ font: v })} options={FONT_OPTIONS} />
+                </SettingRow>
+
+                <SettingRow label="Нумерация формул:">
+                  <Switch size="small" checked={settings.showNumbers} onChange={v => patch({ showNumbers: v })} />
+                </SettingRow>
+                <SettingRow label="Поля ученика:" hint="Фамилия и класс в шапке листа проверки.">
+                  <Switch size="small" checked={settings.showFields} onChange={v => patch({ showFields: v })} />
+                </SettingRow>
+                <SettingRow label="Ответ в рамке:" hint="Эталон: ответ обведён рамкой — глаз находит его мгновенно.">
+                  <Switch size="small" checked={settings.boxedAnswer} onChange={v => patch({ boxedAnswer: v })} />
+                </SettingRow>
+                <SettingRow label="Линия отреза:">
+                  <Switch size="small" checked={settings.showCutLine} onChange={v => patch({ showCutLine: v })} />
+                </SettingRow>
+                <SettingRow label="Растянуть до низа:" hint="Свободное место копии делится между строками — лист не обрывается на середине.">
+                  <Switch size="small" checked={settings.stretch} onChange={v => patch({ stretch: v })} />
+                </SettingRow>
               </div>
             </TrigSettingsSection>
 
@@ -588,36 +488,39 @@ export default function FormulaSheetGenerator() {
           </div>
         }
         right={
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Превью:</span>
-              <Radio.Group
-                size="small" value={previewMode}
-                onChange={e => setPreviewMode(e.target.value)}
-              >
-                <Radio.Button value="etalon">Эталон</Radio.Button>
-                <Radio.Button value="blank">Проверка</Radio.Button>
-              </Radio.Group>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto' }}>
-              <ScreenPreview
-                title={title}
-                subtitle={subtitle}
-                sections={sections}
-                previewMode={previewMode}
-                copiesPerPage={copiesPerPage}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10, minHeight: 0 }}>
+            {fit.overflow > 0 ? (
+              <Alert
+                type="warning"
+                showIcon
+                className="no-print"
+                style={{ flexShrink: 0 }}
+                message={`В копию не помещается формул: ${fit.overflow}`}
+                description="Уменьшите кегль, поставьте две колонки или печатайте по одной копии на лист."
               />
+            ) : hasContent && (
+              <div className="no-print" style={{ flexShrink: 0, fontSize: 12, color: 'var(--ink-3)' }}>
+                Копия заполнена на {Math.round(fit.fill * 100)}% · формат {copyFormatLabel(settings.copies)}
+                {fit.fill < 0.6 && ' — на листе много места: попробуйте больше копий или крупнее кегль'}
+              </div>
+            )}
+            <div style={{ flex: 1, overflow: 'auto', minHeight: 0, background: '#E9EAEE', padding: 16, borderRadius: 8 }}>
+              {hasContent ? (
+                <FormulaSheetPrint
+                  title={title}
+                  subtitle={subtitle}
+                  sections={sections}
+                  settings={settings}
+                  onFit={setFit}
+                />
+              ) : (
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>
+                  Добавьте секции и формулы слева — лист появится здесь ровно таким, каким выйдет из принтера.
+                </div>
+              )}
             </div>
           </div>
         }
-      />
-
-      <FormulaSheetPrintLayout
-        title={title}
-        subtitle={subtitle}
-        sections={sections}
-        printMode={printMode}
-        copiesPerPage={copiesPerPage}
       />
 
       <LoadModal

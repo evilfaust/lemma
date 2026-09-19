@@ -1,0 +1,246 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Лист формул — экранное превью и печать ОДНИМ компонентом.
+
+   Оформление общее с движком `components/print-sheet`:
+   🚨 только чёрная краска (лист печатается на ч/б принтере, светло-серая линия
+   пропадает вовсе), иерархия — кегль и толщина линеек:
+     0.5mm  — рамка шапки копии, единственная «жирная» линия
+     0.35mm — линии для заполнения (фамилия, класс, место под ответ)
+     0.25mm — разделитель секции
+     0.2pt  — волосяные: линия отреза между копиями
+
+   🚨 Геометрия (лист, поля, копии, колонки) считается в `utils/formulaSheet.js`
+   и приходит сюда inline. Меняешь одно — меняй оба.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.fsp-root {
+  --fsp-ink:  #000000;
+  --fsp-rule: #000000;
+  --fsp-hair: #000000;
+
+  color: var(--fsp-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  position: relative;
+}
+.fsp-root--serif { font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif; }
+
+/* ── Зона измерения (вне экрана) ──────────────────────────────────────────── */
+/* 🚨 Ширина = ширине КОЛОНКИ формул: строки, измеренные в другой ширине, дают
+   неверные высоты, и копия набирается с запасом, которого на листе нет. */
+.fsp-measure {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── Лист ─────────────────────────────────────────────────────────────────── */
+
+.fsp-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.fsp-page {
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Копия ────────────────────────────────────────────────────────────────── */
+
+.fsp-copy {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.fsp-head {
+  flex: 0 0 auto;
+  border-bottom: 0.5mm solid var(--fsp-rule);
+  padding-bottom: 1.5mm;
+  margin-bottom: 2mm;
+}
+
+.fsp-title {
+  font-size: 1.05em;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.fsp-subtitle {
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 0.8mm;
+}
+
+/* Поля ученика — линия 0.35 мм, как во всех бланках движка */
+.fsp-fields {
+  display: flex;
+  align-items: baseline;
+  gap: 4mm;
+  margin-top: 2mm;
+  font-size: 0.75em;
+}
+.fsp-field { display: flex; align-items: baseline; gap: 1.5mm; white-space: nowrap; }
+.fsp-field--name { flex: 1; }
+.fsp-field-line {
+  flex: 1;
+  min-width: 18mm;
+  height: 3.6mm;
+  border-bottom: 0.35mm solid var(--fsp-rule);
+}
+.fsp-field-line--short { flex: 0 0 12mm; min-width: 12mm; }
+
+/* ── Колонки формул ───────────────────────────────────────────────────────── */
+/* Раскладку по колонкам считает JS по измеренным высотам. CSS `column-count`
+   здесь не годится: он рвёт формулу между колонками. */
+.fsp-cols {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  min-height: 0;
+  overflow: hidden;
+}
+.fsp-col { flex: 0 0 auto; }
+
+.fsp-section {
+  font-size: 0.78em;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-bottom: 0.8mm;
+  margin: 1.5mm 0 1.2mm;
+  border-bottom: 0.25mm solid var(--fsp-rule);
+}
+.fsp-col > .fsp-section:first-child { margin-top: 0; }
+
+.fsp-row {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 1.5mm;
+  padding: 0.9mm 0;
+  line-height: 1.35;
+}
+
+.fsp-num {
+  flex: 0 0 auto;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+}
+
+.fsp-expr { flex: 0 1 auto; min-width: 0; }
+
+/* Место под ответ в бланке: линия до края колонки. Минимум 16 мм — иначе
+   после длинной формулы остаётся огрызок, в который нечего вписать. */
+.fsp-answer-line {
+  flex: 1 1 16mm;
+  min-width: 16mm;
+  height: 4mm;
+  border-bottom: 0.35mm solid var(--fsp-rule);
+}
+
+/* ── Линии отреза ─────────────────────────────────────────────────────────── */
+
+.fsp-cut {
+  position: absolute;
+  pointer-events: none;
+}
+.fsp-cut--v {
+  top: 4mm;
+  bottom: 4mm;
+  width: 0;
+  border-left: 0.2pt dashed var(--fsp-hair);
+}
+.fsp-cut--h {
+  left: 4mm;
+  right: 4mm;
+  height: 0;
+  border-top: 0.2pt dashed var(--fsp-hair);
+}
+
+/* ── Печать ───────────────────────────────────────────────────────────────── */
+
+@media print {
+  /* Поля рисует сам лист (padding страницы). 🚨 Поля, заданные в @page,
+     перебивает пункт «Поля: нет» в диалоге Chrome — лист печатался бы впритык
+     к краю бумаги (грабля маршрутного листа, v3.9.182). */
+  @page { margin: 0; }
+  @page :left { margin: 0; }
+  @page :right { margin: 0; }
+
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: элемент правее
+     листа включает shrink-to-fit и лист печатается в ~60% масштаба. */
+  html:has(.fsp-root),
+  body:has(.fsp-root) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется (см. CLAUDE.md). */
+  body:has(.fsp-root) { visibility: hidden; }
+  body:has(.fsp-root) .fsp-root { visibility: visible; }
+
+  /* Порталы Ant живут в <body> вне .no-print и держат экранные координаты. */
+  body:has(.fsp-root) .ant-tooltip,
+  body:has(.fsp-root) .ant-popover,
+  body:has(.fsp-root) .ant-dropdown,
+  body:has(.fsp-root) .ant-select-dropdown,
+  body:has(.fsp-root) .ant-modal-root,
+  body:has(.fsp-root) .no-print { display: none !important; }
+
+  body:has(.fsp-root) #root,
+  body:has(.fsp-root) .ant-app,
+  body:has(.fsp-root) .ant-layout,
+  body:has(.fsp-root) .ant-layout-content,
+  body:has(.fsp-root) *:has(.fsp-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.fsp-root) .fsp-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+  }
+
+  .fsp-pages { gap: 0; }
+  .fsp-page {
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+  .fsp-page:last-child { break-after: auto; page-break-after: auto; }
+}
