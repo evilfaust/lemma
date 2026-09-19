@@ -10,6 +10,7 @@ import {
   PaperClipOutlined, FolderOpenOutlined
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
+import TableModifiersHelp from '../shared/TableModifiersHelp';
 import FormulaPalette from './FormulaPalette';
 import CropModal from '../shared/CropModal';
 import NumberLineModal from '../shared/NumberLineModal';
@@ -285,6 +286,7 @@ export default function EditorToolbar({ editorRef }) {
 
         {/* Вставка */}
         <TableInsertPopover onInsert={handleTableInsert} />
+        <TableModifiersHelp onInsert={handleTableInsert} />
         <Tooltip title="Формула (inline) — Ctrl+I">
           <Button size="small" type="text" className="tf-btn tf-fx"
             onClick={() => insert({ before: '$', after: '$' })}>

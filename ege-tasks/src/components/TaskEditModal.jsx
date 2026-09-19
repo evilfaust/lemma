@@ -19,6 +19,7 @@ import { useImageUpload } from '../hooks';
 import { parseMatchingTask } from '../utils/parseMatchingTask';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { TABLE_SNIPPETS } from '../utils/markdownTables';
+import TableModifiersHelp from './shared/TableModifiersHelp';
 import { findPlotAtCursor, findGridAtCursor } from '../utils/plotSnippet';
 import { insertAtCaret } from '../utils/caretInsert';
 
@@ -1159,6 +1160,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   Таблица ▾
                 </Button>
               </Dropdown>
+              <TableModifiersHelp onInsert={(md) => insertSnippet('statement_md', md)} />
               <Tooltip title="Вставить числовую прямую со штриховкой (конструктор)">
                 <Button
                   size="small"
@@ -1270,6 +1272,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   Таблица ▾
                 </Button>
               </Dropdown>
+              <TableModifiersHelp onInsert={(md) => insertSnippet('solution_md', md)} />
               <Tooltip title="Вставить числовую прямую со штриховкой (конструктор)">
                 <Button
                   size="small"
