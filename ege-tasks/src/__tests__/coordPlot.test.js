@@ -100,13 +100,45 @@ describe('parseCoordPlot', () => {
   it('точки, отрезки, подписи и засечки', () => {
     const m = parseCoordPlot('point 1 3 fill\npoint 2 0 open\nseg 0 0 2 3 dash\nlabel 2 3 A\nxtick -5\nytick 3 три');
     expect(m.points).toEqual([
-      { x: 1, y: 3, filled: true, color: 'ink' },
-      { x: 2, y: 0, filled: false, color: 'ink' },
+      { x: 1, y: 3, style: 'fill', size: 'normal', color: 'ink' },
+      { x: 2, y: 0, style: 'open', size: 'normal', color: 'ink' },
     ]);
     expect(m.segments[0]).toMatchObject({ x1: 0, y1: 0, x2: 2, y2: 3, dash: true });
     expect(m.labels[0]).toMatchObject({ x: 2, y: 3, text: 'A', at: 'ne', dist: 1 });
     expect(m.xticks).toEqual([{ v: -5, label: '−5', bold: false }]);
     expect(m.yticks).toEqual([{ v: 3, label: 'три', bold: false }]);
+  });
+
+  it('вид и размер точки: крестик, плюсик, мелкая и крупная', () => {
+    const m = parseCoordPlot('point 1 1 cross\npoint 2 2 plus small\npoint 3 3 open big');
+    expect(m.points.map((p) => [p.style, p.size])).toEqual([
+      ['cross', 'normal'], ['plus', 'small'], ['open', 'big'],
+    ]);
+    const svg = coordPlotSvg(m);
+    // Крестик и плюсик — линии, кружок остаётся <circle>; размер меняет радиус.
+    expect((svg.match(/<path d="M[^"]*L[^"]*M[^"]*L/g) || []).length).toBe(2);
+    expect(svg).toContain('r="4.6"');
+  });
+
+  it('частичный показ графика: границу можно задать с одной стороны', () => {
+    expect(parseCoordPlot('f x from 0')).toMatchObject({ curves: [{ from: 0, to: undefined }] });
+    expect(parseCoordPlot('f x to -1')).toMatchObject({ curves: [{ from: undefined, to: -1 }] });
+    const both = parseCoordPlot('f x^2 from 3 to -1 color blue');
+    expect(both.curves[0]).toMatchObject({ from: -1, to: 3, color: 'blue' });
+  });
+
+  it('односторонняя граница не выкусывается из текста подписи', () => {
+    // «\to» в формуле — стрелка, а не команда «до»
+    expect(parseCoordPlot('label 1 1 x \\to 5').labels[0].text).toBe('x \\to 5');
+  });
+
+  it('видимая часть графика переживает круг конструктора', () => {
+    const spec = plotToSpec({
+      view: { xrange: [-4, 4], yrange: [-4, 4] },
+      curves: [{ expr: 'x^2-4', color: 'ink', from: '0', to: '' }],
+    });
+    expect(spec).toContain('f x^2-4 from 0');
+    expect(specToPlotState(spec).curves[0]).toMatchObject({ from: '0', to: '' });
   });
 
   it('подпись: направление at + человеческие синонимы', () => {
@@ -279,7 +311,7 @@ describe('plotToSpec / buildPlotSnippet', () => {
       view: { xrange: [-4, 4], yrange: [-3, 5], grid: 1, axisX: 'x', axisY: 'y', units: true },
       curves: [{ expr: 'x^2-4', color: 'orange', from: '', to: '' }],
       vectors: [{ label: 'a', x1: 1, y1: 4, x2: 3, y2: 1, color: 'ink', side: 'left' }],
-      points: [{ x: 2, y: 0, filled: false, label: 'A' }],
+      points: [{ x: 2, y: 0, style: 'open', label: 'A' }],
     });
     expect(spec).toContain('x -4 4');
     expect(spec).toContain('y -3 5');
@@ -318,7 +350,7 @@ describe('plotToSpec / buildPlotSnippet', () => {
   it('specToPlotState: подпись приклеивается к своей точке', () => {
     const st = specToPlotState('point 0 2 open color blue\nlabel 0 2 A at w 1,5\nlabel 3 3 сбоку');
     expect(st.points[0]).toMatchObject({
-      x: 0, y: 2, filled: false, color: 'blue', label: 'A', labelAt: 'w', labelDist: 1.5,
+      x: 0, y: 2, style: 'open', size: 'normal', color: 'blue', label: 'A', labelAt: 'w', labelDist: 1.5,
     });
     expect(st.labels).toHaveLength(1); // свободная подпись остаётся отдельной
     expect(st.labels[0]).toMatchObject({ x: 3, y: 3, text: 'сбоку' });

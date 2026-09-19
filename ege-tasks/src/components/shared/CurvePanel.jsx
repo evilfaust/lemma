@@ -4,6 +4,7 @@ import {
 } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { cleanCurveNodes, newCurveState, PLOT_COLORS } from '../../utils/coordPlot';
+import { POINT_STYLE_OPTIONS, POINT_SIZE_OPTIONS } from './plotPointOptions';
 import {
   buildSpline, splineAnalysis, splineZeros, splineSignIntervals, integersInIntervals,
 } from '../../utils/splineCurve';
@@ -50,6 +51,7 @@ const KIND_TAG = {
   end: { color: 'default', text: 'край' },
 };
 const ANNOTATION_TYPES = [
+  { value: 'part', label: 'Цветной участок', short: 'Участок' },
   { value: 'tangent', label: 'Касательная', short: 'Касательная' },
   { value: 'mark', label: 'Точка на графике', short: 'Точка' },
   { value: 'drop', label: 'Пунктир к оси', short: 'Пунктир' },
@@ -152,11 +154,39 @@ export function describeCurve(curve) {
   return done(lines);
 }
 
-function LineStyle({ value, onChange }) {
+// Граница видимой части графика: пусто = «до конца кривой». Значения хранятся
+// строками ('' = не задано), поэтому число приходится разворачивать в обе стороны.
+function RangeEdge({ label, value, onChange }) {
+  return (
+    <>
+      <span style={muted}>{label}</span>
+      <InputNumber
+        size="small"
+        style={{ width: 62 }}
+        step={0.5}
+        {...numFormat}
+        placeholder="—"
+        aria-label={`видно ${label}`}
+        value={value === '' || value == null ? null : Number(value)}
+        onChange={(v) => onChange(v ?? '')}
+      />
+    </>
+  );
+}
+
+function LineStyle({ value, onChange, range = true }) {
   return (
     <Space size={6} wrap>
       <Select size="small" style={{ width: 112 }} value={value.color || 'ink'} onChange={(color) => onChange({ color })} options={COLOR_OPTIONS} />
       <Segmented size="small" value={styleOf(value)} onChange={(v) => onChange(styleDelta(v))} options={STYLE_OPTIONS} />
+      {range && (
+        <Tooltip title="Показывать только часть графика. Можно заполнить одно поле: «видно от 0» — правая половина кривой. Пусто — кривая целиком">
+          <Space size={4}>
+            <RangeEdge label="от" value={value.from} onChange={(from) => onChange({ from })} />
+            <RangeEdge label="до" value={value.to} onChange={(to) => onChange({ to })} />
+          </Space>
+        </Tooltip>
+      )}
     </Space>
   );
 }
@@ -239,11 +269,19 @@ function AnnotationRow({
             ref: item.ref || (refs[0] && refs[0].value),
             a: Number.isFinite(item.a) ? item.a : x - 2,
             b: Number.isFinite(item.b) ? item.b : x + 2,
+            // Цвет по умолчанию у типа свой: выделение красное, выноска чёрная.
+            color: type === 'band' || type === 'part' ? 'red' : 'ink',
           });
         }}
         options={ANNOTATION_SELECT}
       />
-      {item.type === 'band' ? (
+      {item.type === 'part' && (
+        <>
+          <span style={muted}>кривой</span>
+          <Select size="small" style={{ width: 64 }} value={item.ref} onChange={(ref) => patch({ ref })} options={refs} />
+        </>
+      )}
+      {item.type === 'band' || item.type === 'part' ? (
         <>
           <span style={muted}>от</span>
           <InputNumber {...numProps} value={item.a} onChange={(a) => patch({ a })} />
@@ -261,21 +299,40 @@ function AnnotationRow({
       <Select
         size="small"
         style={{ width: 106 }}
-        value={item.color || (item.type === 'band' ? 'red' : 'ink')}
+        value={item.color || (item.type === 'band' || item.type === 'part' ? 'red' : 'ink')}
         onChange={(color) => patch({ color })}
         options={COLOR_OPTIONS}
       />
       {item.type === 'mark' && (
-        <Tooltip title="Закрашенная / пустая">
-          <Switch size="small" checkedChildren="●" unCheckedChildren="○" checked={!item.open} onChange={(v) => patch({ open: !v })} />
-        </Tooltip>
+        <>
+          <Tooltip title="Вид точки: закрашенная, выколотая, крестик или плюсик">
+            <Select
+              size="small"
+              style={{ width: 128 }}
+              aria-label="вид точки на графике"
+              value={item.style || 'fill'}
+              onChange={(style) => patch({ style })}
+              options={POINT_STYLE_OPTIONS}
+            />
+          </Tooltip>
+          <Tooltip title="Насколько крупно рисовать точку">
+            <Select
+              size="small"
+              style={{ width: 92 }}
+              aria-label="размер точки на графике"
+              value={item.size || 'normal'}
+              onChange={(size) => patch({ size })}
+              options={POINT_SIZE_OPTIONS}
+            />
+          </Tooltip>
+        </>
       )}
       {item.type === 'drop' && (
         <Tooltip title="Пунктир / сплошная">
           <Switch size="small" checkedChildren="- -" unCheckedChildren="—" checked={!item.solid} onChange={(v) => patch({ solid: !v })} />
         </Tooltip>
       )}
-      {item.type === 'tangent' && (
+      {(item.type === 'tangent' || item.type === 'part') && (
         <Segmented size="small" value={styleOf(item)} onChange={(v) => patch(styleDelta(v))} options={STYLE_SHORT} />
       )}
       <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onRemove} style={{ marginInlineStart: 'auto' }} />
@@ -363,12 +420,18 @@ export default function CurvePanel({
   const addAnnotation = (type) => {
     const sel = curve && curve.nodes[selectedNode];
     const x = sel ? Number(sel.x) : 0;
-    const base = { type, color: type === 'band' ? 'red' : 'ink' };
-    const item = type === 'band'
-      ? { ...base, a: x - 2, b: x + 2 }
-      : {
-        ...base, x, ref: curve ? curve.name : 'f', solid: false, open: false, bold: false, dash: false, from: '', to: '',
+    const highlight = type === 'band' || type === 'part';
+    const base = { type, color: highlight ? 'red' : 'ink' };
+    const name = curve ? curve.name : 'f';
+    let item;
+    if (type === 'band') item = { ...base, a: x - 2, b: x + 2 };
+    // Кусок кривой ложится поверх неё, поэтому по умолчанию жирный.
+    else if (type === 'part') item = { ...base, ref: name, a: x - 2, b: x + 2, bold: true, dash: false };
+    else {
+      item = {
+        ...base, x, ref: name, solid: false, style: 'fill', size: 'normal', bold: false, dash: false, from: '', to: '',
       };
+    }
     onAnnotationsChange([...annotations, item]);
   };
 

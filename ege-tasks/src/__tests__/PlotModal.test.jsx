@@ -72,6 +72,29 @@ describe('PlotModal', () => {
     expect(onInsert.mock.calls[0][0]).toContain('label 0 2 A at s');
   });
 
+  it('правка: вид и размер точки попадают в спеку', () => {
+    const onInsert = open({ kind: 'function', initialSpec: 'x -5 5\npoint 0 2 fill' });
+    fireEvent.mouseDown(screen.getByTitle('● закрашенная'));
+    fireEvent.click(screen.getByText('✕ крестик'));
+    fireEvent.mouseDown(screen.getByTitle('обычная'));
+    fireEvent.click(screen.getByText('мелкая'));
+    fireEvent.click(screen.getByText('Сохранить'));
+    expect(onInsert.mock.calls[0][0]).toContain('point 0 2 cross small');
+  });
+
+  it('«ещё кусок» копирует формулу другим цветом — для раскраски по промежуткам', () => {
+    const onInsert = open({ kind: 'function' });
+    fireEvent.click(document.querySelector('.anticon-copy').closest('button'));
+    // Поля границ идут парами «от / до» по строкам: первому куску — правая
+    // половина параболы, второй остаётся на всём окне, но своим цветом.
+    const edges = screen.getAllByPlaceholderText('—');
+    fireEvent.change(edges[0], { target: { value: '0' } });
+    fireEvent.click(screen.getByText('Вставить'));
+    const snippet = onInsert.mock.calls[0][0];
+    expect(snippet).toContain('f x^2-4 from 0');
+    expect(snippet).toMatch(/f x\^2-4 color \w+/); // второй кусок — своим цветом
+  });
+
   it('inline-формат отдаёт код-спан для ячейки таблицы', () => {
     const onInsert = open({ kind: 'function', defaultFormat: 'inline' });
     fireEvent.click(screen.getByText('Вставить'));

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   Modal, Button, Space, Segmented, InputNumber, Input, Select, Switch, Empty, Tooltip, Alert,
 } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, DeleteOutlined, CopyOutlined } from '@ant-design/icons';
 import CoordPlotSVG from './CoordPlotSVG';
 import './PlotModal.css';
 import CurveCanvas from './CurveCanvas';
@@ -11,6 +11,7 @@ import {
   plotToSpec, specToPlotState, compileExpr, PLOT_COLORS,
   DEFAULT_LABEL_AT, DEFAULT_LABEL_DIST, newCurveState, derivativePairSpecs,
 } from '../../utils/coordPlot';
+import { POINT_STYLE_OPTIONS, POINT_SIZE_OPTIONS } from './plotPointOptions';
 
 // Визуальный конструктор координатной плоскости. Три режима:
 //  • «График функции» — формула y = f(x) (можно несколько кривых);
@@ -114,7 +115,7 @@ function initialMode(st, kind) {
 
 const rowStyle = { width: '100%', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px dashed #eee' };
 
-function CurveRow({ curve, onChange, onRemove }) {
+function CurveRow({ curve, onChange, onRemove, onSplit }) {
   const patch = (delta) => onChange({ ...curve, ...delta });
   const { error } = useMemo(() => compileExpr(curve.expr), [curve.expr]);
   return (
@@ -134,16 +135,21 @@ function CurveRow({ curve, onChange, onRemove }) {
           <Tooltip title="Пунктиром">
             <Switch size="small" checkedChildren="- -" unCheckedChildren="—" checked={!!curve.dash} onChange={(dash) => patch({ dash })} />
           </Tooltip>
-          <Tooltip title="Рисовать только на части оси X (пусто — на всём окне)">
+          <Tooltip title="Рисовать только часть графика. Можно заполнить одно поле: «от 0» — правая половина, «до 0» — левая. Пусто — график на всём окне">
             <Space size={4}>
-              <span style={{ color: '#bbb' }}>от</span>
+              <span style={{ color: '#bbb' }}>видно от</span>
               <Input size="small" style={{ width: 52 }} value={curve.from} onChange={(e) => patch({ from: e.target.value })} placeholder="—" />
               <span style={{ color: '#bbb' }}>до</span>
               <Input size="small" style={{ width: 52 }} value={curve.to} onChange={(e) => patch({ to: e.target.value })} placeholder="—" />
             </Space>
           </Tooltip>
         </Space>
-        <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onRemove} />
+        <Space size={0}>
+          <Tooltip title="Ещё кусок этой же формулы — своим цветом и на своём промежутке: так показывают, где функция возрастает, а где убывает">
+            <Button size="small" type="text" icon={<CopyOutlined />} onClick={onSplit} />
+          </Tooltip>
+          <Button size="small" type="text" danger icon={<DeleteOutlined />} onClick={onRemove} />
+        </Space>
       </Space>
       {error && <div style={{ color: '#cf1322', fontSize: 12 }}>{error}</div>}
     </div>
@@ -188,8 +194,25 @@ function PointRow({ point, onChange, onRemove }) {
         <span style={{ color: '#888' }}>Точка</span>
         <InputNumber {...numProps} value={point.x} onChange={(v) => patch({ x: v ?? 0 })} />
         <InputNumber {...numProps} value={point.y} onChange={(v) => patch({ y: v ?? 0 })} />
-        <Tooltip title="Закрашенная / выколотая">
-          <Switch size="small" checkedChildren="●" unCheckedChildren="○" checked={point.filled !== false} onChange={(filled) => patch({ filled })} />
+        <Tooltip title="Вид точки: закрашенная, выколотая, крестик или плюсик">
+          <Select
+            size="small"
+            style={{ width: 128 }}
+            aria-label="вид точки"
+            value={point.style || 'fill'}
+            onChange={(style) => patch({ style })}
+            options={POINT_STYLE_OPTIONS}
+          />
+        </Tooltip>
+        <Tooltip title="Насколько крупно рисовать точку. Мелкая не спорит с линией графика, крупную видно с проектора">
+          <Select
+            size="small"
+            style={{ width: 96 }}
+            aria-label="размер точки"
+            value={point.size || 'normal'}
+            onChange={(size) => patch({ size })}
+            options={POINT_SIZE_OPTIONS}
+          />
         </Tooltip>
         <Input size="small" style={{ width: 104 }} maxLength={48} value={point.label} onChange={(e) => patch({ label: e.target.value })} placeholder="подпись" />
         <Tooltip title="Жирная подпись">
@@ -350,6 +373,14 @@ export default function PlotModal({
   );
 
   const addCurve = (expr = 'x') => setCurves((arr) => [...arr, { expr, color: 'ink', from: '', to: '', dash: false }]);
+  // Тот же график ещё раз — под другой промежуток и цвет. Так на одной картинке
+  // собираются «возрастает / убывает» без новой формулы.
+  const splitCurve = (i) => setCurves((arr) => {
+    const src = arr[i];
+    const used = new Set(arr.map((c) => c.color));
+    const color = PLOT_COLORS.find((c) => c !== 'ink' && !used.has(c)) || 'red';
+    return [...arr.slice(0, i + 1), { ...src, color, from: '', to: '' }, ...arr.slice(i + 1)];
+  });
   const addVector = () => setVectors((arr) => [
     ...arr,
     { label: String.fromCharCode(97 + arr.length), x1: 0, y1: 0, x2: 2, y2: 3, color: 'ink', side: 'left' },
@@ -357,7 +388,8 @@ export default function PlotModal({
   const addPoint = () => setPoints((arr) => [...arr, {
     x: 1,
     y: 1,
-    filled: true,
+    style: 'fill',
+    size: 'normal',
     label: '',
     labelAt: DEFAULT_LABEL_AT,
     labelDist: DEFAULT_LABEL_DIST,
@@ -481,7 +513,13 @@ export default function PlotModal({
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Добавьте формулу" />
               ) : (
                 curves.map((c, i) => (
-                  <CurveRow key={i} curve={c} onChange={(next) => upd(setCurves)(i, next)} onRemove={() => del(setCurves)(i)} />
+                  <CurveRow
+                    key={i}
+                    curve={c}
+                    onChange={(next) => upd(setCurves)(i, next)}
+                    onRemove={() => del(setCurves)(i)}
+                    onSplit={() => splitCurve(i)}
+                  />
                 ))
               )}
             </div>

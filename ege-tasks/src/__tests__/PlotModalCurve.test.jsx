@@ -141,6 +141,22 @@ describe('PlotModal — кривая по точкам', () => {
     expect(insert(onInsert)).toContain('tangent 1 f');
   });
 
+  it('разметка: цветной участок кривой от выбранной точки', () => {
+    const onInsert = open();
+    const el = overlay();
+    fireEvent.pointerDown(screen.getByTestId('curve-node-2'), at(1, -2));
+    fireEvent.pointerUp(el, at(1, -2));
+    fireEvent.click(screen.getByText('Цветной участок'));
+    // Поверх кривой — жирный красный кусок вокруг выбранной точки.
+    expect(insert(onInsert)).toContain('part f -1 3 bold');
+  });
+
+  it('видимая часть кривой задаётся в строке «Кривая»', () => {
+    const onInsert = open();
+    fireEvent.change(screen.getAllByLabelText('видно от')[0], { target: { value: '-2' } });
+    expect(insert(onInsert)).toContain('from -2');
+  });
+
   it('формат «рядом» — таблица-галерея из двух картинок', () => {
     const onInsert = open();
     fireEvent.click(screen.getByText('f′ и f рядом'));

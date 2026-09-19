@@ -156,12 +156,49 @@ describe('DSL: drop / mark / band', () => {
 
   it('mark — точка на графике, open — пустая', () => {
     const m = parseCoordPlot(`spline f ${WAVE}\nmark 0 f open`);
-    expect(m.points[0]).toMatchObject({ x: 0, filled: false });
+    expect(m.points[0]).toMatchObject({ x: 0, style: 'open' });
     expect(m.points[0].y).toBeCloseTo(-1, 10);
   });
 
   it('mark вне области кривой не рисуется', () => {
     expect(parseCoordPlot(`spline f ${WAVE}\nmark 9 f`).points).toEqual([]);
+  });
+
+  it('part — кусок кривой другим цветом поверх неё', () => {
+    const m = parseCoordPlot(`spline f ${WAVE}\npart f -3 0 color green bold\npart f 0 3 color red`);
+    expect(m.curves).toHaveLength(3);
+    // Куски идут ПОСЛЕ самой кривой — значит, рисуются поверх неё.
+    expect(m.curves[1]).toMatchObject({ ref: 'f', from: -3, to: 0, color: 'green', bold: true });
+    expect(m.curves[2]).toMatchObject({ ref: 'f', from: 0, to: 3, color: 'red', bold: false });
+    expect(typeof m.curves[1].fn).toBe('function');
+    expect(m.errors).toEqual([]);
+  });
+
+  it('part: границы можно писать и модификатором from…to, порядок не важен', () => {
+    const m = parseCoordPlot(`spline f ${WAVE}\npart f from 2 to -1`);
+    expect(m.curves[1]).toMatchObject({ from: -1, to: 2, color: 'red' });
+  });
+
+  it('part к несуществующей кривой — понятная ошибка', () => {
+    const m = parseCoordPlot(`spline f ${WAVE}\npart g -1 1`);
+    expect(m.errors).toContain('Не найдена кривая «g»');
+  });
+
+  it('part переживает круг «DSL → конструктор → DSL»', () => {
+    const spec = `x -6 6\ny -4 4\nspline f ${WAVE}\npart f' -3 0 color green bold`;
+    const st = specToPlotState(spec);
+    expect(st.annotations).toEqual([
+      { type: 'part', ref: "f'", a: -3, b: 0, color: 'green', bold: true, dash: false },
+    ]);
+    expect(plotToSpec(st)).toContain("part f' -3 0 color green bold");
+    expect(st.raw).toEqual([]);
+  });
+
+  it('видимая часть кривой: границу можно задать с одной стороны', () => {
+    const m = parseCoordPlot(`spline f ${WAVE} from -2`);
+    expect(m.curves[0].from).toBeCloseTo(-2, 10);
+    expect(m.curves[0].to).toBeCloseTo(5.5, 10); // правый край взят по области кривой
+    expect(plotToSpec(specToPlotState(`spline f ${WAVE} to 2`))).toContain('to 2');
   });
 
   it('band — красный отрезок по оси x, обрезанный окном', () => {
@@ -242,8 +279,8 @@ describe('конструктор: кривые по точкам ↔ DSL', () =>
     expect(g.prim).toMatchObject({ on: true, show: false, name: 'G', x0: '0', y0: '1', color: 'violet' });
     expect(st.annotations).toEqual([
       { type: 'tangent', x: 1, ref: 'g', color: 'ink', bold: false, dash: false, from: '-2', to: '4' },
-      { type: 'drop', x: -3, ref: 'g', color: 'ink', solid: true, open: false },
-      { type: 'mark', x: 0, ref: "g'", color: 'red', solid: false, open: true },
+      { type: 'drop', x: -3, ref: 'g', color: 'ink', solid: true, style: 'fill', size: 'normal' },
+      { type: 'mark', x: 0, ref: "g'", color: 'red', solid: false, style: 'open', size: 'normal' },
       { type: 'band', a: -3, b: 3, color: 'orange' },
     ]);
     const out = plotToSpec(st);

@@ -28,10 +28,12 @@
 //   axis x y             — буквы осей
 //   units off            — не подписывать единичные отрезки «1»
 //   f x^2-4              — график функции; модификаторы: color NAME,
-//                          from A to B (частичная область), dash
+//                          from A to B (видна только часть графика; можно
+//                          одностороннее «from A» или «to B»), dash
 //   vec a 1 4 3 1        — вектор из (1;4) в (3;1) с подписью a
 //   vec b 2 3            — вектор из начала координат в (2;3)
-//   point 1 3 fill       — точка на плоскости (fill|open)
+//   point 1 3 fill       — точка на плоскости: вид fill|open|cross|plus и
+//                          размер small|big (по умолчанию обычный)
 //   seg 0 0 2 3 dash     — отрезок
 //   label 2 3 A          — текстовая подпись у точки (2;3); модификатор
 //                          at ne|n|nw|w|sw|s|se|e [расстояние] — с какой стороны
@@ -67,9 +69,13 @@
 //                          Так собираются задачи «на рисунке график f′(x)»:
 //                          точки максимума f — нули f′ со сменой + на −.
 //   drop -3 f            — пунктир от оси x до графика (f, f′ или F); solid
-//   mark -3 f' open      — точка на графике в x = −3
+//   mark -3 f' open      — точка на графике в x = −3 (вид и размер — как у point)
 //   tangent 1 f          — касательная к графику в точке x = 1 (from…to)
 //   band -3 3            — отрезок оси x (по умолчанию красный, как на плакатах)
+//   part f -3 1 color green bold
+//                        — кусок уже нарисованной кривой другим цветом поверх
+//                          неё: так показывают, где функция возрастает, а где
+//                          убывает (или где она выше нуля, а где ниже)
 
 import { buildSpline, antiderivative } from './splineCurve';
 import {
@@ -307,7 +313,10 @@ export function compileExpr(src) {
 
 // Вырезает из хвоста команды модификаторы (color/dash/from…to/width) и
 // возвращает остаток строки + разобранные модификаторы.
-function extractMods(rest) {
+// `range: true` разрешает одностороннее «from A» / «to B» — показать хвост
+// графика без правой (левой) границы. Только для команд линий: в тексте подписи
+// «\to 5» тоже похоже на границу, и вырезать его оттуда нельзя.
+function extractMods(rest, { range = false } = {}) {
   const mods = {};
   let s = String(rest || '');
   s = s.replace(/\bcolor\s+([a-zA-Zа-яА-Я]+)/i, (_, c) => { mods.color = c.toLowerCase(); return ' '; });
@@ -317,6 +326,17 @@ function extractMods(rest) {
     if (Number.isFinite(fa) && Number.isFinite(fb)) mods.to = Math.max(fa, fb);
     return ' ';
   });
+  if (range) {
+    const edge = (word, key) => {
+      s = s.replace(new RegExp(`\\b${word}\\s+(-?[\\d.,/]+)(?=\\s|$)`, 'i'), (_, v) => {
+        const n = num(v);
+        if (Number.isFinite(n)) mods[key] = n;
+        return ' ';
+      });
+    };
+    edge('from', 'from');
+    edge('to', 'to');
+  }
   s = s.replace(/\bdash\b/i, () => { mods.dash = true; return ' '; });
   s = s.replace(/\bside\s+(left|right)\b/i, (_, v) => { mods.side = v.toLowerCase(); return ' '; });
   s = s.replace(
@@ -348,10 +368,35 @@ export function labelDist(v) {
   return Math.min(Math.max(d, 0.5), 5);
 }
 
-const isFilled = (tok) => {
-  const t = String(tok || '').toLowerCase();
-  return t !== 'open' && t !== 'hollow' && t !== 'o';
+// Вид точки и её размер. Кружок (закрашенный/выколотый) — школьная классика;
+// крестик и плюсик помечают точку, не закрывая собой график. Размер отвечает
+// за «жирность»: тот же кружок мелким не спорит с линией, крупным виден на
+// проекторе. Токены идут в любом порядке: `point 1 3 open small`.
+const POINT_STYLE_ALIAS = {
+  fill: 'fill', filled: 'fill', dot: 'fill',
+  open: 'open', hollow: 'open', o: 'open',
+  cross: 'cross', x: 'cross',
+  plus: 'plus',
 };
+const POINT_SIZE_ALIAS = { small: 'small', thin: 'small', normal: 'normal', big: 'big', bold: 'big' };
+const POINT_GEOM = {
+  small: { r: 2.3, sw: 1.1 },
+  normal: { r: 3.3, sw: 1.4 },
+  big: { r: 4.6, sw: 1.8 },
+};
+export const POINT_STYLES = ['fill', 'open', 'cross', 'plus'];
+export const POINT_SIZES = ['small', 'normal', 'big'];
+
+/** Токены хвоста команды point/mark → { style, size } с умолчаниями. */
+export function pointLook(tokens) {
+  const look = { style: 'fill', size: 'normal' };
+  for (const tok of tokens || []) {
+    const t = String(tok || '').toLowerCase();
+    if (POINT_STYLE_ALIAS[t]) look.style = POINT_STYLE_ALIAS[t];
+    else if (POINT_SIZE_ALIAS[t]) look.size = POINT_SIZE_ALIAS[t];
+  }
+  return look;
+}
 
 // Флаг-слово в хвосте команды (bold, hide, solid, open). Только для команд, где
 // он что-то значит: в тексте подписи слово «bold» должно остаться текстом.
@@ -431,7 +476,7 @@ export function parseSplineNodes(text) {
   return { nodes, error: null };
 }
 
-const CURVE_CMDS = new Set(['spline', 'curve', 'deriv', 'prim', 'tangent', 'drop', 'mark', 'band']);
+const CURVE_CMDS = new Set(['spline', 'curve', 'deriv', 'prim', 'tangent', 'drop', 'mark', 'band', 'part']);
 // Пустой токен — «числа нет», а не ноль (num('') === 0).
 const optNum = (tok) => (tok == null || tok === '' ? NaN : num(tok));
 
@@ -446,7 +491,7 @@ export function parseCurveCommand(line) {
   const head = text.split(/\s+/)[0] || '';
   const cmd = head.toLowerCase();
   if (!CURVE_CMDS.has(cmd)) return null;
-  const { rest: tail, mods } = extractMods(text.slice(head.length));
+  const { rest: tail, mods } = extractMods(text.slice(head.length), { range: true });
   let rest = tail;
   const flag = (word) => {
     const r = takeFlag(rest, word);
@@ -489,13 +534,27 @@ export function parseCurveCommand(line) {
     return Number.isFinite(x) && parts[1] ? { cmd, x, ref: normRef(parts[1]), ...st } : null;
   }
   if (cmd === 'drop' || cmd === 'mark') {
-    const solid = flag('solid');
-    const open = flag('open');
+    const solid = flag('solid'); // только для drop: сплошная выноска вместо пунктира
     const parts = rest.split(/\s+/).filter(Boolean);
     const x = optNum(parts[0]);
-    return Number.isFinite(x) && parts[1]
-      ? { cmd, x, ref: normRef(parts[1]), color: mods.color || null, solid, open }
-      : null;
+    if (!Number.isFinite(x) || !parts[1]) return null;
+    return {
+      cmd, x, ref: normRef(parts[1]), color: mods.color || null, solid, ...pointLook(parts.slice(2)),
+    };
+  }
+  // Кусок уже нарисованной кривой другим цветом: `part f -3 1 color green bold`.
+  // Рисуется поверх неё, поэтому по умолчанию жирный и красный — как выделение
+  // маркером на доске.
+  if (cmd === 'part') {
+    const st = style();
+    const parts = rest.split(/\s+/).filter(Boolean);
+    const ref = normRef(parts[0] || '');
+    const a = Number.isFinite(optNum(parts[1])) ? optNum(parts[1]) : st.from;
+    const b = Number.isFinite(optNum(parts[2])) ? optNum(parts[2]) : st.to;
+    if (!REF_NAME_RE.test(ref) || !Number.isFinite(a) || !Number.isFinite(b) || a === b) return null;
+    return {
+      ...st, cmd, ref, color: st.color || 'red', from: Math.min(a, b), to: Math.max(a, b),
+    };
   }
   const nums = rest.split(/\s+/).filter(Boolean).map(num).filter(Number.isFinite);
   if (nums.length < 2 || nums[0] === nums[1]) return null;
@@ -528,10 +587,14 @@ function applyCurveCommand(model, c, prims, deferred) {
     if (!c.hide) draw(c.name);
   } else if (c.cmd === 'tangent') {
     draw(c.ref, { tangentAt: c.x });
+  } else if (c.cmd === 'part') {
+    draw(c.ref);
   } else if (c.cmd === 'band') {
     model.bands.push({ a: c.a, b: c.b, color: c.color || 'red' });
   } else {
-    deferred.push({ kind: c.cmd, x: c.x, ref: c.ref, color: c.color, solid: c.solid, open: c.open });
+    deferred.push({
+      kind: c.cmd, x: c.x, ref: c.ref, color: c.color, solid: c.solid, style: c.style, size: c.size,
+    });
   }
 }
 
@@ -590,7 +653,7 @@ export function parseCoordPlot(spec) {
     } else if (cmd === 'units') {
       model.units = !/^(off|no|0|false)$/i.test(p[1] || '');
     } else if (cmd === 'f' || cmd === 'plot' || cmd === 'func') {
-      const { rest: tail, mods } = extractMods(line.slice(p[0].length));
+      const { rest: tail, mods } = extractMods(line.slice(p[0].length), { range: true });
       const { s: rest, has: bold } = takeFlag(tail, 'bold');
       const { fn, error } = compileExpr(rest);
       model.curves.push({
@@ -619,7 +682,7 @@ export function parseCoordPlot(spec) {
       const parts = rest.split(/\s+/).filter(Boolean);
       const x = num(parts[0]); const y = num(parts[1]);
       if (Number.isFinite(x) && Number.isFinite(y)) {
-        model.points.push({ x, y, filled: isFilled(parts[2]), color: mods.color || 'ink' });
+        model.points.push({ x, y, ...pointLook(parts.slice(2)), color: mods.color || 'ink' });
       }
     } else if (cmd === 'seg' || cmd === 'segment') {
       const { rest, mods } = extractMods(line.slice(p[0].length));
@@ -722,7 +785,8 @@ function resolveCurveRefs(model, prims, deferred) {
       });
     } else {
       model.points.push({
-        ref: item.ref, x: item.x, y, filled: !item.open, color: item.color || 'ink',
+        ref: item.ref, x: item.x, y, color: item.color || 'ink',
+        style: item.style || 'fill', size: item.size || 'normal',
       });
     }
   }
@@ -949,7 +1013,19 @@ export function coordPlotSvg(model, opts = {}) {
 
   // 8) Точки и подписи
   for (const pt of m.points) {
-    parts.push(`<circle cx="${r2(sx(pt.x))}" cy="${r2(sy(pt.y))}" r="3.3" fill="${pt.filled ? colorOf(pt.color) : '#fff'}" stroke="${colorOf(pt.color)}" stroke-width="1.4"/>`);
+    const g = POINT_GEOM[pt.size] || POINT_GEOM.normal;
+    const cx = r2(sx(pt.x)); const cy = r2(sy(pt.y));
+    const col = colorOf(pt.color);
+    if (pt.style === 'cross' || pt.style === 'plus') {
+      // Крестик и плюсик не закрывают собой линию — ими помечают точку на графике.
+      const a = r2(g.r * 1.3);
+      const d = pt.style === 'cross'
+        ? `M${r2(cx - a)},${r2(cy - a)}L${r2(cx + a)},${r2(cy + a)}M${r2(cx - a)},${r2(cy + a)}L${r2(cx + a)},${r2(cy - a)}`
+        : `M${r2(cx - a)},${cy}L${r2(cx + a)},${cy}M${cx},${r2(cy - a)}L${cx},${r2(cy + a)}`;
+      parts.push(`<path d="${d}" fill="none" stroke="${col}" stroke-width="${r2(g.sw + 0.2)}" stroke-linecap="round"/>`);
+    } else {
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${g.r}" fill="${pt.style === 'open' ? '#fff' : col}" stroke="${col}" stroke-width="${g.sw}"/>`);
+    }
   }
   for (const l of m.labels) {
     const at = LABEL_OFFSETS[l.at] || LABEL_OFFSETS[DEFAULT_LABEL_AT];
@@ -1054,10 +1130,22 @@ function styleTail(o, defColor = 'ink') {
   let s = '';
   if (o.color && o.color !== defColor) s += ` color ${o.color}`;
   if (hasNum(o.from) && hasNum(o.to)) s += ` from ${numToken(o.from)} to ${numToken(o.to)}`;
+  else if (hasNum(o.from)) s += ` from ${numToken(o.from)}`;
+  else if (hasNum(o.to)) s += ` to ${numToken(o.to)}`;
   if (o.dash) s += ' dash';
   if (o.bold) s += ' bold';
   return s;
 }
+
+// Хвост «вид и размер» точки: умолчания (закрашенная, обычная) не пишем.
+const pointLookTail = (p) => {
+  // `filled: false` — форма состояния до появления вида точки; держим её, чтобы
+  // старый вызов конструктора не превратил выколотую точку в закрашенную.
+  const legacy = p.style === undefined && p.filled === false ? 'open' : p.style;
+  const style = POINT_STYLE_ALIAS[String(legacy || '').toLowerCase()] || 'fill';
+  const size = POINT_SIZE_ALIAS[String(p.size || '').toLowerCase()] || 'normal';
+  return `${style === 'fill' ? '' : ` ${style}`}${size === 'normal' ? '' : ` ${size}`}`;
+};
 
 const nodeToken = (n) => {
   let s = `(${numToken(n.x)} ${numToken(n.y)}`;
@@ -1092,11 +1180,16 @@ function curveLines(splines, annotations) {
       if (hasNum(a.a) && hasNum(a.b) && Number(a.a) !== Number(a.b)) {
         lines.push(`band ${numToken(a.a)} ${numToken(a.b)}${a.color && a.color !== 'red' ? ` color ${a.color}` : ''}`);
       }
+    } else if (a.type === 'part') {
+      if (a.ref && hasNum(a.a) && hasNum(a.b) && Number(a.a) !== Number(a.b)) {
+        // Границы куска — позиционные, поэтому from/to из стиля тут не нужны.
+        lines.push(`part ${a.ref} ${numToken(a.a)} ${numToken(a.b)}${styleTail({ ...a, from: '', to: '' }, 'red')}`);
+      }
     } else if (hasNum(a.x) && a.ref) {
       const color = a.color && a.color !== 'ink' ? ` color ${a.color}` : '';
       if (a.type === 'tangent') lines.push(`tangent ${numToken(a.x)} ${a.ref}${styleTail(a)}`);
       else if (a.type === 'drop') lines.push(`drop ${numToken(a.x)} ${a.ref}${color}${a.solid ? ' solid' : ''}`);
-      else if (a.type === 'mark') lines.push(`mark ${numToken(a.x)} ${a.ref}${color}${a.open ? ' open' : ''}`);
+      else if (a.type === 'mark') lines.push(`mark ${numToken(a.x)} ${a.ref}${color}${pointLookTail(a)}`);
     }
   }
   return lines;
@@ -1143,7 +1236,9 @@ export function plotToSpec({
     lines.push(s);
   }
   for (const p of points) {
-    let s = `point ${numToken(p.x)} ${numToken(p.y)} ${p.filled === false ? 'open' : 'fill'}`;
+    // Вид пишем всегда: `point 1 3` без слова читается как закрашенная, но в
+    // готовом блоке явное «fill» спасает от опечатки при правке руками.
+    let s = `point ${numToken(p.x)} ${numToken(p.y)}${pointLookTail(p) || ' fill'}`;
     if (p.color && p.color !== 'ink') s += ` color ${p.color}`;
     lines.push(s);
     if (p.label) {
@@ -1245,9 +1340,15 @@ function curveState(lines) {
       annotations.push({ type: 'band', a: c.a, b: c.b, color: c.color || 'red' });
     } else if (c.cmd === 'tangent') {
       annotations.push({ type: 'tangent', x: c.x, ref: c.ref, ...lineStyle(c) });
+    } else if (c.cmd === 'part') {
+      annotations.push({
+        type: 'part', ref: c.ref, a: c.from, b: c.to,
+        color: c.color || 'red', bold: !!c.bold, dash: !!c.dash,
+      });
     } else {
       annotations.push({
-        type: c.cmd, x: c.x, ref: c.ref, color: c.color || 'ink', solid: !!c.solid, open: !!c.open,
+        type: c.cmd, x: c.x, ref: c.ref, color: c.color || 'ink', solid: !!c.solid,
+        style: c.style || 'fill', size: c.size || 'normal',
       });
     }
   }
@@ -1298,7 +1399,7 @@ export function specToPlotState(spec) {
     points: m.points.filter((p) => !p.ref).map((p) => {
       const l = takeLabel(p);
       return {
-        x: p.x, y: p.y, filled: p.filled, color: p.color,
+        x: p.x, y: p.y, style: p.style || 'fill', size: p.size || 'normal', color: p.color,
         label: l ? l.text : '',
         labelAt: l ? l.at : DEFAULT_LABEL_AT,
         labelDist: l ? l.dist : DEFAULT_LABEL_DIST,
@@ -1357,7 +1458,9 @@ export function derivativePairSpecs(state, index = 0) {
   const leftAnn = serialize(annotations.flatMap((a) => {
     if (a.type === 'band') return [a];
     if ((a.type === 'drop' || a.type === 'mark') && (a.ref === n || a.ref === `${n}'`)) return [{ ...a, ref: `${n}'` }];
-    if (a.type === 'tangent' && a.ref === `${n}'`) return [a];
+    // Касательная и цветной кусок остаются при своей кривой: кусок f′ — слева,
+    // кусок самой f — справа.
+    if ((a.type === 'tangent' || a.type === 'part') && a.ref === `${n}'`) return [a];
     return [];
   }));
   const deriv = c.deriv && c.deriv.on
