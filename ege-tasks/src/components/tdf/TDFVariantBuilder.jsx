@@ -16,6 +16,16 @@ import './tdf.css';
 
 const { Text } = Typography;
 
+const ITEMS = ['пункт', 'пункта', 'пунктов'];
+const VARIANTS = ['вариант', 'варианта', 'вариантов'];
+
+const plural = (n, forms) => {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1];
+  return forms[2];
+};
+
 export default function TDFVariantBuilder({ setId, onBack }) {
   const [tdfSet, setTdfSet] = useState(null);
   const [allItems, setAllItems] = useState([]);   // весь конспект, включая заголовки разделов
@@ -28,6 +38,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
   const [saving, setSaving] = useState(false);
   const [variantForm] = Form.useForm();
   const [dragItemId, setDragItemId] = useState(null);
+  const [expanded, setExpanded] = useState(null);   // id раскрытого варианта
 
   // { variant, mode: 'blank' | 'key' } — бланк ученику или ключ учителю.
   const [printTarget, setPrintTarget] = useState(null);
@@ -178,7 +189,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
         icon={<UnorderedListOutlined />}
         accent="violet"
         title={`Варианты опроса: ${tdfSet?.title || ''}`}
-        subtitle={`${variants.length} вариантов · в эталоне ${realItems.length} пунктов · задействовано ${realItems.length - uncovered.length}`}
+        subtitle={`${variants.length} ${plural(variants.length, VARIANTS)} · в эталоне ${realItems.length} ${plural(realItems.length, ITEMS)} · задействовано ${realItems.length - uncovered.length}`}
         extra={
           <Space wrap>
             <Button icon={<ArrowLeftOutlined />} onClick={onBack}>К наборам</Button>
@@ -192,7 +203,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
       {uncovered.length > 0 && variants.length > 0 && (
         <div className="tdf-statbar">
           <span style={{ color: 'var(--c-amber)' }}>
-            Ни в один вариант не вошли <b>{uncovered.length}</b> пунктов:
+            Ни в один вариант не вошли <b>{uncovered.length}</b> {plural(uncovered.length, ITEMS)}:
           </span>
           <span style={{ color: 'var(--ink-3)' }}>
             {uncovered.slice(0, 6).map(i => i.name || '—').join(' · ')}
@@ -210,22 +221,38 @@ export default function TDFVariantBuilder({ setId, onBack }) {
           onCta={openCreateVariant}
         />
       ) : (
-        <div className="ws-grid">
+        <div className="tdf-list">
           {variants.map(v => {
             const varItems = (v.item_ids || []).map(id => itemById[id]).filter(Boolean);
+            const open = expanded === v.id;
             return (
-              <article key={v.id} className="ws-tile" style={{ cursor: 'default' }}>
-                <div className="ws-tile__top">
-                  <span className="ws-tile__badge tdf-badge">№{v.number}</span>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div className="ws-tile__name">{v.title || `Вариант ${v.number}`}</div>
-                    <div className="ws-tile__sub">{varItems.length} пунктов</div>
+              <div key={v.id}>
+                <div className="tdf-item" onClick={() => setExpanded(open ? null : v.id)}>
+                  <span className="tdf-item__cls">№{v.number}</span>
+
+                  <div className="tdf-item__main">
+                    <div className="tdf-item__name">{v.title || `Вариант ${v.number}`}</div>
+                    <div className="tdf-item__meta">
+                      <span><b>{varItems.length}</b> {plural(varItems.length, ITEMS)}</span>
+                      <span className="tdf-item__sep">·</span>
+                      <span>{varItems.slice(0, 3).map(i => i.name || '—').join(' · ')}
+                        {varItems.length > 3 && ` и ещё ${varItems.length - 3}`}</span>
+                    </div>
                   </div>
-                  <div className="ws-tile__actions">
+
+                  <div className="tdf-item__actions" onClick={e => e.stopPropagation()}>
+                    <Button size="small" icon={<PrinterOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'blank' })}>
+                      Бланк ученику
+                    </Button>
+                    <Tooltip title="Тот же состав с формулировками и чертежами — по нему учитель проверяет ответы">
+                      <Button size="small" icon={<KeyOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'key' })}>
+                        Ключ
+                      </Button>
+                    </Tooltip>
+                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEditVariant(v)} />
                     <Tooltip title="Дублировать вариант">
                       <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => handleDuplicateVariant(v)} />
                     </Tooltip>
-                    <Button size="small" type="text" icon={<EditOutlined />} onClick={() => openEditVariant(v)} />
                     <Popconfirm
                       title="Удалить вариант?"
                       onConfirm={() => handleDeleteVariant(v.id)}
@@ -236,32 +263,23 @@ export default function TDFVariantBuilder({ setId, onBack }) {
                   </div>
                 </div>
 
-                <ol style={{ margin: '11px 0 0', paddingLeft: 18, fontSize: 12.5, color: 'var(--ink-2)' }}>
-                  {varItems.map(item => (
-                    <li key={item.id} style={{ marginBottom: 3 }}>
-                      {item.type && (
-                        <Chip tone={tdfTypeTone(item.type)} title={tdfTypeLabel(item.type)} style={{ marginRight: 5 }}>
-                          {tdfTypeShort(item.type)}
-                        </Chip>
-                      )}
-                      {item.name || '—'}
-                    </li>
-                  ))}
-                </ol>
-
-                <div className="ws-tile__foot">
-                  <Space size={6} wrap>
-                    <Button size="small" icon={<PrinterOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'blank' })}>
-                      Бланк ученику
-                    </Button>
-                    <Tooltip title="Тот же состав с формулировками и чертежами — по нему учитель проверяет ответы">
-                      <Button size="small" icon={<KeyOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'key' })}>
-                        Ключ
-                      </Button>
-                    </Tooltip>
-                  </Space>
-                </div>
-              </article>
+                {open && varItems.length > 0 && (
+                  <div className="tdf-item__expand">
+                    <ol>
+                      {varItems.map(item => (
+                        <li key={item.id}>
+                          {item.type && (
+                            <Chip tone={tdfTypeTone(item.type)} title={tdfTypeLabel(item.type)} style={{ marginRight: 5 }}>
+                              {tdfTypeShort(item.type)}
+                            </Chip>
+                          )}
+                          {item.name || '—'}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>

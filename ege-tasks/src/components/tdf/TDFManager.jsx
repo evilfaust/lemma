@@ -21,23 +21,26 @@ const plural = (n, forms) => {
   return forms[2];
 };
 
+const ITEMS = ['пункт', 'пункта', 'пунктов'];
+const SECTIONS = ['раздел', 'раздела', 'разделов'];
+const VARIANTS = ['вариант', 'варианта', 'вариантов'];
+const SETS = ['набор', 'набора', 'наборов'];
+
 /** Что в наборе недоделано. Учитель видит это, не открывая конспект. */
-function GapsLine({ stats }) {
-  if (stats.total === 0) return null;
-
+function readiness(stats) {
+  if (stats.total === 0) return { ok: false, text: 'пунктов ещё нет' };
   const gaps = [];
-  if (stats.noFormulation) gaps.push(<span key="f"><b>{stats.noFormulation}</b> без формулировки</span>);
-  if (stats.noNotation) gaps.push(<span key="n"><b>{stats.noNotation}</b> без краткой записи</span>);
-  if (stats.noDrawing) gaps.push(<span key="d"><b>{stats.noDrawing}</b> без чертежа</span>);
-
-  if (gaps.length === 0) {
-    return <div className="tdf-gaps tdf-gaps--ok">Все пункты заполнены</div>;
-  }
-  return <div className="tdf-gaps">{gaps}</div>;
+  if (stats.noFormulation) gaps.push(`${stats.noFormulation} без формулировки`);
+  if (stats.noNotation) gaps.push(`${stats.noNotation} без краткой записи`);
+  if (stats.noDrawing) gaps.push(`${stats.noDrawing} без чертежа`);
+  return gaps.length
+    ? { ok: false, text: gaps.join(' · ') }
+    : { ok: true, text: 'всё заполнено' };
 }
 
-function SetTile({ set, stats, variants, canEdit, canDelete, onOpenEditor, onOpenVariants, onOpenFlashcards, onEdit, onDuplicate, onDelete }) {
+function SetRow({ set, stats, variants, canEdit, canDelete, onOpenEditor, onOpenVariants, onOpenFlashcards, onEdit, onDuplicate, onDelete }) {
   const composition = tdfComposition(stats);
+  const status = readiness(stats);
   const stop = (e) => e.stopPropagation();
   const primary = () => (canEdit ? onOpenEditor(set.id) : onOpenFlashcards?.(set.id));
 
@@ -54,46 +57,35 @@ function SetTile({ set, stats, variants, canEdit, canDelete, onOpenEditor, onOpe
   };
 
   return (
-    <article className="ws-tile" onClick={primary}>
-      <div className="ws-tile__top">
-        <span className={`ws-tile__badge tdf-badge${set.class_number ? '' : ' tdf-badge--empty'}`}>
-          {set.class_number ? `${set.class_number} кл` : '—'}
-        </span>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div className="ws-tile__name" title={set.title}>{set.title}</div>
-          <div className="ws-tile__sub">
-            {stats.total} {plural(stats.total, ['пункт', 'пункта', 'пунктов'])}
-            {stats.sections > 0 && ` · ${stats.sections} ${plural(stats.sections, ['раздел', 'раздела', 'разделов'])}`}
-            {` · ${variants.length} ${plural(variants.length, ['вариант', 'варианта', 'вариантов'])}`}
-          </div>
+    <div className="tdf-item" onClick={primary}>
+      <span className={`tdf-item__cls${set.class_number ? '' : ' tdf-item__cls--empty'}`}>
+        {set.class_number ? `${set.class_number} кл` : '—'}
+      </span>
+
+      <div className="tdf-item__main">
+        <div className="tdf-item__name">{set.title}</div>
+        {set.description && <div className="tdf-item__desc">{set.description}</div>}
+        <div className="tdf-item__meta">
+          <span><b>{stats.total}</b> {plural(stats.total, ITEMS)}</span>
+          {stats.sections > 0 && (
+            <>
+              <span className="tdf-item__sep">·</span>
+              <span><b>{stats.sections}</b> {plural(stats.sections, SECTIONS)}</span>
+            </>
+          )}
+          <span className="tdf-item__sep">·</span>
+          <span>
+            {variants.length
+              ? <><b>{variants.length}</b> {plural(variants.length, VARIANTS)} опроса</>
+              : 'вариантов опроса нет'}
+          </span>
+          <span className="tdf-item__sep">·</span>
+          <span className={status.ok ? 'tdf-gaps tdf-gaps--ok' : 'tdf-gaps'}>{status.text}</span>
         </div>
-        {(canEdit || canDelete) && (
-          <div className="ws-tile__actions" onClick={stop}>
-            {canEdit && (
-              <Dropdown menu={menu} trigger={['click']}>
-                <Button size="small" type="text" icon={<MoreOutlined />} />
-              </Dropdown>
-            )}
-            {canDelete && (
-              <Popconfirm
-                title="Удалить этот набор?"
-                description="Пункты и варианты будут удалены вместе с ним."
-                onConfirm={() => onDelete(set.id)}
-                okText="Удалить"
-                cancelText="Отмена"
-                okButtonProps={{ danger: true }}
-              >
-                <Button size="small" type="text" danger icon={<DeleteOutlined />} />
-              </Popconfirm>
-            )}
-          </div>
-        )}
       </div>
 
-      {set.description && <div className="tdf-tile__desc">{set.description}</div>}
-
       {composition.length > 0 && (
-        <div className="tdf-chips">
+        <div className="tdf-item__chips">
           {composition.map(t => (
             <Chip key={t.value} tone={t.tone} title={t.label}>
               {t.short}<span className="tdf-chips__count">{t.count}</span>
@@ -102,30 +94,43 @@ function SetTile({ set, stats, variants, canEdit, canDelete, onOpenEditor, onOpe
         </div>
       )}
 
-      <GapsLine stats={stats} />
-
-      <div className="ws-tile__foot" onClick={stop}>
-        <div className="tdf-tile__foot-actions">
-          {canEdit && (
-            <Button size="small" icon={<FileTextOutlined />} onClick={() => onOpenEditor(set.id)}>
-              Конспект
-            </Button>
-          )}
-          {canEdit && (
-            <Tooltip title="Бланки опроса: выбрать пункты и распечатать по вариантам">
-              <Button size="small" icon={<UnorderedListOutlined />} onClick={() => onOpenVariants(set.id)}>
-                Варианты
-              </Button>
-            </Tooltip>
-          )}
-          <Tooltip title="Карточки-флипы для самопроверки">
-            <Button size="small" icon={<CreditCardOutlined />} onClick={() => onOpenFlashcards?.(set.id)}>
-              Карточки
+      <div className="tdf-item__actions" onClick={stop}>
+        {canEdit && (
+          <Button size="small" icon={<FileTextOutlined />} onClick={() => onOpenEditor(set.id)}>
+            Конспект
+          </Button>
+        )}
+        {canEdit && (
+          <Tooltip title="Бланки опроса: выбрать пункты и распечатать по вариантам">
+            <Button size="small" icon={<UnorderedListOutlined />} onClick={() => onOpenVariants(set.id)}>
+              Варианты
             </Button>
           </Tooltip>
-        </div>
+        )}
+        <Tooltip title="Карточки-флипы для самопроверки">
+          <Button size="small" icon={<CreditCardOutlined />} onClick={() => onOpenFlashcards?.(set.id)}>
+            Карточки
+          </Button>
+        </Tooltip>
+        {canEdit && (
+          <Dropdown menu={menu} trigger={['click']}>
+            <Button size="small" type="text" icon={<MoreOutlined />} />
+          </Dropdown>
+        )}
+        {canDelete && (
+          <Popconfirm
+            title="Удалить этот набор?"
+            description="Пункты и варианты будут удалены вместе с ним."
+            onConfirm={() => onDelete(set.id)}
+            okText="Удалить"
+            cancelText="Отмена"
+            okButtonProps={{ danger: true }}
+          >
+            <Button size="small" type="text" danger icon={<DeleteOutlined />} />
+          </Popconfirm>
+        )}
       </div>
-    </article>
+    </div>
   );
 }
 
@@ -180,6 +185,22 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
       return `${s.title} ${s.description || ''}`.toLowerCase().includes(q);
     });
   }, [sets, query, classFilter]);
+
+  const grouped = useMemo(() => {
+    const byClass = new Map();
+    for (const set of visible) {
+      const key = set.class_number || 0;
+      if (!byClass.has(key)) byClass.set(key, []);
+      byClass.get(key).push(set);
+    }
+    return [...byClass.entries()]
+      .sort(([a], [b]) => (a === 0 ? 1 : b === 0 ? -1 : a - b))
+      .map(([key, sets]) => ({
+        key: String(key),
+        label: key ? `${key} класс` : 'Без класса',
+        sets,
+      }));
+  }, [visible]);
 
   const openCreate = () => {
     setEditingSet(null);
@@ -243,7 +264,7 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
 
   const subtitle = loading
     ? 'Загружаем наборы…'
-    : `${totals.sets} ${plural(totals.sets, ['набор', 'набора', 'наборов'])} · ${totals.items} ${plural(totals.items, ['пункт', 'пункта', 'пунктов'])} · ${totals.variants} ${plural(totals.variants, ['вариант', 'варианта', 'вариантов'])} опроса`;
+    : `${totals.sets} ${plural(totals.sets, SETS)} · ${totals.items} ${plural(totals.items, ITEMS)} · ${totals.variants} ${plural(totals.variants, VARIANTS)} опроса`;
 
   return (
     <div style={{ padding: 24 }}>
@@ -303,24 +324,32 @@ export default function TDFManager({ onOpenEditor, onOpenVariants, onOpenFlashca
           onCta={() => { setQuery(''); setClassFilter('all'); }}
         />
       ) : (
-        <div className="ws-grid">
-          {visible.map(set => (
-            <SetTile
-              key={set.id}
-              set={set}
-              stats={tdfStats(itemsBySet[set.id] || [])}
-              variants={variantsBySet[set.id] || []}
-              canEdit={canEdit}
-              canDelete={canDelete}
-              onOpenEditor={onOpenEditor}
-              onOpenVariants={onOpenVariants}
-              onOpenFlashcards={onOpenFlashcards}
-              onEdit={openEdit}
-              onDuplicate={handleDuplicate}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
+        grouped.map(group => (
+          <div key={group.key}>
+            <div className="tdf-group">
+              {group.label}
+              <span className="tdf-group__count">{group.sets.length}</span>
+            </div>
+            <div className="tdf-list">
+              {group.sets.map(set => (
+                <SetRow
+                  key={set.id}
+                  set={set}
+                  stats={tdfStats(itemsBySet[set.id] || [])}
+                  variants={variantsBySet[set.id] || []}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  onOpenEditor={onOpenEditor}
+                  onOpenVariants={onOpenVariants}
+                  onOpenFlashcards={onOpenFlashcards}
+                  onEdit={openEdit}
+                  onDuplicate={handleDuplicate}
+                  onDelete={handleDelete}
+                />
+              ))}
+            </div>
+          </div>
+        ))
       )}
 
       <Modal

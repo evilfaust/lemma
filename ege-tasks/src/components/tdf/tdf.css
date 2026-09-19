@@ -12,24 +12,95 @@
 }
 .tdf-toolbar__spacer { flex: 1 1 auto; }
 
-/* ── Карточка набора ── */
-.tdf-tile__desc {
-  font-size: 12.5px;
+/* ── Список наборов и вариантов ────────────────────────────────────────────
+   Строки, а не плитки: названия наборов длинные («Устная часть экзамена
+   7 класса (летняя сессия)»), в узкой карточке сетки они обрезались
+   многоточием, а квадратный значок класса ломал «10 кл» на две строки. */
+
+.tdf-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 18px 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   color: var(--ink-3);
-  margin-top: 6px;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+}
+.tdf-group:first-child { margin-top: 0; }
+.tdf-group__count { color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+.tdf-list {
+  border: 1px solid var(--rule);
+  border-radius: 12px;
   overflow: hidden;
+  background: var(--bg-raised);
 }
 
+.tdf-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--rule-soft);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.tdf-item:last-child { border-bottom: none; }
+.tdf-item:hover { background: var(--bg-hover); }
+
+/* Класс — чип в одну строку: «10 кл» в квадрате 34×34 переносился пополам */
+.tdf-item__cls {
+  flex: 0 0 auto;
+  min-width: 46px;
+  text-align: center;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-violet);
+  background: var(--c-violet-soft);
+  white-space: nowrap;
+}
+.tdf-item__cls--empty { color: var(--ink-4); background: var(--bg-sunken); }
+
+.tdf-item__main { flex: 1 1 auto; min-width: 0; }
+.tdf-item__name {
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  line-height: 1.3;
+}
+.tdf-item__desc {
+  font-size: 12.5px;
+  color: var(--ink-4);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tdf-item__meta {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  margin-top: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 6px;
+}
+.tdf-item__meta b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tdf-item__sep { color: var(--ink-4); }
+
 /* Состав набора: чипы «Теор. 5 · Опр. 3» */
-.tdf-chips {
+.tdf-item__chips {
+  flex: 0 1 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 11px;
+  justify-content: flex-end;
+  max-width: 340px;
 }
 .tdf-chips__count {
   font-variant-numeric: tabular-nums;
@@ -37,32 +108,38 @@
   margin-left: 3px;
 }
 
-/* Строка «чего не хватает» — набор виден как готовый или недоделанный */
-.tdf-gaps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 9px;
-  font-size: 12px;
-  color: var(--c-amber);
-}
-.tdf-gaps--ok { color: var(--c-teal); }
-.tdf-gaps b { font-variant-numeric: tabular-nums; }
-
-/* Значок класса на карточке */
-.tdf-badge {
-  background: var(--c-violet-soft);
-  color: var(--c-violet);
-  font-variant-numeric: tabular-nums;
-}
-.tdf-badge--empty { background: var(--bg-sunken); color: var(--ink-4); }
-
-/* Кнопки в подвале карточки — не «съедаются» hover-прозрачностью действий */
-.tdf-tile__foot-actions {
+.tdf-item__actions {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
+}
+
+/* Статус готовности набора */
+.tdf-gaps { color: var(--c-amber); }
+.tdf-gaps--ok { color: var(--c-teal); }
+.tdf-gaps b { font-variant-numeric: tabular-nums; }
+
+/* Состав варианта раскрывается по клику — в строку он не поместится */
+.tdf-item__expand {
+  padding: 2px 16px 14px 78px;
+  border-bottom: 1px solid var(--rule-soft);
+  background: var(--bg-hover);
+}
+.tdf-item__expand ol {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  columns: 2;
+  column-gap: 24px;
+}
+.tdf-item__expand li { margin-bottom: 3px; break-inside: avoid; }
+
+@media (max-width: 1100px) {
+  .tdf-item { flex-wrap: wrap; }
+  .tdf-item__chips { max-width: none; justify-content: flex-start; order: 3; flex-basis: 100%; }
+  .tdf-item__actions { order: 4; }
 }
 
 /* ── Сводка раздела в шапке ── */
