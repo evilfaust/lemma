@@ -1,0 +1,215 @@
+/* Лист заданий «по графику»: карточка = номер + условие + чертёж + ответ.
+   Краска только чёрная (ч/б принтер), иерархия — кеглем и толщиной линеек:
+   0.5 мм (рамка листа не используется), 0.35 мм (линия для записи),
+   0.25 мм (разделители), 0.2 pt (волосяные). */
+
+.gsp-screen-root,
+.gsp-print-root {
+  --gsp-ink: #000;
+  --gsp-rule: 0.35mm;
+  --gsp-hair: 0.25mm;
+  color: var(--gsp-ink);
+  background: #fff;
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+}
+
+.gsp-print-root { display: none; }
+
+/* ─── Общая вёрстка (экран и печать) ──────────────────────────────────────── */
+.gsp-page {
+  box-sizing: border-box;
+  padding: 10mm 8mm 8mm;
+}
+
+.gsp-head { margin-bottom: 4mm; }
+.gsp-head-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6mm;
+  font-size: 10pt;
+  padding-bottom: 1.5mm;
+}
+.gsp-head-row--thin { border-top: var(--gsp-hair) solid var(--gsp-ink); padding-top: 1.5mm; }
+.gsp-variant { font-weight: 700; font-size: 11pt; }
+.gsp-field { white-space: nowrap; }
+.gsp-line {
+  display: inline-block;
+  border-bottom: var(--gsp-hair) solid var(--gsp-ink);
+  vertical-align: baseline;
+}
+.gsp-line--name { width: 70mm; }
+.gsp-line--short { width: 22mm; }
+
+.gsp-title { font-size: 12pt; font-weight: 700; margin-bottom: 2mm; }
+.gsp-instruction {
+  font-size: 10pt;
+  border: var(--gsp-hair) solid var(--gsp-ink);
+  padding: 1.5mm 2mm;
+  margin-bottom: 4mm;
+}
+
+.gsp-grid { display: grid; gap: 6mm 6mm; }
+.gsp-grid--1col { grid-template-columns: 1fr; }
+.gsp-grid--2col { grid-template-columns: 1fr 1fr; }
+
+.gsp-task {
+  break-inside: avoid;
+  page-break-inside: avoid;
+  display: flex;
+  flex-direction: column;
+  gap: 2mm;
+  min-width: 0;
+}
+.gsp-task-head { display: flex; gap: 2.5mm; align-items: flex-start; }
+.gsp-num {
+  flex: 0 0 auto;
+  width: 6.5mm;
+  height: 6.5mm;
+  border: var(--gsp-hair) solid var(--gsp-ink);
+  font-size: 10pt;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gsp-question {
+  font-size: 10pt;
+  line-height: calc(1.35 * var(--sheet-line-scale, 1));
+  min-width: 0;
+}
+.gsp-figure { text-align: center; }
+.gsp-figure svg { max-width: 100%; height: auto; }
+
+/* Штатная палитра чертежа — почти-чёрный #1f2937 и светло-серая клетка
+   #d6dae0. На ч/б принтере первое выцветает, второго нет вовсе, поэтому на
+   листе краска становится чистой чёрной, а клетка — волосяной (тоньше линии
+   графика, иначе сетка спорит с кривой). Приём и значения — как в печатной
+   теме теории «Лист»; сами модули чертежей не трогаем. */
+.gsp-figure svg [stroke="#1f2937"] { stroke: #000; }
+.gsp-figure svg [fill="#1f2937"],
+.gsp-figure svg [fill="#374151"] { fill: #000; }
+.gsp-figure svg line[stroke="#d6dae0"] { stroke: #000; stroke-width: 0.3; }
+
+.gsp-answer { font-size: 10pt; display: flex; align-items: baseline; gap: 2mm; }
+.gsp-answer-line { flex: 1 1 auto; border-bottom: var(--gsp-rule) solid var(--gsp-ink); height: 4mm; }
+
+.gsp-divider {
+  grid-column: 1 / -1;
+  border-top: var(--gsp-hair) dashed var(--gsp-ink);
+}
+
+/* ─── Лист учителя ────────────────────────────────────────────────────────── */
+.gsp-key-page { box-sizing: border-box; padding: 10mm 8mm; }
+.gsp-key-title { font-size: 12pt; font-weight: 700; margin-bottom: 4mm; }
+.gsp-key-variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(45mm, 1fr)); gap: 5mm; }
+.gsp-key-variant-title { font-size: 10pt; font-weight: 700; border-bottom: var(--gsp-hair) solid var(--gsp-ink); margin-bottom: 1.5mm; }
+.gsp-key-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1mm 3mm; }
+.gsp-key-row { display: flex; gap: 2mm; font-size: 10pt; align-items: baseline; }
+.gsp-key-num { min-width: 5mm; font-weight: 700; }
+.gsp-key-ans { font-weight: 700; min-width: 8mm; }
+/* Тип задания рядом с ответом: по одному числу не вспомнить, что спрашивали */
+.gsp-key-cat { font-size: 8pt; }
+.gsp-key-grid { grid-template-columns: 1fr; }
+
+/* ─── Экранный предпросмотр ───────────────────────────────────────────────── */
+.gsp-screen-root .gsp-page,
+.gsp-screen-root .gsp-key-page {
+  width: 210mm;
+  margin: 0 auto 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+/* ─── Печать ──────────────────────────────────────────────────────────────
+   Канон печатного стека проекта (см. print-sheet/printSheet.css): без этих
+   четырёх правил лист печатается неправильно, и виноват не сам лист.
+   1. Жёсткая ширина html/body — иначе элемент правее 210 мм включает
+      shrink-to-fit и лист печатается в ~60 %.
+   2. Порталы Ant живут в <body> вне листа и держат экранные координаты —
+      им display:none (visibility их в потоке оставляет).
+   3. Экранный предпросмотр печатать не надо вовсе: это второй такой же лист.
+   4. 🚨 Сброс position/overflow у ЛЮБОГО предка: печатный корень абсолютный
+      от начала печатной области, а лежит он внутри Content с overflow:hidden
+      — тот обрезал всё после первой страницы, и лист ответов не печатался. */
+@media print {
+  html:has(.gsp-print-root),
+  body:has(.gsp-print-root) {
+    width: 210mm !important;
+    min-width: 0 !important;
+    max-width: 210mm !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.gsp-print-root) .ant-tooltip,
+  body:has(.gsp-print-root) .ant-popover,
+  body:has(.gsp-print-root) .ant-dropdown,
+  body:has(.gsp-print-root) .ant-select-dropdown,
+  body:has(.gsp-print-root) .ant-picker-dropdown,
+  body:has(.gsp-print-root) .ant-modal-root,
+  body:has(.gsp-print-root) .ant-modal-wrap,
+  body:has(.gsp-print-root) .ant-modal-mask,
+  body:has(.gsp-print-root) .ant-drawer,
+  body:has(.gsp-print-root) .ant-message,
+  body:has(.gsp-print-root) .ant-notification {
+    display: none !important;
+  }
+
+  body:has(.gsp-print-root) {
+    visibility: hidden;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body:has(.gsp-print-root) .no-print,
+  body:has(.gsp-print-root) .gsp-screen-root { display: none !important; }
+
+  body:has(.gsp-print-root) .gsp-print-root,
+  body:has(.gsp-print-root) .gsp-print-root * { visibility: visible; }
+
+  body:has(.gsp-print-root) .gsp-print-root {
+    display: block !important;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+
+  body:has(.gsp-print-root) #root,
+  body:has(.gsp-print-root) .ant-app,
+  body:has(.gsp-print-root) .ant-layout,
+  body:has(.gsp-print-root) .ant-layout-content,
+  body:has(.gsp-print-root) .ant-layout-content > div {
+    position: static !important;
+    overflow: visible !important;
+  }
+
+  body:has(.gsp-print-root) *:has(.gsp-print-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  .gsp-page,
+  .gsp-key-page {
+    width: 100%;
+    /* 296mm, а не 297: доля миллиметра от округлений печати выдавливает
+       пустой лист после каждой страницы. */
+    min-height: 296mm;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  /* За последним листом разрыв не нужен — иначе пустая страница в конце. */
+  .gsp-print-root > *:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}

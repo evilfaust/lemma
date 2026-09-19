@@ -154,6 +154,69 @@ describe('формат «Импорта работы»', () => {
   });
 });
 
+describe('лист с графиками: условие словами + чертёж', () => {
+  const graph = {
+    generator: 'graph_derivative',
+    title: 'Производная по графику',
+    instruction: 'Рассмотрите рисунок и ответьте на вопрос:',
+    layout: [],
+    tasksData: [[
+      {
+        cat: 'f_max_count',
+        question: 'На рисунке изображён график функции $y = f(x)$. Найдите количество точек максимума.',
+        plot: 'x -5 5\ny -3 3\nspline f (-4 -2) (-1 2) (2 -1)',
+        resultLatex: '1',
+        answerValue: 1,
+      },
+      {
+        cat: 'f_tangent_slope',
+        question: 'Найдите значение производной в точке $x_0$.',
+        plot: 'x -4 4\ny -3 3\nspline f (-3 -2) (0 1) (3 2)\ntangent 0 f',
+        resultLatex: '0{,}5',
+        answerValue: 0.5,
+      },
+    ]],
+  };
+
+  it('читаемый лист: чертёж блоком ```plot внутри пункта списка', () => {
+    const md = buildSheetMarkdown(graph);
+    expect(md).toContain('1. На рисунке изображён график функции');
+    // продолжение пункта — с отступом, иначе чертёж вываливается из списка
+    expect(md).toContain('   ```plot');
+    expect(md).toContain('   spline f (-4 -2) (-1 2) (2 -1)');
+    // ответ — числом, а не формулой: его вписывают в бланк
+    expect(md).toContain('## Ответы');
+    expect(md).toMatch(/\n2\. 0,5/);
+    expect(md).not.toContain('0{,}5');
+  });
+
+  it('формат работы: условие с чертежом читается обратно парсером импорта', () => {
+    const md = buildSheetMarkdown(graph, { format: 'work' });
+    expect(md).toContain('контекст: ege_profile');
+    expect(md).toContain('ответ: 1');
+
+    const parsed = parseWorkMarkdown(md);
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.variants[0].tasks).toHaveLength(2);
+    const [first, second] = parsed.variants[0].tasks;
+    expect(first.statement_md).toContain('```plot');
+    expect(first.statement_md).toContain('spline f (-4 -2) (-1 2) (2 -1)');
+    expect(first.answer).toBe('1');
+    expect(second.statement_md).toContain('tangent 0 f');
+    expect(second.answer).toBe('0,5');
+  });
+
+  it('контекст выбирается по составу: только чтение графика — база', () => {
+    const base = {
+      ...graph,
+      tasksData: [[{ cat: 'b_value_at', question: 'Найдите $f(2)$.', plot: 'x -3 3\nspline f (-2 0) (2 3)', resultLatex: '3', answerValue: 3 }]],
+    };
+    expect(sheetExamType('graph_derivative', normalizeSheet(base))).toBe('ege_base');
+    expect(sheetExamType('graph_derivative', normalizeSheet(graph))).toBe('ege_profile');
+    expect(sheetPrompt('graph_derivative')).toBe('plain');
+  });
+});
+
 describe('мелочи', () => {
   it('считает варианты и задания', () => {
     const sheet = normalizeSheet(systems);

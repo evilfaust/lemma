@@ -25,6 +25,8 @@
 //   buildSpline(nodes)         → сплайн { ok, error, nodes, domain, f, df, d2f, integral }
 //   antiderivative(s, x0, y0)  → { fn, dfn } первообразная F: F(x0) = y0, F′ = f
 //   splineZeros(s)             → нули f с типом смены знака (для первообразной)
+//   splineSignIntervals(s)     → промежутки знакопостоянства f
+//   integersInIntervals(list)  → целые точки промежутков (концы не в счёт)
 //   splineAnalysis(s)          → экстремумы, промежутки монотонности, нули
 //
 // Узел: { x, y, flat?, slope? } — flat: f′ = 0 без смены знака (стационарная
@@ -368,6 +370,44 @@ export function splineZeros(spline) {
     }
   }
   return out;
+}
+
+/**
+ * Промежутки знакопостоянства f: [{ a, b, sign }]. Границы — нули со сменой
+ * знака; касание оси интервал не делит. Нужны, когда по точкам задана
+ * ПРОИЗВОДНАЯ: сама функция возрастает ровно там, где f′ > 0.
+ */
+export function splineSignIntervals(spline) {
+  if (!spline?.ok) return [];
+  const [x0, x1] = spline.domain;
+  const cuts = splineZeros(spline)
+    .filter((z) => z.type !== 'touch' && z.x > x0 + EPS && z.x < x1 - EPS)
+    .map((z) => z.x);
+  const bounds = [x0, ...cuts, x1];
+  const out = [];
+  for (let i = 0; i < bounds.length - 1; i += 1) {
+    const a = bounds[i];
+    const b = bounds[i + 1];
+    if (b - a < EPS) continue;
+    out.push({ a: round(a), b: round(b), sign: sgn(spline.f((a + b) / 2)) });
+  }
+  return out;
+}
+
+/**
+ * Целые точки промежутков: `[{a, b}]` → отсортированный список целых x.
+ * По умолчанию концы НЕ считаются (внутри промежутка знакопостоянства f′ ≠ 0,
+ * а на его границе f′ = 0 — в задачах «сколько целых точек, где f′ > 0»
+ * граница не годится).
+ */
+export function integersInIntervals(intervals, { closed = false } = {}) {
+  const out = new Set();
+  for (const { a, b } of intervals || []) {
+    const lo = Math.ceil(closed ? a - EPS : a + EPS);
+    const hi = Math.floor(closed ? b + EPS : b - EPS);
+    for (let k = lo; k <= hi; k += 1) out.add(k);
+  }
+  return [...out].sort((u, v) => u - v);
 }
 
 /**

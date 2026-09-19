@@ -58,9 +58,14 @@
 //                          касательной); «(-3; 2)» тоже годится. Без скобок —
 //                          пары чисел подряд. Модификаторы: color, dash, bold,
 //                          hide (задать, но не рисовать), from A to B
-//   deriv f              — график производной f′ (color/dash/bold/from…to)
+//   deriv f              — график производной f′ (color/dash/bold/from…to);
+//                          `deriv f'` — вторая производная f″
 //   prim F f 0 1         — первообразная F кривой f, F(0) = 1 (без точки —
 //                          F(левый край) = 0); hide — не рисовать
+//   spline f' (…)        — точки задают ПРОИЗВОДНУЮ: нарисована f′, а сама
+//                          функция берётся первообразной, `prim f f' 0 1 hide`.
+//                          Так собираются задачи «на рисунке график f′(x)»:
+//                          точки максимума f — нули f′ со сменой + на −.
 //   drop -3 f            — пунктир от оси x до графика (f, f′ или F); solid
 //   mark -3 f' open      — точка на графике в x = −3
 //   tangent 1 f          — касательная к графику в точке x = 1 (from…to)
@@ -378,9 +383,15 @@ export function splitPlotCommands(spec) {
   return out;
 }
 
-const REF_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+// Имя кривой: f, g, F… и со штрихом — `spline f' (…)` значит «точки задают
+// ПРОИЗВОДНУЮ»: сама функция получается первообразной (`prim f f'`), а её
+// экстремумы читаются по нулям нарисованной кривой. Так собраны задачи ЕГЭ
+// «на рисунке изображён график производной».
+const REF_NAME_RE = /^[A-Za-z][A-Za-z0-9_]*'{0,2}$/;
 // Штрих производной пишут чем угодно: f', f′, f’.
 const normRef = (tok) => String(tok || '').replace(/[′’‘`´]/g, "'");
+/** Имя без штрихов: f' → f. */
+export const baseCurveName = (name) => normRef(name).replace(/'+$/, '');
 
 /**
  * Опорные точки кривой: «(x y [flat] [slope K])…» или пары чисел подряд.
@@ -450,20 +461,22 @@ export function parseCurveCommand(line) {
     const st = style();
     const hide = flag('hide');
     const first = rest.split(/\s+/)[0] || '';
-    const named = REF_NAME_RE.test(first);
+    const named = REF_NAME_RE.test(normRef(first));
     const { nodes, error } = parseSplineNodes(named ? rest.slice(first.length) : rest);
-    return { cmd: 'spline', name: named ? first : 'f', nodes, error, hide, ...st };
+    return { cmd: 'spline', name: named ? normRef(first) : 'f', nodes, error, hide, ...st };
   }
   if (cmd === 'deriv') {
     const st = style();
-    const name = normRef(rest.split(/\s+/)[0]).replace(/'+$/, '');
+    // Штрих в имени значим: `deriv f` → f′, `deriv f'` → f″.
+    const name = normRef(rest.split(/\s+/)[0]);
     return REF_NAME_RE.test(name) ? { cmd, name, ...st } : null;
   }
   if (cmd === 'prim') {
     const st = style();
     const hide = flag('hide');
     const parts = rest.split(/\s+/).filter(Boolean);
-    const [name, src] = parts;
+    const name = normRef(parts[0]);
+    const src = normRef(parts[1]);
     if (!REF_NAME_RE.test(name || '') || !REF_NAME_RE.test(src || '')) {
       return { cmd, error: 'prim: нужно «prim F f» — имя первообразной и имя кривой' };
     }

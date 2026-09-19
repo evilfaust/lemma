@@ -4,12 +4,21 @@ import {
 } from 'antd';
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { cleanCurveNodes, newCurveState, PLOT_COLORS } from '../../utils/coordPlot';
-import { buildSpline, splineAnalysis, splineZeros } from '../../utils/splineCurve';
+import {
+  buildSpline, splineAnalysis, splineZeros, splineSignIntervals, integersInIntervals,
+} from '../../utils/splineCurve';
 
 // Панель конструктора «Кривая по точкам»: список кривых, что рисовать (кривую,
 // её производную, первообразную), таблица опорных точек, разметка (касательная,
 // точки на графике, пунктиры к оси, отрезок оси) и разбор графика — экстремумы
 // и промежутки монотонности, посчитанные по той же модели, что рисует картинку.
+//
+// У кривой две РОЛИ. Обычно точки задают саму функцию f. Но в задачах ЕГЭ чаще
+// рисуют производную («на рисунке изображён график f′(x)»), и тогда те же точки
+// задают f′, а сама функция получается первообразной. В DSL роль видна по
+// штриху в имени (`spline f'` + `prim f f'`), поэтому отдельного поля состояния
+// нет — роль читается из имени, а разбор графика переключается вместе с ней:
+// точки максимума f — это нули f′ со сменой + на −.
 // Холст с перетаскиванием точек живёт отдельно (CurveCanvas) и делит с панелью
 // выбранную точку.
 
@@ -48,13 +57,20 @@ const ANNOTATION_TYPES = [
 ];
 // В строке разметки тип — короткой подписью: строка и так плотная.
 const ANNOTATION_SELECT = ANNOTATION_TYPES.map((t) => ({ value: t.value, label: t.short }));
-const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
+const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*'{0,2}$/;
 const CURVE_NAMES = ['f', 'g', 'h', 'p', 'q', 'u', 'v', 'w'];
 
 const fmt = (v) => String(Math.round(v * 1e4) / 1e4).replace('.', ',').replace(/^-/, '−');
 const styleOf = (o) => (o.dash ? 'dash' : o.bold ? 'bold' : 'normal');
 const styleDelta = (v) => ({ bold: v === 'bold', dash: v === 'dash' });
-const prime = (name) => `${name}′`;
+// Штрих в имени хранится прямым апострофом (так его пишут в DSL), а показываем
+// типографский: f' → f′, f'' → f″.
+const showName = (name) => String(name || '').replace(/''/g, '″').replace(/'/g, '′');
+const prime = (name) => showName(`${name}'`);
+const isDerivName = (name) => /'$/.test(String(name || ''));
+const baseName = (name) => String(name || '').replace(/'+$/, '');
+// Имя первообразной по умолчанию: f → F, F → F1.
+const primNameFor = (base) => (base.toUpperCase() !== base ? base.toUpperCase() : `${base}1`);
 const rowStyle = { borderBottom: '1px dashed #eee', padding: '6px 0' };
 // Поля чисел: без хвостовых нулей («2», а не «2.0» — InputNumber добивает до
 // точности шага) и с десятичной запятой. Пока учитель печатает, текст не трогаем.
@@ -72,20 +88,54 @@ const muted = { color: '#888' };
 // Кривая, её f′ и F как варианты ссылки для разметки.
 function refOptions(splines) {
   return splines.flatMap((c) => [
-    { value: c.name, label: c.name },
+    { value: c.name, label: showName(c.name) },
     { value: `${c.name}'`, label: prime(c.name) },
-    ...(c.prim && c.prim.on ? [{ value: c.prim.name, label: c.prim.name }] : []),
+    ...(c.prim && c.prim.on ? [{ value: c.prim.name, label: showName(c.prim.name) }] : []),
   ]);
 }
 
-/** Что читается по графику: экстремумы, монотонность, экстремумы первообразной. */
+/**
+ * Что читается по графику. Роль кривой решает, о какой функции идёт речь:
+ * обычная кривая описывается сама (экстремумы, монотонность, первообразная),
+ * кривая-производная (имя со штрихом) — описывает СВОЮ функцию: её экстремумы
+ * стоят в нулях нарисованной кривой, а возрастает она там, где кривая выше оси.
+ */
 export function describeCurve(curve) {
   const spline = buildSpline(cleanCurveNodes(curve.nodes));
   if (!spline.ok) return { error: spline.error, lines: [], kinds: [] };
   const an = splineAnalysis(spline);
   const xs = (arr) => (arr.length ? arr.map((p) => fmt(p.x)).join('; ') : 'нет');
   const iv = (arr) => (arr.length ? arr.map(([a, b]) => `[${fmt(a)}; ${fmt(b)}]`).join(', ') : 'нет');
-  const n = curve.name;
+  const n = showName(curve.name);
+  const done = (lines) => ({
+    error: null, warning: spline.warning, lines, kinds: spline.nodes.map((p) => p.kind),
+  });
+
+  if (isDerivName(curve.name)) {
+    const fname = showName(
+      curve.prim && curve.prim.on && curve.prim.name ? curve.prim.name : baseName(curve.name),
+    );
+    const zeros = splineZeros(spline).filter((z) => !z.atEdge);
+    const at = (type) => {
+      const list = zeros.filter((z) => z.type === type).map((z) => fmt(z.x));
+      return list.length ? list.join('; ') : 'нет';
+    };
+    const sign = splineSignIntervals(spline);
+    const part = (s) => {
+      const list = sign.filter((i) => i.sign === s).map((i) => `[${fmt(i.a)}; ${fmt(i.b)}]`);
+      return list.length ? list.join(', ') : 'нет';
+    };
+    const ints = integersInIntervals(sign.filter((i) => i.sign > 0));
+    const extrema = [...an.maxima, ...an.minima].sort((a, b) => a.x - b.x);
+    const lines = [
+      `Точки максимума ${fname}: ${at('down')} · минимума: ${at('up')} (нули ${n} со сменой знака)`,
+      `${fname} возрастает на ${part(1)} · убывает на ${part(-1)}`,
+      `Целых точек, где ${n} > 0: ${ints.length}${ints.length ? ` (${ints.map(fmt).join('; ')})` : ''}`,
+    ];
+    if (extrema.length) lines.push(`Экстремумы самой ${n} (перегибы ${fname}): ${xs(extrema)}`);
+    return done(lines);
+  }
+
   const lines = [
     `Точки максимума ${n}: ${xs(an.maxima)} · минимума: ${xs(an.minima)}`,
     `${n} возрастает на ${iv(an.increasing)} · убывает на ${iv(an.decreasing)}`,
@@ -97,9 +147,9 @@ export function describeCurve(curve) {
       const list = zs.filter((z) => z.type === type).map((z) => fmt(z.x));
       return list.length ? list.join('; ') : 'нет';
     };
-    lines.push(`Точки максимума ${curve.prim.name}: ${at('down')} · минимума: ${at('up')} (нули ${n})`);
+    lines.push(`Точки максимума ${showName(curve.prim.name)}: ${at('down')} · минимума: ${at('up')} (нули ${n})`);
   }
-  return { error: null, warning: spline.warning, lines, kinds: spline.nodes.map((p) => p.kind) };
+  return done(lines);
 }
 
 function LineStyle({ value, onChange }) {
@@ -247,16 +297,41 @@ export default function CurvePanel({
 
   // Пока имя стёрто или набрано наполовину, помним последнее годное (prevName)
   // — иначе разметка, ссылавшаяся на «f», осиротеет после «f → (пусто) → g».
+  // Переименование кривых в разметке: пара «было → стало» тянет за собой и
+  // ссылку на производную (f → f′). Замена идёт одним проходом по старым
+  // ссылкам, поэтому переименования не накладываются друг на друга.
+  const remapRefs = (pairs) => {
+    const map = new Map();
+    for (const [from, to] of pairs) {
+      if (!from || !to || from === to) continue;
+      map.set(from, to);
+      map.set(`${from}'`, `${to}'`);
+    }
+    if (!map.size) return;
+    onAnnotationsChange(annotations.map((a) => (map.has(a.ref) ? { ...a, ref: map.get(a.ref) } : a)));
+  };
+
   const rename = (name) => {
     const old = NAME_RE.test(curve.name || '') ? curve.name : curve.prevName;
     if (!NAME_RE.test(name)) { patchCurve({ name, prevName: old }); return; }
     patchCurve({ name, prevName: undefined });
-    if (!old || name === old) return;
-    onAnnotationsChange(annotations.map((a) => {
-      if (a.ref === old) return { ...a, ref: name };
-      if (a.ref === `${old}'`) return { ...a, ref: `${name}'` };
-      return a;
-    }));
+    remapRefs([[old, name]]);
+  };
+
+  // Роль кривой: точки задают саму функцию или её производную. Отдельного поля
+  // в состоянии нет — роль это штрих в имени. В режиме f′ нарисованная кривая
+  // зовётся f′, а первообразная и есть искомая f (по умолчанию не рисуется:
+  // ученик должен прочитать её по графику производной, а не увидеть готовой).
+  const role = isDerivName(curve.name) ? 'deriv' : 'f';
+  const setRole = (next) => {
+    if (next === role) return;
+    const base = baseName(curve.name) || 'f';
+    const name = next === 'deriv' ? `${base}'` : base;
+    const prim = next === 'deriv'
+      ? { ...curve.prim, on: true, show: curve.prim.on ? curve.prim.show !== false : false, name: base }
+      : { ...curve.prim, on: false, name: primNameFor(base) };
+    patchCurve({ name, prevName: undefined, prim });
+    remapRefs([[curve.name, name], [curve.prim.name, prim.name]]);
   };
 
   const setNodes = (nodes) => patchCurve({ nodes });
@@ -333,6 +408,20 @@ export default function CurvePanel({
       {/* Что рисовать */}
       <div style={{ background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 6, padding: '8px 10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '3px 0' }}>
+          <Tooltip title="«производную f′» — это задачи ЕГЭ «на рисунке изображён график производной»: точки ставятся на графике f′, а сама f читается по нему (первообразная)">
+            <span style={muted}>Точки задают</span>
+          </Tooltip>
+          <Segmented
+            size="small"
+            value={role}
+            onChange={setRole}
+            options={[
+              { value: 'f', label: `функцию ${showName(baseName(curve.name) || 'f')}` },
+              { value: 'deriv', label: `производную ${prime(baseName(curve.name) || 'f')}` },
+            ]}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '3px 0' }}>
           <Checkbox checked={curve.show !== false} onChange={(e) => patchCurve({ show: e.target.checked })}>Кривая</Checkbox>
           <Tooltip title="Имя кривой: по нему к ней обращаются производная, разметка и подписи">
             <Input
@@ -354,12 +443,17 @@ export default function CurvePanel({
           {curve.deriv.on && <LineStyle value={curve.deriv} onChange={patchDeriv} />}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '3px 0' }}>
-          <Tooltip title="Кривая по точкам — это производная, а рисуем функцию: график первообразной F, у которой F′ = f">
+          <Tooltip title={role === 'deriv'
+            ? 'Сама функция: её график — первообразная нарисованной кривой. Обычно её не рисуют — ученик читает f по графику f′'
+            : 'Кривая по точкам — это производная, а рисуем функцию: график первообразной F, у которой F′ = f'}
+          >
             <Checkbox
-              checked={!!curve.prim.on}
-              onChange={(e) => patchPrim({ on: e.target.checked, show: true })}
+              checked={role === 'deriv' ? curve.prim.show !== false : !!curve.prim.on}
+              onChange={(e) => (role === 'deriv'
+                ? patchPrim({ on: true, show: e.target.checked })
+                : patchPrim({ on: e.target.checked, show: true }))}
             >
-              Первообразная
+              {role === 'deriv' ? `Функция ${showName(curve.prim.name)}` : 'Первообразная'}
             </Checkbox>
           </Tooltip>
           {curve.prim.on && (

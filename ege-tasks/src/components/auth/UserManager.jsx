@@ -44,6 +44,7 @@ const SECTION_LABELS = {
   trig:         'Тригонометрия',
   arith:        'Устный счёт',
   equations:    'Уравнения',
+  functions:    'Функции',
   theory:       'Теория',
   listki:       'Листки',
   lab:          'Лаборатория',

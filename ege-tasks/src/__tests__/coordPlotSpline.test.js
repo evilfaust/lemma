@@ -42,6 +42,42 @@ describe('splitPlotCommands', () => {
   });
 });
 
+describe('DSL: кривая-производная (имя со штрихом)', () => {
+  const SPEC = "x -5 5\ny -3 3\nspline f' (-4 2) (-2 0) (0 -2) (2 0) (4 2)\nprim f f' -4 1 hide";
+
+  it("spline f' рисуется сам, а f берётся первообразной", () => {
+    const m = parseCoordPlot(SPEC);
+    expect(m.errors).toEqual([]);
+    expect(m.splines["f'"].ok).toBe(true);
+    // нарисована одна кривая — сама производная (f спрятана `hide`)
+    expect(m.curves.map((c) => c.ref)).toEqual(["f'"]);
+    expect(m.curves[0].fn(-2)).toBeCloseTo(0, 9);
+  });
+
+  it('разметка ссылается и на f, и на f′, и на f″', () => {
+    const m = parseCoordPlot(`${SPEC}\nmark -4 f\nmark 0 f'\nderiv f'`);
+    expect(m.errors).toEqual([]);
+    expect(m.points.find((p) => p.ref === 'f').y).toBeCloseTo(1, 6); // f(-4) = 1 задано в prim
+    expect(m.points.find((p) => p.ref === "f'").y).toBeCloseTo(-2, 9);
+    expect(m.curves.some((c) => c.ref === "f''")).toBe(true); // deriv f' = f″
+  });
+
+  it("типографский штрих в имени нормализуется: spline f′ = spline f'", () => {
+    const m = parseCoordPlot('spline f′ (-1 0) (0 1) (1 0)\nprim f f′');
+    expect(m.errors).toEqual([]);
+    expect(Object.keys(m.splines)).toEqual(["f'"]);
+  });
+
+  it('правка поднимает роль обратно: кривая f′ + первообразная f', () => {
+    const st = specToPlotState(SPEC);
+    expect(st.splines).toHaveLength(1);
+    expect(st.splines[0].name).toBe("f'");
+    expect(st.splines[0].prim).toMatchObject({ on: true, show: false, name: 'f', x0: '-4', y0: '1' });
+    expect(plotToSpec(st)).toContain("prim f f' -4 1");
+    expect(st.raw).toEqual([]);
+  });
+});
+
 describe('DSL: spline / deriv / prim', () => {
   it('spline рисует кривую по области точек', () => {
     const m = parseCoordPlot(`x -6 6\ny -4 4\nspline f ${WAVE} color blue bold`);

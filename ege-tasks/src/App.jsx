@@ -107,6 +107,7 @@ const LinearSystemsGenerator = lazy(() => import('./components/LinearSystemsGene
 const QuadraticSystemsGenerator = lazy(() => import('./components/QuadraticSystemsGenerator'));
 const DoubleInequalitiesGenerator = lazy(() => import('./components/DoubleInequalitiesGenerator'));
 const IntervalMethodGenerator = lazy(() => import('./components/IntervalMethodGenerator'));
+const GraphTasksGenerator = lazy(() => import('./components/functions/GraphTasksGenerator'));
 const MarathonGenerator = lazy(() => import('./components/MarathonGenerator'));
 const ClassifySheetGenerator = lazy(() => import('./components/classify/ClassifySheetGenerator'));
 const CrosswordGenerator = lazy(() => import('./components/CrosswordGenerator'));
@@ -220,6 +221,8 @@ export const R = {
   INTERVAL_METHOD:     '/app/equations/interval-method',
   LINEAR_SYSTEMS:      '/app/equations/linear-systems',
   QUADRATIC_SYSTEMS:   '/app/equations/quadratic-systems',
+  // Функции
+  GRAPH_DERIVATIVE:    '/app/functions/graph-derivative',
   // Теория
   THEORY:              '/app/theory',
   THEORY_NEW:          '/app/theory/articles/new',
@@ -338,6 +341,7 @@ const ROUTE_META = [
   { re: /^\/app\/equations\/double-inequalities/, menuKey: 'double-inequalities', menuGroup: 'equations', title: 'Уравнения — Двойные неравенства' },
   { re: /^\/app\/equations\/inequalities/, menuKey: 'linear-inequalities', menuGroup: 'equations', title: 'Уравнения — Линейные неравенства' },
   { re: /^\/app\/equations\/interval-method/, menuKey: 'interval-method', menuGroup: 'equations', title: 'Уравнения — Метод интервалов' },
+  { re: /^\/app\/functions\/graph-derivative/, menuKey: 'graph-derivative', menuGroup: 'functions', title: 'Функции — Производная и график' },
   { re: /^\/app\/theory\/print/,           menuKey: 'theory-print',     menuGroup: 'theory', title: 'Теория — Конспекты', noMargin: true },
   { re: /^\/app\/theory\/categories/,      menuKey: 'theory-categories', menuGroup: 'theory', title: 'Теория — Категории' },
   { re: /^\/app\/theory$/,                 menuKey: 'theory-browser',   menuGroup: 'theory', title: 'Теория — Библиотека' },
@@ -420,6 +424,7 @@ const MENU_KEY_PATH = {
   'linear-inequalities':    R.LINEAR_INEQUALITIES,
   'double-inequalities':    R.DOUBLE_INEQUALITIES,
   'interval-method':        R.INTERVAL_METHOD,
+  'graph-derivative':       R.GRAPH_DERIVATIVE,
   'linear-systems':         R.LINEAR_SYSTEMS,
   'quadratic-systems':      R.QUADRATIC_SYSTEMS,
   'theory-browser':         R.THEORY,
@@ -444,6 +449,8 @@ const GROUP_META = {
   'tdf-group':          { label: 'ТДФ',          path: R.TDF },
   trig:                 { label: 'Тригонометрия' },
   arith:                { label: 'Устный счёт' },
+  equations:            { label: 'Уравнения' },
+  functions:            { label: 'Функции' },
   theory:               { label: 'Теория',        path: R.THEORY },
   listki:               { label: 'Листки',        path: R.LISTKI },
   lab:                  { label: 'Лаборатория' },
@@ -806,6 +813,12 @@ function AppLayout() {
       ],
     },
     {
+      key: 'functions', icon: <LineChartOutlined />, label: 'Функции', section: 'functions',
+      children: [
+        { key: 'graph-derivative', icon: <LineChartOutlined />, label: 'Производная и график' },
+      ],
+    },
+    {
       key: 'theory', icon: <BookOutlined />, label: 'Теория', section: 'theory',
       children: [
         { key: 'theory-browser',    icon: <ReadOutlined />,    label: 'Библиотека' },
@@ -1109,6 +1122,9 @@ function App() {
               <Route path={R.INTERVAL_METHOD} element={<IntervalMethodGenerator />} />
               <Route path={R.LINEAR_SYSTEMS} element={<LinearSystemsGenerator />} />
               <Route path={R.QUADRATIC_SYSTEMS} element={<QuadraticSystemsGenerator />} />
+
+              {/* Функции */}
+              <Route path={R.GRAPH_DERIVATIVE} element={<GraphTasksGenerator />} />
 
               {/* Теория — просмотр (viewer тоже) */}
               <Route path={R.THEORY}            element={<TheoryPage />} />

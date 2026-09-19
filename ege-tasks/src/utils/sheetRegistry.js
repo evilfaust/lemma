@@ -64,6 +64,10 @@ import {
   generateIntervalMethodVariants,
   CATEGORY_LABELS_INTERVAL,
 } from '../hooks/useIntervalMethod';
+import {
+  generateGraphVariants,
+  CATEGORY_LABELS_GRAPH,
+} from './derivativeGraphTasks';
 import { generateTrigExpressionsVariants }      from '../hooks/useTrigExpressions';
 import { generateInverseTrigVariants }          from '../hooks/useInverseTrig';
 import { generateReductionFormulasVariants }    from '../hooks/useReductionFormulas';
@@ -176,6 +180,17 @@ export const SHEET_GENERATORS = {
     instruction: 'Решите неравенство методом интервалов:',
     categoryLabels: CATEGORY_LABELS_INTERVAL,
     generate: generateIntervalMethodVariants,
+  },
+
+  // ── Функции (графики) ──
+  // Задание — чертёж: правка «по месту» и экспорт .md этому листу не подходят
+  // (общая модалка умеет только формулу), зато перегенерация даёт новый график.
+  graph_derivative: {
+    label: 'Производная и график',
+    route: '/app/functions/graph-derivative',
+    instruction: 'Рассмотрите рисунок и ответьте на вопрос:',
+    categoryLabels: CATEGORY_LABELS_GRAPH,
+    generate: generateGraphVariants,
   },
 
   // ── Тригонометрия ──

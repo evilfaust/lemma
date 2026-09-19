@@ -2,8 +2,9 @@
  * Экспорт листа генератора в Markdown с формулами LaTeX.
  *
  * Лист живёт снимком (тот же, что уходит в `generator_sheets`): варианты ×
- * задания вида `{ exprLatex, resultLatex, varLatex }` плюс план листа `layout`
- * (порядок заданий и черты). Отсюда собираются два текста:
+ * задания вида `{ exprLatex, resultLatex, varLatex }` — либо задания-чертежи
+ * `{ question, plot, resultLatex }` (лист «Производная и график»), — плюс план
+ * листа `layout` (порядок заданий и черты). Отсюда собираются два текста:
  *
  *  • `compact` — читаемый лист: «## Вариант N», нумерованный список заданий,
  *    в конце «## Ответы». Для заметок, HedgeDoc, письма коллеге, промпта ИИ.
@@ -49,6 +50,7 @@ const EXAM_TYPE_BY_GENERATOR = {
 //   'eq'     — «=» (вычислите): ответ пишется как есть
 //   'var'    — «x =» (решите уравнение): к ответу добавляется переменная
 //   'answer' — «Ответ:» (неравенства и системы): ответ уже полный («x ∈ …»)
+//   'plain'  — ответ числом, без «$…$» (задания по графику)
 const PROMPT_BY_GENERATOR = {
   linear_equations:   'var',
   log_exp_equations:  'var',
@@ -61,9 +63,25 @@ const PROMPT_BY_GENERATOR = {
   interval_method:         'answer',
   linear_systems:          'answer',
   quadratic_systems:       'answer',
+  // 'plain' — ответ числом, без формулы: его вписывают в бланк, и по нему же
+  // проверяется ученик, если задание уедет в работу.
+  graph_derivative:        'plain',
 };
 
-export function sheetExamType(generator) {
+/**
+ * Контекст тем при импорте обратно (`topics.exam_type`).
+ *
+ * Листу с графиками контекст выбирается по составу: блок «чтение графика» —
+ * это база №3/№7, всё остальное (графики f, f′ и первообразной) — профиль №9.
+ * Смешали — берём профиль: там же лежит и большинство заданий такого листа.
+ */
+export function sheetExamType(generator, sheet = null) {
+  if (generator === 'graph_derivative') {
+    const cats = (sheet?.variants || []).flatMap(
+      (v) => v.blocks.flatMap((b) => b.items.filter((i) => i.kind === 'task').map((i) => i.task?.cat)),
+    ).filter(Boolean);
+    return cats.length && cats.every((c) => String(c).startsWith('b_')) ? 'ege_base' : 'ege_profile';
+  }
   return EXAM_TYPE_BY_GENERATOR[generator] || 'other';
 }
 
@@ -77,10 +95,23 @@ export function texInline(latex) {
   return body ? `$${body}$` : '—';
 }
 
-/** Условие задания. Задания-чертежи (единичная окружность) в текст не переносятся */
+/**
+ * Условие задания.
+ *
+ * Обычное задание — формула в `$…$`. Задание по графику несёт условие словами
+ * (`question`) и чертёж в нашем DSL (`plot`) — он выгружается блоком ```plot,
+ * поэтому после импорта обратно в Lemma график рисуется сам, а не теряется
+ * картинкой. Задания, у которых нет ни того ни другого (единичная окружность),
+ * в текст по-прежнему не переносятся.
+ */
 export function taskStatement(task) {
   const expr = String(task?.exprLatex ?? '').trim();
-  return expr ? texInline(expr) : '_задание с чертежом — печатается рисунком_';
+  if (expr) return texInline(expr);
+  const question = String(task?.question ?? '').trim();
+  const plot = String(task?.plot ?? '').trim();
+  if (plot) return [question, '```plot', plot, '```'].filter(Boolean).join('\n');
+  if (question) return question;
+  return '_задание с чертежом — печатается рисунком_';
 }
 
 /**
@@ -91,6 +122,13 @@ export function taskStatement(task) {
 export function taskAnswer(task, prompt) {
   const ans = String(task?.resultLatex ?? '').trim();
   if (!ans) return '—';
+  if (prompt === 'plain') {
+    // Ответ по графику — число: «0,5», а не «$0{,}5$» (в KaTeX запятая берётся
+    // в скобки, и в текстовом файле это выглядело бы мусором).
+    return Number.isFinite(task?.answerValue)
+      ? String(task.answerValue).replace('.', ',')
+      : ans.replace(/\{,\}/g, ',');
+  }
   return prompt === 'var' && !task?.hideKeyPrompt
     ? texInline(`${task.varLatex || 'x'} = ${ans}`)
     : texInline(ans);
@@ -166,6 +204,16 @@ export function countTasks(variant) {
 
 // ── Читаемый лист ────────────────────────────────────────────────────────────
 
+/**
+ * Пункт нумерованного списка. У задания по графику условие многострочное
+ * (текст + блок ```plot), и продолжение пишется с отступом в три пробела —
+ * иначе чертёж вывалится из пункта и разорвёт нумерацию.
+ */
+function listItem(n, text) {
+  const [first, ...rest] = String(text).split('\n');
+  return [`${n}. ${first}`, ...rest.map((l) => (l ? `   ${l}` : ''))].join('\n');
+}
+
 function compactVariant(variant, { withSectionHeads, showInstruction }) {
   const out = [];
   let n = 0;
@@ -175,7 +223,7 @@ function compactVariant(variant, { withSectionHeads, showInstruction }) {
     out.push('');
     block.items.forEach((item) => {
       if (item.kind === 'divider') { out.push('', '---', ''); return; }
-      out.push(`${++n}. ${taskStatement(item.task)}`);
+      out.push(listItem(++n, taskStatement(item.task)));
     });
   });
   return out;
@@ -231,7 +279,7 @@ const yamlValue = (s) => {
 
 function buildWork(sheet, { withAnswers, topic }) {
   const out = ['---', `работа: ${yamlValue(sheet.title)}`];
-  out.push(`контекст: ${sheetExamType(sheet.generator)}`);
+  out.push(`контекст: ${sheetExamType(sheet.generator, sheet)}`);
   if (topic) out.push(`тема: ${yamlValue(topic)}`);
   out.push(`источник: ${yamlValue(`Lemma, ${sheet.label}`)}`);
   out.push('---');

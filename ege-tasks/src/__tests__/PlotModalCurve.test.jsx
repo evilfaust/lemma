@@ -161,6 +161,25 @@ describe('PlotModal — кривая по точкам', () => {
     expect(out).toContain('drop -3 g');
   });
 
+  it('роль «производная»: кривая зовётся f′, сама f — первообразная', () => {
+    const onInsert = open({ initialSpec: 'spline f (-2 -1) (0 1) (2 -1)\nmark 0 f' });
+    fireEvent.click(screen.getByText('производную f′'));
+    const out = insert(onInsert, 'Сохранить');
+    expect(out).toContain("spline f' (-2 -1) (0 1) (2 -1)");
+    expect(out).toContain("prim f f'");
+    expect(out).toContain('hide'); // сама функция по умолчанию не рисуется
+    expect(out).toContain("mark 0 f'"); // разметка переехала к производной
+  });
+
+  it('разбор графика в роли производной описывает саму функцию', () => {
+    open({ initialSpec: "x -5 5\ny -3 3\nspline f' (-4 -2) (-2 0) (0 2) (2 0) (4 -2)\nprim f f' hide" });
+    const box = screen.getByTestId('curve-analysis').textContent;
+    expect(box).toContain('Точки максимума f: 2');
+    expect(box).toContain('минимума: −2');
+    expect(box).toContain('f возрастает на [−2; 2]');
+    expect(box).toContain('Целых точек, где f′ > 0: 3');
+  });
+
   it('переименование кривой переносит ссылки разметки', () => {
     const onInsert = open({ initialSpec: 'spline f (-2 0) (0 2) (2 0)\nmark 0 f\ndrop 1 f\'' });
     const name = screen.getByLabelText('имя кривой');
