@@ -70,6 +70,22 @@ export function slotRangeFromCode(code) {
   return p ? p.full : null;
 }
 
+// Индексы пар [первая, последняя], которые занимает урок по коду time_slot.
+// Интенсив "1-4" занимает четыре строки расписания, полупара — одну.
+export function slotPairIndexes(code) {
+  if (!code) return null;
+  const inten = /^(\d)-(\d)$/.exec(code);
+  if (inten) {
+    const a = PAIRS.findIndex((p) => p.key === inten[1]);
+    const b = PAIRS.findIndex((p) => p.key === inten[2]);
+    return a >= 0 && b >= a ? [a, b] : null;
+  }
+  const half = /^(\d)([ab])$/.exec(code);
+  const key = half ? half[1] : code;
+  const i = PAIRS.findIndex((p) => p.key === key);
+  return i >= 0 ? [i, i] : null;
+}
+
 // Конец события: приоритет у сохранённого time_slot (интенсивы/полупары), иначе по
 // времени старта (обратная совместимость со старыми уроками), иначе 45 мин.
 export function endForLesson(l, start) {

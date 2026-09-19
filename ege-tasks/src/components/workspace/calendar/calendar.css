@@ -231,7 +231,7 @@
 .cw-ad--todo { background: #fff; border: 1px solid #E8EAEE; color: var(--cal-ink-2); }
 .cw-ad--todo.is-done .cal-chip-text { text-decoration: line-through; color: #B5BAC4; }
 
-.cw-pairrow { min-height: 74px; }
+.cw-grid { display: grid; grid-auto-rows: minmax(74px, auto); }
 .cw-time { font-size: 13px; font-weight: 600; color: var(--cal-ink-2); }
 .cw-pairlabel { font-size: 10.5px; color: var(--cal-ink-4); }
 .cw-cell {
@@ -243,13 +243,40 @@
 .cw-cell.is-weekend { background: #FCFCFD; }
 .cw-cell.is-empty { cursor: pointer; }
 .cw-cell.is-empty:hover { background: #F7F9FF; }
+/* Ячейка под многопарным блоком: его фон перекрывает линию не по всей ширине,
+   поэтому внутреннюю границу гасим. */
+.cw-cell.is-spanned { border-bottom-color: transparent; }
 
 .cw-lesson {
   border: 1px solid;
   border-radius: 7px;
   padding: 5px 7px;
+  margin: 4px;
+  overflow: hidden;
+  align-self: start;
   cursor: pointer;
 }
+/* Интенсив — блок на несколько пар: тянется на всю высоту своих строк. */
+.cw-lesson.is-tall { align-self: stretch; }
+/* Кнопка «провёл» на блоке урока: проявляется по наведению, у проведённого
+   урока залита цветом класса и видна всегда. */
+.cw-lesson-done {
+  flex: none;
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.5px solid #C9CDD6;
+  border-radius: 999px;
+  color: transparent;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity .12s ease;
+}
+.cw-lesson-done .anticon { font-size: 9px; }
+.cw-lesson:hover .cw-lesson-done,
+.cw-lesson-done:focus-visible { opacity: 1; }
+.cw-lesson-done:hover { border-color: var(--cal-ink-3); color: var(--cal-ink-3); }
+.cw-lesson-done.is-on { opacity: 1; color: #fff; }
+.cw-lesson-done.is-on:hover { color: #fff; opacity: .75; }
 .cw-lesson.is-cancelled .cw-lesson-title { text-decoration: line-through; color: var(--cal-ink-3); }
 .cw-lesson-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .cw-lesson-bar { width: 3px; height: 13px; border-radius: 2px; flex: none; }

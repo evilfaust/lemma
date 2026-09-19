@@ -4,7 +4,7 @@ import { Button, Popconfirm } from 'antd';
 import {
   EditOutlined, DeleteOutlined, CheckOutlined, ClockCircleOutlined,
   TeamOutlined, FlagFilled, CloseOutlined, PaperClipOutlined, FileTextOutlined,
-  EyeOutlined, RightOutlined, BankOutlined, UserOutlined,
+  EyeOutlined, RightOutlined, BankOutlined, UserOutlined, UndoOutlined,
 } from '@ant-design/icons';
 import { Chip, GroupChip, LessonStatusChip, groupHex } from '../ui';
 import { lessonStartEnd } from '../lessonTime';
@@ -25,8 +25,8 @@ const TYPE_CHIP = {
  * урок · дедлайн · дело. Правка/удаление — через колбэки оркестратора.
  */
 export default function EventInspector({
-  event, onClose, onEdit, onDelete, onToggleTodo, onOpenWork, onOpenNote, canEdit, canDelete,
-  myTeacherId = '',
+  event, onClose, onEdit, onDelete, onToggleTodo, onToggleLessonDone, onOpenWork, onOpenNote,
+  canEdit, canDelete, myTeacherId = '',
 }) {
   const open = !!event;
   const r = event?.resource || {};
@@ -116,8 +116,17 @@ export default function EventInspector({
                   )}
 
                   <div className="ci-actions">
-                    <Button type="primary" icon={<TeamOutlined />} onClick={() => onEdit(event)}>
-                      Отметить посещаемость
+                    {canEdit && l.status !== 'cancelled' && (
+                      <Button
+                        type={r.status === 'done' ? 'default' : 'primary'}
+                        icon={r.status === 'done' ? <UndoOutlined /> : <CheckOutlined />}
+                        onClick={() => onToggleLessonDone(l)}
+                      >
+                        {r.status === 'done' ? 'Вернуть в запланированные' : 'Провёл'}
+                      </Button>
+                    )}
+                    <Button icon={<TeamOutlined />} onClick={() => onEdit(event)}>
+                      Посещаемость
                     </Button>
                     {canEdit && <Button icon={<EditOutlined />} onClick={() => onEdit(event)} />}
                     {canDelete && (

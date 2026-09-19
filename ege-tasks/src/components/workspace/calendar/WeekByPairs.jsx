@@ -1,28 +1,32 @@
 import dayjs from 'dayjs';
 import { ClockCircleOutlined, PaperClipOutlined, CheckOutlined, FlagFilled } from '@ant-design/icons';
-import { PAIRS, slotRangeFromCode, guessSlot, hhmm } from '../lessonTime';
+import { PAIRS, slotRangeFromCode, slotPairIndexes, guessSlot, hhmm } from '../lessonTime';
 import { groupHex } from '../ui';
 import { periodTitle } from './calendarUtils';
 import { useCalendarCtx } from './CalendarContext';
 
 const WD = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
-// Какой паре принадлежит урок: по time_slot, иначе по времени старта (guessSlot),
-// иначе — ближайшая по времени пара (не теряем уроки с нестандартным временем,
-// напр. «своё время» вечером). Строки времени zero-padded → лексикографика ок.
-function pairKeyForLesson(l, start) {
-  const r = slotRangeFromCode(l.time_slot);
-  if (r) {
-    const hit = PAIRS.find((p) => p.full[0] === r[0] || (p.halves && (p.halves[0][0] === r[0] || p.halves[1][0] === r[0])));
-    if (hit) return hit.key;
-  }
+// «2 пары» / «5 пар» — подпись длительности интенсива.
+const pairsWord = (n) => (n >= 2 && n <= 4 ? 'пары' : 'пар');
+
+// Какие строки-пары занимает урок: по time_slot (интенсив "1-4" — четыре пары),
+// иначе по времени старта (guessSlot), иначе — ближайшая по времени пара (не теряем
+// уроки с нестандартным временем, напр. «своё время» вечером). Строки времени
+// zero-padded → лексикографика ок.
+function pairRowsForLesson(l, start) {
+  const ix = slotPairIndexes(l.time_slot);
+  if (ix) return ix;
   const g = guessSlot(start);
-  if (g.pair) return g.pair;
+  if (g.pair) {
+    const i = PAIRS.findIndex((p) => p.key === g.pair);
+    if (i >= 0) return [i, i];
+  }
   // Фолбэк: последняя пара, чей старт <= времени урока (иначе — первая).
   const t = hhmm(start);
-  let bucket = PAIRS[0];
-  for (const p of PAIRS) { if (p.full[0] <= t) bucket = p; }
-  return bucket.key;
+  let bucket = 0;
+  PAIRS.forEach((p, i) => { if (p.full[0] <= t) bucket = i; });
+  return [bucket, bucket];
 }
 
 /**
@@ -31,7 +35,7 @@ function pairKeyForLesson(l, start) {
  * для дедлайнов и дел. Клик по пустой ячейке пары → создание урока.
  */
 export default function WeekByPairs({ date, events }) {
-  const { onSelectEvent, onCreateInSlot, onToggleTodo } = useCalendarCtx();
+  const { onSelectEvent, onCreateInSlot, onToggleTodo, onToggleLessonDone, canEdit } = useCalendarCtx();
 
   const days = WeekByPairs.range(date).map((d) => dayjs(d));
   const wkStart = days[0].startOf('day').valueOf();
@@ -44,15 +48,36 @@ export default function WeekByPairs({ date, events }) {
   const allDay = weekEvents.filter((e) => e.resource?.type !== 'lesson');
   const lessons = weekEvents.filter((e) => e.resource?.type === 'lesson');
 
-  // lessons[dayIndex][pairKey] = [events]
-  const grid = {};
+  // Размещение уроков на сетке: from/to — индексы первой и последней занятой пары.
+  // busy — ячейки под блоком (не предлагаем там «создать урок»); spanned — ячейки,
+  // чью нижнюю линию перекрывает многопарный блок.
+  const placed = [];
+  const busy = new Set();
+  const spanned = new Set();
   lessons.forEach((e) => {
     const start = new Date(e.start);
     const di = days.findIndex((d) => d.isSame(dayjs(start), 'day'));
     if (di < 0) return;
-    const pk = pairKeyForLesson(e.resource.raw, start);
-    if (!pk) return;
-    (grid[`${di}:${pk}`] ||= []).push(e);
+    const [from, to] = pairRowsForLesson(e.resource.raw, start);
+    placed.push({ e, di, from, to });
+    for (let i = from; i <= to; i += 1) {
+      busy.add(`${di}:${i}`);
+      if (i < to) spanned.add(`${di}:${i}`);
+    }
+  });
+  placed.sort((a, b) => a.from - b.from || a.to - b.to);
+  // Пересекающиеся уроки одного дня делят колонку на дорожки (два урока в одну
+  // пару стоят рядом, а не друг на друге).
+  const laneCount = {};
+  days.forEach((_, di) => {
+    const ends = []; // ends[lane] = последняя занятая строка этой дорожки
+    placed.filter((x) => x.di === di).forEach((x) => {
+      let lane = ends.findIndex((last) => last < x.from);
+      if (lane < 0) { lane = ends.length; }
+      ends[lane] = x.to;
+      x.lane = lane;
+    });
+    laneCount[di] = Math.max(1, ends.length);
   });
 
   const today = dayjs();
@@ -113,47 +138,80 @@ export default function WeekByPairs({ date, events }) {
         })}
       </div>
 
-      {/* Тайм-сетка по парам */}
-      <div className="cw-grid">
-        {PAIRS.map((p) => (
-          <div key={p.key} className="cw-row cw-pairrow" style={{ gridTemplateColumns: cols }}>
-            <div className="cw-timecell">
-              <span className="cw-time">{p.full[0]}</span>
-              <span className="cw-pairlabel">{p.label}</span>
-            </div>
-            {days.map((d, di) => {
-              const cell = grid[`${di}:${p.key}`] || [];
-              const weekend = d.day() === 0 || d.day() === 6;
-              return (
-                <div key={d.valueOf()}
-                  className={`cw-cell${weekend ? ' is-weekend' : ''}${cell.length ? '' : ' is-empty'}`}
-                  onClick={(e) => { if (e.target === e.currentTarget && !cell.length) onCreateInSlot(d.toDate(), p.key); }}>
-                  {cell.map((e) => {
-                    const r = e.resource;
-                    const hex = groupHex(r.group || r.groupId);
-                    const muted = r.status === 'done' || r.status === 'cancelled';
-                    return (
-                      <div key={e.id}
-                        className={`cw-lesson${r.status === 'cancelled' ? ' is-cancelled' : ''}${r.status === 'done' ? ' is-done' : ''}`}
-                        style={{ background: muted ? '#F6F7F9' : hex.soft, borderColor: muted ? '#E5E7EB' : hex.base }}
-                        onClick={() => onSelectEvent(e)} role="button" tabIndex={0}>
-                        <div className="cw-lesson-head">
-                          <span className="cw-lesson-bar" style={{ background: muted ? '#C2C6CE' : hex.base }} />
-                          <span className="cw-lesson-title">{e.title}</span>
-                          {r.status === 'done' && <CheckOutlined className="cal-chip-tail" />}
-                          {r.hasMaterials && r.status !== 'done' && <PaperClipOutlined className="cal-chip-tail" />}
-                        </div>
-                        <div className="cw-lesson-meta">
-                          {dayjs(e.start).format('HH:mm')}{r.groupName ? ` · ${r.groupName}` : ''}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
+      {/* Тайм-сетка по парам: одна grid-сетка, чтобы интенсив занимал N строк */}
+      <div className="cw-grid" style={{ gridTemplateColumns: cols }}>
+        {PAIRS.map((p, pi) => (
+          <div key={`t-${p.key}`} className="cw-timecell" style={{ gridColumn: 1, gridRow: pi + 1 }}>
+            <span className="cw-time">{p.full[0]}</span>
+            <span className="cw-pairlabel">{p.label}</span>
           </div>
         ))}
+        {PAIRS.map((p, pi) => days.map((d, di) => {
+          const weekend = d.day() === 0 || d.day() === 6;
+          const isBusy = busy.has(`${di}:${pi}`);
+          return (
+            <div key={`c-${p.key}-${d.valueOf()}`}
+              className={`cw-cell${weekend ? ' is-weekend' : ''}${isBusy ? '' : ' is-empty'}${spanned.has(`${di}:${pi}`) ? ' is-spanned' : ''}`}
+              style={{ gridColumn: di + 2, gridRow: pi + 1 }}
+              onClick={(e) => { if (e.target === e.currentTarget && !isBusy) onCreateInSlot(d.toDate(), p.key); }}
+            />
+          );
+        }))}
+        {placed.map(({ e, di, from, to, lane }) => {
+          const r = e.resource;
+          const hex = groupHex(r.group || r.groupId);
+          const muted = r.status === 'done' || r.status === 'cancelled';
+          const span = to - from + 1;
+          const range = slotRangeFromCode(r.raw?.time_slot);
+          const timeText = span > 1 && range
+            ? `${range[0]}–${range[1]}`
+            : dayjs(e.start).format('HH:mm');
+          return (
+            <div key={e.id}
+              className={`cw-lesson${span > 1 ? ' is-tall' : ''}${r.status === 'cancelled' ? ' is-cancelled' : ''}${r.status === 'done' ? ' is-done' : ''}`}
+              style={{
+                gridColumn: di + 2,
+                gridRow: `${from + 1} / ${to + 2}`,
+                background: muted ? '#F6F7F9' : hex.soft,
+                borderColor: muted ? '#E5E7EB' : hex.base,
+                ...(laneCount[di] > 1 ? {
+                  width: `calc(${100 / laneCount[di]}% - 8px)`,
+                  marginLeft: `calc(${(lane * 100) / laneCount[di]}% + 4px)`,
+                } : null),
+              }}
+              onClick={() => onSelectEvent(e)} role="button" tabIndex={0}>
+              <div className="cw-lesson-head">
+                <span className="cw-lesson-bar" style={{ background: muted ? '#C2C6CE' : hex.base }} />
+                <span className="cw-lesson-title">{e.title}</span>
+                {r.hasMaterials && r.status !== 'done' && <PaperClipOutlined className="cal-chip-tail" />}
+                {/* «Провёл» одной кнопкой: на hover у запланированного, всегда — у проведённого. */}
+                {canEdit && r.status !== 'cancelled' ? (
+                  <span
+                    className={`cw-lesson-done${r.status === 'done' ? ' is-on' : ''}`}
+                    role="checkbox"
+                    aria-checked={r.status === 'done'}
+                    aria-label={r.status === 'done' ? 'Вернуть в запланированные' : 'Отметить проведённым'}
+                    title={r.status === 'done' ? 'Вернуть в запланированные' : 'Отметить проведённым'}
+                    tabIndex={0}
+                    style={{ borderColor: r.status === 'done' ? hex.base : undefined, background: r.status === 'done' ? hex.base : undefined }}
+                    onClick={(ev) => { ev.stopPropagation(); onToggleLessonDone(r.raw); }}
+                    onKeyDown={(ev) => {
+                      if (ev.key === 'Enter' || ev.key === ' ') {
+                        ev.preventDefault(); ev.stopPropagation(); onToggleLessonDone(r.raw);
+                      }
+                    }}
+                  >
+                    <CheckOutlined />
+                  </span>
+                ) : (r.status === 'done' && <CheckOutlined className="cal-chip-tail" />)}
+              </div>
+              <div className="cw-lesson-meta">
+                {timeText}{r.groupName ? ` · ${r.groupName}` : ''}
+                {span > 1 ? ` · ${span} ${pairsWord(span)}` : ''}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

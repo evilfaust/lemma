@@ -6,6 +6,7 @@ import { createContext, useContext } from 'react';
  */
 export const CalendarContext = createContext({
   onToggleTodo: () => {},
+  onToggleLessonDone: () => {},
   onSelectEvent: () => {},
   onCreateInSlot: () => {},
   canEdit: false,

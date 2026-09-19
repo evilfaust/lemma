@@ -150,6 +150,26 @@ export default function TeacherCalendar() {
 
   const openInspector = useCallback((event) => setSelected(event), []);
 
+  // ── «Провёл» одной кнопкой: planned ⇄ done (оптимистично) ──
+  // Отменённый урок трогать не даём — его статус выставлен осознанно, возврат
+  // в работу идёт через модалку правки.
+  const toggleLessonDone = useCallback(async (lesson) => {
+    if (!canEdit || lesson.status === 'cancelled') return;
+    const next = lesson.status === 'done' ? 'planned' : 'done';
+    setLessons((prev) => prev.map((l) => (l.id === lesson.id ? { ...l, status: next } : l)));
+    // Инспектор держит СНИМОК события — без этого кнопка в нём не перерисуется.
+    setSelected((prev) => (prev?.resource?.raw?.id === lesson.id
+      ? { ...prev, resource: { ...prev.resource, status: next, raw: { ...prev.resource.raw, status: next } } }
+      : prev));
+    try {
+      await api.updateLesson(lesson.id, { status: next });
+      message.success(next === 'done' ? 'Урок отмечен проведённым' : 'Урок снова запланирован');
+    } catch {
+      message.error('Не удалось обновить урок');
+      load();
+    }
+  }, [canEdit, load, message]);
+
   // ── Цвет класса из легенды (оптимистично) ──
   // Меняем и сам список групп, и копию группы в expand'ах уроков/дел: события
   // берут цвет оттуда, поэтому сетка перекрашивается сразу.
@@ -327,11 +347,12 @@ export default function TeacherCalendar() {
 
   const ctx = useMemo(() => ({
     onToggleTodo: toggleTodo,
+    onToggleLessonDone: toggleLessonDone,
     onSelectEvent: openInspector,
     onCreateInSlot: openCreate,
     canEdit,
     density,
-  }), [toggleTodo, openInspector, openCreate, canEdit, density]);
+  }), [toggleTodo, toggleLessonDone, openInspector, openCreate, canEdit, density]);
 
   const components = useMemo(() => ({
     event: EventChip,
@@ -436,6 +457,7 @@ export default function TeacherCalendar() {
         onEdit={handleEditFromInspector}
         onDelete={handleDeleteFromInspector}
         onToggleTodo={(t) => { toggleTodo(t); setSelected(null); }}
+        onToggleLessonDone={toggleLessonDone}
         onOpenWork={handleOpenWork}
         onOpenNote={handleOpenNoteById}
         canEdit={canEdit}
