@@ -73,6 +73,18 @@ describe('PlotModal — кривая по точкам', () => {
     expect(text).toContain('f возрастает на [−4; −2], [1; 3]');
   });
 
+  it('«чем задана кривая» показывает многочлены кусков и не трогает DSL', () => {
+    const onInsert = open();
+    expect(screen.queryByTestId('curve-pieces')).toBeNull();
+    fireEvent.click(screen.getByText('чем задана кривая'));
+    const text = screen.getByTestId('curve-pieces').textContent;
+    expect(text).toContain('f(x) =');
+    expect(text).toContain('u = x + 4'); // первый кусок начинается в x = −4
+    expect(insert(onInsert)).toContain('spline f (-4 -3)');
+    fireEvent.click(screen.getByText('скрыть формулу'));
+    expect(screen.queryByTestId('curve-pieces')).toBeNull();
+  });
+
   it('галочка «Производная» добавляет deriv', () => {
     const onInsert = open();
     fireEvent.click(screen.getByText(/Производная f′/));

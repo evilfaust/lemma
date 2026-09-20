@@ -362,7 +362,7 @@ export default function PlotModal({
 
   const curve = splines[activeCurve] || null;
   const curveInfo = useMemo(
-    () => (curve ? describeCurve(curve) : { error: null, lines: [], kinds: [] }),
+    () => (curve ? describeCurve(curve) : { error: null, lines: [], kinds: [], pieces: [] }),
     [curve],
   );
   const canPair = mode === 'curve' && !!curve;

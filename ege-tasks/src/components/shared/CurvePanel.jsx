@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import {
   Button, Checkbox, Input, InputNumber, Segmented, Select, Space, Switch, Tag, Tooltip,
 } from 'antd';
@@ -7,6 +7,7 @@ import { cleanCurveNodes, newCurveState, PLOT_COLORS } from '../../utils/coordPl
 import { POINT_STYLE_OPTIONS, POINT_SIZE_OPTIONS } from './plotPointOptions';
 import {
   buildSpline, splineAnalysis, splineZeros, splineSignIntervals, integersInIntervals,
+  splinePolynomials,
 } from '../../utils/splineCurve';
 
 // Панель конструктора «Кривая по точкам»: список кривых, что рисовать (кривую,
@@ -104,13 +105,18 @@ function refOptions(splines) {
  */
 export function describeCurve(curve) {
   const spline = buildSpline(cleanCurveNodes(curve.nodes));
-  if (!spline.ok) return { error: spline.error, lines: [], kinds: [] };
+  if (!spline.ok) return { error: spline.error, lines: [], kinds: [], pieces: [] };
   const an = splineAnalysis(spline);
   const xs = (arr) => (arr.length ? arr.map((p) => fmt(p.x)).join('; ') : 'нет');
   const iv = (arr) => (arr.length ? arr.map(([a, b]) => `[${fmt(a)}; ${fmt(b)}]`).join(', ') : 'нет');
   const n = showName(curve.name);
   const done = (lines) => ({
-    error: null, warning: spline.warning, lines, kinds: spline.nodes.map((p) => p.kind),
+    error: null,
+    warning: spline.warning,
+    lines,
+    kinds: spline.nodes.map((p) => p.kind),
+    // Чем кривая задана на самом деле — справочно, для любопытных (см. ниже).
+    pieces: splinePolynomials(spline, n),
   });
 
   if (isDerivName(curve.name)) {
@@ -347,6 +353,7 @@ export default function CurvePanel({
 }) {
   const curve = splines[active];
   const refs = useMemo(() => refOptions(splines), [splines]);
+  const [showPieces, setShowPieces] = useState(false);
 
   const patchCurve = (delta) => onSplinesChange(splines.map((c, i) => (i === active ? { ...c, ...delta } : c)));
   const patchDeriv = (delta) => patchCurve({ deriv: { ...curve.deriv, ...delta } });
@@ -576,7 +583,42 @@ export default function CurvePanel({
           ? <span style={{ color: '#cf1322' }}>{info.error}</span>
           : info.lines.map((l) => <div key={l}>{l}</div>)}
         {info.warning && <div style={{ color: '#d46b08' }}>{info.warning}</div>}
+        {!info.error && info.pieces && info.pieces.length > 0 && (
+          <Button
+            size="small"
+            type="link"
+            style={{ padding: 0, height: 'auto', fontSize: 12 }}
+            onClick={() => setShowPieces((v) => !v)}
+          >
+            {showPieces ? 'скрыть формулу' : 'чем задана кривая'}
+          </Button>
+        )}
       </div>
+
+      {/* Чем кривая задана на самом деле: одной формулы нет — на каждом куске
+          свой многочлен 5-й степени, куски склеены по f, f′ и f″. Справочный
+          блок, на рисунок и на DSL не влияет. */}
+      {showPieces && !info.error && info.pieces && info.pieces.length > 0 && (
+        <div
+          data-testid="curve-pieces"
+          style={{
+            fontSize: 12, background: '#fafafa', border: '1px solid #f0f0f0',
+            borderRadius: 6, padding: '8px 10px', lineHeight: 1.7,
+          }}
+        >
+          <div style={{ ...muted, marginBottom: 4 }}>
+            Одной формулы нет: на каждом промежутке свой многочлен 5-й степени, куски склеены по
+            {' '}значению, наклону и кривизне.
+          </div>
+          {info.pieces.map((p) => (
+            <div key={`${p.x0};${p.x1}`} style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>
+              <span style={{ color: '#8c8c8c' }}>{`[${fmt(p.x0)}; ${fmt(p.x1)}]`}</span>
+              {` ${p.text}`}
+              <span style={{ color: '#8c8c8c' }}>{`, ${p.shift}`}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Разметка */}
       <div>

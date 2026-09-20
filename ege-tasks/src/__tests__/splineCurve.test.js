@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildSpline, antiderivative, splineZeros, splineAnalysis,
+  buildSpline, antiderivative, splineZeros, splineAnalysis, splinePolynomials,
 } from '../utils/splineCurve';
 
 const pts = (arr) => arr.map(([x, y, extra]) => ({ x, y, ...(extra || {}) }));
@@ -235,5 +235,40 @@ describe('splineAnalysis — что читается по графику', () =>
 
   it('у кривой с ошибкой — пусто', () => {
     expect(splineAnalysis(buildSpline([])).maxima).toEqual([]);
+  });
+});
+
+describe('splinePolynomials — чем кривая задана на самом деле', () => {
+  it('многочлен куска даёт ровно ту кривую, что рисуется', () => {
+    const s = buildSpline(WAVE);
+    let worst = 0;
+    for (const p of s.pieces) {
+      for (const x of grid(p.x0, p.x1, 40)) {
+        const u = x - p.x0;
+        const v = p.coeffs.reduce((acc, c, k) => acc + c * u ** k, 0);
+        worst = Math.max(worst, Math.abs(v - s.f(x)));
+      }
+    }
+    expect(worst).toBeLessThan(1e-9);
+  });
+
+  it('кусков на один меньше, чем точек; степень не выше пятой', () => {
+    const s = buildSpline(WAVE);
+    expect(s.pieces).toHaveLength(WAVE.length - 1);
+    expect(s.pieces.every((p) => p.coeffs.length <= 6)).toBe(true);
+  });
+
+  it('читаемая запись: имя функции, сдвиг u и промежуток', () => {
+    const list = splinePolynomials(buildSpline(pts([[0, 0], [2, 4]])), 'g');
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ x0: 0, x1: 2, shift: 'u = x' });
+    expect(list[0].text).toBe('g(x) = 2u');
+    const shifted = splinePolynomials(buildSpline(pts([[-3, 1], [1, 1]])), 'f');
+    expect(shifted[0].shift).toBe('u = x + 3');
+    expect(shifted[0].text).toBe('f(x) = 1');
+  });
+
+  it('у кривой с ошибкой — пусто', () => {
+    expect(splinePolynomials(buildSpline([]))).toEqual([]);
   });
 });

@@ -28,6 +28,7 @@
 //   splineSignIntervals(s)     → промежутки знакопостоянства f
 //   integersInIntervals(list)  → целые точки промежутков (концы не в счёт)
 //   splineAnalysis(s)          → экстремумы, промежутки монотонности, нули
+//   splinePolynomials(s, name) → многочлены кусков в читаемом виде (для глаз)
 //
 // Узел: { x, y, flat?, slope? } — flat: f′ = 0 без смены знака (стационарная
 // точка — «перегиб с горизонтальной касательной»); slope: заданный наклон
@@ -301,6 +302,13 @@ export function buildSpline(nodes) {
     warning,
     nodes: list.map((p, i) => ({ x: p.x, y: p.y, slope: m[i], curv: a[i], kind: kind[i] })),
     domain: [x0, x1],
+    // Куски в явном виде: f на [xᵢ; xᵢ₊₁] — многочлен по степеням u = x − xᵢ
+    // (F даёт коэффициенты в t = u/h, поэтому k-й делится на hᵏ).
+    pieces: F.map((c, i) => ({
+      x0: xs[i],
+      x1: xs[i + 1],
+      coeffs: c.map((v, k) => (k === 0 ? ys[i] + v : v / h[i] ** k)),
+    })),
     f(x) {
       const i = locate(x);
       return i < 0 ? NaN : ys[i] + polyAt(F[i], tOf(i, x));
@@ -332,6 +340,48 @@ export function antiderivative(spline, x0, y0 = 0) {
     fn: (x) => spline.integral(x) + shift,
     dfn: (x) => spline.f(x),
   };
+}
+
+// ─────────────────────── многочлены кусков (для глаз) ───────────────────────
+
+const SUP = ['', '', '\u00b2', '\u00b3', '\u2074', '\u2075', '\u2076'];
+
+// Четыре значащих цифры, минус — типографский, разделитель — запятая.
+const sig = (v) => {
+  if (!Number.isFinite(v) || Math.abs(v) < 1e-10) return '0';
+  const r = Number(v.toPrecision(4));
+  return String(r).replace('.', ',').replace('-', '\u2212');
+};
+
+function polyText(coeffs) {
+  const terms = [];
+  coeffs.forEach((v, k) => {
+    if (Math.abs(v) < 1e-10) return;
+    const body = k === 0 ? sig(Math.abs(v))
+      : `${Math.abs(Math.abs(v) - 1) < 1e-10 ? '' : sig(Math.abs(v))}u${k < SUP.length ? SUP[k] : `^${k}`}`;
+    terms.push({ neg: v < 0, body });
+  });
+  if (!terms.length) return '0';
+  return terms
+    .map((t, i) => (i === 0 ? `${t.neg ? '\u2212' : ''}${t.body}` : ` ${t.neg ? '\u2212' : '+'} ${t.body}`))
+    .join('');
+}
+
+/**
+ * Кривая задана не одной формулой, а кусочно. Эта функция показывает, ЧЕМ
+ * именно: на каждом промежутке между соседними точками — свой многочлен 5-й
+ * степени по степеням u = x − xᵢ (куски склеены по f, f′ и f″).
+ * Нужна только для просмотра в конструкторе, на рисунок не влияет.
+ */
+export function splinePolynomials(spline, name = 'f') {
+  if (!spline?.ok) return [];
+  return (spline.pieces || []).map((p) => ({
+    x0: p.x0,
+    x1: p.x1,
+    text: `${name}(x) = ${polyText(p.coeffs)}`,
+    shift: p.x0 === 0 ? 'u = x'
+      : `u = x ${p.x0 < 0 ? '+' : '\u2212'} ${sig(Math.abs(p.x0))}`,
+  }));
 }
 
 // ───────────────────────────── разбор графика ─────────────────────────────
