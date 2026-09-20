@@ -7,6 +7,7 @@ import {
 import { useGraphTasks } from '../../hooks/useGraphTasks';
 import {
   CATEGORY_LABELS_GRAPH, CATEGORY_GROUPS_GRAPH,
+  CATEGORY_EXAM_GRAPH, EXAM_LABELS_GRAPH,
 } from '../../utils/derivativeGraphTasks';
 import { SheetOrderPanel } from '../trig/SheetOrderPanel';
 import { CategoryChecklist } from '../trig/CategoryChecklist';
@@ -121,6 +122,8 @@ export default function GraphTasksGenerator() {
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
+                  badges={CATEGORY_EXAM_GRAPH}
+                  badgeTitles={EXAM_LABELS_GRAPH}
                 />
               </TrigSettingsSection>
             ))}

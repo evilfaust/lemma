@@ -34,6 +34,57 @@ describe('лист заданий по графику', () => {
     expect(container.querySelectorAll('.gsp-answer-line')).toHaveLength(6);
   });
 
+  it('соответствие «точки ↔ характеристики»: два списка и клетки под буквами', () => {
+    const { container } = sheet({
+      categories: { f_sign_match: true }, questionsCount: 1, variantsCount: 1,
+    });
+    const cols = container.querySelectorAll('.gsp-match-col');
+    expect(cols).toHaveLength(2);
+    expect(cols[0].querySelector('.gsp-match-head').textContent).toBe('ТОЧКИ');
+    expect(cols[1].querySelector('.gsp-match-head').textContent)
+      .toBe('ХАРАКТЕРИСТИКИ ФУНКЦИИ И ПРОИЗВОДНОЙ');
+    // фраза должна переноситься — колонку с текстом помечаем модификатором
+    expect(container.querySelector('.gsp-match--text')).toBeTruthy();
+    expect(container.querySelectorAll('.gsp-cell')).toHaveLength(4);
+    expect(container.querySelector('.gsp-answer-line')).toBeNull();
+  });
+
+  it('соответствие «графики ↔ характеристики»: четыре чертежа с буквами и один список', () => {
+    const { container } = sheet({
+      categories: { b_char_match: true }, questionsCount: 1, variantsCount: 1,
+    });
+    const cells = container.querySelectorAll('.gsp-figure-cell');
+    expect(cells).toHaveLength(4);
+    expect([...cells].map((c) => c.querySelector('.gsp-figure-letter').textContent))
+      .toEqual(['А)', 'Б)', 'В)', 'Г)']);
+    expect(container.querySelectorAll('.gsp-figure svg')).toHaveLength(4);
+    // списка точек нет — буквы уже стоят под чертежами
+    expect(container.querySelectorAll('.gsp-match-col')).toHaveLength(1);
+    expect(container.querySelectorAll('.gsp-cell')).toHaveLength(4);
+  });
+
+  it('соответствие «интервалы ↔ характеристики»: интервалы печатаются формулой', () => {
+    const { container } = sheet({
+      categories: { b_interval_match: true }, questionsCount: 1, variantsCount: 1,
+    });
+    const cols = container.querySelectorAll('.gsp-match-col');
+    expect(cols[0].querySelector('.gsp-match-head').textContent).toBe('ИНТЕРВАЛЫ');
+    // «$(a; b)$» обязано дойти до KaTeX, а не напечататься долларами
+    expect(cols[0].textContent).not.toContain('$');
+    expect(cols[0].querySelectorAll('.katex').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.gsp-cell')).toHaveLength(4);
+  });
+
+  it.each(['b_tangent_graphs', 'b_linear_slope'])('%s печатает четыре чертежа и список значений', (cat) => {
+    const { container } = sheet({
+      categories: { [cat]: true }, questionsCount: 1, variantsCount: 1,
+    });
+    expect(container.querySelectorAll('.gsp-figure-cell')).toHaveLength(4);
+    expect(container.querySelectorAll('.gsp-figure svg')).toHaveLength(4);
+    expect(container.querySelectorAll('.gsp-match-col')).toHaveLength(1);
+    expect(container.querySelectorAll('.gsp-cell')).toHaveLength(4);
+  });
+
   it('лист учителя включён по умолчанию и несёт ответы всех вариантов', () => {
     expect(DEFAULT_SETTINGS_GRAPH.showTeacherKey).toBe(true);
     const { container, tasksData } = sheet();

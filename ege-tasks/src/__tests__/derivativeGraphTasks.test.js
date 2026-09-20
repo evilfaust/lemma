@@ -7,8 +7,8 @@ import { parseCoordPlot } from '../utils/coordPlot';
 
 // Независимая проверка ответа: считаем всё численно по КАРТИНКЕ (разобранной
 // из DSL задания), а не по внутренней модели генератора.
-function sampleCurve(task) {
-  const m = parseCoordPlot(task.plot);
+function sampleCurve(task, spec = task.plot) {
+  const m = parseCoordPlot(spec);
   expect(m.errors).toEqual([]);
   const name = Object.keys(m.splines)[0];
   const s = m.splines[name];
@@ -43,13 +43,18 @@ describe('derivativeGraphTasks — каждая категория работа�
     expect(list.length).toBeGreaterThan(8); // не «раз в сто попыток»
     for (const t of list) {
       expect(t.cat).toBe(cat);
-      expect(t.plot).toContain('spline');
       expect(t.question.length).toBeGreaterThan(30);
       expect(Number.isFinite(t.answerValue)).toBe(true);
       // ключ учителя печатается KaTeX: десятичная запятая — в скобках
       expect(t.resultLatex).toBe(String(t.answerValue).replace('.', '{,}'));
-      const m = parseCoordPlot(t.plot);
-      expect(m.errors).toEqual([]); // чертёж строится без ошибок
+      // у задания либо один чертёж, либо набор (соответствие «графики ↔ …»)
+      const specs = t.plots || [t.plot];
+      expect(specs.length).toBeGreaterThan(0);
+      for (const spec of specs) {
+        // кривая задана точками (spline) либо формулой (прямые задания «↔ k»)
+        expect(spec).toMatch(/^(spline|f) /m);
+        expect(parseCoordPlot(spec).errors).toEqual([]); // чертёж строится без ошибок
+      }
     }
     expect(CATEGORY_LABELS_GRAPH[cat]).toBeTruthy();
   });
@@ -176,6 +181,208 @@ describe('соответствие «точка ↔ значение произ�
     expect(md).toContain('| А) K |');
     expect(md).toContain('```plot');
     expect(md).toContain(`ответ: ${task.resultLatex}`);
+  });
+});
+
+describe('соответствие «точка ↔ характеристика функции и производной»', () => {
+  it('в каждой подписанной точке знаки f и f′ совпадают с выбранной характеристикой', () => {
+    const list = tasksFor('f_sign_match', 12);
+    expect(list.length).toBeGreaterThan(8);
+
+    for (const t of list) {
+      const { s } = sampleCurve(t);
+      expect(t.matching.points).toEqual(['K', 'L', 'M', 'N']);
+      expect(new Set(t.matching.values).size).toBe(4); // характеристики разные
+      expect([...t.resultLatex].sort().join('')).toBe('1234');
+
+      const ticks = [...t.plot.matchAll(/^xtick (-?[\d.]+) ([KLMN]) bold$/gm)]
+        .map((m) => ({ x: Number(m[1]), name: m[2] }));
+      expect(ticks.map((p) => p.name)).toEqual(['K', 'L', 'M', 'N']);
+      const xs = ticks.map((p) => p.x);
+      expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+
+      [...t.resultLatex].forEach((digit, i) => {
+        const text = t.matching.values[Number(digit) - 1];
+        const y = s.f(ticks[i].x);
+        const d = s.df(ticks[i].x);
+        // знак функции
+        expect(y > 0).toBe(text.startsWith('функция положительна'));
+        // знак производной
+        if (text.endsWith('производная равна нулю')) expect(Math.abs(d)).toBeLessThan(1e-6);
+        else if (text.endsWith('производная положительна')) expect(d).toBeGreaterThan(0);
+        else expect(d).toBeLessThan(0);
+      });
+    }
+  });
+});
+
+describe('соответствие «график ↔ характеристика на отрезке [−1; 1]»', () => {
+  // Что кривая делает на [−1; 1] — читаем по самому чертежу
+  const readSegment = (spec) => {
+    const { s } = sampleCurve(null, spec);
+    const N = 400;
+    const at = (i) => -1 + (2 * i) / N;
+    let pos = 0;
+    let neg = 0;
+    let turns = 0;
+    let prev = 0;
+    for (let i = 0; i <= N; i += 1) {
+      const d = s.df(at(i));
+      const sg = d > 1e-6 ? 1 : d < -1e-6 ? -1 : 0;
+      if (sg > 0) pos += 1;
+      if (sg < 0) neg += 1;
+      if (sg && prev && sg !== prev) turns += 1;
+      if (sg) prev = sg;
+    }
+    if (turns === 1) return pos && neg ? (s.df(-0.9) > 0 ? 'max' : 'min') : null;
+    if (turns) return null;
+    if (pos && !neg) return 'inc';
+    if (neg && !pos) return 'dec';
+    return null;
+  };
+
+  it('каждый из четырёх графиков делает ровно то, на что указывает ответ', () => {
+    const list = tasksFor('b_char_match', 12);
+    expect(list.length).toBeGreaterThan(8);
+
+    const EXPECTED = {
+      max: 'У функции есть точка максимума',
+      min: 'У функции есть точка минимума',
+      inc: 'Функция возрастает',
+      dec: 'Функция убывает',
+    };
+    for (const t of list) {
+      expect(t.plots).toHaveLength(4);
+      expect(t.plot).toBeUndefined();
+      expect(new Set(t.matching.values).size).toBe(4);
+      expect([...t.resultLatex].sort().join('')).toBe('1234');
+
+      [...t.resultLatex].forEach((digit, i) => {
+        const kind = readSegment(t.plots[i]);
+        expect(kind).toBeTruthy();
+        expect(t.matching.values[Number(digit) - 1]).toContain(EXPECTED[kind]);
+      });
+    }
+  });
+
+  it('в экспорте .md чертежи идут галереей, а характеристики — столбцом', async () => {
+    const { buildSheetMarkdown } = await import('../utils/sheetMarkdown');
+    const task = tasksFor('b_char_match', 20)[0];
+    const md = buildSheetMarkdown({
+      generator: 'graph_derivative',
+      title: 'Соответствие',
+      tasksData: [[task]],
+      layout: [],
+    }, { format: 'work' });
+    expect(md).toContain('{галерея}');
+    expect(md).toContain('А) `plot:');
+    expect(md).toContain('| ХАРАКТЕРИСТИКИ |');
+    expect(md).toContain(`ответ: ${task.resultLatex}`);
+  });
+});
+
+describe('соответствие «интервал ↔ характеристика»', () => {
+  // Верна ли характеристика на интервале — считаем по разобранному чертежу
+  const holds = (s, p, q, text) => {
+    const N = 200;
+    const at = (i) => p + ((q - p) * i) / N;
+    const fs = [];
+    const ds = [];
+    for (let i = 1; i < N; i += 1) { fs.push(s.f(at(i))); ds.push(s.df(at(i))); }
+    const list = text.startsWith('функция') ? fs : ds;
+    const positive = /положительна на всём/.test(text);
+    const negative = /отрицательна на всём/.test(text);
+    if (positive) return list.every((v) => v > 0);
+    if (negative) return list.every((v) => v < 0);
+    const startPos = /положительна в начале/.test(text);
+    return startPos
+      ? list[0] > 0 && list[list.length - 1] < 0
+      : list[0] < 0 && list[list.length - 1] > 0;
+  };
+
+  it('каждая характеристика верна для своего интервала и только для него', () => {
+    const list = tasksFor('b_interval_match', 12);
+    expect(list.length).toBeGreaterThan(8);
+
+    for (const t of list) {
+      const { s } = sampleCurve(t);
+      expect([...t.resultLatex].sort().join('')).toBe('1234');
+      expect(new Set(t.matching.values).size).toBe(4);
+
+      // отметки a…e читаем с чертежа
+      const marks = [...t.plot.matchAll(/^xtick (-?[\d.]+) ([abcde])$/gm)]
+        .map((m) => Number(m[1]));
+      expect(marks).toHaveLength(5);
+      expect([...marks].sort((x, y) => x - y)).toEqual(marks);
+
+      [...t.resultLatex].forEach((digit, i) => {
+        const text = t.matching.values[Number(digit) - 1];
+        // верна для своего интервала…
+        expect(holds(s, marks[i], marks[i + 1], text)).toBe(true);
+        // …и ни для какого другого — иначе у задания несколько ответов
+        for (let j = 0; j < 4; j += 1) {
+          if (j !== i) expect(holds(s, marks[j], marks[j + 1], text)).toBe(false);
+        }
+      });
+    }
+  });
+});
+
+describe('соответствие «график ↔ значение производной в x₀»', () => {
+  const texToNumber = (tex) => {
+    const frac = /^(-?)\\frac\{(\d+)\}\{(\d+)\}$/.exec(tex);
+    if (frac) return (frac[1] ? -1 : 1) * (Number(frac[2]) / Number(frac[3]));
+    return Number(tex.replace('{,}', '.'));
+  };
+
+  it('на каждом чертеже касательная стоит в x₀, а её наклон — заявленное значение', () => {
+    const list = tasksFor('b_tangent_graphs', 12);
+    expect(list.length).toBeGreaterThan(8);
+
+    for (const t of list) {
+      expect(t.plots).toHaveLength(4);
+      expect(new Set(t.matching.values).size).toBe(4);
+      expect([...t.resultLatex].sort().join('')).toBe('1234');
+
+      [...t.resultLatex].forEach((digit, i) => {
+        const spec = t.plots[i];
+        const x0 = Number(/^xtick (-?[\d.]+) x_0$/m.exec(spec)[1]);
+        expect(spec).toContain(`tangent ${x0} f`);
+        const { s } = sampleCurve(null, spec);
+        expect(s.df(x0)).toBeCloseTo(texToNumber(t.matching.values[Number(digit) - 1]), 6);
+      });
+    }
+  });
+});
+
+describe('соответствие «прямая ↔ угловой коэффициент»', () => {
+  it('наклон нарисованной прямой равен заявленному коэффициенту', async () => {
+    const { compileExpr } = await import('../utils/coordPlot');
+    const list = tasksFor('b_linear_slope', 12);
+    expect(list.length).toBeGreaterThan(8);
+
+    const texToNumber = (tex) => {
+      const frac = /^(-?)\\frac\{(\d+)\}\{(\d+)\}$/.exec(tex);
+      if (frac) return (frac[1] ? -1 : 1) * (Number(frac[2]) / Number(frac[3]));
+      return Number(tex.replace('{,}', '.'));
+    };
+
+    for (const t of list) {
+      expect(t.plots).toHaveLength(4);
+      expect(new Set(t.matching.values).size).toBe(4);
+      expect([...t.resultLatex].sort().join('')).toBe('1234');
+
+      [...t.resultLatex].forEach((digit, i) => {
+        const m = parseCoordPlot(t.plots[i]);
+        expect(m.errors).toEqual([]);
+        const { fn, error } = compileExpr(m.curves[0].expr);
+        expect(error).toBeFalsy();
+        // прямая: наклон один и тот же в любых двух точках
+        const k = fn(2) - fn(1);
+        expect(fn(0) - fn(-1)).toBeCloseTo(k, 9);
+        expect(k).toBeCloseTo(texToNumber(t.matching.values[Number(digit) - 1]), 9);
+      });
+    }
   });
 });
 

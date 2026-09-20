@@ -100,6 +100,24 @@
 .gsp-match-col { min-width: 0; }
 .gsp-match-head { font-weight: 700; font-size: 9pt; text-transform: uppercase; }
 .gsp-match-row { white-space: nowrap; }
+/* Характеристика — фраза, а не значение: её переносить можно и нужно, иначе
+   «функция положительна, производная равна нулю» вылезает за колонку. */
+.gsp-match--text .gsp-match-row { white-space: normal; }
+/* Список фраз занимает всю оставшуюся ширину карточки, столбец букв — своё.
+   🚨 Левому столбцу нужен `flex: 0 0 auto`: с `min-width: 0` он ужимался уже
+   своего заголовка, и «ИНТЕРВАЛЫ» наезжало на «ХАРАКТЕРИСТИКИ …». */
+.gsp-match--text .gsp-match-col:first-child { flex: 0 0 auto; }
+.gsp-match--text .gsp-match-col:last-child { flex: 1 1 auto; }
+
+/* Четыре чертежа задания «графики ↔ характеристики»: 2×2 с буквами А–Г */
+.gsp-figures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1mm 2mm;
+  justify-items: center;
+}
+.gsp-figure-cell { display: flex; align-items: flex-start; gap: 1mm; min-width: 0; }
+.gsp-figure-letter { font-size: 9pt; font-weight: 700; padding-top: 1mm; }
 
 .gsp-note { font-size: 9pt; }
 

@@ -183,6 +183,18 @@ describe('coordPlotSvg', () => {
     expect(Math.abs(cellX - cellY)).toBeLessThan(0.3);
   });
 
+  it('подпись засечки у нуля вытесняет букву «O»', () => {
+    // обычный чертёж — «O» на месте
+    expect(coordPlotSvgFromSpec('x -4 4\ny -4 4\nf x')).toContain('>O</text>');
+    // засечка с подписью в нуле и в −1 встаёт ровно туда же, где стоит «O»
+    expect(coordPlotSvgFromSpec('x -4 4\ny -4 4\nf x\nxtick -1 a')).not.toContain('>O</text>');
+    expect(coordPlotSvgFromSpec('x -4 4\ny -4 4\nf x\nxtick 0 c')).not.toContain('>O</text>');
+    // справа от нуля подпись «O» не задевает
+    expect(coordPlotSvgFromSpec('x -4 4\ny -4 4\nf x\nxtick 2 b')).toContain('>O</text>');
+    // у засечки без своей подписи печатается её координата — она мешает так же
+    expect(coordPlotSvgFromSpec('x -4 4\ny -4 4\nf x\nxtick -1')).not.toContain('>O</text>');
+  });
+
   it('без defs/marker/pattern и ссылок url(#…) — проходит DOMPurify', () => {
     const svg = coordPlotSvgFromSpec('f x^2\nvec a 1 1 3 3\npoint 1 1 fill');
     expect(svg).not.toMatch(/<defs|<marker|<pattern|url\(#/);

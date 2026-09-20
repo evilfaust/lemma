@@ -16,22 +16,37 @@ import './graphSheet.css';
 
 const FIGURE_WIDTH = { s: 220, m: 280, l: 340 };
 
+// Пункт правого столбца: значение производной — формула, характеристика —
+// фраза с формулами внутри («возрастает на $[-1; 1]$»).
+function MatchValue({ value, plain }) {
+  return plain ? <MathText text={value} /> : <MathInline latex={value} />;
+}
+
 // Задание на соответствие: слева точки (А, Б, В, Г), справа значения (1–4).
 // Ответ — четыре цифры, поэтому вместо линии ставим клетки под буквами.
+// У задания «графики ↔ характеристики» левого списка нет: вместо него сетка
+// чертежей, подписанных теми же буквами, — второй столбец идёт один.
 function MatchLists({ matching }) {
+  const single = matching.kind === 'graphs';
   return (
-    <div className="gsp-match">
+    <div className={`gsp-match${matching.plain ? ' gsp-match--text' : ''}`}>
+      {!single && (
+        <div className="gsp-match-col">
+          <div className="gsp-match-head">{matching.leftTitle || 'ТОЧКИ'}</div>
+          {/* точка — буква («K»), интервал — формула («$(a; b)$»): и то и
+              другое печатает MathText, текст без формул он пропускает как есть */}
+          {matching.points.map((p, i) => (
+            <div key={p} className="gsp-match-row">
+              {MATCH_LETTERS[i]}) <MathText text={p} />
+            </div>
+          ))}
+        </div>
+      )}
       <div className="gsp-match-col">
-        <div className="gsp-match-head">ТОЧКИ</div>
-        {matching.points.map((p, i) => (
-          <div key={p} className="gsp-match-row">{MATCH_LETTERS[i]}) {p}</div>
-        ))}
-      </div>
-      <div className="gsp-match-col">
-        <div className="gsp-match-head">ЗНАЧЕНИЯ ПРОИЗВОДНОЙ</div>
+        <div className="gsp-match-head">{matching.valuesTitle || 'ЗНАЧЕНИЯ ПРОИЗВОДНОЙ'}</div>
         {matching.values.map((v, i) => (
           <div key={i} className="gsp-match-row">
-            {i + 1}) <MathInline latex={v} />
+            {i + 1}) <MatchValue value={v} plain={matching.plain} />
           </div>
         ))}
       </div>
@@ -39,18 +54,42 @@ function MatchLists({ matching }) {
   );
 }
 
+/** Сколько букв в ответе: по точкам, а у сетки графиков — по числу вариантов. */
+const matchCount = (matching) => matching.count ?? matching.points?.length ?? 0;
+
 function MatchAnswer({ matching }) {
   return (
     <div className="gsp-answer gsp-answer--cells">
       <span>Ответ:</span>
       <span className="gsp-cells">
-        {matching.points.map((p, i) => (
-          <span key={p} className="gsp-cell-box">
-            <span className="gsp-cell-letter">{MATCH_LETTERS[i]}</span>
+        {MATCH_LETTERS.slice(0, matchCount(matching)).map((letter) => (
+          <span key={letter} className="gsp-cell-box">
+            <span className="gsp-cell-letter">{letter}</span>
             <span className="gsp-cell" />
           </span>
         ))}
       </span>
+    </div>
+  );
+}
+
+/**
+ * Четыре чертежа задания на соответствие — сеткой 2×2 с буквами А–Г.
+ * Ширина каждого — чуть больше половины обычного чертежа: две картинки в ряд
+ * должны уложиться в ту же колонку листа.
+ */
+function FigureGrid({ plots, figureSize }) {
+  const width = Math.round((FIGURE_WIDTH[figureSize] || FIGURE_WIDTH.m) * 0.52);
+  return (
+    <div className="gsp-figures">
+      {plots.map((spec, i) => (
+        <div key={i} className="gsp-figure-cell">
+          <span className="gsp-figure-letter">{MATCH_LETTERS[i]})</span>
+          <div className="gsp-figure">
+            <CoordPlotSVG spec={spec} width={width} />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -62,10 +101,15 @@ function TaskCard({ task, no, opts, figureSize }) {
         <span className="gsp-num">{no}</span>
         <span className="gsp-question"><MathText text={task.question} /></span>
       </div>
+      {task.plots
+        ? <FigureGrid plots={task.plots} figureSize={figureSize} />
+        : null}
       {task.matching && <MatchLists matching={task.matching} />}
-      <div className="gsp-figure">
-        <CoordPlotSVG spec={task.plot} width={FIGURE_WIDTH[figureSize] || FIGURE_WIDTH.m} />
-      </div>
+      {task.plot && (
+        <div className="gsp-figure">
+          <CoordPlotSVG spec={task.plot} width={FIGURE_WIDTH[figureSize] || FIGURE_WIDTH.m} />
+        </div>
+      )}
       {task.note && <div className="gsp-note"><MathText text={task.note} /></div>}
       {opts.showAnswerSpace && (task.matching
         ? <MatchAnswer matching={task.matching} />

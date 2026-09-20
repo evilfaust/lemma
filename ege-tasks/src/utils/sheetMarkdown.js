@@ -16,7 +16,7 @@
  */
 
 import { sheetKind, sheetGeneratorLabel, getSheetGenerator } from './sheetRegistry';
-import { MATCH_LETTERS } from './derivativeGraphTasks';
+import { MATCH_LETTERS, CATEGORY_EXAM_GRAPH } from './derivativeGraphTasks';
 
 export const SHEET_MD_FORMATS = [
   { value: 'compact', label: 'Читаемый лист' },
@@ -72,16 +72,22 @@ const PROMPT_BY_GENERATOR = {
 /**
  * Контекст тем при импорте обратно (`topics.exam_type`).
  *
- * Листу с графиками контекст выбирается по составу: блок «чтение графика» —
- * это база №3/№7, всё остальное (графики f, f′ и первообразной) — профиль №9.
- * Смешали — берём профиль: там же лежит и большинство заданий такого листа.
+ * Листу с графиками контекст выбирается по составу: чтение графика и задания
+ * на соответствие — это база №3/№7, всё остальное (графики f, f′ и
+ * первообразной) — профиль №9. Смешали — берём профиль: там же лежит и
+ * большинство заданий такого листа.
+ *
+ * 🚨 По префиксу `b_` судить нельзя: два задания на соответствие из базы
+ * исторически называются `f_tangent_match`/`f_sign_match`. Экзамен знает
+ * `CATEGORY_EXAM_GRAPH`, префикс остался фолбэком для незнакомых типов.
  */
 export function sheetExamType(generator, sheet = null) {
   if (generator === 'graph_derivative') {
     const cats = (sheet?.variants || []).flatMap(
       (v) => v.blocks.flatMap((b) => b.items.filter((i) => i.kind === 'task').map((i) => i.task?.cat)),
     ).filter(Boolean);
-    return cats.length && cats.every((c) => String(c).startsWith('b_')) ? 'ege_base' : 'ege_profile';
+    const isBase = (c) => (CATEGORY_EXAM_GRAPH[c] ? CATEGORY_EXAM_GRAPH[c] === 'Б' : String(c).startsWith('b_'));
+    return cats.length && cats.every(isBase) ? 'ege_base' : 'ege_profile';
   }
   return EXAM_TYPE_BY_GENERATOR[generator] || 'other';
 }
@@ -111,23 +117,50 @@ export function taskStatement(task) {
   const question = String(task?.question ?? '').trim();
   const plot = String(task?.plot ?? '').trim();
   const note = String(task?.note ?? '').trim();
-  const parts = [question, matchingTable(task?.matching)];
+  const parts = [question, figureGallery(task?.plots), matchingTable(task?.matching)];
   if (plot) parts.push('```plot', plot, '```');
   parts.push(note);
   const body = parts.filter(Boolean).join('\n');
   return body || '_задание с чертежом — печатается рисунком_';
 }
 
-/** Списки задания на соответствие — markdown-таблицей «точка | значение». */
+/**
+ * Списки задания на соответствие — markdown-таблицей «точка | значение».
+ *
+ * У задания «графики ↔ характеристики» левого списка нет: чертежи выгружаются
+ * галереей выше, а буквы уже стоят под ними, — остаётся один столбец.
+ */
 function matchingTable(matching) {
-  const points = matching?.points || [];
   const values = matching?.values || [];
-  if (!points.length || points.length !== values.length) return '';
+  if (!values.length) return '';
+  const cell = (v) => (matching.plain ? String(v) : texInline(v));
+  const right = matching.valuesTitle || 'ЗНАЧЕНИЯ ПРОИЗВОДНОЙ';
+  const points = matching.points || [];
+  if (!points.length) {
+    return [
+      `| ${right} |`,
+      '| --- |',
+      ...values.map((v, i) => `| ${i + 1}) ${cell(v)} |`),
+    ].join('\n');
+  }
+  if (points.length !== values.length) return '';
   return [
-    '| ТОЧКИ | ЗНАЧЕНИЯ ПРОИЗВОДНОЙ |',
+    `| ${matching.leftTitle || 'ТОЧКИ'} | ${right} |`,
     '| --- | --- |',
-    ...points.map((p, i) => `| ${MATCH_LETTERS[i]}) ${p} | ${i + 1}) ${texInline(values[i])} |`),
+    ...points.map((p, i) => `| ${MATCH_LETTERS[i]}) ${p} | ${i + 1}) ${cell(values[i])} |`),
   ].join('\n');
+}
+
+/**
+ * Несколько чертежей одного задания — строкой-галереей «А) … Б) …».
+ * Директива `{галерея}` снимает с первой строки роль шапки и раздаёт колонкам
+ * равную ширину (см. `remarkTableModifiers`), поэтому четыре графика встают в
+ * ряд, а не таблицей с заголовком.
+ */
+function figureGallery(plots) {
+  if (!Array.isArray(plots) || !plots.length) return '';
+  const cells = plots.map((spec, i) => `${MATCH_LETTERS[i]}) \`plot: ${String(spec).replace(/\n/g, '; ')}\``);
+  return ['{галерея}', `| ${cells.join(' | ')} |`].join('\n');
 }
 
 /**

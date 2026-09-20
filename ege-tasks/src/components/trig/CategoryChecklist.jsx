@@ -7,7 +7,22 @@ import { Checkbox, InputNumber, Tooltip } from 'antd';
  * оставшиеся задания поровну (прежнее поведение). Указанное число — жёсткая
  * квота: «пропорций — 3, остальное как выйдет». Раскладку по позициям делает
  * `utils/questionPlan.js`, типы при этом чередуются, а не идут группами.
+ *
+ * `badges` — необязательная карта «категория → короткая метка» (в «Функциях»
+ * это «Б»/«П»: из какого экзамена задание), `badgeTitles` — расшифровка метки
+ * в подсказке.
  */
+const BADGE_STYLE = {
+  marginLeft: 5,
+  padding: '0 4px',
+  fontSize: 10,
+  lineHeight: '14px',
+  fontWeight: 600,
+  borderRadius: 3,
+  border: '1px solid var(--ant-color-border, #d9d9d9)',
+  color: 'var(--ant-color-text-secondary, #8c8c8c)',
+};
+
 export function CategoryChecklist({
   keys,
   labels,
@@ -15,11 +30,14 @@ export function CategoryChecklist({
   counts = {},
   onToggle,
   onCount,
+  badges = null,
+  badgeTitles = {},
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {keys.map(cat => {
         const on = Boolean(categories[cat]);
+        const badge = badges?.[cat];
         return (
           <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Checkbox
@@ -28,6 +46,11 @@ export function CategoryChecklist({
               style={{ flex: 1, minWidth: 0 }}
             >
               <span style={{ fontSize: 12 }}>{labels[cat]}</span>
+              {badge && (
+                <Tooltip title={badgeTitles[badge] || badge}>
+                  <span style={BADGE_STYLE}>{badge}</span>
+                </Tooltip>
+              )}
             </Checkbox>
             <Tooltip title="Сколько заданий этого типа. Пусто — сколько получится">
               <InputNumber

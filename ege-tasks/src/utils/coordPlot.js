@@ -943,7 +943,11 @@ export function coordPlotSvg(model, opts = {}) {
         x: axisY0 - 5, y: sy(1) + 4, size: 11, color: COLORS.label, anchor: 'end',
       }));
     }
-    if (inX && inY) {
+    // Буква «O» стоит слева-снизу от начала координат — ровно там, где
+    // оказывается подпись засечки в нуле или в −1. Подпись важнее (это данные
+    // задачи, а не оформление), поэтому в таком соседстве «O» не рисуем.
+    const labelNearOrigin = m.xticks.some((t) => t.label && t.v <= 0 && t.v >= -1);
+    if (inX && inY && !labelNearOrigin) {
       parts.push(mathSvgText('O', {
         x: axisY0 - 4, y: axisX0 + 13, size: 11, color: COLORS.label, anchor: 'end',
       }));
