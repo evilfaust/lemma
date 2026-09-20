@@ -339,22 +339,62 @@ function askF(cat) {
     }
     case 'f_max_value_point':
     case 'f_min_value_point': {
-      // Наибольшее значение ищется на ОТРЕЗКЕ: на интервале концы не в счёт,
-      // и ответ мог бы не достигаться.
-      const best = cat === 'f_max_value_point'
-        ? s.nodes.reduce((m, n) => (n.y > m.y ? n : m))
-        : s.nodes.reduce((m, n) => (n.y < m.y ? n : m));
-      // Единственность: второго узла с тем же значением быть не должно
-      if (s.nodes.filter((n) => n.y === best.y).length > 1) return null;
+      const seg = segmentExtremum(s, cat === 'f_max_value_point');
+      if (!seg) return null;
       const word = cat === 'f_max_value_point' ? 'наибольшее' : 'наименьшее';
       return q(
-        `Найдите точку отрезка $${interval(s.a, s.b, true)}$, в которой функция $f(x)$ принимает ${word} значение.`,
-        best.x,
+        `Найдите точку отрезка $${interval(seg.p, seg.q, true)}$, в которой функция $f(x)$ принимает ${word} значение.`,
+        seg.node.x,
       );
     }
     default:
       return null;
   }
+}
+
+/**
+ * Отрезок внутри области определения и вершина, в которой на нём достигается
+ * наибольшее (или наименьшее) значение.
+ *
+ * 🚨 Отрезок обязан лежать СТРОГО внутри интервала (a; b): функция объявлена
+ * на открытом интервале, в самих a и b её нет, и «наибольшее значение на
+ * отрезке [a; b]» — бессмыслица (поймано учителем 20.09.2026 на выданной
+ * работе). В КИМ по той же причине всегда берут внутренний отрезок.
+ *
+ * Концы отрезка подбираются вокруг выбранной вершины так, чтобы значение в ней
+ * ни с чем не спорило: между сплайновыми узлами кривая монотонна, поэтому
+ * достаточно, чтобы ни один узел отрезка и ни один его конец не дотягивал до
+ * вершины. Тогда ответ единственный — и по модели, и по чертежу.
+ */
+function segmentExtremum(s, wantMax) {
+  const MIN_SEGMENT = 3; // короче отрезок не читается по клеткам
+  const vertices = wantMax ? s.an.maxima : s.an.minima;
+
+  for (const node of shuffleArray(vertices)) {
+    // «конкурент» — точка не хуже вершины: с ней ответ перестал бы быть один
+    const rival = (y) => (wantMax ? y >= node.y - EPS : y <= node.y + EPS);
+    // Идём от вершины в сторону края, пока между концом и вершиной не окажется
+    // узел-конкурент: за ним отрезок тянуть уже нельзя.
+    const ends = (limit, step) => {
+      const out = [];
+      for (let x = node.x + step; (x - limit) * step <= 0; x += step) {
+        const between = s.nodes.filter((n) => (n.x - x) * step <= 0 && (n.x - node.x) * step > 0);
+        if (between.some((n) => rival(n.y))) break;
+        if (!rival(s.spline.f(x))) out.push(x);
+      }
+      return out;
+    };
+    const lefts = ends(s.a + 1, -1);
+    const rights = ends(s.b - 1, 1);
+    const pairs = [];
+    for (const p of lefts) {
+      for (const qq of rights) if (qq - p >= MIN_SEGMENT) pairs.push([p, qq]);
+    }
+    if (!pairs.length) continue;
+    const [p, q] = rand(pairs);
+    return { p, q, node };
+  }
+  return null;
 }
 
 /**
@@ -1240,8 +1280,12 @@ function askBase(cat) {
       : null;
   }
   if (cat === 'b_max_value') {
-    const best = Math.max(...s.nodes.map((n) => n.y));
-    return q(`Найдите наибольшее значение функции $f(x)$ на отрезке $${interval(s.a, s.b, true)}$.`, best);
+    // Отрезок — внутри области определения, и на нём максимум достигается
+    // ровно в одной вершине (см. segmentExtremum)
+    const seg = segmentExtremum(s, true);
+    return seg
+      ? q(`Найдите наибольшее значение функции $f(x)$ на отрезке $${interval(seg.p, seg.q, true)}$.`, seg.node.y)
+      : null;
   }
   return null;
 }

@@ -60,6 +60,29 @@ describe('derivativeGraphTasks — каждая категория работа�
   });
 });
 
+describe('отрезок в условии не выходит за область определения', () => {
+  // «−6» в условии пишется минусом U+2212, а не дефисом
+  const num = (s) => Number(String(s).replace('−', '-').replace(',', '.'));
+  const DOMAIN = /определённой на интервале \$\((−?[\d,]+); (−?[\d,]+)\)\$/;
+  const SEGMENT = /отрезк\w* \$\[(−?[\d,]+); (−?[\d,]+)\]\$/;
+
+  it.each(GRAPH_CATEGORIES)('%s', (cat) => {
+    for (const t of tasksFor(cat, 15)) {
+      const domain = DOMAIN.exec(t.question);
+      const segment = SEGMENT.exec(t.question);
+      if (!domain || !segment) continue;
+      const [a, b] = [num(domain[1]), num(domain[2])];
+      const [p, q] = [num(segment[1]), num(segment[2])];
+      // 🚨 Функция объявлена на ОТКРЫТОМ интервале: в точках a и b её нет,
+      // поэтому отрезок обязан лежать строго внутри (иначе «наибольшее
+      // значение на отрезке» спрашивают там, где функции не существует).
+      expect(a).toBeLessThan(p);
+      expect(q).toBeLessThan(b);
+      expect(p).toBeLessThan(q);
+    }
+  });
+});
+
 describe('ответы сверены с картинкой', () => {
   it('точки максимума/минимума на графике f', () => {
     for (const t of tasksFor('f_max_count', 12)) {
@@ -186,8 +209,10 @@ describe('соответствие «точка ↔ значение произ�
 
 describe('соответствие «точка ↔ характеристика функции и производной»', () => {
   it('в каждой подписанной точке знаки f и f′ совпадают с выбранной характеристикой', () => {
-    const list = tasksFor('f_sign_match', 12);
-    expect(list.length).toBeGreaterThan(8);
+    // выборка крупнее прочих: у этого типа придирчивая сцена (точка должна
+    // отойти от оси и не закрыть свою подпись), выход около 90%
+    const list = tasksFor('f_sign_match', 20);
+    expect(list.length).toBeGreaterThan(12);
 
     for (const t of list) {
       const { s } = sampleCurve(t);
