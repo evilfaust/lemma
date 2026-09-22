@@ -141,3 +141,15 @@ export function groupTone(keyOrGroup) {
 export function groupHex(keyOrGroup) {
   return TONE_HEX[groupTone(keyOrGroup)] || TONE_HEX.neutral;
 }
+
+/**
+ * Цвет урока (v3.9.228). С группой — всегда цвет группы: класс остаётся
+ * «языком» идентичности, и свой `lessons.color` его не перебивает. Без группы —
+ * выбранный учителем `lessons.color`, иначе прежний автоцвет пустого ключа.
+ */
+export function lessonHex(lesson) {
+  const group = lesson?.expand?.group || lesson?.group || '';
+  if (group) return groupHex(group);
+  if (isGroupColor(lesson?.color)) return TONE_HEX[lesson.color];
+  return groupHex('');
+}

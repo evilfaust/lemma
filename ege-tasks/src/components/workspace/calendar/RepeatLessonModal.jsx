@@ -75,6 +75,7 @@ export default function RepeatLessonModal({ open, base, groups = [], saving, onC
     const payloads = occurrences.map((d, i) => ({
       title: titleFor(i + 1),
       group: base?.group || '',
+      color: base?.group ? '' : (base?.color || ''),
       date_plan: d.toISOString(),
       status: 'planned',
       time_slot: base?.time_slot || '',

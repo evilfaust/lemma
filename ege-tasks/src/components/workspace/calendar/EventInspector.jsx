@@ -6,7 +6,7 @@ import {
   TeamOutlined, FlagFilled, CloseOutlined, PaperClipOutlined, FileTextOutlined,
   EyeOutlined, RightOutlined, BankOutlined, UserOutlined,
 } from '@ant-design/icons';
-import { Chip, GroupChip, LessonStatusChip, groupHex } from '../ui';
+import { Chip, GroupChip, LessonStatusChip, groupHex, lessonHex } from '../ui';
 import { lessonStartEnd } from '../lessonTime';
 import { api } from '../../../shared/services/pocketbase';
 import { deadlineTitle } from './calendarUtils';
@@ -90,7 +90,7 @@ export default function EventInspector({
                         title={r.status === 'done' ? 'Вернуть в запланированные' : 'Отметить проведённым'}
                         tabIndex={0}
                         style={r.status === 'done'
-                          ? { borderColor: groupHex(r.group || r.groupId).base, background: groupHex(r.group || r.groupId).base }
+                          ? { borderColor: lessonHex(r.raw).base, background: lessonHex(r.raw).base }
                           : undefined}
                         onClick={() => onToggleLessonDone(l)}
                         onKeyDown={(ev) => {

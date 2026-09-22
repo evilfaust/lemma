@@ -12,7 +12,7 @@ import 'dayjs/locale/ru';
 import localeData from 'dayjs/plugin/localeData';
 import weekday from 'dayjs/plugin/weekday';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
-import { WorkspacePageHeader, groupHex, registerGroupColors } from './ui';
+import { WorkspacePageHeader, groupHex, lessonHex, registerGroupColors } from './ui';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import LessonModal from './calendar/LessonModal';
@@ -208,7 +208,7 @@ export default function TeacherCalendar() {
     }
     if (r.type === 'deadline') return { className: 'rbc-evt-deadline-soft' };
     if (r.type === 'todo') return { className: `rbc-evt-todo${r.done ? ' is-done' : ''}` };
-    const hex = groupHex(r.group || r.groupId || '');
+    const hex = lessonHex(r.raw);
     let cls = 'rbc-evt-lesson';
     if (r.status === 'done') cls += ' rbc-evt-done';
     else if (r.status === 'cancelled') cls += ' rbc-evt-cancelled';

@@ -1,7 +1,7 @@
 import dayjs from 'dayjs';
 import { ClockCircleOutlined, PaperClipOutlined, CheckOutlined, FlagFilled } from '@ant-design/icons';
 import { PAIRS, slotRangeFromCode, slotPairIndexes, guessSlot, hhmm } from '../lessonTime';
-import { groupHex } from '../ui';
+import { groupHex, lessonHex } from '../ui';
 import { periodTitle } from './calendarUtils';
 import { useCalendarCtx } from './CalendarContext';
 
@@ -159,7 +159,7 @@ export default function WeekByPairs({ date, events }) {
         }))}
         {placed.map(({ e, di, from, to, lane }) => {
           const r = e.resource;
-          const hex = groupHex(r.group || r.groupId);
+          const hex = lessonHex(r.raw);
           const muted = r.status === 'done' || r.status === 'cancelled';
           const span = to - from + 1;
           const range = slotRangeFromCode(r.raw?.time_slot);

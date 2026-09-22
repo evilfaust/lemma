@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   GROUP_COLORS, TONE_HEX, autoGroupTone, clearGroupColors, groupHex, groupTone,
-  isGroupColor, registerGroupColors,
+  isGroupColor, lessonHex, registerGroupColors,
 } from '../shared/utils/groupColors';
 
 describe('groupColors', () => {
@@ -44,5 +44,25 @@ describe('groupColors', () => {
 
   it('запись без цвета красится по id, а не по имени', () => {
     expect(groupTone({ id: 'grp_1', name: '7 кл' })).toBe(autoGroupTone('grp_1'));
+  });
+});
+
+describe('lessonHex — цвет урока (v3.9.228)', () => {
+  it('урок без класса красится выбранным цветом', () => {
+    expect(lessonHex({ group: '', color: 'rose' })).toEqual(TONE_HEX.rose);
+  });
+
+  it('с классом — всегда цвет класса, свой цвет урока не перебивает', () => {
+    const group = { id: 'g1', color: 'teal' };
+    expect(lessonHex({ group: 'g1', color: 'rose', expand: { group } })).toEqual(TONE_HEX.teal);
+  });
+
+  it('без класса и без цвета — прежний автоцвет', () => {
+    expect(lessonHex({ group: '', color: '' })).toEqual(groupHex(''));
+    expect(lessonHex({})).toEqual(groupHex(''));
+  });
+
+  it('мусор в поле цвета игнорируется', () => {
+    expect(lessonHex({ color: 'purple-ish' })).toEqual(groupHex(''));
   });
 });

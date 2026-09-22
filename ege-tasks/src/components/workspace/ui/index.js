@@ -7,6 +7,6 @@ export { default as SectionCard } from './SectionCard';
 export { default as GroupColorPicker } from './GroupColorPicker';
 export { Chip, GroupChip, LessonStatusChip, SubmitChip } from './Chip';
 export {
-  groupTone, groupHex, autoGroupTone, isGroupColor, registerGroupColors,
+  groupTone, groupHex, lessonHex, autoGroupTone, isGroupColor, registerGroupColors,
   GROUP_TONES, GROUP_COLORS, GROUP_COLOR_LABELS, TONE_HEX,
 } from './groupColor';

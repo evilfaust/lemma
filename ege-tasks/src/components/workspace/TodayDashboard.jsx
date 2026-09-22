@@ -10,7 +10,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Chip, groupHex, TONE_HEX, SectionCard } from './ui';
+import { Chip, groupHex, lessonHex, TONE_HEX, SectionCard } from './ui';
 import { lessonStartEnd, lessonProgress } from './lessonTime';
 import { KIND_COLORS } from '../../shared/services/pb/schoolEvents';
 import WeekNavigator from './today/WeekNavigator';
@@ -150,7 +150,7 @@ export default function TodayDashboard() {
         startStr: dayjs(start).format('HH:mm'),
         endStr: dayjs(end).format('HH:mm'),
         groupName: l.expand?.group?.name || '',
-        groupColor: groupHex(l.expand?.group || l.group).base,
+        groupColor: lessonHex(l).base,
         subject: l.title,
         topic: lessonTopic(l),
         mats: matCount(l),
@@ -356,7 +356,7 @@ export default function TodayDashboard() {
               const tone = status === 'done' ? 'teal' : status === 'now' ? 'blue' : 'neutral';
               const dotColor = status === 'done' ? '#0D9488' : status === 'now' ? '#2B4BFF' : '#9AA0AC';
               const dotRing = status === 'done' ? '#D1FAE5' : status === 'now' ? '#E7ECFF' : '#F3F4F6';
-              const ghex = groupHex(l.expand?.group || l.group);
+              const ghex = lessonHex(l);
               const mats = matCount(l);
               const needPrep = mats === 0 && status !== 'done';
               return (
@@ -421,7 +421,7 @@ export default function TodayDashboard() {
           >
             {prepBacklog.length ? prepBacklog.map((l) => {
               const d = dayjs(l.date_plan);
-              const hex = groupHex(l.expand?.group || l.group);
+              const hex = lessonHex(l);
               return (
                 <div key={l.id} className="td-prep" onClick={() => navigate('/app/calendar')}>
                   <span className="td-prep__date" style={{ color: hex.base, background: hex.soft }}>

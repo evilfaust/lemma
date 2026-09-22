@@ -13,6 +13,7 @@ export {
   autoGroupTone,
   clearGroupColors,
   groupHex,
+  lessonHex,
   groupTone,
   isGroupColor,
   registerGroupColors,

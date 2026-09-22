@@ -5,6 +5,7 @@ import { PAIRS } from '../lessonTime';
 import { api } from '../../../shared/services/pocketbase';
 import SchoolEventFields from './SchoolEventFields';
 import { schoolEventFormToData } from './calendarUtils';
+import { LessonColorField } from './LessonModal';
 
 const TYPES = [
   { value: 'lesson', label: 'Урок' },
@@ -60,6 +61,7 @@ export default function CreateEventModal({
         await api.createLesson({
           title: v.title,
           group: v.group || '',
+          color: v.group ? '' : (v.color || ''),
           date_plan: (v.date || dayjs()).toISOString(),
           status: 'planned',
           time_slot: pair || '',
@@ -125,6 +127,8 @@ export default function CreateEventModal({
             <Select allowClear placeholder="Группа" options={groups.map((g) => ({ value: g.id, label: g.name }))} />
           </Form.Item>
         )}
+
+        {type === 'lesson' && <LessonColorField form={form} />}
 
         {type !== 'school' && (type === 'lesson' ? (
           <>

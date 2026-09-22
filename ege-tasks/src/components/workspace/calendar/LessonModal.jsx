@@ -9,7 +9,7 @@ import {
 import dayjs from 'dayjs';
 import MaterialPickerModal from '../MaterialPickerModal';
 import AttendanceRoster from '../AttendanceRoster';
-import { Chip } from '../ui';
+import { Chip, GroupColorPicker } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
@@ -58,6 +58,7 @@ export default function LessonModal({
       form.setFieldsValue({
         title: initial?.title || '',
         group: initial?.group || undefined,
+        color: initial?.color || '',
         date_plan: startDate,
         status: initial?.status || 'planned',
         conference_url: initial?.conference_url || '',
@@ -162,6 +163,8 @@ export default function LessonModal({
     onSave({
       title: v.title,
       group: v.group || '',
+      // Свой цвет — только у урока без класса: с классом урок красится им.
+      color: v.group ? '' : (v.color || ''),
       date_plan: v.date_plan ? v.date_plan.toISOString() : dayjs().toISOString(),
       status: v.status || 'planned',
       time_slot: currentSlotCode(),
@@ -284,6 +287,7 @@ export default function LessonModal({
             ]} />
           </Form.Item>
         </Space>
+        <LessonColorField form={form} />
         <Form.Item label="Время по расписанию" style={{ marginBottom: 8 }}>
           <Space direction="vertical" size={6} style={{ width: '100%' }}>
             <Segmented value={mode}
@@ -623,5 +627,20 @@ export default function LessonModal({
         )}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Цвет урока без класса (v3.9.228). С выбранным классом поле прячется: урок
+ * красится цветом класса, и второй источник цвета только запутал бы.
+ * Значение при этом держится в форме — снял класс, и выбор вернулся.
+ */
+export function LessonColorField({ form }) {
+  const group = Form.useWatch('group', form);
+  return (
+    <Form.Item name="color" label="Цвет" hidden={!!group}
+      tooltip="Урок без класса. С классом урок красится цветом класса">
+      <GroupColorPicker />
+    </Form.Item>
   );
 }
