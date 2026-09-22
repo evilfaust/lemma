@@ -31,13 +31,13 @@ describe('andMineOrCoTaught', () => {
   it('собирает «моё + со-ведение + расшаренное»', () => {
     loginAs('t1');
     const f = andMineOrCoTaught('', { shareField: 'shared_with' });
-    expect(f).toBe('(owner = "t1" || group.co_teachers ?= "t1" || shared_with ?= "t1")');
+    expect(f).toBe('(owner = "t1" || group.co_teachers.id ?= "t1" || shared_with.id ?= "t1")');
   });
 
   it('для самой группы со-ведущие лежат на записи, без обхода relation', () => {
     loginAs('t1');
     const f = andMineOrCoTaught('archived != true', { groupPath: '', shareField: 'co_teachers' });
-    expect(f).toBe('(archived != true) && (owner = "t1" || co_teachers ?= "t1")');
+    expect(f).toBe('(archived != true) && (owner = "t1" || co_teachers.id ?= "t1")');
   });
 
   it('🚨 у superadmin фильтр НЕ снимается — иначе календарь завуча = вся школа', () => {
@@ -121,5 +121,37 @@ describe('миграция правил со-ведения', () => {
     for (const name of ['teaching_groups', 'lessons', 'lesson_attendance', 'students', 'group_memberships', 'teacher_notes']) {
       expect(sql.split('OLD_RULES')[1]).toContain(`${name}:`);
     }
+  });
+});
+
+describe('починка правил со-ведения: `.id` у мульти-relation (v3.9.227)', () => {
+  // В PB 0.36 `co_teachers ?= @request.auth.id` отвечает 200, но не совпадает
+  // никогда — второй учитель видел пустоту. Нужна форма `co_teachers.id ?=`.
+  const src = readFileSync(
+    resolve(__dirname, '../../../pocketbase/pb_migrations/1786300000_fix_co_teacher_rules_id.js'),
+    'utf-8',
+  );
+  const up = /r\.replace\((\/.*?\/g), '(.*?)'\)/.exec(src.split('migrate(')[1]);
+  const re = new Function(`return ${up[1]}`)();
+  const fix = (r) => r.replace(re, up[2]);
+
+  it('дописывает .id во все пути до со-ведущих и точечного доступа', () => {
+    expect(fix('owner = x || co_teachers ?= @request.auth.id')).toBe('owner = x || co_teachers.id ?= @request.auth.id');
+    expect(fix('group.co_teachers ?= @request.auth.id || shared_with ?= @request.auth.id'))
+      .toBe('group.co_teachers.id ?= @request.auth.id || shared_with.id ?= @request.auth.id');
+    expect(fix('lesson.group.co_teachers ?= a || lesson.shared_with ?= a'))
+      .toBe('lesson.group.co_teachers.id ?= a || lesson.shared_with.id ?= a');
+  });
+
+  it('повторный прогон ничего не ломает (уже исправленное не трогает)', () => {
+    const once = fix('co_teachers ?= a');
+    expect(fix(once)).toBe(once);
+  });
+
+  it('клиентский фильтр больше не содержит голого `co_teachers ?=`', () => {
+    loginAs('t1');
+    const f = andMineOrCoTaught('', { shareField: 'shared_with' });
+    expect(f).not.toMatch(/(co_teachers|shared_with) \?=/);
+    vi.restoreAllMocks();
   });
 });

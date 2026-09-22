@@ -49,9 +49,11 @@ export function andMineOrCoTaught(filter = '', { groupPath = 'group', shareField
   const t = currentTeacher();
   // Ученический контур без teacher-auth — хелпер прозрачен, как и andOwner.
   if (!t) return filter;
+  // 🚨 У мульти-relation обязательно `.id`: в PocketBase 0.36 `co_teachers ?= "x"`
+  // отвечает 200 и молча не находит НИЧЕГО (v3.9.227). Верно — `co_teachers.id ?= "x"`.
   const parts = [`owner = "${t.id}"`];
-  if (groupPath) parts.push(`${groupPath}.co_teachers ?= "${t.id}"`);
-  if (shareField) parts.push(`${shareField} ?= "${t.id}"`);
+  if (groupPath) parts.push(`${groupPath}.co_teachers.id ?= "${t.id}"`);
+  if (shareField) parts.push(`${shareField}.id ?= "${t.id}"`);
   const mine = `(${parts.join(' || ')})`;
   return filter ? `(${filter}) && ${mine}` : mine;
 }
