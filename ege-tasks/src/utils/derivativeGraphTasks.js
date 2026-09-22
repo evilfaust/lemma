@@ -277,11 +277,14 @@ const definedOn = (s, name = 'f(x)') => `Функция $${name}$ определ
 const GRAPH_F = (s) => `На рисунке изображён график функции $y = f(x)$, определённой на интервале $${interval(s.a, s.b)}$.`;
 const GRAPH_D = (s) => `На рисунке изображён график $y = f'(x)$ — производной функции $f(x)$, определённой на интервале $${interval(s.a, s.b)}$.`;
 
+// Условие говорит «на интервале (a; b)» — концов у графика нет, рисуем их выколотыми.
+const openEnds = (s, ref) => [`mark ${s.a} ${ref} open`, `mark ${s.b} ${ref} open`];
+
 const specF = (s, extra = []) => buildSpec({
-  nodes: s.nodes, name: 'f', label: 'y = f(x)', extra, spline: s.spline,
+  nodes: s.nodes, name: 'f', label: 'y = f(x)', extra: [...extra, ...openEnds(s, 'f')], spline: s.spline,
 });
 const specD = (s, extra = []) => buildSpec({
-  nodes: s.nodes, name: "f'", label: "y = f'(x)", extra, spline: s.spline,
+  nodes: s.nodes, name: "f'", label: "y = f'(x)", extra: [...extra, ...openEnds(s, "f'")], spline: s.spline,
 });
 
 /**

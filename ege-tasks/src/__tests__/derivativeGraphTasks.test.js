@@ -427,3 +427,22 @@ describe('лист генератора', () => {
     expect(generateGraphVariants({ categories: {} })).toEqual([]);
   });
 });
+
+describe('концы графика на открытом интервале', () => {
+  it('«определена на интервале (a; b)» → оба конца выколоты, иначе выколотых нет', () => {
+    for (const cat of GRAPH_CATEGORIES) {
+      for (let i = 0; i < 10; i += 1) {
+        const t = makeGraphTask(cat);
+        if (!t?.plot) continue;
+        const open = parseCoordPlot(t.plot).points.filter((p) => p.style === 'open');
+        if (/интервале \$\(/.test(t.question)) {
+          const { a, b, s } = sampleCurve(t);
+          expect(open.map((p) => p.x).sort((x, y) => x - y)).toEqual([a, b]);
+          for (const p of open) expect(p.y).toBeCloseTo(s.f(p.x), 9);
+        } else {
+          expect(open).toEqual([]);
+        }
+      }
+    }
+  });
+});
