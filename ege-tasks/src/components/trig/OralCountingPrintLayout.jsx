@@ -185,6 +185,7 @@ export default function OralCountingPrintLayout({
   layout,              // план листа: порядок заданий и разделители
   screenMode = false,
   fontSize = 's',
+  wideAnswers = false, // ответ — формула (производные): шире поле ответа, ключ в одну колонку
 }) {
   if (!tasksData) return null;
   const { showTeacherKey, columnsCount = 2 } = settings;
@@ -258,7 +259,7 @@ export default function OralCountingPrintLayout({
   if (screenMode) {
     return (
       <div
-        className={`oral-screen-root oral-screen-root--fs-${fontSize}`}
+        className={`oral-screen-root oral-screen-root--fs-${fontSize}${wideAnswers ? ' oral-wide-answers' : ''}`}
         style={sheetSpacingStyle(opts.lineSpacing)}
       >
         {inner}
@@ -267,7 +268,11 @@ export default function OralCountingPrintLayout({
   }
 
   return (
-    <div className="oral-print-root" data-fs={fontSize} style={sheetSpacingStyle(opts.lineSpacing)}>
+    <div
+      className={`oral-print-root${wideAnswers ? ' oral-wide-answers' : ''}`}
+      data-fs={fontSize}
+      style={sheetSpacingStyle(opts.lineSpacing)}
+    >
       {inner}
     </div>
   );

@@ -65,6 +65,10 @@ import {
   CATEGORY_LABELS_INTERVAL,
 } from '../hooks/useIntervalMethod';
 import {
+  generateDerivativeVariants,
+  CATEGORY_LABELS_DERIV,
+} from '../hooks/useDerivatives';
+import {
   generateGraphVariants,
   CATEGORY_LABELS_GRAPH,
 } from './derivativeGraphTasks';
@@ -182,7 +186,15 @@ export const SHEET_GENERATORS = {
     generate: generateIntervalMethodVariants,
   },
 
-  // ── Функции (графики) ──
+  // ── Функции ──
+  derivatives: {
+    label: 'Вычисление производных',
+    route: '/app/functions/derivatives',
+    instruction: 'Найдите производную функции:',
+    categoryLabels: CATEGORY_LABELS_DERIV,
+    generate: generateDerivativeVariants,
+  },
+
   // Задание — чертёж: правка «по месту» и экспорт .md этому листу не подходят
   // (общая модалка умеет только формулу), зато перегенерация даёт новый график.
   graph_derivative: {

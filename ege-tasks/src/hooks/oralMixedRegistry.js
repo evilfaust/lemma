@@ -71,6 +71,12 @@ import {
 } from './useIntervalMethod';
 
 import {
+  generateDerivativeVariants,
+  CATEGORY_LABELS_DERIV,
+  DEFAULT_SETTINGS_DERIV,
+} from './useDerivatives';
+
+import {
   generateDoubleInequalityVariants,
   CATEGORY_LABELS_DBL,
   DEFAULT_SETTINGS_DBL,
@@ -196,6 +202,17 @@ export const ORAL_TYPES = [
     categoryLabels: CATEGORY_LABELS_INTERVAL,
     defaultCategories: DEFAULT_SETTINGS_INTERVAL.categories,
     defaultSettings: DEFAULT_SETTINGS_INTERVAL,
+  },
+  {
+    type:         'derivatives',
+    label:        'Вычисление производных',
+    instruction:  'Найдите производные функций:',
+    equationMode: true,
+    promptMode:   'var',      // «y′ =», «f′(2) =» — буква берётся из задания
+    generator:    generateDerivativeVariants,
+    categoryLabels: CATEGORY_LABELS_DERIV,
+    defaultCategories: DEFAULT_SETTINGS_DERIV.categories,
+    defaultSettings: DEFAULT_SETTINGS_DERIV,
   },
   {
     type:         'double_inequalities',

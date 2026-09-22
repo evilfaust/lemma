@@ -7,6 +7,7 @@ import { SaveOutlined, PrinterOutlined, DeleteOutlined, ReloadOutlined } from '@
 import { api } from '../../shared/services/pocketbase';
 import { buildOptionsWithAI } from '../../utils/aiDistractorGenerator';
 import { generateTrigTaskCodes } from '../../utils/taskCodeGenerator';
+import { statementLatexOf } from '../../utils/sheetMarkdown';
 
 const { Option } = Select;
 
@@ -26,6 +27,7 @@ export const GENERATOR_LABELS = {
   linear_inequalities:     'Линейные неравенства',
   double_inequalities:     'Двойные неравенства',
   interval_method:         'Метод интервалов',
+  derivatives:             'Вычисление производных',
   linear_systems:          'Системы линейных неравенств',
   quadratic_systems:       'Системы квадратных неравенств',
 };
@@ -46,6 +48,7 @@ const GENERATOR_INSTRUCTIONS = {
   linear_inequalities:     'Решите неравенство:',
   double_inequalities:     'Решите двойное неравенство:',
   interval_method:         'Решите неравенство методом интервалов:',
+  derivatives:             'Найдите производную функции:',
   linear_systems:          'Решите систему неравенств:',
   quadratic_systems:       'Решите систему неравенств:',
 };
@@ -60,6 +63,30 @@ const GENERATOR_TOPIC_TITLES = {
   reduction_formulas:      'Формулы приведения',
   addition_formulas:       'Формулы сложения',
 };
+
+/**
+ * Варианты ответа. Генератор, который сам знает типичные ошибки (производные:
+ * u′v′ вместо правила произведения, забытая внутренняя производная), отдаёт их
+ * в `task.mistakes` — они правдоподобнее угаданных. Не хватило — добираем
+ * обычным путём.
+ */
+async function optionsFor(task, generatorType, count) {
+  const own = (task.mistakes || []).filter(t => t && t !== task.resultLatex);
+  if (own.length >= count - 1) {
+    return [
+      { text: task.resultLatex, is_correct: true },
+      ...own.slice(0, count - 1).map(t => ({ text: t, is_correct: false, error_type: 'rule' })),
+    ];
+  }
+  const base = await buildOptionsWithAI(task.resultLatex, task.exprLatex, generatorType, count);
+  if (!own.length) return base;
+  const rest = base.filter(o => !o.is_correct && !own.includes(o.text));
+  return [
+    base.find(o => o.is_correct) || { text: task.resultLatex, is_correct: true },
+    ...own.map(t => ({ text: t, is_correct: false, error_type: 'rule' })),
+    ...rest,
+  ].slice(0, count);
+}
 
 /**
  * Создаёт реальные записи в коллекции `tasks` для каждой задачи генератора,
@@ -106,7 +133,7 @@ async function createTasksAndBuildVariants(tasksData, optionsCount, generatorTyp
 
       for (const task of variantTasks) {
         const taskData = {
-          statement_md: `${instruction}\n\n$$${task.exprLatex}$$`,
+          statement_md: `${task.instruction || instruction}\n\n$$${statementLatexOf(task)}$$`,
           answer:  task.resultLatex,
           source:  'trig_generator',
         };
@@ -116,9 +143,9 @@ async function createTasksAndBuildVariants(tasksData, optionsCount, generatorTyp
         createdIds.push(record.id);
         tasks.push({
           task_id:  record.id,
-          question: task.exprLatex,
+          question: statementLatexOf(task),
           answer:   task.resultLatex,
-          options:  await buildOptionsWithAI(task.resultLatex, task.exprLatex, generatorType, optionsCount),
+          options:  await optionsFor(task, generatorType, optionsCount),
         });
         done++;
         // Прогресс 5–90 % — создание задач; 90–100 % — сохранение теста

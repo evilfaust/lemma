@@ -62,6 +62,7 @@ const PROMPT_BY_GENERATOR = {
   linear_inequalities:     'answer',
   double_inequalities:     'answer',
   interval_method:         'answer',
+  derivatives:             'var',     // «y′ = …», «f′(2) = …»
   linear_systems:          'answer',
   quadratic_systems:       'answer',
   // 'plain' — ответ числом, без формулы: его вписывают в бланк, и по нему же
@@ -92,6 +93,18 @@ export function sheetExamType(generator, sheet = null) {
   return EXAM_TYPE_BY_GENERATOR[generator] || 'other';
 }
 
+/**
+ * Формула условия. У заданий с флагом `askInStatement` (производные: «f′(2) =»,
+ * «y″ =») вопрос живёт в `varLatex` и на листе печатается отдельно от формулы —
+ * в тексте и в тесте без него задание непонятно, поэтому он дописывается.
+ * Собирается на лету: снимок листа можно править, готовая строка устарела бы.
+ */
+export function statementLatexOf(task) {
+  const expr = String(task?.exprLatex ?? '');
+  if (!task?.askInStatement || !expr.trim()) return expr;
+  return `${expr},\\; ${task.varLatex || 'x'} = \\,?`;
+}
+
 export function sheetPrompt(generator) {
   return PROMPT_BY_GENERATOR[generator] || 'eq';
 }
@@ -112,7 +125,7 @@ export function texInline(latex) {
  * в текст по-прежнему не переносятся.
  */
 export function taskStatement(task) {
-  const expr = String(task?.exprLatex ?? '').trim();
+  const expr = statementLatexOf(task).trim();
   if (expr) return texInline(expr);
   const question = String(task?.question ?? '').trim();
   const plot = String(task?.plot ?? '').trim();

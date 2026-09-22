@@ -660,3 +660,15 @@
 .oral-screen-root .oral-key-expr   { flex: 1; font-size: 0.95em; color: #333; overflow: hidden; }
 .oral-screen-root .oral-key-eq     { padding: 0 1px; flex-shrink: 0; }
 .oral-screen-root .oral-key-ans    { font-weight: bold; font-size: 1.15em; flex-shrink: 0; }
+
+/* ─── Широкий ответ: ответ — формула, а не число (производные) ─────────────
+   Под «y′ =» остаётся не меньше 40 % строки; не влезает рядом с условием —
+   поле уходит на следующую строку целиком. Ключ учителя — в одну колонку:
+   ответ-дробь в половине листа налезал бы на соседний вариант. Правила стоят
+   в конце файла и вне @media, поэтому перебивают и печать, и экран. */
+.oral-wide-answers .oral-task { flex-wrap: wrap; row-gap: 1mm; }
+.oral-wide-answers .oral-task-expr--eq { flex: 0 1 auto; min-width: auto; }
+.oral-wide-answers .oral-task-x-prompt { flex: 1 0 40%; min-width: 40%; }
+.oral-wide-answers .oral-key-variants { grid-template-columns: 1fr; }
+.oral-wide-answers .oral-key-row { flex-wrap: wrap; column-gap: 3mm; }
+.oral-wide-answers .oral-key-expr { flex: 0 1 auto; overflow: visible; }
