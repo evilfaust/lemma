@@ -51,6 +51,16 @@ const SESSION_MARKER = 'pb_session_active';
       return;
     }
 
+    // Просроченный токен = выход. PocketBase не отвечает на него 401, а молча
+    // считает запрос гостевым: списки с правилами доступа (уроки, классы,
+    // выдачи, заметки) приходят пустыми, публичные (задачи, темы) — полными.
+    // Модель же лежит в localStorage, и интерфейс продолжал «видеть» учителя —
+    // так выглядел пустой календарь на телефоне, где Lemma не открывали
+    // дольше срока жизни токена.
+    if (pb.authStore.token && !pb.authStore.isValid) {
+      pb.authStore.clear();
+    }
+
     // Если "не запоминать" и нет маркера активной сессии — очищаем.
     const remember = localStorage.getItem(REMEMBER_KEY) === 'true';
     const sessionActive = sessionStorage.getItem(SESSION_MARKER) === '1';
@@ -63,11 +73,24 @@ const SESSION_MARKER = 'pb_session_active';
   }
 })();
 
+const REFRESH_EVERY = 60 * 60 * 1000;
+
+// Продлить токен учителя. Выкидываем только на ответ сервера «токен не годится»
+// (4xx): обрыв сети (status 0) на мобильном интернете — не повод разлогинивать.
+function refreshTeacherAuth() {
+  return pb.collection('teachers')
+    .authRefresh()
+    .catch((err) => {
+      console.warn('[AuthContext] authRefresh failed:', err?.status);
+      if (err?.status >= 400 && err?.status < 500) pb.authStore.clear();
+    });
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [teacher, setTeacher] = useState(() => {
-    return pb.authStore.model?.collectionName === 'teachers'
+    return pb.authStore.isValid && pb.authStore.model?.collectionName === 'teachers'
       ? pb.authStore.model
       : null;
   });
@@ -90,13 +113,31 @@ export function AuthProvider({ children }) {
     if (!pb.authStore.isValid || pb.authStore.model?.collectionName !== 'teachers') {
       return;
     }
-    pb.collection('teachers')
-      .authRefresh()
-      .catch((err) => {
-        // Токен недействителен — выкидываем.
-        console.warn('[AuthContext] authRefresh failed:', err?.status);
+    refreshTeacherAuth();
+  }, []);
+
+  // Вкладку на телефоне держат открытой днями, страница не перезагружается —
+  // проверки при монтировании мало. Когда вкладка снова видна: просроченный
+  // токен → на вход, живой → продлеваем (не чаще раза в REFRESH_EVERY).
+  useEffect(() => {
+    let lastRefresh = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (pb.authStore.model?.collectionName !== 'teachers') return;
+      if (!pb.authStore.isValid) {
         pb.authStore.clear();
-      });
+        return;
+      }
+      if (Date.now() - lastRefresh < REFRESH_EVERY) return;
+      lastRefresh = Date.now();
+      refreshTeacherAuth();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, []);
 
   const login = useCallback(async (username, password, remember = true) => {
