@@ -45,6 +45,7 @@ const EXAM_TYPE_BY_GENERATOR = {
   addition_formulas:       'trig',
   double_angle:            'trig',
   trig_mixed:              'trig',
+  chart_reading:           'ege_base',
 };
 
 // Чем заканчивается строка задания на листе — тем же правилом собирается ответ:
@@ -68,6 +69,7 @@ const PROMPT_BY_GENERATOR = {
   // 'plain' — ответ числом, без формулы: его вписывают в бланк, и по нему же
   // проверяется ученик, если задание уедет в работу.
   graph_derivative:        'plain',
+  chart_reading:           'plain',
 };
 
 /**

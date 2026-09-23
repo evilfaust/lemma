@@ -327,8 +327,10 @@ describe('соответствие «интервал ↔ характерист
   };
 
   it('каждая характеристика верна для своего интервала и только для него', () => {
-    const list = tasksFor('b_interval_match', 12);
-    expect(list.length).toBeGreaterThan(8);
+    // 12 попыток и порог «больше 8» падали примерно раз в 25 прогонов:
+    // тип придирчивый, выход около 90 %, и ровно 8 из 12 — обычная случайность
+    const list = tasksFor('b_interval_match', 20);
+    expect(list.length).toBeGreaterThan(12);
 
     for (const t of list) {
       const { s } = sampleCurve(t);

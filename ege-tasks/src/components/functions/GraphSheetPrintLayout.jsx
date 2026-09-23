@@ -1,5 +1,6 @@
 import React from 'react';
 import CoordPlotSVG from '../shared/CoordPlotSVG';
+import ChartSVG from './ChartSVG';
 import MathText from '../shared/MathText';
 import { sheetOptions, sheetSpacingStyle, keyAnswerLatex } from '../trig/sheetOptions';
 import { MathInline } from '../shared/MathInline';
@@ -128,6 +129,13 @@ function TaskCard({ task, no, opts, figureSize }) {
             <CoordPlotSVG spec={task.plot} width={box.width} maxHeight={box.height} />
           </div>
         )}
+        {/* График или диаграмма «из жизни» (лист «Графики и диаграммы»):
+            у него свои шкалы, поэтому холст — ровно коробка, без подгонки клетки */}
+        {task.chart && (
+          <div className="gsp-figure">
+            <ChartSVG chart={task.chart} width={box.width} height={box.height} />
+          </div>
+        )}
         {task.matching && <MatchLists matching={task.matching} />}
         {task.note && <div className="gsp-note"><MathText text={task.note} /></div>}
       </div>
@@ -188,7 +196,9 @@ function StudentPage({
 }
 
 /** Ключ учителя: тот же порядок, что на листе ученика, но без чертежей. */
-function TeacherKeyPage({ tasksData, title, layout, opts }) {
+function TeacherKeyPage({
+  tasksData, title, layout, opts, categoryLabels,
+}) {
   return (
     <div className="gsp-key-page">
       <div className="gsp-key-title">{title} — ответы (лист учителя)</div>
@@ -204,7 +214,7 @@ function TeacherKeyPage({ tasksData, title, layout, opts }) {
                     <MathInline latex={keyAnswerLatex(it.task.resultLatex, opts)} />
                   </span>
                   {/* Тип задания: по одному числу не понять, что спрашивали */}
-                  <span className="gsp-key-cat">{CATEGORY_LABELS_GRAPH[it.task.cat] || ''}</span>
+                  <span className="gsp-key-cat">{categoryLabels[it.task.cat] || ''}</span>
                 </div>
               ))}
             </div>
@@ -217,6 +227,7 @@ function TeacherKeyPage({ tasksData, title, layout, opts }) {
 
 export default function GraphSheetPrintLayout({
   tasksData, settings = {}, title, layout, instruction, screenMode = false,
+  categoryLabels = CATEGORY_LABELS_GRAPH,
 }) {
   if (!tasksData) return null;
   const opts = sheetOptions(settings);
@@ -239,7 +250,13 @@ export default function GraphSheetPrintLayout({
         />
       ))}
       {showTeacherKey && (
-        <TeacherKeyPage tasksData={tasksData} title={title} layout={layout} opts={opts} />
+        <TeacherKeyPage
+          tasksData={tasksData}
+          title={title}
+          layout={layout}
+          opts={opts}
+          categoryLabels={categoryLabels}
+        />
       )}
     </>
   );

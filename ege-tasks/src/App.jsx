@@ -109,6 +109,7 @@ const DoubleInequalitiesGenerator = lazy(() => import('./components/DoubleInequa
 const IntervalMethodGenerator = lazy(() => import('./components/IntervalMethodGenerator'));
 const GraphTasksGenerator = lazy(() => import('./components/functions/GraphTasksGenerator'));
 const DerivativesGenerator = lazy(() => import('./components/functions/DerivativesGenerator'));
+const ChartTasksGenerator = lazy(() => import('./components/functions/ChartTasksGenerator'));
 const MarathonGenerator = lazy(() => import('./components/MarathonGenerator'));
 const ClassifySheetGenerator = lazy(() => import('./components/classify/ClassifySheetGenerator'));
 const CrosswordGenerator = lazy(() => import('./components/CrosswordGenerator'));
@@ -225,6 +226,7 @@ export const R = {
   // Функции
   GRAPH_DERIVATIVE:    '/app/functions/graph-derivative',
   DERIVATIVES:         '/app/functions/derivatives',
+  CHART_READING:       '/app/functions/charts',
   // Теория
   THEORY:              '/app/theory',
   THEORY_NEW:          '/app/theory/articles/new',
@@ -345,6 +347,7 @@ const ROUTE_META = [
   { re: /^\/app\/equations\/interval-method/, menuKey: 'interval-method', menuGroup: 'equations', title: 'Уравнения — Метод интервалов' },
   { re: /^\/app\/functions\/graph-derivative/, menuKey: 'graph-derivative', menuGroup: 'functions', title: 'Функции — Производная и график' },
   { re: /^\/app\/functions\/derivatives/, menuKey: 'derivatives', menuGroup: 'functions', title: 'Функции — Вычисление производных' },
+  { re: /^\/app\/functions\/charts/, menuKey: 'chart-reading', menuGroup: 'functions', title: 'Функции — Графики и диаграммы' },
   { re: /^\/app\/theory\/print/,           menuKey: 'theory-print',     menuGroup: 'theory', title: 'Теория — Конспекты', noMargin: true },
   { re: /^\/app\/theory\/categories/,      menuKey: 'theory-categories', menuGroup: 'theory', title: 'Теория — Категории' },
   { re: /^\/app\/theory$/,                 menuKey: 'theory-browser',   menuGroup: 'theory', title: 'Теория — Библиотека' },
@@ -429,6 +432,7 @@ const MENU_KEY_PATH = {
   'interval-method':        R.INTERVAL_METHOD,
   'graph-derivative':       R.GRAPH_DERIVATIVE,
   'derivatives':            R.DERIVATIVES,
+  'chart-reading':          R.CHART_READING,
   'linear-systems':         R.LINEAR_SYSTEMS,
   'quadratic-systems':      R.QUADRATIC_SYSTEMS,
   'theory-browser':         R.THEORY,
@@ -821,6 +825,7 @@ function AppLayout() {
       children: [
         { key: 'derivatives', icon: <FunctionOutlined />, label: 'Вычисление производных' },
         { key: 'graph-derivative', icon: <LineChartOutlined />, label: 'Производная и график' },
+        { key: 'chart-reading', icon: <BarChartOutlined />, label: 'Графики и диаграммы' },
       ],
     },
     {
@@ -1131,6 +1136,7 @@ function App() {
               {/* Функции */}
               <Route path={R.GRAPH_DERIVATIVE} element={<GraphTasksGenerator />} />
               <Route path={R.DERIVATIVES} element={<DerivativesGenerator />} />
+              <Route path={R.CHART_READING} element={<ChartTasksGenerator />} />
 
               {/* Теория — просмотр (viewer тоже) */}
               <Route path={R.THEORY}            element={<TheoryPage />} />

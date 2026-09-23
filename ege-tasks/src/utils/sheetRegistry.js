@@ -72,6 +72,7 @@ import {
   generateGraphVariants,
   CATEGORY_LABELS_GRAPH,
 } from './derivativeGraphTasks';
+import { CATEGORY_LABELS_CHART, generateChartVariants } from './chartReadingTasks';
 import { generateTrigExpressionsVariants }      from '../hooks/useTrigExpressions';
 import { generateInverseTrigVariants }          from '../hooks/useInverseTrig';
 import { generateReductionFormulasVariants }    from '../hooks/useReductionFormulas';
@@ -203,6 +204,15 @@ export const SHEET_GENERATORS = {
     instruction: 'Рассмотрите рисунок и ответьте на вопрос:',
     categoryLabels: CATEGORY_LABELS_GRAPH,
     generate: generateGraphVariants,
+  },
+  // «Графики и диаграммы» (база №3/№7): задание — чертёж «из жизни», экспорта
+  // .md нет (столбики и шкалы markdown не выражает), правки «по месту» — тоже.
+  chart_reading: {
+    label: 'Графики и диаграммы',
+    route: '/app/functions/charts',
+    instruction: 'Рассмотрите рисунок и ответьте на вопрос:',
+    categoryLabels: CATEGORY_LABELS_CHART,
+    generate: generateChartVariants,
   },
 
   // ── Тригонометрия ──
