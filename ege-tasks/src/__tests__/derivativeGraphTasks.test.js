@@ -3,7 +3,8 @@ import {
   makeGraphTask, generateGraphVariants, GRAPH_CATEGORIES,
   CATEGORY_LABELS_GRAPH, DEFAULT_SETTINGS_GRAPH,
 } from '../utils/derivativeGraphTasks';
-import { parseCoordPlot } from '../utils/coordPlot';
+import { parseCoordPlot, plotGeometry } from '../utils/coordPlot';
+import { measureMathSvg } from '../utils/mathSvgText';
 
 // Независимая проверка ответа: считаем всё численно по КАРТИНКЕ (разобранной
 // из DSL задания), а не по внутренней модели генератора.
@@ -444,5 +445,55 @@ describe('концы графика на открытом интервале', (
         }
       }
     }
+  });
+});
+
+// Подпись «y = f(x)» не должна ложиться на линии чертежа. Раньше выбирался
+// лучший из четырёх углов, и когда кривая уходила во все углы, подпись
+// перечёркивалась графиком; касательные не учитывались вовсе.
+describe('подпись графика', () => {
+  // рамка подписи `label x y text at se` в пикселях штатного чертежа (300×180)
+  function labelBox(spec) {
+    const m = parseCoordPlot(spec);
+    const l = m.labels[0];
+    const g = plotGeometry(m, { width: 300, maxHeight: 180 });
+    const mm = measureMathSvg(l.text, { size: 12 });
+    const left = g.sx(l.x) + 6;
+    const base = g.sy(l.y) + 15;
+    return {
+      m, g, box: { l: left, r: left + mm.width, t: base - mm.ascent, b: base + mm.descent },
+    };
+  }
+
+  it('лежит внутри окна и не пересекает ни кривую, ни касательную', () => {
+    let checked = 0;
+    let crossed = 0;
+    for (let k = 0; k < 40; k += 1) {
+      for (const cat of ['f_max_count', 'f_tangent_slope', 'd_max_count', 'f_deriv_pos_int']) {
+        const task = makeGraphTask(cat);
+        if (!task?.plot || !/\nlabel /.test(task.plot)) continue;
+        const { m, g, box } = labelBox(task.plot);
+        expect(box.l).toBeGreaterThanOrEqual(g.sx(g.x0) - 1);
+        expect(box.r).toBeLessThanOrEqual(g.sx(g.x1) + 1);
+        expect(box.t).toBeGreaterThanOrEqual(g.sy(g.y1) - 1);
+        expect(box.b).toBeLessThanOrEqual(g.sy(g.y0) + 1);
+        checked += 1;
+        const hit = m.curves.some((c) => {
+          if (!c.fn) return false;
+          const from = Number.isFinite(c.from) ? c.from : g.x0;
+          const to = Number.isFinite(c.to) ? c.to : g.x1;
+          for (let i = 0; i <= 400; i += 1) {
+            const x = from + ((to - from) * i) / 400;
+            const px = g.sx(x); const py = g.sy(c.fn(x));
+            if (px > box.l && px < box.r && py > box.t && py < box.b) return true;
+          }
+          return false;
+        });
+        if (hit) crossed += 1;
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    // тесное окно бывает, но это редкость, а не каждое третье задание
+    expect(crossed / checked).toBeLessThan(0.05);
   });
 });

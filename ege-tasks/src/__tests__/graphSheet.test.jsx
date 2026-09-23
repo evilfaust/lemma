@@ -34,6 +34,23 @@ describe('лист заданий по графику', () => {
     expect(container.querySelectorAll('.gsp-answer-line')).toHaveLength(6);
   });
 
+  it('чертёж вписан в одну коробку: высокое окно не раздувает ряд', () => {
+    const { container } = sheet({ variantsCount: 3, questionsCount: 8 });
+    const svgs = [...container.querySelectorAll('.gsp-task > .gsp-task-body > .gsp-figure svg')];
+    expect(svgs.length).toBe(24);
+    for (const svg of svgs) {
+      expect(Number(svg.getAttribute('height'))).toBeLessThanOrEqual(180);
+      expect(Number(svg.getAttribute('width'))).toBeLessThanOrEqual(300);
+    }
+  });
+
+  it('шапка — одной строкой: вариант, фамилия, класс, дата', () => {
+    const { container } = sheet({ showClassField: true });
+    const head = container.querySelector('.gsp-head');
+    expect(head.textContent).toMatch(/Вариант 1.*Фамилия, имя:.*Класс:.*Дата:/);
+    expect(container.querySelector('.gsp-head-row')).toBeNull();
+  });
+
   it('соответствие «точки ↔ характеристики»: два списка и клетки под буквами', () => {
     const { container } = sheet({
       categories: { f_sign_match: true }, questionsCount: 1, variantsCount: 1,
@@ -136,6 +153,10 @@ describe('печатный CSS: канон', () => {
   it('сброс position/overflow у любого предка листа', () => {
     expect(css).toMatch(/\*:has\(\.gsp-print-root\)/);
     expect(css).toContain('overflow: visible !important');
+  });
+
+  it('продолжение варианта на следующем листе — тоже с полями', () => {
+    expect(css).toContain('box-decoration-break: clone');
   });
 
   it('страница 296mm, за последней разрыва нет', () => {

@@ -21,34 +21,39 @@
   padding: 10mm 8mm 8mm;
 }
 
-.gsp-head { margin-bottom: 4mm; }
-.gsp-head-row {
+/* Шапка одной строкой: поля растягиваются, линейка снизу отделяет её от листа */
+.gsp-head {
   display: flex;
   align-items: baseline;
-  gap: 6mm;
+  gap: 5mm;
   font-size: 10pt;
   padding-bottom: 1.5mm;
+  border-bottom: var(--gsp-rule) solid var(--gsp-ink);
+  margin-bottom: 4mm;
 }
-.gsp-head-row--thin { border-top: var(--gsp-hair) solid var(--gsp-ink); padding-top: 1.5mm; }
-.gsp-variant { font-weight: 700; font-size: 11pt; }
-.gsp-field { white-space: nowrap; }
+.gsp-variant { font-weight: 700; font-size: 11pt; white-space: nowrap; }
+.gsp-field { white-space: nowrap; display: flex; align-items: baseline; gap: 1.5mm; }
+.gsp-field--grow { flex: 1 1 auto; }
 .gsp-line {
   display: inline-block;
+  flex: 1 1 auto;
+  min-width: 20mm;
   border-bottom: var(--gsp-hair) solid var(--gsp-ink);
-  vertical-align: baseline;
+  height: 1em;
 }
-.gsp-line--name { width: 70mm; }
-.gsp-line--short { width: 22mm; }
+.gsp-line--short { flex: 0 0 14mm; min-width: 14mm; }
+.gsp-line--date { flex: 0 0 22mm; min-width: 22mm; }
 
-.gsp-title { font-size: 12pt; font-weight: 700; margin-bottom: 2mm; }
+/* Название и указание — одним блоком, без рамки: рамка вокруг одной фразы
+   весила на листе больше самих заданий. */
+.gsp-title { font-size: 12pt; font-weight: 700; margin-bottom: 1mm; }
 .gsp-instruction {
   font-size: 10pt;
-  border: var(--gsp-hair) solid var(--gsp-ink);
-  padding: 1.5mm 2mm;
+  font-style: italic;
   margin-bottom: 4mm;
 }
 
-.gsp-grid { display: grid; gap: 6mm 6mm; }
+.gsp-grid { display: grid; gap: 7mm 8mm; }
 .gsp-grid--1col { grid-template-columns: 1fr; }
 .gsp-grid--2col { grid-template-columns: 1fr 1fr; }
 
@@ -76,9 +81,32 @@
   font-size: 10pt;
   line-height: calc(1.35 * var(--sheet-line-scale, 1));
   min-width: 0;
+  padding-top: 0.6mm;
 }
+/* KaTeX по умолчанию на 21 % крупнее текста — в условии это раздувает
+   межстрочие. И формулу не рвём: «x₀ =» в конце строки и «−1» в начале
+   следующей читаются как две разные записи. */
+.gsp-question .katex { font-size: 1.08em; white-space: nowrap; }
+/* Тело карточки забирает всю свободную высоту ряда, чертёж — по центру,
+   строка ответа ниже — поэтому в соседних колонках она на одной линии. */
+.gsp-task-body {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2mm;
+}
+.gsp-task-body--top { justify-content: flex-start; }
 .gsp-figure { text-align: center; }
 .gsp-figure svg { max-width: 100%; height: auto; }
+/* Подписи на чертеже — с белым ореолом: клетка и кривая идут под ними, но
+   буквы не перечёркивают. */
+.gsp-figure svg text {
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
 
 /* Штатная палитра чертежа — почти-чёрный #1f2937 и светло-серая клетка
    #d6dae0. На ч/б принтере первое выцветает, второго нет вовсе, поэтому на
@@ -122,6 +150,9 @@
 .gsp-note { font-size: 9pt; }
 
 .gsp-answer { font-size: 10pt; display: flex; align-items: baseline; gap: 2mm; }
+/* Линия ответа — под число, а не на всю колонку: длинная линейка выглядела
+   как место для решения. */
+.gsp-answer:not(.gsp-answer--cells) { padding-left: 9mm; }
 .gsp-answer--cells { align-items: flex-end; }
 .gsp-cells { display: flex; gap: 1mm; }
 /* Буква стоит НАД клеткой в общей колонке: абсолютным позиционированием она
@@ -133,7 +164,7 @@
   height: 8mm;
   border: var(--gsp-hair) solid var(--gsp-ink);
 }
-.gsp-answer-line { flex: 1 1 auto; border-bottom: var(--gsp-rule) solid var(--gsp-ink); height: 4mm; }
+.gsp-answer-line { flex: 0 1 45mm; border-bottom: var(--gsp-rule) solid var(--gsp-ink); height: 4mm; }
 
 .gsp-divider {
   grid-column: 1 / -1;
@@ -242,6 +273,11 @@
   .gsp-page,
   .gsp-key-page {
     width: 100%;
+    /* Вариант, не влезший на лист, продолжается на следующем — и там тоже
+       нужны поля: без clone продолжение печаталось впритык к верхнему краю
+       бумаги (поля рисует сам лист, @page — margin 0). */
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
     /* 296mm, а не 297: доля миллиметра от округлений печати выдавливает
        пустой лист после каждой страницы. */
     min-height: 296mm;

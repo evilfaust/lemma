@@ -39,11 +39,13 @@ import {
 import { rand, randInt, chance } from './linearExpr';
 import { shuffleArray } from './shuffle';
 import { generateByCategories } from './questionPlan';
+import { parseCoordPlot, plotGeometry } from './coordPlot';
+import { measureMathSvg } from './mathSvgText';
 
 const EPS = 1e-6;
 
 // Число по-русски: минус − (U+2212), десятичная запятая.
-const r1 = (v) => Math.round(v * 10) / 10;
+const r2 = (v) => Math.round(v * 100) / 100;
 const fmt = (v) => String(Math.round(v * 1e6) / 1e6).replace('.', ',').replace(/^-/, '−');
 // Ответ в ключе учителя — так же, как ученик впишет в бланк: «-3», «0,5».
 // Запятая в KaTeX берётся в скобки, иначе за ней появится лишний пробел.
@@ -170,46 +172,149 @@ const nodeToken = (n) => {
   return `(${n.x} ${n.y}${n.flat ? ' flat' : ''}${slope ? ` slope ${slope}` : ''})`;
 };
 
-// Подпись графика («y = f(x)») занимает примерно столько клеток в ширину:
-const LABEL_W = 3;
+// Подпись графика ставится не «в угол наугад», а туда, где её рамке дальше
+// всего до нарисованного. Меряем в пикселях чертежа штатного размера: кегль
+// подписи в пикселях постоянный, а клетка у каждого окна своя.
+const LABEL_PLOT = { width: 300, maxHeight: 180 };
+// Карта расстояний строится на сетке LABEL_RES px, рамка перебирается с шагом
+// LABEL_STEP px. Зазор больше LABEL_ENOUGH уже не важен — тогда выигрывает
+// место ближе к краю окна (подпись в углу читается как подпись, а не как
+// точка графика).
+const LABEL_RES = 2;
+const LABEL_STEP = 4;
+const LABEL_ENOUGH = 9;
+// Смещение текста подписи `at se` от её точки (см. LABEL_OFFSETS в coordPlot)
+const LABEL_SE = { dx: 6, base: 15 };
 
 /**
- * Куда поставить подпись графика, чтобы она не легла ни на кривую, ни на оси.
- *
- * Привязка к концу кривой не годится: у пологих графиков конец лежит у самой
- * оси. Поэтому перебираем четыре угла окна и берём тот, где до кривой и до
- * осей дальше всего. Подпись — не точка, а полоска длиной LABEL_W, так что
- * меряем от нескольких точек вдоль неё.
+ * Карта расстояний (px) от каждой клетки сетки до ближайшей отметки —
+ * двухпроходная фаска (chamfer 1/√2). Перебор «рамка × все точки кривой»
+ * замедлял генерацию листа в ~20 раз: подпись считается и для каждой
+ * отбракованной попытки задания.
  */
-function labelSpot(spline, v) {
-  const [a, b] = spline.domain;
-  const curve = [];
-  for (let i = 0; i <= 120; i += 1) {
-    const x = a + ((b - a) * i) / 120;
-    const y = spline.f(x);
-    if (Number.isFinite(y)) curve.push({ x, y });
+function distanceMap(points, gw, gh) {
+  const d = new Float32Array(gw * gh).fill(1e9);
+  for (const [px, py] of points) {
+    const i = Math.round(px / LABEL_RES);
+    const j = Math.round(py / LABEL_RES);
+    if (i >= 0 && i < gw && j >= 0 && j < gh) d[j * gw + i] = 0;
   }
-  const candidates = [
-    { x: v.x0 + 0.6, y: v.y1 - 0.6, at: 'se' },
-    { x: v.x1 - 0.6, y: v.y1 - 0.6, at: 'sw' },
-    { x: v.x0 + 0.6, y: v.y0 + 0.6, at: 'ne' },
-    { x: v.x1 - 0.6, y: v.y0 + 0.6, at: 'nw' },
-  ];
-  const clearance = (c) => {
-    const dir = c.at.endsWith('e') ? 1 : -1;
-    let worst = Infinity;
-    for (let k = 0; k <= LABEL_W; k += 1) {
-      const px = c.x + dir * k;
-      const py = c.y;
-      // до осей (они тоже нарисованы) и до кривой
-      worst = Math.min(worst, Math.abs(py), Math.abs(px));
-      for (const q of curve) {
-        worst = Math.min(worst, Math.hypot(q.x - px, q.y - py));
+  const D = Math.SQRT2;
+  for (let j = 0; j < gh; j += 1) {
+    for (let i = 0; i < gw; i += 1) {
+      const k = j * gw + i;
+      let v = d[k];
+      if (i > 0) v = Math.min(v, d[k - 1] + 1);
+      if (j > 0) {
+        v = Math.min(v, d[k - gw] + 1);
+        if (i > 0) v = Math.min(v, d[k - gw - 1] + D);
+        if (i < gw - 1) v = Math.min(v, d[k - gw + 1] + D);
       }
+      d[k] = v;
     }
-    return worst;
-  };
-  return candidates.reduce((best, c) => (clearance(c) > clearance(best) ? c : best));
+  }
+  for (let j = gh - 1; j >= 0; j -= 1) {
+    for (let i = gw - 1; i >= 0; i -= 1) {
+      const k = j * gw + i;
+      let v = d[k];
+      if (i < gw - 1) v = Math.min(v, d[k + 1] + 1);
+      if (j < gh - 1) {
+        v = Math.min(v, d[k + gw] + 1);
+        if (i < gw - 1) v = Math.min(v, d[k + gw + 1] + D);
+        if (i > 0) v = Math.min(v, d[k + gw - 1] + D);
+      }
+      d[k] = v;
+    }
+  }
+  return d;
+}
+
+/**
+ * Куда поставить подпись графика, чтобы она не легла ни на кривую, ни на
+ * касательную, ни на оси с их подписями («x», «y», «O», «1», засечки).
+ *
+ * Прежний перебор четырёх углов проигрывал там, где кривая уходит во все
+ * углы (подпись ложилась прямо на линию), и не знал о касательных. Теперь
+ * разбираем готовый чертёж той же `parseCoordPlot`, что его нарисует, и
+ * перебираем положения рамки подписи по всему окну.
+ */
+function labelSpot(lines, label) {
+  const model = parseCoordPlot(lines.join('\n'));
+  const g = plotGeometry(model, LABEL_PLOT);
+  const { x0, x1, y0, y1, sx, sy } = g;
+  const obstacles = [];
+  const add = (x, y) => obstacles.push([x, y]);
+
+  for (const c of model.curves) {
+    if (!c.fn) continue;
+    const from = Math.max(Number.isFinite(c.from) ? c.from : x0, x0);
+    const to = Math.min(Number.isFinite(c.to) ? c.to : x1, x1);
+    // Шаг — не длиннее клетки карты и по x, и по y: у крутого участка
+    // редкая выборка оставляла дыры, в которые «пролезала» подпись.
+    let prev = null;
+    const n = Math.ceil((sx(to) - sx(from)) / LABEL_RES) + 1;
+    for (let i = 0; i <= n; i += 1) {
+      const x = from + ((to - from) * i) / n;
+      const y = c.fn(x);
+      if (!Number.isFinite(y) || y < y0 || y > y1) { prev = null; continue; }
+      const p = [sx(x), sy(y)];
+      if (prev) {
+        const steps = Math.ceil(Math.abs(p[1] - prev[1]) / LABEL_RES);
+        for (let t = 1; t < steps; t += 1) {
+          add(prev[0] + ((p[0] - prev[0]) * t) / steps, prev[1] + ((p[1] - prev[1]) * t) / steps);
+        }
+      }
+      add(p[0], p[1]);
+      prev = p;
+    }
+  }
+  for (const p of model.points) add(sx(p.x), sy(p.y));
+  // Оси — линии через всё окно, с буквами на концах и «O», «1» у начала
+  const ax = sy(Math.min(Math.max(0, y0), y1));
+  const ay = sx(Math.min(Math.max(0, x0), x1));
+  for (let px = sx(x0); px <= sx(x1) + 8; px += LABEL_RES) add(px, ax);
+  for (let py = sy(y1) - 6; py <= sy(y0); py += LABEL_RES) add(ay, py);
+  [[sx(x1) - 4, ax + 8], [ay - 9, sy(y1)], [ay - 8, ax + 9], [sx(1), ax + 9], [ay - 8, sy(1)]]
+    .forEach(([px, py]) => add(px, py));
+  for (const t of model.xticks) { add(sx(t.v) - 6, ax + 10); add(sx(t.v) + 6, ax + 10); }
+
+  const gw = Math.ceil((sx(x1) + 12) / LABEL_RES) + 1;
+  const gh = Math.ceil((sy(y0) + 12) / LABEL_RES) + 1;
+  const dist = distanceMap(obstacles, gw, gh);
+
+  const m = measureMathSvg(label, { size: 12 });
+  const w = m.width + 2;
+  const h = m.ascent + m.descent + 2;
+  const left = sx(x0) + 2;
+  const top = sy(y1) + 2;
+  const right = sx(x1) - 2 - w;
+  const bottom = sy(y0) - 2 - h;
+
+  let best = null;
+  for (let bx = left; bx <= right; bx += LABEL_STEP) {
+    for (let by = top; by <= bottom; by += LABEL_STEP) {
+      // Зазор рамки = минимум карты по её клеткам (внутри рамки — ноль,
+      // если на неё что-то легло)
+      let clear = Infinity;
+      const i0 = Math.floor(bx / LABEL_RES);
+      const i1 = Math.ceil((bx + w) / LABEL_RES);
+      const j0 = Math.floor(by / LABEL_RES);
+      const j1 = Math.ceil((by + h) / LABEL_RES);
+      for (let j = j0; j <= j1 && clear > 0; j += 1) {
+        for (let i = i0; i <= i1; i += 1) {
+          const v = dist[j * gw + i];
+          if (v < clear) clear = v;
+        }
+      }
+      clear *= LABEL_RES;
+      const edge = Math.min(bx - left, right - bx) + Math.min(by - top, bottom - by);
+      const score = Math.min(clear, LABEL_ENOUGH) - edge * 0.01;
+      if (!best || score > best.score) best = { score, bx, by };
+    }
+  }
+  if (!best) return { x: x0 + 0.6, y: y1 - 0.6, at: 'se' };
+  const pt = g.fromScreen(best.bx - LABEL_SE.dx + 1, best.by - LABEL_SE.base + m.ascent + 1);
+  return { x: pt.x, y: pt.y, at: 'se' };
 }
 
 /**
@@ -217,7 +322,7 @@ function labelSpot(spline, v) {
  * производной) или `F`; штрих в имени включает роль «точки задают f′».
  */
 function buildSpec({
-  nodes, name, label, extra = [], view, spline,
+  nodes, name, label, extra = [], view,
 }) {
   const v = view || viewOf(nodes);
   const lines = [
@@ -226,9 +331,9 @@ function buildSpec({
     `spline ${name} ${nodes.map(nodeToken).join(' ')}`,
   ];
   if (label) {
-    const s = spline || buildSpline(nodes);
-    const spot = labelSpot(s, v);
-    lines.push(`label ${r1(spot.x)} ${r1(spot.y)} ${label} at ${spot.at}`);
+    // Подпись обходит и то, что пришло в `extra` (касательные, отметки)
+    const spot = labelSpot([...lines, ...extra], label);
+    lines.push(`label ${r2(spot.x)} ${r2(spot.y)} ${label} at ${spot.at}`);
   }
   return [...lines, ...extra].join('\n');
 }

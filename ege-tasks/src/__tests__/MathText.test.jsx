@@ -54,4 +54,23 @@ describe('MathText', () => {
     const c = render(<MathText text="x" className="cls-type-label" />).container;
     expect(c.firstChild.className).toBe('cls-type-label');
   });
+
+  it('запятая после формулы не уходит на новую строку — приклеена к формуле', () => {
+    const c = r('график $y = f(x)$, определённой на $(-5; 5)$. Найдите');
+    const glue = [...c.querySelectorAll('span')].filter((sp) => sp.style.whiteSpace === 'nowrap');
+    expect(glue).toHaveLength(2);
+    expect(glue[0].querySelector('.katex')).toBeTruthy();
+    expect(glue[0].textContent.endsWith(',')).toBe(true);
+    expect(glue[1].textContent.endsWith('.')).toBe(true);
+    // текст после знака никуда не делся
+    expect(c.textContent).toContain(', определённой на ');
+    expect(c.textContent).toContain('. Найдите');
+  });
+
+  it('тире за формулой держится на её строке неразрывным пробелом', () => {
+    const c = r("график $y = f'(x)$ — производной");
+    const glue = [...c.querySelectorAll('span')].find((sp) => sp.style.whiteSpace === 'nowrap');
+    expect(glue.textContent.endsWith('\u00A0—')).toBe(true);
+    expect(c.textContent).toContain('— производной');
+  });
 });

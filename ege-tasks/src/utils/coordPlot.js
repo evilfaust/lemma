@@ -925,8 +925,15 @@ export function coordPlotSvg(model, opts = {}) {
 
   parts.push(`<line x1="${r2(axisY0)}" y1="${r2(H - PAD.b)}" x2="${r2(axisY0)}" y2="${r2(PAD.t - 4)}" stroke="${COLORS.axis}" stroke-width="1.4"/>`);
   parts.push(arrowHead(axisY0, PAD.t - 4, 0, -1, COLORS.axis));
+  // Буква оси стоит слева от стрелки — там же, где «1» на оси y, когда
+  // единица приходится на верх окна (y до 1). Тогда букву переносим вправо.
+  const yUnitAtTop = m.units && inX && 1 >= y0 && 1 <= y1 && sy(1) - PAD.t < 10;
   parts.push(mathSvgText(m.axisY || 'y', {
-    x: axisY0 - 5, y: PAD.t + 2, size: 12, color: COLORS.axis, anchor: 'end',
+    x: yUnitAtTop ? axisY0 + 6 : axisY0 - 5,
+    y: PAD.t + 2,
+    size: 12,
+    color: COLORS.axis,
+    anchor: yUnitAtTop ? 'start' : 'end',
   }));
 
   // 3) Единичные отрезки и начало координат (как на бланках «Решу ЕГЭ»)

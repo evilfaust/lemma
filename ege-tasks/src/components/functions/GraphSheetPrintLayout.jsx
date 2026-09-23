@@ -13,8 +13,18 @@ import './graphSheet.css';
 //
 // Пагинации по измерению здесь нет: задание не рвётся (`break-inside: avoid`),
 // а вариант, который не поместился, продолжается на следующем листе.
-
-const FIGURE_WIDTH = { s: 220, m: 280, l: 340 };
+//
+// Чертёж вписывается в КОРОБКУ (ширина × высота), а не только по ширине:
+// у высокого окна (y от −6 до 7) картинка выходила вдвое выше соседней, ряд
+// раздувался, строки «Ответ» в двух колонках стояли на разной высоте, а
+// третий ряд заданий уезжал на следующий лист. Размер M подобран так, чтобы
+// шесть заданий (три ряда) помещались на первый лист вместе с шапкой.
+const FIGURE_BOX = {
+  s: { width: 250, height: 150 },
+  m: { width: 300, height: 180 },
+  l: { width: 360, height: 230 },
+};
+const figureBox = (size) => FIGURE_BOX[size] || FIGURE_BOX.m;
 
 // Пункт правого столбца: значение производной — формула, характеристика —
 // фраза с формулами внутри («возрастает на $[-1; 1]$»).
@@ -75,18 +85,20 @@ function MatchAnswer({ matching }) {
 
 /**
  * Четыре чертежа задания на соответствие — сеткой 2×2 с буквами А–Г.
- * Ширина каждого — чуть больше половины обычного чертежа: две картинки в ряд
+ * Ширина каждого — чуть меньше половины обычного чертежа: две картинки в ряд
  * должны уложиться в ту же колонку листа.
  */
 function FigureGrid({ plots, figureSize }) {
-  const width = Math.round((FIGURE_WIDTH[figureSize] || FIGURE_WIDTH.m) * 0.52);
+  const box = figureBox(figureSize);
+  const width = Math.round(box.width * 0.48);
+  const maxHeight = Math.round(box.height * 0.6);
   return (
     <div className="gsp-figures">
       {plots.map((spec, i) => (
         <div key={i} className="gsp-figure-cell">
           <span className="gsp-figure-letter">{MATCH_LETTERS[i]})</span>
           <div className="gsp-figure">
-            <CoordPlotSVG spec={spec} width={width} />
+            <CoordPlotSVG spec={spec} width={width} maxHeight={maxHeight} />
           </div>
         </div>
       ))}
@@ -94,23 +106,31 @@ function FigureGrid({ plots, figureSize }) {
   );
 }
 
+// Карточка растянута на высоту ряда: чертёж стоит по центру свободного места,
+// строка ответа прижата к низу — в соседних колонках ответы на одной линии.
 function TaskCard({ task, no, opts, figureSize }) {
+  const box = figureBox(figureSize);
   return (
     <div className="gsp-task">
       <div className="gsp-task-head">
         <span className="gsp-num">{no}</span>
         <span className="gsp-question"><MathText text={task.question} /></span>
       </div>
-      {task.plots
-        ? <FigureGrid plots={task.plots} figureSize={figureSize} />
-        : null}
-      {task.matching && <MatchLists matching={task.matching} />}
-      {task.plot && (
-        <div className="gsp-figure">
-          <CoordPlotSVG spec={task.plot} width={FIGURE_WIDTH[figureSize] || FIGURE_WIDTH.m} />
-        </div>
-      )}
-      {task.note && <div className="gsp-note"><MathText text={task.note} /></div>}
+      {/* Задание на соответствие читается сверху вниз (чертёж → списки →
+          «Запишите…»), поэтому его не центрируем: зазоры рвали бы текст */}
+      <div className={`gsp-task-body${task.matching ? ' gsp-task-body--top' : ''}`}>
+        {task.plots
+          ? <FigureGrid plots={task.plots} figureSize={figureSize} />
+          : null}
+        {/* Чертёж — перед списками, как в КИМ: сначала смотрят на рисунок */}
+        {task.plot && (
+          <div className="gsp-figure">
+            <CoordPlotSVG spec={task.plot} width={box.width} maxHeight={box.height} />
+          </div>
+        )}
+        {task.matching && <MatchLists matching={task.matching} />}
+        {task.note && <div className="gsp-note"><MathText text={task.note} /></div>}
+      </div>
       {opts.showAnswerSpace && (task.matching
         ? <MatchAnswer matching={task.matching} />
         : <div className="gsp-answer">Ответ: <span className="gsp-answer-line" /></div>
@@ -137,16 +157,14 @@ function StudentPage({
 }) {
   return (
     <div className="gsp-page">
+      {/* Шапка — одной строкой под линейкой: две строки с линейкой между
+          ними читались как таблица и съедали место под задания */}
       {opts.showHeader && (
         <div className="gsp-head">
-          <div className="gsp-head-row">
-            {variantsTotal > 1 && <span className="gsp-variant">Вариант {variantIndex + 1}</span>}
-            <span className="gsp-field">Фамилия, имя: <span className="gsp-line gsp-line--name" /></span>
-          </div>
-          <div className="gsp-head-row gsp-head-row--thin">
-            {opts.showClassField && <span className="gsp-field">Класс: <span className="gsp-line gsp-line--short" /></span>}
-            <span className="gsp-field">Дата: <span className="gsp-line gsp-line--short" /></span>
-          </div>
+          {variantsTotal > 1 && <span className="gsp-variant">Вариант {variantIndex + 1}</span>}
+          <span className="gsp-field gsp-field--grow">Фамилия, имя: <span className="gsp-line" /></span>
+          {opts.showClassField && <span className="gsp-field">Класс: <span className="gsp-line gsp-line--short" /></span>}
+          <span className="gsp-field">Дата: <span className="gsp-line gsp-line--date" /></span>
         </div>
       )}
       {opts.showTitle && title && <div className="gsp-title">{title}</div>}
