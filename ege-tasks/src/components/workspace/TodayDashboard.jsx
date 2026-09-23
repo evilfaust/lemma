@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { App, Checkbox, Spin } from 'antd';
 import {
-  BankOutlined, CalendarOutlined, CheckOutlined, CheckSquareOutlined, ClockCircleOutlined,
+  BankOutlined, BulbOutlined, CalendarOutlined, CheckOutlined, CheckSquareOutlined, ClockCircleOutlined,
   EditOutlined, FileTextOutlined, InboxOutlined, PlusOutlined, PushpinFilled, ToolOutlined,
   WarningOutlined,
 } from '@ant-design/icons';
@@ -16,6 +16,14 @@ import { KIND_COLORS } from '../../shared/services/pb/schoolEvents';
 import WeekNavigator from './today/WeekNavigator';
 import NowHero from './today/NowHero';
 import KpiCluster from './today/KpiCluster';
+import LessonSheet from './calendar/LessonSheet';
+import LessonModal from './calendar/LessonModal';
+import CreateEventModal from './calendar/CreateEventModal';
+import QuickAddFab from './calendar/QuickAddFab';
+import QuickCaptureSheet from './calendar/QuickCaptureSheet';
+import { saveLesson } from './calendar/lessonActions';
+import useIsMobile from '../../hooks/useIsMobile';
+import useSwipe from '../../hooks/useSwipe';
 import './today/today.css';
 
 dayjs.locale('ru');
@@ -50,6 +58,7 @@ export default function TodayDashboard() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const { teacher, canEdit } = useAuth();
+  const isMobile = useIsMobile();
 
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [weekStart, setWeekStart] = useState(() => dayjs().startOf('week'));
@@ -61,6 +70,16 @@ export default function TodayDashboard() {
   const [todos, setTodos] = useState([]);
   const [schoolEvents, setSchoolEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Уроки и быстрый ввод прямо с дашборда — без ухода в календарь.
+  const [sheetLesson, setSheetLesson] = useState(null);  // карточка урока
+  const [createDay, setCreateDay] = useState(null);      // CreateEventModal (урок на день)
+  const [capture, setCapture] = useState(null);          // 'todo' | 'idea'
+  const [editing, setEditing] = useState(null);          // LessonModal
+  const [savingLesson, setSavingLesson] = useState(false);
+  const [groups, setGroups] = useState([]);
+  const [works, setWorks] = useState([]);
+  const worksLoaded = useRef(false);
 
   const now = useMemo(() => new Date(nowTick), [nowTick]);
   const today = useMemo(() => dayjs(nowTick), [nowTick]);
@@ -102,6 +121,14 @@ export default function TodayDashboard() {
   }, [message]);
 
   useEffect(() => { loadWeek(weekStart); }, [weekStart, loadWeek]);
+
+  // Классы — для выбора в формах; работы (тяжелее) — только когда открыли форму урока.
+  useEffect(() => { api.getTeachingGroups().then(setGroups).catch(() => {}); }, []);
+  const ensureWorks = useCallback(() => {
+    if (worksLoaded.current) return;
+    worksLoaded.current = true;
+    api.getWorks().then(setWorks).catch(() => { worksLoaded.current = false; });
+  }, []);
 
   // Школьные мероприятия выбранного дня: многодневное (каникулы) показывается
   // в каждый день диапазона, поэтому сравниваем не дату начала, а вхождение.
@@ -232,14 +259,53 @@ export default function TodayDashboard() {
     } catch { message.error('Не удалось открыть заметку'); }
   }, [navigate, message]);
 
+  // Подменить урок во всех списках дашборда (после правки в карточке урока).
+  const patchLesson = useCallback((updated) => {
+    const put = (p) => p.map((x) => (x.id === updated.id ? { ...x, ...updated } : x));
+    setWeekLessons(put);
+    setThisWeekLessons(put);
+    setSheetLesson((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+  }, []);
+
   const finishLesson = useCallback(async (l) => {
     try {
       await api.updateLesson(l.id, { status: 'done' });
-      setWeekLessons((p) => p.map((x) => (x.id === l.id ? { ...x, status: 'done' } : x)));
-      setThisWeekLessons((p) => p.map((x) => (x.id === l.id ? { ...x, status: 'done' } : x)));
+      patchLesson({ ...l, status: 'done' });
       message.success('Урок отмечен проведённым');
     } catch { message.error('Не удалось обновить урок'); }
-  }, [message]);
+  }, [message, patchLesson]);
+
+  const openCreate = useCallback((d) => {
+    ensureWorks();
+    setCreateDay(d.toDate());
+  }, [ensureWorks]);
+
+  const handleSaveLesson = async (data, meta) => {
+    setSavingLesson(true);
+    try {
+      await saveLesson(editing?.id, data, meta);
+      setEditing(null);
+      loadWeek(weekStart);
+    } catch {
+      message.error('Не удалось сохранить урок');
+    } finally {
+      setSavingLesson(false);
+    }
+  };
+
+  const handleDeleteLesson = async () => {
+    if (!editing?.id) return;
+    try {
+      await api.deleteLesson(editing.id);
+      setEditing(null);
+      loadWeek(weekStart);
+    } catch { message.error('Не удалось удалить урок'); }
+  };
+
+  const onCaptured = useCallback((kind, rec) => {
+    if (kind === 'todo') setTodos((p) => [rec, ...p]);
+    else setNotes((p) => [rec, ...p]);
+  }, []);
 
   const goToWeek = useCallback((ws) => {
     setWeekStart(ws);
@@ -251,6 +317,12 @@ export default function TodayDashboard() {
     setSelectedDate(d);
     if (!d.startOf('week').isSame(weekStart, 'day')) setWeekStart(d.startOf('week'));
   }, [weekStart]);
+
+  // Свайп по расписанию листает дни.
+  const scheduleSwipe = useSwipe({
+    onLeft: () => selectDay(selectedDate.add(1, 'day')),
+    onRight: () => selectDay(selectedDate.subtract(1, 'day')),
+  });
 
   if (loading && !weekLessons.length) {
     return <div style={{ textAlign: 'center', padding: 64 }}><Spin size="large" /></div>;
@@ -298,8 +370,8 @@ export default function TodayDashboard() {
         {hero ? (
           <NowHero
             data={hero.data}
-            onAttendance={() => navigate('/app/calendar')}
-            onMaterials={() => navigate('/app/calendar')}
+            onAttendance={() => setSheetLesson(hero.lesson)}
+            onMaterials={() => setSheetLesson(hero.lesson)}
             onNote={() => openNote(hero.lesson)}
             onFinish={() => finishLesson(hero.lesson)}
           />
@@ -332,9 +404,10 @@ export default function TodayDashboard() {
             iconColor="var(--accent)"
             title={scheduleTitle}
             meta={selectedLessons.length ? `${selectedLessons.length} ${plural(selectedLessons.length, 'урок', 'урока', 'уроков')}${doneToday ? ` · ${doneToday} проведён` : ''}` : null}
-            actionLabel="+ Урок"
-            onAction={() => navigate('/app/calendar')}
+            actionLabel={canEdit ? '+ Урок' : null}
+            onAction={() => openCreate(selectedDate)}
           >
+            <div {...scheduleSwipe}>
             {daySchoolEvents.length > 0 && (
               <div className="td-school">
                 {daySchoolEvents.map((e) => {
@@ -360,7 +433,7 @@ export default function TodayDashboard() {
               const mats = matCount(l);
               const needPrep = mats === 0 && status !== 'done';
               return (
-                <div key={l.id} className={`td-lesson${live ? ' td-lesson--now' : ''}`} onClick={() => navigate('/app/calendar')}>
+                <div key={l.id} className={`td-lesson${live ? ' td-lesson--now' : ''}`} onClick={() => setSheetLesson(l)}>
                   <div className="td-lesson__time">
                     <div className="td-lesson__start">{dayjs(start).format('HH:mm')}</div>
                     <div className="td-lesson__end">{dayjs(end).format('HH:mm')}</div>
@@ -398,7 +471,7 @@ export default function TodayDashboard() {
                         <CheckOutlined />
                       </button>
                     )}
-                    <button type="button" className="td-iconbtn" title="Заметка урока" onClick={() => openNote(l)}>
+                    <button type="button" className="td-iconbtn td-iconbtn--note" title="Заметка урока" onClick={() => openNote(l)}>
                       <EditOutlined />
                     </button>
                   </div>
@@ -406,9 +479,10 @@ export default function TodayDashboard() {
               );
             }) : (
               <div className="ws-card__empty">
-                {isSelectedToday ? 'На сегодня уроков нет — спланируйте занятие в календаре.' : 'В этот день уроков нет.'}
+                {isSelectedToday ? 'На сегодня уроков нет — спланируйте занятие.' : 'В этот день уроков нет.'}
               </div>
             )}
+            </div>
           </SectionCard>
 
           <SectionCard
@@ -423,7 +497,7 @@ export default function TodayDashboard() {
               const d = dayjs(l.date_plan);
               const hex = lessonHex(l);
               return (
-                <div key={l.id} className="td-prep" onClick={() => navigate('/app/calendar')}>
+                <div key={l.id} className="td-prep" onClick={() => setSheetLesson(l)}>
                   <span className="td-prep__date" style={{ color: hex.base, background: hex.soft }}>
                     <span>{WD_SHORT[d.day()]}</span>
                     <span className="td-prep__date-num">{d.date()}</span>
@@ -499,9 +573,11 @@ export default function TodayDashboard() {
             }) : (
               <div className="ws-card__empty">На сегодня дел нет.</div>
             )}
-            <button type="button" className="td-note__inbox" onClick={() => navigate('/app/todos')}>
-              <PlusOutlined /> Новое дело
-            </button>
+            {canEdit && (
+              <button type="button" className="td-note__inbox" onClick={() => setCapture('todo')}>
+                <PlusOutlined /> Новое дело
+              </button>
+            )}
           </SectionCard>
 
           <SectionCard
@@ -524,12 +600,69 @@ export default function TodayDashboard() {
                 )}
               </div>
             ))}
-            <button type="button" className="td-note__inbox" onClick={() => navigate('/app/notes')}>
-              <PlusOutlined /> Бросить мысль в инбокс
-            </button>
+            {canEdit && (
+              <button type="button" className="td-note__inbox" onClick={() => setCapture('idea')}>
+                <PlusOutlined /> Бросить мысль в инбокс
+              </button>
+            )}
           </SectionCard>
         </div>
       </div>
+
+      <LessonSheet
+        lesson={sheetLesson}
+        onClose={() => setSheetLesson(null)}
+        onChange={patchLesson}
+        onEdit={(l) => { setSheetLesson(null); ensureWorks(); setEditing(l); }}
+        canEdit={canEdit}
+        myTeacherId={teacher?.id}
+      />
+
+      <LessonModal
+        open={!!editing}
+        initial={editing}
+        groups={groups}
+        works={works}
+        saving={savingLesson}
+        canEdit={canEdit}
+        onSave={handleSaveLesson}
+        onDelete={handleDeleteLesson}
+        onOpenNote={(l) => { setEditing(null); openNote(l); }}
+        onOpenMaterial={(id) => { setEditing(null); navigate(`/app/works/${id}/edit`); }}
+        onCancel={() => setEditing(null)}
+      />
+
+      <CreateEventModal
+        open={!!createDay}
+        type="lesson"
+        day={createDay}
+        pair={null}
+        groups={groups}
+        works={works}
+        onClose={() => setCreateDay(null)}
+        onCreated={() => {
+          // Во вкладках модалки можно завести и дело, и дедлайн — обновляем всё.
+          loadWeek(weekStart);
+          api.getTodos().then(setTodos).catch(() => {});
+          api.getSessionsWithDeadline().then(setDeadlines).catch(() => {});
+        }}
+      />
+
+      <QuickCaptureSheet
+        mode={capture}
+        day={selectedDate.toDate()}
+        groups={groups}
+        onClose={() => setCapture(null)}
+        onCreated={onCaptured}
+      />
+
+      {isMobile && canEdit && (
+        <QuickAddFab actions={[
+          { key: 'lesson', label: 'Урок', hint: `на ${selectedDate.format('D MMMM')}`, icon: <CalendarOutlined />, color: '#2B4BFF', soft: '#E7ECFF', onClick: () => openCreate(selectedDate) },
+          { key: 'todo', label: 'Дело', hint: 'появится в «Делах» и календаре', icon: <CheckSquareOutlined />, color: '#0D9488', soft: '#CCFBF1', onClick: () => setCapture('todo') },
+          { key: 'idea', label: 'Мысль', hint: 'в инбокс заметок', icon: <BulbOutlined />, color: '#D97706', soft: '#FEF3C7', onClick: () => setCapture('idea') },
+        ]} />
+      )}
     </div>
   );
 }

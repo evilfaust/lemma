@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Button, DatePicker, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tooltip, Typography,
+  Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tooltip, Typography,
 } from 'antd';
 import {
   FileTextOutlined, LinkOutlined, PaperClipOutlined, DeleteOutlined, DownloadOutlined,
@@ -13,6 +13,8 @@ import { Chip, GroupColorPicker } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
+import DateTimeField from './DateTimeField';
+import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
 
 /**
@@ -23,6 +25,7 @@ export default function LessonModal({
   open, initial, groups, works, onSave, onDelete, onCancel, onOpenNote, onOpenMaterial, onRepeat, saving, canEdit,
 }) {
   const [form] = Form.useForm();
+  const isMobile = useIsMobile();
   const materialIds = Form.useWatch('materials', form) || [];
   const watchedGroup = Form.useWatch('group', form);
   const worksMap = useMemo(() => new Map((works || []).map((w) => [w.id, w.title])), [works]);
@@ -251,8 +254,9 @@ export default function LessonModal({
       okButtonProps={{ disabled: !canEdit }}
       width={isCourse ? 720 : 560}
       destroyOnHidden
+      style={isMobile ? { top: 12 } : undefined}
       footer={(_, { OkBtn, CancelBtn }) => (
-        <Space style={{ width: '100%', justifyContent: 'space-between' }}>
+        <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
           <Space>
             {editingExisting && canEdit && (
               <Popconfirm title="Удалить урок?" okText="Удалить" cancelText="Отмена" okButtonProps={{ danger: true }} onConfirm={onDelete}>
@@ -273,10 +277,11 @@ export default function LessonModal({
 
       <Form form={form} layout="vertical" onFinish={handleFinish} style={{ marginTop: 8 }} disabled={!canEdit}>
         <Form.Item name="title" label="Тема урока" rules={[{ required: true, message: 'Введите тему' }]}>
-          <Input placeholder="Тема урока" maxLength={500} autoFocus />
+          {/* Открыли существующий урок — клавиатура на телефоне не нужна */}
+          <Input placeholder="Тема урока" maxLength={500} autoFocus={!initial?.id} />
         </Form.Item>
-        <Space size="large" style={{ display: 'flex' }}>
-          <Form.Item name="group" label="Группа" style={{ flex: 1 }}>
+        <Space size="large" style={{ display: 'flex' }} wrap={isMobile}>
+          <Form.Item name="group" label="Группа" style={{ flex: 1, minWidth: isMobile ? 200 : undefined }}>
             <Select allowClear placeholder="Группа" options={groupOptions(groups, initial?.expand?.group)} />
           </Form.Item>
           <Form.Item name="status" label="Статус" style={{ flex: 1 }}>
@@ -335,7 +340,7 @@ export default function LessonModal({
           </Space>
         </Form.Item>
         <Form.Item name="date_plan" label="Дата и время" rules={[{ required: true }]}>
-          <DatePicker showTime={{ format: 'HH:mm' }} format="DD.MM.YYYY HH:mm" style={{ width: '100%' }}
+          <DateTimeField
             onChange={(d) => { if (d) { const g = guessSlot(d.toDate()); setPair(g.pair); setPart(g.part); } }} />
         </Form.Item>
         <Form.Item name="materials" label="Материалы урока (работы)">

@@ -113,3 +113,15 @@ export function lessonProgress(l, now = new Date()) {
   if (span <= 0) return 0;
   return (now.getTime() - start.getTime()) / span;
 }
+
+// Подпись слота для карточки урока: «2-я пара», «2-я пара, 1-я половина»,
+// «пары 1–3» (интенсив). Пустой/неизвестный код → ''.
+export function slotLabel(code) {
+  if (!code) return '';
+  const inten = /^(\d)-(\d)$/.exec(code);
+  if (inten) return `интенсив, пары ${inten[1]}–${inten[2]}`;
+  const half = /^(\d)([ab])$/.exec(code);
+  const p = PAIRS.find((x) => x.key === (half ? half[1] : code));
+  if (!p) return '';
+  return half ? `${p.label}, ${half[2] === 'a' ? '1-я' : '2-я'} половина` : p.label;
+}

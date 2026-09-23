@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { App, Button, Segmented, Space, Spin, Typography } from 'antd';
 import { TeamOutlined, CloseOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
+import useIsMobile from '../../hooks/useIsMobile';
+import './AttendanceRoster.css';
 
 const { Text } = Typography;
 
@@ -18,6 +20,9 @@ const SEG_OPTIONS = ATT_STATUSES.map((s) => ({ value: s.value, label: s.label })
 // в lesson_attendance по (урок, ученик). Создаётся лениво — только при отметке.
 export default function AttendanceRoster({ lessonId, groupId, canEdit, isCourse = false }) {
   const { message } = App.useApp();
+  // На телефоне имя не делит строку с четырьмя кнопками: оно встаёт сверху,
+  // кнопки — на всю ширину под ним (палец не промахивается мимо «Нет»).
+  const stacked = useIsMobile();
   const [students, setStudents] = useState([]);
   const [marks, setMarks] = useState({}); // studentId -> status
   const [loading, setLoading] = useState(false);
@@ -96,11 +101,14 @@ export default function AttendanceRoster({ lessonId, groupId, canEdit, isCourse 
           {summary.total > 0 && (
             <Text type="secondary" style={{ fontSize: 12, fontWeight: 400, marginLeft: 8 }}>
               был {summary.present + summary.late} из {summary.total}
+              {summary.absent > 0 && ` · нет ${summary.absent}`}
             </Text>
           )}
         </Text>
         {canEdit && students.length > 0 && (
-          <Button size="small" type="text" onClick={markAllPresent}>Все были</Button>
+          <Button size={stacked ? 'middle' : 'small'} type={stacked ? 'default' : 'text'} onClick={markAllPresent}>
+            Все были
+          </Button>
         )}
       </Space>
 
@@ -109,33 +117,39 @@ export default function AttendanceRoster({ lessonId, groupId, canEdit, isCourse 
       ) : students.length === 0 ? (
         <Text type="secondary" style={{ fontSize: 12 }}>В группе нет учеников.</Text>
       ) : (
-        <Space direction="vertical" size={4} style={{ width: '100%' }}>
+        <div className={`att-list${stacked ? ' att-list--stacked' : ''}`}>
           {students.map((s) => {
             const st = marks[s.id];
+            const busy = savingIds.has(s.id);
+            const clear = canEdit && st && (
+              <Button
+                size="small" type="text" icon={<CloseOutlined />}
+                disabled={busy}
+                onClick={() => setOne(s.id, '')}
+                title="Снять отметку"
+              />
+            );
             return (
-              <Space key={s.id} style={{ width: '100%', justifyContent: 'space-between' }} size={8}>
-                <Text style={{ flex: 1, minWidth: 0 }} ellipsis>{s.name || s.username}</Text>
-                <Space size={2}>
+              <div key={s.id} className={`att-row${st ? ` att-row--${st}` : ''}`}>
+                <div className="att-row__name">
+                  <Text ellipsis>{s.name || s.username}</Text>
+                  {stacked && clear}
+                </div>
+                <div className="att-row__controls">
                   <Segmented
-                    size="small"
-                    disabled={!canEdit || savingIds.has(s.id)}
+                    size={stacked ? 'middle' : 'small'}
+                    block={stacked}
+                    disabled={!canEdit || busy}
                     value={st || ''}
                     options={SEG_OPTIONS}
                     onChange={(v) => setOne(s.id, v)}
                   />
-                  {canEdit && st && (
-                    <Button
-                      size="small" type="text" icon={<CloseOutlined />}
-                      disabled={savingIds.has(s.id)}
-                      onClick={() => setOne(s.id, '')}
-                      title="Снять отметку"
-                    />
-                  )}
-                </Space>
-              </Space>
+                  {!stacked && clear}
+                </div>
+              </div>
             );
           })}
-        </Space>
+        </div>
       )}
     </div>
   );

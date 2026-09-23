@@ -307,9 +307,42 @@
   .td-cols { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .td-kpi { grid-template-columns: 1fr 1fr; }
   .td-weeknav { width: 100%; justify-content: space-between; }
   .td-weeknav__day { min-width: 0; flex: 1; }
+}
+
+/* ── Телефон: всё главное — на первом экране, кнопки под палец ── */
+@media (max-width: 767.98px) {
+  .td-page { padding-bottom: 84px; } /* место под кнопку «+» */
+  .td-head { margin-bottom: 12px; gap: 10px; }
+  .td-head__title { font-size: 22px; }
+  .td-head__sub { font-size: 12.5px; }
+  .td-weeknav__arrow { width: 28px; }
+  .td-weeknav__day { height: 50px; }
+
+  .td-hero { padding: 16px; }
+  .td-hero__top { margin-bottom: 10px; }
+  .td-hero__topic { font-size: 17px; margin-bottom: 12px; }
+  .td-hero__btn { padding: 10px 12px; }
+  .td-hero__btn--primary { flex: 1 1 100%; justify-content: center; }
+
+  /* KPI — одна строка из четырёх чисел вместо четырёх карточек */
+  .td-kpi { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .td-kpi__card { padding: 8px 4px; align-items: center; text-align: center; }
+  .td-kpi__top { display: none; }
+  .td-kpi__value { font-size: 20px; margin-top: 0; }
+  .td-kpi__label { font-size: 10px; line-height: 1.2; }
+
+  .td-hero-row, .td-cols, .td-col { gap: 12px; }
+  .td-lesson { padding: 10px 6px; gap: 10px; }
+  .td-lesson__time { width: 42px; }
+  .td-lesson__topic { white-space: normal; }
+  /* «Подготовить» и заметка живут в карточке урока — в строке только «провёл» */
+  .td-prep-btn, .td-iconbtn--note { display: none; }
+  .td-iconbtn { width: 40px; height: 40px; border-radius: 999px; font-size: 16px; }
+  .td-prep__btn { display: none; }
+  .td-note, .td-att, .td-todo { min-height: 44px; }
+  .td-note__inbox { padding: 12px; font-size: 13.5px; }
 }
 
 /* ── Школьные мероприятия в расписании дня (общий календарь) ── */

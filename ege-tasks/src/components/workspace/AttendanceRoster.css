@@ -1,0 +1,33 @@
+/* Ростер посещаемости (AttendanceRoster). Выбранный статус красится своим
+   цветом — список класса читается с одного взгляда, кто отсутствует. */
+
+.att-list { display: flex; flex-direction: column; gap: 4px; }
+.att-row { display: flex; align-items: center; gap: 8px; }
+.att-row__name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; }
+.att-row__name .ant-typography { min-width: 0; }
+.att-row__controls { flex: none; display: flex; align-items: center; gap: 2px; }
+
+/* Телефон: имя строкой, кнопки на всю ширину под ним */
+.att-list--stacked { gap: 8px; }
+.att-list--stacked .att-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule-soft, #EEF0F3);
+  border-left: 3px solid var(--rule, #E5E7EB);
+  border-radius: 10px;
+}
+.att-list--stacked .att-row__name { font-size: 15px; font-weight: 500; min-height: 24px; }
+.att-list--stacked .att-row__name .ant-typography { flex: 1; font-size: 15px; }
+.att-list--stacked .att-row__controls { display: block; }
+.att-list--stacked .ant-segmented-item-label { min-height: 36px; line-height: 36px; font-size: 14px; }
+
+.att-row--present .ant-segmented-item-selected { background: #DCFCE7; color: #15803D; }
+.att-row--late .ant-segmented-item-selected { background: #FEF3C7; color: #B45309; }
+.att-row--excused .ant-segmented-item-selected { background: #DBEAFE; color: #1D4ED8; }
+.att-row--absent .ant-segmented-item-selected { background: #FEE2E2; color: #B91C1C; }
+.att-list--stacked .att-row--present { border-left-color: #16A34A; }
+.att-list--stacked .att-row--late { border-left-color: #D97706; }
+.att-list--stacked .att-row--excused { border-left-color: #2563EB; }
+.att-list--stacked .att-row--absent { border-left-color: #DC2626; background: #FFF7F7; }

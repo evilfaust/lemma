@@ -5,6 +5,7 @@ import { App, Button, Segmented, Select, Tooltip } from 'antd';
 import {
   CalendarOutlined, PlusOutlined, LeftOutlined, RightOutlined,
   LayoutOutlined, ColumnHeightOutlined, CompressOutlined,
+  BankOutlined, BulbOutlined, CheckSquareOutlined, FlagOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -23,6 +24,12 @@ import EventInspector from './calendar/EventInspector';
 import CreateEventModal from './calendar/CreateEventModal';
 import RepeatLessonModal from './calendar/RepeatLessonModal';
 import SchoolEventModal from './calendar/SchoolEventModal';
+import MobileCalendar from './calendar/MobileCalendar';
+import LessonSheet from './calendar/LessonSheet';
+import QuickAddFab from './calendar/QuickAddFab';
+import QuickCaptureSheet from './calendar/QuickCaptureSheet';
+import { saveLesson } from './calendar/lessonActions';
+import useIsMobile from '../../hooks/useIsMobile';
 import { CalendarContext, useCalendarCtx } from './calendar/CalendarContext';
 import {
   buildEvents, sortMonthEvents, weekSummary, todayTodos, periodTitle,
@@ -73,6 +80,7 @@ export default function TeacherCalendar() {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const { canEdit, canDelete, teacher } = useAuth();
+  const isMobile = useIsMobile();
 
   const [groups, setGroups] = useState([]);
   const [works, setWorks] = useState([]);
@@ -96,6 +104,8 @@ export default function TeacherCalendar() {
   const [repeatBase, setRepeatBase] = useState(null);   // урок для «Повторить серией»
   const [repeating, setRepeating] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null); // школьное мероприятие в правке
+  const [sheetLesson, setSheetLesson] = useState(null);   // карточка урока (телефон)
+  const [capture, setCapture] = useState(null);           // быстрый ввод: 'todo' | 'idea'
 
   const load = useCallback(async () => {
     try {
@@ -149,6 +159,12 @@ export default function TeacherCalendar() {
   }, [load, message]);
 
   const openInspector = useCallback((event) => setSelected(event), []);
+
+  // Карточка урока правит статус сама — здесь только подменяем запись в списке.
+  const patchLesson = useCallback((updated) => {
+    setLessons((prev) => prev.map((l) => (l.id === updated.id ? { ...l, ...updated } : l)));
+    setSheetLesson((prev) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+  }, []);
 
   // ── «Провёл» одной кнопкой: planned ⇄ done (оптимистично) ──
   // Отменённый урок трогать не даём — его статус выставлен осознанно, возврат
@@ -270,11 +286,7 @@ export default function TeacherCalendar() {
   const handleSave = async (data, meta = {}) => {
     setSaving(true);
     try {
-      let id;
-      if (editing?.id) { await api.updateLesson(editing.id, data); id = editing.id; }
-      else { const rec = await api.createLesson(data); id = rec.id; }
-      // Витрина для ученика: no-op если группа урока — не курс.
-      try { await api.syncLessonPublication(id, { published: meta.published !== false }); } catch (e) { console.error('syncLessonPublication', e?.message); }
+      await saveLesson(editing?.id, data, meta);
       setModalOpen(false); setEditing(null); load();
     } catch {
       message.error('Не удалось сохранить урок');
@@ -363,93 +375,112 @@ export default function TeacherCalendar() {
 
   return (
     <CalendarContext.Provider value={ctx}>
-      <WorkspacePageHeader
-        icon={<CalendarOutlined />}
-        accent="blue"
-        title="Календарь"
-        subtitle="Уроки · дедлайны · дела на одной сетке"
-        extra={(
-          <>
-            <Select
-              allowClear style={{ minWidth: 160 }} placeholder="Все группы"
-              value={groupFilter} onChange={setGroupFilter}
-              options={groups.map((g) => ({ value: g.id, label: g.name }))}
+      {isMobile ? (
+        <MobileCalendar
+          events={events}
+          date={date}
+          onDateChange={setDate}
+          groups={groups}
+          groupFilter={groupFilter}
+          setGroupFilter={setGroupFilter}
+          onOpenLesson={setSheetLesson}
+          onOpenEvent={openInspector}
+          onToggleTodo={toggleTodo}
+          onToggleLessonDone={toggleLessonDone}
+          onCreate={openCreate}
+          canEdit={canEdit}
+        />
+      ) : (
+        <>
+        <WorkspacePageHeader
+          icon={<CalendarOutlined />}
+          accent="blue"
+          title="Календарь"
+          subtitle="Уроки · дедлайны · дела на одной сетке"
+          extra={(
+            <>
+              <Select
+                allowClear style={{ minWidth: 160 }} placeholder="Все группы"
+                value={groupFilter} onChange={setGroupFilter}
+                options={groups.map((g) => ({ value: g.id, label: g.name }))}
+              />
+              <Tooltip title={density === 'comfortable' ? 'Компактная сетка' : 'Просторная сетка'}>
+                <Button icon={density === 'comfortable' ? <CompressOutlined /> : <ColumnHeightOutlined />}
+                  onClick={() => setDensity((x) => (x === 'comfortable' ? 'compact' : 'comfortable'))} />
+              </Tooltip>
+              <Tooltip title={showRail ? 'Скрыть панель' : 'Показать панель'}>
+                <Button icon={<LayoutOutlined />} type={showRail ? 'default' : 'text'}
+                  onClick={() => setShowRail((x) => !x)} />
+              </Tooltip>
+              {canEdit && (
+                <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateState({ type: 'lesson', day: date, pair: null })}>
+                  Создать
+                </Button>
+              )}
+            </>
+          )}
+        />
+
+        {/* Toolbar */}
+        <div className="cal-toolbar">
+          <div className="cal-nav">
+            <Button onClick={() => navPeriod(0)}>Сегодня</Button>
+            <Button icon={<LeftOutlined />} onClick={() => navPeriod(-1)} />
+            <Button icon={<RightOutlined />} onClick={() => navPeriod(1)} />
+          </div>
+          <div className="cal-period">{periodTitle(date, view === Views.WEEK ? 'week' : view === Views.DAY ? 'day' : 'month')}</div>
+          <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} />
+        </div>
+
+        <div className={`cal-layout${showRail ? '' : ' no-rail'}`}>
+          <div className="cal-main teacher-calendar-wrap" style={{ '--cal-cell-min': `${minHeight}px` }}>
+            <DnDCalendar
+              localizer={localizer}
+              events={events}
+              messages={RU_MESSAGES}
+              culture="ru"
+              views={{ month: true, week: WeekByPairs, day: true, agenda: true }}
+              view={view}
+              onView={setView}
+              date={date}
+              onNavigate={setDate}
+              toolbar={false}
+              popup
+              selectable={canEdit}
+              resizable={false}
+              onEventDrop={onEventDrop}
+              onSelectSlot={onSelectSlot}
+              onSelectEvent={openInspector}
+              eventPropGetter={eventPropGetter}
+              dayPropGetter={dayPropGetter}
+              components={components}
+              draggableAccessor={(e) => canEdit && e.resource?.type !== 'school'}
+              dayLayoutAlgorithm="no-overlap"
+              allDayAccessor="allDay"
+              style={{ height: 'calc(100vh - 250px)', minHeight: 520 }}
             />
-            <Tooltip title={density === 'comfortable' ? 'Компактная сетка' : 'Просторная сетка'}>
-              <Button icon={density === 'comfortable' ? <CompressOutlined /> : <ColumnHeightOutlined />}
-                onClick={() => setDensity((x) => (x === 'comfortable' ? 'compact' : 'comfortable'))} />
-            </Tooltip>
-            <Tooltip title={showRail ? 'Скрыть панель' : 'Показать панель'}>
-              <Button icon={<LayoutOutlined />} type={showRail ? 'default' : 'text'}
-                onClick={() => setShowRail((x) => !x)} />
-            </Tooltip>
-            {canEdit && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateState({ type: 'lesson', day: date, pair: null })}>
-                Создать
-              </Button>
-            )}
-          </>
-        )}
-      />
+          </div>
 
-      {/* Toolbar */}
-      <div className="cal-toolbar">
-        <div className="cal-nav">
-          <Button onClick={() => navPeriod(0)}>Сегодня</Button>
-          <Button icon={<LeftOutlined />} onClick={() => navPeriod(-1)} />
-          <Button icon={<RightOutlined />} onClick={() => navPeriod(1)} />
+          {showRail && (
+            <RightRail
+              summary={summary}
+              filters={filters}
+              setFilters={setFilters}
+              counts={counts}
+              groups={groups}
+              groupFilter={groupFilter}
+              setGroupFilter={setGroupFilter}
+              today={railTodos}
+              onToggleTodo={toggleTodo}
+              onSelectTodo={(t) => openInspector({ id: `td_${t.id}`, title: t.title, resource: { type: 'todo', raw: t, groupId: t.group || '', groupName: t.expand?.group?.name, done: !!t.done, priority: t.priority } })}
+              onCreateTodo={() => setCreateState({ type: 'todo', day: new Date(), pair: null })}
+              onSetGroupColor={setGroupColor}
+              canEdit={canEdit}
+            />
+          )}
         </div>
-        <div className="cal-period">{periodTitle(date, view === Views.WEEK ? 'week' : view === Views.DAY ? 'day' : 'month')}</div>
-        <Segmented options={VIEW_OPTIONS} value={view} onChange={setView} />
-      </div>
-
-      <div className={`cal-layout${showRail ? '' : ' no-rail'}`}>
-        <div className="cal-main teacher-calendar-wrap" style={{ '--cal-cell-min': `${minHeight}px` }}>
-          <DnDCalendar
-            localizer={localizer}
-            events={events}
-            messages={RU_MESSAGES}
-            culture="ru"
-            views={{ month: true, week: WeekByPairs, day: true, agenda: true }}
-            view={view}
-            onView={setView}
-            date={date}
-            onNavigate={setDate}
-            toolbar={false}
-            popup
-            selectable={canEdit}
-            resizable={false}
-            onEventDrop={onEventDrop}
-            onSelectSlot={onSelectSlot}
-            onSelectEvent={openInspector}
-            eventPropGetter={eventPropGetter}
-            dayPropGetter={dayPropGetter}
-            components={components}
-            draggableAccessor={(e) => canEdit && e.resource?.type !== 'school'}
-            dayLayoutAlgorithm="no-overlap"
-            allDayAccessor="allDay"
-            style={{ height: 'calc(100vh - 250px)', minHeight: 520 }}
-          />
-        </div>
-
-        {showRail && (
-          <RightRail
-            summary={summary}
-            filters={filters}
-            setFilters={setFilters}
-            counts={counts}
-            groups={groups}
-            groupFilter={groupFilter}
-            setGroupFilter={setGroupFilter}
-            today={railTodos}
-            onToggleTodo={toggleTodo}
-            onSelectTodo={(t) => openInspector({ id: `td_${t.id}`, title: t.title, resource: { type: 'todo', raw: t, groupId: t.group || '', groupName: t.expand?.group?.name, done: !!t.done, priority: t.priority } })}
-            onCreateTodo={() => setCreateState({ type: 'todo', day: new Date(), pair: null })}
-            onSetGroupColor={setGroupColor}
-            canEdit={canEdit}
-          />
-        )}
-      </div>
+        </>
+      )}
 
       <EventInspector
         event={selected}
@@ -506,6 +537,33 @@ export default function TeacherCalendar() {
         onConfirm={handleRepeat}
         onCancel={() => setRepeatBase(null)}
       />
+
+      <LessonSheet
+        lesson={sheetLesson}
+        onClose={() => setSheetLesson(null)}
+        onChange={patchLesson}
+        onEdit={(l) => { setSheetLesson(null); setEditing(l); setModalOpen(true); }}
+        canEdit={canEdit}
+        myTeacherId={teacher?.id}
+      />
+
+      <QuickCaptureSheet
+        mode={capture}
+        day={date}
+        groups={groups}
+        onClose={() => setCapture(null)}
+        onCreated={load}
+      />
+
+      {isMobile && canEdit && (
+        <QuickAddFab actions={[
+          { key: 'lesson', label: 'Урок', hint: `на ${dayjs(date).format('D MMMM')}`, icon: <CalendarOutlined />, color: '#2B4BFF', soft: '#E7ECFF', onClick: () => openCreate(date, null) },
+          { key: 'todo', label: 'Дело', hint: 'с напоминанием в календаре', icon: <CheckSquareOutlined />, color: '#0D9488', soft: '#CCFBF1', onClick: () => setCapture('todo') },
+          { key: 'idea', label: 'Мысль', hint: 'в инбокс заметок', icon: <BulbOutlined />, color: '#D97706', soft: '#FEF3C7', onClick: () => setCapture('idea') },
+          { key: 'deadline', label: 'Дедлайн работы', icon: <FlagOutlined />, color: '#B45309', soft: '#FFEDD5', onClick: () => setCreateState({ type: 'deadline', day: date, pair: null }) },
+          { key: 'school', label: 'Школьное мероприятие', icon: <BankOutlined />, color: '#475569', soft: '#F1F5F9', onClick: () => setCreateState({ type: 'school', day: date, pair: null }) },
+        ]} />
+      )}
     </CalendarContext.Provider>
   );
 }
