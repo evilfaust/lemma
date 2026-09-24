@@ -9,33 +9,10 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { checkAnswer } from '../../utils/answerChecker';
+import { compressImage } from '../../utils/imageProcessing';
 import MathRenderer from '../MathRenderer';
 
 const { Text } = Typography;
-
-// Сжатие фото на клиенте: длинная сторона ≤ maxDim, JPEG. Сервер картинку
-// не обрабатывает — что ушло, то и попадает в модель и в attempts.blank_photo.
-async function compressImage(file, maxDim = 1600, quality = 0.82) {
-  let bitmap;
-  try {
-    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-  } catch {
-    // Fallback для старых браузеров
-    bitmap = await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = URL.createObjectURL(file);
-    });
-  }
-  const w = bitmap.width, h = bitmap.height;
-  const scale = Math.min(1, maxDim / Math.max(w, h));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(w * scale);
-  canvas.height = Math.round(h * scale);
-  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', quality);
-}
 
 function dataUrlToBlob(dataUrl) {
   const [head, b64] = dataUrl.split(',');

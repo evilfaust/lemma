@@ -226,3 +226,28 @@ export async function computeOtsuFromFile(file) {
   const rgba = renderToCanvas(img);
   return computeOtsu(toGrayscale(rgba, img.width, img.height));
 }
+
+// Сжатие фото на клиенте для vision-ручек (/scan-blank, /scan-task-list):
+// длинная сторона ≤ maxDim, JPEG, EXIF-поворот учтён. Сервер картинку не
+// обрабатывает — что ушло, то и попадает в модель (и в attempts.blank_photo).
+export async function compressImage(file, maxDim = 1600, quality = 0.82) {
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  } catch {
+    // Fallback для старых браузеров
+    bitmap = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  const w = bitmap.width, h = bitmap.height;
+  const scale = Math.min(1, maxDim / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', quality);
+}

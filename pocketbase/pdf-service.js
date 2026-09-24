@@ -677,6 +677,10 @@ function parseProblemFromDiv($, probDiv, baseUrl) {
     // ID задачи + ссылка на «Решу ЕГЭ»
     const probNums = $(probDiv).find('.prob_nums');
     if (probNums.length) {
+      // «Тип 7 № 27455» — номер задания в КИМ («Д4» у доп. типов). По нему
+      // импорт работы по номерам Решу раскладывает новые задачи по темам.
+      const typeMatch = probNums.text().replace(/\u00A0/g, ' ').match(/Тип\s+([^\s№]+)/);
+      if (typeMatch) problem.type_label = typeMatch[1];
       const link = probNums.find('a');
       if (link.length) {
         problem.id = link.text().trim();
@@ -1267,6 +1271,96 @@ app.post('/scan-blank', aiGate, async (req, res) => {
 });
 
 /**
+ * POST /scan-task-list
+ * Скриншот списка задач «Решу ЕГЭ/ОГЭ» (вариант, подборка, тетрадь) → номера
+ * задач по порядку. Нужен импорту работы по номерам Решу: учитель не
+ * перепечатывает номера руками. Ручка не пишет в БД — список проверяет учитель.
+ *
+ * Принимает: { image: string (base64, можно с data:-префиксом) }
+ * Возвращает: { items: [{ id: "27455", type: "7" | null }], model, usage }
+ */
+const SCAN_TASK_LIST_PROMPT = `На изображении — список задач с сайта «Решу ЕГЭ» / «Решу ОГЭ» (вариант, подборка, таблица результатов или просто перечень номеров).
+
+У каждой задачи есть номер в базе сайта — целое число из 3–7 цифр, обычно после знака «№» или в ссылке problem?id=… . Рядом может стоять тип (номер задания в КИМ): «Тип 7», «Задание 12», «Д4».
+
+Выпиши ВСЕ номера задач в том порядке, в котором они идут на изображении (сверху вниз; если колонки — сначала левая колонка целиком). Не путай номер в базе с порядковым номером задачи в варианте (1, 2, 3…), с баллами, процентами и датами.
+
+Верни СТРОГО JSON без пояснений и без markdown-ограждений:
+{"items":[{"id":"<номер в базе>","type":"<тип или null>"}]}`;
+
+app.post('/scan-task-list', aiGate, async (req, res) => {
+  const { image } = req.body || {};
+  if (!image || typeof image !== 'string') {
+    return res.status(400).json({ error: 'Поле image обязательно (base64-строка)' });
+  }
+  if (image.length > 14_000_000) {
+    return res.status(400).json({ error: 'Изображение слишком большое (клиент должен ужимать)' });
+  }
+
+  const aiUrl = process.env.TIMEWEB_AI_URL;
+  const aiKey = process.env.TIMEWEB_AI_KEY;
+  if (!aiUrl || !aiKey) {
+    return res.status(503).json({
+      error: 'LLM endpoint не настроен на сервере (TIMEWEB_AI_URL / TIMEWEB_AI_KEY)',
+    });
+  }
+
+  const dataUrl = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
+
+  try {
+    const resp = await fetch(aiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${aiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: SCAN_BLANK_MODEL,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: SCAN_TASK_LIST_PROMPT },
+            { type: 'image_url', image_url: { url: dataUrl } },
+          ],
+        }],
+      }),
+    });
+
+    if (!resp.ok) {
+      const body = await resp.text();
+      console.error('[scan-task-list] upstream:', resp.status, body.slice(0, 200));
+      return res.status(502).json({ error: `AI gateway HTTP ${resp.status}`, details: body.slice(0, 300) });
+    }
+
+    const data = await resp.json();
+    const raw = data?.choices?.[0]?.message?.content?.trim();
+    if (!raw) return res.status(502).json({ error: 'AI gateway вернул пустой ответ' });
+
+    const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      console.error('[scan-task-list] не-JSON ответ модели:', raw.slice(0, 300));
+      return res.status(502).json({ error: 'Модель вернула не-JSON', raw: raw.slice(0, 500) });
+    }
+
+    const items = (Array.isArray(parsed.items) ? parsed.items : [])
+      .map((it) => ({
+        id: String(it?.id ?? '').replace(/\D/g, ''),
+        type: it?.type == null || it.type === 'null' ? null : String(it.type).trim() || null,
+      }))
+      .filter((it) => /^\d{3,7}$/.test(it.id));
+
+    console.log(`[scan-task-list] items=${items.length} tokens=${data?.usage?.total_tokens ?? '?'}`);
+    res.json({ items, model: SCAN_BLANK_MODEL, usage: data?.usage || null });
+  } catch (error) {
+    console.error('[scan-task-list] error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /health
  * Health check
  */
@@ -1274,7 +1368,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'lemma-backend-helper',
-    features: ['sdamgia-parser', 'latex-fix', 'vec-search', 'scan-blank'],
+    features: ['sdamgia-parser', 'latex-fix', 'vec-search', 'scan-blank', 'scan-task-list'],
     timestamp: new Date().toISOString(),
   });
 });

@@ -1,4 +1,5 @@
 import { pb, _logAudit } from './client.js';
+import { getFullListByOr } from './chunked.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { searchCaseVariants, MIN_SEARCH_LENGTH } from '../../utils/searchVariants';
@@ -360,6 +361,18 @@ export const tasksApi = {
       console.error('Error mapping sdamgia ids:', error);
     }
     return map;
+  },
+
+  // Задачи банка по списку решу-id — для работы по номерам «Решу ЕГЭ».
+  // Одна sdamgia_id может жить в нескольких задачах (база и профиль, дубль) —
+  // отдаём все, выбор делает `pickBankTask` (utils/reshuTaskList.js).
+  async getTasksBySdamgiaIds(sdamgiaIds = []) {
+    const ids = [...new Set(sdamgiaIds.map(String).filter(Boolean))];
+    if (!ids.length) return [];
+    // `!= ""` снаружи — иначе частичный индекс idx_tasks_sdamgia_id не берётся.
+    return getFullListByOr('tasks', 'sdamgia_id', ids, {
+      fields: 'id,code,topic,sdamgia_id,statement_md,answer,exam_part,has_image',
+    }, { extraFilter: 'sdamgia_id != ""' });
   },
 
   // Обновить задачу

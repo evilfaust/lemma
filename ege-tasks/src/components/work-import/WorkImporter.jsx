@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Card, Space, Steps, App } from 'antd';
+import { Button, Card, Segmented, Space, Steps, App } from 'antd';
 import { ArrowLeftOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
@@ -9,6 +9,7 @@ import SourceStep from './SourceStep';
 import ReviewStep from './ReviewStep';
 import TopicsStep from './TopicsStep';
 import FinishStep from './FinishStep';
+import ReshuIdsImport from './ReshuIdsImport';
 
 const STEPS = [
   { title: 'Источник', description: 'Текст работы' },
@@ -17,14 +18,40 @@ const STEPS = [
   { title: 'Импорт', description: 'Сохранение' },
 ];
 
+const SOURCES = [
+  { value: 'markdown', label: 'Из текста (.md)' },
+  { value: 'reshu', label: 'По номерам «Решу ЕГЭ»' },
+];
+
 /**
- * Мастер импорта работы целиком (WORK_IMPORT_FORMAT.md).
+ * Импорт работы целиком. Два источника:
+ * - текст `.md` (WORK_IMPORT_FORMAT.md) — мастер ниже;
+ * - номера задач «Решу ЕГЭ/ОГЭ» — `ReshuIdsImport` (задачи берутся из банка по
+ *   `sdamgia_id`, недостающие добавляются с Решу).
+ */
+export default function WorkImporter() {
+  const [source, setSource] = useState('markdown');
+
+  return (
+    <Card
+      title="Импорт работы целиком"
+      extra={<Segmented value={source} onChange={setSource} options={SOURCES} />}
+    >
+      {/* Оба источника смонтированы: переключение не теряет набранное */}
+      <div hidden={source !== 'markdown'}><MarkdownWorkImporter /></div>
+      <div hidden={source !== 'reshu'}><ReshuIdsImport /></div>
+    </Card>
+  );
+}
+
+/**
+ * Мастер импорта работы из `.md` (WORK_IMPORT_FORMAT.md).
  *
  * В отличие от «Импорта задач» результат — не пачка задач одной темы, а
  * сохранённая работа: задачи расходятся по своим темам, порядок и варианты
  * сохраняются, фото оригинала прикрепляется к работе.
  */
-export default function WorkImporter() {
+function MarkdownWorkImporter() {
   const { message } = App.useApp();
   const navigate = useNavigate();
   const { topics, subtopics, reloadData } = useReferenceData();
@@ -112,10 +139,7 @@ export default function WorkImporter() {
   };
 
   return (
-    <Card
-      title="Импорт работы целиком"
-      extra={<span style={{ color: '#888' }}>Формат: WORK_IMPORT_FORMAT.md</span>}
-    >
+    <>
       <Steps current={step} items={STEPS} style={{ marginBottom: 24 }} onChange={parsed ? setStep : undefined} />
 
       {step === 0 && (
@@ -180,6 +204,6 @@ export default function WorkImporter() {
           )}
         </Space>
       )}
-    </Card>
+    </>
   );
 }

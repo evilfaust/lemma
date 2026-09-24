@@ -219,4 +219,24 @@ export const extrasApi = {
     }
     return res.json();
   },
+
+  // Скриншот списка задач «Решу» → pdf-service /scan-task-list (vision-LLM) →
+  // { items: [{ id, type }] } по порядку. Список обязательно показывается
+  // учителю текстом до поиска задач — модель могла ошибиться в цифре.
+  async scanTaskList({ imageBase64 }) {
+    const base = import.meta.env.VITE_PDF_SERVICE_URL || 'http://localhost:3001';
+    const res = await fetch(`${base}/scan-task-list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...aiHeaders() },
+      body: JSON.stringify({ image: imageBase64 }),
+      signal: AbortSignal.timeout(90000),
+    });
+    if (!res.ok) {
+      let msg = `Сервис распознавания ответил ${res.status}`;
+      if (res.status === 404) msg = 'Распознавание скриншотов ещё не установлено на сервере';
+      try { msg = (await res.json()).error || msg; } catch { /* не-JSON */ }
+      throw new Error(msg);
+    }
+    return res.json();
+  },
 };
