@@ -1,4 +1,4 @@
-import { Segmented, Button } from 'antd';
+import { Segmented, Button, Tooltip } from 'antd';
 import { FileTextOutlined, AppstoreOutlined, FolderOpenOutlined } from '@ant-design/icons';
 
 const OUTPUT_OPTIONS = [
@@ -13,10 +13,12 @@ const OUTPUT_OPTIONS = [
   },
   {
     label: (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px' }}>
-        <AppstoreOutlined />
-        Карточки
-      </span>
+      <Tooltip title="Несколько одинаковых работ на одном листе A4 — лист режется по пунктиру">
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px' }}>
+          <AppstoreOutlined />
+          Карточки
+        </span>
+      </Tooltip>
     ),
     value: 'cards',
   },

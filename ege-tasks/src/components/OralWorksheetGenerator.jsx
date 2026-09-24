@@ -25,6 +25,10 @@ import {
 } from '../hooks';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { filterTaskIds, hasNarrowingFilters } from '../utils/taskFilterIds';
+import { printPaged } from '../utils/printPage';
+import {
+  applyLayout, cardsModeLabel, normalizeCardSettings, readCardSettings, writeCardSettings,
+} from '../utils/worksheetCards';
 import './TaskWorksheet.css';
 
 const DIFFICULTY_OPTIONS = [
@@ -124,10 +128,15 @@ const TaskSheetGenerator = () => {
   const [showVariantLabel, setShowVariantLabel] = useState(null);
   const [cryptogramEnabled, setCryptogramEnabled] = useState(false);
   const [cryptogramPhrase, setCryptogramPhrase] = useState('');
-  const [cardFormat, setCardFormat] = useState('А6');
-  const [showCardAnswers, setShowCardAnswers] = useState(false);
-  const [showCardSolutions, setShowCardSolutions] = useState(false);
-  const [showCardStudentInfo, setShowCardStudentInfo] = useState(true);
+  // Карточки — один объект настроек (utils/worksheetCards.js), живёт в
+  // localStorage: раскладку «4 на лист» учитель выбирает один раз.
+  const [cardSettings, setCardSettings] = useState(readCardSettings);
+  const saveCardSettings = (next) => {
+    setCardSettings(next);
+    writeCardSettings(next);
+  };
+  const patchCardSettings = (delta) => saveCardSettings(normalizeCardSettings({ ...cardSettings, ...delta }));
+  const setCardLayout = (layout) => saveCardSettings(applyLayout(cardSettings, layout));
 
   const [selectedExamType, setSelectedExamType] = useState(null);
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -292,7 +301,7 @@ const TaskSheetGenerator = () => {
     setSeedTask(null);
     setSimilarity(0.5);
     setDiverseMethod('mmr');
-    setAvoidWorkId(null);
+    setAvoidWorkIds([]);
     setNoveltyMaxCos(0.85);
   };
 
@@ -505,28 +514,21 @@ const TaskSheetGenerator = () => {
             cryptogramPhrase={cryptogramPhrase}
             setCryptogramPhrase={setCryptogramPhrase}
             tasksCount={tasksPerVariantValue}
-            cardFormat={cardFormat}
-            setCardFormat={setCardFormat}
-            showCardAnswers={showCardAnswers}
-            setShowCardAnswers={setShowCardAnswers}
-            showCardSolutions={showCardSolutions}
-            setShowCardSolutions={setShowCardSolutions}
-            showCardStudentInfo={showCardStudentInfo}
-            setShowCardStudentInfo={setShowCardStudentInfo}
+            cardSettings={cardSettings}
+            patchCardSettings={patchCardSettings}
+            setCardLayout={setCardLayout}
           />
         </Form>
 
         <ResultActionBar
           variants={variants}
           outputMode={outputMode}
-          variantLabel={variantLabel}
-          cardFormat={cardFormat}
           showAnswersPage={showAnswersPage}
           sheetSummary={sheetSummary}
+          cardsSummary={cardsModeLabel(cardSettings, variants.length || 1)}
           onSave={() => setSaveModalVisible(true)}
           onOpenLoad={handleOpenLoadModal}
-          onPrint={outputMode === 'sheet' ? handleSheetPrint : worksheetActions.handlePrint}
-          onExportPDF={() => worksheetActions.handleExportPDF(printRef, workTitle)}
+          onPrint={outputMode === 'sheet' ? handleSheetPrint : () => printPaged()}
           onExportMD={handleExportMD}
           onReset={handleReset}
           worksheetActions={worksheetActions}
@@ -572,14 +574,7 @@ const TaskSheetGenerator = () => {
         dragDropHandlers={dragDropHandlers}
         onSetFigureSize={handleSetFigureSize}
         taskEditing={taskEditing}
-        cardFormat={cardFormat}
-        showCardAnswers={showCardAnswers}
-        showCardSolutions={showCardSolutions}
-        showCardStudentInfo={showCardStudentInfo}
-        topics={topics}
-        tags={tags}
-        subtopics={subtopics}
-        setVariants={setVariants}
+        cardSettings={cardSettings}
       />
 
       <TaskReplaceModal

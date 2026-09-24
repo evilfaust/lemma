@@ -5,14 +5,12 @@ import ActionButtons from '../ActionButtons';
 export default function ResultActionBar({
   variants,
   outputMode,
-  variantLabel,
-  cardFormat,
   showAnswersPage,
   sheetSummary,
+  cardsSummary,
   onSave,
   onOpenLoad,
   onPrint,
-  onExportPDF,
   onExportMD,
   onReset,
   worksheetActions,
@@ -22,7 +20,7 @@ export default function ResultActionBar({
   const totalTasks = variants.reduce((sum, v) => sum + (v.tasks?.length || 0), 0);
   const tasksPerVariant = variants[0]?.tasks?.length || 0;
   const isSheet = outputMode === 'sheet';
-  const formatLabel = isSheet ? sheetSummary : cardFormat;
+  const formatLabel = isSheet ? sheetSummary : cardsSummary;
   const modeLabel = isSheet ? 'Лист задач' : 'Карточки';
 
   return (
@@ -55,7 +53,7 @@ export default function ResultActionBar({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                maxWidth: 360,
+                maxWidth: 420,
               }}
             >
               {modeLabel} · {formatLabel}{showAnswersPage && isSheet ? ' · с листом ответов' : ''}
@@ -64,20 +62,18 @@ export default function ResultActionBar({
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
-          {isSheet && (
-            <Tooltip title="Лист свёрстан по миллиметрам — растровый html2pdf его портит. Печать → «Сохранить как PDF» даёт векторный файл.">
-              <span style={{ fontSize: 12, color: '#8c8c8c', whiteSpace: 'nowrap' }}>
-                PDF — через «Печать»
-              </span>
-            </Tooltip>
-          )}
+          <Tooltip title="Лист свёрстан по миллиметрам — растровый html2pdf его портит. Печать → «Сохранить как PDF» даёт векторный файл.">
+            <span style={{ fontSize: 12, color: '#8c8c8c', whiteSpace: 'nowrap' }}>
+              PDF — через «Печать»
+            </span>
+          </Tooltip>
           <ActionButtons
             hasVariants={true}
             loading={false}
             onOpenLoad={onOpenLoad}
             onSave={onSave}
             onPrint={onPrint}
-            onExportPDF={isSheet ? undefined : onExportPDF}
+            onExportPDF={undefined}
             onExportMD={onExportMD}
             onReset={onReset}
             exporting={worksheetActions.exporting}

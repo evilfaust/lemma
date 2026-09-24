@@ -3,6 +3,7 @@ import { BgColorsOutlined } from '@ant-design/icons';
 import { getCryptogramLetterCount } from '../../../utils/cryptogram';
 import { KIM_IMAGE_SIZE_OPTIONS } from '../../../utils/kimImageSize';
 import { SOLUTION_SPACE_OPTIONS, SOLUTION_FILL_OPTIONS, MARGIN_OPTIONS, PAGE_FORMAT_OPTIONS } from '../../print-sheet/geometry';
+import CardsSettings from '../cards/CardsSettings';
 
 const { Text } = Typography;
 
@@ -31,11 +32,6 @@ const SPACE_OPTIONS = [...SOLUTION_SPACE_OPTIONS, { value: 'fit', label: 'N на
 const COLUMN_OPTIONS = [
   { value: 1, label: '1' },
   { value: 2, label: '2' },
-];
-const CARD_FORMAT_OPTIONS = [
-  { value: 'А6', label: 'A6' },
-  { value: 'А5', label: 'A5' },
-  { value: 'А4', label: 'A4' },
 ];
 
 const Subtitle = ({ children }) => (
@@ -114,14 +110,9 @@ export default function AppearanceSection({
   setCryptogramPhrase,
   tasksCount,
   // cards props
-  cardFormat,
-  setCardFormat,
-  showCardAnswers,
-  setShowCardAnswers,
-  showCardSolutions,
-  setShowCardSolutions,
-  showCardStudentInfo,
-  setShowCardStudentInfo,
+  cardSettings,
+  patchCardSettings,
+  setCardLayout,
 }) {
   const lettersCount = getCryptogramLetterCount(cryptogramPhrase);
   const halfSheet = pageFormat === 'half';
@@ -438,26 +429,14 @@ export default function AppearanceSection({
   );
 
   const cardsBody = (
-    <Space wrap size={[16, 10]} style={{ width: '100%' }}>
-      <Field label="Формат карточек">
-        <Segmented size="small" value={cardFormat} onChange={setCardFormat} options={CARD_FORMAT_OPTIONS} />
-      </Field>
-      <SwitchField
-        label="Показать ответы"
-        checked={showCardAnswers}
-        onChange={setShowCardAnswers}
-      />
-      <SwitchField
-        label="Показать решения"
-        checked={showCardSolutions}
-        onChange={setShowCardSolutions}
-      />
-      <SwitchField
-        label="Поля для ФИО"
-        checked={showCardStudentInfo}
-        onChange={setShowCardStudentInfo}
-      />
-    </Space>
+    <CardsSettings
+      settings={cardSettings}
+      patch={patchCardSettings}
+      onLayout={setCardLayout}
+      variantsCount={variantsCount}
+      variantLabel={variantLabel}
+      setVariantLabel={setVariantLabel}
+    />
   );
 
   return (

@@ -1,4 +1,4 @@
-import PrintableWorksheet from '../../PrintableWorksheet';
+import WorksheetCards from '../cards/WorksheetCards';
 import PrintSheet from '../../print-sheet/PrintSheet';
 import SheetCryptogram from '../../print-sheet/SheetCryptogram';
 
@@ -34,14 +34,7 @@ export default function WorksheetPreview({
   onSetFigureSize,
   workTitle,
   // cards
-  cardFormat,
-  showCardAnswers,
-  showCardSolutions,
-  showCardStudentInfo,
-  topics,
-  tags,
-  subtopics,
-  setVariants,
+  cardSettings,
   taskEditing,
 }) {
   if (!variants || variants.length === 0) return null;
@@ -95,34 +88,20 @@ export default function WorksheetPreview({
     );
   }
 
-  // outputMode === 'cards'
+  // outputMode === 'cards' — несколько одинаковых работ на листе A4
   return (
-    <PrintableWorksheet
-      ref={printRef}
-      key={variants.map(v => v.tasks.map(t => t.id).join(',')).join('|')}
-      cards={variants.map(v => v.tasks)}
-      title={variantLabel || 'Проверочная работа'}
-      showAnswers={showCardAnswers}
-      showSolutions={showCardSolutions}
-      format={cardFormat}
-      cardsCount={variants.length}
-      tasksPerCard={variants[0]?.tasks.length || 0}
-      topicName=""
-      variantLabel={variantLabel || 'Проверочная работа'}
-      topics={topics}
-      tags={tags}
-      subtopics={subtopics}
-      hideTaskPrefixes={hideTaskPrefixes}
-      fontSize={12}
-      showStudentInfo={showCardStudentInfo}
-      onEditTask={taskEditing.handleEditTask}
-      onCardsChange={(newCards) => {
-        const newVariants = variants.map((v, i) => ({
-          ...v,
-          tasks: newCards[i] || v.tasks,
-        }));
-        setVariants(newVariants);
-      }}
-    />
+    <div ref={printRef}>
+      <WorksheetCards
+        variants={variants}
+        settings={cardSettings}
+        title={cardSettings.title || workTitle || 'Самостоятельная работа'}
+        variantLabel={variantLabel || 'Вариант'}
+        editing={{
+          dragDropHandlers,
+          onEditTask: taskEditing.handleEditTask,
+          onReplaceTask: taskEditing.handleReplaceTask,
+        }}
+      />
+    </div>
   );
 }

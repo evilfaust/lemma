@@ -1,0 +1,545 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Карточки Генератора — несколько одинаковых работ на одном листе A4.
+
+   Раскладка своя (плитка карточек, линия реза по их границам), оформление —
+   язык движка `print-sheet`: только чёрная краска, иерархия на кегле и
+   толщине линеек:
+     0.35mm — линии для заполнения (ФИ, ответ), рамка «Вариант N»
+     0.3mm  — квадрат номера задачи, рамка поля ответа
+     0.25mm — таблица ответов, сетка ключа
+     0.2pt  — волосяные: разделители задач и шапки, линия реза (пунктир)
+
+   🚨 Размеры листа, карточки и полей считает utils/worksheetCards.js и передаёт
+   inline (SHEET_PAD_MM, CARD_PAD_MM, cardSizeMm). Здесь их нет намеренно —
+   число живёт в одном месте.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.wcd-root {
+  /* 🚨 Только чёрная краска: серая линия и подпись на ч/б принтере пропадают. */
+  --wcd-ink:  #000000;
+  --wcd-rule: #000000;
+  --wcd-hair: #000000;
+  --wcd-ans-w: 20mm;
+  --wcd-fig-w: 32%;
+  --wcd-fig-h: 18mm;
+
+  color: var(--wcd-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-feature-settings: 'tnum' 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 16px 12px 24px;
+  background: #E9EAEE;
+  border-radius: 8px;
+  max-width: 100%;
+  overflow-x: auto;   /* лист шире экрана — прокручиваем, а не сжимаем */
+}
+
+/* ── Экранная обвязка ─────────────────────────────────────────────────────── */
+
+.wcd-status {
+  width: 210mm;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #595959;
+}
+.wcd-status b { color: #262626; font-weight: 600; }
+.wcd-status-note { font-size: 12px; color: #8c8c8c; }
+
+.wcd-pages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+/* ── Лист A4 ──────────────────────────────────────────────────────────────── */
+
+.wcd-sheet {
+  position: relative;
+  width: 210mm;
+  height: 296mm;   /* не 297: округления печати выдавливали пустую страницу */
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+  overflow: hidden;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Колонки приходят inline — их считает cardSizeMm(). */
+.wcd-grid {
+  display: grid;
+  align-content: start;
+  justify-content: start;
+}
+
+/* Линия реза: от края до края бумаги, чтобы лист резался за один проход. */
+.wcd-cut {
+  position: absolute;
+  pointer-events: none;
+}
+.wcd-cut--v {
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 0.2pt dashed var(--wcd-hair);
+}
+.wcd-cut--h {
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 0.2pt dashed var(--wcd-hair);
+}
+
+/* ── Карточка ─────────────────────────────────────────────────────────────── */
+
+.wcd-card {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.wcd-head {
+  flex: 0 0 auto;
+  padding-bottom: 1.4mm;
+  margin-bottom: 1.8mm;
+  border-bottom: 0.35mm solid var(--wcd-rule);
+}
+
+/* Одна строка: название · поля ученика · вариант. Название уступает место
+   полю ФИ (обрезается многоточием), но не уже четверти строки. */
+.wcd-head-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 3mm;
+}
+
+.wcd-title {
+  flex: 0 1 auto;
+  min-width: 25%;
+  font-size: 3.2mm;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wcd-variant {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0.3mm 1.4mm;
+  border: 0.35mm solid var(--wcd-rule);
+  font-size: 2.4mm;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.wcd-fields {
+  flex: 1 1 auto;
+  min-width: 40%;
+  display: flex;
+  gap: 2.4mm;
+}
+.wcd-field {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 1.2mm;
+  min-width: 0;
+}
+/* ФИ тянется на всё свободное место, «Класс» — короткий, фиксированный. */
+.wcd-field--wide { flex: 1 1 auto; }
+.wcd-field-label {
+  font-size: 2.5mm;
+  white-space: nowrap;
+}
+.wcd-field-rule {
+  flex: 0 0 9mm;
+  height: 3.4mm;
+  border-bottom: 0.35mm solid var(--wcd-rule);
+}
+.wcd-field--wide .wcd-field-rule { flex: 1 1 auto; min-width: 12mm; }
+
+.wcd-note {
+  margin-top: 1.2mm;
+  font-size: 2.5mm;
+  line-height: 1.3;
+}
+
+/* ── Задачи ───────────────────────────────────────────────────────────────── */
+/* Кегль приходит inline (подгонка под карточку). Высота зоны — остаток
+   карточки: по её переполнению (scrollHeight/scrollWidth) и считается подгонка. */
+.wcd-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  line-height: 1.38;
+}
+
+/* Две колонки внутри широкой карточки. Задача не рвётся между колонками
+   (break-inside), а лишнее уходит в третью колонку — её ловит scrollWidth. */
+.wcd-body--cols {
+  column-count: 2;
+  column-gap: 6mm;
+  column-rule: 0.2pt solid var(--wcd-hair);
+}
+
+.wcd-root--serif .wcd-task-text,
+.wcd-root--serif .wcd-key-answer,
+.wcd-root--serif .wcd-key-solution-text {
+  font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif;
+}
+
+.wcd-task {
+  position: relative;   /* якорь для экранных кнопок правки */
+  display: flex;
+  align-items: flex-start;
+  gap: 2mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.wcd-task + .wcd-task {
+  margin-top: 1.4mm;
+  padding-top: 1.4mm;
+  border-top: 0.2pt solid var(--wcd-hair);
+}
+.wcd-root--nodiv .wcd-task + .wcd-task {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 1.8mm;
+}
+
+/* Номер — квадрат, как на листе print-sheet, но в узких пределах 3.6–4.6 мм
+   (CARD_NUM_MM — верхний): жёстко заданный квадрат держал высоту строки, и
+   подгонка кегля на плотной раскладке ничего не выигрывала — строка не
+   становилась ниже квадрата. */
+.wcd-num {
+  /* em здесь — кегль условия (font-size у квадрата не меняется): поэтому
+     размер цифры задан на вложенном span, а не на самом квадрате. */
+  flex: 0 0 clamp(3.6mm, 1.45em, 4.6mm);
+  width: clamp(3.6mm, 1.45em, 4.6mm);
+  height: clamp(3.6mm, 1.45em, 4.6mm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0.3mm solid var(--wcd-rule);
+  box-sizing: border-box;
+}
+.wcd-num > span {
+  font-size: clamp(2.1mm, 0.82em, 2.6mm);
+  font-weight: 650;
+  line-height: 1;
+}
+
+.wcd-task-main { flex: 1 1 auto; min-width: 0; }
+
+.wcd-task-text p { margin: 0 0 0.8mm; }
+.wcd-task-text p:last-child { margin-bottom: 0; }
+.wcd-task-text ol,
+.wcd-task-text ul { margin: 0.6mm 0 0.6mm 4mm; padding: 0; }
+.wcd-task-text table {
+  border-collapse: collapse;
+  margin: 1mm 0;
+  font-size: 0.95em;
+}
+.wcd-task-text th,
+.wcd-task-text td {
+  border: 0.25mm solid var(--wcd-rule);
+  padding: 0.6mm 1.4mm;
+}
+
+.wcd-root .katex { font-size: 1.04em; }
+.wcd-root .katex-display { margin: 0.8mm 0; }
+
+/* Чертежи — три источника, один рычаг размера (как в print-sheet):
+   внешняя картинка задачи, картинка markdown и наши SVG (```numline/```plot).
+   🚨 Правило по svg — ТОЛЬКО внутри .mr-figure: общее правило схлопывает
+   радикал KaTeX, и знак корня пропадает с печати. */
+.wcd-task-image {
+  margin: 1mm 0 0;
+  max-width: var(--wcd-fig-w);
+}
+.wcd-task-image img,
+.wcd-task-text img {
+  max-width: 100%;
+  max-height: var(--wcd-fig-h);
+  height: auto;
+  display: block;
+}
+.wcd-task-text img { max-width: var(--wcd-fig-w); }
+.wcd-task-text .mr-figure .numline,
+.wcd-task-text .mr-figure .coordplot {
+  display: inline-block;
+  width: var(--wcd-fig-w);
+  max-width: 100%;
+}
+.wcd-task-text .mr-figure svg {
+  width: 100%;
+  height: auto;
+  max-height: var(--wcd-fig-h);
+}
+
+.wcd-root--nofig .wcd-task-image,
+.wcd-root--nofig .wcd-task-text .mr-figure,
+.wcd-root--nofig .wcd-task-text .numline,
+.wcd-root--nofig .wcd-task-text .coordplot,
+.wcd-root--nofig .wcd-task-text img { display: none; }
+
+.wcd-task-code {
+  margin-top: 0.6mm;
+  font-size: 2.2mm;
+  font-family: 'Geist Mono', ui-monospace, monospace;
+}
+
+.wcd-task-answer {
+  margin-top: 0.8mm;
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+/* Поле ответа справа: строка или рамка. Ширина — от карточки (answerWidthMm). */
+.wcd-ans {
+  flex: 0 0 var(--wcd-ans-w);
+  align-self: flex-end;
+  min-height: 4.6mm;
+  box-sizing: border-box;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  font-size: 0.95em;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.wcd-ans--line { border-bottom: 0.35mm solid var(--wcd-rule); }
+.wcd-ans--box {
+  align-self: flex-start;
+  min-height: 6mm;
+  align-items: center;
+  border: 0.3mm solid var(--wcd-rule);
+}
+
+/* Таблица ответов внизу карточки: учитель проверяет, приложив ключ. */
+.wcd-strip {
+  flex: 0 0 auto;
+  display: grid;
+  margin-top: 2mm;
+  border-top: 0.25mm solid var(--wcd-rule);
+  border-left: 0.25mm solid var(--wcd-rule);
+  font-size: 2.4mm;
+}
+.wcd-strip > div {
+  border-right: 0.25mm solid var(--wcd-rule);
+  border-bottom: 0.25mm solid var(--wcd-rule);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  overflow: hidden;
+}
+.wcd-strip-label {
+  padding: 0 1.2mm;
+  white-space: nowrap;
+  justify-content: flex-start !important;
+}
+.wcd-strip-num { height: 3.8mm; font-weight: 650; }
+.wcd-strip-cell { height: 6.5mm; font-size: 2.8mm; font-weight: 600; }
+
+/* ── Правка на экране (в печать не идёт) ──────────────────────────────────
+   Абсолютно и вне потока: иначе кнопки попали бы в замер переполнения. */
+.wcd-task-controls {
+  position: absolute;
+  top: -1.5mm;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  gap: 1px;
+  align-items: center;
+  padding: 1px 3px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid #E2E4E9;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.12s ease-in-out;
+}
+.wcd-task:hover .wcd-task-controls,
+.wcd-task-controls:focus-within { opacity: 1; }
+.wcd-task-controls .ant-btn { height: 20px; width: 22px; min-width: 0; }
+.wcd-task-grip { color: #8A8A8A; cursor: grab; font-size: 12px; }
+.wcd-task[draggable="true"] { cursor: grab; }
+.wcd-task--dragging { opacity: 0.4; }
+.wcd-task--dragover { outline: 1.5px dashed #1677FF; outline-offset: 1px; }
+
+/* ── Лист ответов ─────────────────────────────────────────────────────────── */
+/* min-height, а не height: при сорока вариантах ключ растёт на несколько
+   листов, и браузер режет его сам (блоки вариантов не рвутся). */
+.wcd-key {
+  width: 210mm;
+  min-height: 296mm;
+  padding: 10mm 12mm;
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+  font-size: 3.1mm;
+}
+.wcd-key-runhead {
+  display: flex;
+  justify-content: space-between;
+  gap: 6mm;
+  padding-bottom: 1.6mm;
+  margin-bottom: 4mm;
+  border-bottom: 0.25mm solid var(--wcd-rule);
+  font-size: 2.8mm;
+}
+.wcd-key-title {
+  font-size: 5mm;
+  font-weight: 650;
+  margin: 0 0 4mm;
+  padding-bottom: 2mm;
+  border-bottom: 0.5mm solid var(--wcd-rule);
+  color: var(--wcd-ink);
+}
+.wcd-key-block {
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.wcd-key-block + .wcd-key-block { margin-top: 4mm; }
+.wcd-key-variant {
+  font-size: 2.8mm;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 1.6mm;
+}
+.wcd-key-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 0.25mm solid var(--wcd-rule);
+  border-left: 0.25mm solid var(--wcd-rule);
+}
+.wcd-key-cell {
+  display: flex;
+  align-items: center;
+  gap: 1.8mm;
+  min-height: 7mm;
+  padding: 1mm 2mm;
+  border-right: 0.25mm solid var(--wcd-rule);
+  border-bottom: 0.25mm solid var(--wcd-rule);
+  overflow: hidden;
+}
+.wcd-key-num {
+  flex: 0 0 auto;
+  min-width: 4mm;
+  font-weight: 650;
+}
+.wcd-key-answer { flex: 1 1 auto; min-width: 0; overflow: hidden; }
+.wcd-key-solutions {
+  margin-top: 2mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1.6mm;
+}
+.wcd-key-solution {
+  display: flex;
+  gap: 2mm;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.wcd-key-solution-text { flex: 1; min-width: 0; line-height: 1.4; }
+.wcd-key-solution-text p { margin: 0 0 1mm; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Печать — канон печатного стека (см. print-sheet/printSheet.css)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media print {
+  /* 🚨 Ширину печатной области Chrome берёт по всему документу: любой элемент
+     правее 210 мм включает shrink-to-fit, и лист печатается в ~60% масштаба. */
+  html:has(.wcd-root),
+  body:has(.wcd-root) {
+    width: 210mm !important;
+    min-width: 0 !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Без звёздочки: `body:has(.root) *` даёт такую специфичность, что
+     visibility: visible на листе уже не переопределяется. */
+  body:has(.wcd-root) { visibility: hidden; }
+  body:has(.wcd-root) .wcd-root { visibility: visible; }
+
+  /* Порталы Ant живут в <body> вне .no-print и держат экранные координаты. */
+  body:has(.wcd-root) .ant-tooltip,
+  body:has(.wcd-root) .ant-popover,
+  body:has(.wcd-root) .ant-dropdown,
+  body:has(.wcd-root) .ant-select-dropdown,
+  body:has(.wcd-root) .ant-picker-dropdown,
+  body:has(.wcd-root) .ant-modal-root,
+  body:has(.wcd-root) .ant-modal-wrap,
+  body:has(.wcd-root) .ant-modal-mask,
+  body:has(.wcd-root) .ant-drawer,
+  body:has(.wcd-root) .ant-message,
+  body:has(.wcd-root) .ant-notification,
+  body:has(.wcd-root) .ant-image-preview-root,
+  body:has(.wcd-root) .no-print { display: none !important; }
+
+  /* Оболочка приложения и любой предок листа не должны создавать контекст
+     позиционирования и обрезку: лист абсолютный от начала печатной области. */
+  body:has(.wcd-root) #root,
+  body:has(.wcd-root) .ant-app,
+  body:has(.wcd-root) .ant-layout,
+  body:has(.wcd-root) .ant-layout-content,
+  body:has(.wcd-root) *:has(.wcd-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.wcd-root) .wcd-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    display: block;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    background: #fff;
+    overflow: visible;
+  }
+
+  .wcd-pages { display: block; }
+
+  .wcd-sheet,
+  .wcd-key {
+    width: 100%;
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+  .wcd-sheet { height: 296mm; }
+
+  .wcd-pages > :last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
