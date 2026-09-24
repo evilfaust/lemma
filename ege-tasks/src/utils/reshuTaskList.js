@@ -95,10 +95,20 @@ export function extractReshuIds(text) {
   return { items: [...seen.values()], duplicates };
 }
 
+/** «Тип 19» / «задание 12» / «19» → «19»; пусто → null. */
+export function normalizeTypeLabel(type) {
+  if (type == null) return null;
+  const s = String(type).replace(/^\s*(тип|задание)\s*/i, '').trim();
+  return s && s !== 'null' ? s : null;
+}
+
 /** Список в тексте — для поля ввода после распознавания скриншота. */
 export function formatReshuList(items = []) {
   return items
-    .map((it) => (it.typeLabel ? `Тип ${it.typeLabel} № ${it.id}` : `№ ${it.id}`))
+    .map((it) => {
+      const type = normalizeTypeLabel(it.typeLabel);
+      return type ? `Тип ${type} № ${it.id}` : `№ ${it.id}`;
+    })
     .join('\n');
 }
 

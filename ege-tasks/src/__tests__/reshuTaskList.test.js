@@ -5,6 +5,7 @@ import {
   detectReshuExam,
   reshuProblemUrl,
   formatReshuList,
+  normalizeTypeLabel,
   topicForReshuType,
   pickBankTask,
   mainTopicOf,
@@ -76,6 +77,15 @@ describe('ссылки и экзамен', () => {
   it('reshuProblemUrl', () => {
     expect(reshuProblemUrl('27455')).toBe('https://ege.sdamgia.ru/problem?id=27455');
     expect(reshuProblemUrl('27455', 'ege_base')).toBe('https://mathb-ege.sdamgia.ru/problem?id=27455');
+  });
+
+  it('normalizeTypeLabel: ответ модели «Тип 19» → «19»', () => {
+    expect(normalizeTypeLabel('Тип 19')).toBe('19');
+    expect(normalizeTypeLabel('задание 12')).toBe('12');
+    expect(normalizeTypeLabel('Д4')).toBe('Д4');
+    expect(normalizeTypeLabel('null')).toBe(null);
+    expect(normalizeTypeLabel(null)).toBe(null);
+    expect(formatReshuList([{ id: '547769', typeLabel: 'Тип 19' }])).toBe('Тип 19 № 547769');
   });
 
   it('formatReshuList → extractReshuIds обратимы', () => {
