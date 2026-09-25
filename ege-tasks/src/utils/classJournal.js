@@ -9,6 +9,8 @@
 //     поверх результата («переписал на бумаге»).
 // Колонки из БД (`journal_columns`) и «найденные» онлайн-работы (по попыткам
 // учеников класса, записи ещё нет) сводит `mergeColumns`.
+// Колонка может быть привязана к уроку календаря (`lesson`): тогда отсутствие
+// по посещаемости урока само даёт «н» в пустой клетке (v3.9.239).
 //
 // Клетка хранится ТЕКСТОМ в каноническом виде (`journal_marks.value`):
 //   «18», «7.5» — число (смысл задаёт шкала колонки)
@@ -157,6 +159,25 @@ export function yearWindow(year) {
   const start = parseAcademicYear(year);
   if (!start) return null;
   return { from: `${start}-08-01 00:00:00.000Z`, to: `${start + 1}-08-01 00:00:00.000Z` };
+}
+
+/** День урока: фактический, если урок перенесли, иначе плановый. */
+export function lessonDay(lesson) {
+  return localDay(lesson?.date_fact || lesson?.date_plan);
+}
+
+// ─── Посещаемость ───────────────────────────────────────────────────────────
+
+/** Статусы посещаемости, которые в журнале читаются как «н». */
+export const ABSENT_STATUSES = new Set(['absent', 'excused']);
+
+/** Отметки посещаемости → Map<`${lesson}|${student}`, статус>. */
+export function indexAttendance(rows = []) {
+  const map = new Map();
+  for (const r of rows) {
+    if (r?.lesson && r?.student && r?.status) map.set(`${r.lesson}|${r.student}`, r.status);
+  }
+  return map;
 }
 
 // ─── Значение клетки ────────────────────────────────────────────────────────
@@ -429,6 +450,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       owner: rec.owner || '',
       workId: rec.work || info?.workId || '',
       sessionId: rec.session || info?.sessionId || '',
+      lessonId: rec.lesson || '',
       deadline: info?.deadline || sessionDeadlines.get(key) || '',
       classDeadline: info?.classDeadline || '',
       // Работа выдана классу целиком (учитель сам завёл колонку) — срок
@@ -460,6 +482,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       owner: '',
       workId: info.workId,
       sessionId: info.sessionId,
+      lessonId: '',
       deadline: info.deadline,
       classDeadline: info.classDeadline,
       assigned: false,
@@ -532,16 +555,35 @@ export function indexMarks(marks = []) {
 
 /**
  * Клетка «колонка × ученик».
- * → { kind: empty|manual|online|override, stored, absent, value, grade, text,
+ * → { kind: empty|manual|online|override|absent («н» из посещаемости), stored, absent, value, grade, text,
  *     tone, textTone, status, comment, tip, editable }
  */
-export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false } = {}) {
+export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false, attendance } = {}) {
   const comment = mark?.comment || '';
   const stored = mark?.value || '';
   // Выбывшему работы класса уже не выдаются — «долгом» его не считаем.
   const status = col.online
     ? onlineStatus(former ? { ...col, classDeadline: '' } : col, agg, { now, assigned: col.assigned && !former })
     : null;
+
+  // Не был на уроке, к которому привязана колонка, — пустая клетка сама
+  // становится «н». Ручная отметка главнее (написал позже — учитель вписал
+  // балл), онлайн-результат тоже: работу могли сдать и из дома.
+  const missed = !stored && ABSENT_STATUSES.has(attendance)
+    && (!col.online || !status || status.kind === 'none' || status.kind === 'overdue');
+  if (missed) {
+    const excused = attendance === 'excused';
+    return {
+      kind: 'absent',
+      stored: '', absent: true, value: null, grade: null,
+      text: ABSENT, tone: null, textTone: 'muted', status, comment,
+      excused, fromAttendance: true,
+      tip: [
+        excused ? 'Не был на уроке, уважительная причина (посещаемость)' : 'Не был на уроке (посещаемость)',
+        comment || null,
+      ].filter(Boolean).join('\n'),
+    };
+  }
 
   if (stored) {
     const { value, absent } = decodeValue(stored);
@@ -632,7 +674,7 @@ export function summarizeColumn(cells) {
   let sum = 0;
   let n = 0;
   for (const cell of cells) {
-    if (cell.kind === 'manual' || cell.kind === 'override') filled += 1;
+    if (cell.kind === 'manual' || cell.kind === 'override' || cell.kind === 'absent') filled += 1;
     else if (cell.kind === 'online' && !['in_progress', 'overdue'].includes(cell.status?.kind)) filled += 1;
     if (cell.grade != null) { sum += cell.grade; n += 1; }
   }
@@ -642,16 +684,25 @@ export function summarizeColumn(cells) {
 /**
  * Вся сетка: строки учеников с клетками и сводкой + сводки колонок.
  * students — [{ id, … }], columns — видимые колонки, marksIndex — `indexMarks`,
- * onlineCells — `collectOnline(...).cells`. Выбывшие (`former`) видны строкой,
- * но в сводки класса («внесено N из M», средний по классу) не входят.
+ * onlineCells — `collectOnline(...).cells`, attendance — `indexAttendance`
+ * (посещаемость уроков, к которым привязаны колонки). Выбывшие (`former`)
+ * видны строкой, но в сводки класса («внесено N из M», средний по классу) не
+ * входят.
  */
-export function buildGrid(students, columns, marksIndex, onlineCells, { mode = 'raw', now = new Date() } = {}) {
+export function buildGrid(students, columns, marksIndex, onlineCells, {
+  mode = 'raw', now = new Date(), attendance = new Map(),
+} = {}) {
   const rows = students.map((student) => {
     const cells = columns.map((col) => resolveCell(
       col,
       col.id ? marksIndex.get(markKey(col.id, student.id)) : undefined,
       col.online ? onlineCells.get(`${student.id}|${col.key}`) : undefined,
-      { mode, now, former: !!student.former },
+      {
+        mode,
+        now,
+        former: !!student.former,
+        attendance: col.lessonId ? attendance.get(`${col.lessonId}|${student.id}`) : undefined,
+      },
     ));
     return { student, cells, summary: summarizeRow(columns, cells) };
   });

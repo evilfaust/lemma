@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { App as AntApp } from 'antd';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 
 const apiMock = vi.hoisted(() => ({
   getTeachingGroups: vi.fn(),
@@ -17,6 +17,10 @@ const apiMock = vi.hoisted(() => ({
   updateJournalColumn: vi.fn(),
   deleteJournalColumn: vi.fn(),
   getWorks: vi.fn(),
+  getJournalLessons: vi.fn(),
+  getJournalAttendance: vi.fn(),
+  getJournalColumnsByLesson: vi.fn(),
+  getLesson: vi.fn(),
 }));
 
 vi.mock('../shared/services/pocketbase', () => ({ api: apiMock }));
@@ -28,6 +32,8 @@ vi.mock('../contexts/AuthContext', () => ({
 import JournalGrid from '../components/workspace/journal/JournalGrid';
 // eslint-disable-next-line import/first
 import ClassJournal from '../components/workspace/journal/ClassJournal';
+// eslint-disable-next-line import/first
+import LessonJournalBlock from '../components/workspace/calendar/LessonJournalBlock';
 // eslint-disable-next-line import/first
 import { buildGrid, indexMarks } from '../utils/classJournal';
 
@@ -152,11 +158,14 @@ beforeEach(() => {
   apiMock.getJournalWorkDeadlines.mockResolvedValue(new Map());
   apiMock.saveJournalMark.mockImplementation(async (entry) => ({ id: 'new', col: entry.colId, student: entry.studentId, value: entry.value, comment: entry.comment }));
   apiMock.createJournalColumn.mockImplementation(async (data) => ({ id: 'c9', owner: 't1', created: '9', ...data }));
+  apiMock.getJournalLessons.mockResolvedValue([]);
+  apiMock.getJournalAttendance.mockResolvedValue([]);
+  apiMock.getJournalColumnsByLesson.mockResolvedValue([]);
 });
 
-function renderScreen() {
+function renderScreen(url = '/app/journal') {
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[url]}>
       <AntApp>
         <ClassJournal />
       </AntApp>
@@ -237,5 +246,117 @@ describe('ClassJournal — экран на моках API', () => {
     const title = await screen.findByPlaceholderText('Устный счёт 4');
     expect(title.value).toBe('Устный счёт 2');
     expect(screen.getByText(/Из 20: «5» — от 17/)).toBeInTheDocument();
+  });
+});
+
+// ── Урок календаря и посещаемость (v3.9.239) ──────────────────────────────
+
+const lesson = {
+  id: 'L1', group: 'g1', title: 'Интенсив: логарифмы', time_slot: '2-4', status: 'done',
+  date_plan: '2026-09-18 09:00:00.000Z', date_fact: '',
+};
+
+describe('ClassJournal — колонка урока', () => {
+  it('отсутствовавший на уроке получает «н» сам, колонка помечена уроком', async () => {
+    apiMock.getJournalColumns.mockResolvedValue([
+      { id: 'c1', group: 'g1', owner: 't1', source: 'manual', title: 'Интенсив', date: '2026-09-18 12:00:00.000Z', scale: 'points', max_score: 5, lesson: 'L1', created: '1' },
+    ]);
+    apiMock.getJournalMarks.mockResolvedValue([]);
+    apiMock.getJournalAttempts.mockResolvedValue([]); // только колонка урока
+    apiMock.getJournalLessons.mockResolvedValue([lesson]);
+    apiMock.getJournalAttendance.mockResolvedValue([
+      { id: 'at1', lesson: 'L1', student: 's2', status: 'absent' },
+      { id: 'at2', lesson: 'L1', student: 's1', status: 'present' },
+    ]);
+    const { container } = renderScreen();
+    await screen.findByText('Борисов Илья');
+    expect(apiMock.getJournalAttendance).toHaveBeenCalledWith(['L1']);
+    expect(container.querySelector('td[data-r="1"][data-c="0"]').textContent).toBe('н');
+    expect(container.querySelector('td[data-r="0"][data-c="0"]').textContent).toBe('');
+    expect(container.querySelector('[aria-label="колонка урока"]')).not.toBeNull();
+  });
+
+  it('ссылка из карточки урока: окно новой колонки с датой и темой урока, после — «Ввод списком»', async () => {
+    apiMock.getJournalLessons.mockResolvedValue([lesson]);
+    apiMock.getJournalAttendance.mockResolvedValue([{ id: 'at1', lesson: 'L1', student: 's2', status: 'absent' }]);
+    renderScreen('/app/journal?group=g1&lesson=L1');
+    const title = await screen.findByDisplayValue('Интенсив: логарифмы');
+    expect(title).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(apiMock.createJournalColumn).toHaveBeenCalled());
+    const data = apiMock.createJournalColumn.mock.calls[0][0];
+    expect(data).toMatchObject({ group: 'g1', lesson: 'L1', title: 'Интенсив: логарифмы', source: 'manual' });
+    expect(data.date).toMatch(/^2026-09-18 12:00:00/);
+    // Посещаемость нового урока подтянута, ввод списком открыт.
+    await waitFor(() => expect(apiMock.getJournalAttendance).toHaveBeenLastCalledWith(['L1']));
+    expect(await screen.findByText(/Внесено \d+ из/)).toBeInTheDocument();
+    expect(screen.getByText('не был на уроке')).toBeInTheDocument();
+  });
+
+  it('ссылка «Отметки» открывает ввод списком нужной колонки', async () => {
+    renderScreen('/app/journal?group=g1&entry=c1');
+    expect(await screen.findByText(/Внесено \d+ из 2/)).toBeInTheDocument();
+  });
+
+  it('если на дату новой колонки один урок класса — он подставляется сам', async () => {
+    const today = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const iso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T10:00:00`;
+    const todayLesson = { ...lesson, id: 'L9', title: 'Пара сегодня', date_plan: new Date(iso).toISOString().replace('T', ' ') };
+    apiMock.getJournalLessons.mockResolvedValue([todayLesson]);
+    renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(screen.getByRole('button', { name: /Колонка/ }));
+    await screen.findByPlaceholderText('Устный счёт 4');
+    expect(screen.getByText(/Пара сегодня/)).toBeInTheDocument();
+    expect(screen.getByText(/сам получит «н»/)).toBeInTheDocument();
+  });
+});
+
+function Where() {
+  const loc = useLocation();
+  return <div data-testid="where">{`${loc.pathname}${loc.search}`}</div>;
+}
+
+function renderBlock(props) {
+  return render(
+    <MemoryRouter initialEntries={['/app/calendar']}>
+      <AntApp>
+        <Routes>
+          <Route path="/app/calendar" element={<LessonJournalBlock lessonId="L1" groupId="g1" canEdit {...props} />} />
+          <Route path="/app/journal" element={<Where />} />
+        </Routes>
+      </AntApp>
+    </MemoryRouter>,
+  );
+}
+
+describe('LessonJournalBlock — «Журнал» в карточке урока', () => {
+  it('колонки урока со ссылкой на ввод отметок', async () => {
+    apiMock.getJournalColumnsByLesson.mockResolvedValue([
+      { id: 'c1', title: 'Интенсив', group: 'g1', scale: 'points', max_score: 5, source: 'manual' },
+      { id: 'cx', title: 'Скрытая', group: 'g1', scale: 'grade', hidden: true },
+    ]);
+    renderBlock();
+    expect(await screen.findByText('Интенсив')).toBeInTheDocument();
+    expect(screen.getByText('из 5')).toBeInTheDocument();
+    expect(screen.queryByText('Скрытая')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Отметки' }));
+    expect(screen.getByTestId('where').textContent).toBe('/app/journal?group=g1&entry=c1');
+  });
+
+  it('«Колонка в журнал» ведёт в журнал класса с уроком', async () => {
+    renderBlock();
+    expect(await screen.findByText(/получит «н» сам/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Колонка в журнал/ }));
+    expect(screen.getByTestId('where').textContent).toBe('/app/journal?group=g1&lesson=L1');
+  });
+
+  it('журнал недоступен — блока нет; урок без класса — тоже', async () => {
+    apiMock.getJournalColumnsByLesson.mockRejectedValue(Object.assign(new Error('404'), { status: 404 }));
+    const { container } = renderBlock();
+    await waitFor(() => expect(container.querySelector('.ljb')).toBeNull());
+    const { container: c2 } = renderBlock({ groupId: '' });
+    expect(c2.querySelector('.ljb')).toBeNull();
   });
 });

@@ -3,24 +3,24 @@ import {
   Alert, App, Button, Checkbox, Dropdown, Input, Modal, Segmented, Select, Space, Spin, Typography,
 } from 'antd';
 import {
-  ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
+  CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
   ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FormatPainterOutlined, MobileOutlined,
   MoreOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { currentAcademicYear } from '../../../utils/academicYear';
 import {
-  buildGrid, collectOnline, columnMonths, columnScale, indexMarks, inPeriod, journalStudents,
+  buildGrid, collectOnline, columnMonths, columnScale, indexAttendance, indexMarks, inPeriod, journalStudents,
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber,
 } from '../../../utils/classJournal';
 import { EmptyState } from '../ui';
 import JournalGrid from './JournalGrid';
-import JournalColumnModal from './JournalColumnModal';
+import JournalColumnModal, { lessonOptionLabel } from './JournalColumnModal';
 import JournalColumnEntry from './JournalColumnEntry';
 import WorkColumnModal from './WorkColumnModal';
 import './journal.css';
@@ -56,6 +56,15 @@ const sameOnline = (a, b) => (a.workId && a.workId === (b.work || b.workId))
 export default function ClassJournal() {
   const { message, modal } = App.useApp();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Вход из карточки урока (календарь): ?group=<класс>&lesson=<урок> — завести
+  // колонку этого урока; ?entry=<колонка> — сразу «Ввод списком». Разбираются
+  // один раз, когда журнал нужного класса загрузился, и стираются из адреса.
+  const pendingParams = useRef({
+    group: searchParams.get('group'),
+    lesson: searchParams.get('lesson'),
+    entry: searchParams.get('entry'),
+  });
   const isMobile = useIsMobile();
   const { teacher, isSuperAdmin, canEdit, canDelete } = useAuth();
   const currentYear = currentAcademicYear();
@@ -97,9 +106,18 @@ export default function ClassJournal() {
         const sorted = [...list.filter((g) => !g.archived), ...list.filter((g) => g.archived)];
         setGroups(sorted);
         const saved = readLS(LS_GROUP);
-        const pick = sorted.find((g) => g.id === saved)
+        const wanted = pendingParams.current.group;
+        const asked = wanted && sorted.find((g) => g.id === wanted);
+        if (wanted && !asked) {
+          // Класс из ссылки недоступен — ссылку не исполняем.
+          pendingParams.current = {};
+          setSearchParams({}, { replace: true });
+        }
+        const pick = asked
+          || sorted.find((g) => g.id === saved)
           || sorted.find((g) => g.year === currentYear && !g.archived)
           || sorted[0];
+        if (asked) writeLS(LS_GROUP, asked.id);
         setGroupId(pick?.id || null);
       } catch {
         message.error('Не удалось загрузить классы');
@@ -128,10 +146,12 @@ export default function ClassJournal() {
           .map((m) => m.expand.student)
           .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru')))
         : api.getStudentsByGroup(gid);
-      const [roster, stored, marks] = await Promise.all([
+      const window = yearWindow(group?.year);
+      const [roster, stored, marks, lessons] = await Promise.all([
         rosterPromise,
         api.getJournalColumns(gid).catch(soft404),
         api.getJournalMarks(gid).catch(soft404),
+        api.getJournalLessons(gid, window).catch(() => []),
       ]);
 
       // Выбывшие из класса с отметками в журнале остаются строкой «выбыл».
@@ -143,10 +163,12 @@ export default function ClassJournal() {
       let onlineFailed = false;
       const withAccount = students.filter((s) => !s.external).map((s) => s.id);
       const assignedWorks = stored.filter((c) => c.source === 'work' && c.work).map((c) => c.work);
-      const [attempts, deadlines] = await Promise.all([
-        api.getJournalAttempts(withAccount, yearWindow(group?.year))
+      const lessonIds = [...new Set(stored.map((c) => c.lesson).filter(Boolean))];
+      const [attempts, deadlines, attendance] = await Promise.all([
+        api.getJournalAttempts(withAccount, window)
           .catch(() => { onlineFailed = true; return []; }),
         api.getJournalWorkDeadlines(assignedWorks).catch(() => new Map()),
+        api.getJournalAttendance(lessonIds).catch(() => []),
       ]);
       if (seq !== loadSeq.current) return;
 
@@ -154,7 +176,9 @@ export default function ClassJournal() {
       versions.current = new Map();
       queues.current = new Map();
       materializing.current = new Map();
-      setData({ groupId: gid, group, students, columns: stored, marks, attempts, deadlines, missing });
+      setData({
+        groupId: gid, group, students, columns: stored, marks, attempts, deadlines, lessons, attendance, missing,
+      });
       if (onlineFailed) message.warning('Онлайн-результаты не загрузились — показаны только ручные колонки');
     } catch (e) {
       if (seq === loadSeq.current) {
@@ -181,9 +205,14 @@ export default function ClassJournal() {
 
   // ── Производные ───────────────────────────────────────────────────────────
   const online = useMemo(() => collectOnline(data?.attempts || []), [data?.attempts]);
+  const lessonsById = useMemo(() => new Map((data?.lessons || []).map((l) => [l.id, l])), [data?.lessons]);
   const allColumns = useMemo(
-    () => mergeColumns(data?.columns || [], online.columns, { sessionDeadlines: data?.deadlines || new Map() }),
-    [data?.columns, data?.deadlines, online],
+    () => mergeColumns(data?.columns || [], online.columns, { sessionDeadlines: data?.deadlines || new Map() })
+      // Подпись урока — для подсказки в шапке колонки.
+      .map((c) => (c.lessonId
+        ? { ...c, lessonLabel: lessonOptionLabel(lessonsById.get(c.lessonId)) || 'урок календаря' }
+        : c)),
+    [data?.columns, data?.deadlines, online, lessonsById],
   );
   const hiddenCount = useMemo(() => allColumns.filter((c) => c.hidden).length, [allColumns]);
   const months = useMemo(
@@ -198,9 +227,10 @@ export default function ClassJournal() {
     [allColumns, showHidden, period],
   );
   const marksIndex = useMemo(() => indexMarks(data?.marks || []), [data?.marks]);
+  const attendanceIndex = useMemo(() => indexAttendance(data?.attendance || []), [data?.attendance]);
   const grid = useMemo(
-    () => buildGrid(data?.students || [], columns, marksIndex, online.cells, { mode }),
-    [data?.students, columns, marksIndex, online, mode],
+    () => buildGrid(data?.students || [], columns, marksIndex, online.cells, { mode, attendance: attendanceIndex }),
+    [data?.students, columns, marksIndex, online, mode, attendanceIndex],
   );
   const group = data?.group || groups.find((g) => g.id === groupId) || null;
 
@@ -420,6 +450,18 @@ export default function ClassJournal() {
     };
   }, [data?.columns]);
 
+  // Посещаемость урока, к которому только что привязали колонку: при загрузке
+  // журнала её читали только для уже привязанных уроков.
+  const loadLessonAttendance = useCallback(async (gid, lessonId) => {
+    if (!lessonId) return;
+    const rows = await api.getJournalAttendance([lessonId]).catch(() => null);
+    if (!rows) return;
+    patchData(gid, (d) => ({
+      ...d,
+      attendance: [...(d.attendance || []).filter((r) => r.lesson !== lessonId), ...rows],
+    }));
+  }, [patchData]);
+
   const saveColumn = async (values) => {
     const col = colModal?.column;
     const gid = data?.groupId;
@@ -431,6 +473,9 @@ export default function ClassJournal() {
         patchData(gid, (d) => ({ ...d, columns: [...d.columns, rec] }));
         if (period !== 'all' && !inPeriod({ day: values.date }, period)) setPeriod('all');
         message.success(`Колонка «${rec.title}» добавлена`);
+        await loadLessonAttendance(gid, rec.lesson);
+        // Колонку завели из карточки урока — учитель пришёл ставить отметки.
+        if (colModal?.openEntryAfter) setEntryKey(`m:${rec.id}`);
       } else {
         const id = await ensureColumnId(col);
         const rec = await api.updateJournalColumn(id, values);
@@ -439,6 +484,7 @@ export default function ClassJournal() {
           const dl = await api.getJournalWorkDeadlines([col.workId]).catch(() => new Map());
           patchData(gid, (d) => ({ ...d, deadlines: new Map([...(d.deadlines || []), ...dl]) }));
         }
+        if (rec.lesson && rec.lesson !== col.lessonId) await loadLessonAttendance(gid, rec.lesson);
       }
       setColModal(null);
     } catch (e) {
@@ -539,6 +585,36 @@ export default function ClassJournal() {
       message.error('Не удалось добавить работу');
     }
   };
+
+  // Ссылка из карточки урока исполняется, когда журнал нужного класса готов.
+  useEffect(() => {
+    const p = pendingParams.current;
+    if (!p || !data || data.groupId !== groupId) return;
+    if (!p.group && !p.lesson && !p.entry) return;
+    if (p.group && data.groupId !== p.group) return;
+    pendingParams.current = {};
+    setSearchParams({}, { replace: true });
+    if (p.entry) {
+      const col = allColumns.find((c) => c.id === p.entry);
+      if (!col) {
+        message.warning('Колонка журнала не найдена — возможно, её удалили');
+        return;
+      }
+      setPeriod('all');
+      if (col.hidden) setShowHidden(true);
+      setEntryKey(col.key);
+      return;
+    }
+    if (p.lesson && !data.missing && canEdit) {
+      const found = (data.lessons || []).find((l) => l.id === p.lesson);
+      const open = (lesson) => setColModal({ column: null, presetLesson: lesson, openEntryAfter: true });
+      if (found) open(found);
+      else {
+        api.getLesson(p.lesson).then(open).catch(() => message.warning('Урок не найден'));
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, groupId, allColumns]);
 
   const onMenu = (key, col) => {
     switch (key) {
@@ -718,9 +794,13 @@ export default function ClassJournal() {
             menu={{
               items: [
                 { key: 'manual', icon: <EditOutlined />, label: 'Ручная колонка — бумажная работа, опрос' },
+                { key: 'lesson', icon: <CalendarOutlined />, label: 'Из урока календаря — «н» из посещаемости' },
                 { key: 'work', icon: <MobileOutlined />, label: 'Работа Lemma — выдана всему классу' },
               ],
-              onClick: ({ key }) => (key === 'work' ? setWorkModal(true) : setColModal({ column: null })),
+              onClick: ({ key }) => {
+                if (key === 'work') setWorkModal(true);
+                else setColModal({ column: null, pickLesson: key === 'lesson' });
+              },
             }}
           >
             <Button type="primary" icon={<DownOutlined />} aria-label="Какую колонку добавить" />
@@ -790,7 +870,7 @@ export default function ClassJournal() {
           <span><MobileOutlined /> онлайн — из попыток</span>
           <span><i className="cj-legend-flag cj-legend-flag--override" /> исправлено вручную</span>
           <span><i className="cj-legend-flag cj-legend-flag--comment" /> комментарий</span>
-          <span>«н» — не был</span>
+          <span><CalendarOutlined /> колонка урока: «н» — из посещаемости</span>
           <span>
             <span className="cj-swatch cj-swatch--teal">5</span>{' '}
             <span className="cj-swatch cj-swatch--blue">4</span>{' '}
@@ -827,6 +907,9 @@ export default function ClassJournal() {
         defaults={newDefaults}
         categories={categories}
         hasMarks={hasMarksInModalColumn}
+        lessons={data?.lessons || []}
+        presetLesson={colModal?.presetLesson || null}
+        pickLesson={!!colModal?.pickLesson}
         canDelete={canDelete && !!colModal?.column && canManage(colModal.column)}
         saving={colSaving}
         onCancel={() => setColModal(null)}

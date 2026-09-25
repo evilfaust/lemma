@@ -110,6 +110,40 @@ export const journalApi = {
     return map;
   },
 
+  // ── Урок календаря ↔ колонка (v3.9.239) ──────────────────────────────────
+
+  // Уроки класса за учебный год — для выбора урока колонки. Свой запрос, а не
+  // getLessons: тот оставляет «мои и со-ведомые» даже суперадмину, а журналу
+  // класса нужны все уроки класса (доступ и так режут правила PocketBase).
+  async getJournalLessons(groupId, window = null) {
+    if (!groupId) return [];
+    const parts = [`group = "${escapeFilter(groupId)}"`];
+    if (window) parts.push(`date_plan >= "${window.from}" && date_plan < "${window.to}"`);
+    return pb.collection('lessons').getFullList({
+      filter: parts.join(' && '),
+      sort: 'date_plan',
+      fields: 'id,title,date_plan,date_fact,time_slot,status,group',
+    });
+  },
+
+  // Посещаемость уроков, к которым привязаны колонки, — источник «н».
+  async getJournalAttendance(lessonIds = []) {
+    if (!lessonIds.length) return [];
+    return getFullListByOr('lesson_attendance', 'lesson', lessonIds, {
+      fields: 'id,lesson,student,status',
+    });
+  },
+
+  // Колонки журнала, привязанные к уроку, — блок «Журнал» в карточке урока.
+  async getJournalColumnsByLesson(lessonId) {
+    if (!lessonId) return [];
+    return pb.collection(COLS).getFullList({
+      filter: `lesson = "${escapeFilter(lessonId)}"`,
+      sort: 'created',
+      fields: 'id,title,group,scale,max_score,source,hidden',
+    });
+  },
+
   // Ученики по id — выбывшие из класса, у которых в журнале остались отметки.
   async getJournalStudentsByIds(ids = []) {
     if (!ids.length) return [];

@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dropdown } from 'antd';
 import {
-  ClockCircleOutlined, EditOutlined, EyeInvisibleOutlined, MobileOutlined,
+  CalendarOutlined, ClockCircleOutlined, EditOutlined, EyeInvisibleOutlined, MobileOutlined,
 } from '@ant-design/icons';
 import {
   shortDay, monthSpans, formatAvg, formatNumber, GRADE_TONE, columnWeight, editText,
@@ -41,6 +41,7 @@ function columnTip(col) {
     col.title,
     col.day ? `дата ${shortDay(col.day)}` : null,
     col.category || null,
+    col.lessonLabel ? `урок: ${col.lessonLabel} — «н» из посещаемости` : null,
     col.online ? (col.virtual ? 'онлайн-работа: результаты из попыток учеников' : 'онлайн-работа') : null,
     columnWeight(col) === 0 ? 'не входит в средний' : columnWeight(col) !== 1 ? `вес ×${formatNumber(columnWeight(col))}` : null,
     col.note || null,
@@ -381,6 +382,7 @@ export default function JournalGrid({
                     <span className="cj-colh__meta">
                       {col.online ? <MobileOutlined /> : <EditOutlined />}
                       {scaleLabel(col)}
+                      {col.lessonId && <CalendarOutlined aria-label="колонка урока" />}
                       {w === 0 && <span>· вне ср.</span>}
                       {w > 0 && w !== 1 && <span>· ×{formatNumber(w)}</span>}
                       {col.hidden && <EyeInvisibleOutlined />}

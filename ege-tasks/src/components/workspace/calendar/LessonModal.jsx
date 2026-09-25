@@ -9,6 +9,7 @@ import {
 import dayjs from 'dayjs';
 import MaterialPickerModal from '../MaterialPickerModal';
 import AttendanceRoster from '../AttendanceRoster';
+import LessonJournalBlock from './LessonJournalBlock';
 import { Chip, GroupColorPicker } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
@@ -377,6 +378,13 @@ export default function LessonModal({
           </Typography.Text>
         )}
       </div>
+
+      {editingExisting && initial.group && (
+        <div style={{ margin: '0 0 12px', paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
+          {/* Сохранённый класс урока, а не значение формы: журнал ведётся по нему. */}
+          <LessonJournalBlock lessonId={initial.id} groupId={initial.group} canEdit={canEdit} />
+        </div>
+      )}
 
       <div style={{ marginBottom: 12 }}>
         <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 4 }}>

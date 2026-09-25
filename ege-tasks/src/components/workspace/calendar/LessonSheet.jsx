@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AttendanceRoster from '../AttendanceRoster';
+import LessonJournalBlock from './LessonJournalBlock';
 import { GroupChip, LessonStatusChip, lessonHex } from '../ui';
 import { lessonStartEnd, slotLabel } from '../lessonTime';
 import { extractNoteText } from '../notesText';
@@ -201,6 +202,12 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
         <section className="ls-section">
           <AttendanceRoster lessonId={l.id} groupId={l.group} canEdit={canEdit} isCourse={isCourse} />
         </section>
+
+        {l.group && (
+          <section className="ls-section">
+            <LessonJournalBlock lessonId={l.id} groupId={l.group} canEdit={canEdit} />
+          </section>
+        )}
 
         <section className="ls-section">
           <div className="ls-section__title"><FileTextOutlined /> Заметка урока</div>

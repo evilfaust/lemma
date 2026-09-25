@@ -5,7 +5,7 @@ import {
   monthLabel, localDay, yearWindow, collectOnline, onlineStatus, mergeColumns, resolveCell,
   summarizeRow, summarizeColumn, buildGrid, indexMarks, journalStudents, parseClipboard,
   planPaste, suggestNextTitle, monthSpans, columnMonths, inPeriod, journalTable, toCsv, toTsv,
-  formatAvg,
+  formatAvg, indexAttendance, lessonDay,
 } from '../utils/classJournal';
 
 const pts = (max = 20, extra = {}) => ({ scale: 'points', max_score: max, ...extra });
@@ -382,5 +382,79 @@ describe('мелочи', () => {
     expect(table[0]).toEqual(['Ученик', 'Опрос (23.09)', 'Средний']);
     expect(toTsv(table).split('\n')[1]).toBe('Иванов; Пётр\t5\t5,0');
     expect(toCsv(table).split('\r\n')[1]).toBe('"Иванов; Пётр";5;5,0');
+  });
+});
+
+describe('«н» из посещаемости урока', () => {
+  const manual = { id: 'c1', key: 'm:c1', online: false, scale: 'points', max_score: 20, lessonId: 'L1' };
+  const now = new Date('2026-09-20T12:00:00Z');
+
+  it('отсутствовал — пустая клетка сама «н», в долгах', () => {
+    const cell = resolveCell(manual, undefined, undefined, { attendance: 'absent' });
+    expect(cell).toMatchObject({ kind: 'absent', text: 'н', absent: true, grade: null, fromAttendance: true, excused: false });
+    expect(cell.tip).toMatch(/Не был на уроке/);
+    expect(summarizeRow([manual], [cell])).toMatchObject({ absences: 1, debts: 1 });
+  });
+
+  it('уважительная — тоже «н», с пометкой', () => {
+    const cell = resolveCell(manual, undefined, undefined, { attendance: 'excused' });
+    expect(cell).toMatchObject({ text: 'н', excused: true });
+    expect(cell.tip).toMatch(/уважительная/);
+  });
+
+  it('был или опоздал — клетка пустая', () => {
+    expect(resolveCell(manual, undefined, undefined, { attendance: 'present' }).kind).toBe('empty');
+    expect(resolveCell(manual, undefined, undefined, { attendance: 'late' }).kind).toBe('empty');
+  });
+
+  it('ручная отметка главнее посещаемости (написал позже)', () => {
+    expect(resolveCell(manual, { value: '17' }, undefined, { attendance: 'absent' })).toMatchObject({ kind: 'manual', text: '17', grade: 5 });
+  });
+
+  it('комментарий к клетке сохраняется рядом с «н»', () => {
+    const cell = resolveCell(manual, { value: '', comment: 'болел' }, undefined, { attendance: 'absent' });
+    expect(cell).toMatchObject({ kind: 'absent', comment: 'болел' });
+    expect(cell.tip).toMatch(/болел/);
+  });
+
+  it('онлайн-работа: не сдал и не был — «н» вместо «долга»; сдал из дома — результат', () => {
+    const s = { id: 's1', work: 'w1', deadline: '2026-09-15 00:00:00.000Z', created: '2026-09-10 09:00:00.000Z' };
+    const col = { key: 'w:w1', id: 'c2', online: true, assigned: true, scale: 'percent', deadline: s.deadline, lessonId: 'L1' };
+    const missed = resolveCell(col, undefined, undefined, { now, attendance: 'absent' });
+    expect(missed).toMatchObject({ kind: 'absent', text: 'н' });
+    expect(summarizeRow([col], [missed])).toMatchObject({ absences: 1, overdue: 0, debts: 1 });
+    const best = { score: 8, total: 10, status: 'submitted', submitted_at: '2026-09-12 10:00:00.000Z' };
+    expect(resolveCell(col, undefined, { best, bestSession: s }, { now, attendance: 'absent' })).toMatchObject({ kind: 'online', text: '80%' });
+  });
+
+  it('сводка колонки считает «н» из посещаемости заполненной клеткой', () => {
+    const cells = [
+      resolveCell(manual, undefined, undefined, { attendance: 'absent' }),
+      resolveCell(manual, { value: '15' }),
+      resolveCell(manual, undefined),
+    ];
+    expect(summarizeColumn(cells)).toMatchObject({ filled: 2, total: 3 });
+  });
+
+  it('buildGrid берёт посещаемость урока колонки', () => {
+    const students = [{ id: 'a', name: 'Аня' }, { id: 'b', name: 'Боря' }];
+    const other = { ...manual, id: 'c3', key: 'm:c3', lessonId: '' };
+    const attendance = indexAttendance([
+      { lesson: 'L1', student: 'a', status: 'absent' },
+      { lesson: 'L1', student: 'b', status: 'present' },
+      { lesson: 'L2', student: 'b', status: 'absent' },
+    ]);
+    const grid = buildGrid(students, [manual, other], new Map(), new Map(), { attendance });
+    expect(grid.rows[0].cells[0].text).toBe('н');
+    expect(grid.rows[1].cells[0].kind).toBe('empty');
+    // Колонка без урока посещаемость не читает.
+    expect(grid.rows[0].cells[1].kind).toBe('empty');
+  });
+
+  it('колонка из БД несёт урок; день урока — фактический, если перенесли', () => {
+    const cols = mergeColumns([{ id: 'x', title: 'Интенсив', lesson: 'L7', date: '2026-09-18 12:00:00.000Z' }]);
+    expect(cols[0].lessonId).toBe('L7');
+    expect(lessonDay({ date_plan: '2026-09-18 07:15:00.000Z', date_fact: '' })).toBe(localDay('2026-09-18 07:15:00.000Z'));
+    expect(lessonDay({ date_plan: '2026-09-18 07:15:00.000Z', date_fact: '2026-09-19 07:15:00.000Z' })).toBe(localDay('2026-09-19 07:15:00.000Z'));
   });
 });

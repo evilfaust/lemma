@@ -42,12 +42,18 @@ function EntryRow({ col, row, colIndex, canEdit, onSave, inputRef, onNext }) {
     save(value, comment);
   };
 
-  const status = col.online && cell.kind !== 'override' && cell.text ? cell.text : '';
+  const fromAttempts = col.online && cell.kind === 'online' && cell.text ? cell.text : '';
+  const missed = cell.kind === 'absent';
 
   return (
     <div className={`cj-entry__row${row.student.former ? ' is-former' : ''}`}>
       <span className="cj-entry__name" title={row.student.name}>{row.student.name}</span>
-      {status && <span className="cj-entry__online" title={cell.tip}>из попыток: {status}</span>}
+      {fromAttempts && <span className="cj-entry__online" title={cell.tip}>из попыток: {fromAttempts}</span>}
+      {missed && (
+        <span className="cj-entry__online" title={cell.tip}>
+          {cell.excused ? 'не был, уважительная' : 'не был на уроке'}
+        </span>
+      )}
       <Tooltip open={!!error} title={error} placement="topRight">
         <Input
           ref={inputRef}
@@ -55,7 +61,7 @@ function EntryRow({ col, row, colIndex, canEdit, onSave, inputRef, onNext }) {
           value={text}
           disabled={!canEdit}
           status={error ? 'error' : undefined}
-          placeholder="·"
+          placeholder={missed ? 'н' : '·'}
           inputMode={columnScale(col) === 'pass' ? 'text' : 'decimal'}
           aria-label={row.student.name}
           onChange={(e) => { setText(e.target.value); setError(''); }}
@@ -126,7 +132,8 @@ export default function JournalColumnEntry({
   if (!column) return null;
   const filled = rows.filter((r) => {
     const cell = r.cells[colIndex];
-    return cell && (cell.stored || (cell.kind === 'online' && cell.status?.kind !== 'overdue'));
+    return cell && (cell.stored || cell.kind === 'absent'
+      || (cell.kind === 'online' && !['overdue', 'in_progress'].includes(cell.status?.kind)));
   }).length;
 
   return (
