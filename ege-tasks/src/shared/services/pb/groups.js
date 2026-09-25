@@ -3,7 +3,7 @@ import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { registerGroupColors } from '../../utils/groupColors';
 import { currentAcademicYear } from '../../../utils/academicYear';
-import { selectRosterMemberships } from '../../../utils/yearRollover';
+import { selectRosterMemberships, withPointerMembers } from '../../../utils/yearRollover';
 
 // Учительское фло, фаза 1: API классов/групп (коллекция `teaching_groups`).
 // `owner` подставляется автоматически из токена залогиненного учителя.
@@ -164,35 +164,46 @@ export const groupsApi = {
   async getStudentsByGroup(groupId, { scope = 'auto' } = {}) {
     try {
       const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru');
+      const gid = escapeFilter(groupId);
 
-      try {
-        // Одним запросом вся история группы: решение, кого показывать, чистое
-        // и покрыто тестами, а не размазано по фильтрам PocketBase.
-        const rows = await pb.collection('group_memberships').getFullList({
-          filter: `group = "${escapeFilter(groupId)}"`,
+      // Два запроса разом: журнал членства (вся история группы) и прямой
+      // указатель «где ученик сейчас». Второй ловит учеников, записанных в
+      // группу в обход членства (см. withPointerMembers), и заменяет прежний
+      // запасной путь для групп, заполненных старым фронтом.
+      const [membersR, pointedR] = await Promise.allSettled([
+        pb.collection('group_memberships').getFullList({
+          filter: `group = "${gid}"`,
           expand: 'student',
-        });
-        if (rows.length) {
-          const picked = selectRosterMemberships(rows, { scope, currentYear: currentAcademicYear() });
-          const seen = new Set();
-          const students = picked
-            .map((m) => m.expand?.student)
-            .filter((st) => st && !seen.has(st.id) && seen.add(st.id))
-            .sort(byName);
-          if (students.length || scope === 'active') return students;
-        }
-      } catch (e) {
-        // Коллекции ещё нет (фронт задеплоен раньше миграции) — не роняем экран,
-        // работаем по прямой связи, как до v3.9.171.
-        console.warn('group_memberships недоступны, читаем состав по teaching_group:', e?.status || e?.message);
+        }),
+        pb.collection('students').getFullList({
+          filter: `teaching_group = "${gid}"`,
+          sort: 'name',
+        }),
+      ]);
+      // Упал один из запросов — состав собирается по второму. Коллекции
+      // членств может не быть (фронт задеплоен раньше миграции) — тогда
+      // состав по указателю, как до v3.9.171. Упали оба — это ошибка экрана.
+      if (membersR.status === 'rejected' && pointedR.status === 'rejected') throw pointedR.reason;
+      if (membersR.status === 'rejected') {
+        console.warn('group_memberships недоступны, читаем состав по teaching_group:', membersR.reason?.status || membersR.reason?.message);
       }
+      if (pointedR.status === 'rejected') {
+        console.warn('ученики по указателю группы недоступны:', pointedR.reason?.status || pointedR.reason?.message);
+      }
+      const rows = membersR.status === 'fulfilled' ? membersR.value : [];
+      const pointed = pointedR.status === 'fulfilled' ? pointedR.value : [];
 
-      // Членств нет вовсе: группа заполнялась старым фронтом (или сразу после
-      // миграции) — падаем на прямую связь students.teaching_group.
-      return await pb.collection('students').getFullList({
-        filter: `teaching_group = "${escapeFilter(groupId)}"`,
-        sort: 'name',
-      });
+      // Кого показывать — решает чистая и покрытая тестами логика, а не
+      // фильтры PocketBase.
+      const picked = selectRosterMemberships(
+        withPointerMembers(rows, pointed, groupId),
+        { scope, currentYear: currentAcademicYear() },
+      );
+      const seen = new Set();
+      return picked
+        .map((m) => m.expand?.student)
+        .filter((st) => st && !seen.has(st.id) && seen.add(st.id))
+        .sort(byName);
     } catch (error) {
       console.error('Error fetching students by group:', error);
       throw error;
@@ -205,40 +216,31 @@ export const groupsApi = {
     const ids = groups.map((g) => g?.id || g).filter(Boolean);
     if (!ids.length) return {};
     const counts = Object.fromEntries(ids.map((id) => [id, 0]));
-    try {
-      // Без фильтра по статусу: у прошлогодней группы карточка должна показывать
-      // тот состав, что и её ростер (см. `selectRosterMemberships`), иначе класс,
-      // из которого перевели всех кроме одного, выглядит как класс на одного.
-      const rows = await getFullListByOr(
-        'group_memberships', 'group', ids,
-        { fields: 'id,group,student,status,year' },
-      );
-      const byGroup = new Map(ids.map((id) => [id, []]));
-      for (const r of rows) byGroup.get(r.group)?.push(r);
-      const currentYear = currentAcademicYear();
-      for (const [gid, list] of byGroup) {
-        counts[gid] = new Set(
-          selectRosterMemberships(list, { currentYear }).map((m) => m.student),
-        ).size;
-      }
-    } catch (e) {
-      // Коллекции ещё нет — считаем по прямой связи (поведение до v3.9.171).
-      console.warn('group_memberships недоступны, считаем состав по teaching_group');
-    }
-    try {
-      // Группы без действующих членств: прошлогодние (все переведены) или
-      // заполненные старым фронтом. Второе видно по прямой связи.
-      const empty = ids.filter((id) => counts[id] === 0);
-      if (empty.length) {
-        const legacy = await getFullListByOr(
-          'students', 'teaching_group', empty, { fields: 'id,teaching_group' },
-        );
-        for (const st of legacy) {
-          if (counts[st.teaching_group] !== undefined) counts[st.teaching_group] += 1;
-        }
-      }
-    } catch (error) {
-      console.error('Error counting group rosters:', error);
+
+    // То же правило, что у ростера (getStudentsByGroup): членства без фильтра
+    // по статусу + ученики, у которых указатель стоит на группе, а членства
+    // нет. Иначе карточка класса расходилась бы с его составом.
+    const [rows, pointed] = await Promise.all([
+      getFullListByOr('group_memberships', 'group', ids, { fields: 'id,group,student,status,year' })
+        .catch(() => {
+          console.warn('group_memberships недоступны, считаем состав по teaching_group');
+          return [];
+        }),
+      getFullListByOr('students', 'teaching_group', ids, { fields: 'id,teaching_group,status' })
+        .catch((error) => {
+          console.error('Error counting group rosters:', error);
+          return [];
+        }),
+    ]);
+    const byGroup = new Map(ids.map((id) => [id, []]));
+    for (const r of rows) byGroup.get(r.group)?.push(r);
+    const pointedByGroup = new Map(ids.map((id) => [id, []]));
+    for (const st of pointed) pointedByGroup.get(st.teaching_group)?.push(st);
+
+    const currentYear = currentAcademicYear();
+    for (const gid of ids) {
+      const list = withPointerMembers(byGroup.get(gid), pointedByGroup.get(gid), gid);
+      counts[gid] = new Set(selectRosterMemberships(list, { currentYear }).map((m) => m.student)).size;
     }
     return counts;
   },

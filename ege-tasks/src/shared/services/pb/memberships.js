@@ -90,6 +90,27 @@ export const membershipsApi = {
     return pb.collection('group_memberships').create({ ...data, owner: t?.id });
   },
 
+  // Дописать членство ученику, чей указатель уже стоит на группе (только что
+  // создан с teaching_group). year не передан — берётся из группы. Мягко: сбой
+  // журнала членства не отменяет создание ученика — состав всё равно покажет его
+  // по указателю (withPointerMembers).
+  async enrollStudent(studentId, groupId, { year } = {}) {
+    if (!studentId || !groupId) return null;
+    try {
+      let y = year;
+      if (y === undefined) {
+        const group = await pb.collection('teaching_groups')
+          .getOne(groupId, { fields: 'id,year' })
+          .catch(() => null);
+        y = group?.year || '';
+      }
+      return await this.joinGroup(studentId, groupId, { year: y });
+    } catch (e) {
+      console.error('Не удалось записать членство нового ученика:', e?.message);
+      return null;
+    }
+  },
+
   // Закрыть членство: ученик переведён / выпустился / выбыл.
   async closeMembership(studentId, groupId, { status = STATUS.LEFT, left = '' } = {}) {
     const existing = await pb.collection('group_memberships').getFullList({

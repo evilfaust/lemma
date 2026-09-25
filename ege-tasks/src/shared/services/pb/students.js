@@ -234,7 +234,11 @@ export const studentsApi = {
   // Создаём обычную students-запись с external=true + авто-логином/паролем
   // (ими ученик не пользуется). Привязываем к группе. createRule students
   // открыт (само-регистрация), поэтому учитель может создавать.
-  async createManualStudent({ name, groupId } = {}) {
+  // 🚨 Группа = указатель И членство (как в setStudentGroup): без строки в
+  // group_memberships ученик пропадал из состава класса, где у других
+  // членства уже были (v3.9.238). groupYear — чтобы не читать группу на
+  // каждого ученика при пакетном добавлении.
+  async createManualStudent({ name, groupId, groupYear } = {}) {
     const nm = (name || '').trim();
     if (!nm) throw new Error('Имя обязательно');
     const password = `x${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
@@ -250,6 +254,7 @@ export const studentsApi = {
           ...(groupId ? { teaching_group: groupId } : {}),
         }));
         _logAudit('create', 'students', rec.id, `внешний: ${nm}`);
+        if (groupId) await this.enrollStudent(rec.id, groupId, { year: groupYear });
         return rec;
       } catch (e) {
         lastErr = e;
@@ -263,8 +268,9 @@ export const studentsApi = {
 
   // Полноценный аккаунт ученика, созданный учителем (v3.9.120): логин и пароль
   // генерируются и возвращаются наружу — показать учителю ОДИН раз (в БД
-  // хранится только хэш). owner = создавший учитель.
-  async createStudentAccount({ name, groupId = null, studentClass = '' } = {}) {
+  // хранится только хэш). owner = создавший учитель. Группа — указатель И
+  // членство, как у createManualStudent.
+  async createStudentAccount({ name, groupId = null, studentClass = '', groupYear } = {}) {
     const nm = (name || '').trim();
     if (!nm) throw new Error('Имя обязательно');
     let lastErr;
@@ -281,6 +287,7 @@ export const studentsApi = {
           ...(groupId ? { teaching_group: groupId } : {}),
         }));
         _logAudit('create', 'students', rec.id, `аккаунт учителем: ${nm} (@${username})`);
+        if (groupId) await this.enrollStudent(rec.id, groupId, { year: groupYear });
         return { record: rec, username, password };
       } catch (e) {
         lastErr = e;
@@ -357,6 +364,10 @@ export const studentsApi = {
   // ── Модерация профиля ученика (v3.9.172) ─────────────────────────────────
   // Обычный update: имя, класс, группа, telegram, статус, логин, владелец.
   // Пустая строка = «очистить поле», поэтому шлём ровно то, что пришло.
+  // 🚨 Смена группы — только через setStudentGroup: он пишет и указатель, и
+  // журнал членства (закрывает старое, открывает новое). Голый update
+  // указателя оставлял ученика без членства — и он пропадал из состава новой
+  // группы, оставаясь в старой (v3.9.238).
   async updateStudentProfile(studentId, data = {}) {
     const ALLOWED = [
       'name', 'username', 'student_class', 'teaching_group',
@@ -366,10 +377,28 @@ export const studentsApi = {
     for (const key of ALLOWED) {
       if (data[key] !== undefined) payload[key] = data[key];
     }
-    if (!Object.keys(payload).length) return null;
-    const rec = await pb.collection('students').update(studentId, payload);
-    _logAudit('update', 'students', studentId,
-      `профиль: ${Object.keys(payload).join(', ')}`);
+
+    let nextGroup;
+    if (payload.teaching_group !== undefined) {
+      const want = payload.teaching_group || '';
+      delete payload.teaching_group;
+      const cur = await pb.collection('students')
+        .getOne(studentId, { fields: 'id,teaching_group' })
+        .catch(() => null);
+      if (!cur || (cur.teaching_group || '') !== want) nextGroup = want;
+    }
+
+    const changed = [...Object.keys(payload), ...(nextGroup !== undefined ? ['teaching_group'] : [])];
+    if (!changed.length) return null;
+
+    let rec = null;
+    if (Object.keys(payload).length) {
+      rec = await pb.collection('students').update(studentId, payload);
+    }
+    if (nextGroup !== undefined) {
+      rec = await this.setStudentGroup(studentId, nextGroup || null);
+    }
+    _logAudit('update', 'students', studentId, `профиль: ${changed.join(', ')}`);
     return rec;
   },
 

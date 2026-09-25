@@ -128,7 +128,7 @@ export default function GroupDetail() {
     if (!names.length) return;
     setBusy(true);
     try {
-      await Promise.all(names.map((name) => api.createManualStudent({ name, groupId })));
+      await Promise.all(names.map((name) => api.createManualStudent({ name, groupId, groupYear: group?.year })));
       message.success(`Вписано: ${names.length}`);
       setManualOpen(false);
       setManualText('');
@@ -154,6 +154,7 @@ export default function GroupDetail() {
           name,
           groupId,
           studentClass: group?.name || '',
+          groupYear: group?.year,
         });
         results.push({ name, username, password });
       } catch {

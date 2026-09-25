@@ -235,3 +235,39 @@ export function selectRosterMemberships(rows = [], { scope = 'auto', currentYear
   const carried = list.filter((m) => !isActive(m) && m.year && currentYear && m.year !== currentYear);
   return [...active, ...carried];
 }
+
+/**
+ * Членства группы + ученики, у которых указатель `students.teaching_group`
+ * стоит на этой группе, а строки членства в ней нет ВОВСЕ.
+ *
+ * 🚨 Такие «висящие» ученики появлялись, когда ученика создавали или переводили
+ * в обход `setStudentGroup`: «Вписать вручную», «Аккаунты», смена группы в
+ * карточке ученика (до v3.9.238). Пока у группы не было ни одного членства,
+ * их находил запасной путь по указателю; появилось первое — и они молча
+ * пропадали из состава, журнала и посещаемости. Указатель и есть «где ученик
+ * сейчас», поэтому такой ученик — действующий член группы: для него строится
+ * синтетическая строка, дальше его отбирает тот же `selectRosterMemberships`.
+ * Ученик с ЗАКРЫТЫМ членством в группе (выбыл, переведён) сюда не попадает —
+ * строка у него есть.
+ *
+ * @param {Array}  rows      членства группы (group_memberships)
+ * @param {Array}  students  ученики с teaching_group = groupId
+ * @param {string} groupId
+ */
+export function withPointerMembers(rows = [], students = [], groupId = '') {
+  const list = rows.filter(Boolean);
+  const have = new Set(list.map((m) => m.student));
+  const extra = students
+    .filter((s) => s?.id && !have.has(s.id) && have.add(s.id))
+    .map((s) => ({
+      id: `pointer:${s.id}`,
+      student: s.id,
+      group: groupId,
+      year: '',
+      // Выпускник/выбывший с неснятым указателем действующим членом не считается.
+      status: s.status && s.status !== 'active' ? 'left' : 'active',
+      pointerOnly: true,
+      expand: { student: s },
+    }));
+  return [...list, ...extra];
+}

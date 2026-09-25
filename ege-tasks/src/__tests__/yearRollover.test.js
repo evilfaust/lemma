@@ -7,7 +7,7 @@ import {
 import {
   buildRolloverPlan, summarizeRolloverPlan, validateRolloverPlan,
   suggestNextGroupName, GROUP_ACTIONS, STUDENT_ACTIONS,
-  buildGroupLineage, groupLineageIds, selectRosterMemberships,
+  buildGroupLineage, groupLineageIds, selectRosterMemberships, withPointerMembers,
 } from '../utils/yearRollover';
 
 describe('academicYear', () => {
@@ -247,5 +247,47 @@ describe('состав группы из журнала членства', () =>
 
   it('членство без статуса считается действующим', () => {
     expect(selectRosterMemberships([{ id: 'x', student: 's' }], { scope: 'active' })).toHaveLength(1);
+  });
+});
+
+describe('ученики с указателем на группу, но без членства', () => {
+  const YEAR = '2026/2027';
+  const G = 'g8';
+  const pick = (rows, students, scope = 'auto') => selectRosterMemberships(
+    withPointerMembers(rows, students, G), { scope, currentYear: YEAR },
+  ).map((m) => m.student).sort();
+
+  it('вписанные в класс, где у других членства уже есть, в составе (было: пропадали)', () => {
+    const rows = [
+      { id: 'm1', student: 'old1', status: 'active', year: YEAR },
+      { id: 'm2', student: 'old2', status: 'active', year: YEAR },
+    ];
+    const pointed = [{ id: 'old1' }, { id: 'old2' }, { id: 'new1' }, { id: 'new2' }];
+    expect(pick(rows, pointed)).toEqual(['new1', 'new2', 'old1', 'old2']);
+    expect(pick(rows, pointed, 'active')).toEqual(['new1', 'new2', 'old1', 'old2']);
+  });
+
+  it('класс без единого членства собирается по указателю, как раньше', () => {
+    expect(pick([], [{ id: 'a' }, { id: 'b' }])).toEqual(['a', 'b']);
+  });
+
+  it('выбывший с закрытым членством не возвращается, даже если указатель остался', () => {
+    const rows = [
+      { id: 'm1', student: 'stay', status: 'active', year: YEAR },
+      { id: 'm2', student: 'gone', status: 'left', year: YEAR },
+    ];
+    expect(pick(rows, [{ id: 'stay' }, { id: 'gone' }])).toEqual(['stay']);
+  });
+
+  it('выпускник с неснятым указателем — не действующий член', () => {
+    const rows = [{ id: 'm1', student: 'a', status: 'active', year: YEAR }];
+    expect(pick(rows, [{ id: 'a' }, { id: 'g', status: 'graduated' }])).toEqual(['a']);
+  });
+
+  it('синтетическая строка несёт запись ученика и не дублируется', () => {
+    const out = withPointerMembers([], [{ id: 'x', name: 'Иван' }, { id: 'x', name: 'Иван' }], G);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ student: 'x', group: G, status: 'active', pointerOnly: true });
+    expect(out[0].expand.student.name).toBe('Иван');
   });
 });
