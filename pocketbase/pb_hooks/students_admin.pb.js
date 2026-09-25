@@ -115,6 +115,7 @@ routerAdd("POST", "/api/students/delete", (c) => {
       { collection: "lesson_attendance", field: "student", label: "отметки посещаемости" },
       { collection: "teacher_todos", field: "student", label: "дела учителя" },
       { collection: "group_memberships", field: "student", label: "членство в группах" },
+      { collection: "journal_marks", field: "student", label: "отметки в журнале" },
     ];
 
     function countRelated(app, collection, field, studentId) {

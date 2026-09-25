@@ -311,33 +311,4 @@ export const groupsApi = {
       throw error;
     }
   },
-
-  // ── Журнал сдачи (GradeJournal) ───────────────────────────────────────────
-  // Для группы: её ученики + их попытки (с сессией/работой) для сборки сетки
-  // «ученик × выдача». Лёгкий expand (без achievements).
-  async getGroupJournal(groupId) {
-    try {
-      // Внешних (вписанных вручную, без тестов) в журнал сдачи не показываем.
-      const students = (await this.getStudentsByGroup(groupId)).filter((s) => !s.external);
-      const perStudent = await Promise.all(
-        students.map(async (s) => {
-          let attempts = [];
-          try {
-            attempts = await pb.collection('attempts').getFullList({
-              filter: `student = "${escapeFilter(s.id)}"`,
-              expand: 'session,session.work,session.mc_test,session.trig_mc_test',
-              sort: '-created',
-            });
-          } catch (e) {
-            console.error('journal: attempts for student failed', s.id, e?.message);
-          }
-          return { student: s, attempts };
-        }),
-      );
-      return { students, perStudent };
-    } catch (error) {
-      console.error('Error building group journal:', error);
-      throw error;
-    }
-  },
 };

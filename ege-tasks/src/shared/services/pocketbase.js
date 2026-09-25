@@ -34,6 +34,7 @@ import { listkiApi } from './pb/listki.js';
 import { coursesApi } from './pb/courses.js';
 import { sheetsApi } from './pb/sheets.js';
 import { schoolEventsApi } from './pb/schoolEvents.js';
+import { journalApi } from './pb/journal.js';
 
 export const api = {
   ...extrasApi,
@@ -65,6 +66,7 @@ export const api = {
   ...coursesApi,
   ...sheetsApi,
   ...schoolEventsApi,
+  ...journalApi,
 };
 
 // Заголовок авторизации для ИИ-ручек pdf-service (см. pb/client.js).

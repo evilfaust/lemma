@@ -75,6 +75,8 @@ const MERGE_ENTITY_LABELS = [
   ['course_members', 'участий в курсах'],
   ['lesson_attendance', 'отметок посещаемости'],
   ['teacher_todos', 'дел'],
+  ['journal_marks', 'отметок в журнале'],
+  ['group_memberships', 'членств в классах'],
 ];
 
 const MERGE_PROFILE_LABELS = {

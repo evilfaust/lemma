@@ -33,6 +33,12 @@ routerAdd("POST", "/api/students/merge", (c) => {
     { collection: "course_members",    field: "student", unique: "course" },
     { collection: "lesson_attendance", field: "student", unique: "lesson" },
     { collection: "teacher_todos",     field: "student", unique: null },
+    // Отметки журнала класса (v3.9.236) — cascadeDelete на ученике: без
+    // переноса удаление донора молча унесло бы их с собой.
+    { collection: "journal_marks",     field: "student", unique: "col" },
+    // Членство в группах (cascadeDelete): донор — обычно старый аккаунт в
+    // классе, и без переноса оставшийся выпадал из состава группы.
+    { collection: "group_memberships", field: "student", unique: "group" },
   ];
 
   // Поля профиля, которые переезжают на целевой аккаунт, если у него пусто.

@@ -1,0 +1,256 @@
+import { useEffect, useMemo } from 'react';
+import {
+  AutoComplete, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Popconfirm,
+  Segmented, Select, Space, Switch, Typography,
+} from 'antd';
+import { DeleteOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
+import {
+  CATEGORY_SUGGESTIONS, DEFAULT_THRESHOLDS, SCALE_LABELS, WEIGHT_OPTIONS,
+  normalizeThresholds, thresholdPoints, toStoredDate, formatNumber,
+} from '../../../utils/classJournal';
+
+const { Text } = Typography;
+
+const SCALE_HINT = {
+  points: 'Баллы из максимума — в оценку переводятся по порогам ниже.',
+  grade: 'Сразу оценка 2–5.',
+  pass: 'Зачёт / незачёт — в средний балл не входит.',
+  percent: 'Процент выполнения — в оценку по порогам ниже.',
+};
+
+/**
+ * Настройки колонки журнала: новой ручной, существующей или онлайн-работы.
+ * column — колонка из mergeColumns (null = новая ручная), defaults — чем
+ * заполнить новую (прошлая колонка класса: шкала, максимум, пороги, «№ + 1»).
+ */
+export default function JournalColumnModal({
+  open, column, defaults, categories = [], hasMarks = false, canDelete = false,
+  onCancel, onSave, onDelete, saving = false,
+}) {
+  const [form] = Form.useForm();
+  const isNew = !column;
+  const online = !!column?.online;
+
+  useEffect(() => {
+    if (!open) return;
+    const src = column || defaults || {};
+    const t = normalizeThresholds(src.thresholds);
+    const w = Number(src.weight) > 0 ? Number(src.weight) : 1;
+    form.setFieldsValue({
+      title: src.title || '',
+      date: src.day ? dayjs(src.day) : dayjs(),
+      category: src.category || '',
+      scale: online ? 'percent' : (src.scale || 'points'),
+      max_score: src.max_score || 10,
+      t5: t[5],
+      t4: t[4],
+      t3: t[3],
+      weight: WEIGHT_OPTIONS.includes(w) ? w : 1,
+      no_avg: !!src.no_avg,
+      hidden: !!src.hidden,
+      assigned: !!src.assigned,
+      note: src.note || '',
+    });
+  }, [open, column, defaults, online, form]);
+
+  const scale = Form.useWatch('scale', form);
+  const max = Form.useWatch('max_score', form);
+  const t5 = Form.useWatch('t5', form);
+  const t4 = Form.useWatch('t4', form);
+  const t3 = Form.useWatch('t3', form);
+  const noAvg = Form.useWatch('no_avg', form);
+
+  const usesThresholds = online || scale === 'points' || scale === 'percent';
+  const hint = useMemo(() => {
+    if (scale !== 'points' || online) return null;
+    const p = thresholdPoints(max, { 5: t5, 4: t4, 3: t3 });
+    return p ? `Из ${formatNumber(Number(max))}: «5» — от ${p[5]}, «4» — от ${p[4]}, «3» — от ${p[3]}` : null;
+  }, [scale, online, max, t5, t4, t3]);
+
+  const categoryOptions = useMemo(() => {
+    const all = [...new Set([...categories.filter(Boolean), ...CATEGORY_SUGGESTIONS])];
+    return all.map((v) => ({ value: v }));
+  }, [categories]);
+
+  const submit = async () => {
+    const v = await form.validateFields();
+    const data = {
+      title: v.title.trim(),
+      date: toStoredDate(v.date ? v.date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')),
+      category: (v.category || '').trim(),
+      weight: v.weight,
+      no_avg: !!v.no_avg,
+      note: (v.note || '').trim(),
+    };
+    if (!online) {
+      data.scale = v.scale;
+      if (v.scale === 'points') data.max_score = v.max_score;
+    }
+    if (online || v.scale === 'points' || v.scale === 'percent') {
+      data.thresholds = { 5: v.t5, 4: v.t4, 3: v.t3 };
+    }
+    if (!isNew) data.hidden = !!v.hidden;
+    if (online) data.assigned = !!v.assigned;
+    await onSave(data);
+  };
+
+  const deleteLabel = online ? 'Убрать из журнала' : 'Удалить колонку';
+  const deleteConfirm = online
+    ? 'Настройки колонки и ручные правки клеток удалятся. Если по работе есть попытки, колонка вернётся с результатами из них.'
+    : 'Колонка удалится вместе со всеми отметками в ней.';
+
+  return (
+    <Modal
+      open={open}
+      title={isNew ? 'Новая колонка' : online ? 'Онлайн-работа в журнале' : 'Колонка журнала'}
+      onCancel={onCancel}
+      destroyOnHidden
+      width={560}
+      footer={(
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {!isNew && !column.virtual && canDelete && onDelete && (
+            <Popconfirm
+              title={`${deleteLabel}?`}
+              description={<div style={{ maxWidth: 280 }}>{deleteConfirm}</div>}
+              okText={deleteLabel}
+              okButtonProps={{ danger: true }}
+              cancelText="Отмена"
+              onConfirm={onDelete}
+            >
+              <Button danger icon={<DeleteOutlined />}>{deleteLabel}</Button>
+            </Popconfirm>
+          )}
+          <span style={{ flex: 1 }} />
+          <Button onClick={onCancel}>Отмена</Button>
+          <Button type="primary" loading={saving} onClick={submit}>
+            {isNew ? 'Добавить' : 'Сохранить'}
+          </Button>
+        </div>
+      )}
+    >
+      <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
+        {online && (
+          <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
+            Значения берутся из попыток учеников (лучший результат, в процентах). Клетку
+            можно исправить вручную — например, если ученик переписал работу на бумаге.
+          </Text>
+        )}
+        <Form.Item
+          name="title"
+          label="Название"
+          rules={[{ required: true, whitespace: true, message: 'Назовите колонку' }]}
+        >
+          <Input placeholder="Устный счёт 4" autoFocus={isNew} maxLength={200} />
+        </Form.Item>
+        <Space.Compact block style={{ gap: 12, display: 'flex' }}>
+          <Form.Item name="date" label="Дата" style={{ flex: '0 0 170px' }}>
+            <DatePicker format="DD.MM.YYYY" allowClear={false} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="category" label="Категория" style={{ flex: 1 }}>
+            <AutoComplete
+              options={categoryOptions}
+              placeholder="Устный счёт"
+              filterOption={(input, opt) => String(opt?.value || '').toLowerCase().includes(input.toLowerCase())}
+            />
+          </Form.Item>
+        </Space.Compact>
+
+        {!online && (
+          <>
+            <Form.Item
+              name="scale"
+              label="Шкала"
+              extra={hasMarks && !isNew ? 'В колонке уже есть отметки — шкалу не поменять.' : SCALE_HINT[scale]}
+            >
+              <Segmented
+                block
+                disabled={hasMarks && !isNew}
+                options={Object.entries(SCALE_LABELS).map(([value, label]) => ({ value, label }))}
+              />
+            </Form.Item>
+            {scale === 'points' && (
+              <Form.Item
+                name="max_score"
+                label="Максимум баллов"
+                rules={[{ required: true, message: 'Укажите максимум' }]}
+              >
+                <InputNumber min={1} max={1000} step={1} style={{ width: 170 }} />
+              </Form.Item>
+            )}
+          </>
+        )}
+
+        {usesThresholds && (
+          <Form.Item
+            label="Перевод в оценку, % выполнения"
+            extra={hint || `По умолчанию «5» от ${DEFAULT_THRESHOLDS[5]} %, «4» от ${DEFAULT_THRESHOLDS[4]} %, «3» от ${DEFAULT_THRESHOLDS[3]} %.`}
+            style={{ marginBottom: 16 }}
+          >
+            <Space wrap size={[12, 8]}>
+              <Form.Item name="t5" noStyle rules={[{ required: true }]}>
+                <InputNumber min={0} max={100} addonBefore="«5» от" addonAfter="%" style={{ width: 150 }} />
+              </Form.Item>
+              <Form.Item
+                name="t4"
+                noStyle
+                dependencies={['t5']}
+                rules={[{ required: true }, ({ getFieldValue }) => ({
+                  validator: (_, v) => (v <= getFieldValue('t5') ? Promise.resolve() : Promise.reject(new Error('«4» не выше «5»'))),
+                })]}
+              >
+                <InputNumber min={0} max={100} addonBefore="«4» от" addonAfter="%" style={{ width: 150 }} />
+              </Form.Item>
+              <Form.Item
+                name="t3"
+                noStyle
+                dependencies={['t4']}
+                rules={[{ required: true }, ({ getFieldValue }) => ({
+                  validator: (_, v) => (v <= getFieldValue('t4') ? Promise.resolve() : Promise.reject(new Error('«3» не выше «4»'))),
+                })]}
+              >
+                <InputNumber min={0} max={100} addonBefore="«3» от" addonAfter="%" style={{ width: 150 }} />
+              </Form.Item>
+            </Space>
+          </Form.Item>
+        )}
+
+        {scale !== 'pass' && (
+          <Space size={16} align="center" style={{ marginBottom: 16 }} wrap>
+            <Form.Item name="weight" label="Вес в среднем" style={{ marginBottom: 0 }}>
+              <Select
+                disabled={noAvg}
+                style={{ width: 150 }}
+                options={WEIGHT_OPTIONS.map((w) => ({ value: w, label: w === 1 ? 'обычный ×1' : `×${formatNumber(w)}` }))}
+              />
+            </Form.Item>
+            <Form.Item name="no_avg" valuePropName="checked" style={{ marginBottom: 0, paddingTop: 30 }}>
+              <Checkbox>не учитывать в среднем</Checkbox>
+            </Form.Item>
+          </Space>
+        )}
+
+        {online && (
+          <Form.Item
+            name="assigned"
+            valuePropName="checked"
+            label="Выдана всему классу"
+            extra="Кто не сдал к сроку выдачи — попадает в долги, даже если работу не открывал."
+          >
+            <Switch />
+          </Form.Item>
+        )}
+
+        {!isNew && (
+          <Form.Item name="hidden" valuePropName="checked" label="Скрыть колонку" extra="Скрытая не видна в журнале и не входит в средний; вернуть — «Показать скрытые».">
+            <Switch />
+          </Form.Item>
+        )}
+
+        <Form.Item name="note" label="Заметка" style={{ marginBottom: 0 }}>
+          <Input.TextArea rows={2} maxLength={2000} placeholder="Варианты 1–2, лист «Устный счёт №4»" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+}
