@@ -45,6 +45,8 @@
      на .ps-task, если у задачи выбран личный размер. */
   --ps-fig-w: 48%;
   --ps-fig-h: 35mm;
+  /* Чертёж сбоку от условия (режим «справа / слева») — своя доля полосы. */
+  --ps-fig-side-w: 40%;
 
   color: var(--ps-ink);
   font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
@@ -490,7 +492,58 @@
 .ps-task-text td img,
 .ps-task-text th img { max-width: var(--ps-fig-cell-w); }
 
+/* ── Чертёж сбоку, текст обтекает (options.figurePlacement: right | left) ──
+   Рисунок — float ВНУТРИ условия, а само условие — flow-root: float не
+   выходит за его границы. Высота условия = max(текст, рисунок), строка ответа
+   и зона решения всегда ниже рисунка — и measure-зона меряет ровно то, что
+   напечатается (зона решения по-прежнему прибавляется к «голой» задаче).
+   Рисунок стоит в разметке первым: float обтекает только то, что после него
+   (вынос из условия — sideFigure.js). */
+.ps-task-text--side { display: flow-root; }
+
+.ps-task-aside {
+  max-width: var(--ps-fig-side-w);
+  margin-bottom: 1.5mm;
+}
+.ps-task-text--side-right .ps-task-aside { float: right; margin-left: 4mm; }
+.ps-task-text--side-left .ps-task-aside  { float: left;  margin-right: 4mm; }
+
+/* Картинка: ширина у float не задана — он ужимается по картинке, и текст
+   подходит вплотную к рисунку, а не к пустому краю колонки. Потолок высоты
+   общий с режимом «под условием». Специфичность выше `.ps-task-text img`. */
+.ps-task-text .ps-task-aside img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: var(--ps-fig-h);
+}
+.ps-task-text--side-right .ps-task-aside img { margin-left: auto; }
+.ps-task-text--side-left .ps-task-aside img  { margin-right: auto; }
+
+/* Наш SVG (```plot / ```numline) тянется по ширине блока — своей ширины в мм
+   у него нет, поэтому колонке чертежа ширина задана явно. Отступы .mr-figure
+   MathRenderer ставит инлайном, отсюда !important. */
+.ps-task-aside--drawing { width: var(--ps-fig-side-w); }
+.ps-task-aside .mr-figure { margin: 0 !important; }
+.ps-task-text .ps-task-aside .mr-figure .numline,
+.ps-task-text .ps-task-aside .mr-figure .coordplot {
+  display: block;
+  width: 100%;
+}
+
+/* Маркеры списка висят левее строки и рядом с левым рисунком легли бы на
+   него. Список-flow-root встаёт справа от рисунка целиком, маркеры — в его
+   собственном отступе. */
+.ps-task-text--side-left ol,
+.ps-task-text--side-left ul {
+  display: flow-root;
+  margin-left: 0;
+  padding-left: 5mm;
+}
+
 /* Лист без чертежей — только условия (черновик для устного разбора). */
+.ps-root--nofig .ps-task-aside,
 .ps-root--nofig .ps-task-image,
 .ps-root--nofig .ps-task-text .mr-figure,
 .ps-root--nofig .ps-task-text .numline,

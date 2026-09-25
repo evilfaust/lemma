@@ -33,6 +33,16 @@ const CFG = {
   xl: { maxWidth: '100%', maxHeight: '85mm' },
 };
 
+// Чертёж СБОКУ от условия (режим «справа / слева» печатного листа): доля
+// полосы условия под рисунок. Шкала своя — при 70–100% из «под условием»
+// тексту рядом не осталось бы места. Потолок высоты картинки общий (CFG).
+const SIDE_CFG = {
+  s:  '30%',
+  m:  '40%',
+  l:  '50%',
+  xl: '60%',
+};
+
 // Стиль для КОНТЕЙНЕРА картинки (.kim-book-task-image) — ограничивает ширину.
 export function kimImageBoxStyle(size) {
   const c = CFG[size] || CFG[DEFAULT_KIM_IMAGE_SIZE];
@@ -55,5 +65,6 @@ export function figureSizeVars(size) {
     '--ps-fig-w': c.maxWidth,
     '--ps-fig-h': c.maxHeight,
     '--ps-fig-cell-w': CELL_CFG[size] || CELL_CFG[DEFAULT_KIM_IMAGE_SIZE],
+    '--ps-fig-side-w': SIDE_CFG[size] || SIDE_CFG[DEFAULT_KIM_IMAGE_SIZE],
   };
 }

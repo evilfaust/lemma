@@ -12,6 +12,7 @@ export default function WorksheetPreview({
   pageFormat,
   figureSize,
   showFigures,
+  figurePlacement,
   headerMode,
   sheetMeta,
   hideTaskPrefixes,
@@ -32,6 +33,7 @@ export default function WorksheetPreview({
   cryptogramPhrase,
   dragDropHandlers,
   onSetFigureSize,
+  onSetFigurePlacement,
   workTitle,
   // cards
   cardSettings,
@@ -73,12 +75,14 @@ export default function WorksheetPreview({
             showFooter,
             figureSize,
             showFigures,
+            figurePlacement,
           }}
           editing={{
             dragDropHandlers,
             onEditTask: taskEditing.handleEditTask,
             onReplaceTask: taskEditing.handleReplaceTask,
             onSetFigureSize,
+            onSetFigurePlacement,
           }}
           renderTail={cryptogramEnabled
             ? (variant) => <SheetCryptogram variant={variant} phrase={cryptogramPhrase} />

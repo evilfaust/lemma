@@ -69,6 +69,9 @@ const TaskSheetGenerator = () => {
   const [pageFormat, setPageFormat] = useState('a4');
   const [figureSize, setFigureSize] = useState('m');
   const [showFigures, setShowFigures] = useState(true);
+  // Где чертёж: 'below' — под условием (как было всегда), 'right' / 'left' —
+  // сбоку, текст обтекает. Личный выбор задачи работает только в режиме «сбоку».
+  const [figurePlacement, setFigurePlacement] = useState('below');
   const [sheetMeta, setSheetMeta] = useState({
     title: '',                 // пусто → название работы
     eyebrow: '',
@@ -107,6 +110,16 @@ const TaskSheetGenerator = () => {
       vi !== variantIndex ? v : {
         ...v,
         tasks: v.tasks.map((t, ti) => (ti === taskIndex ? { ...t, kimImageSize: size } : t)),
+      }
+    )));
+  };
+
+  // Место чертежа у одной задачи (в режиме «сбоку») — туда же, в task.
+  const handleSetFigurePlacement = (variantIndex, taskIndex, placement) => {
+    setVariants(prev => prev.map((v, vi) => (
+      vi !== variantIndex ? v : {
+        ...v,
+        tasks: v.tasks.map((t, ti) => (ti === taskIndex ? { ...t, figurePlacement: placement } : t)),
       }
     )));
   };
@@ -395,7 +408,10 @@ const TaskSheetGenerator = () => {
   }[solutionSpace] || 'компактно';
   const colLabel = columns > 1 ? ` · ${columns} колонки` : '';
   const formatLabel = pageFormat === 'half' ? 'A5 · 2 варианта на листе A4' : 'A4';
-  const sheetSummary = `${formatLabel}${margins === 'narrow' ? ' узкие поля' : ''}${colLabel} · ${spaceLabel}`;
+  const figLabel = showFigures && figurePlacement !== 'below'
+    ? ` · чертежи ${figurePlacement === 'left' ? 'слева' : 'справа'}`
+    : '';
+  const sheetSummary = `${formatLabel}${margins === 'narrow' ? ' узкие поля' : ''}${colLabel} · ${spaceLabel}${figLabel}`;
 
   return (
     <div className="task-worksheet-container">
@@ -476,6 +492,8 @@ const TaskSheetGenerator = () => {
             setFigureSize={setFigureSize}
             showFigures={showFigures}
             setShowFigures={setShowFigures}
+            figurePlacement={figurePlacement}
+            setFigurePlacement={setFigurePlacement}
             headerMode={headerMode}
             setHeaderMode={setHeaderMode}
             sheetMeta={sheetMeta}
@@ -553,6 +571,7 @@ const TaskSheetGenerator = () => {
         pageFormat={pageFormat}
         figureSize={figureSize}
         showFigures={showFigures}
+        figurePlacement={figurePlacement}
         headerMode={headerMode}
         sheetMeta={sheetMeta}
         fontScale={fontScale}
@@ -573,6 +592,7 @@ const TaskSheetGenerator = () => {
         cryptogramPhrase={cryptogramPhrase}
         dragDropHandlers={dragDropHandlers}
         onSetFigureSize={handleSetFigureSize}
+        onSetFigurePlacement={handleSetFigurePlacement}
         taskEditing={taskEditing}
         cardSettings={cardSettings}
       />

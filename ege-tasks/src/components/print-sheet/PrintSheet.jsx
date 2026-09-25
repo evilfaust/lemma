@@ -26,6 +26,7 @@ const DEFAULT_OPTIONS = {
   showFooter: true,
   figureSize: 'm',          // общий размер чертежей: s | m | l | xl
   showFigures: true,
+  figurePlacement: 'below', // below | right | left — чертёж сбоку, текст обтекает
 };
 
 /* ── Страницы одного варианта ───────────────────────────────────────────────*/
@@ -66,12 +67,12 @@ function VariantPages({
     options.answerStyle, options.solutionSpace, options.solutionFill,
     options.tasksPerPage, options.hideTaskPrefixes, options.showTaskCode,
     options.showAnswersInline, options.fontScale, options.fontFamily, options.showFooter,
-    options.figureSize, options.showFigures,
+    options.figureSize, options.showFigures, options.figurePlacement,
     meta.instruction, meta.notes, meta.notesTitle, meta.title, meta.subtitle,
     meta.eyebrow, meta.classLabel, meta.dateLabel, meta.duration,
     meta.showStudentFields, meta.showClassField,
     tail ? '1' : '0',
-    tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || 'm'}`).join('§'),
+    tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || 'm'}|${t.figurePlacement || ''}`).join('§'),
   ].join('¦'), [tasks, layout, headerMode, options, meta, tail, columns, margins, pageFormat]);
 
   // Шрифты KaTeX догружаются асинхронно — после готовности меряем заново.

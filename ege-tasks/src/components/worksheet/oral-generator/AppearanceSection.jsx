@@ -1,5 +1,7 @@
 import { Collapse, Segmented, Switch, Input, InputNumber, Space, Typography, Divider, Tooltip, Alert } from 'antd';
-import { BgColorsOutlined } from '@ant-design/icons';
+import {
+  BgColorsOutlined, PicCenterOutlined, PicLeftOutlined, PicRightOutlined,
+} from '@ant-design/icons';
 import { getCryptogramLetterCount } from '../../../utils/cryptogram';
 import { KIM_IMAGE_SIZE_OPTIONS } from '../../../utils/kimImageSize';
 import { SOLUTION_SPACE_OPTIONS, SOLUTION_FILL_OPTIONS, MARGIN_OPTIONS, PAGE_FORMAT_OPTIONS } from '../../print-sheet/geometry';
@@ -32,6 +34,12 @@ const SPACE_OPTIONS = [...SOLUTION_SPACE_OPTIONS, { value: 'fit', label: 'N на
 const COLUMN_OPTIONS = [
   { value: 1, label: '1' },
   { value: 2, label: '2' },
+];
+// Чертёж сбоку от условия, текст обтекает. «Под условием» — прежний лист.
+const FIGURE_PLACEMENT_OPTIONS = [
+  { value: 'below', label: 'Под условием', icon: <PicCenterOutlined /> },
+  { value: 'right', label: 'Справа', icon: <PicRightOutlined /> },
+  { value: 'left', label: 'Слева', icon: <PicLeftOutlined /> },
 ];
 
 const Subtitle = ({ children }) => (
@@ -71,6 +79,8 @@ export default function AppearanceSection({
   setFigureSize,
   showFigures,
   setShowFigures,
+  figurePlacement = 'below',
+  setFigurePlacement,
   headerMode,
   setHeaderMode,
   sheetMeta,
@@ -244,11 +254,24 @@ export default function AppearanceSection({
             </Tooltip>
           </Field>
         )}
+        {showFigures && setFigurePlacement && (
+          <Field label="Расположение">
+            <Tooltip title="«Справа» и «Слева» — чертёж встаёт сбоку от условия, текст его обтекает: задача становится ниже, лист — короче. Сбоку встаёт единственный рисунок задачи; задачи с несколькими рисунками (варианты ответа, соответствия А/Б/В) печатаются как обычно.">
+              <Segmented
+                size="small"
+                value={figurePlacement}
+                onChange={setFigurePlacement}
+                options={FIGURE_PLACEMENT_OPTIONS}
+              />
+            </Tooltip>
+          </Field>
+        )}
       </Space>
       {showFigures && (
         <Text style={{ fontSize: 12, color: '#8c8c8c', display: 'block', marginTop: 6 }}>
           Размер отдельной задачи — переключателем S/M/L/XL в правом верхнем углу самой задачи
           на листе ниже (виден у задач с чертежом).
+          {figurePlacement !== 'below' && ' Рядом — место её чертежа: слева, под условием или справа.'}
         </Text>
       )}
 

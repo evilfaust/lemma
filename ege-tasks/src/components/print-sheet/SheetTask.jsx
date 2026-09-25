@@ -1,11 +1,21 @@
 import { Button, Tooltip, Segmented } from 'antd';
-import { EditOutlined, SwapOutlined, HolderOutlined } from '@ant-design/icons';
+import {
+  EditOutlined, SwapOutlined, HolderOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
+} from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { filterTaskText } from '../../utils/filterTaskText';
 import { figureSizeVars, KIM_IMAGE_SIZE_OPTIONS } from '../../utils/kimImageSize';
 import SolutionFill from './SolutionFill';
 import { BODY_W_MM, NUM_COL_MM, NUM_COL_WIDE_MM } from './geometry';
+import { isSidePlacement, splitSideFigure } from './sideFigure';
+
+// Место чертежа у одной задачи — в том порядке, в каком он встанет на листе.
+const PLACEMENT_OPTIONS = [
+  { value: 'left', icon: <PicLeftOutlined />, title: 'Чертёж слева' },
+  { value: 'below', icon: <PicCenterOutlined />, title: 'Под условием' },
+  { value: 'right', icon: <PicRightOutlined />, title: 'Чертёж справа' },
+];
 
 /**
  * Есть ли у задачи чертёж: внешняя картинка, картинка markdown или наш SVG.
@@ -56,7 +66,31 @@ export default function SheetTask({
   const dragging = dnd?.isDragging(vi, taskIndex);
   const dragOver = dnd?.isDragOver(vi, taskIndex);
 
-  const statement = (
+  // Чертёж сбоку (`options.figurePlacement`: left | right). Личный выбор
+  // задачи (`task.figurePlacement`) действует только внутри этого режима:
+  // «под условием» печатает лист ровно как раньше. Сбоку встаёт единственный
+  // рисунок задачи — с несколькими рисунками задача остаётся как есть
+  // (см. sideFigure.js).
+  const sheetPlacement = options.figurePlacement || 'below';
+  const sideMode = options.showFigures !== false && isSidePlacement(sheetPlacement);
+  const side = sideMode ? splitSideFigure(text, { externalImage: !!imageUrl }) : null;
+  const placement = sideMode ? (task.figurePlacement || sheetPlacement) : 'below';
+  const aside = side?.figure && isSidePlacement(placement) ? side.figure : null;
+
+  const code = showTaskCode && task.code ? <div className="ps-task-code">{task.code}</div> : null;
+
+  // Рисунок идёт в разметке ПЕРВЫМ: float обтекает только то, что после него.
+  const statement = aside ? (
+    <div className={`ps-task-text ps-task-text--side ps-task-text--side-${placement}`}>
+      <div className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}`}>
+        {aside.kind === 'external'
+          ? <img src={imageUrl} alt="" />
+          : <MathRenderer text={aside.md} />}
+      </div>
+      <MathRenderer text={side.text} />
+      {code}
+    </div>
+  ) : (
     <div className="ps-task-text">
       <MathRenderer text={text} />
       {imageUrl && (
@@ -64,7 +98,7 @@ export default function SheetTask({
           <img src={imageUrl} alt="" />
         </div>
       )}
-      {showTaskCode && task.code && <div className="ps-task-code">{task.code}</div>}
+      {code}
     </div>
   );
 
@@ -141,6 +175,16 @@ export default function SheetTask({
                 options={KIM_IMAGE_SIZE_OPTIONS}
                 value={task.kimImageSize || options.figureSize || 'm'}
                 onChange={(val) => editing.onSetFigureSize(vi, taskIndex, val)}
+              />
+            </Tooltip>
+          )}
+          {editing.onSetFigurePlacement && side?.figure && (
+            <Tooltip title="Где чертёж этой задачи: слева, под условием или справа (общий режим — в «Оформлении»)">
+              <Segmented
+                size="small"
+                options={PLACEMENT_OPTIONS}
+                value={placement}
+                onChange={(val) => editing.onSetFigurePlacement(vi, taskIndex, val)}
               />
             </Tooltip>
           )}

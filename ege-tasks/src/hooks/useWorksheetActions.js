@@ -101,6 +101,7 @@ export const useWorksheetActions = () => {
           taskId: t.id,
           position: idx,
           ...(t.kimImageSize ? { imageSize: t.kimImageSize } : {}),
+          ...(t.figurePlacement ? { figurePlacement: t.figurePlacement } : {}),
         }));
 
         await api.createVariant({
@@ -144,6 +145,7 @@ export const useWorksheetActions = () => {
           taskId: t.id,
           position: idx,
           ...(t.kimImageSize ? { imageSize: t.kimImageSize } : {}),
+          ...(t.figurePlacement ? { figurePlacement: t.figurePlacement } : {}),
         }));
         const payload = {
           work: workId,
@@ -209,8 +211,13 @@ export const useWorksheetActions = () => {
           const task = await api.getTask(taskId);
           if (task) {
             // Восстанавливаем сохранённый размер картинки в КИМ (см. order.imageSize)
-            const imageSize = order.find(o => o.taskId === task.id)?.imageSize;
-            tasks.push(imageSize ? { ...task, kimImageSize: imageSize } : task);
+            // и место чертежа на листе Генератора (order.figurePlacement).
+            const saved = order.find(o => o.taskId === task.id);
+            const extra = {
+              ...(saved?.imageSize ? { kimImageSize: saved.imageSize } : {}),
+              ...(saved?.figurePlacement ? { figurePlacement: saved.figurePlacement } : {}),
+            };
+            tasks.push(Object.keys(extra).length ? { ...task, ...extra } : task);
           }
         }
 
