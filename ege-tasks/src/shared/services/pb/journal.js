@@ -144,6 +144,14 @@ export const journalApi = {
     });
   },
 
+  // Лист генератора для колонки «В журнал» — без снимка заданий (tasks_data
+  // весит до 4 МБ), только то, из чего строится колонка.
+  async getJournalSheet(id) {
+    return pb.collection('generator_sheets').getOne(id, {
+      fields: 'id,title,generator,kind,questions_count,variants_count',
+    });
+  },
+
   // Ученики по id — выбывшие из класса, у которых в журнале остались отметки.
   async getJournalStudentsByIds(ids = []) {
     if (!ids.length) return [];

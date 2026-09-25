@@ -21,6 +21,7 @@ const apiMock = vi.hoisted(() => ({
   getJournalAttendance: vi.fn(),
   getJournalColumnsByLesson: vi.fn(),
   getLesson: vi.fn(),
+  getJournalSheet: vi.fn(),
 }));
 
 vi.mock('../shared/services/pocketbase', () => ({ api: apiMock }));
@@ -34,6 +35,8 @@ import JournalGrid from '../components/workspace/journal/JournalGrid';
 import ClassJournal from '../components/workspace/journal/ClassJournal';
 // eslint-disable-next-line import/first
 import LessonJournalBlock from '../components/workspace/calendar/LessonJournalBlock';
+// eslint-disable-next-line import/first
+import SheetToJournalModal from '../components/workspace/journal/SheetToJournalModal';
 // eslint-disable-next-line import/first
 import { buildGrid, indexMarks } from '../utils/classJournal';
 
@@ -358,5 +361,93 @@ describe('LessonJournalBlock — «Журнал» в карточке урока
     await waitFor(() => expect(container.querySelector('.ljb')).toBeNull());
     const { container: c2 } = renderBlock({ groupId: '' });
     expect(c2.querySelector('.ljb')).toBeNull();
+  });
+});
+
+// ── «В журнал» у листа генератора (v3.9.240) ───────────────────────────────
+
+const oralSheet = { id: 'S1', title: 'Устный счёт 4', generator: 'oral_counting', questions_count: 12, variants_count: 4 };
+
+function renderJournalRoutes(url) {
+  return render(
+    <MemoryRouter initialEntries={[url]}>
+      <AntApp>
+        <Routes>
+          <Route path="/app/journal" element={<ClassJournal />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </AntApp>
+    </MemoryRouter>,
+  );
+}
+
+describe('ClassJournal — колонка по листу генератора', () => {
+  it('ссылка ?sheet=: колонка по листу — баллы из числа заданий, ссылка на лист, потом ввод', async () => {
+    apiMock.getJournalSheet.mockResolvedValue(oralSheet);
+    renderScreen('/app/journal?group=g1&sheet=S1');
+    expect(await screen.findByDisplayValue('Устный счёт 4')).toBeInTheDocument();
+    expect(apiMock.getJournalSheet).toHaveBeenCalledWith('S1');
+    expect(screen.getByDisplayValue('12')).toBeInTheDocument();
+    expect(screen.getByText(/По листу «Устный счёт 4»/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(apiMock.createJournalColumn).toHaveBeenCalled());
+    expect(apiMock.createJournalColumn.mock.calls[0][0]).toMatchObject({
+      group: 'g1',
+      title: 'Устный счёт 4',
+      scale: 'points',
+      max_score: 12,
+      category: 'Устный счёт',
+      source: 'manual',
+      ref: { type: 'sheet', id: 'S1', generator: 'oral_counting', title: 'Устный счёт 4' },
+    });
+    expect(await screen.findByText(/Внесено \d+ из 2/)).toBeInTheDocument();
+  });
+
+  it('лист уже в журнале класса — второй колонки нет, открывается ввод в существующей', async () => {
+    apiMock.getJournalColumns.mockResolvedValue([
+      { id: 'c5', group: 'g1', owner: 't1', source: 'manual', title: 'Устный счёт 4', date: '2026-09-20 12:00:00.000Z', scale: 'points', max_score: 12, ref: { type: 'sheet', id: 'S1', generator: 'oral_counting', title: 'Устный счёт 4' }, created: '5' },
+    ]);
+    renderScreen('/app/journal?group=g1&sheet=S1');
+    expect(await screen.findByText(/Внесено \d+ из 2/)).toBeInTheDocument();
+    expect(apiMock.getJournalSheet).not.toHaveBeenCalled();
+    expect(apiMock.createJournalColumn).not.toHaveBeenCalled();
+    expect((await screen.findAllByText(/Лист уже в журнале/)).length).toBeGreaterThan(0);
+  });
+
+  it('«Открыть лист» в меню колонки ведёт в генератор листа', async () => {
+    apiMock.getJournalColumns.mockResolvedValue([
+      { id: 'c5', group: 'g1', owner: 't1', source: 'manual', title: 'Устный счёт 4', date: '2026-09-20 12:00:00.000Z', scale: 'points', max_score: 12, ref: { type: 'sheet', id: 'S1', generator: 'oral_counting', title: 'Устный счёт 4' }, created: '5' },
+    ]);
+    apiMock.getJournalAttempts.mockResolvedValue([]);
+    const { container } = renderJournalRoutes('/app/journal');
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(container.querySelector('.cj-colh__btn'));
+    fireEvent.click(await screen.findByText('Открыть лист'));
+    await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/app/arith/oral-counting?sheet=S1'), { timeout: 5000 });
+  });
+});
+
+describe('SheetToJournalModal — выбор класса', () => {
+  it('ведёт в журнал выбранного класса со ссылкой на лист и помнит класс', async () => {
+    apiMock.getTeachingGroups.mockResolvedValue([
+      { id: 'g1', name: '10 кл', year: '2026/2027' },
+      { id: 'g2', name: '8 кл', year: '2026/2027' },
+    ]);
+    localStorage.setItem('journal.groupId', 'g2');
+    render(
+      <MemoryRouter initialEntries={['/app/arith/oral-counting']}>
+        <AntApp>
+          <Routes>
+            <Route path="/app/arith/oral-counting" element={<SheetToJournalModal open sheet={oralSheet} onClose={() => {}} />} />
+            <Route path="/app/journal" element={<Where />} />
+          </Routes>
+        </AntApp>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('8 кл')).toBeInTheDocument();
+    expect(screen.getByText(/заданий в варианте: 12/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть журнал' }));
+    expect(screen.getByTestId('where').textContent).toBe('/app/journal?group=g2&sheet=S1');
+    expect(localStorage.getItem('journal.groupId')).toBe('g2');
   });
 });

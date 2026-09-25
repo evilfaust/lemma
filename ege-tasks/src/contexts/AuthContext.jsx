@@ -207,3 +207,12 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within <AuthProvider>');
   return ctx;
 }
+
+/**
+ * То же без требования провайдера: null вне <AuthProvider>. Для общих
+ * компонентов генераторов (кнопки листа), которые рендерятся и без входа —
+ * например в тестах: права там просто «нет».
+ */
+export function useOptionalAuth() {
+  return useContext(AuthContext);
+}

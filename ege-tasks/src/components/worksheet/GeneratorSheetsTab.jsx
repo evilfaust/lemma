@@ -6,8 +6,9 @@ import {
 } from 'antd';
 import {
   DeleteOutlined, EditOutlined, SearchOutlined, ExperimentOutlined,
-  PushpinOutlined, PushpinFilled, FolderOutlined, ExportOutlined,
+  PushpinOutlined, PushpinFilled, FolderOutlined, ExportOutlined, SolutionOutlined,
 } from '@ant-design/icons';
+import SheetToJournalModal from '../workspace/journal/SheetToJournalModal';
 import { api } from '../../services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
@@ -24,8 +25,10 @@ const { TextArea } = Input;
 // Открытие ведёт обратно в тот генератор, который лист сделал.
 export function GeneratorSheetsTab() {
   const { message, modal } = App.useApp();
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, hasSection } = useAuth();
   const navigate = useNavigate();
+  const journalAllowed = canEdit && hasSection('workspace');
+  const [journalSheet, setJournalSheet] = useState(null); // «В журнал класса»
 
   const [sheets, setSheets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -216,6 +219,15 @@ export function GeneratorSheetsTab() {
                     onClick={() => togglePin(item)}
                   />
                 </Tooltip>
+                {journalAllowed && (
+                  <Tooltip title="В журнал класса — колонка по этому листу">
+                    <Button
+                      type="text" size="small" icon={<SolutionOutlined />}
+                      aria-label="В журнал класса"
+                      onClick={() => setJournalSheet(item)}
+                    />
+                  </Tooltip>
+                )}
                 {canEdit && (
                   <Tooltip title="Название, папка, заметка">
                     <Button
@@ -237,6 +249,12 @@ export function GeneratorSheetsTab() {
           </div>
         ))
       )}
+
+      <SheetToJournalModal
+        open={!!journalSheet}
+        sheet={journalSheet}
+        onClose={() => setJournalSheet(null)}
+      />
 
       <Modal
         open={!!editSheet}

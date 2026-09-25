@@ -5,7 +5,7 @@ import {
   monthLabel, localDay, yearWindow, collectOnline, onlineStatus, mergeColumns, resolveCell,
   summarizeRow, summarizeColumn, buildGrid, indexMarks, journalStudents, parseClipboard,
   planPaste, suggestNextTitle, monthSpans, columnMonths, inPeriod, journalTable, toCsv, toTsv,
-  formatAvg, indexAttendance, lessonDay,
+  formatAvg, indexAttendance, lessonDay, sheetColumnPreset, findSheetColumn,
 } from '../utils/classJournal';
 
 const pts = (max = 20, extra = {}) => ({ scale: 'points', max_score: max, ...extra });
@@ -456,5 +456,33 @@ describe('«н» из посещаемости урока', () => {
     expect(cols[0].lessonId).toBe('L7');
     expect(lessonDay({ date_plan: '2026-09-18 07:15:00.000Z', date_fact: '' })).toBe(localDay('2026-09-18 07:15:00.000Z'));
     expect(lessonDay({ date_plan: '2026-09-18 07:15:00.000Z', date_fact: '2026-09-19 07:15:00.000Z' })).toBe(localDay('2026-09-19 07:15:00.000Z'));
+  });
+});
+
+describe('колонка по листу генератора', () => {
+  it('устный счёт: баллы из числа заданий в варианте, категория и ссылка на лист', () => {
+    expect(sheetColumnPreset({ id: 'S1', title: 'Устный счёт 4', generator: 'oral_counting', questions_count: 12 }))
+      .toEqual({
+        title: 'Устный счёт 4',
+        scale: 'points',
+        max_score: 12,
+        category: 'Устный счёт',
+        ref: { type: 'sheet', id: 'S1', generator: 'oral_counting', title: 'Устный счёт 4' },
+      });
+  });
+  it('другие генераторы — «Самостоятельная»; без счётчика максимум не навязывается', () => {
+    const p = sheetColumnPreset({ id: 'S2', title: '  ', generator: 'linear_equations' });
+    expect(p).toMatchObject({ title: 'Лист генератора', category: 'Самостоятельная' });
+    expect(p.max_score).toBeUndefined();
+    expect(sheetColumnPreset(null)).toBe(null);
+  });
+  it('колонка листа находится по ссылке, из БД ссылка доезжает до колонки', () => {
+    const cols = mergeColumns([
+      { id: 'c1', title: 'Опрос' },
+      { id: 'c2', title: 'Устный счёт 4', ref: { type: 'sheet', id: 'S1', generator: 'oral_counting' } },
+    ]);
+    expect(findSheetColumn(cols, 'S1')?.id).toBe('c2');
+    expect(findSheetColumn(cols, 'S9')).toBe(null);
+    expect(cols.find((c) => c.id === 'c1').ref).toBe(null);
   });
 });

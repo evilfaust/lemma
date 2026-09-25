@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Button, Modal, Form, Input, InputNumber, Checkbox, AutoComplete,
   List, Tag, Empty, Spin, Popconfirm, Tooltip, Switch, App,
 } from 'antd';
 import {
-  SaveOutlined, FolderOpenOutlined, DeleteOutlined, PushpinFilled,
+  SaveOutlined, FolderOpenOutlined, DeleteOutlined, PushpinFilled, SolutionOutlined,
 } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
+import { useOptionalAuth } from '../../contexts/AuthContext';
+import SheetToJournalModal from '../workspace/journal/SheetToJournalModal';
 import { sheetGeneratorLabel, sheetGeneratorRoute } from '../../utils/sheetRegistry';
 import { SheetExportMd } from './SheetExportMd';
 
@@ -23,11 +25,21 @@ const { TextArea } = Input;
 // `instruction` — строка над заданиями («Решите систему:»). У части генераторов
 // она собирается по выбранным категориям, поэтому передаётся сюда; остальным
 // хватает инструкции из реестра листов.
+//
+// «В журнал класса» (v3.9.240) — колонка журнала по этому листу: выбрать класс
+// и перейти в журнал (`workspace/journal/SheetToJournalModal`). Колонка
+// ссылается на СОХРАНЁННЫЙ лист, поэтому несохранённый сначала сохраняем.
 export function SheetStorageActions({
   storage, hasData, generator, instruction, exportMd = true,
 }) {
   const { message } = App.useApp();
   const navigate = useNavigate();
+  // Кнопки листа живут и вне входа учителя (тесты генераторов) — без прав
+  // просто нет «В журнал».
+  const auth = useOptionalAuth();
+  const journalAllowed = !!auth?.canEdit && !!auth?.hasSection?.('workspace');
+  const [journalSheet, setJournalSheet] = useState(null); // { id, title } для «В журнал»
+  const journalAfterSave = useRef(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [form] = Form.useForm();
   const [folders, setFolders] = useState([]);
@@ -55,7 +67,7 @@ export function SheetStorageActions({
   const handleSaveNew = async () => {
     const values = await form.validateFields();
     try {
-      await saveAsNew({
+      const rec = await saveAsNew({
         title: values.title,
         folder: values.folder || '',
         note: values.note || '',
@@ -64,9 +76,23 @@ export function SheetStorageActions({
       });
       setSaveOpen(false);
       message.success('Лист сохранён');
+      if (journalAfterSave.current && rec?.id) {
+        journalAfterSave.current = false;
+        setJournalSheet({ id: rec.id, title: rec.title, questions_count: rec.questions_count });
+      }
     } catch (error) {
       message.error(`Не удалось сохранить: ${error?.message || 'ошибка'}`);
     }
+  };
+
+  const handleToJournal = () => {
+    if (sheetId) {
+      setJournalSheet({ id: sheetId, title: sheetTitle });
+      return;
+    }
+    journalAfterSave.current = true;
+    message.info('Сначала сохраните лист — колонка журнала будет ссылаться на него');
+    setSaveOpen(true);
   };
 
   const handleOpen = async (item) => {
@@ -127,6 +153,22 @@ export function SheetStorageActions({
         Загрузить лист
       </Button>
 
+      {journalAllowed && (
+        <Button
+          block
+          icon={<SolutionOutlined />}
+          onClick={handleToJournal}
+          disabled={!sheetId && !hasData}
+        >
+          В журнал класса
+        </Button>
+      )}
+      <SheetToJournalModal
+        open={!!journalSheet}
+        sheet={journalSheet}
+        onClose={() => setJournalSheet(null)}
+      />
+
       {/* Выгрузка в .md разбирает снимок «варианты × задания»; у листов другой
           формы (например у классификатора) своей выгрузки пока нет. */}
       {exportMd && (
@@ -140,7 +182,7 @@ export function SheetStorageActions({
       <Modal
         open={saveOpen}
         title="Сохранить лист"
-        onCancel={() => setSaveOpen(false)}
+        onCancel={() => { journalAfterSave.current = false; setSaveOpen(false); }}
         onOk={handleSaveNew}
         confirmLoading={saving}
         okText="Сохранить"

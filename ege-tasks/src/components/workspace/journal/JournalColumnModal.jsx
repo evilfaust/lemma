@@ -47,7 +47,7 @@ function lessonOnDay(lessons, day) {
  */
 export default function JournalColumnModal({
   open, column, defaults, categories = [], hasMarks = false, canDelete = false,
-  lessons = [], presetLesson = null, pickLesson = false,
+  lessons = [], presetLesson = null, pickLesson = false, sourceNote = '',
   onCancel, onSave, onDelete, saving = false,
 }) {
   const [form] = Form.useForm();
@@ -217,6 +217,11 @@ export default function JournalColumnModal({
       )}
     >
       <Form form={form} layout="vertical" requiredMark={false} onFinish={submit}>
+        {sourceNote && (
+          <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
+            {sourceNote}
+          </Text>
+        )}
         {online && (
           <Text type="secondary" style={{ display: 'block', marginBottom: 12, fontSize: 13 }}>
             Значения берутся из попыток учеников (лучший результат, в процентах). Клетку

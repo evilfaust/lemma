@@ -42,6 +42,7 @@ function columnTip(col) {
     col.day ? `дата ${shortDay(col.day)}` : null,
     col.category || null,
     col.lessonLabel ? `урок: ${col.lessonLabel} — «н» из посещаемости` : null,
+    col.ref?.type === 'sheet' ? `лист генератора: «${col.ref.title || ''}»` : null,
     col.online ? (col.virtual ? 'онлайн-работа: результаты из попыток учеников' : 'онлайн-работа') : null,
     columnWeight(col) === 0 ? 'не входит в средний' : columnWeight(col) !== 1 ? `вес ×${formatNumber(columnWeight(col))}` : null,
     col.note || null,

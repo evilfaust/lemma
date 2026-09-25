@@ -451,6 +451,9 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       workId: rec.work || info?.workId || '',
       sessionId: rec.session || info?.sessionId || '',
       lessonId: rec.lesson || '',
+      // Материал без своей связи: { type: 'sheet', id, generator, title } —
+      // лист генератора, из которого завели колонку (v3.9.240).
+      ref: rec.ref && typeof rec.ref === 'object' ? rec.ref : null,
       deadline: info?.deadline || sessionDeadlines.get(key) || '',
       classDeadline: info?.classDeadline || '',
       // Работа выдана классу целиком (учитель сам завёл колонку) — срок
@@ -483,6 +486,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       workId: info.workId,
       sessionId: info.sessionId,
       lessonId: '',
+      ref: null,
       deadline: info.deadline,
       classDeadline: info.classDeadline,
       assigned: false,
@@ -541,6 +545,36 @@ export function suggestNextTitle(title) {
   const m = t.match(/^(.*?)(\d+)(\D*)$/);
   if (!m) return t;
   return `${m[1]}${Number(m[2]) + 1}${m[3]}`;
+}
+
+// ─── Колонка по листу генератора (v3.9.240) ─────────────────────────────────
+
+/**
+ * Настройки новой колонки по сохранённому листу генератора («В журнал» у листа
+ * устного счёта): баллы, максимум = заданий в варианте (каждый ученик пишет
+ * свой вариант целиком), категория — «Устный счёт» у листов устного счёта
+ * (ключи `oral_*` реестра листов), иначе «Самостоятельная». Ссылка на лист
+ * едет в `ref`. Реестр листов сюда не импортируется намеренно: он тянет код
+ * всех генераторов.
+ */
+export function sheetColumnPreset(sheet) {
+  if (!sheet?.id) return null;
+  const generator = String(sheet.generator || '');
+  const max = Number(sheet.questions_count) || 0;
+  const title = String(sheet.title || '').trim() || 'Лист генератора';
+  return {
+    title,
+    scale: 'points',
+    ...(max > 0 ? { max_score: max } : {}),
+    category: generator.startsWith('oral_') ? 'Устный счёт' : 'Самостоятельная',
+    ref: { type: 'sheet', id: sheet.id, generator, title },
+  };
+}
+
+/** Колонка журнала, уже заведённая по этому листу (чтобы не плодить вторую). */
+export function findSheetColumn(columns = [], sheetId) {
+  if (!sheetId) return null;
+  return columns.find((c) => c?.ref?.type === 'sheet' && c.ref.id === sheetId) || null;
 }
 
 // ─── Клетки и сводки ────────────────────────────────────────────────────────

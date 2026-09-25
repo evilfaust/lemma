@@ -14,7 +14,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { currentAcademicYear } from '../../../utils/academicYear';
 import {
-  buildGrid, collectOnline, columnMonths, columnScale, indexAttendance, indexMarks, inPeriod, journalStudents,
+  buildGrid, collectOnline, columnMonths, columnScale, findSheetColumn, indexAttendance, indexMarks, inPeriod,
+  journalStudents, sheetColumnPreset,
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber,
 } from '../../../utils/classJournal';
@@ -64,6 +65,8 @@ export default function ClassJournal() {
     group: searchParams.get('group'),
     lesson: searchParams.get('lesson'),
     entry: searchParams.get('entry'),
+    // «В журнал» у листа генератора: колонка по этому листу (v3.9.240).
+    sheet: searchParams.get('sheet'),
   });
   const isMobile = useIsMobile();
   const { teacher, isSuperAdmin, canEdit, canDelete } = useAuth();
@@ -462,6 +465,15 @@ export default function ClassJournal() {
     }));
   }, [patchData]);
 
+  // Колонка по листу генератора: настройки прошлой колонки класса (пороги,
+  // вес), поверх — то, что задаёт лист (название, баллы, максимум, категория).
+  const sheetDefaults = useMemo(() => {
+    const preset = sheetColumnPreset(colModal?.presetSheet);
+    if (!preset) return null;
+    const { ref: _ref, ...rest } = preset; // ссылка уходит в запись при сохранении
+    return { ...newDefaults, ...rest };
+  }, [colModal?.presetSheet, newDefaults]);
+
   const saveColumn = async (values) => {
     const col = colModal?.column;
     const gid = data?.groupId;
@@ -469,7 +481,10 @@ export default function ClassJournal() {
     setColSaving(true);
     try {
       if (!col) {
-        const rec = await api.createJournalColumn({ ...values, group: gid, source: 'manual' });
+        const ref = sheetColumnPreset(colModal?.presetSheet)?.ref;
+        const rec = await api.createJournalColumn({
+          ...values, group: gid, source: 'manual', ...(ref ? { ref } : {}),
+        });
         patchData(gid, (d) => ({ ...d, columns: [...d.columns, rec] }));
         if (period !== 'all' && !inPeriod({ day: values.date }, period)) setPeriod('all');
         message.success(`Колонка «${rec.title}» добавлена`);
@@ -590,7 +605,7 @@ export default function ClassJournal() {
   useEffect(() => {
     const p = pendingParams.current;
     if (!p || !data || data.groupId !== groupId) return;
-    if (!p.group && !p.lesson && !p.entry) return;
+    if (!p.group && !p.lesson && !p.entry && !p.sheet) return;
     if (p.group && data.groupId !== p.group) return;
     pendingParams.current = {};
     setSearchParams({}, { replace: true });
@@ -605,6 +620,22 @@ export default function ClassJournal() {
       setEntryKey(col.key);
       return;
     }
+    if (p.sheet && !data.missing && canEdit) {
+      // Лист уже заведён в журнале класса — второй колонки не делаем,
+      // открываем ввод отметок в той.
+      const existing = findSheetColumn(allColumns, p.sheet);
+      if (existing) {
+        setPeriod('all');
+        if (existing.hidden) setShowHidden(true);
+        setEntryKey(existing.key);
+        message.info(`Лист уже в журнале — колонка «${existing.title}»`);
+        return;
+      }
+      api.getJournalSheet(p.sheet)
+        .then((sheet) => setColModal({ column: null, presetSheet: sheet, openEntryAfter: true }))
+        .catch(() => message.warning('Лист генератора не найден'));
+      return;
+    }
     if (p.lesson && !data.missing && canEdit) {
       const found = (data.lessons || []).find((l) => l.id === p.lesson);
       const open = (lesson) => setColModal({ column: null, presetLesson: lesson, openEntryAfter: true });
@@ -616,12 +647,29 @@ export default function ClassJournal() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, groupId, allColumns]);
 
+  // Маршрут генератора берём из реестра листов лениво: реестр тянет код всех
+  // генераторов, и в чанк журнала ему незачем.
+  const openSheet = async (ref) => {
+    try {
+      const { sheetGeneratorRoute } = await import('../../../utils/sheetRegistry');
+      const route = sheetGeneratorRoute(ref?.generator);
+      if (!route) {
+        message.warning('Генератора этого листа больше нет');
+        return;
+      }
+      navigate(`${route}?sheet=${ref.id}`);
+    } catch {
+      message.error('Не удалось открыть лист');
+    }
+  };
+
   const onMenu = (key, col) => {
     switch (key) {
       case 'entry': setEntryKey(col.key); break;
       case 'edit': setColModal({ column: col }); break;
       case 'fill': setFill({ column: col, text: '', error: '' }); break;
       case 'open-work': navigate(`/app/works/${col.workId}/edit`); break;
+      case 'open-sheet': openSheet(col.ref); break;
       case 'hide': setHidden(col, true); break;
       case 'show': setHidden(col, false); break;
       case 'clear': clearColumn(col); break;
@@ -640,6 +688,7 @@ export default function ClassJournal() {
     if (manage) items.push({ key: 'edit', icon: <SettingOutlined />, label: 'Настроить колонку' });
     if (writable && !col.online) items.push({ key: 'fill', icon: <FormatPainterOutlined />, label: 'Заполнить пустые…' });
     if (col.workId) items.push({ key: 'open-work', icon: <ExportOutlined />, label: 'Открыть работу' });
+    if (col.ref?.type === 'sheet') items.push({ key: 'open-sheet', icon: <ExportOutlined />, label: 'Открыть лист' });
     if (manage) {
       items.push(col.hidden
         ? { key: 'show', icon: <EyeOutlined />, label: 'Показать колонку' }
@@ -904,7 +953,10 @@ export default function ClassJournal() {
       <JournalColumnModal
         open={!!colModal}
         column={colModal?.column || null}
-        defaults={newDefaults}
+        defaults={sheetDefaults || newDefaults}
+        sourceNote={colModal?.presetSheet
+          ? `По листу «${colModal.presetSheet.title}»: максимум — заданий в варианте, ссылка на лист сохранится в колонке.`
+          : ''}
         categories={categories}
         hasMarks={hasMarksInModalColumn}
         lessons={data?.lessons || []}
