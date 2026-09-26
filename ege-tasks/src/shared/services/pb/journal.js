@@ -10,6 +10,7 @@ import { escapeFilter } from '../../utils/escapeFilter';
 
 const COLS = 'journal_columns';
 const MARKS = 'journal_marks';
+const BLOCKS = 'journal_blocks';
 
 export const journalApi = {
   async getJournalColumns(groupId) {
@@ -39,6 +40,38 @@ export const journalApi = {
     } catch { /* нет — удалим без подписи */ }
     await pb.collection(COLS).delete(id);
     _logAudit('delete', COLS, id, summary);
+  },
+
+  // ── Интенсивы (v3.9.241, миграция 1786600000) ───────────────────────────
+  // Колонки интенсива — обычные колонки с `block` и `role`; удаление
+  // интенсива их не трогает (связь не каскадная, ссылку PocketBase очищает).
+
+  async getJournalBlocks(groupId) {
+    if (!groupId) return [];
+    return pb.collection(BLOCKS).getFullList({
+      filter: `group = "${escapeFilter(groupId)}"`,
+      sort: 'date_from,created',
+    });
+  },
+
+  async createJournalBlock(data) {
+    const rec = await pb.collection(BLOCKS).create(withOwner({ kind: 'intensive', ...data }));
+    _logAudit('create', BLOCKS, rec.id, `Интенсив в журнале «${rec.title}»`);
+    return rec;
+  },
+
+  async updateJournalBlock(id, patch) {
+    return pb.collection(BLOCKS).update(id, patch);
+  },
+
+  async deleteJournalBlock(id) {
+    let summary = '';
+    try {
+      const rec = await pb.collection(BLOCKS).getOne(id, { fields: 'id,title' });
+      summary = `Интенсив в журнале «${rec.title}»`;
+    } catch { /* нет — удалим без подписи */ }
+    await pb.collection(BLOCKS).delete(id);
+    _logAudit('delete', BLOCKS, id, summary);
   },
 
   // Все отметки класса одним запросом — фильтр по пути relation, сколько бы

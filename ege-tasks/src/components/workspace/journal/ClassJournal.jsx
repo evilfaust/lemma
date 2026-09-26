@@ -4,8 +4,8 @@ import {
 } from 'antd';
 import {
   CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
-  ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FormatPainterOutlined, MobileOutlined,
-  MoreOutlined, PlusOutlined, SettingOutlined, UnorderedListOutlined,
+  ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FireOutlined, FormatPainterOutlined, MobileOutlined,
+  MoreOutlined, PlusOutlined, SettingOutlined, ShrinkOutlined, ArrowsAltOutlined, UnorderedListOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -17,19 +17,21 @@ import {
   buildGrid, collectOnline, columnMonths, columnScale, findSheetColumn, indexAttendance, indexMarks, inPeriod,
   journalStudents, sheetColumnPreset,
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
-  suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber,
+  suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
 } from '../../../utils/classJournal';
 import { EmptyState } from '../ui';
 import JournalGrid from './JournalGrid';
 import JournalColumnModal, { lessonOptionLabel } from './JournalColumnModal';
 import JournalColumnEntry from './JournalColumnEntry';
 import WorkColumnModal from './WorkColumnModal';
+import IntensiveModal from './IntensiveModal';
 import './journal.css';
 
 const { Text } = Typography;
 
 const LS_GROUP = 'journal.groupId';
 const LS_MODE = 'journal.mode';
+const LS_COLLAPSED = 'journal.collapsedBlocks';
 const readLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* приватный режим */ } };
 
@@ -86,6 +88,12 @@ export default function ClassJournal() {
   const [workModal, setWorkModal] = useState(false);
   const [entryKey, setEntryKey] = useState(null);
   const [fill, setFill] = useState(null); // { column, text, error }
+  const [blockModal, setBlockModal] = useState(null); // { block } — null-блок = новый интенсив
+  const [blockSaving, setBlockSaving] = useState(false);
+  // Свёрнутые интенсивы: видны только «за день», зачёт и итог.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return new Set(JSON.parse(readLS(LS_COLLAPSED) || '[]')); } catch { return new Set(); }
+  });
 
   const dataRef = useRef(null);
   dataRef.current = data;
@@ -150,11 +158,18 @@ export default function ClassJournal() {
           .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru')))
         : api.getStudentsByGroup(gid);
       const window = yearWindow(group?.year);
-      const [roster, stored, marks, lessons] = await Promise.all([
+      // Интенсивы — своя миграция (1786600000): без неё журнал работает, но
+      // заводить интенсивы негде.
+      let blocksMissing = false;
+      const [roster, stored, marks, lessons, blocks] = await Promise.all([
         rosterPromise,
         api.getJournalColumns(gid).catch(soft404),
         api.getJournalMarks(gid).catch(soft404),
         api.getJournalLessons(gid, window).catch(() => []),
+        api.getJournalBlocks(gid).catch((e) => {
+          if (e?.status === 404) { blocksMissing = true; return []; }
+          throw e;
+        }),
       ]);
 
       // Выбывшие из класса с отметками в журнале остаются строкой «выбыл».
@@ -181,6 +196,7 @@ export default function ClassJournal() {
       materializing.current = new Map();
       setData({
         groupId: gid, group, students, columns: stored, marks, attempts, deadlines, lessons, attendance, missing,
+        blocks, blocksMissing: blocksMissing || missing,
       });
       if (onlineFailed) message.warning('Онлайн-результаты не загрузились — показаны только ручные колонки');
     } catch (e) {
@@ -209,13 +225,15 @@ export default function ClassJournal() {
   // ── Производные ───────────────────────────────────────────────────────────
   const online = useMemo(() => collectOnline(data?.attempts || []), [data?.attempts]);
   const lessonsById = useMemo(() => new Map((data?.lessons || []).map((l) => [l.id, l])), [data?.lessons]);
+  const blocks = useMemo(() => data?.blocks || [], [data?.blocks]);
+  const blocksById = useMemo(() => new Map(blocks.map((b) => [b.id, b])), [blocks]);
   const allColumns = useMemo(
-    () => mergeColumns(data?.columns || [], online.columns, { sessionDeadlines: data?.deadlines || new Map() })
+    () => mergeColumns(data?.columns || [], online.columns, { sessionDeadlines: data?.deadlines || new Map(), blocks })
       // Подпись урока — для подсказки в шапке колонки.
       .map((c) => (c.lessonId
         ? { ...c, lessonLabel: lessonOptionLabel(lessonsById.get(c.lessonId)) || 'урок календаря' }
         : c)),
-    [data?.columns, data?.deadlines, online, lessonsById],
+    [data?.columns, data?.deadlines, online, lessonsById, blocks],
   );
   const hiddenCount = useMemo(() => allColumns.filter((c) => c.hidden).length, [allColumns]);
   const months = useMemo(
@@ -226,14 +244,18 @@ export default function ClassJournal() {
     if (period !== 'all' && !months.some((m) => m.key === period)) setPeriod('all');
   }, [months, period]);
   const columns = useMemo(
-    () => allColumns.filter((c) => (showHidden || !c.hidden) && inPeriod(c, period)),
-    [allColumns, showHidden, period],
+    () => allColumns.filter((c) => (showHidden || !c.hidden) && inPeriod(c, period)
+      && !(c.blockId && c.role === 'work' && collapsed.has(c.blockId))),
+    [allColumns, showHidden, period, collapsed],
   );
+  const blockColumns = useMemo(() => allColumns.filter((c) => c.blockId), [allColumns]);
   const marksIndex = useMemo(() => indexMarks(data?.marks || []), [data?.marks]);
   const attendanceIndex = useMemo(() => indexAttendance(data?.attendance || []), [data?.attendance]);
   const grid = useMemo(
-    () => buildGrid(data?.students || [], columns, marksIndex, online.cells, { mode, attendance: attendanceIndex }),
-    [data?.students, columns, marksIndex, online, mode, attendanceIndex],
+    () => buildGrid(data?.students || [], columns, marksIndex, online.cells, {
+      mode, attendance: attendanceIndex, blocks, blockColumns,
+    }),
+    [data?.students, columns, marksIndex, online, mode, attendanceIndex, blocks, blockColumns],
   );
   const group = data?.group || groups.find((g) => g.id === groupId) || null;
 
@@ -438,8 +460,9 @@ export default function ClassJournal() {
   // Новая колонка подхватывает настройки прошлой ручной колонки класса и
   // следующий номер: «Устный счёт 3» → «Устный счёт 4».
   const newDefaults = useMemo(() => {
+    // «За день», зачёт и итог интенсива — не образец для обычной колонки.
     const last = [...(data?.columns || [])]
-      .filter((c) => (c.source || 'manual') === 'manual')
+      .filter((c) => (c.source || 'manual') === 'manual' && (!c.role || c.role === 'work'))
       .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))[0];
     if (!last) return { scale: 'points', max_score: 10 };
     return {
@@ -464,6 +487,26 @@ export default function ClassJournal() {
       attendance: [...(d.attendance || []).filter((r) => r.lesson !== lessonId), ...rows],
     }));
   }, [patchData]);
+
+  // Работа в интенсив: настройки его последней работы (в интенсиве работы
+  // дня повторяются: «У/с», «Д/з»…), название — то же.
+  const blockDefaults = useMemo(() => {
+    const block = colModal?.presetBlock;
+    if (!block) return null;
+    const last = [...(data?.columns || [])]
+      .filter((c) => c.block === block.id && (!c.role || c.role === 'work'))
+      .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))[0];
+    if (!last) return { ...newDefaults, title: '', category: 'Интенсив' };
+    return {
+      title: last.title,
+      scale: last.scale || 'points',
+      max_score: last.max_score,
+      category: last.category || 'Интенсив',
+      thresholds: last.thresholds,
+      weight: last.weight,
+      no_avg: last.no_avg,
+    };
+  }, [colModal?.presetBlock, data?.columns, newDefaults]);
 
   // Колонка по листу генератора: настройки прошлой колонки класса (пороги,
   // вес), поверх — то, что задаёт лист (название, баллы, максимум, категория).
@@ -599,6 +642,130 @@ export default function ClassJournal() {
       console.error('journal work column failed', e);
       message.error('Не удалось добавить работу');
     }
+  };
+
+  // ── Интенсивы ─────────────────────────────────────────────────────────────
+  const toggleCollapsed = (blockId) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(blockId)) next.delete(blockId);
+      else next.add(blockId);
+      writeLS(LS_COLLAPSED, JSON.stringify([...next]));
+      return next;
+    });
+  };
+
+  const saveBlock = async (values, plan) => {
+    const gid = data?.groupId;
+    const block = blockModal?.block;
+    if (!gid) return;
+    setBlockSaving(true);
+    try {
+      if (block) {
+        const rec = await api.updateJournalBlock(block.id, values);
+        patchData(gid, (d) => ({ ...d, blocks: d.blocks.map((b) => (b.id === rec.id ? rec : b)) }));
+        setBlockModal(null);
+        return;
+      }
+      const rec = await api.createJournalBlock({ ...values, group: gid });
+      patchData(gid, (d) => ({ ...d, blocks: [...(d.blocks || []), rec] }));
+      // Колонки интенсива: «за день» на каждый день, зачёт, итог. По одной —
+      // их немного, а порядок created задаёт порядок в сетке.
+      const common = { group: gid, source: 'manual', block: rec.id, category: 'Интенсив', weight: 1 };
+      const last = plan.days[plan.days.length - 1]?.day || dayOf(values.date_to);
+      const specs = [];
+      if (plan.withDay) {
+        for (const { day, lesson } of plan.days) {
+          specs.push({ ...common, title: 'За день', scale: 'grade', role: 'day', date: toStoredDate(day), ...(lesson ? { lesson: lesson.id } : {}) });
+        }
+      }
+      if (plan.withFinal) {
+        specs.push({ ...common, title: 'Зачёт', scale: 'points', max_score: plan.finalMax || 20, role: 'final', date: toStoredDate(last) });
+      }
+      if (plan.withTotal) {
+        specs.push({ ...common, title: 'Итог', scale: 'grade', role: 'total', date: toStoredDate(last) });
+      }
+      const created = [];
+      try {
+        for (const spec of specs) created.push(await api.createJournalColumn(spec));
+      } finally {
+        if (created.length) patchData(gid, (d) => ({ ...d, columns: [...d.columns, ...created] }));
+      }
+      const lessonIds = [...new Set(created.map((c) => c.lesson).filter(Boolean))];
+      if (lessonIds.length) {
+        const rows = await api.getJournalAttendance(lessonIds).catch(() => []);
+        patchData(gid, (d) => ({
+          ...d,
+          attendance: [...(d.attendance || []).filter((r) => !lessonIds.includes(r.lesson)), ...rows],
+        }));
+      }
+      setPeriod('all');
+      setBlockModal(null);
+      message.success(`Интенсив «${rec.title}» заведён — работы дня добавляйте из меню над его колонками`);
+    } catch (e) {
+      console.error('journal block save failed', e);
+      message.error('Не удалось сохранить интенсив');
+    } finally {
+      setBlockSaving(false);
+    }
+  };
+
+  const deleteBlock = async (block, withColumns) => {
+    const gid = data?.groupId;
+    try {
+      const own = (dataRef.current?.columns || []).filter((c) => c.block === block.id);
+      if (withColumns) {
+        for (const col of own) await api.deleteJournalColumn(col.id);
+      }
+      await api.deleteJournalBlock(block.id);
+      const ownIds = new Set(own.map((c) => c.id));
+      patchData(gid, (d) => ({
+        ...d,
+        blocks: d.blocks.filter((b) => b.id !== block.id),
+        columns: withColumns
+          ? d.columns.filter((c) => !ownIds.has(c.id))
+          // Ссылку на интенсив PocketBase очистил сам — повторяем это локально.
+          : d.columns.map((c) => (ownIds.has(c.id) ? { ...c, block: '', role: '' } : c)),
+        marks: withColumns ? d.marks.filter((m) => !ownIds.has(m.col)) : d.marks,
+      }));
+      if (withColumns) {
+        for (const key of [...serverIds.current.keys()]) {
+          if (ownIds.has(key.split('|')[0])) serverIds.current.delete(key);
+        }
+      }
+      setBlockModal(null);
+      message.success(withColumns ? 'Интенсив удалён вместе с колонками' : 'Интенсив удалён, колонки остались в журнале');
+    } catch (e) {
+      console.error('journal block delete failed', e);
+      message.error('Не удалось удалить интенсив');
+      reloadMarks();
+    }
+  };
+
+  const canManageBlock = useCallback(
+    (block) => isSuperAdmin || block?.owner === teacher?.id || group?.owner === teacher?.id,
+    [isSuperAdmin, teacher?.id, group?.owner],
+  );
+
+  const blockMenuFor = useCallback((block) => {
+    if (!block) return [];
+    const items = [];
+    if (canEdit && !data?.missing) {
+      items.push({ key: 'block-add', icon: <PlusOutlined />, label: 'Добавить работу дня' });
+    }
+    items.push(collapsed.has(block.id)
+      ? { key: 'block-expand', icon: <ArrowsAltOutlined />, label: 'Показать работы дней' }
+      : { key: 'block-collapse', icon: <ShrinkOutlined />, label: 'Свернуть до итогов (за день, зачёт, итог)' });
+    if (canEdit && !data?.missing && canManageBlock(block)) {
+      items.push({ key: 'block-edit', icon: <SettingOutlined />, label: 'Настроить интенсив' });
+    }
+    return items;
+  }, [canEdit, data?.missing, collapsed, canManageBlock]);
+
+  const onBlockMenu = (key, block) => {
+    if (key === 'block-add') setColModal({ column: null, presetBlock: block });
+    else if (key === 'block-collapse' || key === 'block-expand') toggleCollapsed(block.id);
+    else if (key === 'block-edit') setBlockModal({ block });
   };
 
   // Ссылка из карточки урока исполняется, когда журнал нужного класса готов.
@@ -777,7 +944,7 @@ export default function ClassJournal() {
   const fillScaleHint = fill?.column ? (() => {
     const scale = columnScale(fill.column);
     if (scale === 'pass') return '«+» — зачёт, «−» — незачёт';
-    if (scale === 'grade') return 'Оценка 1–5';
+    if (scale === 'grade') return 'Оценка 1–5, можно «4+», «4−»';
     if (scale === 'points') return `Баллы от 0 до ${formatNumber(fill.column.max_score) || '…'}`;
     return 'Проценты 0–100';
   })() : '';
@@ -845,9 +1012,14 @@ export default function ClassJournal() {
                 { key: 'manual', icon: <EditOutlined />, label: 'Ручная колонка — бумажная работа, опрос' },
                 { key: 'lesson', icon: <CalendarOutlined />, label: 'Из урока календаря — «н» из посещаемости' },
                 { key: 'work', icon: <MobileOutlined />, label: 'Работа Lemma — выдана всему классу' },
+                ...(data.blocksMissing ? [] : [
+                  { type: 'divider' },
+                  { key: 'intensive', icon: <FireOutlined />, label: 'Интенсив — несколько дней по одной теме' },
+                ]),
               ],
               onClick: ({ key }) => {
                 if (key === 'work') setWorkModal(true);
+                else if (key === 'intensive') setBlockModal({ block: null });
                 else setColModal({ column: null, pickLesson: key === 'lesson' });
               },
             }}
@@ -913,6 +1085,9 @@ export default function ClassJournal() {
           onCommit={commitCell}
           onPaste={handlePaste}
           onOpenStudent={(s) => navigate(`/app/students/${s.id}`)}
+          blocks={blocksById}
+          blockMenuFor={blockMenuFor}
+          onBlockMenu={onBlockMenu}
         />
         <div className="cj-legend">
           <span><EditOutlined /> ввод учителем</span>
@@ -920,6 +1095,8 @@ export default function ClassJournal() {
           <span><i className="cj-legend-flag cj-legend-flag--override" /> исправлено вручную</span>
           <span><i className="cj-legend-flag cj-legend-flag--comment" /> комментарий</span>
           <span><CalendarOutlined /> колонка урока: «н» — из посещаемости</span>
+          <span><b className="cj-x-wait">w</b> — вейтинг, ждём пересдачи · «—» — не писал, не в счёт</span>
+          {blocks.length > 0 && <span><i className="cj-x-hint">≈4,2</i> — подсказка интенсива, оценку ставите вы</span>}
           <span>
             <span className="cj-swatch cj-swatch--teal">5</span>{' '}
             <span className="cj-swatch cj-swatch--blue">4</span>{' '}
@@ -953,7 +1130,7 @@ export default function ClassJournal() {
       <JournalColumnModal
         open={!!colModal}
         column={colModal?.column || null}
-        defaults={sheetDefaults || newDefaults}
+        defaults={blockDefaults || sheetDefaults || newDefaults}
         sourceNote={colModal?.presetSheet
           ? `По листу «${colModal.presetSheet.title}»: максимум — заданий в варианте, ссылка на лист сохранится в колонке.`
           : ''}
@@ -962,11 +1139,26 @@ export default function ClassJournal() {
         lessons={data?.lessons || []}
         presetLesson={colModal?.presetLesson || null}
         pickLesson={!!colModal?.pickLesson}
+        blocks={blocks}
+        blocksEnabled={!data?.blocksMissing}
+        presetBlock={colModal?.presetBlock || null}
         canDelete={canDelete && !!colModal?.column && canManage(colModal.column)}
         saving={colSaving}
         onCancel={() => setColModal(null)}
         onSave={saveColumn}
         onDelete={() => deleteColumn(colModal.column)}
+      />
+      <IntensiveModal
+        open={!!blockModal}
+        block={blockModal?.block || null}
+        lessons={data?.lessons || []}
+        columnsCount={blockModal?.block
+          ? (data?.columns || []).filter((c) => c.block === blockModal.block.id).length : 0}
+        saving={blockSaving}
+        canDelete={canDelete && !!blockModal?.block && canManageBlock(blockModal.block)}
+        onCancel={() => setBlockModal(null)}
+        onSave={saveBlock}
+        onDelete={(withColumns) => deleteBlock(blockModal.block, withColumns)}
       />
       <WorkColumnModal
         open={workModal}

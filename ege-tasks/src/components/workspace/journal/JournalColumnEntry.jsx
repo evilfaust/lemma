@@ -2,18 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { Button, Drawer, Input, Tooltip, Typography } from 'antd';
 import { MessageOutlined } from '@ant-design/icons';
 import {
-  ABSENT, columnScale, editText, formatNumber, shortDay,
+  ABSENT, SKIP, WAIT, columnScale, editText, formatNumber, shortDay,
 } from '../../../utils/classJournal';
 
 const { Text } = Typography;
 
 // Быстрые кнопки под шкалу колонки: на телефоне набирать цифры неудобно.
+// «w» — вейтинг (болел, ждём пересдачи), «—» — не писал по уважительной.
+// Плюсы и минусы у оценки набираются в поле: «4+», «4-», «4=».
 function quickValues(col) {
   const scale = columnScale(col);
-  if (scale === 'grade') return [['5', '5'], ['4', '4'], ['3', '3'], ['2', '2'], [ABSENT, ABSENT]];
-  if (scale === 'pass') return [['з', 'зач'], ['нз', 'н/з'], [ABSENT, ABSENT]];
-  if (scale === 'points' && col.max_score) return [[String(col.max_score), String(formatNumber(col.max_score))], [ABSENT, ABSENT]];
-  return [[ABSENT, ABSENT]];
+  const tail = [[ABSENT, ABSENT], [WAIT, WAIT], [SKIP, SKIP]];
+  if (scale === 'grade') return [['5', '5'], ['4', '4'], ['3', '3'], ['2', '2'], ...tail];
+  if (scale === 'pass') return [['з', 'зач'], ['нз', 'н/з'], [ABSENT, ABSENT], [WAIT, WAIT]];
+  if (scale === 'points' && col.max_score) return [[String(col.max_score), String(formatNumber(col.max_score))], ...tail];
+  return tail;
 }
 
 function EntryRow({ col, row, colIndex, canEdit, onSave, inputRef, onNext }) {
@@ -154,7 +157,8 @@ export default function JournalColumnEntry({
       )}
     >
       <div className="cj-entry__head">
-        Внесено {filled} из {rows.length}. Enter — к следующему ученику, «н» — не был.
+        Внесено {filled} из {rows.length}. Enter — к следующему ученику, «н» — не был,
+        «w» — вейтинг, «—» — не писал.{columnScale(column) === 'grade' && ' Оценку можно с «+», «−», «=»: «4+», «4-».'}
         {column.online && ' Значение в поле заменяет результат из попыток.'}
       </div>
       {rows.map((row, i) => (

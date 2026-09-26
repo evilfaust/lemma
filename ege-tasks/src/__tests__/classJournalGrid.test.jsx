@@ -22,7 +22,15 @@ const apiMock = vi.hoisted(() => ({
   getJournalColumnsByLesson: vi.fn(),
   getLesson: vi.fn(),
   getJournalSheet: vi.fn(),
+  getJournalBlocks: vi.fn(),
+  createJournalBlock: vi.fn(),
+  updateJournalBlock: vi.fn(),
+  deleteJournalBlock: vi.fn(),
 }));
+
+// Сценарии с окнами antd (Form, DatePicker) под нагрузкой полного прогона
+// идут дольше 5 с по умолчанию — сами по себе они укладываются в 1–4 с.
+vi.setConfig({ testTimeout: 20000 });
 
 vi.mock('../shared/services/pocketbase', () => ({ api: apiMock }));
 vi.mock('../contexts/AuthContext', () => ({
@@ -164,6 +172,7 @@ beforeEach(() => {
   apiMock.getJournalLessons.mockResolvedValue([]);
   apiMock.getJournalAttendance.mockResolvedValue([]);
   apiMock.getJournalColumnsByLesson.mockResolvedValue([]);
+  apiMock.getJournalBlocks.mockResolvedValue([]);
 });
 
 function renderScreen(url = '/app/journal') {
@@ -449,5 +458,94 @@ describe('SheetToJournalModal — выбор класса', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Открыть журнал' }));
     expect(screen.getByTestId('where').textContent).toBe('/app/journal?group=g2&sheet=S1');
     expect(localStorage.getItem('journal.groupId')).toBe('g2');
+  });
+});
+
+// ── Интенсив (v3.9.241) ─────────────────────────────────────────────────────
+
+describe('ClassJournal — интенсив', () => {
+  const intensive = {
+    id: 'B1', group: 'g1', owner: 't1', title: 'Производная',
+    date_from: '2026-09-18 12:00:00.000Z', date_to: '2026-09-22 12:00:00.000Z', final_share: 40,
+  };
+  const inBlock = (extra) => ({ group: 'g1', owner: 't1', source: 'manual', block: 'B1', ...extra });
+
+  beforeEach(() => {
+    apiMock.getJournalBlocks.mockResolvedValue([intensive]);
+    apiMock.getJournalAttempts.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([
+      inBlock({ id: 'd18', title: 'За день', role: 'day', scale: 'grade', date: '2026-09-18 12:00:00.000Z', created: '1' }),
+      inBlock({ id: 'fin', title: 'Зачёт', role: 'final', scale: 'points', max_score: 20, date: '2026-09-22 12:00:00.000Z', created: '2' }),
+      inBlock({ id: 'tot', title: 'Итог', role: 'total', scale: 'grade', date: '2026-09-22 12:00:00.000Z', created: '3' }),
+      inBlock({ id: 'w18', title: 'У/с', role: 'work', scale: 'points', max_score: 20, date: '2026-09-18 12:00:00.000Z', created: '4' }),
+    ]);
+    // У/с 18 из 20 (90 % → «5»), зачёт 12 из 20 (60 % → «3»): итог ≈ 5·0,6 + 3·0,4 = 4,2.
+    apiMock.getJournalMarks.mockResolvedValue([
+      { id: 'm1', col: 'w18', student: 's1', value: '18', comment: '' },
+      { id: 'm2', col: 'fin', student: 's1', value: '12', comment: '' },
+      { id: 'm3', col: 'd18', student: 's2', value: 'w', comment: '' },
+    ]);
+  });
+
+  it('название над колонками интенсива, подсказки «за день» и итога, свёртка до итогов', async () => {
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    expect(screen.getByText('Интенсив · Производная · 18–22.09')).toBeInTheDocument();
+    const titles = [...container.querySelectorAll('.cj-colh__title')].map((el) => el.textContent);
+    expect(titles).toEqual(['У/с', 'За день', 'Зачёт', 'Итог']);
+    const cellOf = (r, title) => container.querySelector(`td[data-r="${r}"][data-c="${titles.indexOf(title)}"]`);
+    expect(cellOf(0, 'За день').textContent).toBe('≈5,0');
+    expect(cellOf(0, 'Итог').textContent).toBe('≈4,2');
+    expect(cellOf(1, 'За день').textContent).toBe('w');
+
+    fireEvent.click(screen.getByText('Интенсив · Производная · 18–22.09'));
+    fireEvent.click(await screen.findByText('Свернуть до итогов (за день, зачёт, итог)'));
+    await waitFor(() => {
+      expect([...container.querySelectorAll('.cj-colh__title')].map((el) => el.textContent))
+        .toEqual(['За день', 'Зачёт', 'Итог']);
+    });
+    // Работ в сетке нет, а подсказка итога считается по ним же.
+    expect(container.querySelector('td[data-r="0"][data-c="2"]').textContent).toBe('≈4,2');
+    expect(JSON.parse(localStorage.getItem('journal.collapsedBlocks'))).toEqual(['B1']);
+  });
+
+  it('«Добавить работу дня» из меню интенсива: колонка уходит в интенсив с ролью работы', async () => {
+    renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(screen.getByText('Интенсив · Производная · 18–22.09'));
+    fireEvent.click(await screen.findByText('Добавить работу дня'));
+    await screen.findByText('Новая колонка · интенсив «Производная»');
+    // Настройки подхвачены с прошлой работы интенсива.
+    expect(screen.getByDisplayValue('У/с')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(apiMock.createJournalColumn).toHaveBeenCalled());
+    expect(apiMock.createJournalColumn.mock.calls[0][0]).toMatchObject({
+      group: 'g1', block: 'B1', role: 'work', title: 'У/с', scale: 'points', max_score: 20,
+    });
+  });
+
+  it('новый интенсив: запись интенсива и колонки «за день» на каждый день, зачёт, итог', async () => {
+    apiMock.getJournalBlocks.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([]);
+    apiMock.getJournalMarks.mockResolvedValue([]);
+    apiMock.createJournalBlock.mockImplementation(async (data) => ({ id: 'B2', owner: 't1', ...data }));
+    renderScreen();
+    await screen.findByText('Журнал пока пуст');
+    fireEvent.click(screen.getByRole('button', { name: 'Какую колонку добавить' }));
+    fireEvent.click(await screen.findByText('Интенсив — несколько дней по одной теме'));
+    fireEvent.change(await screen.findByPlaceholderText('Производная'), { target: { value: 'Логарифмы' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
+
+    await waitFor(() => expect(apiMock.createJournalBlock).toHaveBeenCalled());
+    expect(apiMock.createJournalBlock.mock.calls[0][0]).toMatchObject({ title: 'Логарифмы', group: 'g1', final_share: 40 });
+    await waitFor(() => expect(screen.getByText(/Интенсив «Логарифмы» заведён/)).toBeInTheDocument());
+    const created = apiMock.createJournalColumn.mock.calls.map(([c]) => c);
+    // Уроков нет — дни интенсива: пять дней от сегодня, кроме воскресенья.
+    const days = [0, 1, 2, 3, 4].map((i) => { const x = new Date(); x.setDate(x.getDate() + i); return x; })
+      .filter((x) => x.getDay() !== 0).length;
+    expect(created.map((c) => c.role)).toEqual([...Array(days).fill('day'), 'final', 'total']);
+    expect(created.every((c) => c.block === 'B2' && c.group === 'g1')).toBe(true);
+    expect(created.at(-2)).toMatchObject({ title: 'Зачёт', scale: 'points', max_score: 20 });
+    expect(created.at(-1)).toMatchObject({ title: 'Итог', scale: 'grade' });
   });
 });

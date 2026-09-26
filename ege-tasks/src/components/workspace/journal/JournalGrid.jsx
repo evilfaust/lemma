@@ -1,10 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dropdown } from 'antd';
 import {
-  CalendarOutlined, ClockCircleOutlined, EditOutlined, EyeInvisibleOutlined, MobileOutlined,
+  CalendarOutlined, ClockCircleOutlined, DownOutlined, EditOutlined, EyeInvisibleOutlined, MobileOutlined,
 } from '@ant-design/icons';
 import {
-  shortDay, monthSpans, formatAvg, formatNumber, GRADE_TONE, columnWeight, editText,
+  shortDay, headerSpans, formatAvg, formatNumber, GRADE_TONE, columnWeight, editText,
+  startsBlockSection, ROLE_LABELS,
 } from '../../../utils/classJournal';
 import { groupHex } from '../ui';
 
@@ -36,10 +37,12 @@ function scaleLabel(col) {
   }
 }
 
-function columnTip(col) {
+function columnTip(col, block) {
   return [
     col.title,
     col.day ? `дата ${shortDay(col.day)}` : null,
+    block ? `интенсив «${block.title}» · ${(ROLE_LABELS[col.role] || '').toLowerCase()}` : null,
+    block && col.role !== 'total' ? 'в средний за год интенсив идёт итогом' : null,
     col.category || null,
     col.lessonLabel ? `урок: ${col.lessonLabel} — «н» из посещаемости` : null,
     col.ref?.type === 'sheet' ? `лист генератора: «${col.ref.title || ''}»` : null,
@@ -49,8 +52,18 @@ function columnTip(col) {
   ].filter(Boolean).join('\n');
 }
 
-function cellClass(cell, selected, error) {
+// Границы интенсива в сетке: начало/конец интенсива и новый день внутри него.
+function boundaryClass(columns, c) {
+  const col = columns[c];
+  const prev = columns[c - 1];
+  if (startsBlockSection(columns, c)) return 'cj-sec';
+  if (prev && (col.blockId || prev.blockId) && col.blockId !== prev.blockId) return 'cj-edge';
+  return '';
+}
+
+function cellClass(cell, selected, error, extra) {
   const cls = ['cj-cell'];
+  if (extra) cls.push(extra);
   if (cell.tone) cls.push(`cj-t-${cell.tone}`);
   if (cell.textTone) cls.push(`cj-x-${cell.textTone}`);
   if (selected) cls.push(error ? 'is-err' : 'is-sel');
@@ -58,7 +71,7 @@ function cellClass(cell, selected, error) {
 }
 
 const Row = memo(function Row({
-  r, row, columns, selC, edit, onOpenStudent, editorProps,
+  r, row, columns, colClass, selC, edit, onOpenStudent, editorProps,
 }) {
   const { student, cells, summary } = row;
   const avgTone = summary.avg != null ? GRADE_TONE[Math.round(summary.avg)] : null;
@@ -78,7 +91,7 @@ const Row = memo(function Row({
             key={col.key}
             data-r={r}
             data-c={c}
-            className={cellClass(cell, selC === c || editing, editing && edit.error)}
+            className={cellClass(cell, selC === c || editing, editing && edit.error, colClass[c])}
             title={editing ? edit.error || undefined : cell.tip || undefined}
           >
             {editing ? (
@@ -103,7 +116,12 @@ const Row = memo(function Row({
       <td className={`cj-sum cj-sum--avg${avgTone ? ` cj-t-${avgTone}` : ''}`}>
         {summary.avg != null ? formatAvg(summary.avg) : <span className="cj-none">—</span>}
       </td>
-      <td className="cj-sum" title={summary.debts ? `не писал: ${summary.absences}, не сдал онлайн в срок: ${summary.overdue}` : undefined}>
+      <td
+        className="cj-sum"
+        title={summary.debts
+          ? [`не писал: ${summary.absences}`, summary.waits ? `вейтинг: ${summary.waits}` : null, `не сдал онлайн в срок: ${summary.overdue}`].filter(Boolean).join(', ')
+          : undefined}
+      >
         {summary.debts ? <span className="cj-debt">{summary.debts}</span> : <span className="cj-none">—</span>}
       </td>
     </tr>
@@ -120,6 +138,9 @@ export default function JournalGrid({
   onCommit,
   onPaste,
   onOpenStudent,
+  blocks = new Map(),
+  blockMenuFor,
+  onBlockMenu,
 }) {
   const scrollRef = useRef(null);
   const [sel, setSel] = useState(null); // { r, c }
@@ -331,7 +352,12 @@ export default function JournalGrid({
     e.preventDefault();
   };
 
-  const spans = useMemo(() => monthSpans(columns), [columns]);
+  const spans = useMemo(() => headerSpans(columns, blocks), [columns, blocks]);
+  const colClass = useMemo(() => columns.map((col, c) => [
+    boundaryClass(columns, c),
+    col.blockId ? 'cj-inblock' : '',
+    col.role === 'total' ? 'cj-role-total' : '',
+  ].filter(Boolean).join(' ')), [columns]);
   const tableWidth = NAME_W + nCols * COL_W + 2 * SUM_W;
 
   // Итоги класса — без выбывших (их строки видны, но класс уже не их).
@@ -365,19 +391,36 @@ export default function JournalGrid({
           <thead>
             <tr className="cj-months">
               <th className="cj-corner" rowSpan={2}>Ученик</th>
-              {spans.map((s, i) => (
-                <th key={`${s.key}-${i}`} colSpan={s.span}>{s.label}</th>
-              ))}
+              {spans.map((s, i) => {
+                if (!s.blockId) return <th key={`${s.key}-${i}`} colSpan={s.span}>{s.label}</th>;
+                const block = blocks.get(s.blockId);
+                const items = blockMenuFor ? blockMenuFor(block) : [];
+                const label = (
+                  <button type="button" className="cj-blockh__btn" title={s.label}>
+                    <span className="cj-blockh__label">{s.label}</span>
+                    {items.length > 0 && <DownOutlined className="cj-blockh__caret" />}
+                  </button>
+                );
+                return (
+                  <th key={`${s.key}-${i}`} colSpan={s.span} className={`cj-blockh${i > 0 ? ' cj-edge' : ''}`}>
+                    {items.length ? (
+                      <Dropdown trigger={['click']} menu={{ items, onClick: ({ key }) => onBlockMenu(key, block) }}>
+                        {label}
+                      </Dropdown>
+                    ) : label}
+                  </th>
+                );
+              })}
               <th className="cj-sumh cj-sum--avg" rowSpan={2} title="Средняя оценка: взвешенная по весам колонок, зачёт и «н» не входят">Ср.</th>
               <th className="cj-sumh" rowSpan={2} title="Долги: «н» (не писал) и онлайн-работы, не сданные в срок">Долги</th>
             </tr>
             <tr className="cj-cols">
-              {columns.map((col) => {
+              {columns.map((col, c) => {
                 const items = menuFor(col);
                 const cat = col.category ? groupHex(col.category).base : 'transparent';
                 const w = columnWeight(col);
                 const head = (
-                  <button type="button" className="cj-colh__btn" title={columnTip(col)}>
+                  <button type="button" className="cj-colh__btn" title={columnTip(col, col.blockId ? blocks.get(col.blockId) : null)}>
                     <span className="cj-colh__date">{shortDay(col.day) || '—'}</span>
                     <span className="cj-colh__title">{col.title}</span>
                     <span className="cj-colh__meta">
@@ -393,7 +436,7 @@ export default function JournalGrid({
                 return (
                   <th
                     key={col.key}
-                    className={`cj-colh${col.hidden ? ' cj-colh--hidden' : ''}${col.virtual ? ' cj-colh--virtual' : ''}`}
+                    className={`cj-colh${col.hidden ? ' cj-colh--hidden' : ''}${col.virtual ? ' cj-colh--virtual' : ''}${colClass[c] ? ` ${colClass[c]}` : ''}`}
                     style={{ '--cj-cat': cat }}
                   >
                     {items.length ? (
@@ -416,6 +459,7 @@ export default function JournalGrid({
                 r={r}
                 row={row}
                 columns={columns}
+                colClass={colClass}
                 selC={sel && sel.r === r ? sel.c : -1}
                 edit={edit && edit.r === r ? edit : null}
                 onOpenStudent={onOpenStudent}
@@ -430,7 +474,7 @@ export default function JournalGrid({
                 const st = colStats[c];
                 const gap = st.total - st.filled;
                 return (
-                  <td key={col.key} title={gap ? `не внесено: ${gap}` : 'внесено у всех'}>
+                  <td key={col.key} className={colClass[c] || undefined} title={gap ? `не внесено: ${gap}` : 'внесено у всех'}>
                     <span className="cj-foot__avg">{st.avg != null ? formatAvg(st.avg) : '—'}</span>
                     <span className={`cj-foot__fill${gap && !col.online ? ' is-gap' : ''}`}>{st.filled}/{st.total}</span>
                   </td>

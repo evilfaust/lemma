@@ -143,6 +143,36 @@
 .cj-colh--hidden .cj-colh__btn { opacity: 0.5; }
 .cj-colh--virtual .cj-colh__title { color: var(--ink-2); }
 
+/* ── Интенсив (v3.9.241): название над его колонками, границы дней ── */
+.cj-months th.cj-blockh {
+  padding: 0;
+  color: var(--c-violet);
+  background: var(--c-violet-soft);
+}
+.cj-blockh__btn {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 26px;
+  padding: 0 8px;
+  cursor: pointer;
+}
+.cj-blockh__btn:hover,
+.cj-blockh__btn:focus-visible { background: rgba(109, 40, 217, 0.08); }
+.cj-blockh__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cj-blockh__caret { flex: none; font-size: 9px; }
+.cj-table th.cj-edge,
+.cj-table td.cj-edge { border-left: 2px solid color-mix(in srgb, var(--c-violet) 45%, transparent); }
+.cj-table th.cj-sec,
+.cj-table td.cj-sec { border-left: 2px solid var(--rule); }
+.cj-cols th.cj-inblock { background: color-mix(in srgb, var(--c-violet-soft) 40%, var(--bg-raised)); }
+.cj-table td.cj-role-total { font-weight: 700; }
+/* подсказка в итоге — не оценка: без жирного */
+.cj-table td.cj-role-total.cj-x-hint { font-weight: 400; }
+
 /* ── Имена и итоги прилипают ── */
 .cj-table .cj-name {
   position: sticky;
@@ -197,6 +227,9 @@
 .cj-x-teal  { color: var(--c-teal); font-weight: 600; }
 .cj-x-rose  { color: var(--c-rose); font-weight: 600; }
 .cj-x-blue  { color: var(--c-blue); }
+/* Вейтинг «w» и подсказки интенсива «≈4,2» (v3.9.241) */
+.cj-x-wait { color: #b45309; font-weight: 700; }
+.cj-x-hint { color: var(--ink-4); font-style: italic; }
 .cj-cell.is-sel { box-shadow: inset 0 0 0 2px var(--accent); }
 .cj-cell.is-err { box-shadow: inset 0 0 0 2px var(--c-rose); }
 .cj-late { margin-left: 2px; font-size: 10px; color: var(--c-amber); }

@@ -6,6 +6,8 @@ import {
   summarizeRow, summarizeColumn, buildGrid, indexMarks, journalStudents, parseClipboard,
   planPaste, suggestNextTitle, monthSpans, columnMonths, inPeriod, journalTable, toCsv, toTsv,
   formatAvg, indexAttendance, lessonDay, sheetColumnPreset, findSheetColumn,
+  WAIT, SKIP, headerSpans, rangeLabel, intensiveDays, intensiveSummary, finalShareOf,
+  startsBlockSection, formatGrade,
 } from '../utils/classJournal';
 
 const pts = (max = 20, extra = {}) => ({ scale: 'points', max_score: max, ...extra });
@@ -484,5 +486,198 @@ describe('колонка по листу генератора', () => {
     expect(findSheetColumn(cols, 'S1')?.id).toBe('c2');
     expect(findSheetColumn(cols, 'S9')).toBe(null);
     expect(cols.find((c) => c.id === 'c1').ref).toBe(null);
+  });
+});
+
+// ── Интенсив (v3.9.241) ─────────────────────────────────────────────────────
+
+const grade = { scale: 'grade' };
+
+describe('оценки с плюсами, вейтинг и «не писал»', () => {
+  it('«4+», «4 -», «4−», «3=» — оценка с модификатором, хранится канонично', () => {
+    expect(parseCellInput('4+', grade)).toEqual({ ok: true, stored: '4+' });
+    expect(parseCellInput('4 -', grade)).toEqual({ ok: true, stored: '4-' });
+    expect(parseCellInput('4−', grade)).toEqual({ ok: true, stored: '4-' });
+    expect(parseCellInput('3=', grade)).toEqual({ ok: true, stored: '3=' });
+    expect(parseCellInput('6+', grade).ok).toBe(false);
+    expect(parseCellInput('4+', pts()).ok).toBe(false); // в баллах плюсов нет
+  });
+  it('«w» и «ц» (w в русской раскладке) — вейтинг в любой шкале', () => {
+    for (const col of [grade, pts(), { scale: 'pass' }, { scale: 'percent' }]) {
+      expect(parseCellInput('w', col)).toEqual({ ok: true, stored: WAIT });
+      expect(parseCellInput('Ц', col)).toEqual({ ok: true, stored: WAIT });
+    }
+  });
+  it('«—» и «-» — не писал; в шкале зачёта дефис остаётся незачётом', () => {
+    expect(parseCellInput('—', grade)).toEqual({ ok: true, stored: SKIP });
+    expect(parseCellInput('-', pts())).toEqual({ ok: true, stored: SKIP });
+    expect(parseCellInput('-', { scale: 'pass' })).toEqual({ ok: true, stored: '0' });
+    expect(parseCellInput('осв', { scale: 'pass' })).toEqual({ ok: true, stored: SKIP });
+  });
+  it('разбор и показ: в средний идёт цифра, на экране — с минусом', () => {
+    expect(decodeValue('4-')).toEqual({ value: 4, absent: false, mod: '-' });
+    expect(decodeValue(WAIT)).toMatchObject({ value: null, wait: true });
+    expect(editText(grade, '4-')).toBe('4-');
+    expect(editText(grade, WAIT)).toBe('w');
+    expect(formatGrade(4, '-')).toBe('4−');
+    const cell = resolveCell(grade, { value: '4-' });
+    expect(cell).toMatchObject({ kind: 'manual', value: 4, grade: 4, text: '4−', tone: 'blue' });
+    expect(resolveCell(grade, { value: '3=' }, undefined, { mode: 'grade' }).text).toBe('3=');
+  });
+  it('w — долг и не в среднем; «—» — ни то, ни другое', () => {
+    const cols = [{ ...grade, key: 'a' }, { ...grade, key: 'b' }, { ...grade, key: 'c' }];
+    const cells = [resolveCell(cols[0], { value: '4' }), resolveCell(cols[1], { value: WAIT }), resolveCell(cols[2], { value: SKIP })];
+    expect(cells[1]).toMatchObject({ wait: true, grade: null, text: 'w', textTone: 'wait' });
+    expect(cells[2]).toMatchObject({ skip: true, grade: null, text: '—' });
+    expect(summarizeRow(cols, cells)).toMatchObject({ avg: 4, waits: 1, debts: 1, absences: 0 });
+    // Обе отметки считаются внесёнными.
+    expect(summarizeColumn([cells[1], cells[2]]).filled).toBe(2);
+  });
+});
+
+const block = {
+  id: 'B1', title: 'Производная', date_from: '2026-09-18 12:00:00.000Z', date_to: '2026-09-22 12:00:00.000Z', final_share: 40,
+};
+const d = (day) => `2026-09-${day} 12:00:00.000Z`;
+// Интенсив: 18.09 — две работы и «за день», 19.09 — две работы и «за день»,
+// зачёт из 20 и итог; вокруг — обычные колонки.
+const intensiveStored = [
+  { id: 'o1', title: 'Опрос', date: d(17), scale: 'grade', created: '1' },
+  { id: 'tot', title: 'Итог', date: d(22), scale: 'grade', block: 'B1', role: 'total', created: '2' },
+  { id: 'fin', title: 'Зачёт', date: d(22), scale: 'points', max_score: 20, block: 'B1', role: 'final', created: '3' },
+  { id: 'd18', title: 'За день', date: d(18), scale: 'grade', block: 'B1', role: 'day', created: '4' },
+  { id: 'd19', title: 'За день', date: d(19), scale: 'grade', block: 'B1', role: 'day', created: '5' },
+  { id: 'w18a', title: 'У/с', date: d(18), scale: 'points', max_score: 20, block: 'B1', role: 'work', created: '6' },
+  { id: 'w18b', title: 'Д/з', date: d(18), scale: 'points', max_score: 25, block: 'B1', created: '7' },
+  { id: 'w19a', title: 'У/с', date: d(19), scale: 'points', max_score: 20, block: 'B1', role: 'work', created: '8' },
+  { id: 'w19b', title: 'Ф-ч', date: d(19), scale: 'points', max_score: 10, block: 'B1', role: 'work', created: '9' },
+  { id: 'o2', title: 'Самостоятельная', date: d(20), scale: 'points', max_score: 10, created: '10' },
+];
+
+describe('интенсив: колонки, шапка, дни', () => {
+  it('колонки интенсива идут одним куском: по дням (работы, потом «за день»), зачёт и итог в конце', () => {
+    const cols = mergeColumns(intensiveStored, new Map(), { blocks: [block] });
+    expect(cols.map((c) => c.id)).toEqual(['o1', 'w18a', 'w18b', 'd18', 'w19a', 'w19b', 'd19', 'fin', 'tot', 'o2']);
+    // Колонка интенсива без роли — работа дня.
+    expect(cols.find((c) => c.id === 'w18b')).toMatchObject({ blockId: 'B1', role: 'work' });
+    // Интенсив, которого нет (удалили), колонку не держит.
+    const orphan = mergeColumns([{ id: 'x', title: 'x', block: 'B9', role: 'day' }], new Map(), { blocks: [block] });
+    expect(orphan[0]).toMatchObject({ blockId: '', role: '' });
+  });
+  it('шапка: месяц над обычными колонками, название и даты — над интенсивом; границы дней', () => {
+    const cols = mergeColumns(intensiveStored, new Map(), { blocks: [block] });
+    const spans = headerSpans(cols, new Map([['B1', block]]));
+    expect(spans.map((s) => [s.label, s.span])).toEqual([
+      ['Сентябрь', 1], ['Интенсив · Производная · 18–22.09', 8], ['Сентябрь', 1],
+    ]);
+    expect(spans[1].blockId).toBe('B1');
+    const sections = cols.map((_, i) => startsBlockSection(cols, i));
+    // новый день (w19a) и хвост (fin) — границы; начало интенсива — не «день», а край блока
+    expect(cols.filter((_, i) => sections[i]).map((c) => c.id)).toEqual(['w19a', 'fin']);
+  });
+  it('даты интенсива подписываются коротко', () => {
+    expect(rangeLabel(d(18), d(22))).toBe('18–22.09');
+    expect(rangeLabel('2026-09-29', '2026-10-02')).toBe('29.09–02.10');
+    expect(rangeLabel(d(18), d(18))).toBe('18.09');
+  });
+  it('дни интенсива: по урокам класса; без уроков — все, кроме воскресенья', () => {
+    const lessons = [
+      { id: 'L1', date_plan: '2026-09-18 06:15:00.000Z', time_slot: '1-4' },
+      { id: 'L2', date_plan: '2026-09-21 06:15:00.000Z', time_slot: '1-4' },
+      { id: 'L3', date_plan: '2026-09-21 12:00:00.000Z', time_slot: '5' },
+      { id: 'L4', date_plan: '2026-09-22 06:15:00.000Z', status: 'cancelled' },
+      { id: 'L5', date_plan: '2026-09-25 06:15:00.000Z' },
+    ];
+    expect(intensiveDays(d(18), d(22), lessons).map((x) => [x.day, x.lesson?.id || null])).toEqual([
+      ['2026-09-18', 'L1'],
+      ['2026-09-21', null], // два урока в день — не угадываем
+    ]);
+    expect(intensiveDays(d(18), d(22), []).map((x) => x.day))
+      .toEqual(['2026-09-18', '2026-09-19', '2026-09-21', '2026-09-22']);
+    expect(intensiveDays(d(22), d(18), [])).toEqual([]);
+  });
+  it('доля зачёта: из интенсива, с пределами, пусто — 40 %', () => {
+    expect(finalShareOf(block)).toBe(40);
+    expect(finalShareOf({ final_share: 0 })).toBe(0);
+    expect(finalShareOf({ final_share: 120 })).toBe(90);
+    expect(finalShareOf({})).toBe(40);
+  });
+});
+
+describe('интенсив: подсказки «за день» и «итог»', () => {
+  const marks = [
+    // Алексеева: 18.09 «за день» — «5−» от учителя; 19.09 работы 18/20 (→5) и 5/10 (→3), дня нет;
+    // зачёт 12/20 (60 % → 3). Дни: 5 и 4 → 4,5; итог = 4,5·0,6 + 3·0,4 = 3,9.
+    { col: 'd18', student: 's1', value: '5-' },
+    { col: 'w18a', student: 's1', value: '10' },
+    { col: 'w19a', student: 's1', value: '18' },
+    { col: 'w19b', student: 's1', value: '5' },
+    { col: 'fin', student: 's1', value: '12' },
+    // Борисов: болел 19.09 («w» за день), зачёт — вейтинг.
+    { col: 'w18a', student: 's2', value: '20' },
+    { col: 'd19', student: 's2', value: 'w' },
+    { col: 'fin', student: 's2', value: 'w' },
+  ];
+  const students = [{ id: 's1', name: 'Алексеева' }, { id: 's2', name: 'Борисов' }];
+  const all = mergeColumns(intensiveStored, new Map(), { blocks: [block] });
+
+  it('картина ученика: день — оценка учителя, иначе средняя по работам; итог с весом зачёта', () => {
+    const entries = all.filter((c) => c.blockId).map((col) => ({
+      col, cell: resolveCell(col, marks.find((m) => m.col === col.id && m.student === 's1')),
+    }));
+    const sum = intensiveSummary(block, entries);
+    expect(sum.days.map((x) => [x.day, x.value, x.source])).toEqual([
+      ['2026-09-18', 5, 'teacher'],
+      ['2026-09-19', 4, 'works'],
+    ]);
+    expect(sum.final.grade).toBe(3);
+    expect(sum.value).toBeCloseTo(3.9, 5);
+    expect(sum.pending).toBe(false);
+  });
+
+  it('пустые «за день» и «итог» показывают подсказку; она не отметка', () => {
+    const grid = buildGrid(students, all, indexMarks(marks), new Map(), { blocks: [block] });
+    const at = (r, id) => grid.rows[r].cells[all.findIndex((c) => c.id === id)];
+    expect(at(0, 'd18')).toMatchObject({ kind: 'manual', text: '5−' });
+    expect(at(0, 'd19')).toMatchObject({ kind: 'hint', text: '≈4,0', textTone: 'hint' });
+    expect(at(0, 'tot')).toMatchObject({ kind: 'hint', text: '≈3,9' });
+    expect(at(0, 'tot').tip).toMatch(/Дни 60 % \+ зачёт 40 % = 3,9/);
+    // Подсказка не «внесена» и не в среднем.
+    const totIdx = all.findIndex((c) => c.id === 'tot');
+    expect(grid.colStats[totIdx].filled).toBe(0);
+    // В средний за год интенсив идёт только итогом: у Алексеевой итога нет —
+    // в среднем только обычные колонки (их у неё нет).
+    expect(grid.rows[0].summary.avg).toBe(null);
+  });
+
+  it('зачёт — вейтинг: итог «w?» (ждём пересдачи), вейтинги — в долгах', () => {
+    const grid = buildGrid(students, all, indexMarks(marks), new Map(), { blocks: [block] });
+    const tot = grid.rows[1].cells[all.findIndex((c) => c.id === 'tot')];
+    expect(tot).toMatchObject({ kind: 'hint', text: 'w?' });
+    expect(grid.rows[1].summary.waits).toBe(2);
+    expect(grid.rows[1].summary.debts).toBe(2);
+  });
+
+  it('итог, поставленный учителем, идёт в средний за год; работы интенсива — нет', () => {
+    const withTotal = [...marks, { col: 'tot', student: 's1', value: '4-' }, { col: 'o1', student: 's1', value: '5' }];
+    const grid = buildGrid(students, all, indexMarks(withTotal), new Map(), { blocks: [block] });
+    expect(grid.rows[0].cells[all.findIndex((c) => c.id === 'tot')].text).toBe('4−');
+    expect(grid.rows[0].summary.avg).toBe(4.5); // «5» за опрос и «4−» итог
+  });
+
+  it('свёрнутый интенсив: работ в сетке нет, а подсказки считаются по ним же', () => {
+    const visible = all.filter((c) => !(c.blockId && c.role === 'work'));
+    const grid = buildGrid(students, visible, indexMarks(marks), new Map(), { blocks: [block], blockColumns: all.filter((c) => c.blockId) });
+    const at = (id) => grid.rows[0].cells[visible.findIndex((c) => c.id === id)];
+    expect(at('d19').text).toBe('≈4,0');
+    expect(at('tot').text).toBe('≈3,9');
+  });
+
+  it('подсказки в выгрузку не попадают', () => {
+    const grid = buildGrid(students, all, indexMarks(marks), new Map(), { blocks: [block] });
+    const table = journalTable(grid, all);
+    const totIdx = all.findIndex((c) => c.id === 'tot') + 1;
+    expect(table[1][totIdx]).toBe('');
+    expect(table[2][totIdx]).toBe('');
   });
 });

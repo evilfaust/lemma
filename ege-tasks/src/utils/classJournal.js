@@ -16,12 +16,36 @@
 //   «18», «7.5» — число (смысл задаёт шкала колонки)
 //   «1» / «0»   — зачёт / незачёт
 //   «н»         — не был / не писал
+//   «4+», «4-», «4=» — оценка с плюсом/минусом (v3.9.241): в средний идёт
+//                  цифрой, плюсы и минусы — суждение учителя, журнал их не
+//                  переводит в доли
+//   «w»         — вейтинг: пропустил по болезни, ждём пересдачи (долг, в
+//                  средний не входит)
+//   «—»         — не писал по уважительной причине (забрали на олимпиаду):
+//                  не долг и не в среднем
+// Интенсив (v3.9.241) — блок колонок `journal_blocks`: у колонки есть `block`
+// и роль `role` (work — работа дня, day — оценка за день, final — зачётная
+// работа, total — итог). Подсказки «за день» и «итог» считает
+// `intensiveSummary`; ставит оценки всё равно учитель.
 // Числовое поле PocketBase не отличает «пусто» от нуля, а 0 баллов — законная
 // отметка, поэтому текст.
 
 import { parseAcademicYear } from './academicYear';
 
 export const ABSENT = 'н';
+export const WAIT = 'w';
+export const SKIP = '—';
+
+/** Роли колонок интенсива. Пусто у колонки в интенсиве = работа. */
+export const ROLES = ['work', 'day', 'final', 'total'];
+export const ROLE_LABELS = {
+  work: 'Работа дня',
+  day: 'Оценка за день',
+  final: 'Зачётная работа',
+  total: 'Итог интенсива',
+};
+/** Доля зачётной работы в расчёте итога по умолчанию, %: дни делят остаток. */
+export const DEFAULT_FINAL_SHARE = 40;
 
 export const SCALES = ['points', 'grade', 'pass', 'percent'];
 
@@ -183,14 +207,30 @@ export function indexAttendance(rows = []) {
 // ─── Значение клетки ────────────────────────────────────────────────────────
 
 const ABSENT_ALIASES = new Set(['н', 'нб', 'н/б', 'н\\б', 'n', 'y']); // y — «н» в латинской раскладке
+// ц — «w» в русской раскладке
+const WAIT_ALIASES = new Set(['w', 'ц', 'wait', 'waiting', 'вейт', 'вейтинг']);
+// Одиночный дефис в шкале «зачёт» — незачёт, поэтому там «не писал» — только словом.
+const SKIP_ALIASES = new Set(['—', '–', '-', '−', 'осв', 'не писал', 'нп']);
+const SKIP_WORDS = new Set(['осв', 'не писал', 'нп']);
+// «4+», «4 -», «4−», «4=» → цифра и модификатор.
+const MOD_GRADE = /^([1-5])\s*([+\-−–=])$/;
+const MOD_CANON = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=' };
+const MOD_SHOW = { '+': '+', '-': '−', '=': '=' };
 const PASS_YES = new Set(['+', 'з', 'зач', 'зачет', 'зачёт', 'да', '1', '✓', 'v']);
 const PASS_NO = new Set(['-', '−', '–', '—', 'нз', 'н/з', 'незач', 'незачет', 'незачёт', 'нет', '0', '✗', 'x', 'х']);
 
-/** Хранимый текст → { value: число|null, absent }. */
+/**
+ * Хранимый текст → { value: число|null, absent, wait?, skip?, mod? }.
+ * У оценки с плюсом/минусом value — сама цифра, mod — «+», «-» или «=».
+ */
 export function decodeValue(stored) {
   const s = String(stored ?? '').trim();
   if (!s) return { value: null, absent: false };
   if (s === ABSENT) return { value: null, absent: true };
+  if (s === WAIT) return { value: null, absent: false, wait: true };
+  if (s === SKIP) return { value: null, absent: false, skip: true };
+  const g = s.match(/^([1-5])([+\-=])$/);
+  if (g) return { value: Number(g[1]), absent: false, mod: g[2] };
   const n = Number(s);
   return Number.isFinite(n) ? { value: n, absent: false } : { value: null, absent: false };
 }
@@ -215,9 +255,11 @@ export function parseCellInput(raw, col) {
   const s = String(raw ?? '').trim().toLowerCase();
   if (!s) return { ok: true, stored: '' };
   if (ABSENT_ALIASES.has(s)) return { ok: true, stored: ABSENT };
+  if (WAIT_ALIASES.has(s)) return { ok: true, stored: WAIT };
 
   const scale = columnScale(col);
-  const tail = ' или «н» — не был';
+  if (scale === 'pass' ? SKIP_WORDS.has(s) : SKIP_ALIASES.has(s)) return { ok: true, stored: SKIP };
+  const tail = ' или «н» — не был, «w» — вейтинг';
 
   if (scale === 'pass') {
     if (PASS_YES.has(s)) return { ok: true, stored: '1' };
@@ -228,7 +270,9 @@ export function parseCellInput(raw, col) {
   if (scale === 'grade') {
     const n = parseNumber(s);
     if (n != null && Number.isInteger(n) && n >= 1 && n <= 5) return { ok: true, stored: String(n) };
-    return { ok: false, error: `Оценка — целое число от 1 до 5${tail}` };
+    const g = s.match(MOD_GRADE);
+    if (g) return { ok: true, stored: `${g[1]}${MOD_CANON[g[2]]}` };
+    return { ok: false, error: `Оценка — от 1 до 5, можно с «+», «−», «=»${tail}` };
   }
 
   if (scale === 'percent') {
@@ -254,8 +298,11 @@ export function parseCellInput(raw, col) {
 
 /** Текст для редактора, когда учитель правит уже стоящую отметку. */
 export function editText(col, stored) {
-  const { value, absent } = decodeValue(stored);
+  const { value, absent, wait, skip, mod } = decodeValue(stored);
   if (absent) return ABSENT;
+  if (wait) return WAIT;
+  if (skip) return SKIP;
+  if (mod) return `${value}${mod}`;
   if (value == null) return '';
   if (columnScale(col) === 'pass') return value >= 1 ? 'з' : 'нз';
   return formatNumber(value);
@@ -264,6 +311,12 @@ export function editText(col, stored) {
 export function formatNumber(n) {
   if (n == null || !Number.isFinite(n)) return '';
   return canon(n).replace('.', ',');
+}
+
+/** Оценка для экрана: «4», «4+», «4−», «4=». */
+export function formatGrade(value, mod) {
+  if (value == null) return '';
+  return `${value}${mod ? MOD_SHOW[mod] || '' : ''}`;
 }
 
 export function formatAvg(x) {
@@ -418,8 +471,10 @@ export function onlineStatus(col, agg, { now = new Date(), assigned = false } = 
  *   sessionId, deadline, classDeadline, assigned, created, record }
  * sessionDeadlines — Map<key, срок> выдач работ, которые учитель завёл в журнал
  * сам: по такой работе ещё может не быть ни одной попытки, а срок уже идёт.
+ * blocks — интенсивы класса (`journal_blocks`): их колонки идут подряд, от
+ * первого дня интенсива, зачёт и итог — в конце (`compareColumns`).
  */
-export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines = new Map() } = {}) {
+export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines = new Map(), blocks = [] } = {}) {
   const out = [];
   const used = new Set();
 
@@ -454,6 +509,9 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       // Материал без своей связи: { type: 'sheet', id, generator, title } —
       // лист генератора, из которого завели колонку (v3.9.240).
       ref: rec.ref && typeof rec.ref === 'object' ? rec.ref : null,
+      // Интенсив (v3.9.241): колонка без роли внутри интенсива — работа дня.
+      blockId: rec.block || '',
+      role: rec.block ? (ROLES.includes(rec.role) ? rec.role : 'work') : '',
       deadline: info?.deadline || sessionDeadlines.get(key) || '',
       classDeadline: info?.classDeadline || '',
       // Работа выдана классу целиком (учитель сам завёл колонку) — срок
@@ -487,6 +545,8 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       sessionId: info.sessionId,
       lessonId: '',
       ref: null,
+      blockId: '',
+      role: '',
       deadline: info.deadline,
       classDeadline: info.classDeadline,
       assigned: false,
@@ -495,19 +555,56 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
     });
   }
 
-  return out.sort((a, b) => {
-    if (a.day !== b.day) {
-      if (!a.day) return 1;
-      if (!b.day) return -1;
-      return a.day < b.day ? -1 : 1;
+  const blocksById = new Map(blocks.map((b) => [b.id, b]));
+  for (const col of out) {
+    if (col.blockId && !blocksById.has(col.blockId)) { col.blockId = ''; col.role = ''; }
+  }
+  return out.sort((a, b) => compareColumns(a, b, blocksById));
+}
+
+const ROLE_ORDER = { work: 0, day: 1, final: 2, total: 3 };
+const TAIL_ROLES = new Set(['final', 'total']);
+
+function compareDays(a, b) {
+  if (a === b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return a < b ? -1 : 1;
+}
+
+/**
+ * Порядок колонок: по дате, но интенсив — одним куском с его первого дня:
+ * внутри — по дням (работы, потом оценка за день), зачёт и итог в конце.
+ */
+export function compareColumns(a, b, blocksById = new Map()) {
+  const anchor = (c) => (c.blockId ? dayOf(blocksById.get(c.blockId)?.date_from) || c.day : c.day);
+  const byAnchor = compareDays(anchor(a), anchor(b));
+  if (byAnchor) return byAnchor;
+  if (a.blockId !== b.blockId) {
+    // Обычные колонки дня — перед интенсивом, два интенсива с одного дня не смешиваем.
+    if (!a.blockId) return -1;
+    if (!b.blockId) return 1;
+    return a.blockId < b.blockId ? -1 : 1;
+  }
+  if (a.blockId) {
+    const tail = Number(TAIL_ROLES.has(a.role)) - Number(TAIL_ROLES.has(b.role));
+    if (tail) return tail;
+    if (!TAIL_ROLES.has(a.role)) {
+      const byDay = compareDays(a.day, b.day);
+      if (byDay) return byDay;
     }
-    if (a.created !== b.created) {
-      if (!a.created) return 1;
-      if (!b.created) return -1;
-      return a.created < b.created ? -1 : 1;
-    }
-    return String(a.title).localeCompare(String(b.title), 'ru');
-  });
+    const byRole = ROLE_ORDER[a.role] - ROLE_ORDER[b.role];
+    if (byRole) return byRole;
+  } else {
+    const byDay = compareDays(a.day, b.day);
+    if (byDay) return byDay;
+  }
+  if (a.created !== b.created) {
+    if (!a.created) return 1;
+    if (!b.created) return -1;
+    return a.created < b.created ? -1 : 1;
+  }
+  return String(a.title).localeCompare(String(b.title), 'ru');
 }
 
 /** Месяцы, в которых есть колонки: [{ key: '2026-09', label: 'Сентябрь', count }]. */
@@ -537,6 +634,164 @@ export function monthSpans(columns = []) {
     else spans.push({ key: k, label: k === 'none' ? 'Без даты' : monthLabel(k), span: 1 });
   }
   return spans;
+}
+
+/** «18.09», «18–22.09», «29.09–02.10» — даты интенсива. */
+export function rangeLabel(from, to) {
+  const a = dayOf(from);
+  const b = dayOf(to);
+  if (!a) return shortDay(b);
+  if (!b || a === b) return shortDay(a);
+  if (a.slice(0, 7) === b.slice(0, 7)) return `${a.slice(8, 10)}–${shortDay(b)}`;
+  return `${shortDay(a)}–${shortDay(b)}`;
+}
+
+/**
+ * Верхняя строка шапки: подряд идущие колонки одного месяца → месяц, колонки
+ * одного интенсива → его название.
+ * → [{ key, label, span, blockId? }]
+ */
+export function headerSpans(columns = [], blocksById = new Map()) {
+  const spans = [];
+  for (const c of columns) {
+    const block = c.blockId ? blocksById.get(c.blockId) : null;
+    const k = block ? `b:${block.id}` : `m:${monthKey(c.day) || 'none'}`;
+    const last = spans[spans.length - 1];
+    if (last && last.key === k) { last.span += 1; continue; }
+    if (block) {
+      const dates = rangeLabel(block.date_from, block.date_to);
+      spans.push({ key: k, span: 1, blockId: block.id, label: `Интенсив · ${block.title}${dates ? ` · ${dates}` : ''}` });
+    } else {
+      const m = monthKey(c.day);
+      spans.push({ key: k, span: 1, label: m ? monthLabel(m) : 'Без даты' });
+    }
+  }
+  return spans;
+}
+
+/** Колонка начинает новый день интенсива (или его хвост: зачёт, итог) — граница в сетке. */
+export function startsBlockSection(columns, index) {
+  const col = columns[index];
+  const prev = columns[index - 1];
+  if (!col?.blockId || !prev || prev.blockId !== col.blockId) return false;
+  const section = (c) => (TAIL_ROLES.has(c.role) ? 'tail' : c.day);
+  return section(col) !== section(prev);
+}
+
+/**
+ * Дни интенсива для окна создания: уроки класса в этих датах (сдвоенные,
+ * интенсив «пары 1–4»), а без уроков — все дни, кроме воскресенья.
+ * → [{ day, lesson|null }]
+ */
+export function intensiveDays(from, to, lessons = []) {
+  const a = dayOf(from);
+  const b = dayOf(to);
+  if (!a || !b || a > b) return [];
+  const byDay = new Map();
+  for (const l of lessons) {
+    const d = lessonDay(l);
+    if (!d || d < a || d > b || l.status === 'cancelled') continue;
+    if (!byDay.has(d)) byDay.set(d, []);
+    byDay.get(d).push(l);
+  }
+  // Один урок в день — его и привязываем (посещаемость → «н»); несколько —
+  // угадывать не будем.
+  const pick = (d) => (byDay.get(d)?.length === 1 ? byDay.get(d)[0] : null);
+  if (byDay.size) {
+    return [...byDay.keys()].sort().map((day) => ({ day, lesson: pick(day) }));
+  }
+  const out = [];
+  const cur = new Date(`${a}T12:00:00Z`);
+  const end = new Date(`${b}T12:00:00Z`);
+  for (let i = 0; cur <= end && i < 60; i += 1) {
+    if (cur.getUTCDay() !== 0) out.push({ day: cur.toISOString().slice(0, 10), lesson: null });
+    cur.setUTCDate(cur.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/** Доля зачёта интенсива, % (0–90); пусто — по умолчанию. */
+export function finalShareOf(block) {
+  const v = Number(block?.final_share);
+  if (block?.final_share === '' || block?.final_share == null || !Number.isFinite(v)) return DEFAULT_FINAL_SHARE;
+  return Math.min(90, Math.max(0, v));
+}
+
+const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : null);
+
+/**
+ * Картина ученика по интенсиву — подсказки для «за день» и «итога».
+ * entries — [{ col, cell }] колонок интенсива (включая свёрнутые работы).
+ * День: оценка учителя за день; нет её — средняя по работам дня. Итог:
+ * средняя по дням с долей (100 − share) % + зачёт с долей share %; без
+ * зачёта — средняя по дням. «w» не входит в расчёт и помечает его: ждём
+ * пересдачи.
+ * → { days: [{ day, value, source: 'teacher'|'works'|null, works: [grade],
+ *      wait, dayCol }], final: { grade, wait, skip } | null, value, pending,
+ *      waits, share }
+ */
+export function intensiveSummary(block, entries = []) {
+  const share = finalShareOf(block) / 100;
+  const byDay = new Map();
+  let final = null;
+  let waits = 0;
+  for (const { col, cell } of entries) {
+    if (!cell) continue;
+    if (cell.wait) waits += 1;
+    if (col.role === 'total') continue;
+    if (col.role === 'final') {
+      if (!final || (final.grade == null && !final.wait)) {
+        final = { grade: cell.grade, wait: !!cell.wait, skip: !!cell.skip, title: col.title };
+      }
+      continue;
+    }
+    const d = col.day || '';
+    if (!byDay.has(d)) byDay.set(d, { day: d || null, works: [], teacher: null, wait: false, dayCol: null });
+    const bucket = byDay.get(d);
+    if (col.role === 'day') {
+      bucket.dayCol = col;
+      if (cell.wait) bucket.wait = true;
+      else if (cell.grade != null) bucket.teacher = cell.grade;
+    } else if (cell.grade != null) {
+      bucket.works.push(cell.grade);
+    }
+  }
+  const days = [...byDay.values()]
+    .sort((x, y) => compareDays(x.day, y.day))
+    .map((b) => {
+      const worksAvg = mean(b.works);
+      let value = null;
+      let source = null;
+      if (b.teacher != null) { value = b.teacher; source = 'teacher'; }
+      else if (!b.wait && worksAvg != null) { value = worksAvg; source = 'works'; }
+      return { day: b.day, value, source, works: b.works, worksAvg, wait: b.wait, dayCol: b.dayCol };
+    });
+  const daysAvg = mean(days.filter((d) => d.value != null).map((d) => d.value));
+  let value = daysAvg;
+  if (final && final.grade != null) {
+    value = daysAvg == null ? final.grade : daysAvg * (1 - share) + final.grade * share;
+  }
+  const pending = !!final?.wait || days.some((d) => d.wait);
+  return { days, final, value, daysAvg, pending, waits, share: Math.round(share * 100) };
+}
+
+function intensiveTip(summary, block) {
+  const lines = [`Расчёт по интенсиву «${block?.title || ''}» — подсказка, итог ставит учитель.`];
+  for (const d of summary.days) {
+    const when = d.day ? shortDay(d.day) : 'без даты';
+    if (d.wait) lines.push(`${when}: w — ждём пересдачи`);
+    else if (d.source === 'teacher') lines.push(`${when}: ${formatNumber(d.value)} — оценка за день`);
+    else if (d.source === 'works') lines.push(`${when}: ≈${formatAvg(d.value)} по работам (${d.works.join(', ')})`);
+    else lines.push(`${when}: нет оценок`);
+  }
+  if (summary.final) {
+    const f = summary.final;
+    lines.push(`Зачёт: ${f.wait ? 'w — ждём пересдачи' : f.skip ? 'не писал' : f.grade != null ? f.grade : 'нет оценки'}`);
+  }
+  if (summary.final?.grade != null && summary.daysAvg != null) {
+    lines.push(`Дни ${100 - summary.share} % + зачёт ${summary.share} % = ${formatAvg(summary.value)}`);
+  }
+  return lines.join('\n');
 }
 
 /** «Устный счёт 3» → «Устный счёт 4»; без номера — то же название. */
@@ -620,10 +875,22 @@ export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false,
   }
 
   if (stored) {
-    const { value, absent } = decodeValue(stored);
+    const { value, absent, wait, skip, mod } = decodeValue(stored);
+    if (wait || skip) {
+      return {
+        kind: col.online ? 'override' : 'manual',
+        stored, absent: false, wait: !!wait, skip: !!skip, value: null, grade: null,
+        text: wait ? WAIT : SKIP, tone: null, textTone: wait ? 'wait' : 'muted', status, comment,
+        tip: [
+          wait ? 'Вейтинг: пропустил, ждём пересдачи' : 'Не писал по уважительной причине — не учитывается',
+          comment || null,
+        ].filter(Boolean).join('\n'),
+      };
+    }
     const grade = absent ? null : gradeOfValue(col, value);
     let text = '';
     if (absent) text = ABSENT;
+    else if (mod) text = formatGrade(value, mod);
     else if (columnScale(col) === 'pass') text = value >= 1 ? 'зач' : 'н/з';
     else if (mode === 'grade' && grade != null) text = String(grade);
     else if (columnScale(col) === 'percent') text = `${formatNumber(value)}%`;
@@ -640,7 +907,7 @@ export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false,
     ].filter(Boolean).join('\n');
     return {
       kind: col.online ? 'override' : 'manual',
-      stored, absent, value, grade, text, tone, textTone, status, comment, tip,
+      stored, absent, value, grade, mod: mod || '', text, tone, textTone, status, comment, tip,
     };
   }
 
@@ -679,27 +946,30 @@ export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false,
 }
 
 /**
- * Сводка строки: взвешенный средний балл и долги («н» + не сдал онлайн в срок).
- * Скрытые колонки не считаются, даже когда их показывают: иначе средний
- * менялся бы от галочки «показать скрытые».
+ * Сводка строки: взвешенный средний балл и долги («н», «w» и не сдал онлайн в
+ * срок). Скрытые колонки не считаются, даже когда их показывают: иначе средний
+ * менялся бы от галочки «показать скрытые». Интенсив входит в средний только
+ * итогом — его работы и дни уже в нём учтены.
  */
 export function summarizeRow(columns, cells) {
   let sum = 0;
   let wsum = 0;
   let absences = 0;
   let overdue = 0;
+  let waits = 0;
   columns.forEach((col, i) => {
     const cell = cells[i];
     if (!cell || col.hidden) return;
     if (cell.absent) absences += 1;
+    if (cell.wait) waits += 1;
     if (cell.kind === 'online' && cell.status?.kind === 'overdue') overdue += 1;
-    const w = columnWeight(col);
+    const w = col.blockId && col.role !== 'total' ? 0 : columnWeight(col);
     if (cell.grade != null && w > 0) {
       sum += w * cell.grade;
       wsum += w;
     }
   });
-  return { avg: wsum ? sum / wsum : null, absences, overdue, debts: absences + overdue };
+  return { avg: wsum ? sum / wsum : null, absences, overdue, waits, debts: absences + overdue + waits };
 }
 
 /** Сводка колонки: сколько клеток заполнено и средняя оценка класса. */
@@ -724,25 +994,71 @@ export function summarizeColumn(cells) {
  * входят.
  */
 export function buildGrid(students, columns, marksIndex, onlineCells, {
-  mode = 'raw', now = new Date(), attendance = new Map(),
+  mode = 'raw', now = new Date(), attendance = new Map(), blocks = [], blockColumns = null,
 } = {}) {
+  const cellOf = (col, student) => resolveCell(
+    col,
+    col.id ? marksIndex.get(markKey(col.id, student.id)) : undefined,
+    col.online ? onlineCells.get(`${student.id}|${col.key}`) : undefined,
+    {
+      mode,
+      now,
+      former: !!student.former,
+      attendance: col.lessonId ? attendance.get(`${col.lessonId}|${student.id}`) : undefined,
+    },
+  );
+  // Подсказки интенсива считаются по ВСЕМ его колонкам, в том числе свёрнутым
+  // работам, которых в сетке сейчас нет.
+  const blocksById = new Map(blocks.map((b) => [b.id, b]));
+  const inBlocks = (blockColumns || columns).filter((c) => c.blockId && !c.hidden && blocksById.has(c.blockId));
   const rows = students.map((student) => {
-    const cells = columns.map((col) => resolveCell(
-      col,
-      col.id ? marksIndex.get(markKey(col.id, student.id)) : undefined,
-      col.online ? onlineCells.get(`${student.id}|${col.key}`) : undefined,
-      {
-        mode,
-        now,
-        former: !!student.former,
-        attendance: col.lessonId ? attendance.get(`${col.lessonId}|${student.id}`) : undefined,
-      },
-    ));
+    const cells = columns.map((col) => cellOf(col, student));
+    if (inBlocks.length) applyIntensiveHints(columns, cells, inBlocks, blocksById, (col) => {
+      const i = columns.indexOf(col);
+      return i >= 0 ? cells[i] : cellOf(col, student);
+    });
     return { student, cells, summary: summarizeRow(columns, cells) };
   });
   const current = rows.filter((r) => !r.student.former);
   const colStats = columns.map((_, c) => summarizeColumn(current.map((r) => r.cells[c])));
   return { rows, colStats };
+}
+
+// Пустые клетки «за день» и «итог» получают подсказку «≈4,2» (kind 'hint'):
+// не отметка — не считается заполненной и в средний не идёт.
+function applyIntensiveHints(columns, cells, inBlocks, blocksById, cellFor) {
+  const groups = new Map();
+  for (const col of inBlocks) {
+    if (!groups.has(col.blockId)) groups.set(col.blockId, []);
+    groups.get(col.blockId).push({ col, cell: cellFor(col) });
+  }
+  for (const [blockId, entries] of groups) {
+    const block = blocksById.get(blockId);
+    const summary = intensiveSummary(block, entries);
+    columns.forEach((col, i) => {
+      if (col.blockId !== blockId || cells[i].kind !== 'empty') return;
+      if (col.role === 'day') {
+        const d = summary.days.find((x) => x.dayCol?.key === col.key);
+        if (d?.worksAvg == null) return;
+        cells[i] = {
+          ...cells[i], kind: 'hint', text: `≈${formatAvg(d.worksAvg)}`, textTone: 'hint',
+          tip: `Средняя по работам дня: ${d.works.join(', ')} — подсказка, оценку за день ставит учитель`,
+        };
+      } else if (col.role === 'total') {
+        if (summary.final?.wait) {
+          cells[i] = {
+            ...cells[i], kind: 'hint', text: `${WAIT}?`, textTone: 'hint',
+            tip: `${intensiveTip(summary, block)}\nЗачёт — вейтинг: итог после пересдачи`,
+          };
+        } else if (summary.value != null) {
+          cells[i] = {
+            ...cells[i], kind: 'hint', text: `≈${formatAvg(summary.value)}`, textTone: 'hint',
+            tip: intensiveTip(summary, block), pending: summary.pending,
+          };
+        }
+      }
+    });
+  }
 }
 
 /** Ученики журнала: состав класса + выбывшие, у кого в журнале остались отметки. */
@@ -793,7 +1109,8 @@ export function journalTable(grid, columns) {
   const head = ['Ученик', ...columns.map((c) => `${c.title}${c.day ? ` (${shortDay(c.day)})` : ''}`), 'Средний'];
   const body = grid.rows.map((row) => [
     row.student.name || '',
-    ...row.cells.map((cell) => cell.text || ''),
+    // Подсказки интенсива («≈4,2») — не отметки, в выгрузку не идут.
+    ...row.cells.map((cell) => (cell.kind === 'hint' ? '' : cell.text || '')),
     formatAvg(row.summary.avg),
   ]);
   return [head, ...body];

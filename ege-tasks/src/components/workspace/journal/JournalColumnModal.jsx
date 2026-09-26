@@ -8,6 +8,7 @@ import dayjs from 'dayjs';
 import {
   CATEGORY_SUGGESTIONS, DEFAULT_THRESHOLDS, SCALE_LABELS, WEIGHT_OPTIONS,
   normalizeThresholds, thresholdPoints, toStoredDate, formatNumber, lessonDay, shortDay,
+  dayOf, rangeLabel,
 } from '../../../utils/classJournal';
 import { slotLabel } from '../lessonTime';
 
@@ -15,7 +16,7 @@ const { Text } = Typography;
 
 const SCALE_HINT = {
   points: 'Баллы из максимума — в оценку переводятся по порогам ниже.',
-  grade: 'Сразу оценка 2–5.',
+  grade: 'Сразу оценка 2–5, можно с «+», «−», «=» — в средний идёт цифрой.',
   pass: 'Зачёт / незачёт — в средний балл не входит.',
   percent: 'Процент выполнения — в оценку по порогам ниже.',
 };
@@ -29,6 +30,30 @@ export function lessonColumnTitle(lesson) {
 export function lessonOptionLabel(lesson) {
   return [shortDay(lessonDay(lesson)), slotLabel(lesson?.time_slot), lesson?.title]
     .filter(Boolean).join(' · ');
+}
+
+const ROLE_OPTIONS = [
+  { value: 'work', label: 'Работа' },
+  { value: 'day', label: 'За день' },
+  { value: 'final', label: 'Зачёт' },
+  { value: 'total', label: 'Итог' },
+];
+const ROLE_HINT = {
+  work: 'Работа дня: из её оценок складывается подсказка «за день».',
+  day: 'Оценка за день — ставите вы; пустая клетка покажет среднюю по работам дня.',
+  final: 'Зачётная работа: в расчёте итога весит больше дней (доля — в настройках интенсива).',
+  total: 'Итог интенсива — ставите вы; пустая клетка покажет расчёт. В средний за год интенсив идёт этой колонкой.',
+};
+// Название по роли — для новых колонок «за день», зачёта и итога.
+const ROLE_TITLES = { day: 'За день', final: 'Зачёт', total: 'Итог' };
+
+// Интенсив, в даты которого попадает день.
+function blockOnDay(blocks, day) {
+  return blocks.find((b) => {
+    const a = dayOf(b.date_from);
+    const z = dayOf(b.date_to) || a;
+    return a && day >= a && day <= z;
+  }) || null;
 }
 
 // Единственный урок класса в этот день — его и предлагаем; два и больше — нет:
@@ -48,6 +73,7 @@ function lessonOnDay(lessons, day) {
 export default function JournalColumnModal({
   open, column, defaults, categories = [], hasMarks = false, canDelete = false,
   lessons = [], presetLesson = null, pickLesson = false, sourceNote = '',
+  blocks = [], blocksEnabled = false, presetBlock = null,
   onCancel, onSave, onDelete, saving = false,
 }) {
   const [form] = Form.useForm();
@@ -59,6 +85,8 @@ export default function JournalColumnModal({
   // Название, подставленное из урока: сменили урок — меняем и его, если
   // учитель не переписал.
   const autoTitle = useRef('');
+  // Интенсив подставлен по дате, а не выбран: при смене даты переподбираем.
+  const blockAuto = useRef(false);
 
   const lessonById = useMemo(() => new Map(lessons.map((l) => [l.id, l])), [lessons]);
 
@@ -71,23 +99,45 @@ export default function JournalColumnModal({
     let lesson = column ? (column.lessonId || undefined) : undefined;
     let day = src.day || null;
     let title = src.title || '';
+    let block = column ? (column.blockId || undefined) : undefined;
+    let role = column?.role || 'work';
     lessonAuto.current = false;
     autoTitle.current = '';
+    blockAuto.current = false;
+    if (isNew && presetBlock) {
+      block = presetBlock.id;
+      role = src.role || 'work';
+      // Сегодня внутри интенсива — сегодня, иначе его последний день:
+      // бумажные работы обычно вносят вечером того же дня или после.
+      const today = dayjs().format('YYYY-MM-DD');
+      const a = dayOf(presetBlock.date_from);
+      const z = dayOf(presetBlock.date_to) || a;
+      day = src.day || (a && today >= a && today <= z ? today : z || today);
+    }
     if (isNew && presetLesson) {
       lesson = presetLesson.id;
       day = lessonDay(presetLesson);
       title = lessonColumnTitle(presetLesson);
       autoTitle.current = title;
     } else if (isNew) {
-      const today = lessonOnDay(lessons, dayjs().format('YYYY-MM-DD'));
+      const today = lessonOnDay(lessons, day || dayjs().format('YYYY-MM-DD'));
       if (today) {
         lesson = today.id;
         lessonAuto.current = true;
       }
     }
+    if (isNew && !presetBlock && blocksEnabled) {
+      const b = blockOnDay(blocks, day || dayjs().format('YYYY-MM-DD'));
+      if (b) {
+        block = b.id;
+        blockAuto.current = true;
+      }
+    }
 
     form.setFieldsValue({
       lesson,
+      block,
+      role,
       title,
       date: day ? dayjs(day) : dayjs(),
       category: src.category || '',
@@ -105,7 +155,7 @@ export default function JournalColumnModal({
   // lessons не в зависимостях: список может догрузиться, а форму, в которой
   // учитель уже что-то поменял, заново заполнять нельзя.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, column, defaults, online, presetLesson, form]);
+  }, [open, column, defaults, online, presetLesson, presetBlock, form]);
 
   const lessonOptions = useMemo(() => {
     const list = lessons.filter((l) => l.status !== 'cancelled');
@@ -130,12 +180,39 @@ export default function JournalColumnModal({
     form.setFieldsValue(patch);
   };
 
-  // Сменили дату у новой колонки — урок, подставленный сам, переподбираем.
+  // Сменили дату у новой колонки — урок и интенсив, подставленные сами,
+  // переподбираем.
   const onDateChange = (d) => {
-    if (!isNew || !lessonAuto.current || !d) return;
-    const l = lessonOnDay(lessons, d.format('YYYY-MM-DD'));
-    form.setFieldsValue({ lesson: l ? l.id : undefined });
+    if (!isNew || !d) return;
+    const day = d.format('YYYY-MM-DD');
+    if (lessonAuto.current) {
+      const l = lessonOnDay(lessons, day);
+      form.setFieldsValue({ lesson: l ? l.id : undefined });
+    }
+    if (blockAuto.current && blocksEnabled) {
+      const b = blockOnDay(blocks, day);
+      form.setFieldsValue({ block: b ? b.id : undefined });
+    }
   };
+
+  // Роль «за день» / «итог» — это оценка учителя: шкала 2–5 и название по роли,
+  // если учитель его не переписал.
+  const onRoleChange = (role) => {
+    if (!isNew) return;
+    const patch = {};
+    if (role === 'day' || role === 'total') patch.scale = 'grade';
+    const cur = String(form.getFieldValue('title') || '').trim();
+    const autoRoleTitles = Object.values(ROLE_TITLES);
+    if (ROLE_TITLES[role] && (!cur || autoRoleTitles.includes(cur))) patch.title = ROLE_TITLES[role];
+    form.setFieldsValue(patch);
+  };
+
+  const blockOptions = useMemo(() => blocks.map((b) => ({
+    value: b.id,
+    label: [b.title, rangeLabel(b.date_from, b.date_to)].filter(Boolean).join(' · '),
+  })), [blocks]);
+  const selectedBlock = Form.useWatch('block', form);
+  const selectedRole = Form.useWatch('role', form);
 
   const selectedLesson = Form.useWatch('lesson', form);
 
@@ -179,6 +256,10 @@ export default function JournalColumnModal({
     if (online) data.assigned = !!v.assigned;
     // Пустая строка снимает привязку к уроку у существующей колонки.
     if (v.lesson || !isNew) data.lesson = v.lesson || '';
+    if (blocksEnabled && (v.block || !isNew)) {
+      data.block = v.block || '';
+      data.role = v.block ? (v.role || 'work') : '';
+    }
     await onSave(data);
   };
 
@@ -190,7 +271,9 @@ export default function JournalColumnModal({
   return (
     <Modal
       open={open}
-      title={isNew ? 'Новая колонка' : online ? 'Онлайн-работа в журнале' : 'Колонка журнала'}
+      title={isNew
+        ? (presetBlock ? `Новая колонка · интенсив «${presetBlock.title}»` : 'Новая колонка')
+        : online ? 'Онлайн-работа в журнале' : 'Колонка журнала'}
       onCancel={onCancel}
       destroyOnHidden
       width={560}
@@ -247,6 +330,28 @@ export default function JournalColumnModal({
             notFoundContent="Уроков не найдено"
           />
         </Form.Item>
+        {blocksEnabled && blocks.length > 0 && (
+          <Space.Compact block style={{ gap: 12, display: 'flex', flexWrap: 'wrap' }}>
+            <Form.Item
+              name="block"
+              label="Интенсив"
+              style={{ flex: '1 1 200px' }}
+              extra={selectedBlock ? ROLE_HINT[selectedRole || 'work'] : 'Необязательно. Колонка войдёт в интенсив и его итог.'}
+            >
+              <Select
+                allowClear
+                placeholder="Не в интенсиве"
+                options={blockOptions}
+                onChange={() => { blockAuto.current = false; }}
+              />
+            </Form.Item>
+            {selectedBlock && (
+              <Form.Item name="role" label="Что это" style={{ flex: '0 0 auto' }}>
+                <Segmented options={ROLE_OPTIONS} onChange={onRoleChange} />
+              </Form.Item>
+            )}
+          </Space.Compact>
+        )}
         <Form.Item
           name="title"
           label="Название"
