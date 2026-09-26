@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon-new.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // iOS Safari приближает страницу при фокусе на поле со шрифтом < 16px (у antd — 14px)
+      // и не отдаляет обратно после закрытия модалки. maximum-scale=1 отключает этот авто-зум;
+      // щипок пальцами iOS всё равно разрешает (с iOS 10). Только iOS: на Android
+      // maximum-scale запретил бы масштабирование вовсе.
+      if (/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+        document.querySelector('meta[name=viewport]').content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0';
+      }
+    </script>
     <title>Lemma — Математика</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
