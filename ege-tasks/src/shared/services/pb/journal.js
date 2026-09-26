@@ -1,4 +1,4 @@
-import { pb, withOwner, _logAudit } from './client.js';
+import { pb, withOwner, _logAudit, aiHeaders } from './client.js';
 import { getFullListByOr } from './chunked.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 
@@ -72,6 +72,33 @@ export const journalApi = {
     } catch { /* нет — удалим без подписи */ }
     await pb.collection(BLOCKS).delete(id);
     _logAudit('delete', BLOCKS, id, summary);
+  },
+
+  // ── Обратная связь по интенсиву (v3.9.243) ──────────────────────────────
+  // Черновик пишет LLM на pdf-service (/intensive-feedback). В запросе НЕТ
+  // имён: data собирает `utils/intensiveFeedback.buildFeedbackData`, ответ
+  // приходит с токеном {ИМЯ}. В БД ничего не пишется — сохраняет учитель.
+  async generateIntensiveFeedback({ data, examples = '' }) {
+    const base = import.meta.env.VITE_PDF_SERVICE_URL || 'http://localhost:3001';
+    const res = await fetch(`${base}/intensive-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...aiHeaders() },
+      body: JSON.stringify({ student: data, examples }),
+      signal: AbortSignal.timeout(90000),
+    });
+    if (!res.ok) {
+      let msg = `Сервис ответил ${res.status}`;
+      if (res.status === 404) msg = 'Черновики обратной связи ещё не установлены на сервере';
+      try { msg = (await res.json()).error || msg; } catch { /* не-JSON */ }
+      throw new Error(msg);
+    }
+    return res.json();
+  },
+
+  // Образцы стиля обратной связи — в своей записи учителя (правило teachers
+  // разрешает править свою запись).
+  async saveFeedbackExamples(teacherId, text) {
+    return pb.collection('teachers').update(teacherId, { feedback_examples: String(text || '') });
   },
 
   // Все отметки класса одним запросом — фильтр по пути relation, сколько бы

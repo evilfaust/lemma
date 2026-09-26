@@ -58,6 +58,7 @@ export const PROFILE_LABELS = {
   grad_year: 'Год выпуска',
   owner: 'Учитель',
   external: 'Тип аккаунта',
+  short_name: 'Обращение',
 };
 
 /**

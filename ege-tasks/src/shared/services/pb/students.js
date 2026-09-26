@@ -371,7 +371,7 @@ export const studentsApi = {
   async updateStudentProfile(studentId, data = {}) {
     const ALLOWED = [
       'name', 'username', 'student_class', 'teaching_group',
-      'telegram_id', 'status', 'grad_year', 'owner', 'external',
+      'telegram_id', 'status', 'grad_year', 'owner', 'external', 'short_name',
     ];
     const payload = {};
     for (const key of ALLOWED) {

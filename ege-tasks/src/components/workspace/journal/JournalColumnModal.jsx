@@ -463,8 +463,23 @@ export default function JournalColumnModal({
           </Form.Item>
         )}
 
-        <Form.Item name="note" label="Заметка" style={{ marginBottom: 0 }}>
-          <Input.TextArea rows={2} maxLength={2000} placeholder="Варианты 1–2, лист «Устный счёт №4»" />
+        {/* У работы интенсива заметка — описание для черновика обратной связи:
+            темы модель называет только отсюда (v3.9.243). */}
+        <Form.Item
+          name="note"
+          label={selectedBlock ? 'Что проверяла работа (для обратной связи)' : 'Заметка'}
+          extra={selectedBlock
+            ? 'По этому описанию черновик отзыва называет тему: «Тебе надо доразобраться с …». Без описания тема не упоминается.'
+            : undefined}
+          style={{ marginBottom: 0 }}
+        >
+          <Input.TextArea
+            rows={2}
+            maxLength={2000}
+            placeholder={selectedBlock
+              ? 'Техника дифференцирования: производная произведения и частного'
+              : 'Варианты 1–2, лист «Устный счёт №4»'}
+          />
         </Form.Item>
       </Form>
     </Modal>

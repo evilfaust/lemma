@@ -12,6 +12,7 @@ import express from 'express';
 import cors from 'cors';
 import * as cheerio from 'cheerio';
 import { fixLatex } from './latex-fixer.js';
+import { buildFeedbackMessages, cleanFeedback } from './feedback-prompt.mjs';
 // Семантический поиск похожих задач (sqlite-vec). Грузим мягко: если модуль/vec.db
 // недоступны — сервис всё равно стартует, /similar вернёт 503.
 let findSimilar = null, vecHealth = null, getDuplicateClusters = null, findPairs = null, indexVectors = null, buildParallelVariants = null, buildRemediation = null, pruneVectors = null, setClusters = null;
@@ -1425,6 +1426,56 @@ app.post('/geo/similar', (req, res) => {
   } catch (e) {
     console.error('[geo/similar]', e.message);
     res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /intensive-feedback (v3.9.243)
+ * Черновик обратной связи ученику по итогам интенсива в стиле кафедры.
+ * Принимает { student: {...}, examples?: string } — данные ученика БЕЗ имён
+ * (пол, дни, работы с описаниями и средним по группе, зачёт, итог, рейтинг,
+ * сильные/слабые стороны) и образцы стиля учителя. Возвращает { text } с
+ * токеном {ИМЯ} вместо обращения — имя подставляет клиент. В БД не пишет:
+ * черновик правит и сохраняет учитель. Промпт — `feedback-prompt.mjs`.
+ * Модель — FEEDBACK_MODEL, иначе TIMEWEB_AI_MODEL (без «рассуждений»:
+ * лимит токенов тесный).
+ */
+app.post('/intensive-feedback', aiGate, async (req, res) => {
+  const { student, examples } = req.body || {};
+  if (!student || typeof student !== 'object') {
+    return res.status(400).json({ error: 'Поле student обязательно (object)' });
+  }
+  const aiUrl = process.env.TIMEWEB_AI_URL;
+  const aiKey = process.env.TIMEWEB_AI_KEY;
+  const aiModel = process.env.FEEDBACK_MODEL || process.env.TIMEWEB_AI_MODEL || 'deepseek-chat';
+  if (!aiUrl || !aiKey) {
+    return res.status(503).json({ error: 'LLM endpoint не настроен на сервере (TIMEWEB_AI_URL / TIMEWEB_AI_KEY)' });
+  }
+  try {
+    const resp = await fetch(aiUrl, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${aiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: aiModel,
+        temperature: 0.6,
+        max_tokens: 600,
+        messages: buildFeedbackMessages(student, typeof examples === 'string' ? examples : ''),
+      }),
+      signal: AbortSignal.timeout(60000),
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      console.error('[intensive-feedback] upstream:', resp.status, body.slice(0, 200));
+      return res.status(502).json({ error: `AI gateway HTTP ${resp.status}` });
+    }
+    const data = await resp.json();
+    const text = cleanFeedback(data?.choices?.[0]?.message?.content, student);
+    if (!text) return res.status(502).json({ error: 'AI gateway вернул пустой ответ' });
+    console.log(`[intensive-feedback] model=${aiModel} len=${text.length}`);
+    res.json({ text, model: aiModel, usage: data?.usage || null });
+  } catch (error) {
+    console.error('[intensive-feedback] error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

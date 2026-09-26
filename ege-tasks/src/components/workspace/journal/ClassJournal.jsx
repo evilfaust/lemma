@@ -6,6 +6,7 @@ import {
   CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
   ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FireOutlined, FormatPainterOutlined, MobileOutlined,
   MoreOutlined, PlusOutlined, SettingOutlined, ShrinkOutlined, ArrowsAltOutlined, UnorderedListOutlined,
+  RobotOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -25,6 +26,7 @@ import JournalColumnModal, { lessonOptionLabel } from './JournalColumnModal';
 import JournalColumnEntry from './JournalColumnEntry';
 import WorkColumnModal from './WorkColumnModal';
 import IntensiveModal from './IntensiveModal';
+import IntensiveFeedbackModal from './IntensiveFeedbackModal';
 import './journal.css';
 
 const { Text } = Typography;
@@ -71,7 +73,7 @@ export default function ClassJournal() {
     sheet: searchParams.get('sheet'),
   });
   const isMobile = useIsMobile();
-  const { teacher, isSuperAdmin, canEdit, canDelete } = useAuth();
+  const { teacher, isSuperAdmin, canEdit, canDelete, aiEnabled } = useAuth();
   const currentYear = currentAcademicYear();
 
   const [groups, setGroups] = useState([]);
@@ -90,6 +92,10 @@ export default function ClassJournal() {
   const [fill, setFill] = useState(null); // { column, text, error }
   const [blockModal, setBlockModal] = useState(null); // { block } — null-блок = новый интенсив
   const [blockSaving, setBlockSaving] = useState(false);
+  const [feedbackBlockId, setFeedbackBlockId] = useState(null);
+  // Образцы стиля, сохранённые в этой сессии (запись учителя в контексте
+  // авторизации обновится только при следующем входе).
+  const [myExamples, setMyExamples] = useState(null);
   // Свёрнутые интенсивы: видны только «за день», зачёт и итог.
   const [collapsed, setCollapsed] = useState(() => {
     try { return new Set(JSON.parse(readLS(LS_COLLAPSED) || '[]')); } catch { return new Set(); }
@@ -258,6 +264,19 @@ export default function ClassJournal() {
     [data?.students, columns, marksIndex, online, mode, attendanceIndex, blocks, blockColumns],
   );
   const group = data?.group || groups.find((g) => g.id === groupId) || null;
+
+  // Обратная связь по интенсиву: все его колонки (и свёрнутые работы тоже) и
+  // строки по ним — из них собираются данные для черновика.
+  const feedback = useMemo(() => {
+    if (!feedbackBlockId) return null;
+    const block = blocksById.get(feedbackBlockId);
+    if (!block) return null;
+    const cols = allColumns.filter((c) => c.blockId === block.id && !c.hidden);
+    const g = buildGrid(data?.students || [], cols, marksIndex, online.cells, {
+      mode: 'raw', attendance: attendanceIndex, blocks,
+    });
+    return { block, cols, rows: g.rows, totalIndex: cols.findIndex((c) => c.role === 'total') };
+  }, [feedbackBlockId, blocksById, allColumns, data?.students, marksIndex, online, attendanceIndex, blocks]);
 
   // ── Запись клеток ─────────────────────────────────────────────────────────
   const patchData = useCallback((gid, fn) => {
@@ -756,6 +775,9 @@ export default function ClassJournal() {
     items.push(collapsed.has(block.id)
       ? { key: 'block-expand', icon: <ArrowsAltOutlined />, label: 'Показать работы дней' }
       : { key: 'block-collapse', icon: <ShrinkOutlined />, label: 'Свернуть до итогов (за день, зачёт, итог)' });
+    if (canEdit && !data?.missing) {
+      items.push({ key: 'block-feedback', icon: <RobotOutlined />, label: 'Обратная связь ученикам (черновики ИИ)' });
+    }
     if (canEdit && !data?.missing && canManageBlock(block)) {
       items.push({ key: 'block-edit', icon: <SettingOutlined />, label: 'Настроить интенсив' });
     }
@@ -766,6 +788,29 @@ export default function ClassJournal() {
     if (key === 'block-add') setColModal({ column: null, presetBlock: block });
     else if (key === 'block-collapse' || key === 'block-expand') toggleCollapsed(block.id);
     else if (key === 'block-edit') setBlockModal({ block });
+    else if (key === 'block-feedback') setFeedbackBlockId(block.id);
+  };
+
+  // Отзыв — комментарий к клетке «Итог»; сама оценка не трогается.
+  const saveFeedbackComment = async (student, text) => {
+    if (!feedback || feedback.totalIndex < 0) throw new Error('нет колонки итога');
+    const col = feedback.cols[feedback.totalIndex];
+    const row = feedback.rows.find((r) => r.student.id === student.id);
+    const cell = row?.cells[feedback.totalIndex];
+    await writeCells([{ col, student, value: cell?.stored || '', comment: text }]);
+  };
+
+  const saveStudentAddress = async (student, shortName) => {
+    try {
+      await api.updateStudentProfile(student.id, { short_name: shortName });
+      const gid = dataRef.current?.groupId;
+      patchData(gid, (d) => ({
+        ...d,
+        students: d.students.map((s) => (s.id === student.id ? { ...s, short_name: shortName } : s)),
+      }));
+    } catch {
+      message.warning(`Обращение «${shortName}» не сохранилось в карточке ученика`);
+    }
   };
 
   // Ссылка из карточки урока исполняется, когда журнал нужного класса готов.
@@ -1159,6 +1204,21 @@ export default function ClassJournal() {
         onCancel={() => setBlockModal(null)}
         onSave={saveBlock}
         onDelete={(withColumns) => deleteBlock(blockModal.block, withColumns)}
+      />
+      <IntensiveFeedbackModal
+        open={!!feedback}
+        block={feedback?.block}
+        columns={feedback?.cols || []}
+        rows={feedback?.rows || []}
+        totalIndex={feedback?.totalIndex ?? -1}
+        teacher={teacher}
+        aiEnabled={aiEnabled}
+        canEdit={canEdit && !data?.missing}
+        examples={myExamples ?? teacher?.feedback_examples}
+        onExamplesSaved={setMyExamples}
+        onSaveComment={saveFeedbackComment}
+        onSaveAddress={saveStudentAddress}
+        onClose={() => setFeedbackBlockId(null)}
       />
       <WorkColumnModal
         open={workModal}

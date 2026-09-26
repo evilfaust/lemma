@@ -369,3 +369,23 @@
   }
   .cj-table .cj-name { padding-left: 8px; }
 }
+
+/* ── Обратная связь по интенсиву (v3.9.242) ── */
+.cj-fb { display: flex; flex-direction: column; gap: 10px; max-height: 58vh; overflow: auto; padding-right: 4px; }
+.cj-fb__row {
+  display: flex;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-soft);
+  border-radius: 10px;
+  background: var(--bg-raised);
+}
+.cj-fb__side { flex: 0 0 200px; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cj-fb__name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cj-fb__total { font-size: 12.5px; color: var(--ink-3); }
+.cj-fb__main { flex: 1; min-width: 0; }
+.cj-fb__err { margin-top: 4px; font-size: 12.5px; color: var(--c-rose); }
+@media (max-width: 767.98px) {
+  .cj-fb__row { flex-direction: column; }
+  .cj-fb__side { flex-basis: auto; }
+}

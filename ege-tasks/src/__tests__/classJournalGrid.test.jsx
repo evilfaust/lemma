@@ -26,6 +26,9 @@ const apiMock = vi.hoisted(() => ({
   createJournalBlock: vi.fn(),
   updateJournalBlock: vi.fn(),
   deleteJournalBlock: vi.fn(),
+  generateIntensiveFeedback: vi.fn(),
+  saveFeedbackExamples: vi.fn(),
+  updateStudentProfile: vi.fn(),
 }));
 
 // Сценарии с окнами antd (Form, DatePicker) под нагрузкой полного прогона
@@ -507,6 +510,16 @@ describe('ClassJournal — интенсив', () => {
     // Работ в сетке нет, а подсказка итога считается по ним же.
     expect(container.querySelector('td[data-r="0"][data-c="2"]').textContent).toBe('≈4,2');
     expect(JSON.parse(localStorage.getItem('journal.collapsedBlocks'))).toEqual(['B1']);
+  });
+
+  it('«Обратная связь ученикам» из меню интенсива открывает окно черновиков', async () => {
+    renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(screen.getByText('Интенсив · Производная · 18–22.09'));
+    fireEvent.click(await screen.findByText('Обратная связь ученикам (черновики ИИ)'));
+    expect(await screen.findByText('Обратная связь · интенсив «Производная»')).toBeInTheDocument();
+    // Строка на каждого ученика класса, итог берётся из колонки «Итог».
+    expect(screen.getAllByText(/^Итог:/)).toHaveLength(2);
   });
 
   it('«Добавить работу дня» из меню интенсива: колонка уходит в интенсив с ролью работы', async () => {

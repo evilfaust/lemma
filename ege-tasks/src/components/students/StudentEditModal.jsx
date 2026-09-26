@@ -12,6 +12,7 @@ import {
   normalizeTelegramId, profileDiff, suggestTelegramMatches, validateUsername,
 } from '../../utils/studentModeration';
 import { collectAcademicYears, currentAcademicYear } from '../../utils/academicYear';
+import { addressOf } from '../../utils/intensiveFeedback';
 
 const { Text, Paragraph } = Typography;
 
@@ -70,6 +71,7 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
     setStatus(student.status || 'active');
     form.setFieldsValue({
       name: student.name || '',
+      short_name: student.short_name || '',
       username: student.username || '',
       student_class: student.student_class || '',
       teaching_group: student.teaching_group || '',
@@ -212,9 +214,19 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
         <div style={{ textAlign: 'center', padding: 32 }}><Spin /></div>
       ) : (
         <Form form={form} layout="vertical" disabled={!canManage}>
-          <Form.Item name="name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]}>
-            <Input placeholder="Фамилия Имя" maxLength={100} />
-          </Form.Item>
+          <Space size="middle" style={{ display: 'flex' }}>
+            <Form.Item name="name" label="Имя" rules={[{ required: true, message: 'Введите имя' }]} style={{ flex: 1 }}>
+              <Input placeholder="Фамилия Имя" maxLength={100} />
+            </Form.Item>
+            <Form.Item
+              name="short_name"
+              label="Обращение"
+              tooltip="Как вы обращаетесь к ученику в обратной связи: «Ксюша», «Лёня». Пусто — подберётся по имени"
+              style={{ width: 180 }}
+            >
+              <Input placeholder={addressOf({ name: student.name })} maxLength={60} />
+            </Form.Item>
+          </Space>
 
           <Space size="middle" style={{ display: 'flex' }}>
             <Form.Item name="teaching_group" label="Группа" style={{ flex: 1 }}>
