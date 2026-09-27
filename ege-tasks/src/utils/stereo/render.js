@@ -6,6 +6,32 @@ import { sub, lerp, len } from './vec3';
 import { makeProjector } from './camera';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
 
+/**
+ * Палитра точек: какие точки выделены (например, через которые проводится
+ * сечение). Ключ хранится в scene.colors — { M: 'red' }.
+ */
+export const POINT_COLORS = [
+  { key: 'red', label: 'красный', hex: '#dc2626', words: ['красный', 'красная', 'красные', 'красным', 'red'] },
+  { key: 'blue', label: 'синий', hex: '#2563eb', words: ['синий', 'синяя', 'синие', 'синим', 'blue'] },
+  { key: 'green', label: 'зелёный', hex: '#16a34a', words: ['зелёный', 'зеленый', 'зелёная', 'зеленая', 'зелёные', 'зеленые', 'green'] },
+  { key: 'orange', label: 'оранжевый', hex: '#ea580c', words: ['оранжевый', 'оранжевая', 'оранжевые', 'orange'] },
+  { key: 'violet', label: 'фиолетовый', hex: '#7c3aed', words: ['фиолетовый', 'фиолетовая', 'фиолетовые', 'violet', 'purple'] },
+];
+
+/** Цвет точки по ключу палитры (или готовому #hex); null — обычная точка. */
+export function pointColorHex(key) {
+  if (!key) return null;
+  if (/^#[0-9a-f]{6}$/i.test(key)) return key;
+  return POINT_COLORS.find((c) => c.key === key)?.hex || null;
+}
+
+/** Слово «красный»/«red» → ключ палитры; «чёрный»/«нет» → '' (снять цвет). */
+export function colorKeyFromWord(word) {
+  const w = String(word || '').toLowerCase().trim();
+  if (/^(ч[её]рн\S*|black|нет|без|снять|обычн\S*)$/.test(w)) return '';
+  return POINT_COLORS.find((c) => c.words.includes(w))?.key ?? null;
+}
+
 export const STEREO_COLORS = {
   edge: '#1f2937',
   construct: '#1d4ed8',
@@ -79,7 +105,7 @@ function placeLabels(dots, strokes, center) {
     }
     placed.push({ x: best.cx, y: best.cy, w: box.w, h: box.h });
     const lb = splitLabel(d.name);
-    out.push({ name: d.name, x: best.cx, y: best.cy, base: lb.base, sub: lb.sub, step: d.step });
+    out.push({ name: d.name, x: best.cx, y: best.cy, base: lb.base, sub: lb.sub, step: d.step, color: d.color || null });
   }
   return out;
 }
@@ -153,6 +179,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     dots.push({
       name, x: s.x, y: s.y, vertex: pt.kind === 'vertex', step: pt.step,
       hidden: isPointHidden(body, pt.pos, toViewer),
+      color: pointColorHex(pt.color),
     });
   }
   const c2 = P(model.center);
@@ -259,11 +286,15 @@ export function stereoSvgString(frame, opts = {}) {
   for (const s of frame.strokes) if (s.hidden) parts.push(line(s));
   for (const s of frame.strokes) if (!s.hidden) parts.push(line(s));
   for (const d of frame.dots) {
-    parts.push(`<circle cx="${d.x.toFixed(2)}" cy="${d.y.toFixed(2)}" r="${d.vertex ? 2.4 : 3.2}" fill="${STEREO_COLORS.point}"/>`);
+    // Выделенная точка: цветом, а в ч/б — крупнее, с белым ободком.
+    const r = d.color ? (mono ? 4.4 : 4) : d.vertex ? 2.4 : 3.2;
+    const fill = d.color && !mono ? d.color : STEREO_COLORS.point;
+    const ring = d.color ? ' stroke="#ffffff" stroke-width="1.2"' : '';
+    parts.push(`<circle cx="${d.x.toFixed(2)}" cy="${d.y.toFixed(2)}" r="${r}" fill="${fill}"${ring}/>`);
   }
   for (const l of frame.labels) {
     parts.push(
-      `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="'Times New Roman', Times, serif" font-style="italic" font-size="17" fill="${STEREO_COLORS.label}">${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
+      `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="'Times New Roman', Times, serif" font-style="italic" font-size="17"${l.color && mono ? ' font-weight="bold"' : ''} fill="${l.color && !mono ? l.color : STEREO_COLORS.label}">${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
     );
   }
   parts.push('</svg>');

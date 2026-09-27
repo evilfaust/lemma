@@ -19,6 +19,7 @@
 
 import { prettyName } from './bodies';
 import { newOpId, refName } from './scene';
+import { colorKeyFromWord } from './render';
 import { nextFreeName } from './naming';
 
 const CYR_TO_LAT = {
@@ -29,6 +30,7 @@ const CYR_TO_LAT = {
 const LATIN_WORDS = new Set([
   'seg', 'segment', 'line', 'par', 'section', 'plane', 'face', 'fill', 'rename',
   'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x',
+  'color', 'red', 'blue', 'green', 'orange', 'violet', 'purple', 'black',
 ]);
 
 /**
@@ -76,7 +78,8 @@ const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч
 
 /**
  * Разбирает команду в операцию.
- * @returns {{ op } | { action: 'undo' } | { action: 'rename', from, to } | { error }}
+ * @returns {{ op } | { action: 'undo' } | { action: 'rename', from, to }
+ *   | { action: 'color', names, color } | { error }}
  */
 export function parseCommand(text, model) {
   const src = normalizeCommand(text);
@@ -93,6 +96,16 @@ export function parseCommand(text, model) {
 
     let m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
+
+    // «цвет MNB красный» — выделить точки (оформление, не шаг); «… нет» — снять.
+    m = /^(?:цвет|color)\s+(?:точ[а-яё]*\s+)?(\S+)\s+(\S+)$/i.exec(src);
+    if (m) {
+      const names = splitNames(m[1]);
+      if (!names) throw new Error('Цвет: «цвет MNB красный»');
+      const color = colorKeyFromWord(m[2]);
+      if (color == null) throw new Error('Цвета: красный, синий, зелёный, оранжевый, фиолетовый; «нет» — снять');
+      return { action: 'color', names, color };
+    }
 
     m = /^(?:отрезок|seg(?:ment)?)\s+(\S+)$/i.exec(src);
     if (m) {

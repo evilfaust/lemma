@@ -241,8 +241,10 @@ export default function StereoCanvas({
                   key={`p-${d.name}`}
                   cx={d.x}
                   cy={d.y}
-                  r={(d.vertex ? 2.6 : 3.4) + (hl ? 2 : 0)}
-                  fill={hl ? STEREO_COLORS.newPoint : STEREO_COLORS.point}
+                  r={(d.color ? 4.4 : d.vertex ? 2.6 : 3.4) + (hl ? 2 : 0)}
+                  fill={hl ? STEREO_COLORS.newPoint : d.color || STEREO_COLORS.point}
+                  stroke={d.color ? '#ffffff' : undefined}
+                  strokeWidth={d.color ? 1.2 : undefined}
                   className={[isFlash(d.step) ? 'stereo-flash-dot' : '', pl ? 'stereo-pulse-dot' : ''].filter(Boolean).join(' ') || undefined}
                 />
               );
@@ -254,6 +256,7 @@ export default function StereoCanvas({
                 y={l.y + 5}
                 textAnchor="middle"
                 className="stereo-label"
+                style={l.color ? { fill: l.color, fontWeight: 600 } : undefined}
               >
                 {l.base}
                 {l.sub && <tspan dy="4" fontSize="11">{l.sub}</tspan>}

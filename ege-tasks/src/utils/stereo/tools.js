@@ -24,6 +24,7 @@ export const TOOLS = [
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
+  { key: 'color', label: 'Цвет', glyph: '◉', hot: 'O' },
   { key: 'attention', label: 'Внимание', glyph: '!', hot: 'W' },
 ];
 
@@ -89,6 +90,7 @@ export function toolHint(tool, pending = []) {
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
+    case 'color': return 'Кликните по точкам — они окрасятся выбранным цветом (повторный клик снимает)';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
 }
@@ -112,6 +114,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
     case 'attention': return ['point', 'line'];
+    case 'color': return ['point'];
     default: return [];
   }
 }
@@ -131,7 +134,7 @@ export function chooseHit(tool, pending, hit) {
 /**
  * Клик инструмента.
  * @param hit — { point?: name, line?: { id, ref, t, ratio? }, face?: { id, verts } }
- * @returns {{ pending, op?, error?, attention? }}
+ * @returns {{ pending, op?, error?, attention?, paint? }}
  */
 export function toolClick(tool, pending, hit, model) {
   const target = chooseHit(tool, pending, hit);
@@ -195,6 +198,9 @@ export function toolClick(tool, pending, hit, model) {
       if (target.kind === 'face') return { pending: [], op: { id: newOpId(), type: 'plane', pts: target.verts } };
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
+    case 'color':
+      // Цвет — оформление точки, не шаг журнала: решает редактор.
+      return { pending: [], paint: { name: target.name } };
     case 'attention':
       // Не операция журнала: «смотрите сюда» уходит в эфир отдельно.
       return target.kind === 'point'

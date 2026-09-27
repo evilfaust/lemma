@@ -17,10 +17,10 @@
 // ошибка возвращается с номером строки.
 
 import { normalizeBodySpec, DEFAULT_BODY } from './bodies';
-import { evaluateScene, tryAppendOp } from './scene';
+import { evaluateScene, tryAppendOp, setPointColors } from './scene';
 import { parseCommand, opToCommand } from './commands';
 import { DEFAULT_CAMERA, clampCamera } from './camera';
-import { renderStereo, stereoSvgString } from './render';
+import { renderStereo, stereoSvgString, POINT_COLORS } from './render';
 
 const num = (s) => Number(String(s).replace(',', '.'));
 const isNum = (s) => /^-?\d+(?:[.,]\d+)?$/.test(String(s));
@@ -122,6 +122,13 @@ export function parseStereoBlock(text) {
 
     const r = parseCommand(cmd, evaluateScene(scene));
     if (r.error) { errors.push({ line: lineNo, message: r.error }); return; }
+    if (r.action === 'color') {
+      const model = evaluateScene(scene);
+      const missing = r.names.filter((n) => !model.points[n]);
+      if (missing.length) { errors.push({ line: lineNo, message: `Нет точки ${missing.join(', ')}` }); return; }
+      scene = setPointColors(scene, r.names, r.color);
+      return;
+    }
     if (!r.op) { errors.push({ line: lineNo, message: 'Эта команда в блоке не работает' }); return; }
     const op = note ? { ...r.op, note } : r.op;
     const res = tryAppendOp(scene, op);
@@ -143,6 +150,16 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
     const cmd = opToCommand(op);
     if (!cmd) { skipped += 1; out.push(`# шаг не выражается текстом: ${op.type}`); continue; }
     out.push(op.note ? `${cmd} // ${op.note}` : cmd);
+  }
+  // Цвета точек — одной строкой на цвет: «цвет MNB красный».
+  const byColor = {};
+  for (const [name, key] of Object.entries(scene?.colors || {})) {
+    if (!key) continue;
+    (byColor[key] = byColor[key] || []).push(name);
+  }
+  for (const [key, names] of Object.entries(byColor)) {
+    const word = POINT_COLORS.find((c) => c.key === key)?.label || key;
+    out.push(`цвет ${names.join('')} ${word}`);
   }
   const c = clampCamera(camera);
   out.push(`вид ${fmt(c.yaw)} ${fmt(c.pitch)}${Math.abs(c.zoom - 1) > 0.01 ? ` ${fmt(c.zoom)}` : ''}`);

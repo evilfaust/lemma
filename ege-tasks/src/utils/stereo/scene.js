@@ -324,6 +324,12 @@ export function evaluateScene(scene, opts = {}) {
   let radius = 0;
   for (const P of all) radius = Math.max(radius, dist(P, viewCenter));
 
+  // Цвета точек — оформление, не шаг: scene.colors = { M: 'red' }.
+  const colors = scene?.colors && typeof scene.colors === 'object' ? scene.colors : {};
+  for (const [name, color] of Object.entries(colors)) {
+    if (points[name] && color) points[name].color = color;
+  }
+
   return {
     body, points, pointOrder, lines, polys, steps, opsById,
     radius, viewCenter, center: body.center,
@@ -378,8 +384,10 @@ export function removeOpCascade(scene, opId) {
     const usesLine = [op.ref, op.l1, op.l2].some((r) => typeof r === 'string' && deadIds.has(r));
     if (usesName || usesLine) mark(op);
   }
+  const next = { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) };
+  if (scene?.colors) next.colors = withoutKeys(scene.colors, deadNames);
   return {
-    scene: { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) },
+    scene: next,
     removed: ops.filter((o) => deadIds.has(o.id)).map((o) => o.id),
   };
 }
@@ -400,5 +408,27 @@ export function renamePointInScene(scene, from, to) {
     if (o.pts) o.pts = o.pts.map(swap);
     return o;
   });
-  return { ...scene, ops };
+  const next = { ...scene, ops };
+  if (scene?.colors) {
+    next.colors = Object.fromEntries(Object.entries(scene.colors).map(([k, v]) => [swap(k), v]));
+  }
+  return next;
+}
+
+function withoutKeys(obj, keys) {
+  return Object.fromEntries(Object.entries(obj || {}).filter(([k]) => !keys.has(k)));
+}
+
+/**
+ * Покрасить точки (или снять цвет: color = '' / null). Цвет — оформление,
+ * в журнал шагов не попадает. Пустой объект colors из сцены убирается.
+ */
+export function setPointColors(scene, names, color) {
+  const colors = { ...(scene?.colors || {}) };
+  for (const n of names) {
+    if (color) colors[n] = color; else delete colors[n];
+  }
+  const next = { ...scene, colors };
+  if (!Object.keys(colors).length) delete next.colors;
+  return next;
 }

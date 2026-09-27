@@ -21,6 +21,7 @@ import {
   renderStereo, stereoSvgString, prettyName, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
+  POINT_COLORS, setPointColors,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -100,6 +101,7 @@ export default function StereoEditor() {
   const [bodyOpen, setBodyOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
+  const [paintColor, setPaintColor] = useState('red');
   // Открытый из библиотеки чертёж и «подпись» сохранённого состояния — по ней
   // видно, есть ли несохранённые изменения.
   const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
@@ -247,7 +249,12 @@ export default function StereoEditor() {
     setPending(r.pending);
     if (r.op) commit(r.op);
     if (r.attention) attention(r.attention);
-  }, [tool, pending, model, commit, showNotice, attention, replay]);
+    if (r.paint) {
+      // Повторный клик тем же цветом снимает выделение.
+      const cur = sceneRef.current.colors?.[r.paint.name];
+      setScene(setPointColors(sceneRef.current, [r.paint.name], cur === paintColor ? '' : paintColor));
+    }
+  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene]);
 
   // --- пошаговый показ ----------------------------------------------------------
   const stepsTotal = scene.ops.length;
@@ -347,6 +354,13 @@ export default function StereoEditor() {
     if (r.error) { setCmdError(r.error); return; }
     setCmdError('');
     if (r.action === 'undo') { undo(); setCmd(''); return; }
+    if (r.action === 'color') {
+      const missing = r.names.filter((n) => !model.points[n]);
+      if (missing.length) { setCmdError(`Нет точки ${missing.map(prettyName).join(', ')}`); return; }
+      setScene((sc) => setPointColors(sc, r.names, r.color));
+      setCmd('');
+      return;
+    }
     if (r.action === 'rename') {
       const pt = model.points[r.from];
       if (!pt) { setCmdError(`Нет точки ${prettyName(r.from)}`); return; }
@@ -511,6 +525,32 @@ export default function StereoEditor() {
               </button>
             ))}
           </div>
+
+          {tool === 'color' && (
+            <div className="stereo-palette" role="radiogroup" aria-label="Цвет точек">
+              {POINT_COLORS.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  role="radio"
+                  aria-checked={paintColor === c.key}
+                  aria-label={c.label}
+                  title={c.label}
+                  className={`stereo-palette__swatch${paintColor === c.key ? ' is-active' : ''}`}
+                  style={{ background: c.hex }}
+                  onClick={() => setPaintColor(c.key)}
+                />
+              ))}
+              <Button
+                size="small"
+                type="text"
+                disabled={!scene.colors}
+                onClick={() => setScene((sc) => setPointColors(sc, Object.keys(sc.colors || {}), ''))}
+              >
+                Снять все
+              </Button>
+            </div>
+          )}
 
           <div>
             <Input
