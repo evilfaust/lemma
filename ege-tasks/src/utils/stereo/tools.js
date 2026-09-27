@@ -5,7 +5,7 @@
 // а назад получает новое «набранное» (pending) и, когда хватает кликов,
 // готовую операцию.
 
-import { newOpId } from './scene';
+import { newOpId, lineColorKey } from './scene';
 import { nextFreeName } from './naming';
 import { prettyName } from './bodies';
 import { paramOnLine, add, mul, sub } from './vec3';
@@ -91,7 +91,7 @@ export function toolHint(tool, pending = []) {
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
-    case 'color': return 'Кликните по точкам — они окрасятся выбранным цветом (повторный клик снимает)';
+    case 'color': return 'Кликните по точкам или прямым — они окрасятся выбранным цветом (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
@@ -116,7 +116,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
     case 'attention': return ['point', 'line'];
-    case 'color': return ['point'];
+    case 'color': return ['point', 'line'];
     case 'rename': return ['point'];
     default: return [];
   }
@@ -204,8 +204,10 @@ export function toolClick(tool, pending, hit, model) {
     case 'rename':
       return { pending: [], rename: { name: target.name } };
     case 'color':
-      // Цвет — оформление точки, не шаг журнала: решает редактор.
-      return { pending: [], paint: { name: target.name } };
+      // Цвет — оформление точки или прямой, не шаг журнала: решает редактор.
+      return target.kind === 'point'
+        ? { pending: [], paint: { name: target.name } }
+        : { pending: [], paint: { line: lineColorKey(target.ref) } };
     case 'attention':
       // Не операция журнала: «смотрите сюда» уходит в эфир отдельно.
       return target.kind === 'point'

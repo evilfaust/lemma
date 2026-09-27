@@ -88,7 +88,7 @@ const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч
 /**
  * Разбирает команду в операцию.
  * @returns {{ op } | { action: 'undo' } | { action: 'rename', from, to }
- *   | { action: 'color', names, color } | { error }}
+ *   | { action: 'color', names, lines?, color } | { error }}
  */
 export function parseCommand(text, model) {
   const src = normalizeCommand(text);
@@ -105,6 +105,18 @@ export function parseCommand(text, model) {
 
     let m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
+
+    // «цвет прямой AB красный», «цвет прямых AB, CD синий» — выделить прямые.
+    m = /^(?:цвет|color)\s+(?:прям|отрез|лини|line)[а-яёa-z]*\s+(.+?)\s+(\S+)$/i.exec(src);
+    if (m) {
+      const lines = m[1].split(/[\s,;]+/).filter(Boolean).map(splitNames);
+      if (!lines.length || lines.some((n) => !n || n.length !== 2)) {
+        throw new Error('Прямая — двумя точками: «цвет прямой AB красный»');
+      }
+      const color = colorKeyFromWord(m[2]);
+      if (color == null) throw new Error('Цвета: красный, синий, зелёный, оранжевый, фиолетовый; «нет» — снять');
+      return { action: 'color', names: [], lines, color };
+    }
 
     // «цвет MNB красный» — выделить точки (оформление, не шаг); «… нет» — снять.
     m = /^(?:цвет|color)\s+(?:точ[а-яё]*\s+)?(\S+)\s+(\S+)$/i.exec(src);

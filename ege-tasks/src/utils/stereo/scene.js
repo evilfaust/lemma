@@ -331,6 +331,14 @@ export function evaluateScene(scene, opts = {}) {
   for (const [name, color] of Object.entries(colors)) {
     if (points[name] && color) points[name].color = color;
   }
+  // Цвета прямых — тоже оформление: scene.lineColors = { 'A-B': 'red' }.
+  // Ключ — сама прямая, а не кусок: ребро AB, его продолжения и отрезок AB
+  // красятся вместе.
+  const lineColors = scene?.lineColors && typeof scene.lineColors === 'object' ? scene.lineColors : {};
+  for (const o of lines) {
+    const c = lineColors[lineColorKey(o.ref)];
+    if (c) { o.color = c; o.painted = true; }
+  }
 
   return {
     body, points, pointOrder, lines, polys, steps, opsById,
@@ -388,6 +396,12 @@ export function removeOpCascade(scene, opId) {
   }
   const next = { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) };
   if (scene?.colors) next.colors = withoutKeys(scene.colors, deadNames);
+  if (scene?.lineColors) {
+    next.lineColors = Object.fromEntries(Object.entries(scene.lineColors).filter(([k]) => {
+      const ref = refOfLineColorKey(k);
+      return Array.isArray(ref) ? !ref.some((n) => deadNames.has(n)) : !deadIds.has(ref);
+    }));
+  }
   return {
     scene: next,
     removed: ops.filter((o) => deadIds.has(o.id)).map((o) => o.id),
@@ -413,6 +427,12 @@ export function renamePointInScene(scene, from, to) {
   const next = { ...scene, ops };
   if (scene?.colors) {
     next.colors = Object.fromEntries(Object.entries(scene.colors).map(([k, v]) => [swap(k), v]));
+  }
+  if (scene?.lineColors) {
+    next.lineColors = Object.fromEntries(Object.entries(scene.lineColors).map(([k, v]) => {
+      const ref = refOfLineColorKey(k);
+      return [Array.isArray(ref) ? lineColorKey(ref.map(swap)) : k, v];
+    }));
   }
   return next;
 }
@@ -452,5 +472,31 @@ export function setPointColors(scene, names, color) {
   }
   const next = { ...scene, colors };
   if (!Object.keys(colors).length) delete next.colors;
+  return next;
+}
+
+/**
+ * Ключ цвета прямой: пара точек — без учёта порядка («A-A1»), прямая по
+ * ссылке (параллельная) — «#<id шага>».
+ */
+export function lineColorKey(ref) {
+  if (isPairRef(ref)) return [...ref].sort().join('-');
+  return `#${ref}`;
+}
+
+/** Обратно: «A-A1» → ['A', 'A1'], «#o12» → 'o12'. */
+export function refOfLineColorKey(key) {
+  const k = String(key);
+  return k.startsWith('#') ? k.slice(1) : k.split('-');
+}
+
+/** Покрасить прямые по ключам lineColorKey (color = '' — снять). */
+export function setLineColors(scene, keys, color) {
+  const lineColors = { ...(scene?.lineColors || {}) };
+  for (const k of keys) {
+    if (color) lineColors[k] = color; else delete lineColors[k];
+  }
+  const next = { ...scene, lineColors };
+  if (!Object.keys(lineColors).length) delete next.lineColors;
   return next;
 }

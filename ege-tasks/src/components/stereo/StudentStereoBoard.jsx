@@ -5,7 +5,7 @@ import { evaluateScene } from '../../utils/stereo/scene';
 import { DEFAULT_CAMERA } from '../../utils/stereo/camera';
 import { describeOp } from '../../utils/stereo/commands';
 import {
-  roomChanges, interpolateCamera, sceneOfRoom,
+  roomChanges, interpolateCamera, chaseCamera, sceneOfRoom, isRoomLead,
 } from '../../utils/stereo/room';
 import './stereo.css';
 
@@ -16,9 +16,11 @@ const ANIM_MS = 450;
 /**
  * Ученический экран эфира: student.oipav.ru/b/<code>.
  *
- * Ученик ничего не строит — только смотрит и крутит свой чертёж. Пока
- * включено «Следить за учителем», ракурс учителя («Смотрите отсюда»)
- * применяется сам; стоит покрутить — слежение выключается, кнопка возвращает.
+ * Ученик ничего не строит — только смотрит и крутит свой чертёж. Стоит
+ * покрутить — слежение за учителем выключается, кнопка «Как у учителя»
+ * возвращает. Команду учителя «Смотрите отсюда» получают все, даже те, кто
+ * крутил сам. «Все смотрят сюда» (camera.lead) — ученик следит за каждым
+ * поворотом учителя и сам не крутит, пока учитель не отпустит.
  *
  * Надёжность — как у эфира марафона: подписка на запись + опрос. Выключенный
  * эфир realtime не доставит (viewRule), его ловит опрос; после этого страница
@@ -35,8 +37,6 @@ export default function StudentStereoBoard({ code }) {
   const [showHint, setShowHint] = useState(true);
 
   const prevRef = useRef(null);
-  const followRef = useRef(true);
-  followRef.current = follow;
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
   const animRef = useRef(0);
@@ -51,7 +51,29 @@ export default function StudentStereoBoard({ code }) {
     cancelAnimationFrame(animRef.current);
   }, []);
 
+  // «Все смотрят сюда»: камера догоняет последний ракурс учителя каждый кадр.
+  const chaseTarget = useRef(null);
+  const chaseTo = useCallback((target) => {
+    const running = chaseTarget.current;
+    chaseTarget.current = target;
+    if (running) return; // цикл уже идёт — он подхватит новую цель
+    cancelAnimationFrame(animRef.current);
+    let last = performance.now();
+    const step = (now) => {
+      const goal = chaseTarget.current;
+      if (!goal) return;
+      const r = chaseCamera(cameraRef.current, goal, now - last);
+      last = now;
+      cameraRef.current = r.camera;
+      setCamera(r.camera);
+      if (r.done) { chaseTarget.current = null; return; }
+      animRef.current = requestAnimationFrame(step);
+    };
+    animRef.current = requestAnimationFrame(step);
+  }, []);
+
   const animateTo = useCallback((target) => {
+    chaseTarget.current = null;
     cancelAnimationFrame(animRef.current);
     const from = cameraRef.current;
     const t0 = performance.now();
@@ -78,7 +100,13 @@ export default function StudentStereoBoard({ code }) {
       setFlashStep(ch.flashStep);
       later('flash', () => setFlashStep(null), 1800);
     }
-    if (ch.camera && followRef.current) animateTo(ch.camera);
+    // Ракурс учителя — всем: и «Смотрите отсюда», и «Все смотрят сюда»
+    // возвращают слежение даже тем, кто крутил сам.
+    if (ch.camera) {
+      setFollow(true);
+      setShowHint(false);
+      if (ch.lead) chaseTo(ch.camera); else animateTo(ch.camera);
+    }
     if (ch.pulse) {
       setPulse({ points: new Set(ch.pulse.points || []), lines: new Set(ch.pulse.lines || []), key: Date.now() });
       later('pulse', () => setPulse(null), 3000);
@@ -87,7 +115,7 @@ export default function StudentStereoBoard({ code }) {
       setNotice(ch.notice);
       later('notice', () => setNotice(null), 7000);
     }
-  }, [animateTo]);
+  }, [animateTo, chaseTo]);
 
   // Поиск эфира по коду — пока эфира нет.
   useEffect(() => {
@@ -146,7 +174,10 @@ export default function StudentStereoBoard({ code }) {
     return last ? { text: `Шаг ${ok.length}: ${describeOp(last.op, model.opsById)}`, note: last.op.note || '' } : null;
   }, [model]);
 
+  const lead = phase === 'live' && isRoomLead(room);
+
   const onCameraChange = useCallback((cam) => {
+    chaseTarget.current = null;
     cancelAnimationFrame(animRef.current);
     setCamera(cam);
     setFollow(false);
@@ -172,7 +203,8 @@ export default function StudentStereoBoard({ code }) {
           <StereoCanvas
             model={model}
             camera={camera}
-            onCameraChange={onCameraChange}
+            onCameraChange={lead ? undefined : onCameraChange}
+            cursor={lead ? 'default' : 'grab'}
             flashStep={flashStep}
             pulse={pulse}
             className="ssb__canvas"
@@ -187,7 +219,10 @@ export default function StudentStereoBoard({ code }) {
             <p className="ssb__code">Комната: {code}</p>
           </div>
         )}
-        {model && showHint && (
+        {model && lead && (
+          <div className="ssb__lead" role="status">Учитель показывает — смотрите</div>
+        )}
+        {model && showHint && !lead && (
           <div className="ssb__hint">Крутите пальцем · два пальца — масштаб</div>
         )}
         {phase === 'ended' && model && (
@@ -202,13 +237,17 @@ export default function StudentStereoBoard({ code }) {
             {lastStep ? lastStep.text : 'Пока только тело — смотрите на доску'}
             {lastStep?.note && <span className="ssb__note">{lastStep.note}</span>}
           </div>
-          <button
-            type="button"
-            className={`ssb__follow${follow ? ' is-on' : ''}`}
-            onClick={backToTeacher}
-          >
-            {follow ? 'Как у учителя ✓' : 'Как у учителя'}
-          </button>
+          {lead ? (
+            <span className="ssb__follow is-on is-locked">Показывает учитель</span>
+          ) : (
+            <button
+              type="button"
+              className={`ssb__follow${follow ? ' is-on' : ''}`}
+              onClick={backToTeacher}
+            >
+              {follow ? 'Как у учителя ✓' : 'Как у учителя'}
+            </button>
+          )}
         </footer>
       )}
     </div>

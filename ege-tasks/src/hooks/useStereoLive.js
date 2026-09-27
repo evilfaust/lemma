@@ -14,7 +14,15 @@ const ROOM_KEY = 'stereo.roomId';
  *
  * rooms === null — коллекции нет (миграция не применена): эфир недоступен,
  * редактор работает как раньше.
+ *
+ * «Все смотрят сюда» (lead): пока включено, ракурс учителя уходит в эфир
+ * непрерывно (не чаще раза в LEAD_MS, последний — всегда), а у учеников
+ * вращение заблокировано. Флаг живёт в той же записи: camera.lead.
  */
+export const LEAD_MS = 120;
+
+const camPatch = (camera, on) => ({ camera: { ...clampCamera(camera), seq: Date.now(), lead: !!on } });
+
 export default function useStereoLive({ scene, enabled = true }) {
   const [rooms, setRooms] = useState(undefined);
   const [roomId, setRoomId] = useState(() => {
@@ -92,12 +100,56 @@ export default function useStereoLive({ scene, enabled = true }) {
 
   const seq = () => Date.now();
 
+  // --- «Все смотрят сюда» ------------------------------------------------------
+  const [lead, setLeadState] = useState(false);
+  const leadRef = useRef(false);
+  leadRef.current = lead && isLive;
+  const leadTimer = useRef(0);
+  const leadLast = useRef(0);
+  const leadCam = useRef(null);
+
+  const sendLead = useCallback(() => {
+    clearTimeout(leadTimer.current);
+    leadTimer.current = 0;
+    if (!leadRef.current || !leadCam.current) return;
+    leadLast.current = Date.now();
+    queue(camPatch(leadCam.current, true));
+  }, [queue]);
+
+  // Ракурс учителя — в эфир, пока ведёт: сразу, если давно не слали, иначе
+  // одним отложенным (последний ракурс не теряется).
+  const streamCamera = useCallback((camera) => {
+    if (!leadRef.current) return;
+    leadCam.current = camera;
+    const wait = LEAD_MS - (Date.now() - leadLast.current);
+    if (wait <= 0) sendLead();
+    else if (!leadTimer.current) leadTimer.current = setTimeout(sendLead, wait);
+  }, [sendLead]);
+
+  const setLead = useCallback((on, camera) => {
+    setLeadState(!!on);
+    leadRef.current = !!on && liveRef.current;
+    clearTimeout(leadTimer.current);
+    leadTimer.current = 0;
+    leadCam.current = camera;
+    leadLast.current = Date.now();
+    if (liveRef.current) queue(camPatch(camera, on));
+  }, [queue]);
+
+  // Эфир закончился — вести больше некого.
+  useEffect(() => { if (!isLive) setLeadState(false); }, [isLive]);
+  useEffect(() => () => clearTimeout(leadTimer.current), []);
+
   const start = useCallback((camera) => {
-    queue({ live: true, scene, camera: { ...clampCamera(camera), seq: seq() } });
+    setLeadState(false);
+    queue({ live: true, scene, ...camPatch(camera, false) });
   }, [queue, scene]);
-  const stop = useCallback(() => queue({ live: false }), [queue]);
+  const stop = useCallback(() => {
+    setLeadState(false);
+    queue({ live: false });
+  }, [queue]);
   const pushCamera = useCallback((camera) => {
-    if (liveRef.current) queue({ camera: { ...clampCamera(camera), seq: seq() } });
+    if (liveRef.current) queue(camPatch(camera, leadRef.current));
   }, [queue]);
   const pushPulse = useCallback((target) => {
     if (liveRef.current) queue({ pulse: { points: target.points || [], lines: target.lines || [], seq: seq() } });
@@ -122,5 +174,6 @@ export default function useStereoLive({ scene, enabled = true }) {
     rooms, room, isLive, saving, error,
     selectRoom, reload, createRoom, deleteRoom,
     start, stop, pushCamera, pushPulse, pushNotice,
+    isLeading: lead && isLive, setLead, streamCamera,
   };
 }

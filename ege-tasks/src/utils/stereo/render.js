@@ -7,8 +7,9 @@ import { makeProjector } from './camera';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
 
 /**
- * Палитра точек: какие точки выделены (например, через которые проводится
- * сечение). Ключ хранится в scene.colors — { M: 'red' }.
+ * Палитра выделения: точки (например, через которые проводится сечение) и
+ * прямые. Ключи хранятся в scene.colors — { M: 'red' } и
+ * scene.lineColors — { 'A-B': 'blue' }.
  */
 export const POINT_COLORS = [
   { key: 'red', label: 'красный', hex: '#dc2626', words: ['красный', 'красная', 'красные', 'красным', 'red'] },
@@ -45,6 +46,7 @@ export const STEREO_COLORS = {
 };
 
 const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8 };
+const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
 
 /** «A1» → { base: 'A', sub: '1' } */
@@ -154,8 +156,10 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     }
   };
   for (const o of model.lines) {
-    const color = o.color || (o.kind === 'edge' ? STEREO_COLORS.edge : STEREO_COLORS.construct);
-    pushSplit(o.id, o.kind, o.a, o.b, color, WIDTH[o.kind] || 1.5, o.step);
+    const color = pointColorHex(o.color) || o.color || (o.kind === 'edge' ? STEREO_COLORS.edge : STEREO_COLORS.construct);
+    // Выделенная прямая толще — и в цвете, и в ч/б печати (там цвет — чёрный).
+    const w = (WIDTH[o.kind] || 1.5) * (o.painted ? PAINTED_WIDTH : 1);
+    pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step);
     const a = P(o.a);
     const b = P(o.b);
     hitLines.push({ id: o.id, kind: o.kind, ref: o.ref, x1: a.x, y1: a.y, x2: b.x, y2: b.y, a3: o.a, b3: o.b, p: o.p, u: o.u });

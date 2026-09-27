@@ -70,13 +70,19 @@ export function isTeachingNotice(text) {
 
 const seqOf = (v) => (v && Number.isFinite(Number(v.seq)) ? Number(v.seq) : 0);
 
+/** Учитель ведёт («Все смотрят сюда»): ученик следит за ракурсом и сам не крутит. */
+export function isRoomLead(room) {
+  return !!(room?.live && room?.camera?.lead);
+}
+
 /**
  * Что изменилось в комнате между версиями записи — для ученика.
- * @returns {{ flashStep: number|null, camera: object|null, pulse: object|null, notice: string|null, reset: boolean }}
+ * @returns {{ flashStep: number|null, camera: object|null, lead: boolean, pulse: object|null, notice: string|null, reset: boolean }}
  */
 export function roomChanges(prev, next) {
-  const out = { flashStep: null, camera: null, pulse: null, notice: null, reset: false };
+  const out = { flashStep: null, camera: null, lead: false, pulse: null, notice: null, reset: false };
   if (!next) return out;
+  out.lead = isRoomLead(next);
   const ops0 = prev?.scene?.ops || [];
   const ops1 = next.scene?.ops || [];
   const sameBody = JSON.stringify(prev?.scene?.body || null) === JSON.stringify(next.scene?.body || null);
@@ -109,6 +115,21 @@ export function interpolateCamera(a, b, k) {
     pitch: a.pitch + (b.pitch - a.pitch) * k,
     zoom: (a.zoom || 1) + ((b.zoom || 1) - (a.zoom || 1)) * k,
   });
+}
+
+/**
+ * Шаг «догонялки» за ракурсом учителя: камера каждый кадр проходит долю
+ * пути 1 − e^(−dt/τ). Обновления приходят 5–8 раз в секунду, и так поворот
+ * выглядит плавным, а не рывками от точки к точке.
+ * @returns {{ camera, done: boolean }} done — догнали (камера = цель)
+ */
+export function chaseCamera(cur, target, dtMs, tauMs = 90) {
+  const t = clampCamera(target);
+  const k = 1 - Math.exp(-Math.max(0, dtMs) / tauMs);
+  const next = interpolateCamera(cur, t, k);
+  const dYaw = Math.abs(((t.yaw - next.yaw) % 360 + 540) % 360 - 180);
+  const done = dYaw < 0.05 && Math.abs(t.pitch - next.pitch) < 0.05 && Math.abs(t.zoom - next.zoom) < 0.002;
+  return { camera: done ? t : next, done };
 }
 
 /** Сцена из записи комнаты: пустая или битая → null. */

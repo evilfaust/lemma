@@ -97,7 +97,7 @@ describe('цвет точек: редактор', () => {
     expect(screen.queryByText(/Не понял/)).toBeNull();
     expect(screen.getByLabelText('Строка команд').value).toBe('');
     fireEvent.keyDown(window, { key: 'o', code: 'KeyO' });
-    expect(screen.getByRole('radiogroup', { name: 'Цвет точек' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'Цвет точек и прямых' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'красный' }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(screen.getByRole('radio', { name: 'синий' }));
     expect(screen.getByRole('radio', { name: 'синий' }).getAttribute('aria-checked')).toBe('true');

@@ -203,6 +203,8 @@
 }
 .stereo-live.is-live { border-color: #fca5a5; background: #fff7f7; }
 .stereo-live__head { display: flex; align-items: center; justify-content: space-between; }
+.stereo-live__lead.is-on { animation: stereo-lead-glow 1.6s ease-in-out infinite; }
+@keyframes stereo-lead-glow { 50% { box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.25); } }
 .stereo-live__dot {
   display: inline-flex;
   align-items: center;
@@ -312,7 +314,7 @@
   animation: ssb-spin 0.9s linear infinite;
 }
 @keyframes ssb-spin { to { transform: rotate(360deg); } }
-.ssb__hint, .ssb__banner, .ssb__notice {
+.ssb__hint, .ssb__banner, .ssb__notice, .ssb__lead {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
@@ -325,6 +327,24 @@
 }
 .ssb__hint { top: 10px; background: rgba(17, 24, 39, 0.75); color: #fff; }
 .ssb__banner { top: 10px; background: #e2e8f0; color: #334155; }
+/* «Все смотрят сюда»: учитель ведёт, крутить нельзя. */
+.ssb__lead {
+  top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+}
+.ssb__lead::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #fff;
+  animation: stereo-live-blink 1.2s ease-in-out infinite;
+}
 .ssb__notice {
   bottom: 12px;
   border-radius: 12px;
@@ -359,6 +379,7 @@
   font-weight: 600;
 }
 .ssb__follow.is-on { background: #fff; color: #2563eb; }
+.ssb__follow.is-locked { border-color: #cbd5e1; color: #64748b; font-weight: 500; }
 
 /* --- пошаговый показ и подписи шагов ------------------------------------------ */
 .stereo-replay {

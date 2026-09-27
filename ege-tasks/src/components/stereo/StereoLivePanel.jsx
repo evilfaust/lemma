@@ -3,14 +3,16 @@ import {
   Alert, App, Button, Form, Input, Modal, Select, Space, Tooltip,
 } from 'antd';
 import {
-  AimOutlined, CopyOutlined, DeleteOutlined, PlusOutlined, WifiOutlined,
+  AimOutlined, CopyOutlined, DeleteOutlined, EyeOutlined, PlusOutlined, WifiOutlined,
 } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { roomCodeFromName, normalizeRoomCode, roomLink } from '../../utils/stereo/room';
 
 /**
  * Панель «Эфир» редактора: комната класса, ссылка для доски, старт/стоп,
- * «Смотрите отсюда». Состояние — хук useStereoLive (передаётся целиком).
+ * «Смотрите отсюда» (разово) и «Все смотрят сюда» (ученики следят за каждым
+ * поворотом учителя и сами не крутят). Состояние — хук useStereoLive
+ * (передаётся целиком).
  */
 export default function StereoLivePanel({ live, camera }) {
   const { message, modal } = App.useApp();
@@ -96,9 +98,20 @@ export default function StereoLivePanel({ live, camera }) {
                 </Button>
                 <Button danger onClick={live.stop}>Стоп</Button>
               </Space.Compact>
+              <Button
+                block
+                icon={<EyeOutlined />}
+                type={live.isLeading ? 'primary' : 'default'}
+                className={live.isLeading ? 'stereo-live__lead is-on' : 'stereo-live__lead'}
+                aria-pressed={live.isLeading}
+                onClick={() => live.setLead(!live.isLeading, camera)}
+              >
+                {live.isLeading ? 'Все смотрят сюда · отпустить' : 'Все смотрят сюда'}
+              </Button>
               <div className="stereo-cmd-help">
-                Каждый шаг сразу появляется у учеников. «Внимание» (W) —
-                мигнуть точкой или прямой у всех.
+                {live.isLeading
+                  ? 'Ученики видят каждый ваш поворот и сами чертёж не крутят. Нажмите ещё раз — отпустить.'
+                  : 'Каждый шаг сразу появляется у учеников. «Внимание» (W) — мигнуть точкой или прямой у всех.'}
               </div>
             </Space>
           ) : (

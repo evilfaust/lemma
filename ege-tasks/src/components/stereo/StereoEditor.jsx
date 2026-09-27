@@ -22,7 +22,7 @@ import {
   renderStereo, stereoSvgString, prettyName, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
-  POINT_COLORS, setPointColors, renamePoint,
+  POINT_COLORS, setPointColors, setLineColors, lineColorKey, renamePoint,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -138,6 +138,9 @@ export default function StereoEditor({
   const [editNote, setEditNote] = useState(null); // { opId, text }
   const auth = useOptionalAuth();
   const live = useStereoLive({ scene: liveScene, enabled: !embedded && !!auth?.canEdit });
+  // «Все смотрят сюда»: каждый поворот учителя — в эфир (хук сам решает, ведёт ли).
+  const { streamCamera } = live;
+  useEffect(() => { streamCamera(camera); }, [camera, streamCamera]);
   const [pulse, setPulse] = useState(null);
 
   // Черновик переживает перезагрузку страницы.
@@ -270,8 +273,14 @@ export default function StereoEditor({
     if (r.rename) setRenameTarget(r.rename.name);
     if (r.paint) {
       // Повторный клик тем же цветом снимает выделение.
-      const cur = sceneRef.current.colors?.[r.paint.name];
-      setScene(setPointColors(sceneRef.current, [r.paint.name], cur === paintColor ? '' : paintColor));
+      const sc = sceneRef.current;
+      if (r.paint.line) {
+        const cur = sc.lineColors?.[r.paint.line];
+        setScene(setLineColors(sc, [r.paint.line], cur === paintColor ? '' : paintColor));
+      } else {
+        const cur = sc.colors?.[r.paint.name];
+        setScene(setPointColors(sc, [r.paint.name], cur === paintColor ? '' : paintColor));
+      }
     }
   }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene]);
 
@@ -374,9 +383,10 @@ export default function StereoEditor({
     setCmdError('');
     if (r.action === 'undo') { undo(); setCmd(''); return; }
     if (r.action === 'color') {
-      const missing = r.names.filter((n) => !model.points[n]);
+      const lines = r.lines || [];
+      const missing = [...r.names, ...lines.flat()].filter((n) => !model.points[n]);
       if (missing.length) { setCmdError(`Нет точки ${missing.map(prettyName).join(', ')}`); return; }
-      setScene((sc) => setPointColors(sc, r.names, r.color));
+      setScene((sc) => setLineColors(setPointColors(sc, r.names, r.color), lines.map(lineColorKey), r.color));
       setCmd('');
       return;
     }
@@ -575,7 +585,7 @@ export default function StereoEditor({
           </div>
 
           {tool === 'color' && (
-            <div className="stereo-palette" role="radiogroup" aria-label="Цвет точек">
+            <div className="stereo-palette" role="radiogroup" aria-label="Цвет точек и прямых">
               {POINT_COLORS.map((c) => (
                 <button
                   key={c.key}
@@ -592,8 +602,12 @@ export default function StereoEditor({
               <Button
                 size="small"
                 type="text"
-                disabled={!scene.colors}
-                onClick={() => setScene((sc) => setPointColors(sc, Object.keys(sc.colors || {}), ''))}
+                disabled={!scene.colors && !scene.lineColors}
+                onClick={() => setScene((sc) => setLineColors(
+                  setPointColors(sc, Object.keys(sc.colors || {}), ''),
+                  Object.keys(sc.lineColors || {}),
+                  '',
+                ))}
               >
                 Снять все
               </Button>

@@ -17,7 +17,9 @@
 // ошибка возвращается с номером строки.
 
 import { normalizeBodySpec, DEFAULT_BODY } from './bodies';
-import { evaluateScene, tryAppendOp, setPointColors } from './scene';
+import {
+  evaluateScene, tryAppendOp, setPointColors, setLineColors, lineColorKey, refOfLineColorKey,
+} from './scene';
 import { parseCommand, opToCommand, splitNames } from './commands';
 import { buildBody } from './bodies';
 import { DEFAULT_CAMERA, clampCamera } from './camera';
@@ -136,9 +138,10 @@ export function parseStereoBlock(text) {
     if (r.error) { errors.push({ line: lineNo, message: r.error }); return; }
     if (r.action === 'color') {
       const model = evaluateScene(scene);
-      const missing = r.names.filter((n) => !model.points[n]);
+      const missing = [...r.names, ...(r.lines || []).flat()].filter((n) => !model.points[n]);
       if (missing.length) { errors.push({ line: lineNo, message: `Нет точки ${missing.join(', ')}` }); return; }
       scene = setPointColors(scene, r.names, r.color);
+      if (r.lines?.length) scene = setLineColors(scene, r.lines.map(lineColorKey), r.color);
       return;
     }
     if (!r.op) { errors.push({ line: lineNo, message: 'Эта команда в блоке не работает' }); return; }
@@ -170,9 +173,20 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
     if (!key) continue;
     (byColor[key] = byColor[key] || []).push(name);
   }
+  const wordOf = (key) => POINT_COLORS.find((c) => c.key === key)?.label || key;
   for (const [key, names] of Object.entries(byColor)) {
-    const word = POINT_COLORS.find((c) => c.key === key)?.label || key;
-    out.push(`цвет ${names.join('')} ${word}`);
+    out.push(`цвет ${names.join('')} ${wordOf(key)}`);
+  }
+  // Цвета прямых: «цвет прямых AB, CD синий». Параллельная (ссылка на шаг)
+  // текстом не выражается — её цвет в блок не попадает.
+  const linesByColor = {};
+  for (const [k, key] of Object.entries(scene?.lineColors || {})) {
+    const ref = refOfLineColorKey(k);
+    if (!key || !Array.isArray(ref)) continue;
+    (linesByColor[key] = linesByColor[key] || []).push(ref.join(''));
+  }
+  for (const [key, lines] of Object.entries(linesByColor)) {
+    out.push(`цвет ${lines.length > 1 ? 'прямых' : 'прямой'} ${lines.join(', ')} ${wordOf(key)}`);
   }
   const c = clampCamera(camera);
   out.push(`вид ${fmt(c.yaw)} ${fmt(c.pitch)}${Math.abs(c.zoom - 1) > 0.01 ? ` ${fmt(c.zoom)}` : ''}`);
