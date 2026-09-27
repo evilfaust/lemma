@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { App, Button, Card, Divider, Modal, Popconfirm, Select, Tag, Tooltip, Typography } from 'antd';
 import {
   ClearOutlined,
+  CodeSandboxOutlined,
   DeleteOutlined,
   EditOutlined,
   FileImageOutlined,
@@ -118,11 +119,11 @@ export default function TabDrawing({
   onClearDrawing,
   drawingSvg,
   convertingSvg,
-  savingSvg,
   onConvertToSvg,
-  onSaveSvg,
   onGetXml,
   onSvgChange,
+  isStereo = false,
+  onOpenStereo,
 }) {
   const { message } = App.useApp();
   const drawingContainerRef = useRef(null);
@@ -151,7 +152,7 @@ export default function TabDrawing({
   const handleSvgEditorSave = useCallback((newSvg) => {
     onSvgChange?.(newSvg);
     setSvgEditorOpen(false);
-    message.success('SVG обновлён — нажмите «Сохр. SVG» или сохраните задачу целиком');
+    message.success('SVG обновлён — сохранится вместе с задачей');
   }, [onSvgChange, message]);
 
   const handleSvgEditorCancel = useCallback(() => setSvgEditorOpen(false), []);
@@ -287,18 +288,26 @@ export default function TabDrawing({
         {DIVIDER}
 
         {/* SVG */}
-        <Button size="small" loading={convertingSvg} disabled={!onConvertToSvg} onClick={onConvertToSvg}>
-          → SVG
-        </Button>
-        {drawingSvg && onSaveSvg && (
-          <Button size="small" type="primary" ghost loading={savingSvg} onClick={onSaveSvg}>
-            Сохр. SVG
+        <Tooltip title="Перевести чертёж GeoGebra в SVG (векторный, чёткий при печати)">
+          <Button size="small" loading={convertingSvg} disabled={!onConvertToSvg} onClick={onConvertToSvg}>
+            → SVG
           </Button>
-        )}
-        {drawingSvg && onSvgChange && (
+        </Tooltip>
+        {drawingSvg && onSvgChange && !isStereo && (
           <Tooltip title="Редактировать SVG">
             <Button size="small" icon={<EditOutlined />} onClick={handleOpenSvgEditor} />
           </Tooltip>
+        )}
+
+        {onOpenStereo && (
+          <>
+            {DIVIDER}
+            <Tooltip title="Стереочертёж (куб, призма, пирамида, сечения) — станет чертежом задачи в SVG; открывается снова на правку">
+              <Button size="small" icon={<CodeSandboxOutlined />} type={isStereo ? 'primary' : 'default'} ghost={isStereo} onClick={onOpenStereo}>
+                {isStereo ? 'Стерео ✎' : 'Стерео'}
+              </Button>
+            </Tooltip>
+          </>
         )}
 
         {DIVIDER}
@@ -349,7 +358,7 @@ export default function TabDrawing({
           {drawingSvg && (
             <Card
               size="small"
-              title={<Text type="secondary" style={{ fontSize: 12 }}>SVG-чертёж</Text>}
+              title={<Text type="secondary" style={{ fontSize: 12 }}>{isStereo ? 'Стереочертёж (SVG)' : 'SVG-чертёж'}</Text>}
               styles={{ body: { padding: 8, display: 'flex', justifyContent: 'center' } }}
             >
               <div

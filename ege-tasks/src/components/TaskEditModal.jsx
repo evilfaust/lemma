@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App, Tooltip, Tag, Collapse, Row, Col, Dropdown } from 'antd';
-import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined, ExportOutlined, TableOutlined, ReloadOutlined, ClearOutlined, DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined } from '@ant-design/icons';
+import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App, Tooltip, Tag, Collapse, Row, Col } from 'antd';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined, ExportOutlined, TableOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import TaskStatementRenderer from './TaskStatementRenderer';
 import RefreshFromSdamgiaModal from './RefreshFromSdamgiaModal';
@@ -8,20 +8,14 @@ import SimilarTasksPanel from './SimilarTasksPanel';
 import GeoGebraDrawingPanel from './GeoGebraDrawingPanel';
 import CropModal from './shared/CropModal';
 import LatexField from './shared/LatexField';
-import NumberLineModal from './shared/NumberLineModal';
-import PlotModal from './shared/PlotModal';
-import GridPaperModal from './shared/GridPaperModal';
+import FieldInsertToolbar from './shared/FieldInsertToolbar';
+import useFieldInserts from '../hooks/useFieldInserts';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
 import { dataUrlToFile } from '../utils/cropImage';
 import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
 import { useImageUpload } from '../hooks';
 import { parseMatchingTask } from '../utils/parseMatchingTask';
-import { fixLatexRoots } from '../utils/fixLatexRoots';
-import { TABLE_SNIPPETS } from '../utils/markdownTables';
-import TableModifiersHelp from './shared/TableModifiersHelp';
-import { findPlotAtCursor, findGridAtCursor } from '../utils/plotSnippet';
-import { insertAtCaret } from '../utils/caretInsert';
 
 const DEFINE_API_BASE = import.meta.env.VITE_DEFINE_API_URL?.replace('/define', '') || 'https://l.oipav.ru';
 
@@ -84,17 +78,16 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [convertingTable, setConvertingTable] = useState(false);
   const statementTextAreaRef = useRef(null);
   const solutionTextAreaRef = useRef(null);
-  // Последнее выделение по полям — переживает потерю фокуса (клик по кнопке
-  // тулбара). По нему сниппет вставляется на место курсора, а не в конец, и по
-  // нему же ищется чертёж «под курсором» для правки.
-  const caretRef = useRef({});
-  // Конструктор числовой прямой: открыт + целевое поле ('statement_md'|'solution_md')
-  const [numlineTarget, setNumlineTarget] = useState(null);
-  // Конструктор координатной плоскости: { field, kind: 'function'|'vectors' }
-  const [plotTarget, setPlotTarget] = useState(null);
-  // Конструктор поля «в клетку» (место, куда ученик пишет решение):
-  // { field, spec?, format?, range? } — spec/range заполнены при правке.
-  const [gridTarget, setGridTarget] = useState(null);
+  // Вставка в поля: таблицы, числовая прямая, графики, клетка, стереочертёж,
+  // починка корней — общий хук с редактором геометрических задач.
+  const inserts = useFieldInserts({
+    form,
+    fields: {
+      statement_md: { ref: statementTextAreaRef, setPreview: setPreviewStatement },
+      solution_md: { ref: solutionTextAreaRef, setPreview: setPreviewSolution },
+      answer: { setPreview: setPreviewAnswer },
+    },
+  });
 
   // Картинки задачи из коллекции task_images, сгруппированы по ролям.
   // Используются для подмены ![image](внешний_url) на локальный в превью.
@@ -475,100 +468,6 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     setPreviewStatement(newValue);
   }, [form]);
 
-  // Текущее выделение поля: живое, если поле в фокусе, иначе — последнее
-  // запомненное (кнопка тулбара забирает фокус себе).
-  const fieldCaret = useCallback((fieldName) => {
-    const el = (fieldName === 'solution_md' ? solutionTextAreaRef : statementTextAreaRef)
-      .current?.resizableTextArea?.textArea;
-    if (el && document.activeElement === el) {
-      return { start: el.selectionStart, end: el.selectionEnd };
-    }
-    return caretRef.current[fieldName] || null;
-  }, []);
-
-  // Вставка готового сниппета чертежа (блок ```numline / ```plot или inline-код
-  // `numline: …` / `plot: …` для ячеек таблиц) — на место курсора. Позиции нет
-  // или она от другого текста → в конец, как раньше.
-  const insertSnippet = useCallback((fieldName, snippet) => {
-    if (!fieldName) return;
-    const setter = fieldName === 'solution_md' ? setPreviewSolution : setPreviewStatement;
-    const cur = form.getFieldValue(fieldName) || '';
-    const { text, caret } = insertAtCaret(cur, fieldCaret(fieldName), snippet);
-    form.setFieldValue(fieldName, text);
-    setter(text);
-    // Курсор — за вставленным куском: следующий чертёж не ляжет поверх этого.
-    caretRef.current[fieldName] = { start: caret, end: caret };
-    const el = (fieldName === 'solution_md' ? solutionTextAreaRef : statementTextAreaRef)
-      .current?.resizableTextArea?.textArea;
-    if (el) setTimeout(() => { el.focus(); el.setSelectionRange(caret, caret); }, 0);
-  }, [form, fieldCaret]);
-
-  const insertNumline = useCallback((snippet) => {
-    insertSnippet(numlineTarget, snippet);
-    setNumlineTarget(null);
-  }, [insertSnippet, numlineTarget]);
-
-  // Замена куска поля (правка уже вставленного чертежа). Обрамляющие переводы
-  // строки у блочного сниппета срезаем — они уже есть вокруг найденного блока.
-  const replaceRange = useCallback((fieldName, [from, to], snippet) => {
-    const setter = fieldName === 'solution_md' ? setPreviewSolution : setPreviewStatement;
-    const cur = form.getFieldValue(fieldName) || '';
-    const body = snippet.replace(/^\n+/, '').replace(/\n+$/, '');
-    const next = cur.slice(0, from) + body + cur.slice(to);
-    form.setFieldValue(fieldName, next);
-    setter(next);
-    caretRef.current[fieldName] = { start: from + body.length, end: from + body.length };
-  }, [form]);
-
-  const insertGrid = useCallback((snippet) => {
-    if (gridTarget?.range) replaceRange(gridTarget.field, gridTarget.range, snippet);
-    else insertSnippet(gridTarget?.field, snippet);
-    setGridTarget(null);
-  }, [insertSnippet, replaceRange, gridTarget]);
-
-  // Кнопка «Клетка»: курсор внутри готового поля → правка этого поля.
-  const openGrid = useCallback((field) => {
-    const pos = fieldCaret(field)?.start;
-    const found = pos == null ? null : findGridAtCursor(form.getFieldValue(field) || '', pos);
-    setGridTarget(found
-      ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
-      : { field });
-  }, [form, fieldCaret]);
-
-  const insertPlot = useCallback((snippet) => {
-    if (plotTarget?.range) replaceRange(plotTarget.field, plotTarget.range, snippet);
-    else insertSnippet(plotTarget?.field, snippet);
-    setPlotTarget(null);
-  }, [insertSnippet, replaceRange, plotTarget]);
-
-  // Кнопки «График» / «Векторы»: курсор внутри готового блока ```plot (или
-  // inline `plot: …`) → открываем конструктор на правку этого блока.
-  const openPlot = useCallback((field, kind) => {
-    const pos = fieldCaret(field)?.start;
-    const found = pos == null ? null : findPlotAtCursor(form.getFieldValue(field) || '', pos);
-    setPlotTarget(found
-      ? { field, kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
-      : { field, kind });
-  }, [form, fieldCaret]);
-
-  // Меню «Таблица»: готовые заготовки (соответствие без линий, бланк ответа и
-  // т.п.) вставляются по курсору. Вид таблицы задаёт директива в самой разметке.
-  const tableMenu = useCallback((fieldName) => ({
-    items: TABLE_SNIPPETS.map((s) => ({
-      key: s.key,
-      label: (
-        <div style={{ lineHeight: 1.3 }}>
-          <div>{s.label}</div>
-          <div style={{ fontSize: 11, color: '#888' }}>{s.hint}</div>
-        </div>
-      ),
-    })),
-    onClick: ({ key }) => {
-      const snippet = TABLE_SNIPPETS.find((s) => s.key === key);
-      if (snippet) insertSnippet(fieldName, snippet.md);
-    },
-  }), [insertSnippet]);
-
   // Кнопка 1: эвристика
   const handleConvertHeuristic = useCallback(() => {
     const ctx = getSourceText();
@@ -581,38 +480,6 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       message.warning('Не удалось распознать структуру — попробуйте кнопку «AI»');
     }
   }, [getSourceText, applyConversionResult, message]);
-
-  // Детерминированная починка битых корней/аргументов из плохого парсинга
-  // sdamgia (\sqrt: начало аргумента: X конец аргумента → \sqrt{X}). Мгновенно,
-  // без сети — клиентский fixLatexRoots. Универсальный обработчик: чинит
-  // указанные поля и синхронит их превью.
-  const ROOT_PREVIEW_SETTERS = {
-    statement_md: setPreviewStatement,
-    answer: setPreviewAnswer,
-    solution_md: setPreviewSolution,
-  };
-  const fixRootsIn = useCallback((fieldKeys, label) => {
-    let changed = 0;
-    let hadContent = false;
-    fieldKeys.forEach((key) => {
-      const current = form.getFieldValue(key) || '';
-      if (!current.trim()) return;
-      hadContent = true;
-      const fixed = fixLatexRoots(current);
-      if (fixed !== current) {
-        form.setFieldValue(key, fixed);
-        ROOT_PREVIEW_SETTERS[key]?.(fixed);
-        changed++;
-      }
-    });
-    if (!hadContent) {
-      message.info(`Нечего чинить (${label} пусто)`);
-    } else if (changed === 0) {
-      message.info('Битых корней не найдено');
-    } else {
-      message.success(`Корни починены (${label}). Не забудьте «Сохранить».`);
-    }
-  }, [form, message]);
 
   // Кнопка 2: LLM
   const handleConvertAI = useCallback(async () => {
@@ -1135,70 +1002,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                   </Button>
                 </Tooltip>
               )}
-              <Tooltip title="Чинит битые корни в этом поле: \sqrt: начало аргумента: 3 конец аргумента → \sqrt{3}. Мгновенно, без сети.">
-                <Button
-                  size="small"
-                  icon={<ClearOutlined />}
-                  onClick={() => fixRootsIn(['statement_md'], 'условие')}
-                  style={{ fontWeight: 400 }}
-                >
-                  🧹 Корни
-                </Button>
-              </Tooltip>
+              <FieldInsertToolbar tools={inserts} field="statement_md" rootsLabel="условие" />
               <Tooltip title="Чинит битые корни сразу в полях «Ответ» и «Решение».">
                 <Button
                   size="small"
                   icon={<ClearOutlined />}
-                  onClick={() => fixRootsIn(['answer', 'solution_md'], 'ответ+решение')}
+                  onClick={() => inserts.fixRootsIn(['answer', 'solution_md'], 'ответ+решение')}
                   style={{ fontWeight: 400 }}
                 >
                   🧹 Ответ+решение
-                </Button>
-              </Tooltip>
-              <Dropdown menu={tableMenu('statement_md')} trigger={['click']}>
-                <Button size="small" icon={<TableOutlined />} style={{ fontWeight: 400 }}>
-                  Таблица ▾
-                </Button>
-              </Dropdown>
-              <TableModifiersHelp onInsert={(md) => insertSnippet('statement_md', md)} />
-              <Tooltip title="Вставить числовую прямую со штриховкой (конструктор)">
-                <Button
-                  size="small"
-                  icon={<DashOutlined />}
-                  onClick={() => setNumlineTarget('statement_md')}
-                  style={{ fontWeight: 400 }}
-                >
-                  Числовая прямая
-                </Button>
-              </Tooltip>
-              <Tooltip title="Конструктор графика функции. Курсор внутри готового чертежа — откроется его правка">
-                <Button
-                  size="small"
-                  icon={<LineChartOutlined />}
-                  onClick={() => openPlot('statement_md', 'function')}
-                  style={{ fontWeight: 400 }}
-                >
-                  График
-                </Button>
-              </Tooltip>
-              <Tooltip title="Конструктор векторов. Курсор внутри готового чертежа — откроется его правка">
-                <Button
-                  size="small"
-                  icon={<RiseOutlined />}
-                  onClick={() => openPlot('statement_md', 'vectors')}
-                  style={{ fontWeight: 400 }}
-                >
-                  Векторы
-                </Button>
-              </Tooltip>
-              <Tooltip title="Место для записи решения: поле в клетку, в линейку или чистое. Вставляется в ячейку таблицы («условие | решение») либо отдельным блоком">
-                <Button
-                  size="small"
-                  icon={<BorderOuterOutlined />}
-                  onClick={() => openGrid('statement_md')}
-                  style={{ fontWeight: 400 }}
-                >
-                  Клетка
                 </Button>
               </Tooltip>
             </span>
@@ -1211,7 +1023,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             rows={4}
             placeholder="Введите текст задания..."
             onTextChange={setPreviewStatement}
-            onCaret={(sel) => { caretRef.current.statement_md = sel; }}
+            onCaret={inserts.onCaret('statement_md')}
           />
         </Form.Item>
 
@@ -1232,7 +1044,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 <Button
                   size="small"
                   icon={<ClearOutlined />}
-                  onClick={() => fixRootsIn(['answer'], 'ответ')}
+                  onClick={() => inserts.fixRootsIn(['answer'], 'ответ')}
                   style={{ fontWeight: 400 }}
                 >
                   🧹 Корни
@@ -1257,52 +1069,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           label={
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               Решение (опционально, поддерживает LaTeX)
-              <Tooltip title="Чинит битые корни в этом поле. Мгновенно, без сети.">
-                <Button
-                  size="small"
-                  icon={<ClearOutlined />}
-                  onClick={() => fixRootsIn(['solution_md'], 'решение')}
-                  style={{ fontWeight: 400 }}
-                >
-                  🧹 Корни
-                </Button>
-              </Tooltip>
-              <Dropdown menu={tableMenu('solution_md')} trigger={['click']}>
-                <Button size="small" icon={<TableOutlined />} style={{ fontWeight: 400 }}>
-                  Таблица ▾
-                </Button>
-              </Dropdown>
-              <TableModifiersHelp onInsert={(md) => insertSnippet('solution_md', md)} />
-              <Tooltip title="Вставить числовую прямую со штриховкой (конструктор)">
-                <Button
-                  size="small"
-                  icon={<DashOutlined />}
-                  onClick={() => setNumlineTarget('solution_md')}
-                  style={{ fontWeight: 400 }}
-                >
-                  Числовая прямая
-                </Button>
-              </Tooltip>
-              <Tooltip title="Конструктор графика функции. Курсор внутри готового чертежа — откроется его правка">
-                <Button
-                  size="small"
-                  icon={<LineChartOutlined />}
-                  onClick={() => openPlot('solution_md', 'function')}
-                  style={{ fontWeight: 400 }}
-                >
-                  График
-                </Button>
-              </Tooltip>
-              <Tooltip title="Конструктор векторов. Курсор внутри готового чертежа — откроется его правка">
-                <Button
-                  size="small"
-                  icon={<RiseOutlined />}
-                  onClick={() => openPlot('solution_md', 'vectors')}
-                  style={{ fontWeight: 400 }}
-                >
-                  Векторы
-                </Button>
-              </Tooltip>
+              <FieldInsertToolbar tools={inserts} field="solution_md" rootsLabel="решение" />
             </span>
           }
         >
@@ -1312,7 +1079,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             rows={5}
             placeholder="Введите решение задачи..."
             onTextChange={setPreviewSolution}
-            onCaret={(sel) => { caretRef.current.solution_md = sel; }}
+            onCaret={inserts.onCaret('solution_md')}
           />
         </Form.Item>
 
@@ -1402,32 +1169,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       />
     )}
 
-    {/* Конструктор числовой прямой — вне основного Modal (focus-trap). */}
-    <NumberLineModal
-      open={!!numlineTarget}
-      onCancel={() => setNumlineTarget(null)}
-      onInsert={insertNumline}
-      defaultFormat="inline"
-    />
-
-    {/* Конструктор места для записи решения (клетка/линейка) — тоже снаружи. */}
-    <GridPaperModal
-      open={!!gridTarget}
-      initialSpec={gridTarget?.spec || null}
-      defaultFormat={gridTarget?.format || 'inline'}
-      onCancel={() => setGridTarget(null)}
-      onInsert={insertGrid}
-    />
-
-    {/* Конструктор координатной плоскости — тоже вне основного Modal. */}
-    <PlotModal
-      open={!!plotTarget}
-      kind={plotTarget?.kind || 'function'}
-      initialSpec={plotTarget?.spec || null}
-      onCancel={() => setPlotTarget(null)}
-      onInsert={insertPlot}
-      defaultFormat={plotTarget?.format || 'block'}
-    />
+    {/* Конструкторы чертежей — вне основного Modal (focus-trap). */}
+    {inserts.modals}
     </>
   );
 };

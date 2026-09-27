@@ -245,6 +245,28 @@ export const geometryApi = {
     }
   },
 
+  // Следующий свободный код своей задачи: GEO-NNN по максимуму среди всех
+  // GEO-кодов базы. Раньше считался как «число задач в списке + 1» — при
+  // фильтре или поиске новый код совпадал с уже существующим.
+  async getNextGeometryCode() {
+    try {
+      const rows = await pb.collection('geometry_tasks').getFullList({
+        filter: 'code ~ "GEO-"',
+        fields: 'code',
+        requestKey: null,
+      });
+      let max = 0;
+      for (const r of rows) {
+        const m = /^GEO-(\d+)$/.exec(String(r.code || '').trim());
+        if (m) max = Math.max(max, Number(m[1]));
+      }
+      return `GEO-${String(max + 1).padStart(3, '0')}`;
+    } catch (error) {
+      console.error('Error computing next geometry code:', error);
+      return null;
+    }
+  },
+
   async updateGeometryTask(id, data) {
     try {
       // Аналогично: если data.drawing_image — File, SDK сам сформирует FormData.

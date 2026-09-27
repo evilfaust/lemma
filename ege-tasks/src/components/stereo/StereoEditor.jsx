@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, App, Button, Form, Input, InputNumber, Modal, Select, Space, Tooltip,
+  Alert, App, Button, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Tooltip,
 } from 'antd';
 import {
   CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
@@ -69,9 +69,24 @@ function buildHit(frame, x, y, back, model) {
  * Редактор стереочертежа (этап 1 — без эфира). План — STEREO_LIVE_PLAN.md.
  * Учитель строит кликами или строкой команд; журнал шагов справа.
  */
-export default function StereoEditor() {
+/**
+ * @param embedded     — редактор внутри окна (задача, геометрия): без эфира,
+ *                       без черновика страницы, с кнопкой «применить»
+ * @param initialScene — сцена для правки (открытый блок ```stereo)
+ * @param initialCamera
+ * @param onApply      — (scene, camera, { color }) → вставить/обновить чертёж
+ * @param applyLabel
+ */
+export default function StereoEditor({
+  embedded = false, initialScene = null, initialCamera = null, initialColor = false,
+  onApply, applyLabel = 'Вставить',
+} = {}) {
   const { modal } = App.useApp();
-  const draft = useMemo(loadDraft, []);
+  const draft = useMemo(() => {
+    if (!embedded) return loadDraft();
+    return initialScene ? { scene: initialScene, camera: initialCamera || DEFAULT_CAMERA } : null;
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [applyColor, setApplyColor] = useState(initialColor);
   const [scene, setSceneRaw] = useState(() => draft?.scene || { body: DEFAULT_BODY, ops: [] });
   // Отмена — по истории сцен: откатывает и шаги, и перемещения точек.
   const historyRef = useRef([]);
@@ -120,18 +135,19 @@ export default function StereoEditor() {
   const liveScene = useMemo(() => (replay ? { ...scene, upTo: viewStep } : scene), [replay, scene, viewStep]);
   const [editNote, setEditNote] = useState(null); // { opId, text }
   const auth = useOptionalAuth();
-  const live = useStereoLive({ scene: liveScene, enabled: !!auth?.canEdit });
+  const live = useStereoLive({ scene: liveScene, enabled: !embedded && !!auth?.canEdit });
   const [pulse, setPulse] = useState(null);
 
   // Черновик переживает перезагрузку страницы.
   useEffect(() => {
+    if (embedded) return undefined; // в окне задачи черновик страницы не трогаем
     const t = setTimeout(() => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ scene, camera, doc: currentDoc, savedSig }));
       } catch { /* приватный режим */ }
     }, 300);
     return () => clearTimeout(t);
-  }, [scene, camera, currentDoc, savedSig]);
+  }, [scene, camera, currentDoc, savedSig, embedded]);
 
   const sceneSig = useMemo(() => JSON.stringify(scene), [scene]);
   const dirty = currentDoc ? sceneSig !== savedSig : scene.ops.length > 0;
@@ -442,7 +458,29 @@ export default function StereoEditor() {
   const hint = toolHint(tool, pending);
 
   return (
-    <div>
+    <div className={embedded ? 'stereo-embedded' : undefined}>
+      {embedded ? (
+        <div className="stereo-embedded__bar">
+          <Space wrap size={6}>
+            <Button icon={<PlusOutlined />} onClick={openBody}>Тело</Button>
+            <Tooltip title="Взять чертёж из библиотеки">
+              <Button icon={<BookOutlined />} onClick={() => setLibOpen(true)}>Библиотека</Button>
+            </Tooltip>
+            <Tooltip title="Чертёж текстом — и обратно">
+              <Button icon={<FileTextOutlined />} onClick={() => setTextOpen(true)}>Текст</Button>
+            </Tooltip>
+            <span className="stereo-cmd-help">{bodyTitle(scene.body)}</span>
+          </Space>
+          <Space wrap size={10}>
+            <Checkbox checked={applyColor} onChange={(e) => setApplyColor(e.target.checked)}>
+              Цветной (иначе ч/б — для печати)
+            </Checkbox>
+            <Button type="primary" onClick={() => onApply?.(scene, camera, { color: applyColor })}>
+              {applyLabel}
+            </Button>
+          </Space>
+        </div>
+      ) : (
       <WorkspacePageHeader
         icon={<CodeSandboxOutlined />}
         accent="violet"
@@ -465,9 +503,13 @@ export default function StereoEditor() {
           </Space>
         )}
       />
+      )}
 
       <div className="stereo-editor">
-        <div className="stereo-editor__stage" style={{ height: 'clamp(420px, 72vh, 820px)' }}>
+        <div
+          className="stereo-editor__stage"
+          style={{ height: embedded ? 'clamp(380px, 62vh, 720px)' : 'clamp(420px, 72vh, 820px)' }}
+        >
           <div className="stereo-editor__hint">
             <span className="stereo-editor__badge">
               {replay ? `Показ по шагам: ${viewStep} из ${stepsTotal} · ← → листать · Esc — выйти` : hint}
@@ -509,7 +551,7 @@ export default function StereoEditor() {
         </div>
 
         <div className="stereo-editor__panel">
-          <StereoLivePanel live={live} camera={camera} />
+          {!embedded && <StereoLivePanel live={live} camera={camera} />}
           <div className="stereo-tools" role="toolbar" aria-label="Инструменты построения">
             {TOOLS.map((t) => (
               <button

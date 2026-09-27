@@ -20,7 +20,7 @@ import { normalizeBodySpec, DEFAULT_BODY } from './bodies';
 import { evaluateScene, tryAppendOp, setPointColors } from './scene';
 import { parseCommand, opToCommand } from './commands';
 import { DEFAULT_CAMERA, clampCamera } from './camera';
-import { renderStereo, stereoSvgString, POINT_COLORS } from './render';
+import { renderStereo, stereoSvgString, contentBox, POINT_COLORS } from './render';
 
 const num = (s) => Number(String(s).replace(',', '.'));
 const isNum = (s) => /^-?\d+(?:[.,]\d+)?$/.test(String(s));
@@ -171,11 +171,60 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
 export function stereoSvgFromSpec(text, { maxWidth } = {}) {
   const { scene, camera, size, color, errors } = parseStereoBlock(text);
   const frame = renderStereo(evaluateScene(scene), camera, size);
+  const box = contentBox(frame);
   const svg = stereoSvgString(frame, {
-    background: false, responsive: true, mono: !color, maxWidth: maxWidth || size.width,
+    background: false, responsive: true, mono: !color, crop: true,
+    maxWidth: Math.min(maxWidth || size.width, box ? box.w : size.width),
   });
   if (!errors.length) return svg;
   const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   const list = errors.slice(0, 3).map((e) => `строка ${e.line}: ${esc(e.message)}`).join('; ');
   return `${svg}<span class="stereo-svg-errors" style="display:block;color:#b91c1c;font-size:12px">${list}</span>`;
+}
+
+// --- стереочертёж как чертёж геометрической задачи ------------------------------
+//
+// У геометрической задачи чертёж живёт отдельно от текста (drawing_svg +
+// макет печати). Стереочертёж кладётся туда SVG-картинкой, а исходник блока —
+// комментарием внутри SVG: по нему чертёж снова открывается в конструкторе.
+// Комментарий при показе вырезает санитайзер — на картинку он не влияет.
+
+const SPEC_RE = /<!--stereo:([A-Za-z0-9+/=]+)-->/;
+
+function toBase64(text) {
+  const bytes = new TextEncoder().encode(text);
+  let bin = '';
+  bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+
+function fromBase64(b64) {
+  const bin = atob(b64);
+  const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
+/** SVG-чертёж для задачи с исходником внутри. */
+export function stereoDrawingSvg(scene, camera, { color = false, width = 520, height = 440 } = {}) {
+  const frame = renderStereo(evaluateScene(scene), clampCamera(camera), { width, height });
+  // Резиновый и обрезанный по содержимому — как SVG из GeoGebra: размер на
+  // листе задаёт макет задачи.
+  const svg = stereoSvgString(frame, { background: false, mono: !color, crop: true, responsive: true })
+    .replace(/style="max-width:[^"]*"/, 'style="width:100%;height:auto;display:block;"');
+  const spec = buildStereoBlock(scene, camera, { color }).text;
+  return svg.replace(/^(<svg[^>]*>)/, `$1<!--stereo:${toBase64(spec)}-->`);
+}
+
+/** Исходник стереочертежа из SVG задачи; null — это не стереочертёж. */
+export function stereoSpecFromSvg(svg) {
+  const m = SPEC_RE.exec(String(svg || ''));
+  if (!m) return null;
+  try { return fromBase64(m[1]); } catch { return null; }
+}
+
+/** Блок для вставки в текст: с оградой и пустыми строками вокруг. */
+export function stereoBlockMarkdown(scene, camera, { color = false, size = null } = {}) {
+  let { text } = buildStereoBlock(scene, camera, { color });
+  if (size && (size.width !== 360 || size.height !== 300)) text += `\nразмер ${size.width} ${size.height}`;
+  return `\n\`\`\`stereo\n${text}\n\`\`\`\n`;
 }

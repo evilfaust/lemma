@@ -1,6 +1,9 @@
-import { Card, Form, Input, InputNumber, Select, Space, Typography } from 'antd';
+import {
+  Card, Checkbox, Form, Input, InputNumber, Select, Space, Tooltip, Typography,
+} from 'antd';
 import MathRenderer from '../MathRenderer';
 import LatexField from '../shared/LatexField';
+import FieldInsertToolbar from '../shared/FieldInsertToolbar';
 
 const { Text } = Typography;
 
@@ -13,7 +16,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 export default function TabCondition({
-  form, initialValues, fieldMode = 'plain', previewStatement, onStatementChange,
+  fieldMode = 'plain', previewStatement, onStatementChange, statementRef, inserts,
   geoTopics, geoSubtopics, selectedTopicId, onTopicChange,
 }) {
   const filteredSubtopics = selectedTopicId
@@ -22,7 +25,7 @@ export default function TabCondition({
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, alignItems: 'end' }}>
         <Form.Item
           name="code"
           label="Код задачи"
@@ -33,6 +36,14 @@ export default function TabCondition({
 
         <Form.Item name="difficulty" label="Сложность">
           <Select options={DIFFICULTY_OPTIONS} allowClear placeholder="Не указана" />
+        </Form.Item>
+
+        <Form.Item name="ready" valuePropName="checked">
+          <Checkbox>
+            <Tooltip title="Задача решается по готовому чертежу: без него условие неполное, при печати чертёж обязателен">
+              На готовом чертеже
+            </Tooltip>
+          </Checkbox>
         </Form.Item>
       </div>
 
@@ -71,13 +82,20 @@ export default function TabCondition({
 
       <Form.Item
         name="statement_md"
-        label="Условие задачи (Markdown + LaTeX)"
+        label={(
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            Условие задачи (Markdown + LaTeX)
+            {inserts && <FieldInsertToolbar tools={inserts} field="statement_md" rootsLabel="условие" />}
+          </span>
+        )}
       >
         <LatexField
+          ref={statementRef}
           mode={fieldMode}
           rows={5}
           placeholder="Дано: $\triangle MEN$, $MN - KL = 6$. Найдите $MN$."
           onTextChange={onStatementChange}
+          onCaret={inserts?.onCaret('statement_md')}
         />
       </Form.Item>
 
@@ -87,7 +105,7 @@ export default function TabCondition({
           title={<Text type="secondary" style={{ fontSize: 12 }}>Предпросмотр условия</Text>}
           styles={{ body: { padding: '12px 16px' } }}
         >
-          <MathRenderer text={previewStatement} />
+          <MathRenderer text={previewStatement} answerBoxes />
         </Card>
       )}
 

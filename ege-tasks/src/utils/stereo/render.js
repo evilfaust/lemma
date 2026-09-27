@@ -258,22 +258,44 @@ export function pickFace(frame, x, y, { back = false } = {}) {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/** Габариты нарисованного (линии, точки, подписи) с полем 8 px. */
+export function contentBox(frame, pad = 8) {
+  let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
+  const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  for (const s of frame.strokes) { add(s.x1, s.y1); add(s.x2, s.y2); }
+  for (const d of frame.dots) { add(d.x - 5, d.y - 5); add(d.x + 5, d.y + 5); }
+  for (const l of frame.labels) {
+    const w = 10 * l.base.length + 7 * l.sub.length;
+    add(l.x - w / 2 - 2, l.y - 11);
+    add(l.x + w / 2 + 2, l.y + 10);
+  }
+  if (!Number.isFinite(x0)) return null;
+  return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
+}
+
 /**
  * SVG-строка кадра.
  * @param opts.background — белый фон (для файла); в тексте задачи — прозрачный
  * @param opts.responsive — ширина 100 % с потолком maxWidth (блок в задаче/теории)
  * @param opts.mono       — только чёрная краска (печатный стек Lemma): линии
  *                          чёрные, заливки — светло-серые
+ * @param opts.crop       — обрезать по содержимому (чертёж в задаче без пустых полей)
  */
 export function stereoSvgString(frame, opts = {}) {
-  const { background = true, responsive = false, mono = false, maxWidth = frame.width } = opts;
+  const { background = true, responsive = false, mono = false, crop = false } = opts;
   const ink = (c) => (mono ? '#000000' : c);
   const parts = [];
+  let vb = { x: 0, y: 0, w: frame.width, h: frame.height };
+  if (crop) {
+    const b = contentBox(frame);
+    if (b) vb = b;
+  }
+  const maxWidth = Math.round(opts.maxWidth || vb.w);
   const size = responsive
     ? `width="100%" style="max-width:${maxWidth}px;height:auto;display:block;margin:0 auto"`
-    : `width="${frame.width}" height="${frame.height}"`;
-  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" class="stereo-svg" ${size} viewBox="0 0 ${frame.width} ${frame.height}">`);
-  if (background) parts.push('<rect width="100%" height="100%" fill="#ffffff"/>');
+    : `width="${Math.round(vb.w)}" height="${Math.round(vb.h)}"`;
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" class="stereo-svg" ${size} viewBox="${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}">`);
+  if (background) parts.push(`<rect x="${vb.x.toFixed(1)}" y="${vb.y.toFixed(1)}" width="${vb.w.toFixed(1)}" height="${vb.h.toFixed(1)}" fill="#ffffff"/>`);
   for (const pg of frame.polys) {
     const fill = mono ? '#000000' : pg.fill;
     const op = mono ? Math.min(0.14, pg.opacity * 0.45) : pg.opacity;

@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy, Suspense, useCallback, useEffect, useRef, useState,
+} from 'react';
 import {
   App,
   Button,
@@ -19,14 +21,16 @@ import {
 import { api } from '../shared/services/pocketbase';
 import { normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
 import { ggbXmlToSvg } from '../utils/ggbToSvg';
+import { stereoDrawingSvg, stereoSpecFromSvg } from '../utils/stereo/dsl';
+import useFieldInserts from '../hooks/useFieldInserts';
 import TabCondition from './geometry/TabCondition';
 import TabDrawing from './geometry/TabDrawing';
 import TabLayout from './geometry/TabLayout';
 import TabSolution from './geometry/TabSolution';
 
-const { Title } = Typography;
+const StereoModal = lazy(() => import('./stereo/StereoModal'));
 
-const isImageDrawing = (value = '') => value.startsWith('data:image/');
+const { Title } = Typography;
 
 const getGeoGebraBase64 = (ggbApi) => new Promise((resolve) => {
   if (!ggbApi || typeof ggbApi.getBase64 !== 'function') {
@@ -40,17 +44,35 @@ const getGeoGebraBase64 = (ggbApi) => new Promise((resolve) => {
   }
 });
 
+const pngFromGeoGebra = (ggbApi) => {
+  const png = ggbApi?.getPNGBase64?.(2, false, 300);
+  if (!png) return '';
+  return png.startsWith('data:image/') ? png : `data:image/png;base64,${png}`;
+};
+
+/** Указания задачи: json-массив [{ order, text_md }] (у банка МЦНМО — из импорта). */
+export function normalizeHints(raw) {
+  let list = raw;
+  if (typeof raw === 'string') {
+    try { list = JSON.parse(raw); } catch { list = []; }
+  }
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((h) => h && typeof h.text_md === 'string')
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((h) => ({ text_md: h.text_md }));
+}
+
 /**
  * Редактор геометрической задачи.
  *
  * Props:
- *   task       — объект задачи для редактирования (null = создание новой)
- *   onSaved    — callback после успешного сохранения
- *   onCancel   — callback для кнопки «Назад»
- *   totalTasks — общее кол-во задач (для генерации кода)
+ *   task     — объект задачи для редактирования (null = создание новой)
+ *   onSaved  — callback после успешного сохранения
+ *   onCancel — callback для кнопки «Назад»
  */
-export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks = 0 }) {
-  const { message } = App.useApp();
+export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
+  const { message, modal } = App.useApp();
   const [form] = Form.useForm();
   const isCreate = !task;
 
@@ -68,20 +90,24 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
   }, []);
   const fieldMode = codeEditor ? 'code' : 'plain';
 
+  // ── Несохранённые изменения ─────────────────────────────────────────────────
+  const [dirty, setDirty] = useState(false);
+  const markDirty = useCallback(() => setDirty(true), []);
+
   // ── Состояние чертежа ─────────────────────────────────────────────────────
   const ggbApiRef = useRef(null);
-  const legacyImage = task?.geogebra_image_base64 || task?.geogebra_base64 || '';
-  const initialLegacyImage = isImageDrawing(legacyImage) ? legacyImage : '';
-  const [ggbBase64, setGgbBase64] = useState(initialLegacyImage ? '' : (task?.geogebra_base64 || ''));
-  const [ggbImageBase64, setGgbImageBase64] = useState(initialLegacyImage || '');
-  const [ggbSaved, setGgbSaved] = useState(!!(task?.drawing_image || task?.geogebra_base64 || task?.geogebra_image_base64));
+  // GeoGebra менялась после последнего снимка PNG — на печати была бы старая картинка.
+  const ggbChangedRef = useRef(false);
+  const [ggbBase64, setGgbBase64] = useState(task?.geogebra_base64 || '');
+  const [ggbImageBase64, setGgbImageBase64] = useState('');
+  const [ggbSaved, setGgbSaved] = useState(!!(task?.geogebra_base64 || task?.geogebra_image_base64 || task?.drawing_svg));
   const existingDrawingUrl = api.getGeometryImageUrl(task);
   const [savingDrawing, setSavingDrawing] = useState(false);
   const [appName, setAppName] = useState(task?.geogebra_appname || 'geometry');
-  const [drawingView, setDrawingView] = useState(task?.drawing_view ?? 'image');
+  const [drawingView, setDrawingView] = useState(task?.drawing_view || 'image');
   const [drawingSvg, setDrawingSvg] = useState(task?.drawing_svg || '');
   const [convertingSvg, setConvertingSvg] = useState(false);
-  const [savingSvg, setSavingSvg] = useState(false);
+  const [stereoOpen, setStereoOpen] = useState(false);
 
   // ── Состояние макета ─────────────────────────────────────────────────────
   const [layoutPrint, setLayoutPrint] = useState(() => {
@@ -89,11 +115,21 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     return normalizeLayout(persisted, 'print');
   });
 
-  // ── Предпросмотры текстов ─────────────────────────────────────────────────
+  // ── Тексты: предпросмотр и вставка (общий тулбар с редактором задач) ────────
   const [previewStatement, setPreviewStatement] = useState(task?.statement_md || '');
   const [previewSolution, setPreviewSolution] = useState(task?.solution_md || '');
+  const statementRef = useRef(null);
+  const solutionRef = useRef(null);
+  const inserts = useFieldInserts({
+    form,
+    fields: {
+      statement_md: { ref: statementRef, setPreview: (t) => { setPreviewStatement(t); markDirty(); } },
+      solution_md: { ref: solutionRef, setPreview: (t) => { setPreviewSolution(t); markDirty(); } },
+    },
+  });
 
-  // ── Вложения к решению (фото с бумаги, ссылки на pb-files) ─────────────────
+  // ── Указания и вложения к решению ──────────────────────────────────────────
+  const [hints, setHints] = useState(() => normalizeHints(task?.hints));
   const [solutionFiles, setSolutionFiles] = useState(() => {
     const raw = task?.solution_files;
     return Array.isArray(raw) ? raw : [];
@@ -117,36 +153,55 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       .catch(() => {});
   }, []);
 
-  // ── GeoGebra операции ───────────────────────────────────────────────────
+  // Код новой задачи — следующий свободный GEO-NNN по всей базе.
+  useEffect(() => {
+    if (!isCreate) return;
+    api.getNextGeometryCode().then((code) => {
+      if (code && !form.isFieldTouched('code')) form.setFieldValue('code', code);
+    });
+  }, [isCreate, form]);
+
+  // ── GeoGebra ──────────────────────────────────────────────────────────────
+  const handleApiReady = useCallback((apiObj) => {
+    ggbApiRef.current = apiObj;
+    // Слушатели — чуть позже: загрузка сохранённого чертежа тоже шлёт события.
+    setTimeout(() => {
+      const onChange = () => { ggbChangedRef.current = true; setDirty(true); };
+      try {
+        apiObj.registerAddListener?.(onChange);
+        apiObj.registerRemoveListener?.(onChange);
+        apiObj.registerUpdateListener?.(onChange);
+      } catch { /* старый апплет без слушателей — просто без подсказки */ }
+    }, 1500);
+  }, []);
+
   const handleSaveDrawing = useCallback(() => {
     if (!ggbApiRef.current) {
       message.warning('GeoGebra ещё не загружена');
       return;
     }
     setSavingDrawing(true);
-    ggbApiRef.current.getBase64(async (base64) => {
+    ggbApiRef.current.getBase64((base64) => {
       setGgbBase64(base64 || '');
       try {
-        const pngBase64 = ggbApiRef.current.getPNGBase64(2, false, 300);
-        if (pngBase64) {
-          const imageData = pngBase64.startsWith('data:image/')
-            ? pngBase64
-            : `data:image/png;base64,${pngBase64}`;
-          setGgbImageBase64(imageData);
-        }
+        const png = pngFromGeoGebra(ggbApiRef.current);
+        if (png) setGgbImageBase64(png);
       } catch {
         // ignore
       }
+      ggbChangedRef.current = false;
       setGgbSaved(true);
       setSavingDrawing(false);
+      setDirty(true);
       message.success('Чертёж сохранён (GeoGebra + PNG)');
     });
-  }, []);
+  }, [message]);
 
   const handleClearDrawing = useCallback(() => {
     setGgbBase64('');
     setGgbImageBase64('');
     setGgbSaved(false);
+    setDirty(true);
     if (ggbApiRef.current) ggbApiRef.current.reset();
   }, []);
 
@@ -157,25 +212,25 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     }
     setSavingDrawing(true);
     try {
-      const pngBase64 = ggbApiRef.current.getPNGBase64(2, false, 300);
-      if (!pngBase64) throw new Error('GeoGebra не вернула изображение');
-      const imageData = pngBase64.startsWith('data:image/')
-        ? pngBase64
-        : `data:image/png;base64,${pngBase64}`;
-      setGgbImageBase64(imageData);
+      const png = pngFromGeoGebra(ggbApiRef.current);
+      if (!png) throw new Error('GeoGebra не вернула изображение');
+      setGgbImageBase64(png);
+      ggbChangedRef.current = false;
       setGgbSaved(true);
+      setDirty(true);
       message.success('PNG обновлён');
     } catch (error) {
       message.error(`Не удалось сохранить PNG: ${error?.message || 'неизвестная ошибка'}`);
     } finally {
       setSavingDrawing(false);
     }
-  }, []);
+  }, [message]);
 
   const handleCropApplied = useCallback((croppedDataUrl) => {
     setGgbImageBase64(croppedDataUrl);
     setDrawingView('image');
     setGgbSaved(true);
+    setDirty(true);
   }, []);
 
   const handleConvertToSvg = useCallback(() => {
@@ -185,35 +240,26 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     }
     setConvertingSvg(true);
     try {
-      const xml = ggbApiRef.current.getXML();
-      const svg = ggbXmlToSvg(xml);
-      setDrawingSvg(svg);
-      message.success('SVG сконвертирован — нажмите «Сохранить SVG» или сохраните задачу целиком');
+      setDrawingSvg(ggbXmlToSvg(ggbApiRef.current.getXML()));
+      setDirty(true);
+      message.success('SVG готов — он сохранится вместе с задачей');
     } catch (err) {
       message.error(`Ошибка конвертации SVG: ${err?.message || 'неизвестная ошибка'}`);
     } finally {
       setConvertingSvg(false);
     }
-  }, []);
+  }, [message]);
 
-  const handleSaveSvg = useCallback(async () => {
-    if (!drawingSvg || !task?.id) return;
-    setSavingSvg(true);
-    try {
-      await api.updateGeometryTask(task.id, { drawing_svg: drawingSvg, drawing_view: 'svg' });
-      setDrawingView('svg');
-      message.success('SVG сохранён, режим отображения переключён на SVG');
-    } catch (err) {
-      console.error('SVG save error:', err);
-      console.error('SVG save error data:', JSON.stringify(err?.data));
-      const details = err?.data
-        ? Object.entries(err.data).map(([k, v]) => `${k}: ${v?.message || JSON.stringify(v)}`).join('; ')
-        : err?.message || 'неизвестная ошибка';
-      message.error(`Ошибка сохранения SVG: ${details}`);
-    } finally {
-      setSavingSvg(false);
-    }
-  }, [drawingSvg, task?.id]);
+  // Стереочертёж — SVG-чертёж задачи с исходником внутри (правится снова).
+  const stereoSpec = stereoSpecFromSvg(drawingSvg);
+  const handleStereoApply = useCallback(({ scene, camera, color }) => {
+    setDrawingSvg(stereoDrawingSvg(scene, camera, { color }));
+    setDrawingView('svg');
+    setGgbSaved(true);
+    setDirty(true);
+    setStereoOpen(false);
+    message.success('Стереочертёж стал чертежом задачи');
+  }, [message]);
 
   // ── Управление макетом ────────────────────────────────────────────────────
   const handleEditorLayoutChange = useCallback((layerName, patch) => {
@@ -221,41 +267,57 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       ...prev,
       [layerName]: { ...prev[layerName], ...patch },
     }, 'print'));
+    setDirty(true);
   }, []);
 
   const handleEditorLayoutReset = useCallback(() => {
     setLayoutPrint(normalizeLayout(null, 'print'));
+    setDirty(true);
   }, []);
 
-  // ── Генерация кода ────────────────────────────────────────────────────────
-  const generateCode = () => {
-    const n = String(totalTasks + 1).padStart(3, '0');
-    return `GEO-${n}`;
-  };
+  // GeoGebra поменяли, а PNG — нет: спросить, обновить ли картинку.
+  const askRefreshPng = () => new Promise((resolve) => {
+    modal.confirm({
+      title: 'Чертёж в GeoGebra изменён',
+      content: 'Картинка для печати (PNG) осталась прежней. Обновить её из GeoGebra? '
+        + 'Если PNG был обрезан вручную, обрезку придётся повторить.',
+      okText: 'Обновить картинку',
+      cancelText: 'Сохранить как есть',
+      onOk: () => resolve(true),
+      onCancel: () => resolve(false),
+    });
+  });
 
   // ── Сохранение задачи ─────────────────────────────────────────────────────
   const handleSave = async () => {
     let values;
-    let payload = null;
     try {
       values = await form.validateFields();
     } catch {
       message.error('Заполните обязательные поля');
       return;
     }
+    const normalizedCode = (values.code || '').trim();
+    if (!normalizedCode) {
+      message.error('Укажите код задачи');
+      return;
+    }
+
+    let imageData = ggbImageBase64;
+    if (ggbChangedRef.current && drawingView === 'image' && ggbApiRef.current && await askRefreshPng()) {
+      try {
+        imageData = pngFromGeoGebra(ggbApiRef.current) || imageData;
+        setGgbImageBase64(imageData);
+        ggbChangedRef.current = false;
+      } catch { /* останется прежняя картинка */ }
+    }
 
     setSaving(true);
     try {
-      const normalizedCode = (values.code || '').trim();
-      if (!normalizedCode) {
-        message.error('Укажите код задачи');
-        return;
-      }
-
       let drawingImageFile = null;
-      if (ggbImageBase64) {
+      if (imageData) {
         try {
-          const raw = ggbImageBase64.replace(/^data:image\/\w+;base64,/, '');
+          const raw = imageData.replace(/^data:image\/\w+;base64,/, '');
           const binary = atob(raw);
           const bytes = new Uint8Array(binary.length);
           for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -269,10 +331,10 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       const finalGgbBase64 = liveGgbBase64 || ggbBase64 || '';
       if (finalGgbBase64 !== ggbBase64) setGgbBase64(finalGgbBase64);
 
-      payload = {
+      const payload = {
         code: normalizedCode,
         title: values.title || '',
-        task_type: task?.task_type || '',
+        task_type: values.ready ? 'ready' : '',
         topic: values.topic || null,
         subtopic: values.subtopic || null,
         difficulty: values.difficulty || null,
@@ -280,6 +342,10 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         answer: values.answer || '',
         solution_md: values.solution_md || '',
         solution_files: solutionFiles,
+        hints: hints
+          .map((h) => h.text_md.trim())
+          .filter(Boolean)
+          .map((text_md, i) => ({ order: i + 1, text_md })),
         geogebra_base64: finalGgbBase64,
         geogebra_appname: appName,
         drawing_view: drawingView,
@@ -291,30 +357,55 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
           print: layoutPrint,
         },
       };
-
       if (drawingImageFile) payload.geogebra_image_base64 = drawingImageFile;
 
-      if (isCreate) {
-        await api.createGeometryTask(payload);
-      } else {
-        await api.updateGeometryTask(task.id, payload);
-      }
+      if (isCreate) await api.createGeometryTask(payload);
+      else await api.updateGeometryTask(task.id, payload);
 
+      setDirty(false);
       message.success(isCreate ? 'Задача создана' : 'Задача сохранена');
       onSaved();
     } catch (error) {
-      console.error('Save error details:', error?.data);
-      console.dir(error?.data, { depth: 6 });
-      console.error('Save payload was:', payload);
-      const details = error?.data
-        ? Object.entries(error.data)
-            .map(([k, v]) => `${k}: ${v?.message || v?.code || JSON.stringify(v)}`)
-            .join('; ')
-        : error?.message || 'неизвестная ошибка';
+      const fieldErrors = Object.entries(error?.data?.data || {})
+        .map(([k, v]) => `${k}: ${v?.message || v?.code || JSON.stringify(v)}`)
+        .join('; ');
+      const details = fieldErrors || error?.message || 'неизвестная ошибка';
       message.error(`Ошибка сохранения: ${details}`);
     } finally {
       setSaving(false);
     }
+  };
+
+  // Ctrl+S — сохранить; уход со страницы с правками — предупреждение.
+  const saveRef = useRef(handleSave);
+  saveRef.current = handleSave;
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+        e.preventDefault();
+        saveRef.current();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  useEffect(() => {
+    if (!dirty) return undefined;
+    const onBeforeUnload = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty]);
+
+  const handleBack = () => {
+    if (!dirty) { onCancel(); return; }
+    modal.confirm({
+      title: 'Уйти без сохранения?',
+      content: 'Изменения в задаче пропадут.',
+      okText: 'Уйти',
+      okButtonProps: { danger: true },
+      cancelText: 'Остаться',
+      onOk: onCancel,
+    });
   };
 
   // ── Удаление задачи ───────────────────────────────────────────────────────
@@ -323,6 +414,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     try {
       await api.deleteGeometryTask(task.id);
       message.success('Задача удалена');
+      setDirty(false);
       onSaved();
     } catch {
       message.error('Ошибка при удалении задачи');
@@ -333,8 +425,9 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
 
   // ── Начальные значения формы ──────────────────────────────────────────────
   const initialValues = {
-    code: task?.code || generateCode(),
+    code: task?.code || '',
     title: task?.title || '',
+    ready: task?.task_type === 'ready',
     topic: task?.topic || null,
     subtopic: task?.subtopic || null,
     difficulty: task?.difficulty || undefined,
@@ -352,11 +445,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       label: 'Условие',
       forceRender: true,
       children: <TabCondition
-        form={form}
-        initialValues={initialValues}
         fieldMode={fieldMode}
         previewStatement={previewStatement}
         onStatementChange={setPreviewStatement}
+        statementRef={statementRef}
+        inserts={inserts}
         geoTopics={geoTopics}
         geoSubtopics={geoSubtopics}
         selectedTopicId={selectedTopicId}
@@ -377,13 +470,13 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
       ),
       children: <TabDrawing
         appName={appName}
-        onAppNameChange={(v) => { setAppName(v); setGgbSaved(false); }}
+        onAppNameChange={(v) => { setAppName(v); setGgbSaved(false); setDirty(true); }}
         initialBase64={ggbBase64}
         imageBase64={ggbImageBase64 || existingDrawingUrl}
-        onApiReady={(apiObj) => { ggbApiRef.current = apiObj; }}
+        onApiReady={handleApiReady}
         ggbSaved={ggbSaved}
         drawingView={drawingView}
-        onDrawingViewChange={setDrawingView}
+        onDrawingViewChange={(v) => { setDrawingView(v); setDirty(true); }}
         savingDrawing={savingDrawing}
         onSaveDrawing={handleSaveDrawing}
         onSaveDrawingAsImage={handleSaveDrawingAsImage}
@@ -391,11 +484,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
         onClearDrawing={handleClearDrawing}
         drawingSvg={drawingSvg}
         convertingSvg={convertingSvg}
-        savingSvg={savingSvg}
         onConvertToSvg={handleConvertToSvg}
-        onSaveSvg={task?.id ? handleSaveSvg : null}
         onGetXml={() => ggbApiRef.current?.getXML?.() ?? ''}
-        onSvgChange={setDrawingSvg}
+        onSvgChange={(svg) => { setDrawingSvg(svg); setDirty(true); }}
+        isStereo={!!stereoSpec}
+        onOpenStereo={() => setStereoOpen(true)}
       />,
     },
     {
@@ -414,15 +507,22 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
     {
       key: 'solution',
       forceRender: true,
-      label: 'Решение',
+      label: (
+        <span>
+          Решение
+          {hints.length > 0 && <Tag style={{ marginLeft: 6, fontSize: 11 }}>указаний: {hints.length}</Tag>}
+        </span>
+      ),
       children: <TabSolution
-        form={form}
-        initialValues={initialValues}
         fieldMode={fieldMode}
         previewSolution={previewSolution}
         onSolutionChange={setPreviewSolution}
+        solutionRef={solutionRef}
+        inserts={inserts}
+        hints={hints}
+        onHintsChange={(h) => { setHints(h); setDirty(true); }}
         solutionFiles={solutionFiles}
-        onSolutionFilesChange={setSolutionFiles}
+        onSolutionFilesChange={(f) => { setSolutionFiles(f); setDirty(true); }}
         solutionDrawingUrl={task?.image_role === 'solution' ? api.getGeometryImageUrl(task) : ''}
       />,
     },
@@ -437,15 +537,18 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
           alignItems: 'center',
           justifyContent: 'space-between',
           marginBottom: 16,
+          gap: 12,
+          flexWrap: 'wrap',
         }}
       >
-        <Space>
-          <Button icon={<ArrowLeftOutlined />} onClick={onCancel}>
+        <Space wrap>
+          <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
             Назад к задачам
           </Button>
           <Title level={4} style={{ margin: 0 }}>
             {isCreate ? 'Новая геометрическая задача' : `Редактирование: ${task.code}`}
           </Title>
+          {dirty && <Tag color="orange">не сохранено</Tag>}
           <Tooltip title="Подсветка LaTeX/markdown, перенос строк и поиск-замена (Ctrl+F / Ctrl+H) для условия и решения">
             <Button
               size="small"
@@ -473,20 +576,35 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, totalTasks
               </Button>
             </Popconfirm>
           )}
-          <Button
-            type="primary"
-            icon={<SaveOutlined />}
-            loading={saving}
-            onClick={handleSave}
-          >
-            {isCreate ? 'Создать задачу' : 'Сохранить'}
-          </Button>
+          <Tooltip title="Ctrl+S">
+            <Button
+              type="primary"
+              icon={<SaveOutlined />}
+              loading={saving}
+              onClick={handleSave}
+            >
+              {isCreate ? 'Создать задачу' : 'Сохранить'}
+            </Button>
+          </Tooltip>
         </Space>
       </div>
 
-      <Form form={form} layout="vertical" initialValues={initialValues}>
+      <Form form={form} layout="vertical" initialValues={initialValues} onValuesChange={markDirty}>
         <Tabs items={tabItems} type="card" />
       </Form>
+
+      {inserts.modals}
+      {stereoOpen && (
+        <Suspense fallback={null}>
+          <StereoModal
+            open
+            initialSpec={stereoSpec}
+            applyLabel={stereoSpec ? 'Обновить чертёж задачи' : 'Сделать чертежом задачи'}
+            onClose={() => setStereoOpen(false)}
+            onApply={handleStereoApply}
+          />
+        </Suspense>
+      )}
     </Space>
   );
 }

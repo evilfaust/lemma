@@ -97,3 +97,16 @@ export function findGridAtCursor(text, pos) {
   if (!found) return null;
   return { start: found.start, end: found.end, spec: found.spec, format: found.format };
 }
+
+// Стереочертёж (utils/stereo/dsl.js) — только блочная форма ```stereo.
+const STEREO_FENCE_OPEN = /^\s{0,3}```(stereo)\s*$/;
+const NEVER = /(?!)/g;
+
+/**
+ * Найти блок ```stereo, внутри которого стоит курсор.
+ * @returns {{start:number,end:number,spec:string,format:'block'}|null}
+ */
+export function findStereoAtCursor(text, pos) {
+  const found = findSnippetAtCursor(text, pos, STEREO_FENCE_OPEN, NEVER);
+  return found ? { start: found.start, end: found.end, spec: found.spec, format: 'block' } : null;
+}

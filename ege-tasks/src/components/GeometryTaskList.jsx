@@ -446,7 +446,6 @@ export default function GeometryTaskList() {
         task={editingTask}
         onSaved={handleEditorSaved}
         onCancel={handleEditorClose}
-        totalTasks={tasks.length}
       />
     );
   }

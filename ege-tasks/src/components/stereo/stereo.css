@@ -470,3 +470,15 @@
 }
 .stereo-palette__swatch.is-active { box-shadow: 0 0 0 2px #111827; }
 .stereo-palette .ant-btn { margin-left: auto; }
+
+/* --- редактор внутри окна (задача, геометрия) --------------------------------- */
+.stereo-embedded__bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.stereo-embedded .stereo-editor { grid-template-columns: minmax(0, 1fr) 300px; }
+.stereo-embedded .stereo-steps { max-height: 220px; }
