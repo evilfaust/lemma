@@ -65,5 +65,18 @@ export function makeProjector(cam, { width, height, center, radius, padding = 28
     y: cy - (dot(P, b.up) - c0.y) * scale,
     depth: dot(P, b.toViewer),
   });
-  return { project, scale, basis: b, cx, cy };
+  // Обратно: точка экрана → прямая в пространстве вдоль взгляда { p, u }.
+  const unproject = (x, y) => {
+    const r = (x - cx) / scale + c0.x;
+    const u = -(y - cy) / scale + c0.y;
+    return {
+      p: {
+        x: b.right.x * r + b.up.x * u,
+        y: b.right.y * r + b.up.y * u,
+        z: b.right.z * r + b.up.z * u,
+      },
+      u: b.toViewer,
+    };
+  };
+  return { project, unproject, scale, basis: b, cx, cy };
 }

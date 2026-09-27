@@ -9,6 +9,9 @@ import { newOpId } from './scene';
 import { nextFreeName } from './naming';
 import { prettyName } from './bodies';
 import { paramOnLine, add, mul, sub } from './vec3';
+import {
+  intersectLinePlane, planeFromPoints, affineCoords, pointInConvexPolygon,
+} from './geometry';
 
 export const TOOLS = [
   { key: 'rotate', label: 'Вращать', glyph: '⟳', hot: 'V' },
@@ -65,7 +68,7 @@ export function lineHitParam(hit, project) {
 export function toolHint(tool, pending = []) {
   const names = pending.filter((p) => p.kind === 'point').map((p) => prettyName(p.name));
   switch (tool) {
-    case 'point': return 'Кликните по ребру или прямой — там появится точка';
+    case 'point': return 'Кликните по ребру, прямой или внутри грани — там появится точка';
     case 'segment':
     case 'line':
       return names.length
@@ -93,7 +96,7 @@ export function toolHint(tool, pending = []) {
 /** Какие попадания инструмент принимает сейчас (для подсветки под курсором). */
 export function acceptedKinds(tool, pending = []) {
   switch (tool) {
-    case 'point': return ['line'];
+    case 'point': return ['line', 'face'];
     case 'segment': return ['point'];
     case 'line': return pending.length ? ['point'] : ['point', 'line'];
     case 'intersect': return ['line'];
@@ -121,7 +124,7 @@ export function chooseHit(tool, pending, hit) {
   const ok = acceptedKinds(tool, pending);
   if (hit.point && ok.includes('point')) return { kind: 'point', name: hit.point };
   if (hit.line && ok.includes('line')) return { kind: 'line', ...hit.line };
-  if (hit.face && ok.includes('face')) return { kind: 'face', id: hit.face.id, verts: hit.face.verts };
+  if (hit.face && ok.includes('face')) return { kind: 'face', id: hit.face.id, verts: hit.face.verts, pos: hit.face.pos };
   return null;
 }
 
@@ -145,6 +148,18 @@ export function toolClick(tool, pending, hit, model) {
 
   switch (tool) {
     case 'point': {
+      if (target.kind === 'face') {
+        const [A, B, C] = target.verts.slice(0, 3).map((v) => model.points[v]?.pos);
+        const st = target.pos && A && B && C ? affineCoords(A, B, C, target.pos) : null;
+        if (!st) return { pending: [] };
+        return {
+          pending: [],
+          op: {
+            id: newOpId(), type: 'pointOnFace', name: name(), face: target.verts,
+            s: Math.round(st.s * 1000) / 1000, t: Math.round(st.t * 1000) / 1000,
+          },
+        };
+      }
       const op = { id: newOpId(), type: 'pointOnLine', name: name(), ref: target.ref, t: target.t };
       if (target.ratio) op.ratio = target.ratio;
       return { pending: [], op };
@@ -214,7 +229,40 @@ export function finishPending(tool, pending) {
 
 /** Операция, поставившая точку name, если точку можно двигать. */
 export function draggableOp(scene, name) {
-  return (scene?.ops || []).find((o) => o.type === 'pointOnLine' && o.name === name) || null;
+  return (scene?.ops || []).find(
+    (o) => (o.type === 'pointOnLine' || o.type === 'pointOnFace') && o.name === name,
+  ) || null;
+}
+
+/** Точка грани под курсором: луч взгляда ∩ плоскость грани. */
+export function facePointAt(model, frame, faceId, x, y) {
+  const bf = model.body.faces.find((f) => f.id === faceId);
+  if (!bf || !frame.unproject) return null;
+  const r = intersectLinePlane(frame.unproject(x, y), { n: bf.n, d: bf.d }, model.body.size);
+  return r.kind === 'point' ? r.point : null;
+}
+
+/**
+ * Цель перетаскивания для точки грани: плоскость по трём первым точкам и,
+ * если это грань тела, её многоугольник — за край точка не уедет.
+ */
+export function faceDragTarget(model, op) {
+  const [A, B, C] = op.face.slice(0, 3).map((v) => model.points[v]?.pos);
+  if (!A || !B || !C) return null;
+  const plane = planeFromPoints(A, B, C, model.body.size);
+  if (!plane) return null;
+  const isFace = op.face.every((v) => model.body.vertices[v]);
+  const poly = isFace ? op.face.map((v) => model.body.vertices[v]) : null;
+  return { kind: 'face', A, B, C, plane, poly };
+}
+
+/** Новые (s, t) точки грани по курсору; null — курсор вне грани. */
+export function dragFacePosition(target, frame, x, y, size = 1) {
+  const r = intersectLinePlane(frame.unproject(x, y), target.plane, size);
+  if (r.kind !== 'point') return null;
+  if (target.poly && !pointInConvexPolygon(target.poly, r.point, target.plane.n, 1e-9 * size)) return null;
+  const st = affineCoords(target.A, target.B, target.C, r.point);
+  return st ? { s: Math.round(st.s * 1000) / 1000, t: Math.round(st.t * 1000) / 1000 } : null;
 }
 
 /** Прямая, по которой ездит точка операции: { p, u } в пространстве. */
@@ -256,6 +304,7 @@ export function setOpPosition(scene, opId, pos) {
     ...scene,
     ops: (scene.ops || []).map((o) => {
       if (o.id !== opId) return o;
+      if (o.type === 'pointOnFace') return { ...o, s: pos.s, t: pos.t };
       const next = { ...o, t: pos.t };
       if (pos.ratio) next.ratio = pos.ratio; else delete next.ratio;
       return next;

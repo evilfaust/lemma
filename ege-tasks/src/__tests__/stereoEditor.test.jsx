@@ -121,3 +121,39 @@ describe('экран редактора', () => {
     expect(screen.getByText('Стереометрия')).toBeTruthy();
   });
 });
+
+describe('пошаговый показ и подписи', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('stereo.editor.v1', JSON.stringify({
+      scene: { body: { kind: 'cube', a: 4 }, ops: [
+        { id: 'a', type: 'pointOnLine', name: 'M', ref: ['A', 'A1'], t: 0.5, ratio: [1, 1] },
+        { id: 'b', type: 'pointOnLine', name: 'N', ref: ['C', 'C1'], t: 0.5, ratio: [1, 1] },
+        { id: 'c', type: 'segment', ref: ['M', 'N'], note: 'MN лежит внутри куба' },
+      ] },
+    }));
+  });
+
+  it('листаем шаги, будущие приглушены; Esc — всё построение', () => {
+    render(<AntApp><StereoEditor /></AntApp>);
+    expect(screen.getByText('MN лежит внутри куба')).toBeTruthy();
+    fireEvent.click(screen.getByText(/Показать по шагам/));
+    expect(screen.getByText('Шаг 0 из 3')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Следующий шаг'));
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(screen.getByText('Шаг 2 из 3')).toBeTruthy();
+    const items = [...document.querySelectorAll('.stereo-step')];
+    expect(items.map((li) => li.classList.contains('is-future'))).toEqual([false, false, true]);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByText('Шаг 2 из 3')).toBeNull();
+  });
+
+  it('подпись к шагу пишется из журнала', () => {
+    render(<AntApp><StereoEditor /></AntApp>);
+    fireEvent.click(screen.getAllByLabelText('Подпись к шагу')[0]);
+    const input = screen.getByPlaceholderText('Подпись к шагу — её увидят ученики');
+    fireEvent.change(input, { target: { value: 'середина бокового ребра' } });
+    fireEvent.blur(input);
+    expect(screen.getByText('середина бокового ребра')).toBeTruthy();
+  });
+});

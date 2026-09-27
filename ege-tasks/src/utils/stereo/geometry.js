@@ -106,3 +106,38 @@ export function sectionPolygon(body, plane) {
 export function insideBody(body, P, eps = REL_EPS * body.size * 10) {
   return body.faces.every((f) => dot(f.n, P) - f.d <= eps);
 }
+
+/** Точка плоскости ABC по аффинным координатам: A + s·(B−A) + t·(C−A). */
+export function affinePoint(A, B, C, s, t) {
+  return add(A, add(mul(sub(B, A), s), mul(sub(C, A), t)));
+}
+
+/** Аффинные координаты (s, t) точки P в плоскости ABC (P проецируется на плоскость). */
+export function affineCoords(A, B, C, P) {
+  const e1 = sub(B, A);
+  const e2 = sub(C, A);
+  const w = sub(P, A);
+  const a = dot(e1, e1);
+  const b = dot(e1, e2);
+  const c = dot(e2, e2);
+  const d = dot(w, e1);
+  const e = dot(w, e2);
+  const den = a * c - b * b;
+  if (Math.abs(den) < 1e-12) return null;
+  return { s: (d * c - e * b) / den, t: (e * a - d * b) / den };
+}
+
+/** Точка P лежит в выпуклом многоугольнике pts (P — в его плоскости). */
+export function pointInConvexPolygon(pts, P, n, eps = 1e-9) {
+  let sign = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const v = dot(cross(sub(b, a), sub(P, a)), n);
+    if (Math.abs(v) <= eps) continue;
+    const sg = v > 0 ? 1 : -1;
+    if (sign && sg !== sign) return false;
+    sign = sg;
+  }
+  return true;
+}

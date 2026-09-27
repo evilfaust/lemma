@@ -9,6 +9,7 @@ import { codeCandidates } from '../../../utils/stereo/room';
 // ученик читает её по коду без логина, пока идёт эфир (`live = true`).
 
 const C = 'stereo_rooms';
+const S = 'stereo_scenes';
 const isNotFound = (e) => e?.status === 404;
 
 export const stereoApi = {
@@ -96,5 +97,58 @@ export const stereoApi = {
 
   unsubscribeStereoRoom(id) {
     return pb.collection(C).unsubscribe(id);
+  },
+
+  // --- библиотека чертежей (stereo_scenes, миграция 1787000000) -----------------
+
+  // Свои чертежи без журнала шагов (список лёгкий); null — коллекции нет.
+  async getStereoScenes() {
+    const t = currentTeacher();
+    if (!t) return [];
+    try {
+      return await pb.collection(S).getFullList({
+        sort: '-updated',
+        filter: `owner = "${t.id}"`,
+        fields: 'id,title,note,public,created,updated',
+      });
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      console.error('Error fetching stereo_scenes:', error);
+      throw error;
+    }
+  },
+
+  async getStereoScene(id) {
+    return pb.collection(S).getOne(id);
+  },
+
+  async createStereoScene({ title, note = '', scene, camera }) {
+    const rec = await pb.collection(S).create(withOwner({ title, note, scene, camera, public: false }));
+    _logAudit('create', S, rec.id, `Чертёж «${title}»`);
+    return rec;
+  },
+
+  async updateStereoScene(id, patch) {
+    return pb.collection(S).update(id, patch, { requestKey: null });
+  },
+
+  async deleteStereoScene(id) {
+    let summary = id;
+    try {
+      const rec = await pb.collection(S).getOne(id, { fields: 'title' });
+      summary = `Чертёж «${rec.title}»`;
+    } catch { /* нет записи — удалять нечего, delete сам скажет */ }
+    await pb.collection(S).delete(id);
+    _logAudit('delete', S, id, summary);
+  },
+
+  // Пособие ученика: открытый (public) чертёж; null — ссылка закрыта или нет такого.
+  async getPublicStereoScene(id) {
+    try {
+      return await pb.collection(S).getOne(id, { requestKey: null });
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
   },
 };

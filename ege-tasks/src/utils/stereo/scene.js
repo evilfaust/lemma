@@ -12,10 +12,11 @@ import { add, sub, mul, dot, len, dist, paramOnLine, distToLine } from './vec3';
 import { buildBody, findFace, prettyName } from './bodies';
 import {
   intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon, orderPolygon,
+  affinePoint,
 } from './geometry';
 
 export const OP_TYPES = [
-  'pointOnLine', 'segment', 'line', 'intersect', 'trace', 'parallel', 'section', 'plane', 'fill',
+  'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'section', 'plane', 'fill',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -56,7 +57,10 @@ function sameLine(p1, u1, p2, u2, eps) {
 export function evaluateScene(scene, opts = {}) {
   const body = buildBody(scene?.body);
   const allOps = Array.isArray(scene?.ops) ? scene.ops : [];
-  const ops = Number.isFinite(opts.upTo) ? allOps.slice(0, Math.max(0, opts.upTo)) : allOps;
+  // upTo — пошаговый просмотр: из опций или из самой сцены (так учитель
+  // «отматывает» эфир — ученик получает сцену с upTo).
+  const upTo = Number.isFinite(opts.upTo) ? opts.upTo : Number.isFinite(scene?.upTo) ? scene.upTo : null;
+  const ops = upTo != null ? allOps.slice(0, Math.max(0, upTo)) : allOps;
   const eps = 1e-6 * body.size;
 
   const points = {};
@@ -179,6 +183,18 @@ export function evaluateScene(scene, opts = {}) {
           if (!Number.isFinite(t)) fail('Не задано положение точки');
           ensureCoverage(L, op.ref, t, stepIdx, created, op.color);
           addPoint(op.name, add(L.p, mul(L.u, t)), stepIdx, created);
+          break;
+        }
+        case 'pointOnFace': {
+          // Точка внутри грани (плоскости): аффинные координаты по трём первым
+          // точкам — при повороте и сдвиге вершин точка остаётся в плоскости.
+          if (!Array.isArray(op.face) || op.face.length < 3) fail('Грань задаётся тремя точками');
+          resolvePlane(op.face);
+          const [A, B, C] = op.face.slice(0, 3).map(pointPos);
+          const s = Number(op.s);
+          const t = Number(op.t);
+          if (!Number.isFinite(s) || !Number.isFinite(t)) fail('Не задано положение точки');
+          addPoint(op.name, affinePoint(A, B, C, s, t), stepIdx, created);
           break;
         }
         case 'segment':
@@ -330,6 +346,7 @@ export function opPointNames(op) {
   const fromRef = (r) => { if (isPairRef(r)) out.push(...r); };
   switch (op.type) {
     case 'pointOnLine': fromRef(op.ref); break;
+    case 'pointOnFace': out.push(...(op.face || [])); break;
     case 'segment': case 'line': fromRef(op.ref); break;
     case 'parallel': fromRef(op.ref); out.push(op.through); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
@@ -379,6 +396,7 @@ export function renamePointInScene(scene, from, to) {
     if (o.l1) o.l1 = swapRef(o.l1);
     if (o.l2) o.l2 = swapRef(o.l2);
     if (o.plane) o.plane = o.plane.map(swap);
+    if (o.face) o.face = o.face.map(swap);
     if (o.pts) o.pts = o.pts.map(swap);
     return o;
   });

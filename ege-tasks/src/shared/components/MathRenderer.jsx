@@ -5,6 +5,7 @@ import rehypeKatex from 'rehype-katex';
 import NumberLineSVG from '../../components/shared/NumberLineSVG';
 import CoordPlotSVG from '../../components/shared/CoordPlotSVG';
 import GridPaperSVG from '../../components/shared/GridPaperSVG';
+import StereoSVG from '../../components/shared/StereoSVG';
 import { prepareMarkdownTables } from '../../utils/markdownTables';
 import remarkTableModifiers from '../../utils/remarkTableModifiers';
 import './markdownTables.css';
@@ -13,12 +14,13 @@ import './markdownTables.css';
 // ```plot / ```vectors / ```grid) и его содержимое. Возвращает { kind, spec }
 // либо null, если это обычный блок кода.
 // `\b` не годится: у кириллического алиаса ```клетка границы слова нет.
-const DRAWING_LANG = /language-(numline|plot|vectors|grid|cells|клетка)(?![a-z0-9-])/i;
+const DRAWING_LANG = /language-(numline|plot|vectors|grid|cells|клетка|stereo)(?![a-z0-9-])/i;
 
 function drawingKind(lang) {
   const l = lang.toLowerCase();
   if (l === 'numline') return 'numline';
   if (l === 'plot' || l === 'vectors') return 'plot';
+  if (l === 'stereo') return 'stereo';
   return 'grid';
 }
 
@@ -99,9 +101,9 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
           // масштабируются встроенные чертежи. Общего правила по svg в тексте
           // быть НЕ должно — оно схлопывает радикал KaTeX.
           <span className="mr-figure" style={{ display: 'block', textAlign: 'center', margin: '8px 0' }}>
-            {drawing.kind === 'plot'
-              ? <CoordPlotSVG spec={drawing.spec} />
-              : <NumberLineSVG spec={drawing.spec} />}
+            {drawing.kind === 'plot' && <CoordPlotSVG spec={drawing.spec} />}
+            {drawing.kind === 'numline' && <NumberLineSVG spec={drawing.spec} />}
+            {drawing.kind === 'stereo' && <StereoSVG spec={drawing.spec} />}
           </span>
         );
       }

@@ -9,6 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import DOMPurify from 'dompurify'
 import { numberLineSvgFromSpec } from '../utils/numberLine'
 import { coordPlotSvgFromSpec } from '../utils/coordPlot'
+import { stereoSvgFromSpec } from '../utils/stereo/dsl'
 import { gridPaperSvgFromSpec } from '../utils/gridPaper'
 import { prepareMarkdownTables } from '../utils/markdownTables'
 import remarkTableModifiers from '../utils/remarkTableModifiers'
@@ -277,6 +278,18 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
     },
   )
 
+  // Стереочертёж: fenced-блок ```stereo → статичный SVG (тело + построения,
+  // невидимые линии пунктиром). Грамматика — utils/stereo/dsl.js.
+  result = result.replace(
+    /<pre><code class="language-stereo">([\s\S]*?)<\/code><\/pre>/g,
+    (_, body) => {
+      const spec = decodeEntities(body)
+      let svg
+      try { svg = stereoSvgFromSpec(spec) } catch { svg = '<span style="color:#b91c1c">Чертёж не построился</span>' }
+      return `<div class="stereo-block" style="text-align:center;margin:10px 0">${svg}</div>`
+    },
+  )
+
   // Поле «в клетку» под рукописное решение: fenced-блок ```grid (алиасы
   // ```cells / ```клетка). Не чертёж, а место для записи — поэтому блок
   // на всю ширину колонки, без центрирования и без масштабирования.
@@ -371,13 +384,13 @@ export function useMarkdownProcessor(markdown, columns = 1) {
           'mfrac', 'mroot', 'msqrt', 'munder', 'mover', 'mtable', 'mtr',
           'mtd', 'annotation', 'div', 'table', 'thead', 'tbody', 'tr',
           'th', 'td', 'caption', 'colgroup', 'col',
-          'svg', 'g', 'line', 'rect', 'circle', 'path', 'text'],
+          'svg', 'g', 'line', 'rect', 'circle', 'path', 'text', 'polygon', 'tspan'],
         ADD_ATTR: ['class', 'style', 'encoding', 'xmlns', 'aria-hidden', 'target', 'rel',
           'viewBox', 'role', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r',
           'd', 'fill', 'stroke', 'stroke-width', 'width', 'height', 'transform',
           'font-size', 'font-style', 'text-anchor',
           'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray',
-          'font-weight', 'font-family', 'opacity', 'fill-opacity'],
+          'font-weight', 'font-family', 'opacity', 'fill-opacity', 'points', 'dy'],
         ALLOW_DATA_ATTR: true,
       })
       setHtml(cleanHtml)

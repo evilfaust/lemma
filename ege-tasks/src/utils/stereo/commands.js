@@ -161,6 +161,18 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'intersect', name: auto(m[1]), l1: left, l2: right } };
     }
 
+    m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?(?:в\s+грани|в\s+плоскости|on\s+face)\s+(\S+)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)$/i.exec(src);
+    if (m) {
+      const face = splitNames(m[2]);
+      if (!face || face.length < 3) throw new Error('Грань — не меньше трёх точек: «K в грани ABB1A1 0,3 0,4»');
+      return {
+        op: {
+          id: newOpId(), type: 'pointOnFace', name: auto(m[1]), face,
+          s: Number(m[3].replace(',', '.')), t: Number(m[4].replace(',', '.')),
+        },
+      };
+    }
+
     m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?(?:на|∈|on|in)\s+(\S+)\s*(.*)$/i.exec(src);
     if (m) {
       const ref = need(splitNames(m[2]), 2, 'Точка на отрезке из двух точек: «M на AA1 1:2»');
@@ -203,6 +215,7 @@ export function describeOp(op, opsById = {}) {
       if (op.t < 0 || op.t > 1) return `${base} (на продолжении)`;
       return base;
     }
+    case 'pointOnFace': return `${P(op.name)} ∈ (${names(op.face)})`;
     case 'segment': return `Отрезок ${names(op.ref)}`;
     case 'line': return `Прямая ${names(op.ref)}`;
     case 'parallel': return `Прямая через ${P(op.through)} ∥ ${refName(op.ref, opsById)}`;
@@ -215,6 +228,8 @@ export function describeOp(op, opsById = {}) {
   }
 }
 
+const fmtDot = (x) => String(Math.round(Number(x) * 1000) / 1000);
+
 /** Операция обратно в строку команды (для правки шага и будущего DSL). */
 export function opToCommand(op) {
   const n = (arr) => (arr || []).join('');
@@ -223,6 +238,7 @@ export function opToCommand(op) {
       const pos = op.ratio ? `${op.ratio[0]}:${op.ratio[1]}` : fmt(op.t);
       return `${op.name} на ${n(op.ref)} ${pos}`;
     }
+    case 'pointOnFace': return `${op.name} в грани ${n(op.face)} ${fmtDot(op.s)} ${fmtDot(op.t)}`;
     case 'segment': return `отрезок ${n(op.ref)}`;
     case 'line': return `прямая ${n(op.ref)}`;
     case 'parallel': return Array.isArray(op.ref) ? `прямая ${op.through} || ${n(op.ref)}` : '';

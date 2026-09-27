@@ -53,10 +53,11 @@ import StudentCoursePortal from './components/student/StudentCoursePortal';
 import { api } from './services/pocketbase';
 import { useVersionSync } from './shared/version/useVersionSync';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
-import { roomCodeFromPath } from './utils/stereo/room';
+import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
 
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
 const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
+const StudentStereoManual = lazy(() => import('./components/stereo/StudentStereoManual'));
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -273,6 +274,8 @@ function StudentApp() {
   );
   // Эфир стереочертежа: /b/{code} (или /student/b/{code})
   const stereoCode = useMemo(() => roomCodeFromPath(window.location.pathname), []);
+  // Пошаговое пособие: /s/{id} (или /student/s/{id})
+  const manualId = useMemo(() => manualIdFromPath(window.location.pathname), []);
 
   const generateDeviceId = () => {
     if (globalThis.crypto?.randomUUID) {
@@ -295,10 +298,10 @@ function StudentApp() {
   // Извлекаем sessionId из URL: /student/{sessionId}
   // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
-    if (marathonLiveMatch || stereoCode) return '';
+    if (marathonLiveMatch || stereoCode || manualId) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, [marathonLiveMatch, stereoCode]);
+  }, [marathonLiveMatch, stereoCode, manualId]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -360,6 +363,14 @@ function StudentApp() {
 
   if (marathonLiveMatch) {
     return <MarathonLiveBoard marathonId={marathonLiveMatch[1]} />;
+  }
+
+  if (manualId) {
+    return (
+      <Suspense fallback={null}>
+        <StudentStereoManual id={manualId} />
+      </Suspense>
+    );
   }
 
   if (stereoCode) {

@@ -51,6 +51,18 @@ export function roomCodeFromPath(pathname) {
   return m ? m[1].toLowerCase() : null;
 }
 
+/** Ссылка на пособие ученика: student.oipav.ru/s/<id>. */
+export function manualLink(id, origin = STUDENT_ORIGIN) {
+  const full = `${origin.replace(/\/+$/, '')}/s/${id}`;
+  return { full, short: full.replace(/^https?:\/\//, '') };
+}
+
+/** Id пособия из адреса ученика: /s/<id> или /student/s/<id>. */
+export function manualIdFromPath(pathname) {
+  const m = /^\/(?:student\/)?s\/([a-z0-9]{15})\/?$/.exec(String(pathname || ''));
+  return m ? m[1] : null;
+}
+
 /** Ошибка построения, которую стоит показать классу («скрещиваются»). */
 export function isTeachingNotice(text) {
   return /скрещиваются|параллельн|лежит в плоскости|совпадают|не пересекает тело/.test(String(text || ''));
@@ -69,10 +81,16 @@ export function roomChanges(prev, next) {
   const ops1 = next.scene?.ops || [];
   const sameBody = JSON.stringify(prev?.scene?.body || null) === JSON.stringify(next.scene?.body || null);
   if (prev && !sameBody) out.reset = true;
-  // Новый шаг — если журнал вырос и старая часть не поменялась.
-  if (prev && sameBody && ops1.length > ops0.length
-    && ops0.every((op, i) => op.id === ops1[i]?.id)) {
-    out.flashStep = ops1.length - 1;
+  // Новый шаг — если видимая часть журнала выросла, а прежняя не поменялась
+  // (учитель добавил шаг или «перемотал» показ вперёд).
+  const shown = (sc) => {
+    const ops = sc?.ops || [];
+    return Number.isFinite(sc?.upTo) ? Math.min(ops.length, sc.upTo) : ops.length;
+  };
+  const n0 = shown(prev?.scene);
+  const n1 = shown(next.scene);
+  if (prev && sameBody && n1 > n0 && ops0.slice(0, n0).every((op, i) => op.id === ops1[i]?.id)) {
+    out.flashStep = n1 - 1;
   }
   if (seqOf(next.camera) > seqOf(prev?.camera)) out.camera = clampCamera(next.camera);
   // Пульс и подсказку показываем только «вживую»: ученик, открывший эфир

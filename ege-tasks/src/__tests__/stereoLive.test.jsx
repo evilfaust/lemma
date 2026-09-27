@@ -217,3 +217,35 @@ describe('useStereoLive: очередь записей', () => {
     expect(calls[2].scene).toBe(s3);
   });
 });
+
+describe('показ по шагам в эфире', () => {
+  it('перемотка вперёд вспыхивает, назад — нет', () => {
+    const ops = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+    const at = (k) => room({ scene: { body: cube, ops, upTo: k } });
+    expect(roomChanges(at(1), at(2)).flashStep).toBe(1);
+    expect(roomChanges(at(2), at(1)).flashStep).toBeNull();
+    expect(roomChanges(at(3), room({ scene: { body: cube, ops } })).flashStep).toBeNull();
+  });
+
+  it('ученик видит только показанные шаги и подпись', async () => {
+    vi.useFakeTimers();
+    Object.values(mockApi).forEach((f) => f.mockReset());
+    mockApi.subscribeStereoRoom.mockResolvedValue();
+    mockApi.unsubscribeStereoRoom.mockResolvedValue();
+    mockApi.findLiveStereoRoom.mockResolvedValue(room({
+      scene: {
+        body: cube,
+        upTo: 1,
+        ops: [
+          { id: 'a', type: 'pointOnLine', name: 'M', ref: ['A', 'A1'], t: 0.5, ratio: [1, 1], note: 'середина ребра' },
+          { id: 'b', type: 'segment', ref: ['M', 'C1'] },
+        ],
+      },
+    }));
+    render(<StudentStereoBoard code="10a" />);
+    await act(async () => {});
+    expect(screen.getByText('Шаг 1: M ∈ AA₁, середина')).toBeTruthy();
+    expect(screen.getByText('середина ребра')).toBeTruthy();
+    vi.useRealTimers();
+  });
+});

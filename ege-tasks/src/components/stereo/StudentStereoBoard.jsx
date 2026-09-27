@@ -140,10 +140,10 @@ export default function StudentStereoBoard({ code }) {
   }, [scene]);
 
   const lastStep = useMemo(() => {
-    if (!model) return '';
+    if (!model) return null;
     const ok = model.steps.filter((s) => s.ok);
     const last = ok[ok.length - 1];
-    return last ? `Шаг ${ok.length}: ${describeOp(last.op, model.opsById)}` : '';
+    return last ? { text: `Шаг ${ok.length}: ${describeOp(last.op, model.opsById)}`, note: last.op.note || '' } : null;
   }, [model]);
 
   const onCameraChange = useCallback((cam) => {
@@ -198,7 +198,10 @@ export default function StudentStereoBoard({ code }) {
 
       {model && (
         <footer className="ssb__foot">
-          <div className="ssb__step">{lastStep || 'Пока только тело — смотрите на доску'}</div>
+          <div className="ssb__step">
+            {lastStep ? lastStep.text : 'Пока только тело — смотрите на доску'}
+            {lastStep?.note && <span className="ssb__note">{lastStep.note}</span>}
+          </div>
           <button
             type="button"
             className={`ssb__follow${follow ? ' is-on' : ''}`}

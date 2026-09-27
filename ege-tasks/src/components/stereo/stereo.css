@@ -359,3 +359,93 @@
   font-weight: 600;
 }
 .ssb__follow.is-on { background: #fff; color: #2563eb; }
+
+/* --- пошаговый показ и подписи шагов ------------------------------------------ */
+.stereo-replay {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.stereo-replay__pos { flex: 1; text-align: center; font-size: 13px; font-weight: 600; }
+.stereo-step.is-future { opacity: 0.4; }
+.stereo-step__note {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  color: #475569;
+  margin-top: 2px;
+}
+.ssb__note {
+  display: block;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+/* --- окно «Чертёж текстом» ---------------------------------------------------- */
+.stereo-text {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
+}
+.stereo-text__code textarea, textarea.stereo-text__code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+}
+.stereo-text__preview {
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 6px;
+  background: #fff;
+  min-height: 200px;
+}
+@media (max-width: 760px) {
+  .stereo-text { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* --- библиотека чертежей ---------------------------------------------------- */
+.stereo-lib__save { display: flex; flex-direction: column; gap: 8px; }
+.stereo-lib__list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--lemma-border, #e5e7eb); border-radius: 10px; }
+.stereo-lib__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+.stereo-lib__item:last-child { border-bottom: 0; }
+.stereo-lib__item.is-current { background: #eff6ff; }
+.stereo-lib__main { flex: 1; min-width: 0; }
+.stereo-lib__title {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 14px;
+  color: #1f2937;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stereo-lib__title:hover { color: #1d4ed8; }
+.stereo-lib__meta { font-size: 12px; color: #6b7280; }
+.stereo-lib__actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+
+/* --- пособие ученика (student.oipav.ru/s/<id>) ---------------------------------- */
+.ssb__foot--manual { gap: 8px; }
+.ssb__nav {
+  flex: 0 0 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+}
+.ssb__nav:disabled { background: #e2e8f0; border-color: #e2e8f0; color: #94a3b8; cursor: default; }

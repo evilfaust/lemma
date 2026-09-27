@@ -167,7 +167,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   }));
 
   return {
-    width, height, scale: pr.scale, project: pr.project,
+    width, height, scale: pr.scale, project: pr.project, unproject: pr.unproject,
     polys, strokes, dots, labels,
     hits: { lines: hitLines, faces, points: dots },
     lastStep: opts.lastStep ?? null,
@@ -231,14 +231,31 @@ export function pickFace(frame, x, y, { back = false } = {}) {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export function stereoSvgString(frame) {
+/**
+ * SVG-строка кадра.
+ * @param opts.background — белый фон (для файла); в тексте задачи — прозрачный
+ * @param opts.responsive — ширина 100 % с потолком maxWidth (блок в задаче/теории)
+ * @param opts.mono       — только чёрная краска (печатный стек Lemma): линии
+ *                          чёрные, заливки — светло-серые
+ */
+export function stereoSvgString(frame, opts = {}) {
+  const { background = true, responsive = false, mono = false, maxWidth = frame.width } = opts;
+  const ink = (c) => (mono ? '#000000' : c);
   const parts = [];
-  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${frame.width}" height="${frame.height}" viewBox="0 0 ${frame.width} ${frame.height}">`);
-  parts.push('<rect width="100%" height="100%" fill="#ffffff"/>');
+  const size = responsive
+    ? `width="100%" style="max-width:${maxWidth}px;height:auto;display:block;margin:0 auto"`
+    : `width="${frame.width}" height="${frame.height}"`;
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" class="stereo-svg" ${size} viewBox="0 0 ${frame.width} ${frame.height}">`);
+  if (background) parts.push('<rect width="100%" height="100%" fill="#ffffff"/>');
   for (const pg of frame.polys) {
-    parts.push(`<polygon points="${pg.points}" fill="${esc(pg.fill)}" fill-opacity="${pg.opacity}" stroke="none"/>`);
+    const fill = mono ? '#000000' : pg.fill;
+    const op = mono ? Math.min(0.14, pg.opacity * 0.45) : pg.opacity;
+    parts.push(`<polygon points="${pg.points}" fill="${esc(fill)}" fill-opacity="${op}" stroke="none"/>`);
   }
-  const line = (s) => `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(s.color)}" stroke-width="${s.hidden ? s.width * 0.8 : s.width}" stroke-linecap="round"${s.hidden ? ` stroke-dasharray="${DASH}"` : ''}/>`;
+  const line = (s) => {
+    const w = (s.hidden ? s.width * 0.8 : s.width) * (mono && s.kind !== 'edge' && s.kind !== 'section' ? 0.85 : 1);
+    return `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${s.hidden ? ` stroke-dasharray="${DASH}"` : ''}/>`;
+  };
   for (const s of frame.strokes) if (s.hidden) parts.push(line(s));
   for (const s of frame.strokes) if (!s.hidden) parts.push(line(s));
   for (const d of frame.dots) {

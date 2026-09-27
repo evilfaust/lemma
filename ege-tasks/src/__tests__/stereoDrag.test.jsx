@@ -3,8 +3,9 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import { App as AntApp } from 'antd';
 import StereoEditor from '../components/stereo/StereoEditor';
 import {
-  evaluateScene, renderStereo, DEFAULT_CAMERA,
+  evaluateScene, renderStereo, DEFAULT_CAMERA, pickFace,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
+  toolClick, facePointAt, faceDragTarget, dragFacePosition, describeOp, isPointHidden, cameraBasis,
 } from '../utils/stereo';
 
 const cube = { kind: 'cube', a: 4 };
@@ -44,6 +45,51 @@ describe('перемещение точек: логика', () => {
     expect(Math.hypot(after.x - before.x, after.y - before.y)).toBeGreaterThan(0.1); // след переехал
     expect(after.z).toBeCloseTo(-2, 9); // и остался в плоскости основания
     expect(traceScene.ops[0].t).toBe(0.5); // исходная сцена не тронута
+  });
+});
+
+describe('точка внутри грани', () => {
+  const model = evaluateScene({ body: cube, ops: [] });
+  const frame = renderStereo(model, DEFAULT_CAMERA, { width: 600, height: 500 });
+  const front = frame.hits.faces.find((f) => f.front && f.verts.includes('A') && f.verts.includes('B1'));
+  const cx = front.pts.reduce((a, p) => a + p.x, 0) / front.pts.length;
+  const cy = front.pts.reduce((a, p) => a + p.y, 0) / front.pts.length;
+
+  it('клик по центру передней грани — точка в центре грани', () => {
+    const face = pickFace(frame, cx, cy);
+    expect(face.id).toBe(front.id);
+    const pos = facePointAt(model, frame, face.id, cx, cy);
+    const r = toolClick('point', [], { face: { id: face.id, verts: face.verts, pos } }, model);
+    expect(r.op.type).toBe('pointOnFace');
+    const m = evaluateScene({ body: cube, ops: [r.op] });
+    const P = m.points[r.op.name].pos;
+    expect(P.y).toBeCloseTo(-2, 6); // передняя грань y = −2
+    expect(P.x).toBeCloseTo(0, 1);
+    expect(P.z).toBeCloseTo(0, 1);
+    expect(isPointHidden(m.body, P, cameraBasis(DEFAULT_CAMERA).toViewer)).toBe(false);
+    expect(describeOp(r.op)).toMatch(/^M ∈ \(/);
+  });
+
+  it('перетаскивание по грани и край грани', () => {
+    const op = { id: 'f', type: 'pointOnFace', name: 'K', face: front.verts, s: 0.5, t: 0.5 };
+    const m = evaluateScene({ body: cube, ops: [op] });
+    expect(draggableOp({ ops: [op] }, 'K')).toBe(op);
+    const target = faceDragTarget(m, op);
+    const inside = dragFacePosition(target, frame, cx + 10, cy + 5, m.body.size);
+    expect(inside).not.toBeNull();
+    const moved = evaluateScene({ body: cube, ops: [setOpPosition({ ops: [op] }, 'f', inside).ops[0]] });
+    expect(moved.points.K.pos.y).toBeCloseTo(-2, 6); // осталась в плоскости грани
+    expect(dragFacePosition(target, frame, cx + 2000, cy, m.body.size)).toBeNull(); // за край — нет
+  });
+
+  it('точка грани переименовывается и удаляется с зависимыми', async () => {
+    const { renamePointInScene, removeOpCascade } = await import('../utils/stereo');
+    const sc = { body: cube, ops: [
+      { id: 'f', type: 'pointOnFace', name: 'K', face: ['A', 'B', 'B1', 'A1'], s: 0.3, t: 0.4 },
+      { id: 'g', type: 'segment', ref: ['K', 'C1'] },
+    ] };
+    expect(renamePointInScene(sc, 'A', 'Q').ops[0].face[0]).toBe('Q');
+    expect(removeOpCascade(sc, 'f').removed).toEqual(['f', 'g']);
   });
 });
 

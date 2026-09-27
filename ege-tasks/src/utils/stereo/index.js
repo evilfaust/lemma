@@ -7,5 +7,6 @@ export * from './commands';
 export * from './naming';
 export * from './tools';
 export * from './room';
+export * from './dsl';
 export { intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon } from './geometry';
 export { isPointHidden, hiddenInterval, splitByVisibility } from './visibility';

@@ -4,10 +4,13 @@ import {
 } from 'antd';
 import {
   CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
+  EditOutlined, LeftOutlined, RightOutlined, PlayCircleOutlined, FileTextOutlined, BookOutlined,
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import StereoCanvas from './StereoCanvas';
 import StereoLivePanel from './StereoLivePanel';
+import StereoTextModal from './StereoTextModal';
+import StereoLibrary from './StereoLibrary';
 import useStereoLive from '../../hooks/useStereoLive';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
@@ -17,6 +20,7 @@ import {
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
   renderStereo, stereoSvgString, prettyName, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
+  facePointAt, faceDragTarget, dragFacePosition, newOpId,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -28,8 +32,11 @@ function loadDraft() {
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d?.scene?.body || !Array.isArray(d.scene.ops)) return null;
-    evaluateScene(d.scene); // битый черновик не должен ронять страницу
-    return d;
+    // У каждого шага должен быть id: на нём держатся удаление, подписи и эфир.
+    const ops = d.scene.ops.filter((o) => o && typeof o === 'object').map((o) => (o.id ? o : { ...o, id: newOpId() }));
+    const scene = { body: d.scene.body, ops };
+    evaluateScene(scene); // битый черновик не должен ронять страницу
+    return { ...d, scene };
   } catch {
     return null;
   }
@@ -41,7 +48,7 @@ const CAMERA_PRESETS = [
   { key: 'top', label: 'Сверху', cam: { yaw: 0, pitch: 75, zoom: 1 } },
 ];
 
-function buildHit(frame, x, y, back) {
+function buildHit(frame, x, y, back, model) {
   const point = pickPoint(frame, x, y);
   const lh = pickLine(frame, x, y);
   let line = null;
@@ -50,7 +57,11 @@ function buildHit(frame, x, y, back) {
     line = { id: lh.line.id, ref: lh.line.ref, ...snapPosition(t, pxPerUnit) };
   }
   const face = pickFace(frame, x, y, { back });
-  return { point, line, face: face ? { id: face.id, verts: face.verts } : null };
+  return {
+    point,
+    line,
+    face: face ? { id: face.id, verts: face.verts, pos: model ? facePointAt(model, frame, face.id, x, y) : null } : null,
+  };
 }
 
 /**
@@ -87,21 +98,45 @@ export default function StereoEditor() {
   const [cmd, setCmd] = useState('');
   const [cmdError, setCmdError] = useState('');
   const [bodyOpen, setBodyOpen] = useState(false);
+  const [textOpen, setTextOpen] = useState(false);
+  const [libOpen, setLibOpen] = useState(false);
+  // Открытый из библиотеки чертёж и «подпись» сохранённого состояния — по ней
+  // видно, есть ли несохранённые изменения.
+  const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
+  const [savedSig, setSavedSig] = useState(() => draft?.savedSig || '');
   const [bodyForm] = Form.useForm();
   const bodyKind = Form.useWatch('kind', bodyForm);
 
   const model = useMemo(() => evaluateScene(scene), [scene]);
+  // Пошаговый показ: null — всё построение, число — сколько шагов видно.
+  const [viewStep, setViewStep] = useState(null);
+  const replay = viewStep != null;
+  const shownModel = useMemo(
+    () => (replay ? evaluateScene(scene, { upTo: viewStep }) : model),
+    [replay, scene, viewStep, model],
+  );
+  const liveScene = useMemo(() => (replay ? { ...scene, upTo: viewStep } : scene), [replay, scene, viewStep]);
+  const [editNote, setEditNote] = useState(null); // { opId, text }
   const auth = useOptionalAuth();
-  const live = useStereoLive({ scene, enabled: !!auth?.canEdit });
+  const live = useStereoLive({ scene: liveScene, enabled: !!auth?.canEdit });
   const [pulse, setPulse] = useState(null);
 
   // Черновик переживает перезагрузку страницы.
   useEffect(() => {
     const t = setTimeout(() => {
-      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ scene, camera })); } catch { /* приватный режим */ }
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ scene, camera, doc: currentDoc, savedSig }));
+      } catch { /* приватный режим */ }
     }, 300);
     return () => clearTimeout(t);
-  }, [scene, camera]);
+  }, [scene, camera, currentDoc, savedSig]);
+
+  const sceneSig = useMemo(() => JSON.stringify(scene), [scene]);
+  const dirty = currentDoc ? sceneSig !== savedSig : scene.ops.length > 0;
+  const onSaved = useCallback((doc, { keepDirty = false } = {}) => {
+    setCurrentDoc(doc);
+    if (!keepDirty) setSavedSig(doc ? JSON.stringify(sceneRef.current) : '');
+  }, []);
 
   useEffect(() => {
     if (flashStep == null) return undefined;
@@ -152,12 +187,18 @@ export default function StereoEditor() {
 
   // --- перемещение точек ------------------------------------------------------
   const getDragTarget = useCallback((pt, frame) => {
+    if (replay) return null;
     const name = pickPoint(frame, pt.x, pt.y);
     const op = name ? draggableOp(sceneRef.current, name) : null;
-    const line = op ? lineOfOp(model, op) : null;
+    if (!op) return null;
+    if (op.type === 'pointOnFace') {
+      const ft = faceDragTarget(model, op);
+      return ft ? { ...ft, name, opId: op.id } : null;
+    }
+    const line = lineOfOp(model, op);
     if (!line) return null;
-    return { name, opId: op.id, line, onSegment: op.t >= 0 && op.t <= 1 };
-  }, [model]);
+    return { kind: 'line', name, opId: op.id, line, onSegment: op.t >= 0 && op.t <= 1 };
+  }, [model, replay]);
 
   const droppedRef = useRef(false);
   const handleDrag = useCallback(({ phase, x, y, frame, target }) => {
@@ -172,12 +213,14 @@ export default function StereoEditor() {
       setDragging(null);
       return;
     }
-    const pos = dragPosition(target.line, frame.project, x, y, { onSegment: target.onSegment });
+    const pos = target.kind === 'face'
+      ? dragFacePosition(target, frame, x, y, model.body.size)
+      : dragPosition(target.line, frame.project, x, y, { onSegment: target.onSegment });
     if (!pos) return;
     const next = setOpPosition(sceneRef.current, target.opId, pos);
     sceneRef.current = next;
     setSceneRaw(next);
-  }, [pushHistory]);
+  }, [pushHistory, model.body.size]);
 
   // После сдвига точки часть построений могла перестать строиться
   // (пересечение стало параллельным) — говорим об этом сразу.
@@ -198,13 +241,38 @@ export default function StereoEditor() {
 
   // --- клики по чертежу -----------------------------------------------------
   const handleClick = useCallback(({ x, y, frame, shiftKey }) => {
-    if (tool === 'rotate') return;
-    const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey), model);
+    if (tool === 'rotate' || (replay && tool !== 'attention')) return;
+    const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey, model), model);
     if (r.error) showNotice('error', r.error);
     setPending(r.pending);
     if (r.op) commit(r.op);
     if (r.attention) attention(r.attention);
-  }, [tool, pending, model, commit, showNotice, attention]);
+  }, [tool, pending, model, commit, showNotice, attention, replay]);
+
+  // --- пошаговый показ ----------------------------------------------------------
+  const stepsTotal = scene.ops.length;
+  const goStep = useCallback((k) => {
+    const n = Math.max(0, Math.min(stepsTotal, k));
+    setViewStep(n);
+    setPending([]);
+    if (n > 0) setFlashStep(n - 1);
+  }, [stepsTotal]);
+  const exitReplay = useCallback(() => setViewStep(null), []);
+
+  const saveNote = () => {
+    if (!editNote) return;
+    const text = editNote.text.trim().slice(0, 300);
+    setScene((sc) => ({
+      ...sc,
+      ops: sc.ops.map((o) => {
+        if (o.id !== editNote.opId) return o;
+        const next = { ...o };
+        if (text) next.note = text; else delete next.note;
+        return next;
+      }),
+    }));
+    setEditNote(null);
+  };
 
   const hoverKey = useRef('');
   const handleHover = useCallback(({ x, y, frame }) => {
@@ -245,8 +313,21 @@ export default function StereoEditor() {
         undo();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+        e.preventDefault();
+        setLibOpen(true);
+        return;
+      }
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.key === 'Escape') { selectTool('rotate'); return; }
+      if (e.key === 'Escape') {
+        if (replay) exitReplay(); else selectTool('rotate');
+        return;
+      }
+      if (replay && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        e.preventDefault();
+        goStep(viewStep + (e.key === 'ArrowRight' ? 1 : -1));
+        return;
+      }
       if (e.key === 'Enter') {
         const r = finishPending(tool, pending);
         setPending(r.pending);
@@ -258,7 +339,7 @@ export default function StereoEditor() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tool, pending, undo, selectTool, commit]);
+  }, [tool, pending, undo, selectTool, commit, replay, exitReplay, goStep, viewStep]);
 
   // --- строка команд ----------------------------------------------------------
   const runCommand = () => {
@@ -317,6 +398,8 @@ export default function StereoEditor() {
     const body = normalizeBodySpec(values);
     const apply = () => {
       setScene({ body, ops: [] });
+      setCurrentDoc(null);
+      setSavedSig('');
       setCamera(DEFAULT_CAMERA);
       setPending([]);
       setBodyOpen(false);
@@ -350,10 +433,18 @@ export default function StereoEditor() {
         icon={<CodeSandboxOutlined />}
         accent="violet"
         title="Стереометрия"
-        subtitle={`${bodyTitle(scene.body)} · построения вживую`}
+        subtitle={currentDoc
+          ? `«${currentDoc.title}»${dirty ? ' · есть несохранённые изменения' : ''} · ${bodyTitle(scene.body)}`
+          : `${bodyTitle(scene.body)} · построения вживую`}
         extra={(
           <Space wrap>
+            <Tooltip title="Сохранённые чертежи и пособия для учеников (Ctrl+S)">
+              <Button icon={<BookOutlined />} onClick={() => setLibOpen(true)}>Библиотека</Button>
+            </Tooltip>
             <Button icon={<PlusOutlined />} onClick={openBody}>Новый чертёж</Button>
+            <Tooltip title="Блок ```stereo для задачи или теории — и обратно">
+              <Button icon={<FileTextOutlined />} onClick={() => setTextOpen(true)}>Текст</Button>
+            </Tooltip>
             <Tooltip title="Картинка для печати или для доски">
               <Button icon={<DownloadOutlined />} onClick={downloadSvg}>SVG</Button>
             </Tooltip>
@@ -364,13 +455,15 @@ export default function StereoEditor() {
       <div className="stereo-editor">
         <div className="stereo-editor__stage" style={{ height: 'clamp(420px, 72vh, 820px)' }}>
           <div className="stereo-editor__hint">
-            <span className="stereo-editor__badge">{hint}</span>
+            <span className="stereo-editor__badge">
+              {replay ? `Показ по шагам: ${viewStep} из ${stepsTotal} · ← → листать · Esc — выйти` : hint}
+            </span>
             {pending.length > 0 && (
               <Button size="small" onClick={() => setPending([])}>Сбросить выбор (Esc)</Button>
             )}
           </div>
           <StereoCanvas
-            model={model}
+            model={shownModel}
             camera={camera}
             onCameraChange={setCamera}
             onClick={handleClick}
@@ -451,6 +544,22 @@ export default function StereoEditor() {
                 </Tooltip>
               </Space>
             </Space>
+            {stepsTotal > 0 && (
+              <div className="stereo-replay">
+                {replay ? (
+                  <>
+                    <Button size="small" icon={<LeftOutlined />} onClick={() => goStep(viewStep - 1)} disabled={viewStep <= 0} aria-label="Предыдущий шаг" />
+                    <span className="stereo-replay__pos">Шаг {viewStep} из {stepsTotal}</span>
+                    <Button size="small" icon={<RightOutlined />} onClick={() => goStep(viewStep + 1)} disabled={viewStep >= stepsTotal} aria-label="Следующий шаг" />
+                    <Button size="small" onClick={exitReplay}>Всё построение</Button>
+                  </>
+                ) : (
+                  <Button size="small" icon={<PlayCircleOutlined />} onClick={() => goStep(0)} block>
+                    Показать по шагам{live.isLive ? ' (ученики увидят то же)' : ''}
+                  </Button>
+                )}
+              </div>
+            )}
             {model.steps.length === 0 ? (
               <div className="stereo-cmd-help">
                 Пока пусто. Выберите инструмент справа или напишите команду —
@@ -461,14 +570,42 @@ export default function StereoEditor() {
                 {model.steps.map((st) => (
                   <li
                     key={st.op.id || st.index}
-                    className={`stereo-step${flashStep === st.index ? ' is-flash' : ''}`}
-                    onClick={() => setFlashStep(st.index)}
+                    className={[
+                      'stereo-step',
+                      flashStep === st.index ? 'is-flash' : '',
+                      replay && st.index >= viewStep ? 'is-future' : '',
+                    ].filter(Boolean).join(' ')}
+                    onClick={() => (replay ? goStep(st.index + 1) : setFlashStep(st.index))}
                   >
                     <span className="stereo-step__no">{st.index + 1}</span>
                     <span className="stereo-step__text">
                       {describeOp(st.op, model.opsById)}
                       {!st.ok && <div className="stereo-cmd-error">{st.error}</div>}
+                      {editNote && editNote.opId === st.op.id ? (
+                        <Input
+                          size="small"
+                          autoFocus
+                          value={editNote.text}
+                          maxLength={300}
+                          placeholder="Подпись к шагу — её увидят ученики"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setEditNote({ ...editNote, text: e.target.value })}
+                          onPressEnter={(e) => e.target.blur()}
+                          onBlur={saveNote}
+                          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEditNote(null); } }}
+                        />
+                      ) : st.op.note && <div className="stereo-step__note">{st.op.note}</div>}
                     </span>
+                    <Tooltip title="Подпись к шагу">
+                      <Button
+                        className="stereo-step__del"
+                        size="small"
+                        type="text"
+                        icon={<EditOutlined />}
+                        onClick={(e) => { e.stopPropagation(); setEditNote({ opId: st.op.id, text: st.op.note || '' }); }}
+                        aria-label="Подпись к шагу"
+                      />
+                    </Tooltip>
                     <Button
                       className="stereo-step__del"
                       size="small"
@@ -484,6 +621,41 @@ export default function StereoEditor() {
           </div>
         </div>
       </div>
+
+      <StereoLibrary
+        open={libOpen}
+        onClose={() => setLibOpen(false)}
+        scene={scene}
+        camera={camera}
+        currentDoc={currentDoc}
+        dirty={dirty}
+        canEdit={!!auth?.canEdit}
+        onSaved={onSaved}
+        onOpen={(rec) => {
+          const sc = rec.scene?.body && Array.isArray(rec.scene.ops)
+            ? { body: rec.scene.body, ops: rec.scene.ops.map((o) => (o.id ? o : { ...o, id: newOpId() })) }
+            : { body: DEFAULT_BODY, ops: [] };
+          setScene(sc);
+          setCamera(rec.camera ? { ...DEFAULT_CAMERA, ...rec.camera } : DEFAULT_CAMERA);
+          setCurrentDoc({ id: rec.id, title: rec.title });
+          setSavedSig(JSON.stringify(sc));
+          setPending([]);
+          setViewStep(null);
+        }}
+      />
+
+      <StereoTextModal
+        open={textOpen}
+        onClose={() => setTextOpen(false)}
+        scene={scene}
+        camera={camera}
+        onLoad={(sc, cam) => {
+          setScene(sc);
+          setCamera(cam);
+          setPending([]);
+          setViewStep(null);
+        }}
+      />
 
       <Modal
         title="Новый чертёж"
