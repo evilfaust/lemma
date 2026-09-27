@@ -18,7 +18,8 @@
 
 import { normalizeBodySpec, DEFAULT_BODY } from './bodies';
 import { evaluateScene, tryAppendOp, setPointColors } from './scene';
-import { parseCommand, opToCommand } from './commands';
+import { parseCommand, opToCommand, splitNames } from './commands';
+import { buildBody } from './bodies';
 import { DEFAULT_CAMERA, clampCamera } from './camera';
 import { renderStereo, stereoSvgString, contentBox, POINT_COLORS } from './render';
 
@@ -106,7 +107,18 @@ export function parseStereoBlock(text) {
         return;
       }
     }
-    let m = /^(?:вид|view)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)(?:\s+(\d+(?:[.,]\d+)?))?$/i.exec(cmd);
+    // «вершины KLMNK1L1M1N1» — свои имена вершин тела (до построений).
+    let m = /^(?:вершины|vertices)\s+(.+)$/i.exec(cmd);
+    if (m) {
+      const names = splitNames(m[1].replace(/\s+/g, ''));
+      const need = buildBody({ ...scene.body, names: undefined }).order.length;
+      if (scene.ops.length) errors.push({ line: lineNo, message: 'Имена вершин — сразу после тела, до построений' });
+      else if (!names || names.length !== need || new Set(names).size !== names.length) {
+        errors.push({ line: lineNo, message: `Нужно ${need} разных имён вершин` });
+      } else scene = { ...scene, body: normalizeBodySpec({ ...scene.body, names }) };
+      return;
+    }
+    m = /^(?:вид|view)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)(?:\s+(\d+(?:[.,]\d+)?))?$/i.exec(cmd);
     if (m) {
       camera = clampCamera({ yaw: num(m[1]), pitch: num(m[2]), zoom: m[3] ? num(m[3]) : 1 });
       return;
@@ -145,6 +157,7 @@ export function parseStereoBlock(text) {
  */
 export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false } = {}) {
   const out = [bodyLine(scene?.body)];
+  if (scene?.body?.names?.length) out.push(`вершины ${scene.body.names.join('')}`);
   let skipped = 0;
   for (const op of scene?.ops || []) {
     const cmd = opToCommand(op);

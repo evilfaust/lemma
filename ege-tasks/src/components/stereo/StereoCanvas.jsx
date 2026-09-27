@@ -206,7 +206,9 @@ export default function StereoCanvas({
         onPointerMove={handleMove}
         onPointerUp={handleUp}
         onPointerCancel={handleUp}
-        onDoubleClick={onDoubleClick}
+        onDoubleClick={onDoubleClick && ((e) => {
+          if (frameRef.current) onDoubleClick({ ...local(e), frame: frameRef.current });
+        })}
       >
         {frame && (
           <>

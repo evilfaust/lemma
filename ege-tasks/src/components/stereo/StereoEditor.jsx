@@ -11,17 +11,18 @@ import StereoCanvas from './StereoCanvas';
 import StereoLivePanel from './StereoLivePanel';
 import StereoTextModal from './StereoTextModal';
 import StereoLibrary from './StereoLibrary';
+import RenamePointModal from './RenamePointModal';
 import useStereoLive from '../../hooks/useStereoLive';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
-  evaluateScene, tryAppendOp, removeOpCascade, renamePointInScene,
+  evaluateScene, tryAppendOp, removeOpCascade,
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
   normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
   renderStereo, stereoSvgString, prettyName, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
-  POINT_COLORS, setPointColors,
+  POINT_COLORS, setPointColors, renamePoint,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -117,6 +118,7 @@ export default function StereoEditor({
   const [textOpen, setTextOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [paintColor, setPaintColor] = useState('red');
+  const [renameTarget, setRenameTarget] = useState(null);
   // Открытый из библиотеки чертёж и «подпись» сохранённого состояния — по ней
   // видно, есть ли несохранённые изменения.
   const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
@@ -265,6 +267,7 @@ export default function StereoEditor({
     setPending(r.pending);
     if (r.op) commit(r.op);
     if (r.attention) attention(r.attention);
+    if (r.rename) setRenameTarget(r.rename.name);
     if (r.paint) {
       // Повторный клик тем же цветом снимает выделение.
       const cur = sceneRef.current.colors?.[r.paint.name];
@@ -378,11 +381,9 @@ export default function StereoEditor({
       return;
     }
     if (r.action === 'rename') {
-      const pt = model.points[r.from];
-      if (!pt) { setCmdError(`Нет точки ${prettyName(r.from)}`); return; }
-      if (pt.kind === 'vertex') { setCmdError('Вершины тела не переименовываются'); return; }
-      if (model.points[r.to]) { setCmdError(`Имя ${prettyName(r.to)} уже занято`); return; }
-      setScene((s) => renamePointInScene(s, r.from, r.to));
+      const res = renamePoint(scene, r.from, r.to);
+      if (res.error) { setCmdError(res.error); return; }
+      setScene(res.scene);
       setCmd('');
       return;
     }
@@ -524,7 +525,12 @@ export default function StereoEditor({
             onCameraChange={setCamera}
             onClick={handleClick}
             onHover={handleHover}
-            onDoubleClick={tool === 'rotate' ? () => setCamera(DEFAULT_CAMERA) : undefined}
+            onDoubleClick={({ x, y, frame }) => {
+              // Двойной клик по точке — переименовать; по пустому месту — сброс ракурса.
+              const name = pickPoint(frame, x, y);
+              if (name) setRenameTarget(name);
+              else if (tool === 'rotate') setCamera(DEFAULT_CAMERA);
+            }}
             highlight={highlight}
             flashStep={flashStep}
             pulse={pulse}
@@ -703,6 +709,17 @@ export default function StereoEditor({
           </div>
         </div>
       </div>
+
+      <RenamePointModal
+        name={renameTarget}
+        scene={scene}
+        onClose={() => setRenameTarget(null)}
+        onApply={(next) => {
+          setScene(next);
+          setRenameTarget(null);
+          setPending([]);
+        }}
+      />
 
       <StereoLibrary
         open={libOpen}

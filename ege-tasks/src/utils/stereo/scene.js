@@ -9,7 +9,9 @@
 // («MN и AD скрещиваются — общей точки нет»).
 
 import { add, sub, mul, dot, len, dist, paramOnLine, distToLine } from './vec3';
-import { buildBody, findFace, prettyName } from './bodies';
+import {
+  buildBody, findFace, prettyName, normalizeBodySpec, POINT_NAME_RE,
+} from './bodies';
 import {
   intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon, orderPolygon,
   affinePoint,
@@ -413,6 +415,26 @@ export function renamePointInScene(scene, from, to) {
     next.colors = Object.fromEntries(Object.entries(scene.colors).map(([k, v]) => [swap(k), v]));
   }
   return next;
+}
+
+/**
+ * Переименовать любую точку — построенную или вершину тела. Вершина меняет
+ * имя в самом теле (scene.body.names), построения и цвета переписываются.
+ * @returns {{ scene } | { error }}
+ */
+export function renamePoint(scene, from, to) {
+  if (!POINT_NAME_RE.test(to || '')) return { error: 'Имя — латинская буква, можно с цифрами: K, M1' };
+  const model = evaluateScene(scene);
+  const pt = model.points[from];
+  if (!pt) return { error: `Нет точки ${prettyName(from)}` };
+  if (from === to) return { scene };
+  if (model.points[to]) return { error: `Имя ${prettyName(to)} уже занято` };
+  const next = renamePointInScene(scene, from, to);
+  if (pt.kind === 'vertex') {
+    const names = model.body.order.map((n) => (n === from ? to : n));
+    next.body = { ...normalizeBodySpec(scene.body), names };
+  }
+  return { scene: next };
 }
 
 function withoutKeys(obj, keys) {

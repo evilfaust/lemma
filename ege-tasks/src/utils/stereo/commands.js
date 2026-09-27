@@ -46,6 +46,15 @@ export function normalizeCommand(text) {
     .trim();
 }
 
+/** Имя точки, набранное как угодно («м», «m1», «К») → «M», «M1», «K». */
+export function normalizePointName(text) {
+  return String(text || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[АВСЕНКМОРТХУ]/g, (c) => CYR_TO_LAT[c])
+    .replace(/[₀-₉]/g, (c) => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(c)));
+}
+
 /** «AA1C1C» → ['A','A1','C1','C']; null, если это не список имён. */
 export function splitNames(s) {
   const str = String(s || '').replace(/[()]/g, '');

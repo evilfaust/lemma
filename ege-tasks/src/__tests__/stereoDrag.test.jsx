@@ -115,6 +115,18 @@ describe('перемещение точек: жест в редакторе', ()
     localStorage.setItem('stereo.editor.v1', JSON.stringify({ scene: traceScene, camera: DEFAULT_CAMERA }));
   });
 
+  it('двойной клик по точке открывает переименование, по вершине тоже', async () => {
+    render(<AntApp><StereoEditor /></AntApp>);
+    const svg = document.querySelector('.stereo-canvas svg');
+    const frame = renderStereo(evaluateScene(traceScene), DEFAULT_CAMERA, { width: W, height: H });
+    const b = frame.dots.find((d) => d.name === 'B');
+    await act(async () => { fireEvent.doubleClick(svg, { clientX: b.x, clientY: b.y }); });
+    const input = screen.getByLabelText('Новое имя точки');
+    fireEvent.change(input, { target: { value: 'Q' } });
+    await act(async () => { fireEvent.click(screen.getByText('Переименовать')); });
+    expect(screen.getByText('N ∈ QB₁')).toBeTruthy(); // шаг «N на BB1» теперь на QB1
+  });
+
   it('тянем M — меняется доля, след пересчитан; Ctrl+Z возвращает', async () => {
     render(<AntApp><StereoEditor /></AntApp>);
     const svg = document.querySelector('.stereo-canvas svg');

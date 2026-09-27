@@ -43,7 +43,24 @@ function num(v, fallback) {
 }
 
 /** Нормализованное описание тела: подставляет значения по умолчанию. */
+export const POINT_NAME_RE = /^[A-Z][0-9]*$/;
+
+/**
+ * Нормализованное описание тела: подставляет значения по умолчанию.
+ * names — свои имена вершин (по порядку buildBody: основание, верх/вершина),
+ * например куб KLMNK1L1M1N1; проверяются в buildBody по числу вершин.
+ */
 export function normalizeBodySpec(spec = DEFAULT_BODY) {
+  const out = normalizeBodyShape(spec);
+  const names = spec?.names;
+  if (Array.isArray(names) && names.length && names.every((n) => POINT_NAME_RE.test(n))
+    && new Set(names).size === names.length) {
+    out.names = [...names];
+  }
+  return out;
+}
+
+function normalizeBodyShape(spec) {
   const kind = BODY_KINDS[spec?.kind] ? spec.kind : 'cube';
   const a = num(spec?.a, 4);
   switch (kind) {
@@ -78,7 +95,10 @@ export function bodyTitle(spec) {
     case 'cube': return `Куб ${names}`;
     case 'box': return `Параллелепипед ${names}`;
     case 'prism': return `Призма ${names}`;
-    case 'pyramid': return `Пирамида ${s.apex}${body.order.filter((n) => n !== s.apex).join('')}`;
+    case 'pyramid': {
+      const apex = body.order[body.order.length - 1];
+      return `Пирамида ${prettyName(apex)}${body.order.slice(0, -1).map(prettyName).join('')}`;
+    }
     case 'tetra': return `Тетраэдр ${names}`;
     default: return names;
   }
@@ -169,7 +189,23 @@ export function buildBody(specIn) {
   let size = 0;
   for (const p of order) for (const q of order) size = Math.max(size, dist(vertices[p], vertices[q]));
 
-  return { spec, vertices, order, edges, faces, center, size };
+  const built = { spec, vertices, order, edges, faces, center, size };
+  return spec.names && spec.names.length === order.length ? renameBody(built, spec.names) : built;
+}
+
+/** Тело со своими именами вершин: те же точки, рёбра и грани под новыми именами. */
+function renameBody(body, names) {
+  const map = Object.fromEntries(body.order.map((n, i) => [n, names[i]]));
+  const r = (n) => map[n] || n;
+  const vertices = {};
+  for (const n of body.order) vertices[r(n)] = body.vertices[n];
+  return {
+    ...body,
+    vertices,
+    order: body.order.map(r),
+    edges: body.edges.map(([a, b]) => [r(a), r(b)]),
+    faces: body.faces.map((f) => ({ ...f, id: f.verts.map(r).join(''), verts: f.verts.map(r) })),
+  };
 }
 
 /**
