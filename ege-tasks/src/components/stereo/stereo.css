@@ -1,0 +1,191 @@
+/* Стереочертежи: холст (учитель и ученик) + редактор. */
+
+.stereo-canvas {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.stereo-canvas svg { display: block; }
+
+.stereo-label {
+  font-family: 'Times New Roman', Times, serif;
+  font-style: italic;
+  font-size: 17px;
+  fill: #111827;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+/* Новое на чертеже вспыхивает. */
+@keyframes stereo-flash-stroke {
+  0%, 60% { stroke: #dc2626; stroke-width: 3.2px; }
+  100% { }
+}
+@keyframes stereo-flash-fill {
+  0%, 50% { fill-opacity: 0.55; }
+  100% { }
+}
+@keyframes stereo-flash-dot {
+  0%, 60% { fill: #dc2626; r: 5.5px; }
+  100% { }
+}
+.stereo-flash { animation: stereo-flash-stroke 1.6s ease-out 1; }
+.stereo-flash-fill { animation: stereo-flash-fill 1.6s ease-out 1; }
+.stereo-flash-dot { animation: stereo-flash-dot 1.6s ease-out 1; }
+
+/* «Смотрите сюда» — несколько пульсаций. */
+@keyframes stereo-pulse-stroke {
+  0%, 100% { stroke: #f59e0b; stroke-width: 2px; }
+  50% { stroke: #f59e0b; stroke-width: 6px; }
+}
+@keyframes stereo-pulse-dot {
+  0%, 100% { fill: #f59e0b; r: 4px; }
+  50% { fill: #f59e0b; r: 8px; }
+}
+.stereo-pulse { animation: stereo-pulse-stroke 0.7s ease-in-out 4; }
+.stereo-pulse-dot { animation: stereo-pulse-dot 0.7s ease-in-out 4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .stereo-flash, .stereo-flash-fill, .stereo-flash-dot,
+  .stereo-pulse, .stereo-pulse-dot { animation: none; }
+}
+
+/* --- редактор ---------------------------------------------------------------- */
+
+.stereo-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 16px;
+  align-items: start;
+}
+.stereo-editor__stage {
+  position: relative;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 12px;
+  background: #fff;
+}
+.stereo-editor__hint {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  pointer-events: none;
+  z-index: 2;
+}
+.stereo-editor__hint > * { pointer-events: auto; }
+.stereo-editor__badge {
+  background: rgba(17, 24, 39, 0.82);
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 13px;
+}
+.stereo-editor__notice {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  z-index: 2;
+}
+.stereo-editor__camera {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+}
+.stereo-editor__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.stereo-tools {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.stereo-tool {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  color: #1f2937;
+  transition: border-color 0.15s, background 0.15s;
+}
+.stereo-tool:hover { border-color: #93c5fd; }
+.stereo-tool.is-active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.stereo-tool__glyph { font-size: 17px; line-height: 1; font-family: 'Times New Roman', serif; }
+.stereo-tool__key {
+  font-size: 10px;
+  color: #6b7280;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.stereo-cmd-error { color: #dc2626; font-size: 12px; margin-top: 4px; }
+.stereo-cmd-help { font-size: 12px; color: #6b7280; margin-top: 4px; }
+.stereo-cmd-help code { font-size: 12px; }
+
+.stereo-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 10px;
+}
+.stereo-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+  cursor: pointer;
+}
+.stereo-step:last-child { border-bottom: 0; }
+.stereo-step:hover { background: #f8fafc; }
+.stereo-step.is-flash { background: #fef2f2; }
+.stereo-step__no {
+  flex: 0 0 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.stereo-step__text { flex: 1; min-width: 0; font-family: 'Times New Roman', serif; font-size: 15px; }
+.stereo-step__del { opacity: 0; transition: opacity 0.15s; }
+.stereo-step:hover .stereo-step__del { opacity: 1; }
+
+@media (max-width: 960px) {
+  .stereo-editor { grid-template-columns: minmax(0, 1fr); }
+}
+
+[data-theme='dark'] .stereo-editor__stage,
+[data-theme='dark'] .stereo-canvas { background: #fff; }

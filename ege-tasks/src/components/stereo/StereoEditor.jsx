@@ -1,0 +1,443 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Alert, App, Button, Form, Input, InputNumber, Modal, Select, Space, Tooltip,
+} from 'antd';
+import {
+  CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
+} from '@ant-design/icons';
+import { WorkspacePageHeader } from '../workspace/ui';
+import StereoCanvas from './StereoCanvas';
+import {
+  evaluateScene, tryAppendOp, removeOpCascade, renamePointInScene,
+  parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
+  normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
+  chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
+  renderStereo, stereoSvgString, prettyName,
+} from '../../utils/stereo';
+import './stereo.css';
+
+const DRAFT_KEY = 'stereo.editor.v1';
+
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const d = JSON.parse(raw);
+    if (!d?.scene?.body || !Array.isArray(d.scene.ops)) return null;
+    evaluateScene(d.scene); // битый черновик не должен ронять страницу
+    return d;
+  } catch {
+    return null;
+  }
+}
+
+const CAMERA_PRESETS = [
+  { key: 'book', label: 'Как в учебнике', cam: DEFAULT_CAMERA },
+  { key: 'front', label: 'Спереди', cam: { yaw: 0, pitch: 0, zoom: 1 } },
+  { key: 'top', label: 'Сверху', cam: { yaw: 0, pitch: 75, zoom: 1 } },
+];
+
+function buildHit(frame, x, y, back) {
+  const point = pickPoint(frame, x, y);
+  const lh = pickLine(frame, x, y);
+  let line = null;
+  if (lh) {
+    const { t, pxPerUnit } = lineHitParam(lh, frame.project);
+    line = { id: lh.line.id, ref: lh.line.ref, ...snapPosition(t, pxPerUnit) };
+  }
+  const face = pickFace(frame, x, y, { back });
+  return { point, line, face: face ? { id: face.id, verts: face.verts } : null };
+}
+
+/**
+ * Редактор стереочертежа (этап 1 — без эфира). План — STEREO_LIVE_PLAN.md.
+ * Учитель строит кликами или строкой команд; журнал шагов справа.
+ */
+export default function StereoEditor() {
+  const { modal } = App.useApp();
+  const draft = useMemo(loadDraft, []);
+  const [scene, setScene] = useState(() => draft?.scene || { body: DEFAULT_BODY, ops: [] });
+  const [camera, setCamera] = useState(() => draft?.camera || DEFAULT_CAMERA);
+  const [tool, setTool] = useState('rotate');
+  const [pending, setPending] = useState([]);
+  const [hover, setHover] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [flashStep, setFlashStep] = useState(null);
+  const [cmd, setCmd] = useState('');
+  const [cmdError, setCmdError] = useState('');
+  const [bodyOpen, setBodyOpen] = useState(false);
+  const [bodyForm] = Form.useForm();
+  const bodyKind = Form.useWatch('kind', bodyForm);
+
+  const model = useMemo(() => evaluateScene(scene), [scene]);
+
+  // Черновик переживает перезагрузку страницы.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ scene, camera })); } catch { /* приватный режим */ }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [scene, camera]);
+
+  useEffect(() => {
+    if (flashStep == null) return undefined;
+    const t = setTimeout(() => setFlashStep(null), 1800);
+    return () => clearTimeout(t);
+  }, [flashStep]);
+
+  const noticeTimer = useRef(null);
+  const showNotice = useCallback((type, text) => {
+    clearTimeout(noticeTimer.current);
+    setNotice({ type, text });
+    noticeTimer.current = setTimeout(() => setNotice(null), type === 'error' ? 8000 : 5000);
+  }, []);
+  useEffect(() => () => clearTimeout(noticeTimer.current), []);
+
+  /** Добавить операцию в журнал; ошибка — объяснение вместо шага. */
+  const commit = useCallback((op, { quiet = false } = {}) => {
+    const r = tryAppendOp(scene, op);
+    if (!r.ok) {
+      if (!quiet) showNotice('error', r.error);
+      return r;
+    }
+    setScene(r.scene);
+    setFlashStep(r.scene.ops.length - 1);
+    if (r.note) showNotice('info', r.note);
+    return r;
+  }, [scene, showNotice]);
+
+  const undo = useCallback(() => {
+    setPending([]);
+    setScene((s) => (s.ops.length ? { ...s, ops: s.ops.slice(0, -1) } : s));
+  }, []);
+
+  const selectTool = useCallback((key) => {
+    setTool(key);
+    setPending([]);
+    setHover(null);
+  }, []);
+
+  // --- клики по чертежу -----------------------------------------------------
+  const handleClick = useCallback(({ x, y, frame, shiftKey }) => {
+    if (tool === 'rotate') return;
+    const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey), model);
+    if (r.error) showNotice('error', r.error);
+    setPending(r.pending);
+    if (r.op) commit(r.op);
+  }, [tool, pending, model, commit, showNotice]);
+
+  const hoverKey = useRef('');
+  const handleHover = useCallback(({ x, y, frame }) => {
+    if (tool === 'rotate') {
+      if (hoverKey.current) { hoverKey.current = ''; setHover(null); }
+      return;
+    }
+    const target = chooseHit(tool, pending, buildHit(frame, x, y, false));
+    const key = target ? `${target.kind}:${target.name || target.id}` : '';
+    if (key !== hoverKey.current) {
+      hoverKey.current = key;
+      setHover(target);
+    }
+  }, [tool, pending]);
+
+  const highlight = useMemo(() => {
+    const points = new Set();
+    const lines = new Set();
+    const faces = new Set();
+    for (const p of [...pending, hover].filter(Boolean)) {
+      if (p.kind === 'point') points.add(p.name);
+      if (p.kind === 'line') lines.add(p.id);
+      if (p.kind === 'face') faces.add(p.id);
+    }
+    return { points, lines, faces };
+  }, [pending, hover]);
+
+  // --- клавиатура -----------------------------------------------------------
+  useEffect(() => {
+    const onKey = (e) => {
+      const el = e.target;
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ' && !typing) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+      if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'Escape') { selectTool('rotate'); return; }
+      if (e.key === 'Enter') {
+        const r = finishPending(tool, pending);
+        setPending(r.pending);
+        if (r.op) commit(r.op);
+        return;
+      }
+      const t = TOOLS.find((x) => e.code === `Key${x.hot}`);
+      if (t) selectTool(t.key);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tool, pending, undo, selectTool, commit]);
+
+  // --- строка команд ----------------------------------------------------------
+  const runCommand = () => {
+    const r = parseCommand(cmd, model);
+    if (r.error) { setCmdError(r.error); return; }
+    setCmdError('');
+    if (r.action === 'undo') { undo(); setCmd(''); return; }
+    if (r.action === 'rename') {
+      const pt = model.points[r.from];
+      if (!pt) { setCmdError(`Нет точки ${prettyName(r.from)}`); return; }
+      if (pt.kind === 'vertex') { setCmdError('Вершины тела не переименовываются'); return; }
+      if (model.points[r.to]) { setCmdError(`Имя ${prettyName(r.to)} уже занято`); return; }
+      setScene((s) => renamePointInScene(s, r.from, r.to));
+      setCmd('');
+      return;
+    }
+    const res = commit(r.op, { quiet: true });
+    if (!res.ok) { setCmdError(res.error); return; }
+    setCmd('');
+  };
+
+  // --- журнал -----------------------------------------------------------------
+  const deleteStep = (opId) => {
+    const { scene: next, removed } = removeOpCascade(scene, opId);
+    if (removed.length <= 1) { setScene(next); setPending([]); return; }
+    modal.confirm({
+      title: `Удалить ${removed.length} шага?`,
+      content: 'Следом за этим шагом уйдут построения, которые на него опираются.',
+      okText: 'Удалить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: () => { setScene(next); setPending([]); },
+    });
+  };
+
+  const clearAll = () => {
+    if (!scene.ops.length) return;
+    modal.confirm({
+      title: 'Очистить построения?',
+      content: 'Тело останется, все шаги будут удалены.',
+      okText: 'Очистить',
+      okButtonProps: { danger: true },
+      cancelText: 'Отмена',
+      onOk: () => { setScene((s) => ({ ...s, ops: [] })); setPending([]); },
+    });
+  };
+
+  // --- тело -------------------------------------------------------------------
+  const openBody = () => setBodyOpen(true);
+  const applyBody = async () => {
+    const values = await bodyForm.validateFields();
+    const body = normalizeBodySpec(values);
+    const apply = () => {
+      setScene({ body, ops: [] });
+      setCamera(DEFAULT_CAMERA);
+      setPending([]);
+      setBodyOpen(false);
+    };
+    if (!scene.ops.length) { apply(); return; }
+    modal.confirm({
+      title: 'Новый чертёж',
+      content: 'Текущие построения будут удалены.',
+      okText: 'Начать заново',
+      cancelText: 'Отмена',
+      onOk: apply,
+    });
+  };
+
+  const downloadSvg = () => {
+    const frame = renderStereo(model, camera, { width: 900, height: 720 });
+    const blob = new Blob([stereoSvgString(frame)], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'stereo.svg';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const hint = toolHint(tool, pending);
+
+  return (
+    <div>
+      <WorkspacePageHeader
+        icon={<CodeSandboxOutlined />}
+        accent="violet"
+        title="Стереометрия"
+        subtitle={`${bodyTitle(scene.body)} · построения вживую`}
+        extra={(
+          <Space wrap>
+            <Button icon={<PlusOutlined />} onClick={openBody}>Новый чертёж</Button>
+            <Tooltip title="Картинка для печати или для доски">
+              <Button icon={<DownloadOutlined />} onClick={downloadSvg}>SVG</Button>
+            </Tooltip>
+          </Space>
+        )}
+      />
+
+      <div className="stereo-editor">
+        <div className="stereo-editor__stage" style={{ height: 'clamp(420px, 72vh, 820px)' }}>
+          <div className="stereo-editor__hint">
+            <span className="stereo-editor__badge">{hint}</span>
+            {pending.length > 0 && (
+              <Button size="small" onClick={() => setPending([])}>Сбросить выбор (Esc)</Button>
+            )}
+          </div>
+          <StereoCanvas
+            model={model}
+            camera={camera}
+            onCameraChange={setCamera}
+            onClick={handleClick}
+            onHover={handleHover}
+            onDoubleClick={tool === 'rotate' ? () => setCamera(DEFAULT_CAMERA) : undefined}
+            highlight={highlight}
+            flashStep={flashStep}
+            cursor={tool === 'rotate' ? 'grab' : 'crosshair'}
+          />
+          <div className="stereo-editor__camera">
+            {CAMERA_PRESETS.map((p) => (
+              <Button key={p.key} size="small" onClick={() => setCamera(p.cam)}>{p.label}</Button>
+            ))}
+          </div>
+          {notice && (
+            <div className="stereo-editor__notice">
+              <Alert
+                type={notice.type === 'error' ? 'warning' : 'info'}
+                showIcon
+                message={notice.text}
+                closable
+                onClose={() => setNotice(null)}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="stereo-editor__panel">
+          <div className="stereo-tools" role="toolbar" aria-label="Инструменты построения">
+            {TOOLS.map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`stereo-tool${tool === t.key ? ' is-active' : ''}`}
+                onClick={() => selectTool(t.key)}
+                title={`${t.label} (${t.hot})`}
+              >
+                <span className="stereo-tool__glyph">{t.glyph}</span>
+                <span>{t.label}</span>
+                <span className="stereo-tool__key">{t.hot}</span>
+              </button>
+            ))}
+          </div>
+
+          <div>
+            <Input
+              value={cmd}
+              onChange={(e) => { setCmd(e.target.value); if (cmdError) setCmdError(''); }}
+              onPressEnter={runCommand}
+              placeholder="Команда: M на AA1 1:2 · MN · X = MN ∩ AC"
+              allowClear
+              status={cmdError ? 'error' : undefined}
+              aria-label="Строка команд"
+            />
+            {cmdError
+              ? <div className="stereo-cmd-error">{cmdError}</div>
+              : (
+                <div className="stereo-cmd-help">
+                  <code>прямая K || AB</code> · <code>след MN ABCD</code> · <code>сечение MND</code> ·
+                  {' '}<code>грань AA1C1C</code> · <code>переименовать M K</code>
+                </div>
+              )}
+          </div>
+
+          <div>
+            <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 6 }}>
+              <strong>Шаги построения</strong>
+              <Space size={4}>
+                <Tooltip title="Отменить последний шаг (Ctrl+Z)">
+                  <Button size="small" icon={<UndoOutlined />} onClick={undo} disabled={!scene.ops.length} />
+                </Tooltip>
+                <Tooltip title="Очистить построения">
+                  <Button size="small" icon={<DeleteOutlined />} onClick={clearAll} disabled={!scene.ops.length} />
+                </Tooltip>
+              </Space>
+            </Space>
+            {model.steps.length === 0 ? (
+              <div className="stereo-cmd-help">
+                Пока пусто. Выберите инструмент справа или напишите команду —
+                новые точки и прямые появятся на чертеже.
+              </div>
+            ) : (
+              <ol className="stereo-steps">
+                {model.steps.map((st) => (
+                  <li
+                    key={st.op.id || st.index}
+                    className={`stereo-step${flashStep === st.index ? ' is-flash' : ''}`}
+                    onClick={() => setFlashStep(st.index)}
+                  >
+                    <span className="stereo-step__no">{st.index + 1}</span>
+                    <span className="stereo-step__text">
+                      {describeOp(st.op, model.opsById)}
+                      {!st.ok && <div className="stereo-cmd-error">{st.error}</div>}
+                    </span>
+                    <Button
+                      className="stereo-step__del"
+                      size="small"
+                      type="text"
+                      icon={<DeleteOutlined />}
+                      onClick={(e) => { e.stopPropagation(); deleteStep(st.op.id); }}
+                      aria-label="Удалить шаг"
+                    />
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <Modal
+        title="Новый чертёж"
+        open={bodyOpen}
+        onOk={applyBody}
+        onCancel={() => setBodyOpen(false)}
+        okText="Создать"
+        cancelText="Отмена"
+        destroyOnHidden
+      >
+        <Form form={bodyForm} layout="vertical" initialValues={normalizeBodySpec(scene.body)}>
+          <Form.Item name="kind" label="Тело">
+            <Select options={Object.entries(BODY_KINDS).map(([value, v]) => ({ value, label: v.label }))} />
+          </Form.Item>
+          {(bodyKind === 'prism' || bodyKind === 'pyramid') && (
+            <Form.Item name="n" label="В основании">
+              <Select options={[
+                { value: 3, label: 'треугольник' },
+                { value: 4, label: 'квадрат' },
+                { value: 6, label: 'шестиугольник' },
+              ]}
+              />
+            </Form.Item>
+          )}
+          <Space wrap>
+            <Form.Item name="a" label={bodyKind === 'cube' ? 'Ребро' : bodyKind === 'box' ? 'Длина AB' : 'Ребро основания'}>
+              <InputNumber min={0.5} max={50} step={0.5} />
+            </Form.Item>
+            {bodyKind === 'box' && (
+              <>
+                <Form.Item name="b" label="Ширина AD"><InputNumber min={0.5} max={50} step={0.5} /></Form.Item>
+                <Form.Item name="c" label="Высота AA₁"><InputNumber min={0.5} max={50} step={0.5} /></Form.Item>
+              </>
+            )}
+            {(bodyKind === 'prism' || bodyKind === 'pyramid') && (
+              <Form.Item name="h" label="Высота"><InputNumber min={0.5} max={50} step={0.5} /></Form.Item>
+            )}
+            {(bodyKind === 'pyramid' || bodyKind === 'tetra') && (
+              <Form.Item name="apex" label="Вершина">
+                <Select style={{ width: 90 }} options={['S', 'D', 'M', 'P'].map((v) => ({ value: v, label: v }))} />
+              </Form.Item>
+            )}
+          </Space>
+        </Form>
+      </Modal>
+    </div>
+  );
+}
