@@ -17,6 +17,9 @@
 - Движок: `scene.segmentColors`, `segmentAt`/`setSegmentColors`/
   `segmentColorError`/`applyColorCommand` (`scene.js`), `colorPieces`
   (`render.js`); +6 тестов.
+- **Деплой 27.09.2026:** учительский `3.9.252-20260927205831` (l.oipav.ru) и
+  ученический `3.9.252-20260927205858` (student.oipav.ru — покрашенные
+  отрезки в эфире и пособиях). БД не затронута.
 
 ## [3.9.251] - 2026-09-27
 
