@@ -8,7 +8,7 @@
 import { dot } from './vec3';
 
 export const PITCH_MIN = -10;
-export const PITCH_MAX = 75;
+export const PITCH_MAX = 90;
 export const ZOOM_MIN = 0.5;
 export const ZOOM_MAX = 3;
 
@@ -16,6 +16,27 @@ export const ZOOM_MAX = 3;
 export const DEFAULT_CAMERA = Object.freeze({ yaw: 22, pitch: 22, zoom: 1 });
 
 const RAD = Math.PI / 180;
+
+/**
+ * Ракурс, при котором взгляд перпендикулярен плоскости с нормалью n
+ * (выносной чертёж: грань или сечение в натуральную величину).
+ * Смотрим всегда сверху или сбоку, не снизу; у вертикальной плоскости — с
+ * той стороны, откуда смотрели. Строго сверху (горизонтальная плоскость)
+ * поворот yaw не меняется — чертёж не крутится в своей плоскости.
+ */
+export function cameraFacing(n, current = DEFAULT_CAMERA) {
+  const nl = Math.hypot(n?.x || 0, n?.y || 0, n?.z || 0);
+  const cur = clampCamera(current);
+  if (!(nl > 0)) return cur;
+  let v = { x: n.x / nl, y: n.y / nl, z: n.z / nl };
+  const flip = () => { v = { x: -v.x, y: -v.y, z: -v.z }; };
+  if (v.z < -1e-9) flip();
+  else if (Math.abs(v.z) <= 1e-9 && dot(v, cameraBasis(cur).toViewer) < 0) flip();
+  const pitch = Math.asin(Math.min(1, v.z)) / RAD;
+  if (pitch > 90 - 1e-6) return { yaw: cur.yaw, pitch: 90, zoom: cur.zoom };
+  const yaw = Math.atan2(v.x, -v.y) / RAD;
+  return clampCamera({ yaw, pitch, zoom: cur.zoom });
+}
 
 export function clampCamera(cam) {
   const yaw = ((Number(cam?.yaw) || 0) % 360 + 360) % 360;

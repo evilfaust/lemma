@@ -91,6 +91,7 @@ export function toolHint(tool, pending = []) {
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
+    case 'view': return 'Кликните по грани или сечению — чертёж повернётся перпендикулярно этой плоскости (Esc — отмена)';
     case 'color': return 'Клик по точке или отрезку — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
@@ -117,6 +118,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'fill': return ['point'];
     case 'attention': return ['point', 'line'];
     case 'color': return ['point', 'line'];
+    case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
     default: return [];
   }
@@ -130,14 +132,15 @@ export function chooseHit(tool, pending, hit) {
   const ok = acceptedKinds(tool, pending);
   if (hit.point && ok.includes('point')) return { kind: 'point', name: hit.point };
   if (hit.line && ok.includes('line')) return { kind: 'line', ...hit.line };
+  if (hit.poly && ok.includes('poly')) return { kind: 'poly', id: hit.poly.id };
   if (hit.face && ok.includes('face')) return { kind: 'face', id: hit.face.id, verts: hit.face.verts, pos: hit.face.pos };
   return null;
 }
 
 /**
  * Клик инструмента.
- * @param hit — { point?: name, line?: { id, ref, t, ratio?, pos?, p?, u? }, face?: { id, verts }, shift? }
- * @returns {{ pending, op?, error?, attention?, paint?, rename? }}
+ * @param hit — { point?: name, line?: { id, ref, t, ratio?, pos?, p?, u? }, face?: { id, verts }, poly?: { id }, shift? }
+ * @returns {{ pending, op?, error?, attention?, paint?, rename?, view? }}
  */
 export function toolClick(tool, pending, hit, model) {
   const target = chooseHit(tool, pending, hit);
@@ -213,6 +216,11 @@ export function toolClick(tool, pending, hit, model) {
         if (seg) return { pending: [], paint: { segment: lineColorKey(seg) } };
       }
       return { pending: [], paint: { line: lineColorKey(target.ref) } };
+    case 'view': {
+      // Не операция журнала: повернуть чертёж перпендикулярно плоскости.
+      const normal = target.kind === 'poly' ? polyNormal(model, target.id) : model.body.faces.find((f) => f.id === target.id)?.n;
+      return normal ? { pending: [], view: { normal } } : { pending: [] };
+    }
     case 'attention':
       // Не операция журнала: «смотрите сюда» уходит в эфир отдельно.
       return target.kind === 'point'
@@ -328,4 +336,19 @@ export function setOpPosition(scene, opId, pos) {
       return next;
     }),
   };
+}
+
+/** Нормаль многоугольника модели (сечение, плоскость, закраска); null — вырожден. */
+export function polyNormal(model, id) {
+  const pg = model.polys.find((p) => p.id === id);
+  if (!pg || pg.pts.length < 3) return null;
+  // Нормаль Ньюэлла — устойчива и для почти вырожденных углов.
+  const n = { x: 0, y: 0, z: 0 };
+  pg.pts.forEach((a, i) => {
+    const b = pg.pts[(i + 1) % pg.pts.length];
+    n.x += (a.y - b.y) * (a.z + b.z);
+    n.y += (a.z - b.z) * (a.x + b.x);
+    n.z += (a.x - b.x) * (a.y + b.y);
+  });
+  return Math.hypot(n.x, n.y, n.z) > 1e-12 ? n : null;
 }

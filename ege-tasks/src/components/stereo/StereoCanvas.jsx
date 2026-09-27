@@ -14,7 +14,7 @@ const PITCH_PER_PX = 0.35;
  * pitch), колёсико/щипок — масштаб. Короткий клик без сдвига уходит в
  * onClick — им живут инструменты редактора.
  *
- * @param highlight — { points:Set, lines:Set, faces:Set } — выбор инструмента
+ * @param highlight — { points:Set, lines:Set, faces:Set, polys?:Set } — выбор инструмента
  * @param flashStep — номер шага, чьи объекты вспыхивают (новое на чертеже)
  * @param pulse     — { points:Set, lines:Set, key } — «смотрите сюда»
  * @param getDragTarget — (pt, frame) → цель или null: нажатие на неё и
@@ -228,7 +228,7 @@ export default function StereoCanvas({
                 key={pg.id}
                 points={pg.points}
                 fill={pg.fill}
-                fillOpacity={pg.opacity}
+                fillOpacity={highlight?.polys?.has(pg.id) ? Math.min(0.6, pg.opacity + 0.25) : pg.opacity}
                 stroke="none"
                 className={isFlash(pg.step) ? 'stereo-flash-fill' : undefined}
               />

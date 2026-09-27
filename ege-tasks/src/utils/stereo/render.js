@@ -156,6 +156,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     return {
       id: pg.id,
       kind: pg.kind,
+      pts,
       points: pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
       fill: color,
       opacity: pg.kind === 'plane' ? 0.2 : pg.kind === 'fill' ? 0.28 : 0.3,
@@ -276,6 +277,15 @@ function pointInPoly(x, y, pts) {
     if ((a.y > y) !== (b.y > y) && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) inside = !inside;
   }
   return inside;
+}
+
+/** Сечение/плоскость/закраска под курсором (верхняя — нарисованная последней). */
+export function pickPoly(frame, x, y) {
+  for (let i = frame.polys.length - 1; i >= 0; i--) {
+    const pg = frame.polys[i];
+    if (pg.pts?.length >= 3 && pointInPoly(x, y, pg.pts)) return pg;
+  }
+  return null;
 }
 
 /** Грань под курсором: передняя, если есть; иначе задняя. */

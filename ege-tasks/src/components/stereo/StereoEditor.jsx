@@ -18,7 +18,7 @@ import {
   evaluateScene, tryAppendOp, removeOpCascade,
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
   normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
-  chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
+  chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace, pickPoly, cameraFacing,
   renderStereo, stereoSvgString, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
@@ -47,7 +47,7 @@ function loadDraft() {
 const CAMERA_PRESETS = [
   { key: 'book', label: 'Как в учебнике', cam: DEFAULT_CAMERA },
   { key: 'front', label: 'Спереди', cam: { yaw: 0, pitch: 0, zoom: 1 } },
-  { key: 'top', label: 'Сверху', cam: { yaw: 0, pitch: 75, zoom: 1 } },
+  { key: 'top', label: 'Сверху', cam: { yaw: 0, pitch: 90, zoom: 1 } },
 ];
 
 function buildHit(frame, x, y, back, model) {
@@ -62,9 +62,11 @@ function buildHit(frame, x, y, back, model) {
     };
   }
   const face = pickFace(frame, x, y, { back });
+  const poly = pickPoly(frame, x, y);
   return {
     point,
     line,
+    poly: poly ? { id: poly.id } : null,
     face: face ? { id: face.id, verts: face.verts, pos: model ? facePointAt(model, frame, face.id, x, y) : null } : null,
     shift: !!back,
   };
@@ -268,13 +270,18 @@ export default function StereoEditor({
 
   // --- клики по чертежу -----------------------------------------------------
   const handleClick = useCallback(({ x, y, frame, shiftKey }) => {
-    if (tool === 'rotate' || (replay && tool !== 'attention')) return;
+    if (tool === 'rotate' || (replay && tool !== 'attention' && tool !== 'view')) return;
     const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey, model), model);
     if (r.error) showNotice('error', r.error);
     setPending(r.pending);
     if (r.op) commit(r.op);
     if (r.attention) attention(r.attention);
     if (r.rename) setRenameTarget(r.rename.name);
+    if (r.view) {
+      // Вид перпендикулярно плоскости — и сразу обратно к вращению.
+      setCamera((c) => cameraFacing(r.view.normal, c));
+      selectTool('rotate');
+    }
     if (r.paint) {
       // Повторный клик тем же цветом снимает выделение.
       const sc = sceneRef.current;
@@ -289,7 +296,7 @@ export default function StereoEditor({
         setScene(setPointColors(sc, [r.paint.name], cur === paintColor ? '' : paintColor));
       }
     }
-  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene]);
+  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool]);
 
   // --- пошаговый показ ----------------------------------------------------------
   const stepsTotal = scene.ops.length;
@@ -336,13 +343,15 @@ export default function StereoEditor({
     const points = new Set();
     const lines = new Set();
     const faces = new Set();
+    const polys = new Set();
     for (const p of [...pending, hover].filter(Boolean)) {
       if (p.kind === 'point') points.add(p.name);
       if (p.kind === 'line') lines.add(p.id);
       if (p.kind === 'face') faces.add(p.id);
+      if (p.kind === 'poly') polys.add(p.id);
     }
     if (dragging) points.add(dragging);
-    return { points, lines, faces };
+    return { points, lines, faces, polys };
   }, [pending, hover, dragging]);
 
   // --- клавиатура -----------------------------------------------------------
@@ -558,6 +567,15 @@ export default function StereoEditor({
             {CAMERA_PRESETS.map((p) => (
               <Button key={p.key} size="small" onClick={() => setCamera(p.cam)}>{p.label}</Button>
             ))}
+            <Tooltip title="Кликните по грани или сечению — взгляд встанет перпендикулярно ей (выносной чертёж)">
+              <Button
+                size="small"
+                type={tool === 'view' ? 'primary' : 'default'}
+                onClick={() => selectTool(tool === 'view' ? 'rotate' : 'view')}
+              >
+                ⊥ На плоскость
+              </Button>
+            </Tooltip>
           </div>
           {notice && (
             <div className="stereo-editor__notice">
