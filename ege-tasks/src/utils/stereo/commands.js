@@ -270,15 +270,18 @@ const fmtDot = (x) => String(Math.round(Number(x) * 1000) / 1000);
 
 /** Операция обратно в строку команды (для правки шага и будущего DSL). */
 export function opToCommand(op) {
-  const n = (arr) => (arr || []).join('');
+  // Ссылка на прямую бывает строкой — id шага «параллельная»: текстом она
+  // не выражается, такой шаг отдаётся пустой строкой (а не падает).
+  const n = (arr) => (Array.isArray(arr) ? arr.join('') : '');
   switch (op?.type) {
     case 'pointOnLine': {
+      if (!Array.isArray(op.ref)) return '';
       const pos = op.ratio ? `${op.ratio[0]}:${op.ratio[1]}` : fmt(op.t);
       return `${op.name} на ${n(op.ref)} ${pos}`;
     }
     case 'pointOnFace': return `${op.name} в грани ${n(op.face)} ${fmtDot(op.s)} ${fmtDot(op.t)}`;
-    case 'segment': return `отрезок ${n(op.ref)}`;
-    case 'line': return `прямая ${n(op.ref)}`;
+    case 'segment': return Array.isArray(op.ref) ? `отрезок ${n(op.ref)}` : '';
+    case 'line': return Array.isArray(op.ref) ? `прямая ${n(op.ref)}` : '';
     case 'parallel': return Array.isArray(op.ref) ? `прямая ${op.through} || ${n(op.ref)}` : '';
     case 'intersect':
       return Array.isArray(op.l1) && Array.isArray(op.l2) ? `${op.name} = ${n(op.l1)} ∩ ${n(op.l2)}` : '';

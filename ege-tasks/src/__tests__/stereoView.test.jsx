@@ -84,3 +84,33 @@ describe('вид перпендикулярно плоскости', () => {
     expect(screen.queryByText(/чертёж повернётся перпендикулярно/)).toBeNull();
   });
 });
+
+describe('точка на параллельной прямой (регрессия v3.9.253)', () => {
+  // Прямая через P ∥ AB задана шагом → у точки на ней ref — строка (id шага).
+  const sc = {
+    body: { kind: 'pyramid', n: 3, a: 4, h: 5 },
+    ops: [
+      { id: 'p1', type: 'pointOnLine', name: 'P', ref: ['A', 'S'], t: 0.5 },
+      { id: 'par', type: 'parallel', through: 'P', ref: ['A', 'B'] },
+      { id: 'k1', type: 'pointOnLine', name: 'K', ref: 'par', t: 0.3 },
+      { id: 's1', type: 'segment', ref: ['K', 'C'] },
+    ],
+  };
+
+  it('текст чертежа собирается, шаг отмечен как невыразимый', async () => {
+    const { buildStereoBlock } = await import('../utils/stereo/dsl');
+    const { opToCommand, describeOp } = await import('../utils/stereo/commands');
+    expect(opToCommand(sc.ops[2])).toBe('');
+    expect(describeOp(sc.ops[2], { par: sc.ops[1] })).toMatch(/K ∈/);
+    const { text, skipped } = buildStereoBlock(sc);
+    expect(skipped).toBe(1); // параллельная через P ∥ AB выражается, точка на ней — нет
+    expect(text).toContain('# шаг не выражается текстом: pointOnLine');
+  });
+
+  it('редактор с таким чертежом не падает', () => {
+    localStorage.clear();
+    localStorage.setItem('stereo.editor.v1', JSON.stringify({ scene: sc, camera: { yaw: 22, pitch: 22, zoom: 1 } }));
+    render(<AntApp><StereoEditor /></AntApp>);
+    expect(screen.getByText('Шаги построения')).toBeTruthy();
+  });
+});
