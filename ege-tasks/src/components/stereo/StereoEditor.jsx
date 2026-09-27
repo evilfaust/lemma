@@ -16,6 +16,7 @@ import {
   normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
   renderStereo, stereoSvgString, prettyName, isTeachingNotice,
+  draggableOp, lineOfOp, dragPosition, setOpPosition,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -59,7 +60,24 @@ function buildHit(frame, x, y, back) {
 export default function StereoEditor() {
   const { modal } = App.useApp();
   const draft = useMemo(loadDraft, []);
-  const [scene, setScene] = useState(() => draft?.scene || { body: DEFAULT_BODY, ops: [] });
+  const [scene, setSceneRaw] = useState(() => draft?.scene || { body: DEFAULT_BODY, ops: [] });
+  // Отмена — по истории сцен: откатывает и шаги, и перемещения точек.
+  const historyRef = useRef([]);
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
+  const pushHistory = useCallback((prev) => {
+    historyRef.current = [...historyRef.current.slice(-99), prev];
+  }, []);
+  const setScene = useCallback((next) => {
+    const prev = sceneRef.current;
+    const value = typeof next === 'function' ? next(prev) : next;
+    if (value === prev) return;
+    pushHistory(prev);
+    sceneRef.current = value;
+    setSceneRaw(value);
+  }, [pushHistory]);
+  const [dragging, setDragging] = useState(null);
+  const [hoverMovable, setHoverMovable] = useState(false);
   const [camera, setCamera] = useState(() => draft?.camera || DEFAULT_CAMERA);
   const [tool, setTool] = useState('rotate');
   const [pending, setPending] = useState([]);
@@ -126,8 +144,51 @@ export default function StereoEditor() {
 
   const undo = useCallback(() => {
     setPending([]);
-    setScene((s) => (s.ops.length ? { ...s, ops: s.ops.slice(0, -1) } : s));
+    const prev = historyRef.current.pop();
+    if (prev) { sceneRef.current = prev; setSceneRaw(prev); return; }
+    // Черновик после перезагрузки истории не имеет — снимаем последний шаг.
+    setSceneRaw((s) => (s.ops.length ? { ...s, ops: s.ops.slice(0, -1) } : s));
   }, []);
+
+  // --- перемещение точек ------------------------------------------------------
+  const getDragTarget = useCallback((pt, frame) => {
+    const name = pickPoint(frame, pt.x, pt.y);
+    const op = name ? draggableOp(sceneRef.current, name) : null;
+    const line = op ? lineOfOp(model, op) : null;
+    if (!line) return null;
+    return { name, opId: op.id, line, onSegment: op.t >= 0 && op.t <= 1 };
+  }, [model]);
+
+  const droppedRef = useRef(false);
+  const handleDrag = useCallback(({ phase, x, y, frame, target }) => {
+    if (phase === 'start') {
+      pushHistory(sceneRef.current);
+      setPending([]);
+      setDragging(target.name);
+      return;
+    }
+    if (phase === 'end') {
+      droppedRef.current = true;
+      setDragging(null);
+      return;
+    }
+    const pos = dragPosition(target.line, frame.project, x, y, { onSegment: target.onSegment });
+    if (!pos) return;
+    const next = setOpPosition(sceneRef.current, target.opId, pos);
+    sceneRef.current = next;
+    setSceneRaw(next);
+  }, [pushHistory]);
+
+  // После сдвига точки часть построений могла перестать строиться
+  // (пересечение стало параллельным) — говорим об этом сразу.
+  useEffect(() => {
+    if (dragging || !droppedRef.current) return;
+    droppedRef.current = false;
+    const broken = model.steps.filter((st) => !st.ok);
+    if (broken.length) {
+      showNotice('error', `Шаг ${broken[0].index + 1} теперь не строится: ${broken[0].error}`);
+    }
+  }, [dragging, model, showNotice]);
 
   const selectTool = useCallback((key) => {
     setTool(key);
@@ -147,6 +208,8 @@ export default function StereoEditor() {
 
   const hoverKey = useRef('');
   const handleHover = useCallback(({ x, y, frame }) => {
+    const over = pickPoint(frame, x, y);
+    setHoverMovable(!!(over && draggableOp(sceneRef.current, over)));
     if (tool === 'rotate') {
       if (hoverKey.current) { hoverKey.current = ''; setHover(null); }
       return;
@@ -168,8 +231,9 @@ export default function StereoEditor() {
       if (p.kind === 'line') lines.add(p.id);
       if (p.kind === 'face') faces.add(p.id);
     }
+    if (dragging) points.add(dragging);
     return { points, lines, faces };
-  }, [pending, hover]);
+  }, [pending, hover, dragging]);
 
   // --- клавиатура -----------------------------------------------------------
   useEffect(() => {
@@ -315,7 +379,9 @@ export default function StereoEditor() {
             highlight={highlight}
             flashStep={flashStep}
             pulse={pulse}
-            cursor={tool === 'rotate' ? 'grab' : 'crosshair'}
+            cursor={dragging ? 'grabbing' : hoverMovable ? 'move' : tool === 'rotate' ? 'grab' : 'crosshair'}
+            getDragTarget={getDragTarget}
+            onDrag={handleDrag}
           />
           <div className="stereo-editor__camera">
             {CAMERA_PRESETS.map((p) => (

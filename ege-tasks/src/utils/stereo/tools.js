@@ -8,7 +8,7 @@
 import { newOpId } from './scene';
 import { nextFreeName } from './naming';
 import { prettyName } from './bodies';
-import { paramOnLine, add, mul } from './vec3';
+import { paramOnLine, add, mul, sub } from './vec3';
 
 export const TOOLS = [
   { key: 'rotate', label: 'Вращать', glyph: '⟳', hot: 'V' },
@@ -33,6 +33,7 @@ const SNAPS = [
   { t: -0.5 }, { t: 1.5 }, { t: 2 }, { t: -1 },
 ];
 const SNAP_PX = 7;
+const SNAP_MAX_T = 0.06;
 
 /**
  * Доля вдоль прямой с «прилипанием» к ½, ⅓, ⅔, ¼, ¾.
@@ -40,9 +41,14 @@ const SNAP_PX = 7;
  * @param pxPerUnit — сколько пикселей экрана в единице доли (длина AB на экране)
  */
 export function snapPosition(t, pxPerUnit) {
+  // Ближайшая «красивая» доля — и не дальше 7 px и 0,06 от курсора: на
+  // коротком ребре иначе всё тянуло бы к середине.
+  let best = null;
   for (const s of SNAPS) {
-    if (Math.abs(t - s.t) * pxPerUnit <= SNAP_PX) return s.ratio ? { t: s.t, ratio: s.ratio } : { t: s.t };
+    const d = Math.abs(t - s.t);
+    if (d * pxPerUnit <= SNAP_PX && d <= SNAP_MAX_T && (!best || d < best.d)) best = { d, s };
   }
+  if (best) return best.s.ratio ? { t: best.s.t, ratio: best.s.ratio } : { t: best.s.t };
   return { t: Math.round(t * 100) / 100 };
 }
 
@@ -80,7 +86,7 @@ export function toolHint(tool, pending = []) {
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
-    default: return 'Тяните мышью — чертёж поворачивается. Колёсико — масштаб';
+    default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
 }
 
@@ -198,3 +204,61 @@ export function finishPending(tool, pending) {
   return { pending };
 }
 
+
+// --- перемещение поставленных точек --------------------------------------------
+//
+// Двигать можно только точку, поставленную на прямую (pointOnLine): у неё
+// один свободный параметр — доля t. Точки пересечения и следы производные —
+// они едут сами, когда двигаются точки, через которые они построены. Это и
+// нужно на уроке: неудачно поставил M — след X улетел за куб — сдвинул M.
+
+/** Операция, поставившая точку name, если точку можно двигать. */
+export function draggableOp(scene, name) {
+  return (scene?.ops || []).find((o) => o.type === 'pointOnLine' && o.name === name) || null;
+}
+
+/** Прямая, по которой ездит точка операции: { p, u } в пространстве. */
+export function lineOfOp(model, op) {
+  if (Array.isArray(op.ref)) {
+    const A = model.points[op.ref[0]]?.pos;
+    const B = model.points[op.ref[1]]?.pos;
+    return A && B ? { p: A, u: sub(B, A) } : null;
+  }
+  const l = model.lines.find((x) => x.id === op.ref);
+  return l ? { p: l.p, u: l.u } : null;
+}
+
+/**
+ * Доля t по положению курсора: проекция на экранный образ прямой. Точка,
+ * стоявшая на ребре (0 ≤ t ≤ 1), с ребра не съезжает; точка на продолжении
+ * ездит свободно (в разумных пределах).
+ */
+export function dragPosition(line, project, x, y, { onSegment = true } = {}) {
+  const a = project(line.p);
+  const b = project(add(line.p, line.u));
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const L2 = dx * dx + dy * dy;
+  if (L2 < 1e-6) return null;
+  let t = ((x - a.x) * dx + (y - a.y) * dy) / L2;
+  t = onSegment ? Math.min(1, Math.max(0, t)) : Math.min(4, Math.max(-3, t));
+  const snapped = snapPosition(t, Math.sqrt(L2));
+  // Концы отрезка — это уже существующие точки; стоять ровно на них незачем.
+  if (onSegment && (snapped.t <= 0.005 || snapped.t >= 0.995)) {
+    return { t: Math.min(0.99, Math.max(0.01, snapped.t)) };
+  }
+  return snapped;
+}
+
+/** Сцена с новым положением точки (ratio уходит, если его нет в pos). */
+export function setOpPosition(scene, opId, pos) {
+  return {
+    ...scene,
+    ops: (scene.ops || []).map((o) => {
+      if (o.id !== opId) return o;
+      const next = { ...o, t: pos.t };
+      if (pos.ratio) next.ratio = pos.ratio; else delete next.ratio;
+      return next;
+    }),
+  };
+}

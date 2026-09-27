@@ -17,6 +17,9 @@ const PITCH_PER_PX = 0.35;
  * @param highlight — { points:Set, lines:Set, faces:Set } — выбор инструмента
  * @param flashStep — номер шага, чьи объекты вспыхивают (новое на чертеже)
  * @param pulse     — { points:Set, lines:Set, key } — «смотрите сюда»
+ * @param getDragTarget — (pt, frame) → цель или null: нажатие на неё и
+ *   перетаскивание двигают объект (точку), а не крутят чертёж
+ * @param onDrag    — ({ phase: 'start'|'move'|'end', x, y, frame, target })
  */
 export default function StereoCanvas({
   model,
@@ -25,6 +28,8 @@ export default function StereoCanvas({
   onClick,
   onHover,
   onDoubleClick,
+  getDragTarget,
+  onDrag,
   highlight = null,
   flashStep = null,
   pulse = null,
@@ -75,6 +80,7 @@ export default function StereoCanvas({
   const handleDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
     const g = gesture.current;
+    if (g.mode === 'drag') return; // второй палец во время перетаскивания точки
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* нет захвата — не страшно */ }
     const pt = local(e);
     g.pointers.set(e.pointerId, pt);
@@ -83,7 +89,8 @@ export default function StereoCanvas({
       g.start = { dist: pinchDist() || 1, zoom: camRef.current.zoom || 1 };
     } else if (g.pointers.size === 1) {
       g.mode = 'press';
-      g.start = { x: pt.x, y: pt.y, yaw: camRef.current.yaw, pitch: camRef.current.pitch };
+      const target = getDragTarget && frameRef.current ? getDragTarget(pt, frameRef.current) : null;
+      g.start = { x: pt.x, y: pt.y, yaw: camRef.current.yaw, pitch: camRef.current.pitch, target };
     }
   };
 
@@ -100,10 +107,20 @@ export default function StereoCanvas({
       if (d > 0) onCameraChange?.(clampCamera({ ...camRef.current, zoom: g.start.zoom * (d / g.start.dist) }));
       return;
     }
+    if (g.mode === 'drag') {
+      onDrag?.({ phase: 'move', ...pt, frame: frameRef.current, target: g.start.target });
+      return;
+    }
     if (g.mode === 'press' || g.mode === 'rotate') {
       const dx = pt.x - g.start.x;
       const dy = pt.y - g.start.y;
       if (g.mode === 'press' && Math.hypot(dx, dy) < DRAG_START_PX) return;
+      if (g.mode === 'press' && g.start.target && onDrag) {
+        g.mode = 'drag';
+        onDrag({ phase: 'start', ...pt, frame: frameRef.current, target: g.start.target });
+        onDrag({ phase: 'move', ...pt, frame: frameRef.current, target: g.start.target });
+        return;
+      }
       g.mode = 'rotate';
       onCameraChange?.(clampCamera({
         ...camRef.current,
@@ -116,6 +133,16 @@ export default function StereoCanvas({
   const handleUp = (e) => {
     const g = gesture.current;
     const wasPress = g.mode === 'press' && g.pointers.size === 1;
+    if (g.mode === 'drag') {
+      onDrag?.({ phase: 'end', ...local(e), frame: frameRef.current, target: g.start.target });
+      g.pointers.delete(e.pointerId);
+      g.mode = g.pointers.size ? 'rotate' : null;
+      if (g.pointers.size) {
+        const rest = [...g.pointers.values()][0];
+        g.start = { x: rest.x, y: rest.y, yaw: camRef.current.yaw, pitch: camRef.current.pitch };
+      }
+      return;
+    }
     g.pointers.delete(e.pointerId);
     if (wasPress && onClick && frameRef.current) {
       onClick({ ...local(e), frame: frameRef.current, shiftKey: e.shiftKey, altKey: e.altKey });
