@@ -16,6 +16,7 @@ import {
 export const TOOLS = [
   { key: 'rotate', label: 'Вращать', glyph: '⟳', hot: 'V' },
   { key: 'point', label: 'Точка', glyph: '•', hot: 'P' },
+  { key: 'mid', label: 'Середина', glyph: '½', hot: 'M' },
   { key: 'segment', label: 'Отрезок', glyph: '—', hot: 'S' },
   { key: 'line', label: 'Прямая', glyph: '↔', hot: 'L' },
   { key: 'intersect', label: 'Пересечь', glyph: '∩', hot: 'I' },
@@ -71,6 +72,10 @@ export function toolHint(tool, pending = []) {
   const names = pending.filter((p) => p.kind === 'point').map((p) => prettyName(p.name));
   switch (tool) {
     case 'point': return 'Кликните по ребру, прямой или внутри грани — там появится точка';
+    case 'mid':
+      return names.length
+        ? `Середина ${names[0]}… — выберите вторую точку`
+        : 'Кликните по отрезку — появится его середина (или выберите две точки)';
     case 'segment':
     case 'line':
       return names.length
@@ -103,6 +108,7 @@ export function acceptedKinds(tool, pending = []) {
   switch (tool) {
     case 'point': return ['line', 'face'];
     case 'segment': return ['point'];
+    case 'mid': return pending.length ? ['point'] : ['point', 'line'];
     case 'line': return pending.length ? ['point'] : ['point', 'line'];
     case 'intersect': return ['line'];
     case 'trace': return pending.length ? ['face'] : ['line'];
@@ -172,6 +178,17 @@ export function toolClick(tool, pending, hit, model) {
       const op = { id: newOpId(), type: 'pointOnLine', name: name(), ref: target.ref, t: target.t };
       if (target.ratio) op.ratio = target.ratio;
       return { pending: [], op };
+    }
+    case 'mid': {
+      // Середина куска прямой под курсором (между соседними точками) или
+      // двух выбранных точек. Шаг — обычная «точка на прямой, 1:1».
+      const mid = (ref) => ({ pending: [], op: { id: newOpId(), type: 'pointOnLine', name: name(), ref, t: 0.5, ratio: [1, 1] } });
+      if (target.kind === 'line') {
+        const seg = segmentAt(model, target, target.pos);
+        return seg ? mid(seg) : { pending: [], error: 'Кликните между двумя точками на прямой — или выберите две точки' };
+      }
+      if (!pending.length) return { pending: [target] };
+      return mid([pending[0].name, target.name]);
     }
     case 'segment':
     case 'line': {

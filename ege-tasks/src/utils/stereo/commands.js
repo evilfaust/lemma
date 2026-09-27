@@ -42,9 +42,55 @@ export function normalizeCommand(text) {
     .replace(/[АВСЕНКМОРТХУ]/g, (c) => CYR_TO_LAT[c])
     .replace(/[₀-₉]/g, (c) => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(c)))
     .replace(/\b[a-z][a-z0-9]*\b/g, (w) => (LATIN_WORDS.has(w) ? w : w.toUpperCase()))
+    .replace(/∥/g, '||')
+    .replace(/\s*\|\|\s*/g, '||') // «(P || AB)» → «(P||AB)»: ссылка на параллельную — одним словом
+    .replace(/\(\s+/g, '(')
+    .replace(/\s+\)/g, ')')
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+// --- ссылка на прямую текстом -------------------------------------------------
+//
+// Прямая — пара точек («AB») или параллельная, построенная шагом: её пишем
+// выражением «(P||AB)» — «прямая через P, параллельная AB» (вложенно:
+// «(Q||(P||AB))»). Так точка на параллельной, пересечение с ней и след
+// выгружаются в текст и читаются обратно.
+
+/** Ссылка на прямую → текст; null — не выражается. */
+export function lineRefText(ref, opsById = {}) {
+  if (Array.isArray(ref)) return ref.length === 2 ? ref.join('') : null;
+  const op = opsById[ref];
+  if (op?.type !== 'parallel') return null;
+  const base = lineRefText(op.ref, opsById);
+  return base ? `(${op.through}||${base})` : null;
+}
+
+const sameLineRef = (a, b) => (Array.isArray(a) && Array.isArray(b)
+  ? a.length === 2 && b.length === 2 && ((a[0] === b[0] && a[1] === b[1]) || (a[0] === b[1] && a[1] === b[0]))
+  : a === b);
+
+/** Текст ссылки на прямую → пара имён или id шага «параллельная». */
+export function parseLineRef(tok, model, what = 'Прямая — две точки: «AB» или параллельная «(P||AB)»') {
+  const t = String(tok || '');
+  if (!t.includes('||')) {
+    const n = splitNames(t);
+    if (!n || n.length !== 2) throw new Error(what);
+    return n;
+  }
+  const m = /^\(([A-Z][0-9]*)\|\|(.+)\)$/.exec(t);
+  if (!m) throw new Error('Параллельная прямая пишется так: «(P||AB)» — через P параллельно AB');
+  const base = parseLineRef(m[2], model, what);
+  const op = Object.values(model?.opsById || {}).find((o) => o.type === 'parallel' && o.through === m[1] && sameLineRef(o.ref, base));
+  if (!op) {
+    const bt = Array.isArray(base) ? base.map(prettyName).join('') : m[2];
+    throw new Error(`Нет прямой через ${prettyName(m[1])} ∥ ${bt} — сначала «прямая ${m[1]} || ${Array.isArray(base) ? base.join('') : m[2]}»`);
+  }
+  return op.id;
+}
+
+/** Плоскость в команде: «(ABC)» или три и больше точек (но не «(P||AB)»). */
+const isPlaneTok = (t) => !String(t).includes('||') && (/^\(/.test(t) || (splitNames(t)?.length || 0) >= 3);
 
 /** Имя точки, набранное как угодно («м», «m1», «К») → «M», «M1», «K». */
 export function normalizePointName(text) {
@@ -132,6 +178,13 @@ export function parseCommand(text, model) {
       return { action: 'color', names, color };
     }
 
+    // «середина AB», «K = середина AB» — точка посередине двух точек.
+    m = /^(?:([A-Z][0-9]*)\s*=\s*)?(?:середина|mid(?:point)?)\s+(?:отрезка\s+)?(\S+)$/i.exec(src);
+    if (m) {
+      const n = need(splitNames(m[2]), 2, 'Середина — двух точек: «середина AB»');
+      return { op: { id: newOpId(), type: 'pointOnLine', name: auto(m[1]), ref: n, t: 0.5, ratio: [1, 1] } };
+    }
+
     m = /^(?:отрезок|seg(?:ment)?)\s+(\S+)$/i.exec(src);
     if (m) {
       const n = need(splitNames(m[1]), 2, 'Отрезок задаётся двумя точками: «отрезок MN»');
@@ -141,7 +194,7 @@ export function parseCommand(text, model) {
     m = /^(?:прямая|line)\s+(?:через\s+)?([A-Z][0-9]*)\s*(?:\|\||∥|параллельно|par)\s*(\S+)$/i.exec(src)
       || /^(?:через\s+)?([A-Z][0-9]*)\s*(?:\|\||∥|параллельно)\s*(\S+)$/i.exec(src);
     if (m) {
-      const n = need(splitNames(m[2]), 2, 'Параллельно прямой из двух точек: «прямая K || AB»');
+      const n = parseLineRef(m[2], model, 'Параллельно прямой из двух точек: «прямая K || AB»');
       return { op: { id: newOpId(), type: 'parallel', through: m[1], ref: n } };
     }
 
@@ -174,29 +227,31 @@ export function parseCommand(text, model) {
 
     m = /^(?:след)\s+(?:прямой\s+)?(\S+)\s+(?:на\s+)?(?:плоскости\s+)?(\S+)$/i.exec(src);
     if (m) {
-      const l = need(splitNames(m[1]), 2, 'След: «след MN ABCD»');
+      const l = parseLineRef(m[1], model, 'След: «след MN ABCD»');
       const pl = splitNames(m[2]);
       if (!pl || pl.length < 3) throw new Error('Плоскость следа — три точки: «след MN ABCD»');
       return { op: { id: newOpId(), type: 'trace', name: auto(null), ref: l, plane: pl } };
     }
 
-    m = new RegExp(`^(?:([A-Z][0-9]*)\\s*=\\s*)?(\\(?[A-Z0-9]+\\)?)\\s*${OP_RE}\\s*(\\(?[A-Z0-9]+\\)?)$`).exec(src);
+    const OPERAND = '(\\([A-Z0-9|()]+\\)|[A-Z0-9]+)';
+    m = new RegExp(`^(?:([A-Z][0-9]*)\\s*=\\s*)?${OPERAND}\\s*${OP_RE}\\s*${OPERAND}$`).exec(src);
     if (m) {
-      const left = splitNames(m[2]);
-      const right = splitNames(m[3]);
-      const rightPlane = /^\(/.test(m[3]) || (right && right.length >= 3);
-      const leftPlane = /^\(/.test(m[2]) || (left && left.length >= 3);
+      const rightPlane = isPlaneTok(m[3]);
+      const leftPlane = isPlaneTok(m[2]);
       if (leftPlane && !rightPlane) {
-        need(right, 2, 'Прямая — две точки');
-        return { op: { id: newOpId(), type: 'trace', name: auto(m[1]), ref: right, plane: left } };
+        const left = splitNames(m[2]);
+        if (!left || left.length < 3) throw new Error('Плоскость — три точки: «(ABC) ∩ MN»');
+        const ref = parseLineRef(m[3], model, 'Прямая — две точки');
+        return { op: { id: newOpId(), type: 'trace', name: auto(m[1]), ref, plane: left } };
       }
-      need(left, 2, 'Прямая — две точки: «MN ∩ AC»');
+      const l1 = parseLineRef(m[2], model, 'Прямая — две точки: «MN ∩ AC»');
       if (rightPlane) {
+        const right = splitNames(m[3]);
         if (!right || right.length < 3) throw new Error('Плоскость — три точки: «MN ∩ (ABC)»');
-        return { op: { id: newOpId(), type: 'trace', name: auto(m[1]), ref: left, plane: right } };
+        return { op: { id: newOpId(), type: 'trace', name: auto(m[1]), ref: l1, plane: right } };
       }
-      need(right, 2, 'Прямая — две точки: «MN ∩ AC»');
-      return { op: { id: newOpId(), type: 'intersect', name: auto(m[1]), l1: left, l2: right } };
+      const l2 = parseLineRef(m[3], model, 'Прямая — две точки: «MN ∩ AC»');
+      return { op: { id: newOpId(), type: 'intersect', name: auto(m[1]), l1, l2 } };
     }
 
     m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?(?:в\s+грани|в\s+плоскости|on\s+face)\s+(\S+)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)$/i.exec(src);
@@ -213,11 +268,12 @@ export function parseCommand(text, model) {
 
     m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?(?:на|∈|on|in)\s+(\S+)\s*(.*)$/i.exec(src);
     if (m) {
-      const ref = need(splitNames(m[2]), 2, 'Точка на отрезке из двух точек: «M на AA1 1:2»');
+      const ref = parseLineRef(m[2], model, 'Точка на отрезке из двух точек: «M на AA1 1:2»');
       const pos = parsePosition(m[3]);
       if (!pos) throw new Error('Положение: «1:2», «1/3», «0,25» или «середина»');
       const op = { id: newOpId(), type: 'pointOnLine', name: auto(m[1]), ref, t: pos.t };
-      if (pos.ratio) op.ratio = pos.ratio;
+      // Отношение — к двум точкам; на параллельной (без второй точки) — только доля.
+      if (pos.ratio && Array.isArray(ref)) op.ratio = pos.ratio;
       return { op };
     }
 
@@ -269,23 +325,24 @@ export function describeOp(op, opsById = {}) {
 const fmtDot = (x) => String(Math.round(Number(x) * 1000) / 1000);
 
 /** Операция обратно в строку команды (для правки шага и будущего DSL). */
-export function opToCommand(op) {
-  // Ссылка на прямую бывает строкой — id шага «параллельная»: текстом она
-  // не выражается, такой шаг отдаётся пустой строкой (а не падает).
+export function opToCommand(op, opsById = {}) {
+  // Ссылка на прямую — пара имён или параллельная «(P||AB)»; что текстом не
+  // выражается, отдаётся пустой строкой (а не падает).
   const n = (arr) => (Array.isArray(arr) ? arr.join('') : '');
+  const r = (ref) => lineRefText(ref, opsById);
   switch (op?.type) {
     case 'pointOnLine': {
-      if (!Array.isArray(op.ref)) return '';
-      const pos = op.ratio ? `${op.ratio[0]}:${op.ratio[1]}` : fmt(op.t);
-      return `${op.name} на ${n(op.ref)} ${pos}`;
+      if (!r(op.ref)) return '';
+      const pos = op.ratio && Array.isArray(op.ref) ? `${op.ratio[0]}:${op.ratio[1]}` : fmt(op.t);
+      return `${op.name} на ${r(op.ref)} ${pos}`;
     }
     case 'pointOnFace': return `${op.name} в грани ${n(op.face)} ${fmtDot(op.s)} ${fmtDot(op.t)}`;
     case 'segment': return Array.isArray(op.ref) ? `отрезок ${n(op.ref)}` : '';
     case 'line': return Array.isArray(op.ref) ? `прямая ${n(op.ref)}` : '';
-    case 'parallel': return Array.isArray(op.ref) ? `прямая ${op.through} || ${n(op.ref)}` : '';
+    case 'parallel': return r(op.ref) ? `прямая ${op.through} || ${r(op.ref)}` : '';
     case 'intersect':
-      return Array.isArray(op.l1) && Array.isArray(op.l2) ? `${op.name} = ${n(op.l1)} ∩ ${n(op.l2)}` : '';
-    case 'trace': return Array.isArray(op.ref) ? `${op.name} = ${n(op.ref)} ∩ (${n(op.plane)})` : '';
+      return r(op.l1) && r(op.l2) ? `${op.name} = ${r(op.l1)} ∩ ${r(op.l2)}` : '';
+    case 'trace': return r(op.ref) ? `${op.name} = ${r(op.ref)} ∩ (${n(op.plane)})` : '';
     case 'section': return `сечение ${n(op.pts)}`;
     case 'plane': return `плоскость ${n(op.pts)}`;
     case 'fill': return `заливка ${n(op.pts)}`;

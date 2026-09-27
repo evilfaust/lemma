@@ -154,14 +154,16 @@ export function parseStereoBlock(text) {
 
 /**
  * Сцена → текст блока (без ограждения ```). Шаги, которые текстом не
- * выражаются (ссылка на «параллельную» по id), уходят комментарием.
+ * выражаются, уходят комментарием. Параллельная пишется «(P||AB)».
  */
 export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false } = {}) {
   const out = [bodyLine(scene?.body)];
   if (scene?.body?.names?.length) out.push(`вершины ${scene.body.names.join('')}`);
   let skipped = 0;
+  const opsById = {};
   for (const op of scene?.ops || []) {
-    const cmd = opToCommand(op);
+    const cmd = opToCommand(op, opsById);
+    opsById[op.id] = op;
     if (!cmd) { skipped += 1; out.push(`# шаг не выражается текстом: ${op.type}`); continue; }
     out.push(op.note ? `${cmd} // ${op.note}` : cmd);
   }

@@ -656,7 +656,8 @@ export default function StereoEditor({
               ? <div className="stereo-cmd-error">{cmdError}</div>
               : (
                 <div className="stereo-cmd-help">
-                  <code>прямая K || AB</code> · <code>след MN ABCD</code> · <code>сечение MND</code> ·
+                  <code>середина AB</code> · <code>прямая K || AB</code> · <code>X на (K||AB) 0,5</code> ·
+                  {' '}<code>след MN ABCD</code> · <code>сечение MND</code> ·
                   {' '}<code>грань AA1C1C</code> · <code>переименовать M K</code>
                 </div>
               )}

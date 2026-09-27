@@ -97,14 +97,24 @@ describe('точка на параллельной прямой (регресс�
     ],
   };
 
-  it('текст чертежа собирается, шаг отмечен как невыразимый', async () => {
-    const { buildStereoBlock } = await import('../utils/stereo/dsl');
-    const { opToCommand, describeOp } = await import('../utils/stereo/commands');
-    expect(opToCommand(sc.ops[2])).toBe('');
-    expect(describeOp(sc.ops[2], { par: sc.ops[1] })).toMatch(/K ∈/);
+  it('текст чертежа: точка на параллельной выгружается и читается обратно', async () => {
+    const { buildStereoBlock, parseStereoBlock } = await import('../utils/stereo/dsl');
+    const { opToCommand } = await import('../utils/stereo/commands');
+    expect(opToCommand(sc.ops[2], { par: sc.ops[1] })).toBe('K на (P||AB) 0,3');
+    expect(opToCommand(sc.ops[2])).toBe(''); // без журнала — не выражается, но и не падает
     const { text, skipped } = buildStereoBlock(sc);
-    expect(skipped).toBe(1); // параллельная через P ∥ AB выражается, точка на ней — нет
-    expect(text).toContain('# шаг не выражается текстом: pointOnLine');
+    expect(skipped).toBe(0);
+    expect(text).toContain('прямая P || AB');
+    expect(text).toContain('K на (P||AB) 0,3');
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    const m0 = evaluateScene(sc);
+    const m1 = evaluateScene(back.scene);
+    for (const n of ['P', 'K']) {
+      expect(m1.points[n].pos.x).toBeCloseTo(m0.points[n].pos.x, 9);
+      expect(m1.points[n].pos.z).toBeCloseTo(m0.points[n].pos.z, 9);
+    }
+    expect(m1.lines.some((o) => o.id === back.scene.ops[3].id)).toBe(true); // отрезок KC построен
   });
 
   it('редактор с таким чертежом не падает', () => {
@@ -112,5 +122,87 @@ describe('точка на параллельной прямой (регресс�
     localStorage.setItem('stereo.editor.v1', JSON.stringify({ scene: sc, camera: { yaw: 22, pitch: 22, zoom: 1 } }));
     render(<AntApp><StereoEditor /></AntApp>);
     expect(screen.getByText('Шаги построения')).toBeTruthy();
+  });
+});
+
+describe('параллельная в строке команд «(P||AB)»', () => {
+  const sc = {
+    body: { kind: 'cube', a: 4 },
+    ops: [
+      { id: 'm', type: 'pointOnLine', name: 'M', ref: ['A', 'A1'], t: 0.5, ratio: [1, 1] },
+      { id: 'par', type: 'parallel', through: 'M', ref: ['A', 'B'] },
+    ],
+  };
+
+  it('точка, пересечение, след и параллельная к параллельной', async () => {
+    const { parseCommand } = await import('../utils/stereo/commands');
+    const m = evaluateScene(sc);
+    expect(parseCommand('K на (M || AB) 0,5', m).op).toMatchObject({ type: 'pointOnLine', name: 'K', ref: 'par', t: 0.5 });
+    expect(parseCommand('K на (M||BA) середина', m).op.ratio).toBeUndefined(); // AB и BA — одна прямая
+    expect(parseCommand('X = (M||AB) ∩ BB1', m).op).toMatchObject({ type: 'intersect', l1: 'par', l2: ['B', 'B1'] });
+    expect(parseCommand('X = (M||AB) ∩ (BCC1)', m).op).toMatchObject({ type: 'trace', ref: 'par', plane: ['B', 'C', 'C1'] });
+    expect(parseCommand('прямая C || (M||AB)', m).op).toMatchObject({ type: 'parallel', through: 'C', ref: 'par' });
+    expect(parseCommand('K на (C||AB) 0,5', m).error).toMatch(/Нет прямой через C ∥ AB/);
+    expect(parseCommand('K на (C|AB) 0,5', m).error).toBeTruthy();
+  });
+
+  it('вложенная параллельная выгружается и читается обратно', async () => {
+    const { buildStereoBlock, parseStereoBlock } = await import('../utils/stereo/dsl');
+    const sc2 = {
+      ...sc,
+      ops: [
+        ...sc.ops,
+        { id: 'q', type: 'parallel', through: 'C', ref: 'par' },
+        { id: 'y', type: 'intersect', name: 'Y', l1: 'q', l2: ['B', 'C'] },
+        { id: 'z', type: 'trace', name: 'Z', ref: 'par', plane: ['B', 'C', 'C1'] },
+      ],
+    };
+    const { text, skipped } = buildStereoBlock(sc2);
+    expect(skipped).toBe(0);
+    expect(text).toContain('прямая C || (M||AB)');
+    expect(text).toContain('Y = (C||(M||AB)) ∩ BC');
+    expect(text).toContain('Z = (M||AB) ∩ (BCC1)');
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    const a = evaluateScene(sc2).points.Z.pos;
+    const b = evaluateScene(back.scene).points.Z.pos;
+    expect(b.x).toBeCloseTo(a.x, 9);
+    expect(b.y).toBeCloseTo(a.y, 9);
+  });
+});
+
+describe('инструмент «Середина»', () => {
+  const sc = {
+    body: { kind: 'cube', a: 4 },
+    ops: [{ id: 'm', type: 'pointOnLine', name: 'M', ref: ['A', 'A1'], t: 0.5, ratio: [1, 1] }],
+  };
+  const m = evaluateScene(sc);
+  const edge = m.lines.find((o) => o.id === 'edge:A-A1');
+  const at = (t) => ({ x: edge.a.x + (edge.b.x - edge.a.x) * t, y: edge.a.y + (edge.b.y - edge.a.y) * t, z: edge.a.z + (edge.b.z - edge.a.z) * t });
+
+  it('клик по отрезку — середина куска между соседними точками', () => {
+    const r = toolClick('mid', [], { line: { id: edge.id, ref: ['A', 'A1'], t: 0.2, pos: at(0.2), p: edge.p, u: edge.u } }, m);
+    expect(r.op).toMatchObject({ type: 'pointOnLine', ref: ['A', 'M'], t: 0.5, ratio: [1, 1] });
+    const pos = evaluateScene({ ...sc, ops: [...sc.ops, r.op] }).points[r.op.name].pos;
+    expect(pos.z).toBeCloseTo((m.points.A.pos.z + m.points.M.pos.z) / 2, 9);
+  });
+
+  it('две точки — середина между ними; и командой', async () => {
+    const r1 = toolClick('mid', [], { point: 'A' }, m);
+    expect(r1.pending).toEqual([{ kind: 'point', name: 'A' }]);
+    expect(toolHint('mid', r1.pending)).toMatch(/выберите вторую/);
+    const r2 = toolClick('mid', r1.pending, { point: 'C1' }, m);
+    expect(r2.op).toMatchObject({ ref: ['A', 'C1'], t: 0.5, ratio: [1, 1] });
+    const { parseCommand } = await import('../utils/stereo/commands');
+    expect(parseCommand('середина AC1', m).op).toMatchObject({ ref: ['A', 'C1'], t: 0.5, ratio: [1, 1] });
+    expect(parseCommand('O = середина отрезка AC1', m).op.name).toBe('O');
+    expect(parseCommand('середина A', m).error).toMatch(/двух точек/);
+  });
+
+  it('в редакторе: инструмент на клавише M', () => {
+    localStorage.clear();
+    render(<AntApp><StereoEditor /></AntApp>);
+    fireEvent.keyDown(window, { key: 'm', code: 'KeyM' });
+    expect(screen.getByText(/появится его середина/)).toBeTruthy();
   });
 });
