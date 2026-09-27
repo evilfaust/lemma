@@ -21,6 +21,7 @@ export const TOOLS = [
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
+  { key: 'attention', label: 'Внимание', glyph: '!', hot: 'W' },
 ];
 
 const SNAPS = [
@@ -78,6 +79,7 @@ export function toolHint(tool, pending = []) {
       return names.length >= 3
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
+    case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
     default: return 'Тяните мышью — чертёж поворачивается. Колёсико — масштаб';
   }
 }
@@ -100,6 +102,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'section': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
+    case 'attention': return ['point', 'line'];
     default: return [];
   }
 }
@@ -119,7 +122,7 @@ export function chooseHit(tool, pending, hit) {
 /**
  * Клик инструмента.
  * @param hit — { point?: name, line?: { id, ref, t, ratio? }, face?: { id, verts } }
- * @returns {{ pending, op?, error? }}
+ * @returns {{ pending, op?, error?, attention? }}
  */
 export function toolClick(tool, pending, hit, model) {
   const target = chooseHit(tool, pending, hit);
@@ -171,6 +174,11 @@ export function toolClick(tool, pending, hit, model) {
       if (target.kind === 'face') return { pending: [], op: { id: newOpId(), type: 'plane', pts: target.verts } };
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
+    case 'attention':
+      // Не операция журнала: «смотрите сюда» уходит в эфир отдельно.
+      return target.kind === 'point'
+        ? { pending: [], attention: { points: [target.name], lines: [] } }
+        : { pending: [], attention: { points: [], lines: [target.id] } };
     case 'fill': {
       if (pending.length >= 3 && pending[0].name === target.name) {
         return { pending: [], op: { id: newOpId(), type: 'fill', pts: pending.map((p) => p.name) } };

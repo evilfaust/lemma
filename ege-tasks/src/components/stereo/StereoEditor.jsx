@@ -7,12 +7,15 @@ import {
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import StereoCanvas from './StereoCanvas';
+import StereoLivePanel from './StereoLivePanel';
+import useStereoLive from '../../hooks/useStereoLive';
+import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
   evaluateScene, tryAppendOp, removeOpCascade, renamePointInScene,
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
   normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
-  renderStereo, stereoSvgString, prettyName,
+  renderStereo, stereoSvgString, prettyName, isTeachingNotice,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -70,6 +73,9 @@ export default function StereoEditor() {
   const bodyKind = Form.useWatch('kind', bodyForm);
 
   const model = useMemo(() => evaluateScene(scene), [scene]);
+  const auth = useOptionalAuth();
+  const live = useStereoLive({ scene, enabled: !!auth?.canEdit });
+  const [pulse, setPulse] = useState(null);
 
   // Черновик переживает перезагрузку страницы.
   useEffect(() => {
@@ -86,11 +92,23 @@ export default function StereoEditor() {
   }, [flashStep]);
 
   const noticeTimer = useRef(null);
+  const { pushNotice, pushPulse } = live;
   const showNotice = useCallback((type, text) => {
     clearTimeout(noticeTimer.current);
     setNotice({ type, text });
     noticeTimer.current = setTimeout(() => setNotice(null), type === 'error' ? 8000 : 5000);
-  }, []);
+    // «Скрещиваются» — момент урока: в эфире его видит весь класс.
+    if (type === 'error' && isTeachingNotice(text)) pushNotice(text);
+  }, [pushNotice]);
+
+  const pulseTimer = useRef(null);
+  const attention = useCallback((target) => {
+    clearTimeout(pulseTimer.current);
+    setPulse({ points: new Set(target.points), lines: new Set(target.lines), key: Date.now() });
+    pulseTimer.current = setTimeout(() => setPulse(null), 3000);
+    pushPulse(target);
+  }, [pushPulse]);
+  useEffect(() => () => clearTimeout(pulseTimer.current), []);
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
 
   /** Добавить операцию в журнал; ошибка — объяснение вместо шага. */
@@ -124,7 +142,8 @@ export default function StereoEditor() {
     if (r.error) showNotice('error', r.error);
     setPending(r.pending);
     if (r.op) commit(r.op);
-  }, [tool, pending, model, commit, showNotice]);
+    if (r.attention) attention(r.attention);
+  }, [tool, pending, model, commit, showNotice, attention]);
 
   const hoverKey = useRef('');
   const handleHover = useCallback(({ x, y, frame }) => {
@@ -193,7 +212,11 @@ export default function StereoEditor() {
       return;
     }
     const res = commit(r.op, { quiet: true });
-    if (!res.ok) { setCmdError(res.error); return; }
+    if (!res.ok) {
+      setCmdError(res.error);
+      if (isTeachingNotice(res.error)) pushNotice(res.error);
+      return;
+    }
     setCmd('');
   };
 
@@ -291,6 +314,7 @@ export default function StereoEditor() {
             onDoubleClick={tool === 'rotate' ? () => setCamera(DEFAULT_CAMERA) : undefined}
             highlight={highlight}
             flashStep={flashStep}
+            pulse={pulse}
             cursor={tool === 'rotate' ? 'grab' : 'crosshair'}
           />
           <div className="stereo-editor__camera">
@@ -312,6 +336,7 @@ export default function StereoEditor() {
         </div>
 
         <div className="stereo-editor__panel">
+          <StereoLivePanel live={live} camera={camera} />
           <div className="stereo-tools" role="toolbar" aria-label="Инструменты построения">
             {TOOLS.map((t) => (
               <button

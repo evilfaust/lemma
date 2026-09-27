@@ -189,3 +189,173 @@
 
 [data-theme='dark'] .stereo-editor__stage,
 [data-theme='dark'] .stereo-canvas { background: #fff; }
+
+/* --- эфир: панель учителя ---------------------------------------------------- */
+
+.stereo-live {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 10px;
+  background: #fafafa;
+}
+.stereo-live.is-live { border-color: #fca5a5; background: #fff7f7; }
+.stereo-live__head { display: flex; align-items: center; justify-content: space-between; }
+.stereo-live__dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+}
+.stereo-live__dot::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  animation: stereo-live-blink 1.2s ease-in-out infinite;
+}
+@keyframes stereo-live-blink { 50% { opacity: 0.25; } }
+.stereo-live__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px dashed #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-all;
+}
+
+/* --- эфир: экран ученика (student.oipav.ru/b/<code>) --------------------------- */
+
+.ssb {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #111827;
+  overscroll-behavior: none;
+}
+.ssb__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
+  font-size: 14px;
+}
+.ssb__brand { font-weight: 600; }
+.ssb__live, .ssb__off {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+.ssb__live { color: #dc2626; background: #fee2e2; }
+.ssb__live::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #dc2626;
+  animation: stereo-live-blink 1.2s ease-in-out infinite;
+}
+.ssb__off { color: #475569; background: #e2e8f0; }
+.ssb__stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 8px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+.ssb__canvas { border-radius: 0; min-height: 0; }
+.ssb__empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  gap: 4px;
+  color: #334155;
+  font-size: 15px;
+}
+.ssb__empty p { margin: 0; max-width: 320px; }
+.ssb__code { margin-top: 10px !important; font-family: ui-monospace, Menlo, monospace; color: #64748b; }
+.ssb__spinner {
+  width: 34px;
+  height: 34px;
+  margin-bottom: 12px;
+  border-radius: 50%;
+  border: 3px solid #cbd5e1;
+  border-top-color: #2563eb;
+  animation: ssb-spin 0.9s linear infinite;
+}
+@keyframes ssb-spin { to { transform: rotate(360deg); } }
+.ssb__hint, .ssb__banner, .ssb__notice {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 13px;
+  text-align: center;
+  pointer-events: none;
+}
+.ssb__hint { top: 10px; background: rgba(17, 24, 39, 0.75); color: #fff; }
+.ssb__banner { top: 10px; background: #e2e8f0; color: #334155; }
+.ssb__notice {
+  bottom: 12px;
+  border-radius: 12px;
+  background: #fef3c7;
+  color: #78350f;
+  border: 1px solid #fcd34d;
+  font-size: 15px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.ssb__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+}
+.ssb__step {
+  flex: 1;
+  min-width: 0;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 17px;
+  line-height: 1.25;
+}
+.ssb__follow {
+  flex: 0 0 auto;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.ssb__follow.is-on { background: #fff; color: #2563eb; }

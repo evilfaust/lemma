@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { ConfigProvider, Button, notification, theme } from 'antd';
 import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined, CalendarOutlined, HomeOutlined, SunOutlined, MoonOutlined, LoginOutlined, UserAddOutlined, UserOutlined, ReadOutlined } from '@ant-design/icons';
 
@@ -53,6 +53,10 @@ import StudentCoursePortal from './components/student/StudentCoursePortal';
 import { api } from './services/pocketbase';
 import { useVersionSync } from './shared/version/useVersionSync';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
+import { roomCodeFromPath } from './utils/stereo/room';
+
+// Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
+const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -267,6 +271,8 @@ function StudentApp() {
     () => window.location.pathname.match(/\/student\/marathon-live\/([^/]+)/),
     []
   );
+  // Эфир стереочертежа: /b/{code} (или /student/b/{code})
+  const stereoCode = useMemo(() => roomCodeFromPath(window.location.pathname), []);
 
   const generateDeviceId = () => {
     if (globalThis.crypto?.randomUUID) {
@@ -289,10 +295,10 @@ function StudentApp() {
   // Извлекаем sessionId из URL: /student/{sessionId}
   // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
-    if (marathonLiveMatch) return '';
+    if (marathonLiveMatch || stereoCode) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, [marathonLiveMatch]);
+  }, [marathonLiveMatch, stereoCode]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -354,6 +360,14 @@ function StudentApp() {
 
   if (marathonLiveMatch) {
     return <MarathonLiveBoard marathonId={marathonLiveMatch[1]} />;
+  }
+
+  if (stereoCode) {
+    return (
+      <Suspense fallback={null}>
+        <StudentStereoBoard code={stereoCode} />
+      </Suspense>
+    );
   }
 
   if (currentView === 'loading') {
