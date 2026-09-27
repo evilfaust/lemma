@@ -16,6 +16,9 @@
 - Движок: `renamePoint` (`scene.js`, для вершин — `body.names`),
   `normalizeBodySpec`/`buildBody` принимают `names`, `normalizePointName`
   (`commands.js`); окно — `RenamePointModal`; +10 тестов.
+- **Деплой 27.09.2026:** учительский `3.9.250-20260927162733` (l.oipav.ru) и
+  ученический `3.9.250-20260927162805` (student.oipav.ru — движок со своими
+  именами вершин для эфира и пособий). БД не затронута.
 
 ## [3.9.249] - 2026-09-27
 
