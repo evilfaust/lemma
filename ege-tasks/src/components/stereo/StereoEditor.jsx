@@ -5,11 +5,13 @@ import {
 import {
   CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
   EditOutlined, LeftOutlined, RightOutlined, PlayCircleOutlined, FileTextOutlined, BookOutlined,
+  QuestionOutlined,
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import StereoCanvas from './StereoCanvas';
 import StereoLivePanel from './StereoLivePanel';
 import StereoTextModal from './StereoTextModal';
+import StereoHelpModal from './StereoHelpModal';
 import StereoLibrary from './StereoLibrary';
 import RenamePointModal from './RenamePointModal';
 import useStereoLive from '../../hooks/useStereoLive';
@@ -119,6 +121,8 @@ export default function StereoEditor({
   const [notice, setNotice] = useState(null);
   const [flashStep, setFlashStep] = useState(null);
   const [cmd, setCmd] = useState('');
+  const cmdRef = useRef(null);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [cmdError, setCmdError] = useState('');
   const [bodyOpen, setBodyOpen] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
@@ -372,6 +376,11 @@ export default function StereoEditor({
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'Escape') {
         if (replay) exitReplay(); else selectTool('rotate');
+        return;
+      }
+      if (e.key === '?') {
+        e.preventDefault();
+        setHelpOpen(true);
         return;
       }
       if (replay && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
@@ -643,15 +652,21 @@ export default function StereoEditor({
           )}
 
           <div>
-            <Input
-              value={cmd}
-              onChange={(e) => { setCmd(e.target.value); if (cmdError) setCmdError(''); }}
-              onPressEnter={runCommand}
-              placeholder="Команда: M на AA1 1:2 · MN · X = MN ∩ AC"
-              allowClear
-              status={cmdError ? 'error' : undefined}
-              aria-label="Строка команд"
-            />
+            <Space.Compact style={{ width: '100%' }}>
+              <Input
+                ref={cmdRef}
+                value={cmd}
+                onChange={(e) => { setCmd(e.target.value); if (cmdError) setCmdError(''); }}
+                onPressEnter={runCommand}
+                placeholder="Команда: M на AA1 1:2 · MN · X = MN ∩ AC"
+                allowClear
+                status={cmdError ? 'error' : undefined}
+                aria-label="Строка команд"
+              />
+              <Tooltip title="Справка: инструменты, команды, клавиши (?)">
+                <Button icon={<QuestionOutlined />} onClick={() => setHelpOpen(true)} aria-label="Справка по командам" />
+              </Tooltip>
+            </Space.Compact>
             {cmdError
               ? <div className="stereo-cmd-error">{cmdError}</div>
               : (
@@ -786,6 +801,15 @@ export default function StereoEditor({
         }}
       />
 
+      <StereoHelpModal
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        onInsert={(text) => {
+          setCmd(text);
+          setCmdError('');
+          setTimeout(() => cmdRef.current?.focus(), 0);
+        }}
+      />
       <StereoTextModal
         open={textOpen}
         onClose={() => setTextOpen(false)}
