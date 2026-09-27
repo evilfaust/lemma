@@ -11,3 +11,4 @@ export * from './dsl';
 export { intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon } from './geometry';
 export { isPointHidden, hiddenInterval, splitByVisibility } from './visibility';
 export * from './help';
+export * from './inline';

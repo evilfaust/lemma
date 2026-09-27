@@ -6,6 +6,7 @@ import NumberLineSVG from '../../components/shared/NumberLineSVG';
 import CoordPlotSVG from '../../components/shared/CoordPlotSVG';
 import GridPaperSVG from '../../components/shared/GridPaperSVG';
 import StereoSVG from '../../components/shared/StereoSVG';
+import { stereoSpecFromInline, STEREO_INLINE_WIDTH } from '../../utils/stereo/inline';
 import { prepareMarkdownTables } from '../../utils/markdownTables';
 import remarkTableModifiers from '../../utils/remarkTableModifiers';
 import './markdownTables.css';
@@ -120,6 +121,10 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
       }
       if (!className && /^(plot|vectors):/i.test(str)) {
         return <CoordPlotSVG spec={str.replace(/^(plot|vectors):\s*/i, '')} width={200} maxHeight={200} />;
+      }
+      // `stereo: куб 4; M на AA1 1:2` — стереочертёж в ячейке таблицы.
+      if (!className && /^stereo:/i.test(str)) {
+        return <StereoSVG spec={stereoSpecFromInline(str.replace(/^stereo:\s*/i, ''))} maxWidth={STEREO_INLINE_WIDTH} inline />;
       }
       // `grid: 10x6` — поле в клетку под запись решения прямо в ячейке.
       if (!className && /^(grid|cells|клетка):/i.test(str)) {

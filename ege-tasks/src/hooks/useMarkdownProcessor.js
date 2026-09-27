@@ -10,6 +10,7 @@ import DOMPurify from 'dompurify'
 import { numberLineSvgFromSpec } from '../utils/numberLine'
 import { coordPlotSvgFromSpec } from '../utils/coordPlot'
 import { stereoSvgFromSpec } from '../utils/stereo/dsl'
+import { stereoSpecFromInline, STEREO_INLINE_WIDTH } from '../utils/stereo/inline'
 import { gridPaperSvgFromSpec } from '../utils/gridPaper'
 import { prepareMarkdownTables } from '../utils/markdownTables'
 import remarkTableModifiers from '../utils/remarkTableModifiers'
@@ -287,6 +288,17 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
       let svg
       try { svg = stereoSvgFromSpec(spec) } catch { svg = '<span style="color:#b91c1c">Чертёж не построился</span>' }
       return `<div class="stereo-block" style="text-align:center;margin:10px 0">${svg}</div>`
+    },
+  )
+
+  // Inline-форма для ячеек таблиц: <code>stereo: куб 4; …</code> → компактный <svg>.
+  result = result.replace(
+    /<code>stereo:\s*([\s\S]*?)<\/code>/gi,
+    (_, body) => {
+      const spec = stereoSpecFromInline(decodeEntities(body))
+      let svg
+      try { svg = stereoSvgFromSpec(spec, { maxWidth: STEREO_INLINE_WIDTH }) } catch { svg = '<span style="color:#b91c1c">Чертёж не построился</span>' }
+      return `<span class="stereo-inline" style="display:inline-block;vertical-align:middle;width:${STEREO_INLINE_WIDTH}px;max-width:100%">${svg}</span>`
     },
   )
 

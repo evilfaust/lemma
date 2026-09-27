@@ -1,21 +1,45 @@
-import { useMemo } from 'react';
-import { Modal } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Modal, Segmented, Tooltip } from 'antd';
 import StereoEditor from './StereoEditor';
 import { parseStereoBlock } from '../../utils/stereo/dsl';
 
 /**
  * Стереоредактор в окне — для задач и теории.
  * initialSpec — текст блока ```stereo на правку (без ограды) или null.
- * onApply({ scene, camera, color, size }) — вставить/обновить чертёж.
+ * defaultFormat — 'block' (```stereo) | 'inline' (`stereo: …` в ячейку таблицы).
+ * showFormat — показывать выбор вида (чертёж геометрической задачи — картинка, ему не нужно).
+ * onApply({ scene, camera, color, size, format }) — вставить/обновить чертёж.
  */
-export default function StereoModal({ open, onClose, initialSpec = null, onApply, applyLabel }) {
+export default function StereoModal({
+  open, onClose, initialSpec = null, onApply, applyLabel, defaultFormat = 'block', showFormat = true,
+}) {
   const initial = useMemo(
     () => (open && initialSpec ? parseStereoBlock(initialSpec) : null),
     [open, initialSpec],
   );
+  const [format, setFormat] = useState(defaultFormat);
+  useEffect(() => { if (open) setFormat(defaultFormat); }, [open, defaultFormat]);
+
   return (
     <Modal
-      title={initialSpec ? 'Стереочертёж — правка' : 'Стереочертёж'}
+      title={(
+        <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {initialSpec ? 'Стереочертёж — правка' : 'Стереочертёж'}
+          {showFormat && (
+          <Tooltip title="«В строку» — компактный код `stereo: …`, который можно вставлять прямо в ячейку markdown-таблицы. «Блоком» — картинка на отдельной строке.">
+            <Segmented
+              size="small"
+              value={format}
+              onChange={setFormat}
+              options={[
+                { value: 'block', label: 'Отдельным блоком' },
+                { value: 'inline', label: 'В строку (для таблиц)' },
+              ]}
+            />
+          </Tooltip>
+          )}
+        </span>
+      )}
       open={open}
       onCancel={onClose}
       footer={null}
@@ -32,7 +56,9 @@ export default function StereoModal({ open, onClose, initialSpec = null, onApply
           initialCamera={initial?.camera || null}
           initialColor={!!initial?.color}
           applyLabel={applyLabel || (initialSpec ? 'Обновить чертёж' : 'Вставить чертёж')}
-          onApply={(scene, camera, { color }) => onApply?.({ scene, camera, color, size: initial?.size || null })}
+          onApply={(scene, camera, { color }) => onApply?.({
+            scene, camera, color, size: initial?.size || null, format,
+          })}
         />
       )}
     </Modal>

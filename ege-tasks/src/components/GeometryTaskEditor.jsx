@@ -599,6 +599,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
           <StereoModal
             open
             initialSpec={stereoSpec}
+            showFormat={false}
             applyLabel={stereoSpec ? 'Обновить чертёж задачи' : 'Сделать чертежом задачи'}
             onClose={() => setStereoOpen(false)}
             onApply={handleStereoApply}

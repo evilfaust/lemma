@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, lazy, Suspense } from 'react';
 import { Tooltip, Modal, Input, Popover, Dropdown, Button, Divider, Segmented, Upload, Alert, Space, App } from 'antd';
 import {
   BoldOutlined, ItalicOutlined, StrikethroughOutlined,
@@ -7,7 +7,7 @@ import {
   MinusOutlined, FunctionOutlined, ContainerOutlined, DownOutlined,
   InboxOutlined, ScissorOutlined, ReloadOutlined, BorderHorizontalOutlined,
   DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined,
-  PaperClipOutlined, FolderOpenOutlined
+  PaperClipOutlined, FolderOpenOutlined, CodeSandboxOutlined
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
 import TableModifiersHelp from '../shared/TableModifiersHelp';
@@ -17,10 +17,14 @@ import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
 import GridPaperModal from '../shared/GridPaperModal';
 import MaterialPickerModal from '../workspace/MaterialPickerModal';
-import { findPlotAtCursor, findGridAtCursor } from '../../utils/plotSnippet';
+import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor } from '../../utils/plotSnippet';
 import { materialsApi } from '../../shared/services/pb/filesClient';
 import { dataUrlToFile } from '../../utils/cropImage';
 import './EditorToolbar.css';
+
+// Стереоредактор тяжёлый (движок + холст) — грузится, только когда нужен.
+const StereoModal = lazy(() => import('../stereo/StereoModal'));
+const loadStereoMarkdown = () => import('../../utils/stereo/dsl').then((m) => m.stereoBlockMarkdown);
 
 // Вертикальный разделитель групп — как в тулбаре редактора геометрии.
 const DIVIDER = <Divider type="vertical" className="tf-divider" />;
@@ -100,6 +104,16 @@ export default function EditorToolbar({ editorRef }) {
     setPlot(found
       ? { kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
       : { kind });
+  }, [editorRef]);
+
+  // Стереочертёж: курсор внутри ```stereo / `stereo: …` — правка его, иначе новый.
+  const [stereo, setStereo] = useState(null);
+  const openStereo = useCallback(() => {
+    const view = editorRef.current?.view;
+    const found = view
+      ? findStereoAtCursor(view.state.doc.toString(), view.state.selection.main.head)
+      : null;
+    setStereo(found ? { spec: found.spec, format: found.format, range: [found.start, found.end] } : {});
   }, [editorRef]);
 
   const openGrid = useCallback(() => {
@@ -338,6 +352,10 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<BorderOuterOutlined />}
             onClick={() => openGrid()} />
         </Tooltip>
+        <Tooltip title="Стереочертёж: куб, призма, пирамида, сечения, пунктир невидимых линий. Курсор внутри готового чертежа — откроется его правка">
+          <Button size="small" type="text" className="tf-btn" icon={<CodeSandboxOutlined />}
+            aria-label="Стереочертёж" onClick={openStereo} />
+        </Tooltip>
         <Tooltip title="Ссылка">
           <Button size="small" type="text" className="tf-btn" icon={<LinkOutlined />}
             onClick={() => setLinkModalOpen(true)} />
@@ -550,6 +568,26 @@ export default function EditorToolbar({ editorRef }) {
           setPlot(null);
         }}
       />
+
+      {/* Modal: стереоредактор (блок ```stereo или `stereo: …` в ячейку таблицы) */}
+      {stereo && (
+        <Suspense fallback={null}>
+          <StereoModal
+            open
+            initialSpec={stereo.spec || null}
+            defaultFormat={stereo.format || 'block'}
+            onClose={() => setStereo(null)}
+            onApply={async ({ scene, camera, color, size, format }) => {
+              const toMarkdown = await loadStereoMarkdown();
+              const snippet = toMarkdown(scene, camera, { color, size, format });
+              if (!stereo.range || !replaceInEditor(editorRef.current, stereo.range, snippet)) {
+                insertIntoEditor(editorRef.current, { text: snippet });
+              }
+              setStereo(null);
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* Modal: Вставка ссылки */}
       <Modal

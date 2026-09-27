@@ -10,6 +10,8 @@
 //   ```plot … ```      / ```vectors … ```   — блок
 //   `plot: x -3 3; f x` / `vectors: …`      — inline (ячейки markdown-таблиц)
 
+import { stereoSpecFromInline } from './stereo/inline';
+
 const FENCE_OPEN = /^\s{0,3}```(plot|vectors)\s*$/;
 const FENCE_CLOSE = /^\s{0,3}```\s*$/;
 const INLINE_RE = /`(plot|vectors)\s*:([^`\n]*)`/g;
@@ -98,15 +100,19 @@ export function findGridAtCursor(text, pos) {
   return { start: found.start, end: found.end, spec: found.spec, format: found.format };
 }
 
-// Стереочертёж (utils/stereo/dsl.js) — только блочная форма ```stereo.
+// Стереочертёж (utils/stereo/dsl.js): блок ```stereo и инлайн `stereo: …`
+// (команды через «;», для ячеек таблиц — utils/stereo/inline.js).
 const STEREO_FENCE_OPEN = /^\s{0,3}```(stereo)\s*$/;
-const NEVER = /(?!)/g;
+const STEREO_INLINE_RE = /`(stereo)\s*:([^`\n]*)`/gi;
 
 /**
- * Найти блок ```stereo, внутри которого стоит курсор.
- * @returns {{start:number,end:number,spec:string,format:'block'}|null}
+ * Найти стереочертёж, внутри которого стоит курсор. spec — всегда в виде
+ * блока (строка на команду), format — в каком виде он записан.
+ * @returns {{start:number,end:number,spec:string,format:'block'|'inline'}|null}
  */
 export function findStereoAtCursor(text, pos) {
-  const found = findSnippetAtCursor(text, pos, STEREO_FENCE_OPEN, NEVER);
-  return found ? { start: found.start, end: found.end, spec: found.spec, format: 'block' } : null;
+  const found = findSnippetAtCursor(text, pos, STEREO_FENCE_OPEN, STEREO_INLINE_RE);
+  if (!found) return null;
+  const spec = found.format === 'inline' ? stereoSpecFromInline(found.spec) : found.spec;
+  return { start: found.start, end: found.end, spec, format: found.format };
 }

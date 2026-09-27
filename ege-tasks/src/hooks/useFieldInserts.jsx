@@ -94,7 +94,9 @@ export default function useFieldInserts({ form, fields = {} }) {
 
   const openStereo = useCallback((field) => {
     const found = findAt(field, findStereoAtCursor);
-    setStereoTarget(found ? { field, spec: found.spec, range: [found.start, found.end] } : { field });
+    setStereoTarget(found
+      ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
+      : { field });
   }, [findAt]);
 
   const applyTarget = (target, snippet) => {
@@ -167,9 +169,10 @@ export default function useFieldInserts({ form, fields = {} }) {
           <StereoModal
             open
             initialSpec={stereoTarget.spec || null}
+            defaultFormat={stereoTarget.format || 'block'}
             onClose={() => setStereoTarget(null)}
-            onApply={({ scene, camera, color, size }) => {
-              applyTarget(stereoTarget, stereoBlockMarkdown(scene, camera, { color, size }));
+            onApply={({ scene, camera, color, size, format }) => {
+              applyTarget(stereoTarget, stereoBlockMarkdown(scene, camera, { color, size, format }));
               setStereoTarget(null);
             }}
           />

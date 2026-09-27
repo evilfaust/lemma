@@ -96,6 +96,11 @@ export default function StereoHelpModal({ open, onClose, onInsert }) {
             готовый блок). Внутри — те же команды, по одной на строку, и ещё:
           </p>
           <Rows rows={DSL_HELP} left={(r) => ({ key: r.line, node: <code className="stereo-help__cmd">{r.line}</code> })} />
+          <p className="stereo-help__lead" style={{ marginTop: 12 }}>
+            <b>В ячейку таблицы</b> — одной строкой, команды через «;»:{' '}
+            <code className="stereo-help__cmd">`stereo: куб 4; M на AA1 1:2; сечение MB1D1; вид 30 20`</code>.
+            В окне стереоредактора (задача, теория) — переключатель «В строку (для таблиц)».
+          </p>
         </>
       ),
     },

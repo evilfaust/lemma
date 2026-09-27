@@ -24,6 +24,7 @@ import { parseCommand, opToCommand, splitNames } from './commands';
 import { buildBody } from './bodies';
 import { DEFAULT_CAMERA, clampCamera } from './camera';
 import { renderStereo, stereoSvgString, contentBox, POINT_COLORS } from './render';
+import { stereoInlineFromSpec } from './inline';
 
 const num = (s) => Number(String(s).replace(',', '.'));
 const isNum = (s) => /^-?\d+(?:[.,]\d+)?$/.test(String(s));
@@ -260,8 +261,10 @@ export function stereoSpecFromSvg(svg) {
 }
 
 /** Блок для вставки в текст: с оградой и пустыми строками вокруг. */
-export function stereoBlockMarkdown(scene, camera, { color = false, size = null } = {}) {
+export function stereoBlockMarkdown(scene, camera, { color = false, size = null, format = 'block' } = {}) {
   let { text } = buildStereoBlock(scene, camera, { color });
   if (size && (size.width !== 360 || size.height !== 300)) text += `\nразмер ${size.width} ${size.height}`;
+  // В строку — для ячейки таблицы: `stereo: куб 4; …` (см. inline.js).
+  if (format === 'inline') return `\`stereo: ${stereoInlineFromSpec(text)}\``;
   return `\n\`\`\`stereo\n${text}\n\`\`\`\n`;
 }
