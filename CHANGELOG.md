@@ -19,6 +19,9 @@
 - Движок: `utils/stereo/inline.js` (`stereoSpecFromInline`,
   `stereoInlineFromSpec`), `stereoBlockMarkdown(…, { format })`,
   `findStereoAtCursor` понимает инлайн; +6 тестов (`stereoInline.test.jsx`).
+- **Деплой 28.09.2026:** учительский `3.9.257-20260927221855` (l.oipav.ru) и
+  ученический `3.9.257-20260927221924` (student.oipav.ru — `stereo:` в ячейках
+  таблиц в условиях задач). БД не затронута.
 
 ## [3.9.256] - 2026-09-28
 
