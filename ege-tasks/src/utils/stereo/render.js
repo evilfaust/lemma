@@ -49,6 +49,28 @@ const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8 };
 const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
 
+/**
+ * Доли [0; 1] линии → куски с цветом отрезка (null — цвет самой линии).
+ * Перекрытие: побеждает отрезок, покрашенный позже. Соседние куски одного
+ * цвета сливаются.
+ */
+export function colorPieces(ranges) {
+  const cuts = [...new Set([0, 1, ...ranges.flatMap((r) => [r.t0, r.t1])])].sort((a, b) => a - b);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const t0 = cuts[i];
+    const t1 = cuts[i + 1];
+    if (t1 - t0 <= 1e-9) continue;
+    const mid = (t0 + t1) / 2;
+    let color = null;
+    for (const r of ranges) if (r.t0 <= mid && mid <= r.t1) color = r.color;
+    const last = out[out.length - 1];
+    if (last && last.color === color) last.t1 = t1;
+    else out.push({ t0, t1, color });
+  }
+  return out;
+}
+
 /** «A1» → { base: 'A', sub: '1' } */
 export function splitLabel(name) {
   const m = /^([A-Z]+)([0-9]*)$/.exec(String(name));
@@ -159,7 +181,15 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const color = pointColorHex(o.color) || o.color || (o.kind === 'edge' ? STEREO_COLORS.edge : STEREO_COLORS.construct);
     // Выделенная прямая толще — и в цвете, и в ч/б печати (там цвет — чёрный).
     const w = (WIDTH[o.kind] || 1.5) * (o.painted ? PAINTED_WIDTH : 1);
-    pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step);
+    if (!o.colorRanges?.length) pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step);
+    else {
+      // Покрашенные отрезки режут линию на куски: свой цвет — свой кусок.
+      const paintedW = (WIDTH[o.kind] || 1.5) * PAINTED_WIDTH;
+      for (const pc of colorPieces(o.colorRanges)) {
+        const c = pc.color ? pointColorHex(pc.color) || pc.color : color;
+        pushSplit(o.id, o.kind, lerp(o.a, o.b, pc.t0), lerp(o.a, o.b, pc.t1), c, pc.color ? paintedW : w, o.step);
+      }
+    }
     const a = P(o.a);
     const b = P(o.b);
     hitLines.push({ id: o.id, kind: o.kind, ref: o.ref, x1: a.x, y1: a.y, x2: b.x, y2: b.y, a3: o.a, b3: o.b, p: o.p, u: o.u });

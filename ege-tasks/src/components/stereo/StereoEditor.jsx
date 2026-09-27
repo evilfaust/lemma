@@ -19,10 +19,10 @@ import {
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
   normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace,
-  renderStereo, stereoSvgString, prettyName, isTeachingNotice,
+  renderStereo, stereoSvgString, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
-  POINT_COLORS, setPointColors, setLineColors, lineColorKey, renamePoint,
+  POINT_COLORS, setPointColors, setLineColors, setSegmentColors, applyColorCommand, renamePoint,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -56,13 +56,17 @@ function buildHit(frame, x, y, back, model) {
   let line = null;
   if (lh) {
     const { t, pxPerUnit } = lineHitParam(lh, frame.project);
-    line = { id: lh.line.id, ref: lh.line.ref, ...snapPosition(t, pxPerUnit) };
+    line = {
+      id: lh.line.id, ref: lh.line.ref, ...snapPosition(t, pxPerUnit),
+      pos: lh.pos, p: lh.line.p, u: lh.line.u, // для «Цвета»: какой кусок под курсором
+    };
   }
   const face = pickFace(frame, x, y, { back });
   return {
     point,
     line,
     face: face ? { id: face.id, verts: face.verts, pos: model ? facePointAt(model, frame, face.id, x, y) : null } : null,
+    shift: !!back,
   };
 }
 
@@ -274,7 +278,10 @@ export default function StereoEditor({
     if (r.paint) {
       // Повторный клик тем же цветом снимает выделение.
       const sc = sceneRef.current;
-      if (r.paint.line) {
+      if (r.paint.segment) {
+        const cur = sc.segmentColors?.[r.paint.segment];
+        setScene(setSegmentColors(sc, [r.paint.segment], cur === paintColor ? '' : paintColor));
+      } else if (r.paint.line) {
         const cur = sc.lineColors?.[r.paint.line];
         setScene(setLineColors(sc, [r.paint.line], cur === paintColor ? '' : paintColor));
       } else {
@@ -383,10 +390,9 @@ export default function StereoEditor({
     setCmdError('');
     if (r.action === 'undo') { undo(); setCmd(''); return; }
     if (r.action === 'color') {
-      const lines = r.lines || [];
-      const missing = [...r.names, ...lines.flat()].filter((n) => !model.points[n]);
-      if (missing.length) { setCmdError(`Нет точки ${missing.map(prettyName).join(', ')}`); return; }
-      setScene((sc) => setLineColors(setPointColors(sc, r.names, r.color), lines.map(lineColorKey), r.color));
+      const res = applyColorCommand(scene, r);
+      if (res.error) { setCmdError(res.error); return; }
+      setScene(res.scene);
       setCmd('');
       return;
     }
@@ -602,10 +608,14 @@ export default function StereoEditor({
               <Button
                 size="small"
                 type="text"
-                disabled={!scene.colors && !scene.lineColors}
-                onClick={() => setScene((sc) => setLineColors(
-                  setPointColors(sc, Object.keys(sc.colors || {}), ''),
-                  Object.keys(sc.lineColors || {}),
+                disabled={!scene.colors && !scene.lineColors && !scene.segmentColors}
+                onClick={() => setScene((sc) => setSegmentColors(
+                  setLineColors(
+                    setPointColors(sc, Object.keys(sc.colors || {}), ''),
+                    Object.keys(sc.lineColors || {}),
+                    '',
+                  ),
+                  Object.keys(sc.segmentColors || {}),
                   '',
                 ))}
               >

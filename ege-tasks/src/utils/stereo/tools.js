@@ -5,7 +5,7 @@
 // а назад получает новое «набранное» (pending) и, когда хватает кликов,
 // готовую операцию.
 
-import { newOpId, lineColorKey } from './scene';
+import { newOpId, lineColorKey, segmentAt } from './scene';
 import { nextFreeName } from './naming';
 import { prettyName } from './bodies';
 import { paramOnLine, add, mul, sub } from './vec3';
@@ -91,7 +91,7 @@ export function toolHint(tool, pending = []) {
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
-    case 'color': return 'Кликните по точкам или прямым — они окрасятся выбранным цветом (повторный клик снимает)';
+    case 'color': return 'Клик по точке или отрезку — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
@@ -136,7 +136,7 @@ export function chooseHit(tool, pending, hit) {
 
 /**
  * Клик инструмента.
- * @param hit — { point?: name, line?: { id, ref, t, ratio? }, face?: { id, verts } }
+ * @param hit — { point?: name, line?: { id, ref, t, ratio?, pos?, p?, u? }, face?: { id, verts }, shift? }
  * @returns {{ pending, op?, error?, attention?, paint?, rename? }}
  */
 export function toolClick(tool, pending, hit, model) {
@@ -204,10 +204,15 @@ export function toolClick(tool, pending, hit, model) {
     case 'rename':
       return { pending: [], rename: { name: target.name } };
     case 'color':
-      // Цвет — оформление точки или прямой, не шаг журнала: решает редактор.
-      return target.kind === 'point'
-        ? { pending: [], paint: { name: target.name } }
-        : { pending: [], paint: { line: lineColorKey(target.ref) } };
+      // Цвет — оформление, не шаг журнала: решает редактор. Клик по линии —
+      // кусок между соседними точками, Shift — прямая целиком (и когда с
+      // одной стороны точек нет).
+      if (target.kind === 'point') return { pending: [], paint: { name: target.name } };
+      if (!hit.shift) {
+        const seg = segmentAt(model, target, target.pos);
+        if (seg) return { pending: [], paint: { segment: lineColorKey(seg) } };
+      }
+      return { pending: [], paint: { line: lineColorKey(target.ref) } };
     case 'attention':
       // Не операция журнала: «смотрите сюда» уходит в эфир отдельно.
       return target.kind === 'point'

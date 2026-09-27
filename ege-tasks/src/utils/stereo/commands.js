@@ -88,7 +88,7 @@ const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч
 /**
  * Разбирает команду в операцию.
  * @returns {{ op } | { action: 'undo' } | { action: 'rename', from, to }
- *   | { action: 'color', names, lines?, color } | { error }}
+ *   | { action: 'color', names, lines?, segments?, color } | { error }}
  */
 export function parseCommand(text, model) {
   const src = normalizeCommand(text);
@@ -106,16 +106,20 @@ export function parseCommand(text, model) {
     let m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
 
-    // «цвет прямой AB красный», «цвет прямых AB, CD синий» — выделить прямые.
-    m = /^(?:цвет|color)\s+(?:прям|отрез|лини|line)[а-яёa-z]*\s+(.+?)\s+(\S+)$/i.exec(src);
+    // «цвет прямой AB красный» — прямая целиком (с продолжениями);
+    // «цвет отрезка AM синий», «цвет отрезков AM, BK …» — только кусок.
+    m = /^(?:цвет|color)\s+(прям|отрез|лини|line|seg)[а-яёa-z]*\s+(.+?)\s+(\S+)$/i.exec(src);
     if (m) {
-      const lines = m[1].split(/[\s,;]+/).filter(Boolean).map(splitNames);
-      if (!lines.length || lines.some((n) => !n || n.length !== 2)) {
-        throw new Error('Прямая — двумя точками: «цвет прямой AB красный»');
+      const isSeg = /^(отрез|seg)/i.test(m[1]);
+      const pairs = m[2].split(/[\s,;]+/).filter(Boolean).map(splitNames);
+      if (!pairs.length || pairs.some((n) => !n || n.length !== 2)) {
+        throw new Error(isSeg ? 'Отрезок — двумя точками: «цвет отрезка AM красный»' : 'Прямая — двумя точками: «цвет прямой AB красный»');
       }
-      const color = colorKeyFromWord(m[2]);
+      const color = colorKeyFromWord(m[3]);
       if (color == null) throw new Error('Цвета: красный, синий, зелёный, оранжевый, фиолетовый; «нет» — снять');
-      return { action: 'color', names: [], lines, color };
+      return isSeg
+        ? { action: 'color', names: [], segments: pairs, color }
+        : { action: 'color', names: [], lines: pairs, color };
     }
 
     // «цвет MNB красный» — выделить точки (оформление, не шаг); «… нет» — снять.

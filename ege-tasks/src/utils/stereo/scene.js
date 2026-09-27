@@ -339,6 +339,29 @@ export function evaluateScene(scene, opts = {}) {
     const c = lineColors[lineColorKey(o.ref)];
     if (c) { o.color = c; o.painted = true; }
   }
+  // Цвета отрезков — кусок прямой между двумя точками: scene.segmentColors =
+  // { 'A-M': 'red' }. Ложится поверх цвета прямой; линия, на которой лежит
+  // кусок, получает colorRanges в своих долях (0 — a, 1 — b).
+  const segColors = scene?.segmentColors && typeof scene.segmentColors === 'object' ? scene.segmentColors : {};
+  for (const [key, color] of Object.entries(segColors)) {
+    const ref = refOfLineColorKey(key);
+    if (!color || !Array.isArray(ref)) continue;
+    const P = points[ref[0]]?.pos;
+    const Q = points[ref[1]]?.pos;
+    if (!P || !Q || dist(P, Q) <= eps) continue;
+    const u = sub(Q, P);
+    for (const o of lines) {
+      if (!sameLine(o.p, o.u, P, u, eps * 10)) continue;
+      const d = sub(o.b, o.a);
+      let t0 = paramOnLine(P, o.a, d);
+      let t1 = paramOnLine(Q, o.a, d);
+      if (t0 > t1) [t0, t1] = [t1, t0];
+      t0 = Math.max(0, t0);
+      t1 = Math.min(1, t1);
+      if (t1 - t0 <= 1e-9) continue;
+      (o.colorRanges = o.colorRanges || []).push({ t0, t1, color });
+    }
+  }
 
   return {
     body, points, pointOrder, lines, polys, steps, opsById,
@@ -396,8 +419,9 @@ export function removeOpCascade(scene, opId) {
   }
   const next = { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) };
   if (scene?.colors) next.colors = withoutKeys(scene.colors, deadNames);
-  if (scene?.lineColors) {
-    next.lineColors = Object.fromEntries(Object.entries(scene.lineColors).filter(([k]) => {
+  for (const field of ['lineColors', 'segmentColors']) {
+    if (!scene?.[field]) continue;
+    next[field] = Object.fromEntries(Object.entries(scene[field]).filter(([k]) => {
       const ref = refOfLineColorKey(k);
       return Array.isArray(ref) ? !ref.some((n) => deadNames.has(n)) : !deadIds.has(ref);
     }));
@@ -428,8 +452,9 @@ export function renamePointInScene(scene, from, to) {
   if (scene?.colors) {
     next.colors = Object.fromEntries(Object.entries(scene.colors).map(([k, v]) => [swap(k), v]));
   }
-  if (scene?.lineColors) {
-    next.lineColors = Object.fromEntries(Object.entries(scene.lineColors).map(([k, v]) => {
+  for (const field of ['lineColors', 'segmentColors']) {
+    if (!scene?.[field]) continue;
+    next[field] = Object.fromEntries(Object.entries(scene[field]).map(([k, v]) => {
       const ref = refOfLineColorKey(k);
       return [Array.isArray(ref) ? lineColorKey(ref.map(swap)) : k, v];
     }));
@@ -499,4 +524,80 @@ export function setLineColors(scene, keys, color) {
   const next = { ...scene, lineColors };
   if (!Object.keys(lineColors).length) delete next.lineColors;
   return next;
+}
+
+/** Покрасить отрезки (куски прямых) по ключам «A-M» (color = '' — снять). */
+export function setSegmentColors(scene, keys, color) {
+  const segmentColors = { ...(scene?.segmentColors || {}) };
+  for (const k of keys) {
+    if (color) segmentColors[k] = color; else delete segmentColors[k];
+  }
+  const next = { ...scene, segmentColors };
+  if (!Object.keys(segmentColors).length) delete next.segmentColors;
+  return next;
+}
+
+/** Точки модели, лежащие на прямой p + t·u, по возрастанию t. */
+function pointsOnLine(model, p, u) {
+  const tol = 1e-5 * model.body.size;
+  const out = [];
+  for (const name of model.pointOrder) {
+    const pt = model.points[name];
+    if (pt.alias || distToLine(pt.pos, p, u) > tol) continue;
+    out.push({ name, t: paramOnLine(pt.pos, p, u) });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/**
+ * Кусок прямой под кликом: две соседние точки на ней вокруг pos.
+ * @param line — { p, u } прямой, по которой кликнули
+ * @returns {[string, string] | null} null — с одной стороны точек нет
+ */
+export function segmentAt(model, line, pos) {
+  if (!line?.p || !line?.u || !pos) return null;
+  const pts = pointsOnLine(model, line.p, line.u);
+  const tc = paramOnLine(pos, line.p, line.u);
+  let left = null;
+  let right = null;
+  for (const q of pts) {
+    if (q.t <= tc) left = q;
+    else if (!right) right = q;
+  }
+  if (!left || !right || Math.abs(right.t - left.t) < 1e-9) return null;
+  return [left.name, right.name];
+}
+
+/** Можно ли покрасить отрезок AB: обе точки есть и лежат на нарисованной линии. */
+export function segmentColorError(model, a, b) {
+  const P = model.points[a]?.pos;
+  const Q = model.points[b]?.pos;
+  if (!P || !Q) return `Нет точки ${prettyName(P ? b : a)}`;
+  if (dist(P, Q) <= 1e-6 * model.body.size) return `Точки ${prettyName(a)} и ${prettyName(b)} совпадают`;
+  const u = sub(Q, P);
+  const drawn = model.lines.some((o) => sameLine(o.p, o.u, P, u, 1e-5 * model.body.size));
+  return drawn ? null : `Отрезок ${prettyName(a)}${prettyName(b)} не лежит на нарисованной линии`;
+}
+
+/**
+ * Команда цвета («цвет MN красный», «цвет прямой AB …», «цвет отрезка AM …»)
+ * → новая сцена. Общая для строки команд и блока ```stereo.
+ * @returns {{ scene } | { error }}
+ */
+export function applyColorCommand(scene, r) {
+  const model = evaluateScene(scene);
+  const lines = r.lines || [];
+  const segs = r.segments || [];
+  const missing = [...(r.names || []), ...lines.flat(), ...segs.flat()].filter((n) => !model.points[n]);
+  if (missing.length) return { error: `Нет точки ${missing.map(prettyName).join(', ')}` };
+  if (r.color) {
+    for (const [a, b] of segs) {
+      const err = segmentColorError(model, a, b);
+      if (err) return { error: err };
+    }
+  }
+  let next = setPointColors(scene, r.names || [], r.color);
+  if (lines.length) next = setLineColors(next, lines.map(lineColorKey), r.color);
+  if (segs.length) next = setSegmentColors(next, segs.map(lineColorKey), r.color);
+  return { scene: next };
 }

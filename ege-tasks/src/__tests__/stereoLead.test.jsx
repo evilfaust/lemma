@@ -5,6 +5,7 @@ import {
   chaseCamera, isRoomLead, roomChanges, evaluateScene, renderStereo, stereoSvgString,
   DEFAULT_CAMERA, setLineColors, lineColorKey, refOfLineColorKey, removeOpCascade,
   renamePoint, parseCommand, toolClick, parseStereoBlock, buildStereoBlock,
+  setSegmentColors, segmentAt, colorPieces, applyColorCommand,
 } from '../utils/stereo';
 
 const mockApi = vi.hoisted(() => ({
@@ -250,7 +251,7 @@ describe('цвет прямых', () => {
     expect(toolClick('color', [], { point: 'M', line: { id: 's', ref: ['M', 'N'] } }, m).paint).toEqual({ name: 'M' });
     expect(parseCommand('цвет прямой AB красный', m)).toEqual({ action: 'color', names: [], lines: [['A', 'B']], color: 'red' });
     expect(parseCommand('цвет прямых AB, MN синий', m).lines).toEqual([['A', 'B'], ['M', 'N']]);
-    expect(parseCommand('цвет отрезка MN нет', m)).toMatchObject({ lines: [['M', 'N']], color: '' });
+    expect(parseCommand('цвет отрезка MN нет', m)).toMatchObject({ segments: [['M', 'N']], color: '' });
     expect(parseCommand('цвет прямой ABC красный', m).error).toMatch(/двумя точками/);
     expect(parseCommand('цвет MN красный', m)).toEqual({ action: 'color', names: ['M', 'N'], color: 'red' });
   });
@@ -263,5 +264,74 @@ describe('цвет прямых', () => {
     expect(back.errors.filter((e) => !/параллельн/.test(e.message))).toEqual([]);
     expect(back.scene.lineColors).toEqual({ 'A-B': 'violet', 'M-N': 'violet' });
     expect(parseStereoBlock('куб 4\nцвет прямой AZ красный').errors[0].message).toMatch(/Нет точки Z/);
+  });
+});
+
+// --- цвет отрезка (куска прямой) -----------------------------------------------
+
+describe('цвет отрезка: кусок, а не прямая', () => {
+  // M — середина AA1; K — на продолжении AB за B.
+  const sc0 = base;
+  const model = evaluateScene(sc0);
+  const edgeAA1 = model.lines.find((o) => o.id === 'edge:A-A1');
+  const edgeAB = model.lines.find((o) => o.id === 'edge:A-B');
+  const at = (o, t) => ({ x: o.a.x + (o.b.x - o.a.x) * t, y: o.a.y + (o.b.y - o.a.y) * t, z: o.a.z + (o.b.z - o.a.z) * t });
+
+  it('кусок под кликом — между соседними точками на прямой', () => {
+    expect(segmentAt(model, edgeAA1, at(edgeAA1, 0.2))).toEqual(['A', 'M']);
+    expect(segmentAt(model, edgeAA1, at(edgeAA1, 0.8))).toEqual(['M', 'A1']);
+    const ext = model.lines.find((o) => o.id.startsWith('x:ext'));
+    expect(segmentAt(model, ext, at(ext, 0.5))).toEqual(['B', 'K']);
+    expect(segmentAt(model, edgeAB, at(edgeAB, 0.5))).toEqual(['A', 'B']);
+  });
+
+  it('инструмент: клик — кусок, Shift+клик — прямая целиком', () => {
+    const hit = (t, shift) => ({ line: { id: edgeAA1.id, ref: ['A', 'A1'], t, pos: at(edgeAA1, t), p: edgeAA1.p, u: edgeAA1.u }, shift });
+    expect(toolClick('color', [], hit(0.2, false), model).paint).toEqual({ segment: 'A-M' });
+    expect(toolClick('color', [], hit(0.2, true), model).paint).toEqual({ line: 'A-A1' });
+  });
+
+  it('красится только кусок: ребро AB без продолжения BK, AM без MA1', () => {
+    const sc = setSegmentColors(sc0, ['A-B', 'A-M'], 'red');
+    const m = evaluateScene(sc);
+    expect(m.lines.find((o) => o.id === 'edge:A-B').colorRanges).toEqual([{ t0: 0, t1: 1, color: 'red' }]);
+    expect(m.lines.find((o) => o.id.startsWith('x:ext')).colorRanges).toBeUndefined();
+    const aa1 = m.lines.find((o) => o.id === 'edge:A-A1');
+    expect(aa1.colorRanges).toHaveLength(1);
+    expect(aa1.colorRanges[0].t1).toBeCloseTo(0.5, 9);
+    const frame = renderStereo(m, DEFAULT_CAMERA, { width: 500, height: 400 });
+    const pieces = frame.strokes.filter((s) => s.objId === 'edge:A-A1');
+    expect(pieces.some((s) => s.color === '#dc2626')).toBe(true);
+    expect(pieces.some((s) => s.color !== '#dc2626')).toBe(true);
+  });
+
+  it('куски линии: поздний отрезок поверх, одинаковые сливаются', () => {
+    expect(colorPieces([{ t0: 0, t1: 0.5, color: 'red' }])).toEqual([
+      { t0: 0, t1: 0.5, color: 'red' }, { t0: 0.5, t1: 1, color: null },
+    ]);
+    expect(colorPieces([{ t0: 0, t1: 0.6, color: 'red' }, { t0: 0.4, t1: 1, color: 'blue' }])).toEqual([
+      { t0: 0, t1: 0.4, color: 'red' }, { t0: 0.4, t1: 1, color: 'blue' },
+    ]);
+    expect(colorPieces([{ t0: 0, t1: 0.5, color: 'red' }, { t0: 0.5, t1: 1, color: 'red' }])).toEqual([
+      { t0: 0, t1: 1, color: 'red' },
+    ]);
+  });
+
+  it('команда: отрезок только на нарисованной линии', () => {
+    const r = applyColorCommand(sc0, parseCommand('цвет отрезка AM красный', model));
+    expect(r.scene.segmentColors).toEqual({ 'A-M': 'red' });
+    expect(applyColorCommand(sc0, parseCommand('цвет отрезка AC1 красный', model)).error).toMatch(/не лежит на нарисованной линии/);
+    expect(applyColorCommand(sc0, parseCommand('цвет отрезка AZ красный', model)).error).toMatch(/Нет точки Z/);
+    // снять можно всегда
+    expect(applyColorCommand(r.scene, parseCommand('цвет отрезка AM нет', model)).scene.segmentColors).toBeUndefined();
+  });
+
+  it('удаление, переименование и блок ```stereo', () => {
+    const sc = setSegmentColors(sc0, ['A-M', 'B-K'], 'green');
+    expect(removeOpCascade(sc, 'a').scene.segmentColors).toEqual({ 'B-K': 'green' });
+    expect(renamePoint(sc, 'M', 'P').scene.segmentColors).toEqual({ 'A-P': 'green', 'B-K': 'green' });
+    const { text } = buildStereoBlock(sc, DEFAULT_CAMERA);
+    expect(text).toContain('цвет отрезков AM, BK зелёный');
+    expect(parseStereoBlock(text).scene.segmentColors).toEqual({ 'A-M': 'green', 'B-K': 'green' });
   });
 });
