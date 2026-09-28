@@ -52,6 +52,9 @@ export const POINT_NAME_RE = /^[A-Z][0-9]*$/;
  */
 export function normalizeBodySpec(spec = DEFAULT_BODY) {
   const out = normalizeBodyShape(spec);
+  // Буквы основания по часовой стрелке (если смотреть сверху): A — спереди
+  // слева, B — сзади слева… Так в части учебников (Атанасян). Без флага — против.
+  if (spec?.cw) out.cw = true;
   const names = spec?.names;
   if (Array.isArray(names) && names.length && names.every((n) => POINT_NAME_RE.test(n))
     && new Set(names).size === names.length) {
@@ -129,8 +132,10 @@ export function buildBody(specIn) {
     const a = spec.a;
     const b = spec.kind === 'cube' ? a : spec.b;
     const c = spec.kind === 'cube' ? a : spec.c;
-    base = rectangle(a, b, -c / 2);
-    top = rectangle(a, b, c / 2);
+    // По часовой AB идёт вглубь — стороны меняются местами, чтобы AB = a,
+    // AD = b оставались верными.
+    base = spec.cw ? rectangle(b, a, -c / 2) : rectangle(a, b, -c / 2);
+    top = spec.cw ? rectangle(b, a, c / 2) : rectangle(a, b, c / 2);
     baseNames = LETTERS.slice(0, 4);
   } else if (spec.kind === 'prism') {
     base = regularPolygon(spec.n, spec.a, -spec.h / 2);
@@ -146,6 +151,12 @@ export function buildBody(specIn) {
     apexName = spec.apex;
   }
   if (top) topNames = baseNames.map((n) => `${n}1`);
+  if (spec.cw) {
+    // Тот же многоугольник, обход в другую сторону: A на месте, остальные — зеркально.
+    const clockwise = (pts) => [pts[0], ...pts.slice(1).reverse()];
+    base = clockwise(base);
+    if (top) top = clockwise(top);
+  }
 
   const vertices = {};
   const order = [];

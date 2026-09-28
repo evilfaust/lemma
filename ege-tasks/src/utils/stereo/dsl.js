@@ -53,6 +53,8 @@ export function parseBodyLine(line) {
     else if (/^[A-ZА-Я]$/.test(w)) apex = w.replace('С', 'S').replace('Д', 'D');
   }
   const spec = { kind };
+  // «куб 4 по часовой» — буквы основания по часовой стрелке («против часовой» — как обычно).
+  if (rest.some((w) => /^(часов\S*|cw)$/i.test(w)) && !rest.some((w) => /^против$/i.test(w))) spec.cw = true;
   if (kind === 'cube') spec.a = named.a ?? nums[0];
   if (kind === 'box') { spec.a = named.a ?? nums[0]; spec.b = named.b ?? nums[1]; spec.c = named.c ?? nums[2]; }
   if (kind === 'prism' || kind === 'pyramid') {
@@ -70,6 +72,11 @@ const fmt = (x) => String(Math.round(Number(x) * 100) / 100);
 /** Тело → строка блока. */
 export function bodyLine(specIn) {
   const s = normalizeBodySpec(specIn);
+  const line = bodyShapeLine(s);
+  return s.cw ? `${line} по часовой` : line;
+}
+
+function bodyShapeLine(s) {
   switch (s.kind) {
     case 'cube': return `куб ${fmt(s.a)}`;
     case 'box': return `параллелепипед ${fmt(s.a)} ${fmt(s.b)} ${fmt(s.c)}`;

@@ -865,6 +865,13 @@ export default function StereoEditor({
               </Form.Item>
             )}
           </Space>
+          <Form.Item
+            name="cw"
+            valuePropName="checked"
+            extra="Если смотреть сверху: A — спереди слева, B — сзади слева, дальше по кругу. Так подписывают в части учебников (Атанасян). Без галочки — против часовой: B спереди справа."
+          >
+            <Checkbox>Буквы основания по часовой стрелке</Checkbox>
+          </Form.Item>
         </Form>
       </Modal>
     </div>
