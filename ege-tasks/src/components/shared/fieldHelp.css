@@ -1,0 +1,29 @@
+/* Справка по полю (кнопка «?» у панели вставки) — FieldHelp.jsx */
+.field-help .ant-tabs-content-holder { max-height: min(66vh, 680px); overflow-y: auto; padding-right: 4px; }
+.field-help__lead { margin: 0 0 12px; color: #6b7280; font-size: 13px; }
+.field-help__note { margin: 12px 0 0; color: #6b7280; font-size: 12px; }
+.field-help__item { border: 1px solid #eef0f3; border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.field-help__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.field-help__what { font-size: 13px; color: #111827; }
+.field-help__body { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.field-help__code {
+  margin: 0;
+  padding: 8px 10px;
+  background: #f6f8fa;
+  border: 1px solid #eef0f3;
+  border-radius: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.field-help__preview { min-width: 0; font-size: 14px; }
+.field-help__preview svg { max-width: 100%; height: auto; }
+.field-help__tips { margin: 0; }
+.field-help__tips > div { padding: 8px 0; border-top: 1px solid #f1f5f9; }
+.field-help__tips dt { font-weight: 600; font-size: 13px; }
+.field-help__tips dd { margin: 2px 0 0; color: #374151; font-size: 13px; }
+@media (max-width: 700px) {
+  .field-help__body { grid-template-columns: 1fr; }
+}

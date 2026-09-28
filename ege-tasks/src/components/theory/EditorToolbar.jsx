@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
 import TableModifiersHelp from '../shared/TableModifiersHelp';
+import FieldHelp from '../shared/FieldHelp';
 import FormulaPalette from './FormulaPalette';
 import CropModal from '../shared/CropModal';
 import NumberLineModal from '../shared/NumberLineModal';
@@ -356,6 +357,7 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<CodeSandboxOutlined />}
             aria-label="Стереочертёж" onClick={openStereo} />
         </Tooltip>
+        <FieldHelp onInsert={(md) => insertIntoEditor(editorRef.current, { text: md })} />
         <Tooltip title="Ссылка">
           <Button size="small" type="text" className="tf-btn" icon={<LinkOutlined />}
             onClick={() => setLinkModalOpen(true)} />

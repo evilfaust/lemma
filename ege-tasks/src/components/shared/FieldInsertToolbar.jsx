@@ -4,8 +4,9 @@ import {
   LineChartOutlined, RiseOutlined, TableOutlined,
 } from '@ant-design/icons';
 import TableModifiersHelp from './TableModifiersHelp';
+import FieldHelp from './FieldHelp';
 
-const ALL = ['roots', 'table', 'numline', 'plot', 'vectors', 'grid', 'stereo'];
+const ALL = ['roots', 'table', 'numline', 'plot', 'vectors', 'grid', 'stereo', 'help'];
 const btn = { fontWeight: 400 };
 
 /**
@@ -76,6 +77,7 @@ export default function FieldInsertToolbar({
           </Button>
         </Tooltip>
       )}
+      {has('help') && <FieldHelp onInsert={(md) => tools.insertSnippet(field, md)} />}
     </>
   );
 }
