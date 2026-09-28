@@ -289,11 +289,18 @@
   height: auto;
   max-height: var(--wcd-fig-h);
 }
+.wcd-task-text .mr-figure .stereo-figure {
+  width: var(--wcd-fig-w);
+  max-width: 100%;
+  margin: 0 auto;
+}
+.wcd-task-text .mr-figure .stereo-figure svg { max-width: 100% !important; }
 
 .wcd-root--nofig .wcd-task-image,
 .wcd-root--nofig .wcd-task-text .mr-figure,
 .wcd-root--nofig .wcd-task-text .numline,
 .wcd-root--nofig .wcd-task-text .coordplot,
+.wcd-root--nofig .wcd-task-text .stereo-figure,
 .wcd-root--nofig .wcd-task-text img { display: none; }
 
 .wcd-task-code {

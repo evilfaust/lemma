@@ -32,6 +32,14 @@ describe('splitSideFigure — какой рисунок уходит вбок', 
     expect(splitSideFigure('Векторы\n``` vectors\nvec a 0 0 1 1\n```').figure.kind).toBe('drawing');
   });
 
+  it('стереочертёж — тоже чертёж: выносится вбок, в ячейке остаётся', () => {
+    const STEREO = '```stereo\nпризма 3\nM на A1C1 1:2\n```';
+    const { figure, text } = splitSideFigure(`а) Каким плоскостям принадлежит точка M?\n\n${STEREO}`);
+    expect(figure).toEqual({ kind: 'drawing', md: STEREO });
+    expect(text).not.toContain('```');
+    expect(splitSideFigure('| 1) `stereo: куб 4` | 2) `stereo: пирамида 4` |').figure).toBeNull();
+  });
+
   it('картинка markdown в своей строке', () => {
     const md = 'Найдите угол $ABC$.\n\n![image](https://a.test/f.png)\n\nОтвет дайте в градусах.';
     const { figure, text } = splitSideFigure(md);

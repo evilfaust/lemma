@@ -465,6 +465,15 @@
   width: 100%;
   height: auto;
 }
+/* Стереочертёж (```stereo) — блочный span, а его SVG несёт инлайновый потолок
+   `max-width: <натуральная ширина>px`: без !important рычаг L/XL упирался бы
+   в него и чертёж не рос. */
+.ps-task-text .mr-figure .stereo-figure {
+  width: var(--ps-fig-w);
+  max-width: 100%;
+  margin: 0 auto;
+}
+.ps-task-text .mr-figure .stereo-figure svg { max-width: 100% !important; }
 
 /* Чертёж В ЯЧЕЙКЕ таблицы — вторая форма записи (`numline: …` одиночными
    бэктиками; fenced-блок в ячейке не работает). MathRenderer рендерит её без
@@ -488,6 +497,12 @@
   width: 100%;
   height: auto;
 }
+/* Стереочертёж в ячейке (`stereo: …`) ширину и потолок ставит инлайном —
+   перебиваем, иначе рычаг размера его не касается. */
+.ps-task-text td .stereo-inline,
+.ps-task-text th .stereo-inline { width: var(--ps-fig-cell-w) !important; }
+.ps-task-text td .stereo-inline > svg,
+.ps-task-text th .stereo-inline > svg { max-width: 100% !important; }
 /* Картинка в ячейке считается от ячейки по той же причине. */
 .ps-task-text td img,
 .ps-task-text th img { max-width: var(--ps-fig-cell-w); }
@@ -527,7 +542,8 @@
 .ps-task-aside--drawing { width: var(--ps-fig-side-w); }
 .ps-task-aside .mr-figure { margin: 0 !important; }
 .ps-task-text .ps-task-aside .mr-figure .numline,
-.ps-task-text .ps-task-aside .mr-figure .coordplot {
+.ps-task-text .ps-task-aside .mr-figure .coordplot,
+.ps-task-text .ps-task-aside .mr-figure .stereo-figure {
   display: block;
   width: 100%;
 }
@@ -548,6 +564,7 @@
 .ps-root--nofig .ps-task-text .mr-figure,
 .ps-root--nofig .ps-task-text .numline,
 .ps-root--nofig .ps-task-text .coordplot,
+.ps-root--nofig .ps-task-text .stereo-figure,
 .ps-root--nofig .ps-task-text img { display: none; }
 
 .ps-task-code {

@@ -350,6 +350,8 @@ describe('Лист задач — чертежи', () => {
     expect(hasFigure(figTask)).toBe(true);
     expect(hasFigure({ statement_md: 'Смотри ![](http://a/b.png)' })).toBe(true);
     expect(hasFigure({ statement_md: 'Прямая\n```numline\ndomain 0 2\n```' })).toBe(true);
+    expect(hasFigure({ statement_md: 'Призма\n```stereo\nпризма 3\n```' })).toBe(true);
+    expect(hasFigure({ statement_md: '| 1) `stereo: куб 4` |' })).toBe(true);
     expect(hasFigure({ statement_md: 'Найдите $x$' })).toBe(false);
   });
 
