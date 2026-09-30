@@ -5,7 +5,7 @@ import {
 import {
   CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
   EditOutlined, LeftOutlined, RightOutlined, PlayCircleOutlined, FileTextOutlined, BookOutlined,
-  QuestionOutlined,
+  QuestionOutlined, CodeOutlined,
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import StereoCanvas from './StereoCanvas';
@@ -25,6 +25,7 @@ import {
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, applyColorCommand, renamePoint,
+  opToCommand, editStepCommand,
 } from '../../utils/stereo';
 import './stereo.css';
 
@@ -281,6 +282,7 @@ export default function StereoEditor({
     if (r.op) commit(r.op);
     if (r.attention) attention(r.attention);
     if (r.rename) setRenameTarget(r.rename.name);
+    if (r.erase) deleteStep(r.erase.opId);
     if (r.view) {
       // Вид перпендикулярно плоскости — и сразу обратно к вращению.
       setCamera((c) => cameraFacing(r.view.normal, c));
@@ -431,8 +433,10 @@ export default function StereoEditor({
   };
 
   // --- журнал -----------------------------------------------------------------
+  // Сцену берём из sceneRef: удаление зовёт и инструмент «Удалить» из
+  // запомненного обработчика клика.
   const deleteStep = (opId) => {
-    const { scene: next, removed } = removeOpCascade(scene, opId);
+    const { scene: next, removed } = removeOpCascade(sceneRef.current, opId);
     if (removed.length <= 1) { setScene(next); setPending([]); return; }
     modal.confirm({
       title: `Удалить ${removed.length} шага?`,
@@ -442,6 +446,24 @@ export default function StereoEditor({
       cancelText: 'Отмена',
       onOk: () => { setScene(next); setPending([]); },
     });
+  };
+
+  // Правка шага командой: шаг заменяется на месте, дальнейшие пересчитываются.
+  const [editCmd, setEditCmd] = useState(null); // { opId, text, error }
+  const startStepEdit = (op) => {
+    setEditNote(null);
+    setEditCmd({ opId: op.id, text: opToCommand(op, model.opsById), error: '' });
+  };
+  const applyStepEdit = () => {
+    if (!editCmd) return;
+    const res = editStepCommand(sceneRef.current, editCmd.opId, editCmd.text);
+    if (res.error) { setEditCmd({ ...editCmd, error: res.error }); return; }
+    setScene(res.scene);
+    setEditCmd(null);
+    setPending([]);
+    if (res.broken.length) {
+      showNotice('error', `После правки не строятся шаги ${res.broken.join(', ')} — поправьте их или верните как было (Ctrl+Z)`);
+    }
   };
 
   const clearAll = () => {
@@ -724,8 +746,32 @@ export default function StereoEditor({
                     onClick={() => (replay ? goStep(st.index + 1) : setFlashStep(st.index))}
                   >
                     <span className="stereo-step__no">{st.index + 1}</span>
-                    <span className="stereo-step__text">
-                      {describeOp(st.op, model.opsById)}
+                    <span
+                      className="stereo-step__text"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (opToCommand(st.op, model.opsById)) startStepEdit(st.op);
+                      }}
+                    >
+                      {editCmd && editCmd.opId === st.op.id ? (
+                        <>
+                          <Input
+                            size="small"
+                            autoFocus
+                            className="stereo-step__cmd"
+                            aria-label="Команда шага"
+                            value={editCmd.text}
+                            status={editCmd.error ? 'error' : undefined}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setEditCmd({ ...editCmd, text: e.target.value, error: '' })}
+                            onPressEnter={applyStepEdit}
+                            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEditCmd(null); } }}
+                          />
+                          {editCmd.error
+                            ? <div className="stereo-cmd-error">{editCmd.error}</div>
+                            : <div className="stereo-cmd-help">Enter — заменить шаг, Esc — отмена</div>}
+                        </>
+                      ) : describeOp(st.op, model.opsById)}
                       {/* Величина угла — только учителю: ученикам в эфир не уходит. */}
                       {st.ok && st.created.value && (
                         <Tooltip title="Видно только вам — на чертёж и ученикам не попадает">
@@ -748,6 +794,17 @@ export default function StereoEditor({
                         />
                       ) : st.op.note && <div className="stereo-step__note">{st.op.note}</div>}
                     </span>
+                    <Tooltip title={opToCommand(st.op, model.opsById) ? 'Изменить команду шага (или двойной клик)' : 'Этот шаг текстом не выражается'}>
+                      <Button
+                        className="stereo-step__del"
+                        size="small"
+                        type="text"
+                        icon={<CodeOutlined />}
+                        disabled={!opToCommand(st.op, model.opsById)}
+                        onClick={(e) => { e.stopPropagation(); startStepEdit(st.op); }}
+                        aria-label="Изменить команду шага"
+                      />
+                    </Tooltip>
                     <Tooltip title="Подпись к шагу">
                       <Button
                         className="stereo-step__del"

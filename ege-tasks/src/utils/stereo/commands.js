@@ -27,7 +27,7 @@
 
 import { prettyName } from './bodies';
 import {
-  newOpId, refName, planeName, pointInPlane, pointOnLineRef, makeAngleOp,
+  newOpId, refName, planeName, pointInPlane, pointOnLineRef, makeAngleOp, evaluateScene,
 } from './scene';
 import { colorKeyFromWord } from './render';
 import { nextFreeName, nextFootName } from './naming';
@@ -577,3 +577,42 @@ export function opToCommand(op, opsById = {}) {
     default: return '';
   }
 }
+
+// --- правка шага командой -------------------------------------------------------
+
+const NAME_FIELDS = ['name', 'at', 'foot'];
+
+/**
+ * Заменить шаг журнала новой командой — на том же месте и с тем же id
+ * (прямые и плоскости по id шага, подпись и цвет не теряются). Команда
+ * разбирается на чертеже ДО этого шага. Имя, которое учитель в новой команде
+ * не написал, остаётся прежним — иначе автоимя могло совпасть с точкой
+ * дальнейшего шага.
+ * @returns {{ scene, broken: number[] } | { error }} broken — номера (с 1)
+ *   дальнейших шагов, которые после правки перестали строиться
+ */
+export function editStepCommand(scene, opId, text) {
+  const ops = scene?.ops || [];
+  const idx = ops.findIndex((o) => o.id === opId);
+  if (idx < 0) return { error: 'Нет такого шага' };
+  const r = parseCommand(text, evaluateScene(scene, { upTo: idx }));
+  if (r.error) return { error: r.error };
+  if (!r.op) return { error: 'Шаг — это построение; цвет, имя и отмена делаются отдельно' };
+  const old = ops[idx];
+  const typed = normalizeCommand(text);
+  const op = { ...r.op, id: old.id };
+  for (const f of NAME_FIELDS) {
+    if (!old[f] || !op[f] || op[f] === old[f]) continue;
+    const written = new RegExp(`(^|[^A-Z0-9])${op[f]}(?![0-9])`).test(typed);
+    if (!written) op[f] = old[f];
+  }
+  if (old.note) op.note = old.note;
+  if (old.color) op.color = old.color;
+  const next = { ...scene, ops: ops.map((o, i) => (i === idx ? op : o)) };
+  const was = evaluateScene(scene).steps;
+  const now = evaluateScene(next).steps;
+  if (!now[idx].ok) return { error: now[idx].error };
+  const broken = now.filter((st, i) => i > idx && !st.ok && was[i]?.ok).map((st) => st.index + 1);
+  return { scene: next, broken };
+}
+

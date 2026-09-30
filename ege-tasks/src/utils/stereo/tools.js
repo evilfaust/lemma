@@ -32,6 +32,7 @@ export const TOOLS = [
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'O' },
   { key: 'rename', label: 'Имя', glyph: 'Aa', hot: 'R' },
+  { key: 'erase', label: 'Удалить', glyph: '⌫', hot: 'D' },
   { key: 'attention', label: 'Внимание', glyph: '!', hot: 'W' },
 ];
 
@@ -121,6 +122,7 @@ export function toolHint(tool, pending = []) {
     case 'view': return 'Кликните по грани или сечению — чертёж повернётся перпендикулярно этой плоскости (Esc — отмена)';
     case 'color': return 'Клик по точке или отрезку — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
+    case 'erase': return 'Кликните по точке, прямой или сечению — уберётся шаг, который их построил (вместе с зависящими от него). Ctrl+Z вернёт';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
 }
@@ -155,6 +157,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'color': return ['point', 'line'];
     case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
+    case 'erase': return ['point', 'line', 'poly'];
     default: return [];
   }
 }
@@ -296,6 +299,13 @@ export function toolClick(tool, pending, hit, model) {
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
     case 'rename':
       return { pending: [], rename: { name: target.name } };
+    case 'erase': {
+      // Не операция журнала: редактор удаляет шаг, построивший объект.
+      const opId = stepOfTarget(model, target);
+      if (opId) return { pending: [], erase: { opId } };
+      const what = target.kind === 'point' ? 'Вершина' : 'Ребро';
+      return { pending: [], error: `${what} — часть самого тела, её не удалить (тело меняется кнопкой «Новый чертёж»)` };
+    }
     case 'color':
       // Цвет — оформление, не шаг журнала: решает редактор. Клик по линии —
       // кусок между соседними точками, Shift — прямая целиком (и когда с
@@ -325,6 +335,15 @@ export function toolClick(tool, pending, hit, model) {
     default:
       return { pending: [] };
   }
+}
+
+/** Id шага, который построил точку / линию / многоугольник; null — это тело. */
+export function stepOfTarget(model, target) {
+  let step = -1;
+  if (target.kind === 'point') step = model.points[target.name]?.step ?? -1;
+  else if (target.kind === 'line') step = model.lines.find((l) => l.id === target.id)?.step ?? -1;
+  else if (target.kind === 'poly') step = model.polys.find((pg) => pg.id === target.id)?.step ?? -1;
+  return step >= 0 ? model.steps[step]?.op.id || null : null;
 }
 
 /**
