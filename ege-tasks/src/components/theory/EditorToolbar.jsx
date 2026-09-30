@@ -7,7 +7,7 @@ import {
   MinusOutlined, FunctionOutlined, ContainerOutlined, DownOutlined,
   InboxOutlined, ScissorOutlined, ReloadOutlined, BorderHorizontalOutlined,
   DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined,
-  PaperClipOutlined, FolderOpenOutlined, CodeSandboxOutlined
+  PaperClipOutlined, FolderOpenOutlined, CodeSandboxOutlined, RadiusSettingOutlined
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
 import TableModifiersHelp from '../shared/TableModifiersHelp';
@@ -18,7 +18,7 @@ import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
 import GridPaperModal from '../shared/GridPaperModal';
 import MaterialPickerModal from '../workspace/MaterialPickerModal';
-import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor } from '../../utils/plotSnippet';
+import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor } from '../../utils/plotSnippet';
 import { materialsApi } from '../../shared/services/pb/filesClient';
 import { dataUrlToFile } from '../../utils/cropImage';
 import './EditorToolbar.css';
@@ -26,6 +26,8 @@ import './EditorToolbar.css';
 // Стереоредактор тяжёлый (движок + холст) — грузится, только когда нужен.
 const StereoModal = lazy(() => import('../stereo/StereoModal'));
 const loadStereoMarkdown = () => import('../../utils/stereo/dsl').then((m) => m.stereoBlockMarkdown);
+const PlanimModal = lazy(() => import('../planim/PlanimModal'));
+const loadPlanimMarkdown = () => import('../../utils/planim/dsl').then((m) => m.planimBlockMarkdown);
 
 // Вертикальный разделитель групп — как в тулбаре редактора геометрии.
 const DIVIDER = <Divider type="vertical" className="tf-divider" />;
@@ -115,6 +117,16 @@ export default function EditorToolbar({ editorRef }) {
       ? findStereoAtCursor(view.state.doc.toString(), view.state.selection.main.head)
       : null;
     setStereo(found ? { spec: found.spec, format: found.format, range: [found.start, found.end] } : {});
+  }, [editorRef]);
+
+  // Планиметрический чертёж: курсор внутри ```planim / `planim: …` — правка его, иначе новый.
+  const [planim, setPlanim] = useState(null);
+  const openPlanim = useCallback(() => {
+    const view = editorRef.current?.view;
+    const found = view
+      ? findPlanimAtCursor(view.state.doc.toString(), view.state.selection.main.head)
+      : null;
+    setPlanim(found ? { spec: found.spec, format: found.format, range: [found.start, found.end] } : {});
   }, [editorRef]);
 
   const openGrid = useCallback(() => {
@@ -353,6 +365,10 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<BorderOuterOutlined />}
             onClick={() => openGrid()} />
         </Tooltip>
+        <Tooltip title="Планиметрический чертёж: треугольники, окружности, высоты, углы, равные отрезки. Курсор внутри готового чертежа — откроется его правка">
+          <Button size="small" type="text" className="tf-btn" icon={<RadiusSettingOutlined />}
+            aria-label="Планиметрический чертёж" onClick={openPlanim} />
+        </Tooltip>
         <Tooltip title="Стереочертёж: куб, призма, пирамида, сечения, пунктир невидимых линий. Курсор внутри готового чертежа — откроется его правка">
           <Button size="small" type="text" className="tf-btn" icon={<CodeSandboxOutlined />}
             aria-label="Стереочертёж" onClick={openStereo} />
@@ -586,6 +602,26 @@ export default function EditorToolbar({ editorRef }) {
                 insertIntoEditor(editorRef.current, { text: snippet });
               }
               setStereo(null);
+            }}
+          />
+        </Suspense>
+      )}
+
+      {/* Modal: планиметрический редактор (блок ```planim или `planim: …`) */}
+      {planim && (
+        <Suspense fallback={null}>
+          <PlanimModal
+            open
+            initialSpec={planim.spec || null}
+            defaultFormat={planim.format || 'block'}
+            onClose={() => setPlanim(null)}
+            onApply={async ({ scene, color, grid, size, format }) => {
+              const toMarkdown = await loadPlanimMarkdown();
+              const snippet = toMarkdown(scene, { color, grid, size, format });
+              if (!planim.range || !replaceInEditor(editorRef.current, planim.range, snippet)) {
+                insertIntoEditor(editorRef.current, { text: snippet });
+              }
+              setPlanim(null);
             }}
           />
         </Suspense>

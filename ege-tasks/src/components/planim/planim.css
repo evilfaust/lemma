@@ -1,0 +1,84 @@
+/* Планиметрические чертежи: холст и редактор. Общая обвязка (панель, шаги,
+   подсказка, справка) — классы стереоредактора из ../stereo/stereo.css. */
+
+.planim-canvas { min-height: 260px; }
+
+/* Сетка редактора — только на экране, в чертёж задачи не попадает. */
+.planim-grid line {
+  stroke: #eef1f5;
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+
+.planim-mark-text { font-size: 15px; }
+
+/* Инструментов 24 — четыре в ряд, ряд = смысловая группа (точки, линии,
+   построения, окружности, пометки, оформление). Панель шире, чем у стерео:
+   «Перпендикуляр» и «Многоугольник» должны читаться целиком. */
+.planim-editor { grid-template-columns: minmax(0, 1fr) 372px; }
+.stereo-embedded .planim-editor { grid-template-columns: minmax(0, 1fr) 356px; }
+.planim-tools {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+.planim-tools .stereo-tool {
+  position: relative;
+  padding: 5px 2px 4px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.planim-tools .stereo-tool__glyph { font-size: 16px; }
+.planim-tools .stereo-tool__key {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 9px;
+  color: #9ca3af;
+}
+@media (max-width: 960px) {
+  .planim-editor, .stereo-embedded .planim-editor { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Настройки пометки (число дуг, подпись) — под инструментами. */
+.planim-toolopts {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 8px;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #374151;
+}
+.planim-toolopts .ant-input { flex: 1; min-width: 110px; }
+
+.planim-figure-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.planim-figure {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: center;
+  color: #1f2937;
+}
+.planim-figure:hover { border-color: #93c5fd; }
+.planim-figure.is-active { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; }
+.planim-figure svg { display: block; }
+
+@media (max-width: 600px) {
+  .planim-figure-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

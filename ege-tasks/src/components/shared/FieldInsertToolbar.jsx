@@ -1,12 +1,12 @@
 import { Button, Dropdown, Tooltip } from 'antd';
 import {
   BorderOuterOutlined, ClearOutlined, CodeSandboxOutlined, DashOutlined,
-  LineChartOutlined, PictureOutlined, RiseOutlined, TableOutlined,
+  LineChartOutlined, PictureOutlined, RadiusSettingOutlined, RiseOutlined, TableOutlined,
 } from '@ant-design/icons';
 import TableModifiersHelp from './TableModifiersHelp';
 import FieldHelp from './FieldHelp';
 
-const ALL = ['roots', 'table', 'image', 'numline', 'plot', 'vectors', 'grid', 'stereo', 'help'];
+const ALL = ['roots', 'table', 'image', 'numline', 'plot', 'vectors', 'grid', 'planim', 'stereo', 'help'];
 const btn = { fontWeight: 400 };
 
 /**
@@ -74,6 +74,13 @@ export default function FieldInsertToolbar({
         <Tooltip title="Место для записи решения: поле в клетку, в линейку или чистое">
           <Button size="small" icon={<BorderOuterOutlined />} onClick={() => tools.openGrid(field)} style={btn}>
             Клетка
+          </Button>
+        </Tooltip>
+      )}
+      {has('planim') && tools.openPlanim && (
+        <Tooltip title="Планиметрический чертёж: треугольники, четырёхугольники, окружности, высоты, углы, равные отрезки. Курсор внутри готового чертежа — откроется его правка">
+          <Button size="small" icon={<RadiusSettingOutlined />} onClick={() => tools.openPlanim(field)} style={btn}>
+            Планиметрия
           </Button>
         </Tooltip>
       )}

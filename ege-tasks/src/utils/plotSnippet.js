@@ -11,6 +11,7 @@
 //   `plot: x -3 3; f x` / `vectors: …`      — inline (ячейки markdown-таблиц)
 
 import { stereoSpecFromInline } from './stereo/inline';
+import { planimSpecFromInline } from './planim/inline';
 
 const FENCE_OPEN = /^\s{0,3}```(plot|vectors)\s*$/;
 const FENCE_CLOSE = /^\s{0,3}```\s*$/;
@@ -114,5 +115,22 @@ export function findStereoAtCursor(text, pos) {
   const found = findSnippetAtCursor(text, pos, STEREO_FENCE_OPEN, STEREO_INLINE_RE);
   if (!found) return null;
   const spec = found.format === 'inline' ? stereoSpecFromInline(found.spec) : found.spec;
+  return { start: found.start, end: found.end, spec, format: found.format };
+}
+
+// Планиметрический чертёж (utils/planim/dsl.js): блок ```planim и инлайн
+// `planim: …` (команды через «;», для ячеек таблиц — utils/planim/inline.js).
+const PLANIM_FENCE_OPEN = /^\s{0,3}```(planim)\s*$/;
+const PLANIM_INLINE_RE = /`(planim)\s*:([^`\n]*)`/gi;
+
+/**
+ * Найти планиметрический чертёж, внутри которого стоит курсор. spec — всегда
+ * в виде блока (строка на команду), format — в каком виде он записан.
+ * @returns {{start:number,end:number,spec:string,format:'block'|'inline'}|null}
+ */
+export function findPlanimAtCursor(text, pos) {
+  const found = findSnippetAtCursor(text, pos, PLANIM_FENCE_OPEN, PLANIM_INLINE_RE);
+  if (!found) return null;
+  const spec = found.format === 'inline' ? planimSpecFromInline(found.spec) : found.spec;
   return { start: found.start, end: found.end, spec, format: found.format };
 }

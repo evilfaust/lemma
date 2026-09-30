@@ -86,7 +86,7 @@ describe('редактор геометрической задачи', () => {
   it('новая задача получает следующий свободный код; тулбар как в основном редакторе', async () => {
     mount();
     await waitFor(() => expect(screen.getByPlaceholderText('GEO-001').value).toBe('GEO-254'));
-    for (const label of ['Таблица ▾', 'Числовая прямая', 'График', 'Векторы', 'Клетка', 'Стерео']) {
+    for (const label of ['Таблица ▾', 'Числовая прямая', 'График', 'Векторы', 'Клетка', 'Планиметрия', 'Стерео']) {
       expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(2); // условие + решение
     }
   });

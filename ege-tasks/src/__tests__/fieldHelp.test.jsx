@@ -9,16 +9,18 @@ import { parseNumberLine } from '../utils/numberLine';
 import { parseGridPaper } from '../utils/gridPaper';
 import { parseStereoBlock } from '../utils/stereo/dsl';
 import { stereoSpecFromInline } from '../utils/stereo/inline';
+import { parsePlanimBlock } from '../utils/planim/dsl';
+import { planimSpecFromInline } from '../utils/planim/inline';
 
 // Все спецификации чертежа в примере: блоки ```lang и строки `lang: …`.
-const LANG = { plot: ['plot', 'vectors'], numline: ['numline'], grid: ['grid'], stereo: ['stereo'] };
+const LANG = { plot: ['plot', 'vectors'], numline: ['numline'], grid: ['grid'], stereo: ['stereo'], planim: ['planim'] };
 function specsOf(md, kind) {
   const langs = LANG[kind];
   const out = [];
   for (const m of md.matchAll(/```(\w+)\n([\s\S]*?)\n```/g)) if (langs.includes(m[1])) out.push(m[2]);
   for (const m of md.matchAll(/`(\w+):\s*([^`]*)`/g)) {
     if (!langs.includes(m[1])) continue;
-    out.push(kind === 'stereo' ? stereoSpecFromInline(m[2]) : m[2]);
+    out.push(kind === 'stereo' ? stereoSpecFromInline(m[2]) : kind === 'planim' ? planimSpecFromInline(m[2]) : m[2]);
   }
   return out;
 }
@@ -35,13 +37,18 @@ const CHECK = {
   },
   grid: (s) => expect(parseGridPaper(s).rows).toBeGreaterThan(0),
   stereo: (s) => expect(parseStereoBlock(s).errors).toEqual([]),
+  planim: (s) => {
+    const r = parsePlanimBlock(s);
+    expect(r.errors).toEqual([]);
+    expect(r.scene.ops.length).toBeGreaterThan(0);
+  },
 };
 
 describe('справка по полю — сторож', () => {
   const drawings = FIELD_HELP.flatMap((sec) => sec.items).filter((it) => it.kind);
 
   it('разделы на месте, в каждом есть примеры', () => {
-    expect(FIELD_HELP.map((s) => s.key)).toEqual(['text', 'table', 'numline', 'plot', 'grid', 'stereo']);
+    expect(FIELD_HELP.map((s) => s.key)).toEqual(['text', 'table', 'numline', 'plot', 'grid', 'planim', 'stereo']);
     FIELD_HELP.forEach((s) => expect(s.items.length).toBeGreaterThan(0));
     expect(FIELD_TIPS.length).toBeGreaterThan(0);
   });

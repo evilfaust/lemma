@@ -6,7 +6,9 @@ import NumberLineSVG from '../../components/shared/NumberLineSVG';
 import CoordPlotSVG from '../../components/shared/CoordPlotSVG';
 import GridPaperSVG from '../../components/shared/GridPaperSVG';
 import StereoSVG from '../../components/shared/StereoSVG';
+import PlanimSVG from '../../components/shared/PlanimSVG';
 import { stereoSpecFromInline, STEREO_INLINE_WIDTH } from '../../utils/stereo/inline';
+import { planimSpecFromInline, PLANIM_INLINE_WIDTH } from '../../utils/planim/inline';
 import { prepareMarkdownTables } from '../../utils/markdownTables';
 import remarkTableModifiers from '../../utils/remarkTableModifiers';
 import remarkImageSize from '../../utils/remarkImageSize';
@@ -17,13 +19,14 @@ import './imageSize.css';
 // ```plot / ```vectors / ```grid) и его содержимое. Возвращает { kind, spec }
 // либо null, если это обычный блок кода.
 // `\b` не годится: у кириллического алиаса ```клетка границы слова нет.
-const DRAWING_LANG = /language-(numline|plot|vectors|grid|cells|клетка|stereo)(?![a-z0-9-])/i;
+const DRAWING_LANG = /language-(numline|plot|vectors|grid|cells|клетка|stereo|planim)(?![a-z0-9-])/i;
 
 function drawingKind(lang) {
   const l = lang.toLowerCase();
   if (l === 'numline') return 'numline';
   if (l === 'plot' || l === 'vectors') return 'plot';
   if (l === 'stereo') return 'stereo';
+  if (l === 'planim') return 'planim';
   return 'grid';
 }
 
@@ -108,6 +111,7 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
             {drawing.kind === 'plot' && <CoordPlotSVG spec={drawing.spec} />}
             {drawing.kind === 'numline' && <NumberLineSVG spec={drawing.spec} />}
             {drawing.kind === 'stereo' && <StereoSVG spec={drawing.spec} />}
+            {drawing.kind === 'planim' && <PlanimSVG spec={drawing.spec} />}
           </span>
         );
       }
@@ -128,6 +132,10 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
       // `stereo: куб 4; M на AA1 1:2` — стереочертёж в ячейке таблицы.
       if (!className && /^stereo:/i.test(str)) {
         return <StereoSVG spec={stereoSpecFromInline(str.replace(/^stereo:\s*/i, ''))} maxWidth={STEREO_INLINE_WIDTH} inline />;
+      }
+      // `planim: треугольник ABC 5 6 7; H = высота B AC` — планиметрический чертёж в ячейке.
+      if (!className && /^planim:/i.test(str)) {
+        return <PlanimSVG spec={planimSpecFromInline(str.replace(/^planim:\s*/i, ''))} maxWidth={PLANIM_INLINE_WIDTH} inline />;
       }
       // `grid: 10x6` — поле в клетку под запись решения прямо в ячейке.
       if (!className && /^(grid|cells|клетка):/i.test(str)) {

@@ -18,7 +18,7 @@ import {
   CalculatorOutlined, ExperimentOutlined, LineChartOutlined, FieldNumberOutlined,
   PercentageOutlined, HomeOutlined, CalendarOutlined, ProfileOutlined, ColumnWidthOutlined,
   MergeCellsOutlined, BlockOutlined, FilterOutlined,
-  BorderHorizontalOutlined, NodeIndexOutlined, CodeSandboxOutlined
+  BorderHorizontalOutlined, NodeIndexOutlined, CodeSandboxOutlined, RadiusSettingOutlined
 } from '@ant-design/icons';
 // ── Ленивая загрузка страниц-компонентов ────────────────────────────────────
 // Все компоненты ниже используются ТОЛЬКО как элементы маршрутов (через page-
@@ -71,6 +71,7 @@ const AchievementManager = lazy(() => import('./components/AchievementManager'))
 const GeometryTaskList = lazy(() => import('./components/GeometryTaskList'));
 const GeometryTopicManager = lazy(() => import('./components/geometry/GeometryTopicManager'));
 const StereoEditor = lazy(() => import('./components/stereo/StereoEditor'));
+const PlanimEditor = lazy(() => import('./components/planim/PlanimEditor'));
 const TDFManager = lazy(() => import('./components/tdf/TDFManager'));
 const TDFEditor = lazy(() => import('./components/tdf/TDFEditor'));
 const TDFVariantBuilder = lazy(() => import('./components/tdf/TDFVariantBuilder'));
@@ -190,6 +191,7 @@ export const R = {
   GEOMETRY_TASKS:      '/app/geometry/tasks',
   GEOMETRY_TOPICS:     '/app/geometry/topics',
   GEOMETRY_STEREO:     '/app/geometry/stereo',
+  GEOMETRY_PLANIM:     '/app/geometry/planim',
   // ТДФ
   TDF:                 '/app/tdf',
   TDF_EDITOR:          '/app/tdf/sets/:setId/edit',
@@ -318,6 +320,7 @@ const ROUTE_META = [
   { re: /^\/app\/geometry\/tasks/,         menuKey: 'geometry-tasks',   menuGroup: 'geometry', title: 'Геометрические задачи' },
   { re: /^\/app\/geometry\/topics/,        menuKey: 'geometry-topics',  menuGroup: 'geometry', title: 'Геометрия — Темы и подтемы' },
   { re: /^\/app\/geometry\/stereo/,        menuKey: 'geometry-stereo',  menuGroup: 'geometry', title: 'Геометрия — Стереометрия' },
+  { re: /^\/app\/geometry\/planim/,        menuKey: 'geometry-planim',  menuGroup: 'geometry', title: 'Геометрия — Планиметрия' },
   { re: /^\/app\/tdf$/,                    menuKey: 'tdf',              menuGroup: 'tdf-group', title: 'ТДФ — Теоремы, Определения, Формулы' },
   { re: /^\/app\/tdf\/formula-sheet/,      menuKey: 'formula-sheet',    menuGroup: 'tdf-group', title: 'ТДФ — Листы формул' },
   { re: /^\/app\/trig\/mixed/,             menuKey: 'trig-mixed',       menuGroup: 'trig', title: 'Тригонометрия — Смешанная работа' },
@@ -407,6 +410,7 @@ const MENU_KEY_PATH = {
   'geometry-tasks':         R.GEOMETRY_TASKS,
   'geometry-topics':        R.GEOMETRY_TOPICS,
   'geometry-stereo':        R.GEOMETRY_STEREO,
+  'geometry-planim':        R.GEOMETRY_PLANIM,
   tdf:                      R.TDF,
   'tdf-flashcards':         R.TDF,   // открывает список наборов; карточки — через TDFManager
   'formula-sheet':          R.FORMULA_SHEET,
@@ -772,6 +776,7 @@ function AppLayout() {
       key: 'geometry', icon: <CompassOutlined />, label: 'Геометрия', section: 'geometry',
       children: [
         { key: 'geometry-tasks',   icon: <UnorderedListOutlined />, label: 'Задачи' },
+        { key: 'geometry-planim',  icon: <RadiusSettingOutlined />, label: 'Планиметрия' },
         { key: 'geometry-stereo',  icon: <CodeSandboxOutlined />,   label: 'Стереометрия' },
         { key: 'geometry-topics',  icon: <FolderOutlined />,        label: 'Темы и подтемы', editOnly: true },
       ],
@@ -1101,6 +1106,7 @@ function App() {
               {/* Геометрия — список (viewer тоже видит) */}
               <Route path={R.GEOMETRY_TASKS}   element={<GeometryTaskList />} />
               <Route path={R.GEOMETRY_STEREO}  element={<StereoEditor />} />
+              <Route path={R.GEOMETRY_PLANIM}  element={<PlanimEditor />} />
 
               {/* ТДФ — viewer тоже видит */}
               <Route path={R.TDF}          element={<TDFPage />} />

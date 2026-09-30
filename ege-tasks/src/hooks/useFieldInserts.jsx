@@ -4,15 +4,17 @@ import NumberLineModal from '../components/shared/NumberLineModal';
 import PlotModal from '../components/shared/PlotModal';
 import GridPaperModal from '../components/shared/GridPaperModal';
 import { TABLE_SNIPPETS } from '../utils/markdownTables';
-import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor } from '../utils/plotSnippet';
+import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor } from '../utils/plotSnippet';
 import { insertAtCaret } from '../utils/caretInsert';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { stereoBlockMarkdown } from '../utils/stereo/dsl';
+import { planimBlockMarkdown } from '../utils/planim/dsl';
 import { imagesSnippetAt, normalizeBatch, BATCH_PER_ROW } from '../utils/imageSnippet';
 import { materialsApi } from '../shared/services/pb/filesClient';
 
 // Стереоредактор тяжёлый — грузится, только когда учитель его открыл.
 const StereoModal = lazy(() => import('../components/stereo/StereoModal'));
+const PlanimModal = lazy(() => import('../components/planim/PlanimModal'));
 // Пикер Библиотеки — тоже только по кнопке «Картинка».
 const MaterialPickerModal = lazy(() => import('../components/workspace/MaterialPickerModal'));
 
@@ -68,6 +70,7 @@ export default function useFieldInserts({ form, fields = {} }) {
   const [plotTarget, setPlotTarget] = useState(null);
   const [gridTarget, setGridTarget] = useState(null);
   const [stereoTarget, setStereoTarget] = useState(null);
+  const [planimTarget, setPlanimTarget] = useState(null);
   const [imageTarget, setImageTarget] = useState(null);
   const [imageSize, setImageSizeState] = useState(readImageSize);
   const imageSizeRef = useRef(imageSize);
@@ -145,6 +148,13 @@ export default function useFieldInserts({ form, fields = {} }) {
   const openStereo = useCallback((field) => {
     const found = findAt(field, findStereoAtCursor);
     setStereoTarget(found
+      ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
+      : { field });
+  }, [findAt]);
+
+  const openPlanim = useCallback((field) => {
+    const found = findAt(field, findPlanimAtCursor);
+    setPlanimTarget(found
       ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
       : { field });
   }, [findAt]);
@@ -358,12 +368,26 @@ export default function useFieldInserts({ form, fields = {} }) {
           />
         </Suspense>
       )}
+      {planimTarget && (
+        <Suspense fallback={null}>
+          <PlanimModal
+            open
+            initialSpec={planimTarget.spec || null}
+            defaultFormat={planimTarget.format || 'block'}
+            onClose={() => setPlanimTarget(null)}
+            onApply={({ scene, color, grid, size, format }) => {
+              applyTarget(planimTarget, planimBlockMarkdown(scene, { color, grid, size, format }));
+              setPlanimTarget(null);
+            }}
+          />
+        </Suspense>
+      )}
     </>
   );
 
   return {
     onCaret, fieldCaret, insertSnippet, replaceRange,
-    openNumline, openPlot, openGrid, openStereo, openImage, onImageFiles, tableMenu, fixRootsIn,
+    openNumline, openPlot, openGrid, openStereo, openPlanim, openImage, onImageFiles, tableMenu, fixRootsIn,
     modals,
   };
 }

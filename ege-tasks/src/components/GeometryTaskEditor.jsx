@@ -22,6 +22,7 @@ import { api } from '../shared/services/pocketbase';
 import { normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
 import { ggbXmlToSvg } from '../utils/ggbToSvg';
 import { stereoDrawingSvg, stereoSpecFromSvg } from '../utils/stereo/dsl';
+import { planimDrawingSvg, planimSpecFromSvg } from '../utils/planim/dsl';
 import useFieldInserts from '../hooks/useFieldInserts';
 import TabCondition from './geometry/TabCondition';
 import TabDrawing from './geometry/TabDrawing';
@@ -29,6 +30,7 @@ import TabLayout from './geometry/TabLayout';
 import TabSolution from './geometry/TabSolution';
 
 const StereoModal = lazy(() => import('./stereo/StereoModal'));
+const PlanimModal = lazy(() => import('./planim/PlanimModal'));
 
 const { Title } = Typography;
 
@@ -108,6 +110,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
   const [drawingSvg, setDrawingSvg] = useState(task?.drawing_svg || '');
   const [convertingSvg, setConvertingSvg] = useState(false);
   const [stereoOpen, setStereoOpen] = useState(false);
+  const [planimOpen, setPlanimOpen] = useState(false);
 
   // ── Состояние макета ─────────────────────────────────────────────────────
   const [layoutPrint, setLayoutPrint] = useState(() => {
@@ -259,6 +262,17 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
     setDirty(true);
     setStereoOpen(false);
     message.success('Стереочертёж стал чертежом задачи');
+  }, [message]);
+
+  // Планиметрический чертёж — так же: SVG задачи с исходником внутри.
+  const planimSpec = planimSpecFromSvg(drawingSvg);
+  const handlePlanimApply = useCallback(({ scene, color, grid }) => {
+    setDrawingSvg(planimDrawingSvg(scene, { color, grid }));
+    setDrawingView('svg');
+    setGgbSaved(true);
+    setDirty(true);
+    setPlanimOpen(false);
+    message.success('Чертёж стал чертежом задачи');
   }, [message]);
 
   // ── Управление макетом ────────────────────────────────────────────────────
@@ -489,6 +503,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         onSvgChange={(svg) => { setDrawingSvg(svg); setDirty(true); }}
         isStereo={!!stereoSpec}
         onOpenStereo={() => setStereoOpen(true)}
+        isPlanim={!!planimSpec}
+        onOpenPlanim={() => setPlanimOpen(true)}
       />,
     },
     {
@@ -603,6 +619,18 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
             applyLabel={stereoSpec ? 'Обновить чертёж задачи' : 'Сделать чертежом задачи'}
             onClose={() => setStereoOpen(false)}
             onApply={handleStereoApply}
+          />
+        </Suspense>
+      )}
+      {planimOpen && (
+        <Suspense fallback={null}>
+          <PlanimModal
+            open
+            initialSpec={planimSpec}
+            showFormat={false}
+            applyLabel={planimSpec ? 'Обновить чертёж задачи' : 'Сделать чертежом задачи'}
+            onClose={() => setPlanimOpen(false)}
+            onApply={handlePlanimApply}
           />
         </Suspense>
       )}
