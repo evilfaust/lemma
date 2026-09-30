@@ -18,7 +18,7 @@ const EXAM_TYPE_LABELS = {
 };
 
 const shortText = (md, limit = 90) => {
-  const plain = String(md || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '[рис.]').replace(/\s+/g, ' ').trim();
+  const plain = String(md || '').replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '[рис.]').replace(/\s+/g, ' ').trim();
   return plain.length > limit ? `${plain.slice(0, limit)}…` : plain;
 };
 

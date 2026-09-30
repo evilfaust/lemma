@@ -13,7 +13,7 @@ export const DIFFICULTY_LABELS = { 1: 'Базовый', 2: 'Средний', 3: 
 function statementPreview(md) {
   if (!md) return '';
   return String(md)
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')   // ![alt](url) — картинки
+    .replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '')   // ![alt](url){M} — картинки
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // [text](url) — ссылки → текст
     .replace(/\$\$([\s\S]*?)\$\$/g, '$1')    // $$...$$
     .replace(/\$([^$]*)\$/g, '$1')           // $...$

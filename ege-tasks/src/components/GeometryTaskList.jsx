@@ -56,7 +56,7 @@ const { Text } = Typography;
 
 // Условие для превью карточки: убираем картинки (чертёж показываем отдельно),
 // чтобы внутри сниппета не дублировался рисунок и не распухал текст.
-const stripStatementImages = (md = '') => String(md).replace(/!\[[^\]]*\]\([^)]*\)/g, '').trim();
+const stripStatementImages = (md = '') => String(md).replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '').trim();
 
 
 export default function GeometryTaskList() {

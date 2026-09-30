@@ -9,7 +9,9 @@ import StereoSVG from '../../components/shared/StereoSVG';
 import { stereoSpecFromInline, STEREO_INLINE_WIDTH } from '../../utils/stereo/inline';
 import { prepareMarkdownTables } from '../../utils/markdownTables';
 import remarkTableModifiers from '../../utils/remarkTableModifiers';
+import remarkImageSize from '../../utils/remarkImageSize';
 import './markdownTables.css';
+import './imageSize.css';
 
 // Из <pre>-узла react-markdown достаёт fenced-блок чертежа (```numline /
 // ```plot / ```vectors / ```grid) и его содержимое. Возвращает { kind, spec }
@@ -77,6 +79,7 @@ const rehypeKatexOptions = {
  * - answerBoxes=true: пустые ячейки таблицы рендерятся как поля для записи ответа
  * - модификаторы таблиц: «{без линий}» / «{бланк}» перед таблицей
  *   (см. utils/remarkTableModifiers.js)
+ * - размер картинки: ![подпись](адрес){S|M|L|XL} (utils/remarkImageSize.js)
  */
 const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => {
   const sourceText = text ?? content;
@@ -186,7 +189,7 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath, remarkTableModifiers]}
+      remarkPlugins={[remarkGfm, remarkMath, remarkTableModifiers, remarkImageSize]}
       rehypePlugins={[[rehypeKatex, rehypeKatexOptions]]}
       components={components}
     >

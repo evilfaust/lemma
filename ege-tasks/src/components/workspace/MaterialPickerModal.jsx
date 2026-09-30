@@ -8,6 +8,7 @@
  *
  * kind='image' — только картинки (с миниатюрой в списке), multiple=false — выбор
  * одного файла (клик заменяет выбор). Так пикер встраивается в редактор теории.
+ * extra — свой блок под списком (редактор задач кладёт туда размер картинки).
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal, Input, Select, List, Checkbox, Radio, Tag, Spin, Empty, Space, Typography, Upload, Button, App, TreeSelect } from 'antd';
@@ -27,7 +28,7 @@ function isPdf(rec) {
 export default function MaterialPickerModal({
   open, onClose, onPick, existingIds = [],
   kind = '', multiple = true,
-  title = 'Прикрепить файл из Библиотеки', okText = 'Прикрепить',
+  title = 'Прикрепить файл из Библиотеки', okText = 'Прикрепить', extra = null,
 }) {
   const { message } = App.useApp();
   const { canEdit } = useAuth();
@@ -211,6 +212,7 @@ export default function MaterialPickerModal({
               />
             )}
           </Spin>
+          {extra && <div style={{ marginTop: 12 }}>{extra}</div>}
         </>
       )}
     </Modal>

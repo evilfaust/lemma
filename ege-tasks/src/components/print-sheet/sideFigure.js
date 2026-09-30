@@ -30,7 +30,10 @@ const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 
 // Картинка markdown в начале строки (отступ до 3 пробелов, дальше — код).
 // Хвост строки допускается: «![](…)На рисунке изображён лабиринт…».
-const IMAGE_AT_LINE_START = /^( {0,3})(!\[[^\]\n]*\]\([^)\n]*\))/;
+// Токен размера {S|M|L|XL} уходит вместе с картинкой (иначе остался бы в
+// тексте), а в колонку она встаёт без него: ширину сбоку задаёт настройка листа.
+const IMAGE_AT_LINE_START = /^( {0,3})(!\[[^\]\n]*\]\([^)\n]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?)/i;
+const SIZE_TOKEN_TAIL = /[ \t]*\{(?:s|m|l|xl)\}$/i;
 
 const IMAGE_TOKEN = /!\[/g;
 const HTML_IMAGE = /<img\b/gi;
@@ -119,5 +122,5 @@ export function splitSideFigure(md, { externalImage = false } = {}) {
   const kept = [...lines];
   if (rest.trim() === '') kept.splice(only.line, 1);
   else kept[only.line] = rest.replace(/^[ \t]+/, '');
-  return { figure: { kind: 'image', md: only.token }, text: kept.join('\n') };
+  return { figure: { kind: 'image', md: only.token.replace(SIZE_TOKEN_TAIL, '') }, text: kept.join('\n') };
 }

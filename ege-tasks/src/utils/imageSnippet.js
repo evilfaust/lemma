@@ -3,7 +3,8 @@
 // Сам файл живёт в «Библиотеке» (pb-files), в поле — только ссылка. Куда
 // встаёт картинка, решает строка под курсором: строка таблицы («| … |») —
 // в ячейку, в строку, без переводов строк (иначе таблица развалится); иначе —
-// отдельным абзацем.
+// отдельным абзацем. Размер — токен {S|M|L|XL} за картинкой, как в теории
+// (рендер — utils/remarkImageSize.js); без токена размер задаёт место вставки.
 
 // Подпись: скобки, «|» (разделитель ячеек) и переводы строк ломают разметку.
 export function mdImageAlt(s) {
@@ -32,13 +33,19 @@ export function isTableRowAt(text, pos) {
   return cur.slice(from, to).trim().startsWith('|');
 }
 
+/** Токен размера: 'S' | 'M' | 'L' | 'XL' → «{M}», иначе пусто. */
+export function imageSizeToken(size) {
+  const s = String(size ?? '').toUpperCase();
+  return ['S', 'M', 'L', 'XL'].includes(s) ? `{${s}}` : '';
+}
+
 /**
  * Сниппет картинки для вставки в позицию pos текста text.
  * В строке таблицы — голое ![…](…); в тексте — отдельной строкой: перевод
  * строки добавляется только там, где курсор не на границе строки.
  */
-export function imageSnippetAt(text, pos, { url, alt } = {}) {
-  const md = `![${mdImageAlt(alt)}](${mdImageUrl(url)})`;
+export function imageSnippetAt(text, pos, { url, alt, size } = {}) {
+  const md = `![${mdImageAlt(alt)}](${mdImageUrl(url)})${imageSizeToken(size)}`;
   const cur = String(text ?? '');
   const usable = Number.isFinite(pos) && pos >= 0 && pos <= cur.length;
   if (usable && isTableRowAt(cur, pos)) return md;

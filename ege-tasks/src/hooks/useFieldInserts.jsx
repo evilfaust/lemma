@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useRef, useState } from 'react';
-import { App } from 'antd';
+import { App, Segmented, Typography } from 'antd';
 import NumberLineModal from '../components/shared/NumberLineModal';
 import PlotModal from '../components/shared/PlotModal';
 import GridPaperModal from '../components/shared/GridPaperModal';
@@ -15,6 +15,19 @@ import { materialsApi } from '../shared/services/pb/filesClient';
 const StereoModal = lazy(() => import('../components/stereo/StereoModal'));
 // Пикер Библиотеки — тоже только по кнопке «Картинка».
 const MaterialPickerModal = lazy(() => import('../components/workspace/MaterialPickerModal'));
+
+// Размер вставляемой картинки помнится между задачами (и для Ctrl+V).
+const IMAGE_SIZE_KEY = 'taskEditor.imageSize';
+const IMAGE_SIZE_OPTIONS = [
+  { value: '', label: 'Авто' },
+  { value: 'S', label: 'S' },
+  { value: 'M', label: 'M' },
+  { value: 'L', label: 'L' },
+  { value: 'XL', label: 'XL' },
+];
+const readImageSize = () => {
+  try { return localStorage.getItem(IMAGE_SIZE_KEY) || ''; } catch { return ''; }
+};
 
 /**
  * Вставка в markdown-поля формы (условие, решение): таблицы, числовая прямая,
@@ -39,6 +52,13 @@ export default function useFieldInserts({ form, fields = {} }) {
   const [gridTarget, setGridTarget] = useState(null);
   const [stereoTarget, setStereoTarget] = useState(null);
   const [imageTarget, setImageTarget] = useState(null);
+  const [imageSize, setImageSizeState] = useState(readImageSize);
+  const imageSizeRef = useRef(imageSize);
+  imageSizeRef.current = imageSize;
+  const setImageSize = useCallback((v) => {
+    setImageSizeState(v);
+    try { localStorage.setItem(IMAGE_SIZE_KEY, v); } catch { /* no-op */ }
+  }, []);
 
   const textAreaOf = (field) => fieldsRef.current[field]?.ref?.current?.resizableTextArea?.textArea || null;
 
@@ -111,7 +131,9 @@ export default function useFieldInserts({ form, fields = {} }) {
   const insertImage = useCallback((field, { url, title }) => {
     if (!field || !url) return;
     const cur = form.getFieldValue(field) || '';
-    insertSnippet(field, imageSnippetAt(cur, fieldCaret(field)?.start, { url, alt: title }));
+    insertSnippet(field, imageSnippetAt(cur, fieldCaret(field)?.start, {
+      url, alt: title, size: imageSizeRef.current,
+    }));
   }, [form, fieldCaret, insertSnippet]);
 
   // Скриншот из буфера (Ctrl+V) или файл, брошенный на поле: грузим в
@@ -224,6 +246,16 @@ export default function useFieldInserts({ form, fields = {} }) {
             okText="Вставить"
             onClose={() => setImageTarget(null)}
             onPick={(picked) => { if (picked[0]) insertImage(imageTarget, picked[0]); }}
+            extra={(
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>Размер:</span>
+                <Segmented size="small" value={imageSize} onChange={setImageSize} options={IMAGE_SIZE_OPTIONS} />
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  доля ширины: S 30 % · M 50 % · L 70 % · XL 100 %; «Авто» — как решит лист.
+                  Поменять потом — буква в {'{M}'} после картинки
+                </Typography.Text>
+              </div>
+            )}
           />
         </Suspense>
       )}

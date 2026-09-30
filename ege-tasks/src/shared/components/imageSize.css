@@ -1,0 +1,23 @@
+/* Размер картинки из условия: ![подпись](адрес){S|M|L|XL} (utils/remarkImageSize).
+   Доля ширины колонки — или ячейки, если картинка в таблице; как в теории.
+   Класс продублирован (.mr-img.mr-img) намеренно: ограничения экранов —
+   `.task-statement img` (потолок 220 px по высоте), `.student-app
+   .task-statement img`, `.ps-task-text img` (размер чертежей листа) — не
+   должны перебивать размер, который автор задал картинке сам.
+   Чертёж, вынесенный сбоку (`.ps-task-aside`), размер не получает:
+   sideFigure.js снимает токен, ширину там задаёт настройка листа. */
+.mr-img.mr-img {
+  height: auto;
+  max-height: none;
+}
+.mr-img.mr-img.mr-img--s  { max-width: 30%; }
+.mr-img.mr-img.mr-img--m  { max-width: 50%; }
+.mr-img.mr-img.mr-img--l  { max-width: 70%; }
+.mr-img.mr-img.mr-img--xl { max-width: 100%; }
+
+/* Телефон ученика: колонка узкая, 30 % от неё — марка. */
+@media screen and (max-width: 600px) {
+  .mr-img.mr-img.mr-img--s { max-width: 50%; }
+  .mr-img.mr-img.mr-img--m { max-width: 75%; }
+  .mr-img.mr-img.mr-img--l { max-width: 100%; }
+}
