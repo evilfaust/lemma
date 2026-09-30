@@ -9,7 +9,7 @@ import { parseStereoBlock } from '../utils/stereo/dsl';
 
 // Сцена, на которой справка «живёт»: есть P на AA1, прямая через P ∥ AB,
 // перпендикуляр к основанию, восставленный из A, и перпендикуляр к AC из
-// её середины M в плоскости основания.
+// её середины M в плоскости основания, сечение через M перпендикулярно BD1.
 const scene = {
   body: { kind: 'cube', a: 4 },
   ops: [
@@ -18,6 +18,7 @@ const scene = {
     { id: 'perp', type: 'perp', from: 'A', plane: ['A', 'B', 'C'] },
     { id: 'm', type: 'pointOnLine', name: 'M', ref: ['A', 'C'], t: 0.5 },
     { id: 'perpIn', type: 'perp', from: 'M', ref: ['A', 'C'], within: ['A', 'B', 'C'] },
+    { id: 'pp', type: 'perpPlane', from: 'M', ref: ['B', 'D1'], style: 'section' },
   ],
 };
 

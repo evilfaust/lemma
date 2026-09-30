@@ -2,7 +2,8 @@
 //
 // Каждая операция ссылается только на то, что уже есть (точки — по имени,
 // прямые — парой имён или id операции «параллельная» / «перпендикуляр к
-// плоскости из её точки»), поэтому модель
+// плоскости из её точки», плоскости — тремя именами или id операции
+// «перпендикулярная плоскость»), поэтому модель
 // целиком пересчитывается из журнала: отмена = убрать последнюю операцию,
 // пошаговый просмотр = первые k операций, эфир = передать журнал.
 //
@@ -18,8 +19,14 @@ import {
   affinePoint,
 } from './geometry';
 
+/** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
+export function isPlaneRefId(ref) {
+  return typeof ref === 'string';
+}
+
 export const OP_TYPES = [
-  'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'section', 'plane', 'fill',
+  'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
+  'section', 'plane', 'fill',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -39,15 +46,25 @@ export function refName(ref, opsById = {}) {
   if (isPairRef(ref)) return ref.map(prettyName).join('');
   const op = opsById[ref];
   if (op?.type === 'parallel') return `через ${prettyName(op.through)} ∥ ${refName(op.ref, opsById)}`;
-  if (op?.type === 'perp' && op.plane) return `через ${prettyName(op.from)} ⊥ (${op.plane.map(prettyName).join('')})`;
+  if (op?.type === 'perp' && op.plane) return `через ${prettyName(op.from)} ⊥ ${planeName(op.plane, opsById)}`;
   if (op?.type === 'perp' && op.within) {
-    return `через ${prettyName(op.from)} ⊥ ${refName(op.ref, opsById)} в (${op.within.map(prettyName).join('')})`;
+    return `через ${prettyName(op.from)} ⊥ ${refName(op.ref, opsById)} в ${planeName(op.within, opsById)}`;
   }
   return '?';
 }
 
-/** Плоскость по именам точек модели; null — точки нет или они на одной прямой. */
+/** Имя плоскости для текста: «(A₁BD)», «(M ⊥ BD₁)», «(AB ⊥ (SCD))». */
+export function planeName(ref, opsById = {}) {
+  if (Array.isArray(ref)) return `(${ref.map(prettyName).join('')})`;
+  const op = opsById[ref];
+  if (op?.type !== 'perpPlane') return '(?)';
+  if (op.from) return `(${prettyName(op.from)} ⊥ ${refName(op.ref, opsById)})`;
+  return `(${refName(op.line, opsById)} ⊥ ${planeName(op.plane, opsById)})`;
+}
+
+/** Плоскость по именам точек модели (или по id шага); null — точки нет или они на одной прямой. */
 function planeOfNames(model, names) {
+  if (isPlaneRefId(names)) return model.planes?.[names] || null;
   const pts = (names || []).map((n) => model.points[n]?.pos);
   if (pts.length < 3 || pts.some((p) => !p)) return null;
   for (let i = 2; i < pts.length; i++) {
@@ -121,6 +138,7 @@ export function evaluateScene(scene, opts = {}) {
   const steps = [];
   const rightAngles = []; // заготовки знаков прямого угла — доводятся после журнала
   const lineDefs = {};
+  const planeDefs = {}; // плоскости-шаги («перпендикулярная плоскость»): id → { n, d }
   const opsById = {};
   ops.forEach((op, i) => { opsById[op.id || `s${i}`] = op; });
 
@@ -157,6 +175,10 @@ export function evaluateScene(scene, opts = {}) {
   };
 
   const resolvePlane = (names) => {
+    if (isPlaneRefId(names)) {
+      if (!planeDefs[names]) fail('Нет такой плоскости');
+      return { plane: planeDefs[names], face: null };
+    }
     if (!Array.isArray(names) || names.length < 3) fail('Плоскость задаётся тремя точками');
     const pts = names.map(pointPos);
     const face = names.every((n) => body.vertices[n]) ? findFace(body, names) : null;
@@ -355,7 +377,7 @@ export function evaluateScene(scene, opts = {}) {
               fail(`Точка ${prettyName(op.from)} лежит на прямой ${ln} — перпендикуляров к ней в пространстве много, укажите плоскость${hint}`);
             }
             const { plane } = resolvePlane(op.within);
-            const wn = `(${op.within.map(prettyName).join('')})`;
+            const wn = planeName(op.within, opsById);
             if (Math.abs(dot(plane.n, P) - plane.d) > eps * 10) fail(`Точка ${prettyName(op.from)} не лежит в плоскости ${wn}`);
             if (Math.abs(dot(plane.n, norm(L.u))) > 1e-7) fail(`Прямая ${ln} не лежит в плоскости ${wn}`);
             const d = erectLine(opId, P, cross(plane.n, L.u), stepIdx, created, op.color);
@@ -385,12 +407,42 @@ export function evaluateScene(scene, opts = {}) {
           const L = resolveLine(op.ref);
           const { plane } = resolvePlane(op.plane);
           const r = intersectLinePlane(L, plane, body.size);
-          const pn = `(${op.plane.map(prettyName).join('')})`;
+          const pn = planeName(op.plane, opsById);
           const ln = refName(op.ref, opsById);
           if (r.kind === 'parallel') fail(`Прямая ${ln} параллельна плоскости ${pn}`);
           if (r.kind === 'inside') fail(`Прямая ${ln} лежит в плоскости ${pn}`);
           ensureCoverage(L, op.ref, r.t, stepIdx, created, op.color);
           addPoint(op.name, r.point, stepIdx, created);
+          break;
+        }
+        case 'perpPlane': {
+          // Перпендикулярная плоскость: через точку ⊥ прямой или через
+          // прямую ⊥ плоскости. Рисуется её сечение тела; на неё можно
+          // ссылаться «(M⊥BD1)», «(AB⊥SCD)» — след, перпендикуляр.
+          let P;
+          let n;
+          if (op.from) {
+            P = pointPos(op.from);
+            n = resolveLine(op.ref).u;
+          } else {
+            const L = resolveLine(op.line);
+            const { plane } = resolvePlane(op.plane);
+            n = cross(L.u, plane.n);
+            if (len(n) <= 1e-7 * len(L.u)) {
+              fail(`Прямая ${refName(op.line, opsById)} перпендикулярна плоскости ${planeName(op.plane, opsById)} — через неё проходит сколько угодно перпендикулярных плоскостей`);
+            }
+            P = L.p;
+          }
+          n = norm(n);
+          const plane = { n, d: dot(n, P) };
+          const poly = sectionPolygon(body, plane);
+          if (poly.length < 3) fail('Плоскость не пересекает тело');
+          planeDefs[opId] = plane;
+          polys.push({
+            id: opId, kind: op.style === 'plane' ? 'plane' : 'section', pts: poly,
+            step: stepIdx, color: op.color, faceId: null,
+          });
+          created.polys.push(opId);
           break;
         }
         case 'section':
@@ -541,7 +593,7 @@ export function evaluateScene(scene, opts = {}) {
   }
 
   return {
-    body, points, pointOrder, lines, polys, marks, steps, opsById,
+    body, points, pointOrder, lines, polys, marks, steps, opsById, planes: planeDefs,
     radius, viewCenter, center: body.center,
   };
 }
@@ -560,14 +612,16 @@ export function tryAppendOp(scene, op) {
 export function opPointNames(op) {
   const out = [];
   const fromRef = (r) => { if (isPairRef(r)) out.push(...r); };
+  const fromPlane = (p) => { if (Array.isArray(p)) out.push(...p); };
   switch (op.type) {
     case 'pointOnLine': fromRef(op.ref); break;
     case 'pointOnFace': out.push(...(op.face || [])); break;
     case 'segment': case 'line': fromRef(op.ref); break;
     case 'parallel': fromRef(op.ref); out.push(op.through); break;
-    case 'perp': fromRef(op.ref); out.push(op.from, ...(op.plane || []), ...(op.within || [])); break;
+    case 'perp': fromRef(op.ref); fromPlane(op.plane); fromPlane(op.within); out.push(op.from); break;
+    case 'perpPlane': fromRef(op.ref); fromRef(op.line); fromPlane(op.plane); if (op.from) out.push(op.from); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
-    case 'trace': fromRef(op.ref); out.push(...(op.plane || [])); break;
+    case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
     default: break;
   }
@@ -592,7 +646,8 @@ export function removeOpCascade(scene, opId) {
   for (let i = idx + 1; i < ops.length; i++) {
     const op = ops[i];
     const usesName = opPointNames(op).some((n) => deadNames.has(n));
-    const usesLine = [op.ref, op.l1, op.l2].some((r) => typeof r === 'string' && deadIds.has(r));
+    const usesLine = [op.ref, op.l1, op.l2, op.line, op.plane, op.within]
+      .some((r) => typeof r === 'string' && deadIds.has(r));
     if (usesName || usesLine) mark(op);
   }
   const next = { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) };
@@ -622,8 +677,9 @@ export function renamePointInScene(scene, from, to) {
     if (o.ref) o.ref = swapRef(o.ref);
     if (o.l1) o.l1 = swapRef(o.l1);
     if (o.l2) o.l2 = swapRef(o.l2);
-    if (o.plane) o.plane = o.plane.map(swap);
-    if (o.within) o.within = o.within.map(swap);
+    if (Array.isArray(o.plane)) o.plane = o.plane.map(swap);
+    if (Array.isArray(o.within)) o.within = o.within.map(swap);
+    if (o.line) o.line = swapRef(o.line);
     if (o.face) o.face = o.face.map(swap);
     if (o.pts) o.pts = o.pts.map(swap);
     return o;

@@ -287,3 +287,116 @@ describe('перпендикуляр к прямой из точки на ней
   });
 });
 
+
+describe('перпендикулярная плоскость', () => {
+  const near = (a, b) => dist(a, b) < 1e-9;
+  const polyOf = (m, sc, k) => m.polys.find((pg) => pg.id === sc.ops[k].id);
+
+  it('через вершину A ⊥ диагонали BD1 — треугольник AB1C', () => {
+    const sc = build(['сечение A ⊥ BD1']);
+    const m = evaluateScene(sc);
+    const pg = polyOf(m, sc, 0);
+    expect(pg.kind).toBe('section');
+    expect(pg.pts).toHaveLength(3);
+    for (const v of ['A', 'B1', 'C']) expect(pg.pts.some((p) => near(p, pos(m, v)))).toBe(true);
+  });
+
+  it('через центр куба ⊥ диагонали — правильный шестиугольник', () => {
+    const sc = build(['O = середина BD1', 'сечение через O перпендикулярно BD1']);
+    const pg = polyOf(evaluateScene(sc), sc, 1);
+    expect(pg.pts).toHaveLength(6);
+    const sides = pg.pts.map((p, i) => dist(p, pg.pts[(i + 1) % 6]));
+    for (const s of sides) expect(s).toBeCloseTo(2 * Math.sqrt(2), 9);
+  });
+
+  it('через прямую ⊥ плоскости: AB ⊥ (ABC) — грань ABB1A1, «плоскость» — полупрозрачная', () => {
+    const sc = build(['плоскость AB ⊥ (ABC)']);
+    const m = evaluateScene(sc);
+    const pg = polyOf(m, sc, 0);
+    expect(pg.kind).toBe('plane');
+    expect(pg.pts).toHaveLength(4);
+    for (const v of ['A', 'B', 'B1', 'A1']) expect(pg.pts.some((p) => near(p, pos(m, v)))).toBe(true);
+  });
+
+  it('прямая ⊥ плоскости — таких плоскостей много', () => {
+    const sc = { body: cube, ops: [] };
+    const r = parseCommand('плоскость AA1 ⊥ (ABC)', evaluateScene(sc));
+    expect(tryAppendOp(sc, r.op).error).toMatch(/перпендикулярна плоскости \(ABC\)/);
+  });
+
+  it('понятные ошибки разбора', () => {
+    const m = evaluateScene({ body: cube, ops: [] });
+    expect(parseCommand('сечение M ⊥ ABC', m).error).toMatch(/задайте прямую/);
+    expect(parseCommand('плоскость AB ⊥ CD', m).error).toMatch(/задайте плоскость/);
+    expect(parseCommand('X = AA1 ∩ (M⊥BD1)', m).error).toMatch(/сначала «сечение M ⊥ BD1»/);
+  });
+
+  it('ссылка «(M⊥BD1)»: след и перпендикуляр к ней', () => {
+    const sc = build(['M на AA1 1:1', 'сечение M ⊥ BD1', 'X = CC1 ∩ (M⊥BD1)', 'H = C ⊥ (M⊥BD1)']);
+    const m = evaluateScene(sc);
+    const u = sub(pos(m, 'D1'), pos(m, 'B'));
+    expect(dot(sub(pos(m, 'X'), pos(m, 'M')), u)).toBeCloseTo(0, 9);
+    const CH = sub(pos(m, 'H'), pos(m, 'C'));
+    expect(len({ x: CH.y * u.z - CH.z * u.y, y: CH.z * u.x - CH.x * u.z, z: CH.x * u.y - CH.y * u.x })).toBeLessThan(1e-9);
+    expect(dot(sub(pos(m, 'H'), pos(m, 'M')), u)).toBeCloseTo(0, 9);
+    // «(M⊥BD1)» — плоскость, прямой быть не может.
+    expect(parseCommand('K на (M⊥BD1) 1', m).error).toMatch(/это плоскость/);
+  });
+
+  it('вложенно: плоскость через прямую ⊥ перпендикулярной плоскости', () => {
+    const sc = build(['O = середина BD1', 'сечение O ⊥ BD1']);
+    // BD1 сама перпендикулярна этой плоскости — плоскость через неё не единственная.
+    const r = parseCommand('плоскость BD1 ⊥ (O⊥BD1)', evaluateScene(sc));
+    expect(tryAppendOp(sc, r.op).error).toMatch(/перпендикулярна плоскости \(O ⊥ BD₁\)/);
+    const sc2 = build(['O = середина BD1', 'сечение O ⊥ BD1', 'сечение AC ⊥ (O⊥BD1)']);
+    expect(evaluateScene(sc2).steps.every((st) => st.ok)).toBe(true);
+  });
+
+  it('описание, команда и блок ```stereo — туда и обратно', () => {
+    const sc = build(['M на AA1 1:1', 'сечение M ⊥ BD1', 'X = CC1 ∩ (M⊥BD1)', 'плоскость AB ⊥ (M⊥BD1)', 'H = C ⊥ (M⊥BD1)']);
+    const byId = evaluateScene(sc).opsById;
+    expect(sc.ops.slice(1).map((o) => describeOp(o, byId))).toEqual([
+      'Сечение через M ⊥ BD₁', 'X = CC₁ ∩ (M ⊥ BD₁)', 'Плоскость через AB ⊥ (M ⊥ BD₁)', 'CH ⊥ (M ⊥ BD₁)',
+    ]);
+    expect(sc.ops.slice(1).map((o) => opToCommand(o, byId))).toEqual([
+      'сечение M ⊥ BD1', 'X = CC1 ∩ (M⊥BD1)', 'плоскость AB ⊥ (M⊥BD1)', 'H = C ⊥ (M⊥BD1)',
+    ]);
+    const { text, skipped } = buildStereoBlock(sc, DEFAULT_CAMERA);
+    expect(skipped).toBe(0);
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    const m1 = evaluateScene(sc);
+    const m2 = evaluateScene(back.scene);
+    for (const n of ['X', 'H']) expect(dist(pos(m1, n), pos(m2, n))).toBeLessThan(1e-9);
+    expect(m2.polys.map((pg) => pg.kind)).toEqual(['section', 'plane']);
+  });
+
+  it('удаление плоскости уносит след и перпендикуляр к ней; переименование', () => {
+    const sc = build(['M на AA1 1:1', 'сечение M ⊥ BD1', 'X = CC1 ∩ (M⊥BD1)', 'H = C ⊥ (M⊥BD1)']);
+    expect(removeOpCascade(sc, sc.ops[1].id).scene.ops).toHaveLength(1);
+    const renamed = renamePointInScene(sc, 'M', 'P');
+    expect(renamed.ops[1].from).toBe('P');
+    expect(evaluateScene(renamed).steps.every((st) => st.ok)).toBe(true);
+  });
+
+  it('инструмент: точка → прямая; прямая → грань; «Перпендикуляр» к такой плоскости', () => {
+    const sc = build(['M на AA1 1:1', 'сечение M ⊥ BD1']);
+    const m = evaluateScene(sc);
+    expect(TOOLS.find((t) => t.key === 'perpPlane').hot).toBe('N');
+    expect(acceptedKinds('perpPlane', [])).toEqual(['point', 'line']);
+
+    let r = toolClick('perpPlane', [], { point: 'M' }, m);
+    expect(acceptedKinds('perpPlane', r.pending)).toEqual(['line']);
+    r = toolClick('perpPlane', r.pending, { line: { id: 'edge:A-B', ref: ['A', 'B'] } }, m);
+    expect(r.op).toMatchObject({ type: 'perpPlane', from: 'M', ref: ['A', 'B'], style: 'section' });
+
+    r = toolClick('perpPlane', [], { line: { id: 'edge:A-B', ref: ['A', 'B'] } }, m);
+    expect(acceptedKinds('perpPlane', r.pending)).toEqual(['poly', 'face']);
+    r = toolClick('perpPlane', r.pending, { face: { id: 'f', verts: ['A', 'B', 'C', 'D'] } }, m);
+    expect(r.op).toMatchObject({ type: 'perpPlane', line: ['A', 'B'], plane: ['A', 'B', 'C', 'D'] });
+
+    const toPlane = toolClick('perp', [{ kind: 'point', name: 'C' }], { poly: { id: sc.ops[1].id } }, m);
+    expect(toPlane.op).toMatchObject({ type: 'perp', name: 'H', from: 'C', plane: sc.ops[1].id });
+    expect(tryAppendOp(sc, toPlane.op).ok).toBe(true);
+  });
+});

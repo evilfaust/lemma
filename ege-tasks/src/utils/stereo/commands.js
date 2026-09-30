@@ -15,6 +15,9 @@
 //   H = M ⊥ (ABC)       перпендикуляр из точки на плоскость; «перпендикуляр M ABC»
 //   A ⊥ (ABC)           из точки самой плоскости — прямая, дальше «(A⊥ABC)»
 //   M ⊥ AC в ABC        из точки на прямой — в плоскости, дальше «(M⊥AC в ABC)»
+//   сечение M ⊥ BD1     сечение плоскостью через M перпендикулярно BD1
+//   плоскость AB ⊥ (SCD) плоскость через AB перпендикулярно (SCD);
+//                        дальше на неё ссылаются «(M⊥BD1)», «(AB⊥SCD)»
 //   сечение MND         сечение плоскостью по трём точкам
 //   грань ABCD          подсветить грань / «плоскость AA1C1C»
 //   заливка KLMN        закрасить многоугольник
@@ -22,7 +25,9 @@
 //   переименовать M K   переименовать точку
 
 import { prettyName } from './bodies';
-import { newOpId, refName, pointInPlane, pointOnLineRef } from './scene';
+import {
+  newOpId, refName, planeName, pointInPlane, pointOnLineRef,
+} from './scene';
 import { colorKeyFromWord } from './render';
 import { nextFreeName, nextFootName } from './naming';
 
@@ -65,15 +70,69 @@ export function normalizeCommand(text) {
 // выгружаются в текст и читаются обратно. Перпендикуляр к плоскости,
 // восставленный из её точки, — «(P⊥ABC)», перпендикуляр к прямой из её
 // точки в плоскости — «(M⊥AC в ABC)».
+//
+// Плоскость — три и больше точек («ABC», «(ABC)») или перпендикулярная
+// плоскость, построенная шагом: «(M⊥BD1)» — через M перпендикулярно BD1,
+// «(AB⊥SCD)» — через AB перпендикулярно (SCD). Что за «⊥» — прямая или
+// плоскость, — видно по сторонам: точка ⊥ плоскость = прямая, точка ⊥
+// прямая = плоскость, прямая ⊥ плоскость = плоскость (refKind).
+
+/** «(X⊥Y)» с этим ⊥ в начале; null — не такая запись. */
+const PERP_TOK = /^\(((?:[A-Z][0-9]*)+)⊥(.+)\)$/;
+
+/**
+ * Что обозначает текст: прямую или плоскость.
+ * @returns {'line' | 'plane' | null}
+ */
+export function refKind(tok) {
+  const t = String(tok || '');
+  if (/^\([A-Z][0-9]*\|\|/.test(t)) return 'line';
+  const m = PERP_TOK.exec(t);
+  if (m) {
+    const head = splitNames(m[1])?.length || 0;
+    if (head === 2) return 'plane';
+    if (head !== 1) return null;
+    // «(M⊥AC в ABC)» — прямая в плоскости.
+    if (/^(?:(?:[A-Z][0-9]*){2}|\([^()]*\))в/.test(m[2])) return 'line';
+    return refKind(m[2]) === 'plane' ? 'line' : 'plane';
+  }
+  const n = splitNames(t)?.length || 0;
+  if (n === 2) return 'line';
+  return n >= 3 ? 'plane' : null;
+}
+
+/** Ссылка на плоскость → текст (имена — без скобок); null — не выражается. */
+export function planeRefText(ref, opsById = {}) {
+  if (Array.isArray(ref)) return ref.join('');
+  const op = opsById[ref];
+  if (op?.type !== 'perpPlane') return null;
+  if (op.from) {
+    const base = lineRefText(op.ref, opsById);
+    return base ? `(${op.from}⊥${base})` : null;
+  }
+  const pl = planeRefText(op.plane, opsById);
+  return Array.isArray(op.line) && pl ? `(${op.line.join('')}⊥${pl})` : null;
+}
+
+/** Плоскость в скобках для команды: «(ABC)», «(M⊥BD1)». */
+const planeTokText = (ref, opsById) => {
+  const t = planeRefText(ref, opsById);
+  if (!t) return null;
+  return Array.isArray(ref) ? `(${t})` : t;
+};
 
 /** Ссылка на прямую → текст; null — не выражается. */
 export function lineRefText(ref, opsById = {}) {
   if (Array.isArray(ref)) return ref.length === 2 ? ref.join('') : null;
   const op = opsById[ref];
-  if (op?.type === 'perp' && op.plane) return `(${op.from}⊥${op.plane.join('')})`;
+  if (op?.type === 'perp' && op.plane) {
+    const pl = planeRefText(op.plane, opsById);
+    return pl ? `(${op.from}⊥${pl})` : null;
+  }
   if (op?.type === 'perp' && op.within) {
     const base = lineRefText(op.ref, opsById);
-    return base ? `(${op.from}⊥${base} в ${op.within.join('')})` : null;
+    const pl = planeRefText(op.within, opsById);
+    return base && pl ? `(${op.from}⊥${base} в ${pl})` : null;
   }
   if (op?.type !== 'parallel') return null;
   const base = lineRefText(op.ref, opsById);
@@ -85,6 +144,35 @@ const sameLineRef = (a, b) => (Array.isArray(a) && Array.isArray(b)
   : a === b);
 
 const sameNameSet = (a, b) => a.length === b.length && [...a].sort().join(' ') === [...b].sort().join(' ');
+
+const samePlaneRef = (a, b) => (Array.isArray(a) && Array.isArray(b) ? sameNameSet(a, b) : a === b);
+
+/**
+ * Текст плоскости → имена точек или id шага «перпендикулярная плоскость».
+ * @param what — текст ошибки, если это не плоскость
+ */
+export function parsePlaneRef(tok, model, what = 'Плоскость — три точки: «(ABC)»') {
+  const t = String(tok || '');
+  const m = PERP_TOK.exec(t);
+  if (m && refKind(t) === 'plane') {
+    const head = splitNames(m[1]);
+    const ops = Object.values(model?.opsById || {}).filter((o) => o.type === 'perpPlane' && model.planes?.[o.id]);
+    let op;
+    if (head.length === 1) {
+      const ref = parseLineRef(m[2], model, what);
+      op = ops.find((o) => o.from === head[0] && sameLineRef(o.ref, ref));
+      if (!op) throw new Error(`Нет плоскости через ${prettyName(head[0])} ⊥ ${m[2]} — сначала «сечение ${head[0]} ⊥ ${m[2]}»`);
+    } else {
+      const pl = parsePlaneRef(m[2], model, what);
+      op = ops.find((o) => sameLineRef(o.line, head) && samePlaneRef(o.plane, pl));
+      if (!op) throw new Error(`Нет плоскости через ${head.map(prettyName).join('')} ⊥ ${m[2]} — сначала «плоскость ${head.join('')} ⊥ ${/^\(/.test(m[2]) ? m[2] : `(${m[2]})`}»`);
+    }
+    return op.id;
+  }
+  const n = PERP_TOK.test(t) ? null : splitNames(t);
+  if (!n || n.length < 3) throw new Error(what);
+  return n;
+}
 
 /** Текст ссылки на прямую → пара имён или id шага («параллельная», «перпендикуляр к плоскости»). */
 export function parseLineRef(tok, model, what = 'Прямая — две точки: «AB» или параллельная «(P||AB)»') {
@@ -101,18 +189,20 @@ export function parseLineRef(tok, model, what = 'Прямая — две точ�
     }
     return op.id;
   }
-  const mp = /^\(([A-Z][0-9]*)⊥\(?((?:[A-Z][0-9]*){3,})\)?\)$/.exec(t);
-  if (mp) {
+  const mp = PERP_TOK.exec(t);
+  if (mp && refKind(t) === 'line' && splitNames(mp[1]).length === 1) {
     // Прямая есть только у восставленного перпендикуляра (точка в плоскости);
     // опущенный — обычный отрезок «MH».
-    const plane = splitNames(mp[2]);
+    const plane = parsePlaneRef(mp[2], model);
     const op = Object.values(model?.opsById || {}).find((o) => o.type === 'perp' && o.plane && o.from === mp[1]
-      && sameNameSet(o.plane, plane) && model.lines.some((l) => l.id === o.id && l.ref === o.id));
+      && samePlaneRef(o.plane, plane) && model.lines.some((l) => l.id === o.id && l.ref === o.id));
     if (!op) {
-      throw new Error(`Нет перпендикуляра через ${prettyName(mp[1])} к (${plane.map(prettyName).join('')}) — сначала «${mp[1]} ⊥ (${plane.join('')})»`);
+      const pt = Array.isArray(plane) ? `(${plane.join('')})` : mp[2];
+      throw new Error(`Нет перпендикуляра через ${prettyName(mp[1])} к ${pt} — сначала «${mp[1]} ⊥ ${pt}»`);
     }
     return op.id;
   }
+  if (mp && refKind(t) === 'plane') throw new Error(`${t} — это плоскость, а нужна прямая`);
   if (!t.includes('||')) {
     const n = splitNames(t);
     if (!n || n.length !== 2) throw new Error(what);
@@ -129,8 +219,8 @@ export function parseLineRef(tok, model, what = 'Прямая — две точ�
   return op.id;
 }
 
-/** Плоскость в команде: «(ABC)» или три и больше точек (но не «(P||AB)»). */
-const isPlaneTok = (t) => !/\|\||⊥/.test(String(t)) && (/^\(/.test(t) || (splitNames(t)?.length || 0) >= 3);
+/** Плоскость в команде: «(ABC)», три и больше точек или «(M⊥BD1)» (но не «(P||AB)»). */
+const isPlaneTok = (t) => refKind(t) === 'plane' || /^\((?:[A-Z][0-9]*)+\)$/.test(String(t));
 
 /** Имя точки, набранное как угодно («м», «m1», «К») → «M», «M1», «K». */
 export function normalizePointName(text) {
@@ -238,6 +328,31 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'parallel', through: m[1], ref: n } };
     }
 
+    // «сечение M ⊥ BD1» — через точку перпендикулярно прямой; «плоскость
+    // AB ⊥ (SCD)» — через прямую перпендикулярно плоскости. «Сечение» рисует
+    // сечение тела, «плоскость» — полупрозрачную плоскость.
+    m = /^(сечение|плоскость|section|plane)\s+(?:через\s+)?((?:[A-Z][0-9]*)+)(?:⊥|\s+(?:перпендикулярн[а-яё]*|perp)\s+)(?:(?:к\s+)?(?:прям[а-яё]*|плоскост[а-яё]*)\s+)?(\S+)$/i.exec(src);
+    if (m) {
+      const style = /^(сечение|section)$/i.test(m[1]) ? 'section' : 'plane';
+      const head = splitNames(m[2]);
+      const kind = refKind(m[3]) || (isPlaneTok(m[3]) ? 'plane' : null);
+      if (head.length === 1) {
+        if (kind === 'plane') {
+          throw new Error(`Через точку перпендикулярных плоскости ${m[3]} плоскостей много — задайте прямую: «плоскость ${head[0]}K ⊥ ${m[3]}» или «${head[0]} ⊥ ${m[3]}» (перпендикуляр)`);
+        }
+        const ref = parseLineRef(m[3], model, 'Перпендикулярно прямой: «сечение M ⊥ BD1»');
+        return { op: { id: newOpId(), type: 'perpPlane', from: head[0], ref, style } };
+      }
+      if (head.length === 2) {
+        if (kind !== 'plane') {
+          throw new Error(`Через прямую ${head.join('')} перпендикулярно прямой — только если они перпендикулярны; задайте плоскость: «плоскость ${head.join('')} ⊥ (SCD)»`);
+        }
+        const plane = parsePlaneRef(m[3], model);
+        return { op: { id: newOpId(), type: 'perpPlane', line: head, plane, style } };
+      }
+      throw new Error('Перпендикулярная плоскость — через точку «сечение M ⊥ BD1» или через прямую «плоскость AB ⊥ (SCD)»');
+    }
+
     // «H = M ⊥ AB», «H = M ⊥ (ABC)», «перпендикуляр из M на ABC»;
     // из точки на прямой — с плоскостью: «M ⊥ AC в ABC».
     const WITHIN = '(?:\\s+в\\s+(?:плоскост[а-яё]*\\s+)?(\\S+))?';
@@ -245,8 +360,8 @@ export function parseCommand(text, model) {
       || new RegExp(`^(?:([A-Z][0-9]*)\\s*=\\s*)?(?:перпендикуляр|перп\\.?|perp)\\s+(?:(?:из|от)\\s+)?(?:точки\\s+)?([A-Z][0-9]*)\\s+(?:(?:на|к)\\s+)?(?:(?:прям|плоскост)[а-яё]*\\s+)?(\\S+)${WITHIN}$`, 'i').exec(src);
     if (m) {
       const [, name, from, target, withinTok] = m;
-      const pts = /\|\||⊥/.test(target) ? null : splitNames(target);
-      if (pts && pts.length >= 3) {
+      const pts = isPlaneTok(target) ? parsePlaneRef(target, model) : null;
+      if (pts) {
         // Из точки самой плоскости перпендикуляр восставляется — это прямая,
         // основания (и имени) у неё нет.
         const op = { id: newOpId(), type: 'perp', from, plane: pts };
@@ -257,8 +372,7 @@ export function parseCommand(text, model) {
       // Точка на самой прямой — перпендикуляр строится в плоскости «в ABC»
       // и выходит прямой без основания. Плоскость без нужды не сохраняем.
       if (withinTok && pointOnLineRef(model, from, ref) !== false) {
-        const within = splitNames(withinTok);
-        if (!within || within.length < 3) throw new Error('Плоскость построения — три точки: «M ⊥ AC в ABC»');
+        const within = parsePlaneRef(withinTok, model, 'Плоскость построения — три точки: «M ⊥ AC в ABC»');
         return { op: { id: newOpId(), type: 'perp', from, ref, within } };
       }
       return { op: { id: newOpId(), type: 'perp', name: name || nextFootName(model), from, ref } };
@@ -294,8 +408,7 @@ export function parseCommand(text, model) {
     m = /^(?:след)\s+(?:прямой\s+)?(\S+)\s+(?:на\s+)?(?:плоскости\s+)?(\S+)$/i.exec(src);
     if (m) {
       const l = parseLineRef(m[1], model, 'След: «след MN ABCD»');
-      const pl = splitNames(m[2]);
-      if (!pl || pl.length < 3) throw new Error('Плоскость следа — три точки: «след MN ABCD»');
+      const pl = parsePlaneRef(m[2], model, 'Плоскость следа — три точки: «след MN ABCD»');
       return { op: { id: newOpId(), type: 'trace', name: auto(null), ref: l, plane: pl } };
     }
 
@@ -305,15 +418,13 @@ export function parseCommand(text, model) {
       const rightPlane = isPlaneTok(m[3]);
       const leftPlane = isPlaneTok(m[2]);
       if (leftPlane && !rightPlane) {
-        const left = splitNames(m[2]);
-        if (!left || left.length < 3) throw new Error('Плоскость — три точки: «(ABC) ∩ MN»');
+        const left = parsePlaneRef(m[2], model, 'Плоскость — три точки: «(ABC) ∩ MN»');
         const ref = parseLineRef(m[3], model, 'Прямая — две точки');
         return { op: { id: newOpId(), type: 'trace', name: auto(m[1]), ref, plane: left } };
       }
       const l1 = parseLineRef(m[2], model, 'Прямая — две точки: «MN ∩ AC»');
       if (rightPlane) {
-        const right = splitNames(m[3]);
-        if (!right || right.length < 3) throw new Error('Плоскость — три точки: «MN ∩ (ABC)»');
+        const right = parsePlaneRef(m[3], model, 'Плоскость — три точки: «MN ∩ (ABC)»');
         return { op: { id: newOpId(), type: 'trace', name: auto(m[1]), ref: l1, plane: right } };
       }
       const l2 = parseLineRef(m[3], model, 'Прямая — две точки: «MN ∩ AC»');
@@ -380,12 +491,18 @@ export function describeOp(op, opsById = {}) {
     case 'line': return `Прямая ${names(op.ref)}`;
     case 'parallel': return `Прямая через ${P(op.through)} ∥ ${refName(op.ref, opsById)}`;
     case 'perp': {
-      const to = op.plane ? `(${names(op.plane)})` : refName(op.ref, opsById);
+      const to = op.plane ? planeName(op.plane, opsById) : refName(op.ref, opsById);
       if (op.name) return `${P(op.from)}${P(op.name)} ⊥ ${to}`;
-      return `Прямая через ${P(op.from)} ⊥ ${to}${op.within ? ` в (${names(op.within)})` : ''}`;
+      return `Прямая через ${P(op.from)} ⊥ ${to}${op.within ? ` в ${planeName(op.within, opsById)}` : ''}`;
+    }
+    case 'perpPlane': {
+      const what = op.style === 'plane' ? 'Плоскость' : 'Сечение';
+      return op.from
+        ? `${what} через ${P(op.from)} ⊥ ${refName(op.ref, opsById)}`
+        : `${what} через ${refName(op.line, opsById)} ⊥ ${planeName(op.plane, opsById)}`;
     }
     case 'intersect': return `${P(op.name)} = ${refName(op.l1, opsById)} ∩ ${refName(op.l2, opsById)}`;
-    case 'trace': return `${P(op.name)} = ${refName(op.ref, opsById)} ∩ (${names(op.plane)})`;
+    case 'trace': return `${P(op.name)} = ${refName(op.ref, opsById)} ∩ ${planeName(op.plane, opsById)}`;
     case 'section': return `Сечение (${names(op.pts)})`;
     case 'plane': return `Плоскость (${names(op.pts)})`;
     case 'fill': return `Многоугольник ${names(op.pts)}`;
@@ -412,14 +529,25 @@ export function opToCommand(op, opsById = {}) {
     case 'line': return Array.isArray(op.ref) ? `прямая ${n(op.ref)}` : '';
     case 'parallel': return r(op.ref) ? `прямая ${op.through} || ${r(op.ref)}` : '';
     case 'perp': {
-      const to = op.plane ? `(${n(op.plane)})` : r(op.ref);
+      const to = op.plane ? planeTokText(op.plane, opsById) : r(op.ref);
       if (!to) return '';
       if (op.name) return `${op.name} = ${op.from} ⊥ ${to}`;
-      return op.within ? `${op.from} ⊥ ${to} в ${n(op.within)}` : `${op.from} ⊥ ${to}`;
+      if (!op.within) return `${op.from} ⊥ ${to}`;
+      const w = planeRefText(op.within, opsById);
+      return w ? `${op.from} ⊥ ${to} в ${w}` : '';
+    }
+    case 'perpPlane': {
+      const what = op.style === 'plane' ? 'плоскость' : 'сечение';
+      if (op.from) return r(op.ref) ? `${what} ${op.from} ⊥ ${r(op.ref)}` : '';
+      const pl = planeTokText(op.plane, opsById);
+      return Array.isArray(op.line) && pl ? `${what} ${n(op.line)} ⊥ ${pl}` : '';
     }
     case 'intersect':
       return r(op.l1) && r(op.l2) ? `${op.name} = ${r(op.l1)} ∩ ${r(op.l2)}` : '';
-    case 'trace': return r(op.ref) ? `${op.name} = ${r(op.ref)} ∩ (${n(op.plane)})` : '';
+    case 'trace': {
+      const pl = planeTokText(op.plane, opsById);
+      return r(op.ref) && pl ? `${op.name} = ${r(op.ref)} ∩ ${pl}` : '';
+    }
     case 'section': return `сечение ${n(op.pts)}`;
     case 'plane': return `плоскость ${n(op.pts)}`;
     case 'fill': return `заливка ${n(op.pts)}`;

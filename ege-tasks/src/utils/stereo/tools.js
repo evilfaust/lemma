@@ -25,6 +25,7 @@ export const TOOLS = [
   { key: 'trace', label: 'След', glyph: '↧', hot: 'T' },
   { key: 'parallel', label: 'Параллельная', glyph: '∥', hot: 'A' },
   { key: 'perp', label: 'Перпендикуляр', glyph: '⊥', hot: 'H' },
+  { key: 'perpPlane', label: 'Плоскость ⊥', glyph: '◧⊥', hot: 'N' },
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
@@ -97,6 +98,12 @@ export function toolHint(tool, pending = []) {
       return names.length
         ? `Перпендикуляр из ${names[0]}… — кликните по прямой или по грани / сечению (Shift — задняя грань)`
         : 'Выберите точку, из которой проводим перпендикуляр, затем прямую или плоскость';
+    case 'perpPlane': {
+      const line = pending.find((p) => p.kind === 'line');
+      if (line) return 'Плоскость пройдёт через эту прямую — выберите плоскость (грань или сечение), которой она перпендикулярна';
+      if (names.length) return `Сечение через ${names[0]}… — выберите прямую, которой оно перпендикулярно`;
+      return 'Точка, затем прямая — сечение через точку ⊥ прямой; или прямая, затем грань — плоскость через прямую ⊥ грани';
+    }
     case 'section':
       return names.length ? `Сечение ${names.join('')}… — ещё ${3 - names.length}` : 'Выберите три точки секущей плоскости';
     case 'plane':
@@ -132,6 +139,9 @@ export function acceptedKinds(tool, pending = []) {
     case 'perp':
       if (pending.length > 1) return ['poly', 'face']; // точка на прямой — нужна плоскость
       return pending.length ? ['line', 'poly', 'face'] : ['point'];
+    case 'perpPlane':
+      if (!pending.length) return ['point', 'line'];
+      return pending[0].kind === 'point' ? ['line'] : ['poly', 'face'];
     case 'section': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
@@ -237,7 +247,7 @@ export function toolClick(tool, pending, hit, model) {
         if (pointOnLineRef(model, from, target.ref)) return { pending: [...pending, target] };
         return { pending: [], op: { id: newOpId(), type: 'perp', name: nextFootName(model), from, ref: target.ref } };
       }
-      const plane = target.kind === 'face' ? target.verts : model.opsById[target.id]?.pts;
+      const plane = planeOfTarget(model, target);
       if (!plane) return { pending };
       const onLine = pending.find((p) => p.kind === 'line');
       if (onLine) {
@@ -247,6 +257,23 @@ export function toolClick(tool, pending, hit, model) {
       const op = { id: newOpId(), type: 'perp', from, plane };
       if (pointInPlane(model, from, plane) !== true) op.name = nextFootName(model);
       return { pending: [], op };
+    }
+    case 'perpPlane': {
+      // Точка → прямая: сечение через точку ⊥ прямой. Прямая → плоскость:
+      // плоскость через прямую ⊥ плоскости (рисуется тоже сечением тела).
+      if (!pending.length) {
+        if (target.kind === 'line' && !Array.isArray(target.ref)) {
+          return { pending: [], error: 'Плоскость проводится через прямую из двух точек — выберите ребро или отрезок' };
+        }
+        return { pending: [target] };
+      }
+      const first = pending[0];
+      if (first.kind === 'point') {
+        return { pending: [], op: { id: newOpId(), type: 'perpPlane', from: first.name, ref: target.ref, style: 'section' } };
+      }
+      const plane = planeOfTarget(model, target);
+      if (!plane) return { pending };
+      return { pending: [], op: { id: newOpId(), type: 'perpPlane', line: first.ref, plane, style: 'section' } };
     }
     case 'section':
       if (pts.length < 3) return { pending: [...pending, target] };
@@ -286,6 +313,17 @@ export function toolClick(tool, pending, hit, model) {
     default:
       return { pending: [] };
   }
+}
+
+/**
+ * Плоскость под кликом как ссылка: грань — имена вершин, сечение/плоскость/
+ * закраска — имена их точек, перпендикулярная плоскость — id шага.
+ */
+function planeOfTarget(model, target) {
+  if (target.kind === 'face') return target.verts;
+  const op = model.opsById[target.id];
+  if (op?.type === 'perpPlane') return op.id;
+  return op?.pts || null;
 }
 
 /** Enter у «Закрасить»: замкнуть многоугольник. */
