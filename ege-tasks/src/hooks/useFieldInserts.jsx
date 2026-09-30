@@ -8,13 +8,17 @@ import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor } from '../utils
 import { insertAtCaret } from '../utils/caretInsert';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { stereoBlockMarkdown } from '../utils/stereo/dsl';
+import { imageSnippetAt } from '../utils/imageSnippet';
+import { materialsApi } from '../shared/services/pb/filesClient';
 
 // Стереоредактор тяжёлый — грузится, только когда учитель его открыл.
 const StereoModal = lazy(() => import('../components/stereo/StereoModal'));
+// Пикер Библиотеки — тоже только по кнопке «Картинка».
+const MaterialPickerModal = lazy(() => import('../components/workspace/MaterialPickerModal'));
 
 /**
  * Вставка в markdown-поля формы (условие, решение): таблицы, числовая прямая,
- * графики и векторы, клетка, стереочертёж, починка корней. Один код для
+ * графики и векторы, клетка, стереочертёж, картинки, починка корней. Один код для
  * редактора задач (TaskEditModal) и редактора геометрических задач — раньше
  * всё это жило только в TaskEditModal.
  *
@@ -34,6 +38,7 @@ export default function useFieldInserts({ form, fields = {} }) {
   const [plotTarget, setPlotTarget] = useState(null);
   const [gridTarget, setGridTarget] = useState(null);
   const [stereoTarget, setStereoTarget] = useState(null);
+  const [imageTarget, setImageTarget] = useState(null);
 
   const textAreaOf = (field) => fieldsRef.current[field]?.ref?.current?.resizableTextArea?.textArea || null;
 
@@ -98,6 +103,51 @@ export default function useFieldInserts({ form, fields = {} }) {
       ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
       : { field });
   }, [findAt]);
+
+  // Картинка: файл — в «Библиотеке» (pb-files), в поле — ![подпись](ссылка).
+  // Курсор в строке таблицы — картинка встаёт в ячейку (imageSnippetAt).
+  const openImage = useCallback((field) => setImageTarget(field), []);
+
+  const insertImage = useCallback((field, { url, title }) => {
+    if (!field || !url) return;
+    const cur = form.getFieldValue(field) || '';
+    insertSnippet(field, imageSnippetAt(cur, fieldCaret(field)?.start, { url, alt: title }));
+  }, [form, fieldCaret, insertSnippet]);
+
+  // Скриншот из буфера (Ctrl+V) или файл, брошенный на поле: грузим в
+  // Библиотеку и вставляем ссылку. Хранилище не подключено — открываем пикер:
+  // в нём форма входа, после входа картинку можно выбрать или загрузить там же.
+  const uploadImages = useCallback(async (field, files) => {
+    if (!field || !files?.length) return;
+    if (!materialsApi.isConnected()) {
+      message.info('Картинки хранятся в «Библиотеке» — войдите в неё и вставьте картинку ещё раз');
+      setImageTarget(field);
+      return;
+    }
+    const key = `image-upload-${field}`;
+    message.loading({ content: 'Загружаю картинку в Библиотеку…', key, duration: 0 });
+    try {
+      for (const file of files) {
+        const base = String(file.name || '').replace(/\.[^.]+$/, '');
+        // У скриншота из буфера имя безликое («image») — подписываем датой.
+        const title = !base || /^image$/i.test(base)
+          ? `Картинка ${new Date().toLocaleString('ru-RU')}`
+          : base;
+        const rec = await materialsApi.uploadMaterial({ file, title, category: 'other' });
+        insertImage(field, { url: materialsApi.fileUrl(rec), title });
+      }
+      message.success({ content: 'Картинка загружена в Библиотеку и вставлена', key });
+    } catch (e) {
+      if (e?.status === 401) {
+        materialsApi.disconnect();
+        setImageTarget(field);
+      }
+      message.error({ content: `Не удалось загрузить картинку: ${e?.message || ''}`, key });
+    }
+  }, [insertImage, message]);
+
+  /** Для LatexField: onImageFiles={inserts.onImageFiles('statement_md')}. */
+  const onImageFiles = useCallback((field) => (files) => uploadImages(field, files), [uploadImages]);
 
   const applyTarget = (target, snippet) => {
     if (target?.range) replaceRange(target.field, target.range, snippet);
@@ -164,6 +214,19 @@ export default function useFieldInserts({ form, fields = {} }) {
         onInsert={(snippet) => { applyTarget(plotTarget, snippet); setPlotTarget(null); }}
         defaultFormat={plotTarget?.format || 'block'}
       />
+      {imageTarget && (
+        <Suspense fallback={null}>
+          <MaterialPickerModal
+            open
+            kind="image"
+            multiple={false}
+            title="Картинка из Библиотеки"
+            okText="Вставить"
+            onClose={() => setImageTarget(null)}
+            onPick={(picked) => { if (picked[0]) insertImage(imageTarget, picked[0]); }}
+          />
+        </Suspense>
+      )}
       {stereoTarget && (
         <Suspense fallback={null}>
           <StereoModal
@@ -183,7 +246,7 @@ export default function useFieldInserts({ form, fields = {} }) {
 
   return {
     onCaret, fieldCaret, insertSnippet, replaceRange,
-    openNumline, openPlot, openGrid, openStereo, tableMenu, fixRootsIn,
+    openNumline, openPlot, openGrid, openStereo, openImage, onImageFiles, tableMenu, fixRootsIn,
     modals,
   };
 }

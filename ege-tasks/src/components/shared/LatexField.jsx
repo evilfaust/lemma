@@ -1,5 +1,6 @@
 import { forwardRef, lazy, Suspense } from 'react';
 import { Input } from 'antd';
+import { imageFilesFrom } from '../../utils/imageSnippet';
 
 const { TextArea } = Input;
 
@@ -25,9 +26,13 @@ const LatexCodeMirror = lazy(() => import('./LatexCodeMirror'));
  * вставлять сниппет и не стоит ли курсор внутри готового чертежа (тогда кнопка
  * открывает его правку). Значение сохраняется и после потери фокуса — клик по
  * кнопке тулбара уводит фокус из поля, живого выделения там уже нет.
+ *
+ * `onImageFiles(files)` — картинку вставили из буфера (скриншот, Ctrl+V) или
+ * бросили на поле: браузер сам её не вставит, поэтому поле отдаёт файлы наружу
+ * (useFieldInserts грузит их в Библиотеку и вставляет ссылку).
  */
 const LatexField = forwardRef(function LatexField(
-  { mode = 'plain', value, onChange, onTextChange, onCaret, rows = 4, placeholder = '' },
+  { mode = 'plain', value, onChange, onTextChange, onCaret, onImageFiles, rows = 4, placeholder = '' },
   ref,
 ) {
   if (mode === 'code') {
@@ -44,6 +49,7 @@ const LatexField = forwardRef(function LatexField(
             onTextChange?.(val);
           }}
           onCaret={onCaret}
+          onImageFiles={onImageFiles}
           placeholder={placeholder}
           minRows={rows}
         />
@@ -54,6 +60,16 @@ const LatexField = forwardRef(function LatexField(
   const reportCaret = onCaret
     ? (e) => onCaret({ start: e.target.selectionStart, end: e.target.selectionEnd })
     : undefined;
+
+  const takeImages = onImageFiles
+    ? (dataTransfer, e) => {
+      const files = imageFilesFrom(dataTransfer);
+      if (!files.length) return;
+      e.preventDefault();
+      reportCaret?.(e);
+      onImageFiles(files);
+    }
+    : null;
 
   return (
     <TextArea
@@ -69,6 +85,8 @@ const LatexField = forwardRef(function LatexField(
       onSelect={reportCaret}
       onClick={reportCaret}
       onKeyUp={reportCaret}
+      onPaste={takeImages ? (e) => takeImages(e.clipboardData, e) : undefined}
+      onDrop={takeImages ? (e) => takeImages(e.dataTransfer, e) : undefined}
     />
   );
 });

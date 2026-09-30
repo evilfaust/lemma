@@ -1,12 +1,12 @@
 import { Button, Dropdown, Tooltip } from 'antd';
 import {
   BorderOuterOutlined, ClearOutlined, CodeSandboxOutlined, DashOutlined,
-  LineChartOutlined, RiseOutlined, TableOutlined,
+  LineChartOutlined, PictureOutlined, RiseOutlined, TableOutlined,
 } from '@ant-design/icons';
 import TableModifiersHelp from './TableModifiersHelp';
 import FieldHelp from './FieldHelp';
 
-const ALL = ['roots', 'table', 'numline', 'plot', 'vectors', 'grid', 'stereo', 'help'];
+const ALL = ['roots', 'table', 'image', 'numline', 'plot', 'vectors', 'grid', 'stereo', 'help'];
 const btn = { fontWeight: 400 };
 
 /**
@@ -41,6 +41,13 @@ export default function FieldInsertToolbar({
           </Dropdown>
           <TableModifiersHelp onInsert={(md) => tools.insertSnippet(field, md)} />
         </>
+      )}
+      {has('image') && tools.openImage && (
+        <Tooltip title="Картинка из Библиотеки или с компьютера (файл сохранится в Библиотеке). Скриншот можно просто вставить в поле Ctrl+V или перетащить файл. Курсор в строке таблицы — картинка встанет в ячейку">
+          <Button size="small" icon={<PictureOutlined />} onClick={() => tools.openImage(field)} style={btn}>
+            Картинка
+          </Button>
+        </Tooltip>
       )}
       {has('numline') && (
         <Tooltip title="Вставить числовую прямую со штриховкой (конструктор)">

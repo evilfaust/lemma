@@ -96,6 +96,7 @@ export default function TabCondition({
           placeholder="Дано: $\triangle MEN$, $MN - KL = 6$. Найдите $MN$."
           onTextChange={onStatementChange}
           onCaret={inserts?.onCaret('statement_md')}
+          onImageFiles={inserts?.onImageFiles?.('statement_md')}
         />
       </Form.Item>
 

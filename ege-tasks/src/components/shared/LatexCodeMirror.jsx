@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
 import { markdown } from '@codemirror/lang-markdown';
 import { EditorView } from '@codemirror/view';
 import { linter, lintGutter } from '@codemirror/lint';
 import { katexDiagnostics } from '../../utils/katexLint';
+import { imageFilesFrom } from '../../utils/imageSnippet';
 
 // Линтер: на каждое изменение (с задержкой) ищет битые $…$ формулы через KaTeX.
 const katexLinter = linter(
@@ -21,13 +22,29 @@ const katexLinter = linter(
  * и Ctrl+H (замена) работают из коробки.
  */
 export default function LatexCodeMirror({
-  value = '', onChange, onCaret, placeholder = '', minRows = 4, maxRows = 24,
+  value = '', onChange, onCaret, onImageFiles, placeholder = '', minRows = 4, maxRows = 24,
 }) {
   const lineHeightPx = 21; // примерная высота строки CM при дефолтном шрифте
-  const extensions = useMemo(
-    () => [markdown(), EditorView.lineWrapping, katexLinter, lintGutter()],
-    [],
-  );
+  // Расширения собираются один раз — свежий колбэк берём из ref.
+  const imageFilesRef = useRef(onImageFiles);
+  imageFilesRef.current = onImageFiles;
+  const extensions = useMemo(() => {
+    // Скриншот (Ctrl+V) или брошенная картинка — наружу, в Библиотеку.
+    const takeImages = (dataTransfer, e) => {
+      const files = imageFilesRef.current ? imageFilesFrom(dataTransfer) : [];
+      if (!files.length) return false;
+      e.preventDefault();
+      imageFilesRef.current(files);
+      return true;
+    };
+    return [
+      markdown(), EditorView.lineWrapping, katexLinter, lintGutter(),
+      EditorView.domEventHandlers({
+        paste: (e) => takeImages(e.clipboardData, e),
+        drop: (e) => takeImages(e.dataTransfer, e),
+      }),
+    ];
+  }, []);
 
   return (
     <CodeMirror

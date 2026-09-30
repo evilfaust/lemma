@@ -84,6 +84,7 @@ export default function TabSolution({
           }
           onTextChange={onSolutionChange}
           onCaret={inserts?.onCaret('solution_md')}
+          onImageFiles={inserts?.onImageFiles?.('solution_md')}
         />
       </Form.Item>
 

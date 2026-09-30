@@ -1024,13 +1024,17 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             placeholder="Введите текст задания..."
             onTextChange={setPreviewStatement}
             onCaret={inserts.onCaret('statement_md')}
+            onImageFiles={inserts.onImageFiles('statement_md')}
           />
         </Form.Item>
 
         {previewStatement && (
           <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4, border: '1px solid #d9d9d9' }}>
             <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр задания:</div>
-            <TaskStatementRenderer text={previewStatement} images={taskImages.condition} answerBoxes />
+            {/* task-statement — те же рамки картинок, что в карточке задачи */}
+            <div className="task-statement">
+              <TaskStatementRenderer text={previewStatement} images={taskImages.condition} answerBoxes />
+            </div>
           </div>
         )}
 
@@ -1080,13 +1084,16 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             placeholder="Введите решение задачи..."
             onTextChange={setPreviewSolution}
             onCaret={inserts.onCaret('solution_md')}
+            onImageFiles={inserts.onImageFiles('solution_md')}
           />
         </Form.Item>
 
         {previewSolution && (
           <div style={{ marginBottom: 16, padding: 12, background: '#f6ffed', borderRadius: 4, border: '1px solid #b7eb8f' }}>
             <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр решения:</div>
-            <TaskStatementRenderer text={previewSolution} images={taskImages.solution} />
+            <div className="task-statement">
+              <TaskStatementRenderer text={previewSolution} images={taskImages.solution} />
+            </div>
           </div>
         )}
 
