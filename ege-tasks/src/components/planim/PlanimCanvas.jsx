@@ -16,6 +16,8 @@ const DRAG_START_PX = 4;
  *
  * @param view      — { cx, cy, scale } или null: «вписать» (холст посчитает
  *                    вид сам и отдаст его в onViewChange — дальше вид не прыгает)
+ * @param fitModel  — по какой модели вписывать (пособие: по всему построению,
+ *                    чтобы чертёж не прыгал при листании шагов); по умолчанию model
  * @param highlight — { points:Set, lines:Set, circles:Set, polys:Set } — выбор инструмента
  * @param flashStep — номер шага, чьи объекты вспыхивают (новое на чертеже)
  * @param getDragTarget — (pt, frame) → цель или null
@@ -23,6 +25,7 @@ const DRAG_START_PX = 4;
  */
 export default function PlanimCanvas({
   model,
+  fitModel = null,
   view,
   onViewChange,
   onClick,
@@ -58,8 +61,8 @@ export default function PlanimCanvas({
 
   const ready = size.width >= 40 && size.height >= 40;
   const effView = useMemo(
-    () => (view ? clampView(view) : ready ? fitView(model, size, { padding: 56 }) : null),
-    [view, ready, model, size],
+    () => (view ? clampView(view) : ready ? fitView(fitModel || model, size, { padding: 56 }) : null),
+    [view, ready, model, fitModel, size],
   );
   const viewRef = useRef(effView);
   viewRef.current = effView;

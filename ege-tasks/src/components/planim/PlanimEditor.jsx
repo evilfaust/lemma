@@ -5,7 +5,7 @@ import {
 import {
   DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined, EditOutlined, LeftOutlined,
   RightOutlined, PlayCircleOutlined, FileTextOutlined, QuestionOutlined, ExpandOutlined,
-  BorderInnerOutlined, RadiusSettingOutlined,
+  BorderInnerOutlined, RadiusSettingOutlined, BookOutlined,
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import PlanimCanvas from './PlanimCanvas';
@@ -13,6 +13,8 @@ import PlanimTextModal from './PlanimTextModal';
 import PlanimHelpModal from './PlanimHelpModal';
 import PlanimPointModal from './PlanimPointModal';
 import PlanimFigureModal from './PlanimFigureModal';
+import StereoLibrary from '../stereo/StereoLibrary';
+import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
   evaluateScene, tryAppendOps, removeOpCascade, applyAction,
   parseCommand, describeOp, freeOrigin, figureOps, figureVertexCount, nextFreeNames,
@@ -134,6 +136,12 @@ export default function PlanimEditor({
   const [pointTarget, setPointTarget] = useState(null);
   const [paintColor, setPaintColor] = useState('red');
   const [toolOpts, setToolOpts] = useState({ arcs: 1, angleLabel: '', ticks: 1, measureText: '' });
+  const [libOpen, setLibOpen] = useState(false);
+  const auth = useOptionalAuth();
+  // Открытый из библиотеки чертёж и «подпись» сохранённого состояния — по ней
+  // видно, есть ли несохранённые изменения.
+  const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
+  const [savedSig, setSavedSig] = useState(() => draft?.savedSig || '');
 
   const model = useMemo(() => evaluateScene(scene), [scene]);
   // Пошаговый показ: null — всё построение, число — сколько шагов видно.
@@ -149,10 +157,19 @@ export default function PlanimEditor({
   useEffect(() => {
     if (embedded) return undefined;
     const t = setTimeout(() => {
-      try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ scene, showGrid })); } catch { /* приватный режим */ }
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ scene, showGrid, doc: currentDoc, savedSig }));
+      } catch { /* приватный режим */ }
     }, 300);
     return () => clearTimeout(t);
-  }, [scene, showGrid, embedded]);
+  }, [scene, showGrid, currentDoc, savedSig, embedded]);
+
+  const sceneSig = useMemo(() => JSON.stringify(scene), [scene]);
+  const dirty = currentDoc ? sceneSig !== savedSig : scene.ops.length > 0;
+  const onSaved = useCallback((doc, { keepDirty = false } = {}) => {
+    setCurrentDoc(doc);
+    if (!keepDirty) setSavedSig(doc ? JSON.stringify(sceneRef.current) : '');
+  }, []);
 
   useEffect(() => {
     if (flashStep == null) return undefined;
@@ -341,6 +358,11 @@ export default function PlanimEditor({
         undo();
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+        e.preventDefault();
+        setLibOpen(true);
+        return;
+      }
       if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'Escape') {
         if (replay) exitReplay();
@@ -428,7 +450,12 @@ export default function PlanimEditor({
       setFigureOpen(false);
     };
     if (add) { commit(r.ops); done(); return; }
-    const start = () => { setScene({ ops: r.ops }); done(); };
+    const start = () => {
+      setScene({ ops: r.ops });
+      setCurrentDoc(null);
+      setSavedSig('');
+      done();
+    };
     if (!scene.ops.length) { start(); return; }
     modal.confirm({
       title: 'Новый чертёж',
@@ -460,6 +487,9 @@ export default function PlanimEditor({
         <div className="stereo-embedded__bar">
           <Space wrap size={6}>
             <Button icon={<PlusOutlined />} onClick={() => setFigureOpen(true)}>Фигура</Button>
+            <Tooltip title="Взять чертёж из библиотеки (или сохранить туда)">
+              <Button icon={<BookOutlined />} onClick={() => setLibOpen(true)}>Библиотека</Button>
+            </Tooltip>
             <Tooltip title="Чертёж текстом — и обратно">
               <Button icon={<FileTextOutlined />} onClick={() => setTextOpen(true)}>Текст</Button>
             </Tooltip>
@@ -485,9 +515,14 @@ export default function PlanimEditor({
           icon={<RadiusSettingOutlined />}
           accent="teal"
           title="Планиметрия"
-          subtitle="Чертежи для задач и теории: треугольники, окружности, высоты, углы"
+          subtitle={currentDoc
+            ? `«${currentDoc.title}»${dirty ? ' · есть несохранённые изменения' : ''}`
+            : 'Чертежи для задач и теории: треугольники, окружности, высоты, углы'}
           extra={(
             <Space wrap>
+              <Tooltip title="Сохранённые чертежи и пособия для учеников (Ctrl+S)">
+                <Button icon={<BookOutlined />} onClick={() => setLibOpen(true)}>Библиотека</Button>
+              </Tooltip>
               <Button icon={<PlusOutlined />} onClick={() => setFigureOpen(true)}>Новый чертёж</Button>
               <Tooltip title="Блок ```planim для задачи или теории — и обратно">
                 <Button icon={<FileTextOutlined />} onClick={() => setTextOpen(true)}>Текст</Button>
@@ -771,6 +806,25 @@ export default function PlanimEditor({
         onClose={() => setFigureOpen(false)}
         canAdd={scene.ops.length > 0}
         onApply={applyFigure}
+      />
+      <StereoLibrary
+        kind="planim"
+        open={libOpen}
+        onClose={() => setLibOpen(false)}
+        scene={scene}
+        currentDoc={currentDoc}
+        dirty={dirty}
+        canEdit={!!auth?.canEdit}
+        onSaved={onSaved}
+        onOpen={(rec) => {
+          const sc = withIds(Array.isArray(rec.scene?.ops) ? rec.scene : EMPTY);
+          setScene(sc);
+          setCurrentDoc({ id: rec.id, title: rec.title });
+          setSavedSig(JSON.stringify(sc));
+          setPending([]);
+          setViewStep(null);
+          setView(null);
+        }}
       />
       <PlanimHelpModal
         open={helpOpen}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { api } from '../../shared/services/pocketbase';
 import StereoCanvas from './StereoCanvas';
 import { evaluateScene } from '../../utils/stereo/scene';
@@ -6,6 +6,10 @@ import { DEFAULT_CAMERA, clampCamera } from '../../utils/stereo/camera';
 import { describeOp } from '../../utils/stereo/commands';
 import { sceneOfRoom } from '../../utils/stereo/room';
 import './stereo.css';
+
+// Планиметрический чертёж лежит в той же коллекции (kind = 'planim') и
+// открывается по той же ссылке — у него свой холст, грузится только по нужде.
+const StudentPlanimManual = lazy(() => import('../planim/StudentPlanimManual'));
 
 /**
  * Пошаговое пособие: student.oipav.ru/s/<id> — сохранённый чертёж, который
@@ -63,6 +67,10 @@ export default function StudentStereoManual({ id }) {
   }, [rec?.title]);
 
   const current = step > 0 && model ? model.steps[step - 1] : null;
+
+  if (rec?.kind === 'planim') {
+    return <Suspense fallback={null}><StudentPlanimManual rec={rec} /></Suspense>;
+  }
 
   return (
     <div className="ssb">

@@ -12,6 +12,27 @@ const C = 'stereo_rooms';
 const S = 'stereo_scenes';
 const isNotFound = (e) => e?.status === 404;
 
+// Поля kind нет до миграции 1787100000 — фильтр по нему PB отвергает (400).
+// Тогда стереобиблиотека показывает все записи (планиметрических там ещё нет),
+// а планиметрическая говорит «появится после обновления базы» (null).
+async function listScenes(kindFilter, { withoutKind } = {}) {
+  const t = currentTeacher();
+  if (!t) return [];
+  const load = (filter) => pb.collection(S).getFullList({
+    sort: '-updated',
+    filter,
+    fields: 'id,title,note,public,kind,created,updated',
+  });
+  try {
+    return await load(`owner = "${t.id}" && ${kindFilter}`);
+  } catch (error) {
+    if (isNotFound(error)) return null;
+    if (error?.status === 400) return withoutKind === 'all' ? load(`owner = "${t.id}"`) : null;
+    console.error('Error fetching stereo_scenes:', error);
+    throw error;
+  }
+}
+
 export const stereoApi = {
   // Комнаты текущего учителя (и у superadmin — только свои: чужие эфиры в
   // списке комнат ему не нужны).
@@ -99,23 +120,26 @@ export const stereoApi = {
     return pb.collection(C).unsubscribe(id);
   },
 
-  // --- библиотека чертежей (stereo_scenes, миграция 1787000000) -----------------
+  // --- библиотека чертежей (stereo_scenes, миграции 1787000000 и 1787100000) ------
+  //
+  // В одной коллекции живут и стереочертежи (kind пустой), и планиметрические
+  // (kind = 'planim'): поля, правила и пособие ученика у них общие.
 
   // Свои чертежи без журнала шагов (список лёгкий); null — коллекции нет.
   async getStereoScenes() {
-    const t = currentTeacher();
-    if (!t) return [];
-    try {
-      return await pb.collection(S).getFullList({
-        sort: '-updated',
-        filter: `owner = "${t.id}"`,
-        fields: 'id,title,note,public,created,updated',
-      });
-    } catch (error) {
-      if (isNotFound(error)) return null;
-      console.error('Error fetching stereo_scenes:', error);
-      throw error;
-    }
+    return listScenes('kind != "planim"', { withoutKind: 'all' });
+  },
+
+  async getPlanimScenes() {
+    return listScenes('kind = "planim"');
+  },
+
+  async createPlanimScene({ title, note = '', scene }) {
+    const rec = await pb.collection(S).create(withOwner({
+      title, note, scene, kind: 'planim', public: false,
+    }));
+    _logAudit('create', S, rec.id, `Планиметрический чертёж «${title}»`);
+    return rec;
   },
 
   async getStereoScene(id) {

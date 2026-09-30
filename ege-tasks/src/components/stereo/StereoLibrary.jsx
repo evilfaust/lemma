@@ -13,13 +13,34 @@ const fmtDate = (s) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
+// Чем отличаются библиотеки стерео- и планиметрических чертежей: запись одна
+// (stereo_scenes), различает их поле kind.
+const KINDS = {
+  stereo: {
+    list: () => api.getStereoScenes(),
+    create: ({ title, scene, camera }) => api.createStereoScene({ title, scene, camera }),
+    patch: (scene, camera) => ({ scene, camera }),
+    placeholder: 'Название, например «Сечение куба через M, N, K»',
+    help: 'листать шаги и крутить чертёж можно без входа',
+  },
+  planim: {
+    list: () => api.getPlanimScenes(),
+    create: ({ title, scene }) => api.createPlanimScene({ title, scene }),
+    patch: (scene) => ({ scene }),
+    placeholder: 'Название, например «Высота и медиана треугольника»',
+    help: 'листать шаги построения можно без входа',
+  },
+};
+
 /**
  * Библиотека чертежей: сохранить текущий, открыть сохранённый, открыть
  * ученикам пошаговое пособие по ссылке (student.oipav.ru/s/<id>).
+ * kind — 'stereo' | 'planim'.
  */
 export default function StereoLibrary({
-  open, onClose, scene, camera, currentDoc, dirty, onOpen, onSaved, canEdit,
+  open, onClose, scene, camera, currentDoc, dirty, onOpen, onSaved, canEdit, kind = 'stereo',
 }) {
+  const K = KINDS[kind] || KINDS.stereo;
   const { message, modal } = App.useApp();
   const [list, setList] = useState(undefined);
   const [title, setTitle] = useState('');
@@ -28,12 +49,12 @@ export default function StereoLibrary({
 
   const reload = useCallback(async () => {
     try {
-      setList(await api.getStereoScenes());
+      setList(await K.list());
     } catch (e) {
       setList([]);
       message.error(e?.message || 'Не удалось загрузить библиотеку');
     }
-  }, [message]);
+  }, [message, K]);
 
   useEffect(() => { if (open) reload(); }, [open, reload]);
 
@@ -42,7 +63,7 @@ export default function StereoLibrary({
     if (!t) { message.warning('Назовите чертёж'); return; }
     setBusy(true);
     try {
-      const rec = await api.createStereoScene({ title: t, scene, camera });
+      const rec = await K.create({ title: t, scene, camera });
       onSaved({ id: rec.id, title: rec.title });
       setTitle('');
       message.success('Чертёж сохранён');
@@ -57,7 +78,7 @@ export default function StereoLibrary({
   const saveCurrent = async () => {
     setBusy(true);
     try {
-      await api.updateStereoScene(currentDoc.id, { scene, camera });
+      await api.updateStereoScene(currentDoc.id, K.patch(scene, camera));
       onSaved(currentDoc);
       message.success('Изменения сохранены');
       reload();
@@ -159,7 +180,7 @@ export default function StereoLibrary({
                   onChange={(e) => setTitle(e.target.value)}
                   onPressEnter={saveNew}
                   maxLength={200}
-                  placeholder={currentDoc ? 'Сохранить как новый: название' : 'Название, например «Сечение куба через M, N, K»'}
+                  placeholder={currentDoc ? 'Сохранить как новый: название' : K.placeholder}
                 />
                 <Button icon={<SaveOutlined />} onClick={saveNew} loading={busy}>Сохранить</Button>
               </Space.Compact>
@@ -210,8 +231,8 @@ export default function StereoLibrary({
           )}
           <div className="stereo-cmd-help">
             Переключатель открывает чертёж ученикам как пошаговое пособие:
-            ссылка <code>student.oipav.ru/s/…</code>, листать шаги и крутить
-            чертёж можно без входа. Подписи к шагам — из журнала редактора.
+            ссылка <code>student.oipav.ru/s/…</code>, {K.help}. Подписи к
+            шагам — из журнала редактора.
           </div>
         </Space>
       )}
