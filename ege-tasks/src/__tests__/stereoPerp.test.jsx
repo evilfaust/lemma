@@ -400,3 +400,99 @@ describe('перпендикулярная плоскость', () => {
     expect(tryAppendOp(sc, toPlane.op).ok).toBe(true);
   });
 });
+
+describe('угол между прямой и плоскостью', () => {
+  const deg = (x) => (x * 180) / Math.PI;
+  const valueOf = (m, k) => m.steps[k].created.value;
+
+  it('диагональ куба и основание: точки уже есть — новых не появляется', () => {
+    const sc = build(['угол A1C (ABC)']);
+    expect(sc.ops[0].at).toBeUndefined();
+    expect(sc.ops[0].foot).toBeUndefined();
+    const m = evaluateScene(sc);
+    expect(m.steps[0].created.angle).toEqual(['A1', 'C', 'A']);
+    expect(valueOf(m, 0)).toBe(`≈ ${String(Math.round(deg(Math.atan(1 / Math.sqrt(2))) * 100) / 100).replace('.', ',')}°`);
+    expect(m.steps[0].created.note).toMatch(/^∠\(A₁C, \(ABC\)\) = ∠A₁CA ≈ 35,26°$/);
+    // A1A — ребро, повторно не рисуется; CA — диагональ основания — рисуется.
+    const segs = m.lines.filter((l) => l.kind === 'segment');
+    expect(segs.map((l) => l.ref)).toEqual([['C', 'A']]);
+    expect(m.arcs).toHaveLength(1);
+    expect(m.marks).toHaveLength(1);
+  });
+
+  it('боковое ребро пирамиды и основание: основание высоты получает имя H', () => {
+    const sc = build(['угол SA (ABC)'], pyramid);
+    expect(sc.ops[0]).toMatchObject({ foot: 'H' });
+    expect(sc.ops[0].at).toBeUndefined();
+    const m = evaluateScene(sc);
+    const H = pos(m, 'H');
+    for (const v of ['A', 'B', 'C', 'D']) expect(dist(H, pos(m, v))).toBeCloseTo(2 * Math.sqrt(2), 9);
+    expect(valueOf(m, 0)).toBe(`≈ ${String(Math.round(deg(Math.atan(5 / (2 * Math.sqrt(2)))) * 100) / 100).replace('.', ',')}°`);
+  });
+
+  it('пересечение вне тела — новая точка, прямая дорисовывается; свои имена', () => {
+    const sc = build(['P на AA1 0,3', 'угол PC1 (ABC) основание Q след Z']);
+    expect(sc.ops[1]).toMatchObject({ at: 'Z', foot: 'Q' });
+    const m = evaluateScene(sc);
+    expect(pos(m, 'Z').z).toBeCloseTo(pos(m, 'A').z, 9);
+    // основание перпендикуляра из P — вершина A: Q — её синоним
+    expect(m.points.Q.alias).toBe('A');
+    expect(m.lines.some((l) => l.kind === 'ext' && l.step === 1)).toBe(true);
+  });
+
+  it('параллельна, лежит в плоскости, перпендикулярна — понятные ошибки', () => {
+    const sc = { body: cube, ops: [] };
+    const err = (cmd) => tryAppendOp(sc, parseCommand(cmd, evaluateScene(sc)).op).error;
+    expect(err('угол A1B1 (ABC)')).toMatch(/параллельна плоскости \(ABC\) — угол между ними 0°/);
+    expect(err('угол AC (ABC)')).toMatch(/лежит в плоскости/);
+    expect(err('угол AA1 (ABC)')).toMatch(/перпендикулярна плоскости \(ABC\) — угол 90°/);
+    expect(parseCommand('угол AB CD', evaluateScene(sc)).error).toMatch(/угол SA \(ABC\)/);
+  });
+
+  it('записи команды: словами, плоскость первой, ссылка на перпендикулярную плоскость', () => {
+    const m = evaluateScene({ body: cube, ops: [] });
+    expect(parseCommand('угол между BD1 и (ABB1)', m).op).toMatchObject({ type: 'angle', ref: ['B', 'D1'], plane: ['A', 'B', 'B1'] });
+    expect(parseCommand('угол (ABC) A1C', m).op).toMatchObject({ ref: ['A1', 'C'], plane: ['A', 'B', 'C'] });
+    const sc = build(['O = середина BD1', 'сечение O ⊥ BD1', 'угол AC1 (O⊥BD1)']);
+    expect(evaluateScene(sc).steps.every((st) => st.ok)).toBe(true);
+  });
+
+  it('описание, команда, блок ```stereo; величина в сцену не попадает', () => {
+    const sc = build(['угол SA (ABC)', 'HB'], pyramid);
+    const byId = evaluateScene(sc).opsById;
+    expect(describeOp(sc.ops[0], byId)).toBe('Угол между SA и (ABC)');
+    expect(opToCommand(sc.ops[0], byId)).toBe('угол SA (ABC) основание H');
+    const { text } = buildStereoBlock(sc, DEFAULT_CAMERA);
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    expect(dist(pos(evaluateScene(back.scene), 'H'), pos(evaluateScene(sc), 'H'))).toBeLessThan(1e-9);
+    // Эфир и пособия передают сцену — там ни величины, ни «°».
+    expect(JSON.stringify(sc)).not.toMatch(/°/);
+    expect(text).not.toMatch(/°/);
+  });
+
+  it('удаление и переименование', () => {
+    const sc = build(['угол SA (ABC)', 'HB'], pyramid);
+    expect(removeOpCascade(sc, sc.ops[0].id).scene.ops).toHaveLength(0);
+    const renamed = renamePointInScene(sc, 'H', 'O');
+    expect(renamed.ops[0].foot).toBe('O');
+    expect(renamed.ops[1].ref).toEqual(['O', 'B']);
+    expect(evaluateScene(renamed).steps.every((st) => st.ok)).toBe(true);
+  });
+
+  it('инструмент: прямая → грань; дуга рисуется штрихами и не ловится кликом', () => {
+    const m0 = evaluateScene({ body: pyramid, ops: [] });
+    expect(TOOLS.find((t) => t.key === 'angle').hot).toBe('E');
+    expect(acceptedKinds('angle', [])).toEqual(['line']);
+    let r = toolClick('angle', [], { line: { id: 'edge:A-S', ref: ['A', 'S'] } }, m0);
+    expect(acceptedKinds('angle', r.pending)).toEqual(['poly', 'face']);
+    r = toolClick('angle', r.pending, { face: { id: 'f', verts: ['A', 'B', 'C', 'D'] } }, m0);
+    expect(r.op).toMatchObject({ type: 'angle', ref: ['A', 'S'], plane: ['A', 'B', 'C', 'D'], foot: 'H' });
+
+    const m = evaluateScene({ body: pyramid, ops: [r.op] });
+    const frame = renderStereo(m, DEFAULT_CAMERA, { width: 400, height: 340 });
+    const arc = frame.strokes.filter((st) => st.objId === m.arcs[0].id);
+    expect(arc.length).toBeGreaterThanOrEqual(14);
+    expect(frame.hits.lines.some((l) => l.id === m.arcs[0].id)).toBe(false);
+  });
+});

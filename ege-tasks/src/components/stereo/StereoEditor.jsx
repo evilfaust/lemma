@@ -726,6 +726,12 @@ export default function StereoEditor({
                     <span className="stereo-step__no">{st.index + 1}</span>
                     <span className="stereo-step__text">
                       {describeOp(st.op, model.opsById)}
+                      {/* Величина угла — только учителю: ученикам в эфир не уходит. */}
+                      {st.ok && st.created.value && (
+                        <Tooltip title="Видно только вам — на чертёж и ученикам не попадает">
+                          <span className="stereo-step__value">{st.created.value}</span>
+                        </Tooltip>
+                      )}
                       {!st.ok && <div className="stereo-cmd-error">{st.error}</div>}
                       {editNote && editNote.opId === st.op.id ? (
                         <Input

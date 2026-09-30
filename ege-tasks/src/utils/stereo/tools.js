@@ -6,7 +6,7 @@
 // готовую операцию.
 
 import {
-  newOpId, lineColorKey, segmentAt, pointInPlane, pointOnLineRef,
+  newOpId, lineColorKey, segmentAt, pointInPlane, pointOnLineRef, makeAngleOp,
 } from './scene';
 import { nextFreeName, nextFootName } from './naming';
 import { prettyName } from './bodies';
@@ -26,6 +26,7 @@ export const TOOLS = [
   { key: 'parallel', label: 'Параллельная', glyph: '∥', hot: 'A' },
   { key: 'perp', label: 'Перпендикуляр', glyph: '⊥', hot: 'H' },
   { key: 'perpPlane', label: 'Плоскость ⊥', glyph: '◧⊥', hot: 'N' },
+  { key: 'angle', label: 'Угол', glyph: '∠', hot: 'E' },
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
@@ -98,6 +99,10 @@ export function toolHint(tool, pending = []) {
       return names.length
         ? `Перпендикуляр из ${names[0]}… — кликните по прямой или по грани / сечению (Shift — задняя грань)`
         : 'Выберите точку, из которой проводим перпендикуляр, затем прямую или плоскость';
+    case 'angle':
+      return pending.length
+        ? 'Теперь плоскость — грань или сечение (Shift — задняя грань): построим проекцию и отметим угол'
+        : 'Угол между прямой и плоскостью: выберите прямую, затем плоскость';
     case 'perpPlane': {
       const line = pending.find((p) => p.kind === 'line');
       if (line) return 'Плоскость пройдёт через эту прямую — выберите плоскость (грань или сечение), которой она перпендикулярна';
@@ -139,6 +144,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'perp':
       if (pending.length > 1) return ['poly', 'face']; // точка на прямой — нужна плоскость
       return pending.length ? ['line', 'poly', 'face'] : ['point'];
+    case 'angle': return pending.length ? ['poly', 'face'] : ['line'];
     case 'perpPlane':
       if (!pending.length) return ['point', 'line'];
       return pending[0].kind === 'point' ? ['line'] : ['poly', 'face'];
@@ -257,6 +263,12 @@ export function toolClick(tool, pending, hit, model) {
       const op = { id: newOpId(), type: 'perp', from, plane };
       if (pointInPlane(model, from, plane) !== true) op.name = nextFootName(model);
       return { pending: [], op };
+    }
+    case 'angle': {
+      if (!pending.length) return { pending: [target] };
+      const plane = planeOfTarget(model, target);
+      if (!plane) return { pending };
+      return { pending: [], op: makeAngleOp(model, pending[0].ref, plane, newOpId()) };
     }
     case 'perpPlane': {
       // Точка → прямая: сечение через точку ⊥ прямой. Прямая → плоскость:

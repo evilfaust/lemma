@@ -18,6 +18,7 @@
 //   сечение M ⊥ BD1     сечение плоскостью через M перпендикулярно BD1
 //   плоскость AB ⊥ (SCD) плоскость через AB перпендикулярно (SCD);
 //                        дальше на неё ссылаются «(M⊥BD1)», «(AB⊥SCD)»
+//   угол SA (ABC)       угол между прямой и плоскостью: проекция, дуга
 //   сечение MND         сечение плоскостью по трём точкам
 //   грань ABCD          подсветить грань / «плоскость AA1C1C»
 //   заливка KLMN        закрасить многоугольник
@@ -26,7 +27,7 @@
 
 import { prettyName } from './bodies';
 import {
-  newOpId, refName, planeName, pointInPlane, pointOnLineRef,
+  newOpId, refName, planeName, pointInPlane, pointOnLineRef, makeAngleOp,
 } from './scene';
 import { colorKeyFromWord } from './render';
 import { nextFreeName, nextFootName } from './naming';
@@ -37,7 +38,7 @@ const CYR_TO_LAT = {
 
 // Латинские служебные слова; всё остальное латиницей — имена точек.
 const LATIN_WORDS = new Set([
-  'seg', 'segment', 'line', 'par', 'perp', 'section', 'plane', 'face', 'fill', 'rename',
+  'seg', 'segment', 'line', 'par', 'perp', 'angle', 'section', 'plane', 'face', 'fill', 'rename',
   'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x',
   'color', 'red', 'blue', 'green', 'orange', 'violet', 'purple', 'black',
 ]);
@@ -328,6 +329,22 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'parallel', through: m[1], ref: n } };
     }
 
+    // «угол SA (ABC)», «угол между SA и ABC» — угол между прямой и плоскостью.
+    // Имена новых точек можно задать: «… основание O след X».
+    m = /^(?:угол|angle)\s+(?:между\s+)?(?:прям[а-яё]*\s+)?(\S+)\s+(?:и\s+)?(?:плоскост[а-яё]*\s+)?(\S+)((?:\s+(?:основание|след)\s+[A-Z][0-9]*)*)$/i.exec(src);
+    if (m) {
+      let [, a, b] = m;
+      if (isPlaneTok(a) && !isPlaneTok(b)) [a, b] = [b, a];
+      if (!isPlaneTok(b)) throw new Error('Угол между прямой и плоскостью: «угол SA (ABC)»');
+      const ref = parseLineRef(a, model, 'Угол между прямой и плоскостью: «угол SA (ABC)»');
+      const plane = parsePlaneRef(b, model);
+      const op = makeAngleOp(model, ref, plane, newOpId());
+      for (const [, key, nm] of m[3].matchAll(/(основание|след)\s+([A-Z][0-9]*)/gi)) {
+        op[/^осн/i.test(key) ? 'foot' : 'at'] = nm;
+      }
+      return { op };
+    }
+
     // «сечение M ⊥ BD1» — через точку перпендикулярно прямой; «плоскость
     // AB ⊥ (SCD)» — через прямую перпендикулярно плоскости. «Сечение» рисует
     // сечение тела, «плоскость» — полупрозрачную плоскость.
@@ -495,6 +512,7 @@ export function describeOp(op, opsById = {}) {
       if (op.name) return `${P(op.from)}${P(op.name)} ⊥ ${to}`;
       return `Прямая через ${P(op.from)} ⊥ ${to}${op.within ? ` в ${planeName(op.within, opsById)}` : ''}`;
     }
+    case 'angle': return `Угол между ${refName(op.ref, opsById)} и ${planeName(op.plane, opsById)}`;
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'Плоскость' : 'Сечение';
       return op.from
@@ -535,6 +553,11 @@ export function opToCommand(op, opsById = {}) {
       if (!op.within) return `${op.from} ⊥ ${to}`;
       const w = planeRefText(op.within, opsById);
       return w ? `${op.from} ⊥ ${to} в ${w}` : '';
+    }
+    case 'angle': {
+      const pl = planeTokText(op.plane, opsById);
+      if (!r(op.ref) || !pl) return '';
+      return `угол ${r(op.ref)} ${pl}${op.foot ? ` основание ${op.foot}` : ''}${op.at ? ` след ${op.at}` : ''}`;
     }
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'плоскость' : 'сечение';

@@ -2,7 +2,9 @@
 // React-холст (учитель и ученик), из неё же собирается SVG-строка для печати
 // и самопроверки, по ней же ищется объект под курсором.
 
-import { add as addVec, sub, lerp, len } from './vec3';
+import {
+  add as addVec, sub, mul, dot, norm, lerp, len,
+} from './vec3';
 import { makeProjector } from './camera';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
 
@@ -213,6 +215,19 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const corner = addVec(onPerp, mk.b);
     pushSplit(mk.id, 'mark', onPerp, corner, color, WIDTH.mark, mk.step);
     pushSplit(mk.id, 'mark', corner, addVec(mk.at, mk.b), color, WIDTH.mark, mk.step);
+  }
+
+  // Дуги углов — ломаной из коротких штрихов (видимость — по каждому).
+  for (const ar of model.arcs || []) {
+    const e1 = norm(ar.u);
+    const e2 = norm(sub(ar.v, mul(e1, dot(ar.v, e1))));
+    const theta = Math.acos(Math.max(-1, Math.min(1, dot(e1, norm(ar.v)))));
+    const color = pointColorHex(ar.color) || ar.color || STEREO_COLORS.construct;
+    const at = (t) => addVec(ar.at, addVec(mul(e1, ar.r * Math.cos(t)), mul(e2, ar.r * Math.sin(t))));
+    const N = 14;
+    for (let k = 0; k < N; k++) {
+      pushSplit(ar.id, 'mark', at((theta * k) / N), at((theta * (k + 1)) / N), color, WIDTH.mark, ar.step);
+    }
   }
 
   // Точки.

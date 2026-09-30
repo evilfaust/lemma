@@ -180,6 +180,12 @@
   justify-content: center;
 }
 .stereo-step__text { flex: 1; min-width: 0; font-family: 'Times New Roman', serif; font-size: 15px; }
+.stereo-step__value {
+  margin-left: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #6b7280;
+}
 .stereo-step__del { opacity: 0; transition: opacity 0.15s; }
 .stereo-step:hover .stereo-step__del { opacity: 1; }
 
