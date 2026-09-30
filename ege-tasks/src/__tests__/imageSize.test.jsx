@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import MathRenderer from '../shared/components/MathRenderer';
 import { splitSideFigure } from '../components/print-sheet/sideFigure';
-import { imageSnippetAt, imageSizeToken } from '../utils/imageSnippet';
+import { imageSnippetAt, imageSizeToken, imagesSnippetAt } from '../utils/imageSnippet';
 
 const URL = 'https://files.l.oipav.ru/api/files/materials/abc/pic.png';
 const draw = (md) => render(<MathRenderer text={md} />).container;
@@ -66,5 +66,33 @@ describe('вставка и печать сбоку', () => {
     const { figure, text } = splitSideFigure(`![рис](${URL}) {S}На рисунке — лабиринт.`);
     expect(figure.md).toBe(`![рис](${URL})`);
     expect(text).toBe('На рисунке — лабиринт.');
+  });
+});
+
+describe('пакет картинок в ряд рисуется галереей', () => {
+  it('таблица-галерея: все картинки в ячейках, подписи на месте', () => {
+    const ims = [1, 2, 3, 4, 5].map((i) => ({ url: `https://x/${i}.png`, title: `р${i}` }));
+    const text = 'На каком рисунке изображён график?';
+    const md = text + imagesSnippetAt(text, text.length, ims, { layout: 'row', perRow: 3, labels: 'num' });
+    const c = draw(md);
+    const table = c.querySelector('table');
+    expect(table.className).toContain('md-table--gallery');
+    expect(c.querySelectorAll('table img')).toHaveLength(5);
+    expect(c.querySelectorAll('tr')).toHaveLength(2);
+    expect(c.textContent).toContain('4)');
+    expect(c.textContent).not.toContain('{галерея}');
+    expect(c.textContent).not.toContain('|');
+  });
+});
+
+describe('пакет друг под другом с подписями «1) 2)»', () => {
+  it('остаётся текстом со скобкой, а не превращается в список', () => {
+    const ims = [1, 2].map((i) => ({ url: `https://x/${i}.png`, title: `р${i}` }));
+    const c = draw(imagesSnippetAt('', 0, ims, { layout: 'column', labels: 'num' }));
+    expect(c.querySelector('ol')).toBeNull();
+    expect(c.querySelectorAll('img')).toHaveLength(2);
+    expect(c.textContent).toContain('1)');
+    expect(c.textContent).toContain('2)');
+    expect(c.textContent).not.toContain('\\');
   });
 });

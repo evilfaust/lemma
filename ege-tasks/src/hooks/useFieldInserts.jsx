@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useRef, useState } from 'react';
-import { App, Segmented, Typography } from 'antd';
+import { App, Segmented, Select, Typography } from 'antd';
 import NumberLineModal from '../components/shared/NumberLineModal';
 import PlotModal from '../components/shared/PlotModal';
 import GridPaperModal from '../components/shared/GridPaperModal';
@@ -8,7 +8,7 @@ import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor } from '../utils
 import { insertAtCaret } from '../utils/caretInsert';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { stereoBlockMarkdown } from '../utils/stereo/dsl';
-import { imageSnippetAt } from '../utils/imageSnippet';
+import { imagesSnippetAt, normalizeBatch, BATCH_PER_ROW } from '../utils/imageSnippet';
 import { materialsApi } from '../shared/services/pb/filesClient';
 
 // Стереоредактор тяжёлый — грузится, только когда учитель его открыл.
@@ -27,6 +27,23 @@ const IMAGE_SIZE_OPTIONS = [
 ];
 const readImageSize = () => {
   try { return localStorage.getItem(IMAGE_SIZE_KEY) || ''; } catch { return ''; }
+};
+
+// Раскладка пакета (несколько картинок сразу) — тоже помнится.
+const IMAGE_BATCH_KEY = 'taskEditor.imageBatch';
+const BATCH_LAYOUT_OPTIONS = [
+  { value: 'column', label: 'Друг под другом' },
+  { value: 'row', label: 'В ряд (галерея)' },
+];
+const BATCH_LABEL_OPTIONS = [
+  { value: '', label: 'без подписей' },
+  { value: 'num', label: '1) 2) 3)' },
+  { value: 'ru', label: 'А) Б) В)' },
+];
+const BATCH_PER_ROW_OPTIONS = BATCH_PER_ROW.map((n) => ({ value: n, label: `по ${n}` }));
+const readImageBatch = () => {
+  try { return normalizeBatch(JSON.parse(localStorage.getItem(IMAGE_BATCH_KEY) || 'null')); }
+  catch { return normalizeBatch(null); }
 };
 
 /**
@@ -58,6 +75,14 @@ export default function useFieldInserts({ form, fields = {} }) {
   const setImageSize = useCallback((v) => {
     setImageSizeState(v);
     try { localStorage.setItem(IMAGE_SIZE_KEY, v); } catch { /* no-op */ }
+  }, []);
+  const [imageBatch, setImageBatchState] = useState(readImageBatch);
+  const imageBatchRef = useRef(imageBatch);
+  imageBatchRef.current = imageBatch;
+  const patchImageBatch = useCallback((patch) => {
+    const next = normalizeBatch({ ...imageBatchRef.current, ...patch });
+    setImageBatchState(next);
+    try { localStorage.setItem(IMAGE_BATCH_KEY, JSON.stringify(next)); } catch { /* no-op */ }
   }, []);
 
   const textAreaOf = (field) => fieldsRef.current[field]?.ref?.current?.resizableTextArea?.textArea || null;
@@ -125,20 +150,23 @@ export default function useFieldInserts({ form, fields = {} }) {
   }, [findAt]);
 
   // Картинка: файл — в «Библиотеке» (pb-files), в поле — ![подпись](ссылка).
-  // Курсор в строке таблицы — картинка встаёт в ячейку (imageSnippetAt).
+  // Курсор в строке таблицы — картинки встают в ячейку; несколько сразу —
+  // друг под другом или галереей в ряд (imagesSnippetAt).
   const openImage = useCallback((field) => setImageTarget(field), []);
 
-  const insertImage = useCallback((field, { url, title }) => {
-    if (!field || !url) return;
+  /** images: [{ url, title }] в порядке вставки. */
+  const insertImages = useCallback((field, images) => {
+    if (!field || !images?.length) return;
     const cur = form.getFieldValue(field) || '';
-    insertSnippet(field, imageSnippetAt(cur, fieldCaret(field)?.start, {
-      url, alt: title, size: imageSizeRef.current,
+    insertSnippet(field, imagesSnippetAt(cur, fieldCaret(field)?.start, images, {
+      size: imageSizeRef.current, ...imageBatchRef.current,
     }));
   }, [form, fieldCaret, insertSnippet]);
 
-  // Скриншот из буфера (Ctrl+V) или файл, брошенный на поле: грузим в
-  // Библиотеку и вставляем ссылку. Хранилище не подключено — открываем пикер:
-  // в нём форма входа, после входа картинку можно выбрать или загрузить там же.
+  // Скриншот из буфера (Ctrl+V) или файлы, брошенные на поле: грузим в
+  // Библиотеку и вставляем ссылки одним блоком. Хранилище не подключено —
+  // открываем пикер: в нём форма входа, после входа картинки можно выбрать
+  // или загрузить там же.
   const uploadImages = useCallback(async (field, files) => {
     if (!field || !files?.length) return;
     if (!materialsApi.isConnected()) {
@@ -146,27 +174,48 @@ export default function useFieldInserts({ form, fields = {} }) {
       setImageTarget(field);
       return;
     }
+    const many = files.length > 1;
     const key = `image-upload-${field}`;
-    message.loading({ content: 'Загружаю картинку в Библиотеку…', key, duration: 0 });
-    try {
-      for (const file of files) {
-        const base = String(file.name || '').replace(/\.[^.]+$/, '');
-        // У скриншота из буфера имя безликое («image») — подписываем датой.
-        const title = !base || /^image$/i.test(base)
-          ? `Картинка ${new Date().toLocaleString('ru-RU')}`
-          : base;
+    const progress = (n) => message.loading({
+      content: many ? `Загружаю картинки в Библиотеку… ${n} из ${files.length}` : 'Загружаю картинку в Библиотеку…',
+      key, duration: 0,
+    });
+    const done = [];
+    let failure = null;
+    progress(0);
+    for (const file of files) {
+      const base = String(file.name || '').replace(/\.[^.]+$/, '');
+      // У скриншота из буфера имя безликое («image») — подписываем датой.
+      const title = !base || /^image$/i.test(base)
+        ? `Картинка ${new Date().toLocaleString('ru-RU')}`
+        : base;
+      try {
         const rec = await materialsApi.uploadMaterial({ file, title, category: 'other' });
-        insertImage(field, { url: materialsApi.fileUrl(rec), title });
+        done.push({ url: materialsApi.fileUrl(rec), title });
+        progress(done.length);
+      } catch (e) {
+        failure = e;
+        break;
       }
-      message.success({ content: 'Картинка загружена в Библиотеку и вставлена', key });
-    } catch (e) {
-      if (e?.status === 401) {
-        materialsApi.disconnect();
-        setImageTarget(field);
-      }
-      message.error({ content: `Не удалось загрузить картинку: ${e?.message || ''}`, key });
     }
-  }, [insertImage, message]);
+    // Успевшие загрузиться вставляем и при сбое: они уже лежат в Библиотеке.
+    insertImages(field, done);
+    if (!failure) {
+      message.success({
+        content: many ? `Картинки загружены в Библиотеку и вставлены: ${done.length}` : 'Картинка загружена в Библиотеку и вставлена',
+        key,
+      });
+      return;
+    }
+    if (failure?.status === 401) {
+      materialsApi.disconnect();
+      setImageTarget(field);
+    }
+    message.error({
+      content: `Не удалось загрузить картинку${many ? ` (вставлено ${done.length} из ${files.length})` : ''}: ${failure?.message || ''}`,
+      key,
+    });
+  }, [insertImages, message]);
 
   /** Для LatexField: onImageFiles={inserts.onImageFiles('statement_md')}. */
   const onImageFiles = useCallback((field) => (files) => uploadImages(field, files), [uploadImages]);
@@ -241,19 +290,55 @@ export default function useFieldInserts({ form, fields = {} }) {
           <MaterialPickerModal
             open
             kind="image"
-            multiple={false}
-            title="Картинка из Библиотеки"
+            title="Картинки из Библиотеки"
             okText="Вставить"
             onClose={() => setImageTarget(null)}
-            onPick={(picked) => { if (picked[0]) insertImage(imageTarget, picked[0]); }}
-            extra={(
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <span>Размер:</span>
-                <Segmented size="small" value={imageSize} onChange={setImageSize} options={IMAGE_SIZE_OPTIONS} />
-                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                  доля ширины: S 30 % · M 50 % · L 70 % · XL 100 %; «Авто» — как решит лист.
-                  Поменять потом — буква в {'{M}'} после картинки
-                </Typography.Text>
+            onPick={(picked) => insertImages(imageTarget, picked)}
+            extra={(records) => (
+              <div style={{ display: 'grid', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span>Размер:</span>
+                  <Segmented size="small" value={imageSize} onChange={setImageSize} options={IMAGE_SIZE_OPTIONS} />
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    доля ширины: S 30 % · M 50 % · L 70 % · XL 100 %; «Авто» — как решит лист.
+                    Поменять потом — буква в {'{M}'} после картинки
+                  </Typography.Text>
+                </div>
+                {records.length > 1 ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span>Несколько картинок:</span>
+                    <Segmented
+                      size="small"
+                      value={imageBatch.layout}
+                      onChange={(layout) => patchImageBatch({ layout })}
+                      options={BATCH_LAYOUT_OPTIONS}
+                    />
+                    {imageBatch.layout === 'row' && (
+                      <Select
+                        size="small"
+                        value={imageBatch.perRow}
+                        onChange={(perRow) => patchImageBatch({ perRow })}
+                        options={BATCH_PER_ROW_OPTIONS}
+                        style={{ width: 78 }}
+                      />
+                    )}
+                    <Select
+                      size="small"
+                      value={imageBatch.labels}
+                      onChange={(labels) => patchImageBatch({ labels })}
+                      options={BATCH_LABEL_OPTIONS}
+                      style={{ width: 130 }}
+                    />
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      порядок — как отмечали (№ в списке)
+                      {imageBatch.layout === 'row' ? '; в ряду размер задаёт ячейка' : ''}
+                    </Typography.Text>
+                  </div>
+                ) : (
+                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                    Можно отметить несколько картинок — вставятся разом: друг под другом или в ряд
+                  </Typography.Text>
+                )}
               </div>
             )}
           />

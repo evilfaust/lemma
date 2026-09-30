@@ -8,7 +8,10 @@
  *
  * kind='image' — только картинки (с миниатюрой в списке), multiple=false — выбор
  * одного файла (клик заменяет выбор). Так пикер встраивается в редактор теории.
- * extra — свой блок под списком (редактор задач кладёт туда размер картинки).
+ * extra — свой блок под списком (редактор задач кладёт туда размер картинки
+ * и раскладку пакета); функция получает выбранные записи в порядке выбора.
+ * Картинки при multiple помечаются номером выбора — в этом порядке их отдаёт
+ * onPick (пакетная вставка в задачу).
  */
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Modal, Input, Select, List, Checkbox, Radio, Tag, Spin, Empty, Space, Typography, Upload, Button, App, TreeSelect } from 'antd';
@@ -82,6 +85,8 @@ export default function MaterialPickerModal({
   );
 
   const existing = new Set(existingIds);
+  // Порядок выбора = порядок ключей (id PocketBase — не числа, порядок вставки).
+  const pickOrder = kind === 'image' && multiple ? Object.keys(selected) : null;
 
   const confirm = () => {
     const records = Object.values(selected);
@@ -204,6 +209,9 @@ export default function MaterialPickerModal({
                           {rec.title || rec.original_name}
                         </span>
                         <Tag style={{ flexShrink: 0, marginInlineEnd: 0 }}>{CATEGORY_LABELS[rec.category] || 'Прочее'}</Tag>
+                        {pickOrder && checked && (
+                          <Tag color="blue" style={{ flexShrink: 0, marginInlineEnd: 0 }}>№ {pickOrder.indexOf(rec.id) + 1}</Tag>
+                        )}
                         {already && <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>прикреплён</Text>}
                       </div>
                     </List.Item>
@@ -212,7 +220,11 @@ export default function MaterialPickerModal({
               />
             )}
           </Spin>
-          {extra && <div style={{ marginTop: 12 }}>{extra}</div>}
+          {extra && (
+            <div style={{ marginTop: 12 }}>
+              {typeof extra === 'function' ? extra(Object.values(selected)) : extra}
+            </div>
+          )}
         </>
       )}
     </Modal>
