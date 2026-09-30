@@ -19,3 +19,11 @@ export function nextFreeName(modelOrNames) {
   }
   return `Q${Date.now() % 1000}`;
 }
+
+/** Имя основания перпендикуляра: по традиции H (H1, H2…), пока свободно. */
+export function nextFootName(modelOrNames) {
+  const used = usedNames(modelOrNames);
+  if (!used.has('H')) return 'H';
+  for (let k = 1; k < 10; k++) if (!used.has(`H${k}`)) return `H${k}`;
+  return nextFreeName(used);
+}

@@ -7,12 +7,14 @@ import {
 } from '../utils/stereo';
 import { parseStereoBlock } from '../utils/stereo/dsl';
 
-// Сцена, на которой справка «живёт»: есть P на AA1 и прямая через P ∥ AB.
+// Сцена, на которой справка «живёт»: есть P на AA1, прямая через P ∥ AB и
+// перпендикуляр к основанию, восставленный из A.
 const scene = {
   body: { kind: 'cube', a: 4 },
   ops: [
     { id: 'p', type: 'pointOnLine', name: 'P', ref: ['A', 'A1'], t: 0.3 },
     { id: 'par', type: 'parallel', through: 'P', ref: ['A', 'B'] },
+    { id: 'perp', type: 'perp', from: 'A', plane: ['A', 'B', 'C'] },
   ],
 };
 

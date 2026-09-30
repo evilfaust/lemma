@@ -1,14 +1,15 @@
 // Сцена стереочертежа = тело + журнал операций построения.
 //
 // Каждая операция ссылается только на то, что уже есть (точки — по имени,
-// прямые — парой имён или id операции «параллельная»), поэтому модель
+// прямые — парой имён или id операции «параллельная» / «перпендикуляр к
+// плоскости из её точки»), поэтому модель
 // целиком пересчитывается из журнала: отмена = убрать последнюю операцию,
 // пошаговый просмотр = первые k операций, эфир = передать журнал.
 //
 // Операция с ошибкой ничего не создаёт; её текст показывается учителю
 // («MN и AD скрещиваются — общей точки нет»).
 
-import { add, sub, mul, dot, len, dist, paramOnLine, distToLine } from './vec3';
+import { add, sub, mul, dot, len, norm, dist, paramOnLine, distToLine } from './vec3';
 import {
   buildBody, findFace, prettyName, normalizeBodySpec, POINT_NAME_RE,
 } from './bodies';
@@ -18,7 +19,7 @@ import {
 } from './geometry';
 
 export const OP_TYPES = [
-  'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'section', 'plane', 'fill',
+  'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'section', 'plane', 'fill',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -38,7 +39,32 @@ export function refName(ref, opsById = {}) {
   if (isPairRef(ref)) return ref.map(prettyName).join('');
   const op = opsById[ref];
   if (op?.type === 'parallel') return `через ${prettyName(op.through)} ∥ ${refName(op.ref, opsById)}`;
+  if (op?.type === 'perp' && op.plane) return `через ${prettyName(op.from)} ⊥ (${op.plane.map(prettyName).join('')})`;
   return '?';
+}
+
+/** Плоскость по именам точек модели; null — точки нет или они на одной прямой. */
+function planeOfNames(model, names) {
+  const pts = (names || []).map((n) => model.points[n]?.pos);
+  if (pts.length < 3 || pts.some((p) => !p)) return null;
+  for (let i = 2; i < pts.length; i++) {
+    const plane = planeFromPoints(pts[0], pts[1], pts[i], model.body.size);
+    if (plane) return plane;
+  }
+  return null;
+}
+
+/**
+ * Лежит ли точка в плоскости, заданной именами точек. От этого зависит, что
+ * строит «перпендикуляр»: из точки вне плоскости он опускается (основание +
+ * отрезок), из точки самой плоскости — восставляется (прямая).
+ * @returns {boolean | null} null — точки или плоскости нет
+ */
+export function pointInPlane(model, name, planeNames) {
+  const P = model?.points?.[name]?.pos;
+  const plane = P ? planeOfNames(model, planeNames) : null;
+  if (!plane) return null;
+  return Math.abs(dot(plane.n, P) - plane.d) <= 1e-5 * model.body.size;
 }
 
 function sameLine(p1, u1, p2, u2, eps) {
@@ -70,6 +96,7 @@ export function evaluateScene(scene, opts = {}) {
   const lines = [];
   const polys = [];
   const steps = [];
+  const rightAngles = []; // заготовки знаков прямого угла — доводятся после журнала
   const lineDefs = {};
   const opsById = {};
   ops.forEach((op, i) => { opsById[op.id || `s${i}`] = op; });
@@ -171,6 +198,29 @@ export function evaluateScene(scene, opts = {}) {
     });
   };
 
+  // Опущенный перпендикуляр: основание H получает имя, PH — отрезок. Если
+  // PH уже нарисован (ребро, прежний отрезок) — второй раз не рисуем.
+  const dropFoot = (op, P, H, stepIdx, created) => {
+    if (!op.name) fail('Основанию перпендикуляра нужно имя');
+    addPoint(op.name, H, stepIdx, created);
+    const foot = points[op.name].alias || op.name;
+    const u = sub(H, P);
+    const tol = 1e-6;
+    const drawn = lines.some((o) => {
+      if (!sameLine(o.p, o.u, P, u, eps * 10)) return false;
+      if (o.kind === 'line') return true;
+      const ta = paramOnLine(o.a, P, u);
+      const tb = paramOnLine(o.b, P, u);
+      return Math.min(ta, tb) <= tol && Math.max(ta, tb) >= 1 - tol;
+    });
+    if (drawn) return;
+    lines.push({
+      id: created.opId, kind: 'segment', ref: [op.from, foot], a: P, b: H,
+      p: P, u, step: stepIdx, color: op.color,
+    });
+    created.lines.push(created.opId);
+  };
+
   // --- журнал -------------------------------------------------------------
 
   ops.forEach((op, stepIdx) => {
@@ -222,6 +272,47 @@ export function evaluateScene(scene, opts = {}) {
             p: P, u: src.u, step: stepIdx, color: op.color,
           });
           created.lines.push(opId);
+          break;
+        }
+        case 'perp': {
+          const P = pointPos(op.from);
+          if (op.plane) {
+            // К плоскости. Точка вне плоскости (и основанию дано имя) —
+            // перпендикуляр опускается: основание + отрезок. Точка в самой
+            // плоскости — восставляется: прямая, на которую можно ссылаться
+            // «(P⊥ABC)». Её вектор единичный и смотрит внутрь тела, поэтому
+            // доля точки на ней — просто расстояние от P.
+            const { plane } = resolvePlane(op.plane);
+            const h = dot(plane.n, P) - plane.d;
+            if (op.name && Math.abs(h) > eps * 10) {
+              const H = sub(P, mul(plane.n, h));
+              dropFoot(op, P, H, stepIdx, created);
+              rightAngles.push({ id: opId, at: H, v: sub(P, H), n: plane.n, step: stepIdx, color: op.color });
+              break;
+            }
+            let n = plane.n;
+            const side = dot(n, body.center) - plane.d;
+            const lead = [n.z, n.y, n.x].find((c) => Math.abs(c) > 1e-9) || 1;
+            if (side < -eps || (Math.abs(side) <= eps && lead < 0)) n = mul(n, -1);
+            lineDefs[opId] = { p: P, u: n };
+            lines.push({
+              id: opId, kind: 'line', ref: opId, a: P, b: add(P, n),
+              p: P, u: n, step: stepIdx, color: op.color,
+            });
+            created.lines.push(opId);
+            rightAngles.push({ id: opId, at: P, v: n, n: plane.n, step: stepIdx, color: op.color });
+            break;
+          }
+          // К прямой: основание — проекция точки; прямая дорисовывается до него.
+          const L = resolveLine(op.ref);
+          const t = paramOnLine(P, L.p, L.u);
+          const H = add(L.p, mul(L.u, t));
+          if (dist(P, H) <= eps * 10) {
+            fail(`Точка ${prettyName(op.from)} лежит на прямой ${refName(op.ref, opsById)} — перпендикуляр к прямой проводится из точки вне её`);
+          }
+          ensureCoverage(L, op.ref, t, stepIdx, created, op.color);
+          dropFoot(op, P, H, stepIdx, created);
+          rightAngles.push({ id: opId, at: H, v: sub(P, H), along: L.u, step: stepIdx, color: op.color });
           break;
         }
         case 'intersect': {
@@ -309,6 +400,40 @@ export function evaluateScene(scene, opts = {}) {
     o.b = add(o.p, mul(o.u, hi));
   }
 
+  // --- знаки прямого угла ---------------------------------------------------
+  // Уголок у основания перпендикуляра: одна сторона — вдоль него, вторая —
+  // вдоль прямой, к которой он проведён. У перпендикуляра к плоскости второй
+  // стороной служит любая нарисованная прямая этой плоскости через основание
+  // (нет такой — знака нет: он появится, когда учитель её проведёт). Сторона
+  // смотрит туда, где прямая нарисована дальше.
+  const marks = [];
+  for (const ra of rightAngles) {
+    const through = (o) => distToLine(ra.at, o.p, o.u) <= eps * 10;
+    let w = ra.along || null;
+    if (!w) {
+      const inPlane = lines.find((o) => through(o) && Math.abs(dot(norm(o.u), ra.n)) <= 1e-7);
+      w = inPlane ? inPlane.u : null;
+    }
+    if (!w) continue;
+    w = norm(w);
+    let plus = 0;
+    let minus = 0;
+    for (const o of lines) {
+      if (!sameLine(o.p, o.u, ra.at, w, eps * 10)) continue;
+      for (const end of [o.a, o.b]) {
+        const t = paramOnLine(end, ra.at, w);
+        plus = Math.max(plus, t);
+        minus = Math.max(minus, -t);
+      }
+    }
+    const reach = Math.max(plus, minus);
+    const m = Math.min(0.045 * body.size, 0.4 * len(ra.v), reach > eps ? 0.4 * reach : Infinity);
+    marks.push({
+      id: `${ra.id}:ra`, at: ra.at, a: mul(norm(ra.v), m), b: mul(w, plus >= minus ? m : -m),
+      step: ra.step, color: ra.color,
+    });
+  }
+
   // Описанная сфера всего чертежа (центр — середина габаритного ящика):
   // от неё масштаб камеры. Сфера не зависит от поворота — при вращении
   // чертёж не «дышит»; а след, ушедший далеко от тела, сдвигает центр к себе,
@@ -364,7 +489,7 @@ export function evaluateScene(scene, opts = {}) {
   }
 
   return {
-    body, points, pointOrder, lines, polys, steps, opsById,
+    body, points, pointOrder, lines, polys, marks, steps, opsById,
     radius, viewCenter, center: body.center,
   };
 }
@@ -388,6 +513,7 @@ export function opPointNames(op) {
     case 'pointOnFace': out.push(...(op.face || [])); break;
     case 'segment': case 'line': fromRef(op.ref); break;
     case 'parallel': fromRef(op.ref); out.push(op.through); break;
+    case 'perp': fromRef(op.ref); out.push(op.from, ...(op.plane || [])); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
     case 'trace': fromRef(op.ref); out.push(...(op.plane || [])); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
@@ -440,6 +566,7 @@ export function renamePointInScene(scene, from, to) {
     const o = { ...op };
     if (o.name) o.name = swap(o.name);
     if (o.through) o.through = swap(o.through);
+    if (o.from) o.from = swap(o.from);
     if (o.ref) o.ref = swapRef(o.ref);
     if (o.l1) o.l1 = swapRef(o.l1);
     if (o.l2) o.l2 = swapRef(o.l2);

@@ -2,7 +2,7 @@
 // React-холст (учитель и ученик), из неё же собирается SVG-строка для печати
 // и самопроверки, по ней же ищется объект под курсором.
 
-import { sub, lerp, len } from './vec3';
+import { add as addVec, sub, lerp, len } from './vec3';
 import { makeProjector } from './camera';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
 
@@ -45,7 +45,7 @@ export const STEREO_COLORS = {
   label: '#111827',
 };
 
-const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8 };
+const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8, mark: 1 };
 const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
 
@@ -203,6 +203,16 @@ export function renderStereo(model, camera, viewport, opts = {}) {
       if (len(sub(B, A)) < 1e-9) return;
       pushSplit(`${pg.id}:e${i}`, 'section', A, B, color, WIDTH.section, pg.step);
     });
+  }
+
+  // Знаки прямого угла — два коротких штриха у основания перпендикуляра.
+  // Кликом не выбираются (в hitLines не идут).
+  for (const mk of model.marks || []) {
+    const color = pointColorHex(mk.color) || mk.color || STEREO_COLORS.construct;
+    const onPerp = addVec(mk.at, mk.a);
+    const corner = addVec(onPerp, mk.b);
+    pushSplit(mk.id, 'mark', onPerp, corner, color, WIDTH.mark, mk.step);
+    pushSplit(mk.id, 'mark', corner, addVec(mk.at, mk.b), color, WIDTH.mark, mk.step);
   }
 
   // Точки.

@@ -5,8 +5,8 @@
 // а назад получает новое «набранное» (pending) и, когда хватает кликов,
 // готовую операцию.
 
-import { newOpId, lineColorKey, segmentAt } from './scene';
-import { nextFreeName } from './naming';
+import { newOpId, lineColorKey, segmentAt, pointInPlane } from './scene';
+import { nextFreeName, nextFootName } from './naming';
 import { prettyName } from './bodies';
 import { paramOnLine, add, mul, sub } from './vec3';
 import {
@@ -20,8 +20,9 @@ export const TOOLS = [
   { key: 'segment', label: 'Отрезок', glyph: '—', hot: 'S' },
   { key: 'line', label: 'Прямая', glyph: '↔', hot: 'L' },
   { key: 'intersect', label: 'Пересечь', glyph: '∩', hot: 'I' },
-  { key: 'trace', label: 'След', glyph: '⊥', hot: 'T' },
+  { key: 'trace', label: 'След', glyph: '↧', hot: 'T' },
   { key: 'parallel', label: 'Параллельная', glyph: '∥', hot: 'A' },
+  { key: 'perp', label: 'Перпендикуляр', glyph: '⊥', hot: 'H' },
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
@@ -87,6 +88,10 @@ export function toolHint(tool, pending = []) {
       return pending.length ? 'Теперь грань, на плоскости которой ищем след (Shift — задняя грань)' : 'Выберите прямую, затем грань';
     case 'parallel':
       return pending.length ? 'Выберите вторую часть: точку или прямую' : 'Выберите точку и прямую, которой параллельна новая';
+    case 'perp':
+      return names.length
+        ? `Перпендикуляр из ${names[0]}… — кликните по прямой или по грани / сечению (Shift — задняя грань)`
+        : 'Выберите точку, из которой проводим перпендикуляр, затем прямую или плоскость';
     case 'section':
       return names.length ? `Сечение ${names.join('')}… — ещё ${3 - names.length}` : 'Выберите три точки секущей плоскости';
     case 'plane':
@@ -119,6 +124,7 @@ export function acceptedKinds(tool, pending = []) {
       if (hasL) return ['point'];
       return ['point', 'line'];
     }
+    case 'perp': return pending.length ? ['line', 'poly', 'face'] : ['point'];
     case 'section': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
@@ -213,6 +219,20 @@ export function toolClick(tool, pending, hit, model) {
       const l = all.find((x) => x.kind === 'line');
       if (!p || !l) return { pending: all };
       return { pending: [], op: { id: newOpId(), type: 'parallel', through: p.name, ref: l.ref } };
+    }
+    case 'perp': {
+      // Точка, затем прямая или плоскость (грань, сечение, закраска).
+      if (!pending.length) return { pending: [target] };
+      const from = pending[0].name;
+      if (target.kind === 'line') {
+        return { pending: [], op: { id: newOpId(), type: 'perp', name: nextFootName(model), from, ref: target.ref } };
+      }
+      const plane = target.kind === 'face' ? target.verts : model.opsById[target.id]?.pts;
+      if (!plane) return { pending };
+      // Из точки самой плоскости перпендикуляр восставляется — прямая без основания.
+      const op = { id: newOpId(), type: 'perp', from, plane };
+      if (pointInPlane(model, from, plane) !== true) op.name = nextFootName(model);
+      return { pending: [], op };
     }
     case 'section':
       if (pts.length < 3) return { pending: [...pending, target] };
