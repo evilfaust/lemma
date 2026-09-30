@@ -22,6 +22,8 @@
 - Логика — `imagesSnippetAt` / `normalizeBatch` / `batchLabel` в
   `utils/imageSnippet.js`; `MaterialPickerModal` — проп `extra` принимает
   функцию от выбранных записей. Тесты: +10 (`imageSnippet`, `imageSize`).
+- **Деплой 30.09.2026:** учительский `3.9.263-20260930070404` (l.oipav.ru).
+  Ученический не менялся (галерея там уже поддерживается). БД не затронута.
 
 ## [3.9.262] - 2026-09-30
 
