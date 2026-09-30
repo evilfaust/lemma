@@ -5,7 +5,9 @@
 // а назад получает новое «набранное» (pending) и, когда хватает кликов,
 // готовую операцию.
 
-import { newOpId, lineColorKey, segmentAt, pointInPlane } from './scene';
+import {
+  newOpId, lineColorKey, segmentAt, pointInPlane, pointOnLineRef,
+} from './scene';
 import { nextFreeName, nextFootName } from './naming';
 import { prettyName } from './bodies';
 import { paramOnLine, add, mul, sub } from './vec3';
@@ -89,6 +91,9 @@ export function toolHint(tool, pending = []) {
     case 'parallel':
       return pending.length ? 'Выберите вторую часть: точку или прямую' : 'Выберите точку и прямую, которой параллельна новая';
     case 'perp':
+      if (pending.some((p) => p.kind === 'line')) {
+        return `${names[0]} лежит на прямой — выберите плоскость (грань или сечение), в которой провести перпендикуляр`;
+      }
       return names.length
         ? `Перпендикуляр из ${names[0]}… — кликните по прямой или по грани / сечению (Shift — задняя грань)`
         : 'Выберите точку, из которой проводим перпендикуляр, затем прямую или плоскость';
@@ -124,7 +129,9 @@ export function acceptedKinds(tool, pending = []) {
       if (hasL) return ['point'];
       return ['point', 'line'];
     }
-    case 'perp': return pending.length ? ['line', 'poly', 'face'] : ['point'];
+    case 'perp':
+      if (pending.length > 1) return ['poly', 'face']; // точка на прямой — нужна плоскость
+      return pending.length ? ['line', 'poly', 'face'] : ['point'];
     case 'section': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
@@ -225,10 +232,17 @@ export function toolClick(tool, pending, hit, model) {
       if (!pending.length) return { pending: [target] };
       const from = pending[0].name;
       if (target.kind === 'line') {
+        // Точка на самой прямой — перпендикуляр строится в плоскости: ждём
+        // третий клик.
+        if (pointOnLineRef(model, from, target.ref)) return { pending: [...pending, target] };
         return { pending: [], op: { id: newOpId(), type: 'perp', name: nextFootName(model), from, ref: target.ref } };
       }
       const plane = target.kind === 'face' ? target.verts : model.opsById[target.id]?.pts;
       if (!plane) return { pending };
+      const onLine = pending.find((p) => p.kind === 'line');
+      if (onLine) {
+        return { pending: [], op: { id: newOpId(), type: 'perp', from, ref: onLine.ref, within: plane } };
+      }
       // Из точки самой плоскости перпендикуляр восставляется — прямая без основания.
       const op = { id: newOpId(), type: 'perp', from, plane };
       if (pointInPlane(model, from, plane) !== true) op.name = nextFootName(model);

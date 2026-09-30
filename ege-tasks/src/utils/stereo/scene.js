@@ -9,7 +9,7 @@
 // Операция с ошибкой ничего не создаёт; её текст показывается учителю
 // («MN и AD скрещиваются — общей точки нет»).
 
-import { add, sub, mul, dot, len, norm, dist, paramOnLine, distToLine } from './vec3';
+import { add, sub, mul, dot, cross, len, norm, dist, paramOnLine, distToLine } from './vec3';
 import {
   buildBody, findFace, prettyName, normalizeBodySpec, POINT_NAME_RE,
 } from './bodies';
@@ -40,6 +40,9 @@ export function refName(ref, opsById = {}) {
   const op = opsById[ref];
   if (op?.type === 'parallel') return `через ${prettyName(op.through)} ∥ ${refName(op.ref, opsById)}`;
   if (op?.type === 'perp' && op.plane) return `через ${prettyName(op.from)} ⊥ (${op.plane.map(prettyName).join('')})`;
+  if (op?.type === 'perp' && op.within) {
+    return `через ${prettyName(op.from)} ⊥ ${refName(op.ref, opsById)} в (${op.within.map(prettyName).join('')})`;
+  }
   return '?';
 }
 
@@ -52,6 +55,26 @@ function planeOfNames(model, names) {
     if (plane) return plane;
   }
   return null;
+}
+
+/**
+ * Лежит ли точка на прямой (пара имён или id шага). Из точки на прямой
+ * перпендикуляр к ней не единственный — его строят в заданной плоскости.
+ * @returns {boolean | null} null — точки или прямой нет
+ */
+export function pointOnLineRef(model, name, ref) {
+  const P = model?.points?.[name]?.pos;
+  if (!P) return null;
+  let line = null;
+  if (isPairRef(ref)) {
+    const A = model.points[ref[0]]?.pos;
+    const B = model.points[ref[1]]?.pos;
+    if (A && B && dist(A, B) > 1e-9) line = { p: A, u: sub(B, A) };
+  } else {
+    line = model.lines.find((l) => l.id === ref) || null;
+  }
+  if (!line) return null;
+  return distToLine(P, line.p, line.u) <= 1e-5 * model.body.size;
 }
 
 /**
@@ -221,6 +244,22 @@ export function evaluateScene(scene, opts = {}) {
     created.lines.push(created.opId);
   };
 
+  // Восставленный перпендикуляр — прямая через P с направлением d. Вектор
+  // единичный и смотрит внутрь тела (доля точки на прямой = расстояние от P).
+  const erectLine = (opId, P, dir, stepIdx, created, color) => {
+    let d = norm(dir);
+    const side = dot(d, sub(body.center, P));
+    const lead = [d.z, d.y, d.x].find((c) => Math.abs(c) > 1e-9) || 1;
+    if (side < -eps || (Math.abs(side) <= eps && lead < 0)) d = mul(d, -1);
+    lineDefs[opId] = { p: P, u: d };
+    lines.push({
+      id: opId, kind: 'line', ref: opId, a: P, b: add(P, d),
+      p: P, u: d, step: stepIdx, color,
+    });
+    created.lines.push(opId);
+    return d;
+  };
+
   // --- журнал -------------------------------------------------------------
 
   ops.forEach((op, stepIdx) => {
@@ -280,8 +319,7 @@ export function evaluateScene(scene, opts = {}) {
             // К плоскости. Точка вне плоскости (и основанию дано имя) —
             // перпендикуляр опускается: основание + отрезок. Точка в самой
             // плоскости — восставляется: прямая, на которую можно ссылаться
-            // «(P⊥ABC)». Её вектор единичный и смотрит внутрь тела, поэтому
-            // доля точки на ней — просто расстояние от P.
+            // «(P⊥ABC)».
             const { plane } = resolvePlane(op.plane);
             const h = dot(plane.n, P) - plane.d;
             if (op.name && Math.abs(h) > eps * 10) {
@@ -290,16 +328,7 @@ export function evaluateScene(scene, opts = {}) {
               rightAngles.push({ id: opId, at: H, v: sub(P, H), n: plane.n, step: stepIdx, color: op.color });
               break;
             }
-            let n = plane.n;
-            const side = dot(n, body.center) - plane.d;
-            const lead = [n.z, n.y, n.x].find((c) => Math.abs(c) > 1e-9) || 1;
-            if (side < -eps || (Math.abs(side) <= eps && lead < 0)) n = mul(n, -1);
-            lineDefs[opId] = { p: P, u: n };
-            lines.push({
-              id: opId, kind: 'line', ref: opId, a: P, b: add(P, n),
-              p: P, u: n, step: stepIdx, color: op.color,
-            });
-            created.lines.push(opId);
+            const n = erectLine(opId, P, plane.n, stepIdx, created, op.color);
             rightAngles.push({ id: opId, at: P, v: n, n: plane.n, step: stepIdx, color: op.color });
             break;
           }
@@ -307,8 +336,31 @@ export function evaluateScene(scene, opts = {}) {
           const L = resolveLine(op.ref);
           const t = paramOnLine(P, L.p, L.u);
           const H = add(L.p, mul(L.u, t));
+          const ln = refName(op.ref, opsById);
           if (dist(P, H) <= eps * 10) {
-            fail(`Точка ${prettyName(op.from)} лежит на прямой ${refName(op.ref, opsById)} — перпендикуляр к прямой проводится из точки вне её`);
+            // Точка на самой прямой: перпендикуляров к ней — целая плоскость,
+            // поэтому нужна плоскость построения («в ABC»), и получается
+            // прямая «(M⊥AC в ABC)».
+            if (!op.within) {
+              // Подсказка — с гранью, в которой лежат и прямая, и точка.
+              const f = body.faces.find((fc) => Math.abs(dot(fc.n, P) - fc.d) <= eps * 10
+                && Math.abs(dot(fc.n, norm(L.u))) <= 1e-7);
+              // Плоскость — сама прямая и вершина грани вне её: «AB» → «ABC».
+              const third = f && isPairRef(op.ref)
+                ? body.order.find((v) => f.verts.includes(v) && distToLine(body.vertices[v], L.p, L.u) > eps * 10)
+                : null;
+              const hint = third
+                ? `, например «${op.from} ⊥ ${op.ref.join('')} в ${op.ref.join('')}${third}»`
+                : ' («… в ABC» — три точки плоскости)';
+              fail(`Точка ${prettyName(op.from)} лежит на прямой ${ln} — перпендикуляров к ней в пространстве много, укажите плоскость${hint}`);
+            }
+            const { plane } = resolvePlane(op.within);
+            const wn = `(${op.within.map(prettyName).join('')})`;
+            if (Math.abs(dot(plane.n, P) - plane.d) > eps * 10) fail(`Точка ${prettyName(op.from)} не лежит в плоскости ${wn}`);
+            if (Math.abs(dot(plane.n, norm(L.u))) > 1e-7) fail(`Прямая ${ln} не лежит в плоскости ${wn}`);
+            const d = erectLine(opId, P, cross(plane.n, L.u), stepIdx, created, op.color);
+            rightAngles.push({ id: opId, at: P, v: d, along: L.u, step: stepIdx, color: op.color });
+            break;
           }
           ensureCoverage(L, op.ref, t, stepIdx, created, op.color);
           dropFoot(op, P, H, stepIdx, created);
@@ -513,7 +565,7 @@ export function opPointNames(op) {
     case 'pointOnFace': out.push(...(op.face || [])); break;
     case 'segment': case 'line': fromRef(op.ref); break;
     case 'parallel': fromRef(op.ref); out.push(op.through); break;
-    case 'perp': fromRef(op.ref); out.push(op.from, ...(op.plane || [])); break;
+    case 'perp': fromRef(op.ref); out.push(op.from, ...(op.plane || []), ...(op.within || [])); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
     case 'trace': fromRef(op.ref); out.push(...(op.plane || [])); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
@@ -571,6 +623,7 @@ export function renamePointInScene(scene, from, to) {
     if (o.l1) o.l1 = swapRef(o.l1);
     if (o.l2) o.l2 = swapRef(o.l2);
     if (o.plane) o.plane = o.plane.map(swap);
+    if (o.within) o.within = o.within.map(swap);
     if (o.face) o.face = o.face.map(swap);
     if (o.pts) o.pts = o.pts.map(swap);
     return o;

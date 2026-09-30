@@ -5,7 +5,7 @@ import {
   toolClick, acceptedKinds, TOOLS, nextFootName,
 } from '../utils/stereo';
 import { parseStereoBlock, buildStereoBlock } from '../utils/stereo/dsl';
-import { sub, dot, dist, len } from '../utils/stereo/vec3';
+import { sub, dot, dist, len, distToLine } from '../utils/stereo/vec3';
 
 const cube = { kind: 'cube', a: 4 };
 const pyramid = { kind: 'pyramid', n: 4, a: 4, h: 5, apex: 'S' };
@@ -52,12 +52,12 @@ describe('перпендикуляр к прямой', () => {
     expect(ext).toHaveLength(1);
   });
 
-  it('точка на самой прямой — понятная ошибка', () => {
+  it('точка на самой прямой без плоскости — ошибка с подсказкой грани', () => {
     const sc = build(['M на AB 1:2']);
     const r = parseCommand('M ⊥ AB', evaluateScene(sc));
     const res = tryAppendOp(sc, r.op);
     expect(res.ok).toBe(false);
-    expect(res.error).toMatch(/лежит на прямой AB/);
+    expect(res.error).toMatch(/лежит на прямой AB — .*укажите плоскость, например «M ⊥ AB в ABC»/);
     expect(res.model.points.H).toBeUndefined();
     expect(res.model.marks).toHaveLength(0);
   });
@@ -216,3 +216,74 @@ describe('перпендикуляр: инструмент и чертёж', () 
     expect(frame.hits.lines.some((l) => l.id === m.marks[0].id)).toBe(false);
   });
 });
+
+describe('перпендикуляр к прямой из точки на ней — в плоскости', () => {
+  it('серединный перпендикуляр к диагонали AC в основании — это прямая BD', () => {
+    const sc = build(['M на AC 1:1', 'M ⊥ AC в ABC', 'K на (M⊥AC в ABC) 2']);
+    expect(sc.ops[1]).toMatchObject({ type: 'perp', from: 'M', ref: ['A', 'C'], within: ['A', 'B', 'C'] });
+    expect(sc.ops[1].name).toBeUndefined();
+    const m = evaluateScene(sc);
+    const MK = sub(pos(m, 'K'), pos(m, 'M'));
+    expect(len(MK)).toBeCloseTo(2, 9);
+    expect(perpTo(MK, sub(pos(m, 'C'), pos(m, 'A')))).toBe(true);
+    expect(MK.z).toBeCloseTo(0, 9); // в плоскости основания
+    // Прямая через M ⊥ AC в основании куба проходит через B и D.
+    const line = m.lines.find((l) => l.id === sc.ops[1].id);
+    expect(distToLine(pos(m, 'B'), line.p, line.u)).toBeLessThan(1e-9);
+    expect(distToLine(pos(m, 'D'), line.p, line.u)).toBeLessThan(1e-9);
+    expect(m.marks).toHaveLength(1);
+    expect(perpTo(m.marks[0].a, m.marks[0].b)).toBe(true);
+  });
+
+  it('в вертикальной плоскости — вверх, внутрь тела', () => {
+    const m = evaluateScene(build(['M на AC 1:1', 'M ⊥ AC в AA1C', 'K на (M⊥AC в AA1C) 3']));
+    expect(sub(pos(m, 'K'), pos(m, 'M')).z).toBeCloseTo(3, 9);
+  });
+
+  it('плоскость без прямой или без точки — понятные ошибки', () => {
+    const sc = build(['M на AC 1:1']);
+    const bad = (cmd) => tryAppendOp(sc, parseCommand(cmd, evaluateScene(sc)).op).error;
+    expect(bad('M ⊥ AC в ABB1')).toMatch(/не лежит в плоскости \(ABB₁\)/);
+    expect(bad('M ⊥ AC в A1B1C1')).toMatch(/Точка M не лежит в плоскости/);
+  });
+
+  it('точка вне прямой — плоскость не нужна, обычный опущенный перпендикуляр', () => {
+    const op = parseCommand('C1 ⊥ AC в ABC', evaluateScene({ body: cube, ops: [] })).op;
+    expect(op).toMatchObject({ name: 'H', from: 'C1', ref: ['A', 'C'] });
+    expect(op.within).toBeUndefined();
+  });
+
+  it('команда, описание, блок ```stereo — туда и обратно', () => {
+    const sc = build(['M на AC 1:1', 'перпендикуляр M AC в плоскости ABC', 'K на (M ⊥ AC в ABC) 2']);
+    const byId = evaluateScene(sc).opsById;
+    expect(describeOp(sc.ops[1], byId)).toBe('Прямая через M ⊥ AC в (ABC)');
+    expect(opToCommand(sc.ops[1], byId)).toBe('M ⊥ AC в ABC');
+    expect(opToCommand(sc.ops[2], byId)).toBe('K на (M⊥AC в ABC) 2');
+    const { text, skipped } = buildStereoBlock(sc, DEFAULT_CAMERA);
+    expect(skipped).toBe(0);
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    expect(dist(pos(evaluateScene(back.scene), 'K'), pos(evaluateScene(sc), 'K'))).toBeLessThan(1e-9);
+    const renamed = renamePointInScene(sc, 'B', 'E');
+    expect(renamed.ops[1].within).toEqual(['A', 'E', 'C']);
+  });
+
+  it('ссылка на несуществующий — подсказка', () => {
+    const r = parseCommand('K на (M⊥AC в ABC) 2', evaluateScene(build(['M на AC 1:1'])));
+    expect(r.error).toMatch(/сначала «M ⊥ AC в ABC»/);
+  });
+
+  it('инструмент: точка → прямая, на которой она лежит → грань', () => {
+    const m = evaluateScene(build(['M на AC 1:1', 'AC']));
+    const acId = m.lines.find((l) => l.kind === 'segment').id;
+    let r = toolClick('perp', [], { point: 'M' }, m);
+    r = toolClick('perp', r.pending, { line: { id: acId, ref: ['A', 'C'] } }, m);
+    expect(r.op).toBeUndefined();
+    expect(r.pending.map((p) => p.kind)).toEqual(['point', 'line']);
+    expect(acceptedKinds('perp', r.pending)).toEqual(['poly', 'face']);
+    r = toolClick('perp', r.pending, { face: { id: 'f', verts: ['A', 'B', 'C', 'D'] } }, m);
+    expect(r.op).toMatchObject({ type: 'perp', from: 'M', ref: ['A', 'C'], within: ['A', 'B', 'C', 'D'] });
+    expect(r.pending).toEqual([]);
+  });
+});
+
