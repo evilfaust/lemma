@@ -15,6 +15,7 @@ import {
 } from 'antd';
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
+import { reloadGeometryRefs } from '../../hooks/useGeometryRefs';
 
 const { Title, Text } = Typography;
 
@@ -95,6 +96,8 @@ export default function GeometryTopicManager() {
       ]);
       setTopics(t);
       setSubtopics(s);
+      // справочник поменялся — общий кэш раздела (банк, редактор, работы) перечитать
+      reloadGeometryRefs(['topics', 'subtopics']);
     } catch {
       message.error('Ошибка загрузки');
     } finally {

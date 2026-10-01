@@ -21,7 +21,7 @@ const DIFFICULTY_OPTIONS = [
 
 export default function TabCondition({
   fieldMode = 'plain', previewStatement, onStatementChange, statementRef, inserts,
-  geoTopics, geoSubtopics, selectedTopicId, onTopicChange, geoTags = null, taskId = null, onFacetsChange,
+  geoTopics, geoSubtopics, selectedTopicId, onTopicChange, geoTags = null, taskId = null, onFacetsChange, refsLoading = {},
 }) {
   const form = Form.useFormInstance();
   const tagById = useTagById(geoTags);
@@ -79,6 +79,9 @@ export default function TabCondition({
         <Form.Item name="topic" label="Тема">
           <Select
             placeholder="Выберите тему"
+            loading={refsLoading.topics}
+            showSearch
+            optionFilterProp="label"
             allowClear
             options={geoTopics.map((t) => ({ value: t.id, label: t.title }))}
             onChange={onTopicChange}
@@ -87,10 +90,17 @@ export default function TabCondition({
 
         <Form.Item name="subtopic" label="Подтема">
           <Select
-            placeholder={selectedTopicId ? 'Выберите подтему' : 'Сначала выберите тему'}
+            placeholder={!selectedTopicId
+              ? 'Сначала выберите тему'
+              : refsLoading.subtopics ? 'Загрузка…'
+                : filteredSubtopics.length ? 'Выберите подтему' : 'У темы нет подтем'}
             allowClear
-            disabled={!selectedTopicId && filteredSubtopics.length === 0}
+            showSearch
+            optionFilterProp="label"
+            loading={refsLoading.subtopics}
+            disabled={!!selectedTopicId && !refsLoading.subtopics && filteredSubtopics.length === 0}
             options={filteredSubtopics.map((s) => ({ value: s.id, label: s.title }))}
+            notFoundContent="Подтем нет — их заводят в «Геометрия → Темы и подтемы»"
           />
         </Form.Item>
 

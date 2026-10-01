@@ -11,6 +11,7 @@ import {
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useGeometryBasket } from '../../../hooks/useGeometryBasket';
+import { useGeometryRefs } from '../../../hooks/useGeometryRefs';
 import {
   addTasksAsPositions, addVariant, emptyRows, emptyStructure, moveRow, normalizeStructure, removeRow,
   removeVariant, rowCount, rowReference, setCell, structureTaskIds, variantLabel, variantTasks, withLayouts,
@@ -63,7 +64,7 @@ export default function GeometryWorkEditor() {
   const [printVariant, setPrintVariant] = useState('all');
   const [picker, setPicker] = useState(null); // { row, variant }
   const [card, setCard] = useState({ id: null, list: [] });
-  const [geoTags, setGeoTags] = useState({ object: [], method: [], fact: [] });
+  const { tags: geoTags } = useGeometryRefs(['tags']);
   const [basketVariant, setBasketVariant] = useState(0);
   const [autofill, setAutofill] = useState(null); // { done, total }
   const [journalOpen, setJournalOpen] = useState(false);
@@ -113,7 +114,6 @@ export default function GeometryWorkEditor() {
         if (alive) setLoading(false);
       }
     })();
-    api.getGeometryTags().then((t) => alive && setGeoTags(t)).catch(() => {});
     return () => { alive = false; };
   }, [workId]);
 

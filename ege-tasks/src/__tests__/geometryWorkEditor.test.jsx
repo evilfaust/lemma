@@ -132,7 +132,10 @@ describe('редактор работы: добавить задачи и пра
   it('«Редактировать» в карточке задачи открывает редактор задачи поверх работы', async () => {
     mockApi.getGeometryTask.mockResolvedValue({ ...TASKS[0], tags: [] });
     renderEditor();
-    fireEvent.click(await screen.findByText('Сечение куба'));
+    await screen.findByText('Сечение куба');
+    // Ячейка перерисовывается (KaTeX, догрузка справочников) — кликаем по свежему узлу
+    await waitFor(() => expect(document.querySelector('.gw-cell-body')).toBeTruthy());
+    fireEvent.click(document.querySelector('.gw-cell-body'));
     fireEvent.click(await screen.findByText('Редактировать'));
     expect(await screen.findByText('Назад к работе')).toBeInTheDocument();
     expect(screen.getByText('Редактирование: GEO-001')).toBeInTheDocument();

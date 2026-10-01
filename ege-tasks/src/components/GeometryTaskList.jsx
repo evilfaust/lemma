@@ -41,6 +41,7 @@ import GeometryTaskEditor from './GeometryTaskEditor';
 import GeometryBasketBar from './geometry/GeometryBasketBar';
 import { FacetBulkModal, FacetReviewModal } from './geometry/FacetModals';
 import { useGeometryBasket } from '../hooks/useGeometryBasket';
+import { useGeometryRefs } from '../hooks/useGeometryRefs';
 import MathRenderer from './MathRenderer';
 import { buildGeometryColumns, DIFFICULTY_COLORS, DIFFICULTY_LABELS } from './geometry/GeometryTaskColumns';
 import GeometryTagsModal from './geometry/GeometryTagsModal';
@@ -88,16 +89,17 @@ export default function GeometryTaskList() {
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ origin: 'manual' });
   const [searchInput, setSearchInput] = useState('');
-  const [geoTopics, setGeoTopics] = useState([]);
-  const [geoSubtopics, setGeoSubtopics] = useState([]);
-  const [geoSources, setGeoSources] = useState([]);
-  const [geoTags, setGeoTags] = useState({ object: [], method: [], fact: [] });
+  // Справочники — общий кэш раздела (useGeometryRefs): грузятся независимо и
+  // один раз на приложение, не ждут друг друга
+  const {
+    topics: geoTopics, subtopics: geoSubtopics, sources: geoSources, tags: geoTags, loading: refsLoading, reload: reloadRefs,
+  } = useGeometryRefs();
   const [bankLoadAll, setBankLoadAll] = useState(false); // явная загрузка всего банка МЦНМО
   const [tagsModalOpen, setTagsModalOpen] = useState(false);
   const [bankDupOpen, setBankDupOpen] = useState(false); // дубли «мои ↔ банк МЦНМО»
   const [semanticOpen, setSemanticOpen] = useState(false); // поиск по смыслу (NL)
 
-  const reloadGeoTags = () => api.getGeometryTags().then(setGeoTags).catch(() => {});
+  const reloadGeoTags = () => reloadRefs(['tags']);
 
   // Редактор: null = скрыт, объект = редактирование, 'new' = создание
   const [editingTask, setEditingTask] = useState(null);
@@ -122,18 +124,6 @@ export default function GeometryTaskList() {
   const [importSubtopicId, setImportSubtopicId] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
-
-  // Загружаем справочники один раз
-  useEffect(() => {
-    Promise.all([api.getGeometryTopics(), api.getGeometrySubtopics(), api.getGeometrySources(), api.getGeometryTags()])
-      .then(([topics, subtopics, sources, tags]) => {
-        setGeoTopics(topics);
-        setGeoSubtopics(subtopics);
-        setGeoSources(sources);
-        setGeoTags(tags);
-      })
-      .catch(() => {});
-  }, []);
 
   // Debounce поля поиска → filters.search (API ищет по code/title/условию/ответу/источнику)
   useEffect(() => {
@@ -409,6 +399,7 @@ export default function GeometryTaskList() {
               <Select
                 mode="multiple"
                 placeholder="Объект (фигура)"
+                loading={refsLoading.tags}
                 allowClear showSearch
                 maxTagCount="responsive"
                 optionFilterProp="label"
@@ -420,6 +411,7 @@ export default function GeometryTaskList() {
               <Select
                 mode="multiple"
                 placeholder="Метод (приём)"
+                loading={refsLoading.tags}
                 allowClear showSearch
                 maxTagCount="responsive"
                 optionFilterProp="label"
@@ -431,6 +423,7 @@ export default function GeometryTaskList() {
               <Select
                 mode="multiple"
                 placeholder="Факт (теорема)"
+                loading={refsLoading.tags}
                 allowClear showSearch
                 maxTagCount="responsive"
                 optionFilterProp="label"
@@ -445,6 +438,7 @@ export default function GeometryTaskList() {
               <Space direction="vertical" size={8} style={{ flex: '1 1 220px', minWidth: 0 }}>
                 <Select
                   placeholder="Тема (мои задачи)"
+                  loading={refsLoading.topics}
                   allowClear showSearch
                   optionFilterProp="label"
                   style={{ width: '100%' }}
@@ -453,7 +447,9 @@ export default function GeometryTaskList() {
                   options={geoTopics.map((t) => ({ value: t.id, label: t.title, title: t.title }))}
                 />
                 <Select
-                  placeholder="Подтема"
+                  placeholder={filters.topic && !geoSubtopics.some((s) => s.topic === filters.topic) ? 'У темы нет подтем' : 'Подтема'}
+                  disabled={!!filters.topic && !geoSubtopics.some((s) => s.topic === filters.topic)}
+                  loading={refsLoading.subtopics}
                   allowClear showSearch
                   optionFilterProp="label"
                   style={{ width: '100%' }}
@@ -466,6 +462,7 @@ export default function GeometryTaskList() {
                 />
                 <Select
                   placeholder="Источник"
+                  loading={refsLoading.sources}
                   allowClear showSearch
                   optionFilterProp="label"
                   style={{ width: '100%' }}

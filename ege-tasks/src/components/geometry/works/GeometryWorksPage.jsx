@@ -12,6 +12,7 @@ import {
   normalizeStructure, rowCount, structureFromPrintTest,
 } from '../../../utils/geometryWork';
 import GeometryBasketBar from '../GeometryBasketBar';
+import { useGeometryRefs } from '../../../hooks/useGeometryRefs';
 import { CreateGeometryWorkModal } from './GeometryWorkModals';
 
 const { Text } = Typography;
@@ -32,7 +33,7 @@ export default function GeometryWorksPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createFrom, setCreateFrom] = useState({ ids: [], title: '' });
   const [topicOpen, setTopicOpen] = useState(false);
-  const [topics, setTopics] = useState([]);
+  const { topics } = useGeometryRefs(['topics']);
   const [topicId, setTopicId] = useState(null);
   const [topicLoading, setTopicLoading] = useState(false);
   const [printTests, setPrintTests] = useState([]);
@@ -53,7 +54,6 @@ export default function GeometryWorksPage() {
   useEffect(() => {
     load();
     api.getGeometryPrintTests().then(setPrintTests).catch(() => {});
-    api.getGeometryTopics().then(setTopics).catch(() => {});
   }, [load]);
 
   const openCreate = (ids = [], title = '') => {

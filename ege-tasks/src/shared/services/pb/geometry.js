@@ -32,7 +32,9 @@ export const geometryApi = {
 
   async getGeometryTopics() {
     try {
-      return await pb.collection('geometry_topics').getFullList({ sort: 'order,title' });
+      // requestKey: null — справочник просят сразу несколько экранов (банк,
+      // редактор, работы); автоотмена SDK гасила «лишний» запрос → пустые темы
+      return await pb.collection('geometry_topics').getFullList({ sort: 'order,title', requestKey: null });
     } catch (error) {
       console.error('Error fetching geometry topics:', error);
       return [];
@@ -75,6 +77,7 @@ export const geometryApi = {
         filter,
         sort: 'order,title',
         expand: 'topic',
+        requestKey: null,
       });
     } catch (error) {
       console.error('Error fetching geometry subtopics:', error);
@@ -260,6 +263,8 @@ export const geometryApi = {
       const rows = await pb.collection('geometry_tags').getFullList({
         sort: 'name',
         fields: 'id,kind,name,mccme_id',
+        batch: 1000,
+        requestKey: null,
       });
       const byKind = { object: [], method: [], fact: [], named: [], source: [] };
       for (const r of rows) (byKind[r.kind] ||= []).push(r);
@@ -330,12 +335,16 @@ export const geometryApi = {
     }
   },
 
-  // Уникальные непустые источники из всех задач геометрии — для фильтра по источнику.
+  // Уникальные непустые источники задач геометрии — для фильтра по источнику.
+  // Только записи с источником (их ~100): раньше выкачивалось поле source у
+  // всех 17,9 тыс. задач (~36 запросов подряд), и темы ждали этого десятки секунд.
   async getGeometrySources() {
     try {
       const rows = await pb.collection('geometry_tasks').getFullList({
+        filter: 'source != ""',
         fields: 'source',
-        sort: 'source',
+        batch: 1000,
+        requestKey: null,
       });
       const set = new Set();
       for (const r of rows) {

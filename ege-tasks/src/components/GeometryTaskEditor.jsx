@@ -25,6 +25,7 @@ import { stereoDrawingSvg, stereoSpecFromSvg } from '../utils/stereo/dsl';
 import { planimDrawingSvg, planimSpecFromSvg } from '../utils/planim/dsl';
 import { guessGeometrySection } from '../utils/geometrySection';
 import { joinFacets, splitFacets } from '../utils/geometryFacets';
+import { useGeometryRefs } from '../hooks/useGeometryRefs';
 import useFieldInserts from '../hooks/useFieldInserts';
 import TabCondition from './geometry/TabCondition';
 import TabDrawing from './geometry/TabDrawing';
@@ -159,39 +160,28 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel 
   const [deleting, setDeleting] = useState(false);
 
   // ── Темы и подтемы из справочника ────────────────────────────────────────
-  const [geoTopics, setGeoTopics] = useState([]);
-  const [geoSubtopics, setGeoSubtopics] = useState([]);
+  // Справочники — общий кэш раздела: открытие редактора их не перезапрашивает
+  const {
+    topics: geoTopics, subtopics: geoSubtopics, tags: refTags, loading: refsLoading,
+  } = useGeometryRefs(['topics', 'subtopics', 'tags']);
   const [selectedTopicId, setSelectedTopicId] = useState(task?.topic || null);
-
-  useEffect(() => {
-    Promise.all([api.getGeometryTopics(), api.getGeometrySubtopics()])
-      .then(([topics, subtopics]) => {
-        setGeoTopics(topics);
-        setGeoSubtopics(subtopics);
-      })
-      .catch(() => {});
-  }, []);
 
   // ── Фасеты (общие с банком МЦНМО, GEOMETRY_TASKS_PLAN.md § 3) ─────────────
   // Пока справочник не загружен, виды фасетов неизвестны — поле tags тогда
   // не отправляется вовсе (сохраняется как было).
-  const [geoTags, setGeoTags] = useState(null);
+  const tagsReady = ['object', 'method', 'fact'].some((k) => (refTags[k] || []).length > 0);
+  const geoTags = tagsReady ? refTags : null;
   const otherTagsRef = useRef([]);
+  const facetsAppliedRef = useRef(null);
   useEffect(() => {
-    let alive = true;
-    Promise.resolve(api.getGeometryTags?.())
-      .then((tags) => {
-        if (!alive || !tags) return;
-        const byId = new Map();
-        for (const [kind, arr] of Object.entries(tags)) for (const t of arr || []) byId.set(t.id, { ...t, kind });
-        const parts = splitFacets(task?.tags || [], byId);
-        otherTagsRef.current = parts.other;
-        form.setFieldsValue({ facetsObject: parts.object, facetsMethod: parts.method, facetsFact: parts.fact });
-        setGeoTags(tags);
-      })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [task?.id, form]);
+    if (!tagsReady || facetsAppliedRef.current === (task?.id || 'new')) return;
+    facetsAppliedRef.current = task?.id || 'new';
+    const byId = new Map();
+    for (const [kind, arr] of Object.entries(refTags)) for (const t of arr || []) byId.set(t.id, { ...t, kind });
+    const parts = splitFacets(task?.tags || [], byId);
+    otherTagsRef.current = parts.other;
+    form.setFieldsValue({ facetsObject: parts.object, facetsMethod: parts.method, facetsFact: parts.fact });
+  }, [tagsReady, refTags, task?.id, task?.tags, form]);
 
   // Код новой задачи — следующий свободный GEO-NNN по всей базе.
   useEffect(() => {
@@ -518,6 +508,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel 
         inserts={inserts}
         geoTopics={geoTopics}
         geoSubtopics={geoSubtopics}
+        refsLoading={refsLoading}
         geoTags={geoTags}
         taskId={task?.id}
         onFacetsChange={markDirty}

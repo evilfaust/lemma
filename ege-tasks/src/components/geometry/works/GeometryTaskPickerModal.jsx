@@ -7,6 +7,7 @@ import { api } from '../../../shared/services/pocketbase';
 import { GEOMETRY_SECTIONS } from '../../../utils/geometrySection';
 import { MIN_SEARCH_LENGTH } from '../../../shared/utils/searchVariants';
 import MathRenderer from '../../MathRenderer';
+import { useGeometryRefs } from '../../../hooks/useGeometryRefs';
 import GeometryTaskThumb from '../GeometryTaskThumb';
 
 const { Text } = Typography;
@@ -30,7 +31,7 @@ export default function GeometryTaskPickerModal({ open, onClose, usedIds, onAdd,
   const [scope, setScope] = useState('manual');
   const [section, setSection] = useState(null);
   const [topic, setTopic] = useState(null);
-  const [topics, setTopics] = useState([]);
+  const { topics, loading: refsLoading } = useGeometryRefs(['topics']);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState([]);
@@ -38,7 +39,6 @@ export default function GeometryTaskPickerModal({ open, onClose, usedIds, onAdd,
   useEffect(() => {
     if (!open) return;
     setPicked([]);
-    api.getGeometryTopics().then(setTopics).catch(() => {});
   }, [open]);
 
   useEffect(() => {
@@ -119,6 +119,7 @@ export default function GeometryTaskPickerModal({ open, onClose, usedIds, onAdd,
               showSearch
               optionFilterProp="label"
               placeholder="Тема"
+              loading={refsLoading.topics}
               value={topic}
               onChange={setTopic}
               style={{ width: 220 }}
