@@ -2,6 +2,7 @@ import { Badge, Button, Popconfirm, Space, Tag, Tooltip, Typography } from 'antd
 import { CopyOutlined, DeleteOutlined, EditOutlined, EyeOutlined, HolderOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import MathRenderer from '../MathRenderer';
+import { SECTION_LABELS } from '../../utils/geometrySection';
 
 const { Text } = Typography;
 
@@ -27,8 +28,8 @@ function statementPreview(md) {
 export function buildGeometryColumns({
   setDraggingTaskId, setDropTargetTaskId,
   canEdit, canDelete,
-  editorLoadingId, quickPreviewLoadingId, duplicatingId,
-  openEdit, openQuickPreview, handleDuplicate, handleDelete,
+  editorLoadingId, duplicatingId,
+  openEdit, openCard, handleDuplicate, handleDelete,
 }) {
   return [
     {
@@ -70,7 +71,14 @@ export function buildGeometryColumns({
       key: 'code',
       width: 110,
       sorter: (a, b) => a.code.localeCompare(b.code),
-      render: (code) => <Text code style={{ fontSize: 13 }}>{code}</Text>,
+      render: (code, record) => (
+        <Space direction="vertical" size={2}>
+          <Text code style={{ fontSize: 13 }}>{code}</Text>
+          {record.section && (
+            <Text type="secondary" style={{ fontSize: 11 }}>{SECTION_LABELS[record.section]}</Text>
+          )}
+        </Space>
+      ),
     },
     {
       title: 'Тема / Подтема',
@@ -145,15 +153,19 @@ export function buildGeometryColumns({
       key: 'has_drawing',
       width: 80,
       align: 'center',
-      render: (_, record) => (
-        api.getGeometryImageUrl(record)
+      render: (_, record) => {
+        if (record.drawing_view === 'svg' && record.drawing_svg) {
+          return <Tag color="gold" style={{ margin: 0 }}>SVG</Tag>;
+        }
+        if (!api.getGeometryImageUrl(record)) return <Text type="secondary">—</Text>;
+        return record.image_role === 'solution'
           ? (
-            <Tooltip title="PNG-картинка сохранена">
-              <Tag color="gold" style={{ margin: 0 }}>IMG</Tag>
+            <Tooltip title="Чертёж к решению — с условием не печатается">
+              <Tag style={{ margin: 0 }}>к реш.</Tag>
             </Tooltip>
           )
-          : <Text type="secondary">—</Text>
-      ),
+          : <Tag color="gold" style={{ margin: 0 }}>IMG</Tag>;
+      },
     },
     {
       title: 'Превью',
@@ -201,13 +213,12 @@ export function buildGeometryColumns({
               />
             </Tooltip>
           )}
-          <Tooltip title="Просмотр">
+          <Tooltip title="Карточка задачи">
             <Button
               type="text"
               icon={<EyeOutlined />}
               size="small"
-              loading={quickPreviewLoadingId === record.id}
-              onClick={() => openQuickPreview(record)}
+              onClick={() => openCard(record)}
             />
           </Tooltip>
           {canEdit && (

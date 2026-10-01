@@ -23,6 +23,7 @@ import { normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
 import { ggbXmlToSvg } from '../utils/ggbToSvg';
 import { stereoDrawingSvg, stereoSpecFromSvg } from '../utils/stereo/dsl';
 import { planimDrawingSvg, planimSpecFromSvg } from '../utils/planim/dsl';
+import { guessGeometrySection } from '../utils/geometrySection';
 import useFieldInserts from '../hooks/useFieldInserts';
 import TabCondition from './geometry/TabCondition';
 import TabDrawing from './geometry/TabDrawing';
@@ -349,6 +350,10 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         code: normalizedCode,
         title: values.title || '',
         task_type: values.ready ? 'ready' : '',
+        section: values.section || guessGeometrySection({
+          statement: values.statement_md,
+          topicTitle: geoTopics.find((t) => t.id === values.topic)?.title,
+        }),
         topic: values.topic || null,
         subtopic: values.subtopic || null,
         difficulty: values.difficulty || null,
@@ -442,6 +447,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
     code: task?.code || '',
     title: task?.title || '',
     ready: task?.task_type === 'ready',
+    section: task?.section || undefined,
     topic: task?.topic || null,
     subtopic: task?.subtopic || null,
     difficulty: task?.difficulty || undefined,
@@ -470,6 +476,10 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         onTopicChange={(id) => {
           setSelectedTopicId(id);
           form.setFieldValue('subtopic', null);
+          // Тема «Стереометрия»/«Планиметрия» сама подсказывает раздел
+          const title = String(geoTopics.find((t) => t.id === id)?.title || '').toLowerCase();
+          const hint = title.includes('стереометр') ? 'stereo' : title.includes('планиметр') ? 'planim' : null;
+          if (hint && !form.getFieldValue('section')) form.setFieldValue('section', hint);
         }}
       />,
     },

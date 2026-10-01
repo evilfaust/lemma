@@ -4,6 +4,7 @@ import {
 import MathRenderer from '../MathRenderer';
 import LatexField from '../shared/LatexField';
 import FieldInsertToolbar from '../shared/FieldInsertToolbar';
+import { GEOMETRY_SECTIONS } from '../../utils/geometrySection';
 
 const { Text } = Typography;
 
@@ -25,7 +26,7 @@ export default function TabCondition({
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, alignItems: 'end' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 16, alignItems: 'end' }}>
         <Form.Item
           name="code"
           label="Код задачи"
@@ -36,6 +37,17 @@ export default function TabCondition({
 
         <Form.Item name="difficulty" label="Сложность">
           <Select options={DIFFICULTY_OPTIONS} allowClear placeholder="Не указана" />
+        </Form.Item>
+
+        <Form.Item
+          name="section"
+          label={(
+            <Tooltip title="Фильтр «Планиметрия / Стереометрия» в банке. Пусто — угадаем при сохранении по теме и условию">
+              Раздел
+            </Tooltip>
+          )}
+        >
+          <Select options={GEOMETRY_SECTIONS} allowClear placeholder="Угадать" />
         </Form.Item>
 
         <Form.Item name="ready" valuePropName="checked">

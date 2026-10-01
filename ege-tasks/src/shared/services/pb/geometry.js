@@ -117,7 +117,12 @@ export const geometryApi = {
       if (filters.source) {
         filterArr.push(`source = "${escapeFilter(filters.source)}"`);
       }
-      // origin: 'manual' — свои задачи (пустой origin у старых = свои); 'mccme' — банк МЦНМО
+      // section: 'planim' | 'stereo' — раздел (миграция 1787200000)
+      if (filters.section === 'planim' || filters.section === 'stereo') {
+        filterArr.push(`section = "${filters.section}"`);
+      }
+      // origin: 'manual' — свои задачи (пустой origin у старых = свои); 'mccme' — банк МЦНМО;
+      // 'all' (или пусто) — без фильтра
       if (filters.origin === 'mccme') {
         filterArr.push(`origin = "mccme"`);
       } else if (filters.origin === 'manual') {
@@ -146,7 +151,7 @@ export const geometryApi = {
         'id', 'code', 'title', 'topic', 'subtopic', 'difficulty',
         'statement_md',  // нужен для быстрого предпросмотра
         'answer', 'hints', 'geogebra_appname', 'drawing_view', 'drawing_svg', 'source', 'year',
-        'origin', 'mccme_id', 'tags',
+        'origin', 'mccme_id', 'tags', 'section', 'image_role', 'task_type',
         'preview_layout', 'geogebra_image_base64', 'drawing_image', 'created', 'updated',
         'expand.topic.id', 'expand.topic.title',
         'expand.subtopic.id', 'expand.subtopic.title',
@@ -277,54 +282,81 @@ export const geometryApi = {
     }
   },
 
+  // Копия задачи. asMine — «Взять к себе» задачу банка МЦНМО: своя задача
+  // со следующим кодом GEO-NNN и ссылкой на исходник в источнике; иначе —
+  // обычный дубль с суффиксом «-копия». Фасеты, раздел и вложения решения
+  // копируются; mccme_id — нет (по нему импорт банка узнаёт свои записи).
+  async _copyGeometryTask(id, { asMine = false } = {}) {
+    // Полная запись (включая geogebra_base64 и solution_md)
+    const task = await pb.collection('geometry_tasks').getOne(id);
+
+    const formData = new FormData();
+    const TEXT_FIELDS = [
+      'title', 'topic', 'subtopic', 'difficulty', 'task_type', 'statement_md',
+      'answer', 'geogebra_appname', 'drawing_view', 'drawing_svg', 'year',
+      'solution_md', 'geogebra_base64', 'image_role', 'section',
+    ];
+    for (const field of TEXT_FIELDS) {
+      if (task[field] != null && task[field] !== '') formData.append(field, task[field]);
+    }
+    // json-поля — явно строкой, иначе FormData.append даёт "[object Object]"
+    for (const field of ['hints', 'preview_layout', 'solution_files']) {
+      const v = task[field];
+      if (v != null && v !== '' && !(Array.isArray(v) && v.length === 0)) {
+        formData.append(field, typeof v === 'string' ? v : JSON.stringify(v));
+      }
+    }
+    for (const tag of Array.isArray(task.tags) ? task.tags : []) formData.append('tags', tag);
+
+    if (asMine) {
+      const code = await geometryApi.getNextGeometryCode();
+      if (!code) throw new Error('Не удалось получить код для новой задачи');
+      formData.append('code', code);
+      formData.append('origin', 'manual');
+      const ref = task.mccme_id ? `МЦНМО №${task.mccme_id}` : (task.code || '');
+      formData.append('source', [task.source, ref].filter(Boolean).join(', '));
+    } else {
+      if (task.code) formData.append('code', `${task.code}-копия`);
+      if (task.origin) formData.append('origin', task.origin);
+      if (task.source) formData.append('source', task.source);
+    }
+
+    // Файл чертежа: скачиваем и перезаливаем. Поле файла — geogebra_image_base64
+    // (поля drawing_image в коллекции нет — раньше дубль терял чертёж).
+    const drawingFileName = task.geogebra_image_base64 || '';
+    if (drawingFileName && !String(drawingFileName).startsWith('data:image/')) {
+      const fileUrl = `${PB_BASE_URL}/api/files/geometry_tasks/${task.id}/${drawingFileName}`;
+      try {
+        const resp = await fetch(fileUrl);
+        if (resp.ok) {
+          const blob = await resp.blob();
+          formData.append('geogebra_image_base64', new File([blob], drawingFileName, { type: blob.type || 'image/png' }));
+        }
+      } catch {
+        // Не смогли скопировать файл — продолжаем без него
+      }
+    }
+
+    const rec = await pb.collection('geometry_tasks').create(formData);
+    _logAudit('create', 'geometry_tasks', rec.id, `${rec.code} (копия ${task.code || id})`);
+    return rec;
+  },
+
   async duplicateGeometryTask(id) {
     try {
-      // Полная запись (включая geogebra_base64 и solution_md)
-      const task = await pb.collection('geometry_tasks').getOne(id);
-
-      const formData = new FormData();
-
-      // Текстовые поля — копируем как есть
-      const TEXT_FIELDS = [
-        'title', 'topic', 'subtopic', 'difficulty', 'statement_md',
-        'answer', 'hints', 'geogebra_appname', 'drawing_view', 'drawing_svg',
-        'source', 'year', 'preview_layout', 'solution_md', 'geogebra_base64',
-      ];
-      for (const field of TEXT_FIELDS) {
-        if (task[field] != null && task[field] !== '') {
-          formData.append(field, task[field]);
-        }
-      }
-
-      // Код: добавляем суффикс «-копия»
-      if (task.code) {
-        formData.append('code', task.code + '-копия');
-      }
-
-      // Вложения решения (json-массив ссылок на pb-files) — сериализуем явно,
-      // иначе FormData.append превратит массив в "[object Object]".
-      if (Array.isArray(task.solution_files) && task.solution_files.length) {
-        formData.append('solution_files', JSON.stringify(task.solution_files));
-      }
-
-      // Файл чертежа: скачиваем из PocketBase и перезаливаем
-      const drawingFileName = task.drawing_image || task.geogebra_image_base64 || '';
-      if (drawingFileName && !String(drawingFileName).startsWith('data:image/')) {
-        const fileUrl = `${PB_BASE_URL}/api/files/geometry_tasks/${task.id}/${drawingFileName}`;
-        try {
-          const resp = await fetch(fileUrl);
-          if (resp.ok) {
-            const blob = await resp.blob();
-            formData.append('drawing_image', new File([blob], drawingFileName, { type: blob.type || 'image/png' }));
-          }
-        } catch {
-          // Не смогли скопировать файл — продолжаем без него
-        }
-      }
-
-      return await pb.collection('geometry_tasks').create(formData);
+      return await geometryApi._copyGeometryTask(id);
     } catch (error) {
       console.error('Error duplicating geometry task:', error);
+      throw error;
+    }
+  },
+
+  // «Взять к себе»: задача банка МЦНМО → своя (её можно править, не трогая банк).
+  async takeGeometryTaskToMine(id) {
+    try {
+      return await geometryApi._copyGeometryTask(id, { asMine: true });
+    } catch (error) {
+      console.error('Error taking geometry task to mine:', error);
       throw error;
     }
   },

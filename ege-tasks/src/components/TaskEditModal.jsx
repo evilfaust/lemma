@@ -16,6 +16,7 @@ import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
 import { useImageUpload } from '../hooks';
 import { parseMatchingTask } from '../utils/parseMatchingTask';
+import { guessGeometrySection } from '../utils/geometrySection';
 
 const DEFINE_API_BASE = import.meta.env.VITE_DEFINE_API_URL?.replace('/define', '') || 'https://l.oipav.ru';
 
@@ -522,12 +523,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       const titleRaw = statement.replace(/\$\$[\s\S]*?\$\$/g, '…').replace(/\$[^$]*\$/g, '…').replace(/[*_#]/g, '').trim();
       const title = titleRaw.slice(0, 80) || task.code;
 
-      const geoTasks = await api.getGeometryTasks();
-      const n = String(geoTasks.length + 1).padStart(3, '0');
-      const code = `GEO-${n}`;
+      // Следующий свободный GEO-код (раньше — «число задач + 1»: грузило весь
+      // банк МЦНМО и давало код, которого нет в нумерации своих задач)
+      const code = await api.getNextGeometryCode();
+      if (!code) throw new Error('Не удалось получить код геометрической задачи');
 
       const payload = {
         code,
+        origin: 'manual',
+        section: guessGeometrySection({ statement }),
         title,
         difficulty: values.difficulty || task.difficulty,
         statement_md: statement,

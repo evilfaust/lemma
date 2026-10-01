@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   App,
   Badge,
   Button,
   Card,
   Checkbox,
-  Collapse,
   Input,
   Modal,
   Pagination,
@@ -13,7 +12,6 @@ import {
   Select,
   Segmented,
   Space,
-  Switch,
   Table,
   Tag,
   Tooltip,
@@ -30,24 +28,24 @@ import {
   FolderOpenOutlined,
   HolderOutlined,
   ImportOutlined,
-  LoadingOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
-  WarningOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import { sanitizeSvg } from '../utils/sanitizeSvg';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import GeometryTaskEditor from './GeometryTaskEditor';
-import GeometryTaskPreview, { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO, safeParseLayout, TEXT_SIZE_OPTIONS, TEXT_SIZE_SCALE } from './GeometryTaskPreview';
+import GeometryTaskPreview from './GeometryTaskPreview';
 import GeometryWorksheetPrint from './GeometryWorksheetPrint';
 import LoadGeometryPrintModal from './geometry/LoadGeometryPrintModal';
 import MathRenderer from './MathRenderer';
 import { buildGeometryColumns, DIFFICULTY_COLORS, DIFFICULTY_LABELS } from './geometry/GeometryTaskColumns';
 import GeometryTagsModal from './geometry/GeometryTagsModal';
-import SimilarGeometryPanel from './geometry/SimilarGeometryPanel';
+import GeometryTaskDrawer from './geometry/GeometryTaskDrawer';
+import { GEOMETRY_SECTIONS } from '../utils/geometrySection';
+import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
 import GeometryBankDuplicatesModal from './geometry/GeometryBankDuplicatesModal';
 import GeometrySemanticSearchModal from './geometry/GeometrySemanticSearchModal';
 import './GeometryTaskPreview.css';
@@ -58,6 +56,25 @@ const { Text } = Typography;
 // чтобы внутри сниппета не дублировался рисунок и не распухал текст.
 const stripStatementImages = (md = '') => String(md).replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '').trim();
 
+const SCOPE_OPTIONS = [
+  { value: 'manual', label: 'Мои' },
+  { value: 'mccme', label: 'МЦНМО' },
+  { value: 'all', label: 'Все' },
+];
+
+const hasValue = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
+
+const SECTION_OPTIONS = [{ value: '', label: 'Все разделы' }, ...GEOMETRY_SECTIONS];
+
+// Банк МЦНМО — 17,6 тыс. задач: в областях «МЦНМО» и «Все» без сужения его не
+// грузим. Сужают фасет, поиск, сложность, тема/подтема/источник или раздел
+// «Стереометрия» (≈4 тыс.); одна «Планиметрия» — 13,5 тыс., это не сужение.
+function needsNarrowing(f) {
+  if ((f.origin || 'manual') === 'manual') return false;
+  return !(f.tagsObject?.length || f.tagsMethod?.length || f.tagsFact?.length
+    || String(f.search || '').length >= MIN_SEARCH_LENGTH
+    || f.difficulty || f.topic || f.subtopic || f.source || f.section === 'stereo');
+}
 
 export default function GeometryTaskList() {
   const { message } = App.useApp();
@@ -90,13 +107,9 @@ export default function GeometryTaskList() {
   const [savedSheetsOpen, setSavedSheetsOpen] = useState(false);
   const [savedSheetsLoading, setSavedSheetsLoading] = useState(false);
   const [savedSheets, setSavedSheets] = useState([]);
-  const [quickPreviewOpen, setQuickPreviewOpen] = useState(false);
-  const [quickPreviewTask, setQuickPreviewTask] = useState(null);
-  const [quickPreviewLoadingId, setQuickPreviewLoadingId] = useState(null);
-  const [quickPreviewLayout, setQuickPreviewLayout] = useState(() => normalizeLayout(null, 'print'));
-  const [quickPreviewShowAnswers, setQuickPreviewShowAnswers] = useState(false);
-  const [quickPreviewEditMode, setQuickPreviewEditMode] = useState(true);
-  const [quickPreviewTextSize, setQuickPreviewTextSize] = useState('m');
+  // Карточка задачи: какая открыта и по какому списку листать ← / →
+  const [card, setCard] = useState({ id: null, list: [] });
+  const [cardBusy, setCardBusy] = useState(null); // 'edit' | 'copy' | 'take'
   const [worksheetOpen, setWorksheetOpen] = useState(false);
   const [worksheetTasks, setWorksheetTasks] = useState([]);
   const [worksheetTopicLabel, setWorksheetTopicLabel] = useState('');
@@ -105,11 +118,6 @@ export default function GeometryTaskList() {
   const [viewMode, setViewMode] = useState('table');
   const [cardsPage, setCardsPage] = useState(1);
   const [cardsPageSize, setCardsPageSize] = useState(20);
-  // null | 'saving' | 'saved' | 'error'
-  const [autosaveStatus, setAutosaveStatus] = useState(null);
-  // Реф нужен чтобы не ловить stale closure в setTimeout — quickPreviewTask может меняться
-  const quickPreviewTaskRef = useRef(null);
-  const autosaveTimerRef = useRef(null);
 
   // Импорт в обычные задачи
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -117,11 +125,6 @@ export default function GeometryTaskList() {
   const [importSubtopicId, setImportSubtopicId] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResults, setImportResults] = useState(null);
-
-  // Синхронизируем реф с актуальным quickPreviewTask чтобы автосохранение всегда видело свежий объект
-  useEffect(() => {
-    quickPreviewTaskRef.current = quickPreviewTask;
-  }, [quickPreviewTask]);
 
   // Загружаем справочники один раз
   useEffect(() => {
@@ -156,9 +159,7 @@ export default function GeometryTaskList() {
     ];
     // Банк МЦНМО (17к+ задач): НЕ грузим всё подряд — ждём выбора фасета/поиска,
     // либо явного «Загрузить все» (bankLoadAll). Иначе пустой список + подсказка.
-    const isBank = filters.origin === 'mccme';
-    const hasFilter = tags.length > 0 || !!filters.search || !!filters.difficulty;
-    if (isBank && !hasFilter && !bankLoadAll) {
+    if (needsNarrowing(filters) && !bankLoadAll) {
       setTasks([]);
       return;
     }
@@ -273,76 +274,62 @@ export default function GeometryTaskList() {
     setPreviewPrintTest(null);
   };
 
-  const openQuickPreview = (task) => {
-    if (!task) return;
-    setQuickPreviewLoadingId(task.id);
-    try {
-      const parsedLayout = safeParseLayout(task.preview_layout);
-      setQuickPreviewTask(task);
-      setQuickPreviewLayout(normalizeLayout(parsedLayout?.print ?? null, 'print'));
-      setQuickPreviewEditMode(false);
-      setQuickPreviewOpen(true);
-    } catch {
-      message.error('Не удалось загрузить задачу для просмотра');
-    } finally {
-      setQuickPreviewLoadingId(null);
-    }
-  };
-
-  const closeQuickPreview = () => {
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    setQuickPreviewOpen(false);
-    setQuickPreviewTask(null);
-    setAutosaveStatus(null);
-  };
-
-  // Клик по похожей задаче в панели «Похожие» — подгружаем полную запись
-  // (в панели только id) и переключаем быстрый просмотр на неё.
-  const openSimilarInPreview = async (taskId) => {
-    try {
-      const full = await api.getGeometryTask(taskId);
-      openQuickPreview(full);
-    } catch {
-      message.error('Не удалось загрузить похожую задачу');
-    }
-  };
-
-  // Автосохраняет макет в БД через 800ms после последнего изменения.
-  // Принимает готовый nextLayout чтобы не зависеть от stale state.
-  const scheduleAutosave = useCallback((nextLayout) => {
-    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    setAutosaveStatus('saving');
-    autosaveTimerRef.current = setTimeout(async () => {
-      const task = quickPreviewTaskRef.current;
-      if (!task?.id) { setAutosaveStatus(null); return; }
-      try {
-        const existing = safeParseLayout(task.preview_layout) || {};
-        const nextPreviewLayout = { ...existing, print: nextLayout };
-        await api.updateGeometryTask(task.id, { preview_layout: nextPreviewLayout });
-        // Обновляем список задач и сам объект предпросмотра с новым layout
-        setTasks((prev) => prev.map((t) => (
-          t.id === task.id ? { ...t, preview_layout: nextPreviewLayout } : t
-        )));
-        setQuickPreviewTask((prev) => prev ? { ...prev, preview_layout: nextPreviewLayout } : prev);
-        setAutosaveStatus('saved');
-        // Гасим статус через 2.5с
-        setTimeout(() => setAutosaveStatus((s) => (s === 'saved' ? null : s)), 2500);
-      } catch {
-        setAutosaveStatus('error');
-      }
-    }, 800);
+  const openCard = useCallback((id, list) => {
+    if (!id) return;
+    setCard((c) => ({ id, list: list || c.list }));
   }, []);
 
-  const handleQuickLayoutChange = useCallback((layerName, patch) => {
-    setQuickPreviewLayout((prev) => {
-      const next = normalizeLayout(
-        { ...prev, [layerName]: { ...prev[layerName], ...patch } },
-        'print',
-      );
-      scheduleAutosave(next);
-      return next;
-    });
-  }, [scheduleAutosave]);
+  const closeCard = useCallback(() => setCard({ id: null, list: [] }), []);
+
+  // Задача из «Поиска по смыслу»/дублей/похожих — листать по её списку нельзя
+  const openCardSingle = useCallback((id) => setCard({ id, list: [] }), []);
+
+  const handleCardEdit = async (task) => {
+    setCardBusy('edit');
+    try {
+      closeCard();
+      await openEdit(task);
+    } finally {
+      setCardBusy(null);
+    }
+  };
+
+  const handleCardDuplicate = async (task) => {
+    setCardBusy('copy');
+    try {
+      const rec = await api.duplicateGeometryTask(task.id);
+      message.success(`Создана копия ${rec.code}`);
+      loadTasks();
+      openCardSingle(rec.id);
+    } catch {
+      message.error('Не удалось дублировать задачу');
+    } finally {
+      setCardBusy(null);
+    }
+  };
+
+  const handleTakeToMine = async (task) => {
+    setCardBusy('take');
+    try {
+      const rec = await api.takeGeometryTaskToMine(task.id);
+      message.success(`Задача добавлена в «Мои» как ${rec.code}`);
+      loadTasks();
+      openCardSingle(rec.id);
+    } catch {
+      message.error('Не удалось взять задачу к себе');
+    } finally {
+      setCardBusy(null);
+    }
+  };
+
+  // Клик по фасету в карточке — показать в банке все задачи с ним
+  const handleFacet = (kind, tagId) => {
+    const key = { object: 'tagsObject', method: 'tagsMethod', fact: 'tagsFact' }[kind];
+    if (!key) return;
+    closeCard();
+    setSearchInput('');
+    setFilters((f) => ({ origin: f.origin === 'manual' ? 'all' : f.origin, section: f.section, [key]: [tagId] }));
+  };
 
   const openSavedSheets = async () => {
     setSavedSheetsOpen(true);
@@ -474,8 +461,8 @@ export default function GeometryTaskList() {
   const columns = buildGeometryColumns({
     setDraggingTaskId, setDropTargetTaskId,
     canEdit, canDelete,
-    editorLoadingId, quickPreviewLoadingId, duplicatingId,
-    openEdit, openQuickPreview, handleDuplicate, handleDelete,
+    editorLoadingId, duplicatingId,
+    openEdit, openCard: (task) => openCard(task.id, tasks.map((t) => t.id)), handleDuplicate, handleDelete,
   });
 
   const importFilteredSubtopics = importTopicId
@@ -512,10 +499,8 @@ export default function GeometryTaskList() {
     setImportResults(null);
   };
 
-  // Банк МЦНМО без выбранного фасета/поиска и без явной «Загрузить все» — режим подсказки
-  const bankIdle = filters.origin === 'mccme' && !bankLoadAll
-    && !(filters.tagsObject?.length || filters.tagsMethod?.length || filters.tagsFact?.length
-      || filters.search || filters.difficulty);
+  // В области с банком МЦНМО без сужения и без явной «Загрузить все» — режим подсказки
+  const bankIdle = needsNarrowing(filters) && !bankLoadAll;
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -530,97 +515,102 @@ export default function GeometryTaskList() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
-          {/* Переключатель «Мои задачи / Банк МЦНМО» — две сущности в одной коллекции */}
-          <Segmented
-            value={filters.origin || 'manual'}
-            onChange={(v) => {
-              setBankLoadAll(false); // при смене режима не тянем весь банк
-              // при смене режима сбрасываем фильтры, специфичные для другого режима
-              setFilters((f) => ({ origin: v, search: f.search }));
-            }}
-            options={[
-              { value: 'manual', label: 'Мои задачи' },
-              { value: 'mccme', label: 'Банк МЦНМО' },
-            ]}
-          />
-          {/* Две колонки: слева широкие фильтры-категории друг под другом
-              (длинные названия объектов/методов/фактов/тем влезают), справа —
-              сложность + теги + кнопки. */}
-          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
-            <Space direction="vertical" size={8} style={{ flex: 1, minWidth: 0 }}>
-              {filters.origin === 'mccme' ? (
-                <>
-                  {/* Фасетная навигация банка: объект / метод / факт */}
-                  <Select
-                    mode="multiple"
-                    placeholder="Объект (фигура)"
-                    allowClear showSearch
-                    maxTagCount="responsive"
-                    optionFilterProp="label"
-                    style={{ width: '100%' }}
-                    value={filters.tagsObject || []}
-                    onChange={(v) => setFilters((f) => ({ ...f, tagsObject: v }))}
-                    options={geoTags.object.map((t) => ({ value: t.id, label: t.name, title: t.name }))}
-                  />
-                  <Select
-                    mode="multiple"
-                    placeholder="Метод (приём)"
-                    allowClear showSearch
-                    maxTagCount="responsive"
-                    optionFilterProp="label"
-                    style={{ width: '100%' }}
-                    value={filters.tagsMethod || []}
-                    onChange={(v) => setFilters((f) => ({ ...f, tagsMethod: v }))}
-                    options={geoTags.method.map((t) => ({ value: t.id, label: t.name, title: t.name }))}
-                  />
-                  <Select
-                    mode="multiple"
-                    placeholder="Факт (теорема)"
-                    allowClear showSearch
-                    maxTagCount="responsive"
-                    optionFilterProp="label"
-                    style={{ width: '100%' }}
-                    value={filters.tagsFact || []}
-                    onChange={(v) => setFilters((f) => ({ ...f, tagsFact: v }))}
-                    options={geoTags.fact.map((t) => ({ value: t.id, label: t.name, title: t.name }))}
-                  />
-                </>
-              ) : (
-                <>
-                  <Select
-                    placeholder="Тема"
-                    allowClear showSearch
-                    optionFilterProp="label"
-                    style={{ width: '100%' }}
-                    value={filters.topic}
-                    onChange={(v) => setFilters((f) => ({ ...f, topic: v, subtopic: undefined }))}
-                    options={geoTopics.map((t) => ({ value: t.id, label: t.title, title: t.title }))}
-                  />
-                  <Select
-                    placeholder="Подтема"
-                    allowClear showSearch
-                    optionFilterProp="label"
-                    style={{ width: '100%' }}
-                    value={filters.subtopic}
-                    onChange={(v) => setFilters((f) => ({ ...f, subtopic: v }))}
-                    options={(filters.topic
-                      ? geoSubtopics.filter((s) => s.topic === filters.topic)
-                      : geoSubtopics
-                    ).map((s) => ({ value: s.id, label: s.title, title: s.title }))}
-                  />
-                  <Select
-                    placeholder="Источник"
-                    allowClear showSearch
-                    optionFilterProp="label"
-                    style={{ width: '100%' }}
-                    value={filters.source}
-                    onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
-                    options={geoSources.map((s) => ({ value: s, label: s, title: s }))}
-                    notFoundContent="Источники не заданы"
-                  />
-                </>
-              )}
+          {/* Область (свои / банк МЦНМО / все) и раздел — фильтры одного банка */}
+          <Space wrap size={12}>
+            <Segmented
+              value={filters.origin || 'manual'}
+              onChange={(v) => {
+                setBankLoadAll(false); // при смене области не тянем весь банк
+                // тема/подтема/источник есть только у своих задач
+                setFilters((f) => (v === 'mccme'
+                  ? { ...f, origin: v, topic: undefined, subtopic: undefined, source: undefined }
+                  : { ...f, origin: v }));
+              }}
+              options={SCOPE_OPTIONS}
+            />
+            <Segmented
+              value={filters.section || ''}
+              onChange={(v) => {
+                setBankLoadAll(false);
+                setFilters((f) => ({ ...f, section: v || undefined }));
+              }}
+              options={SECTION_OPTIONS}
+            />
+          </Space>
+          {/* Слева — фасеты (общие для своих задач и банка), посередине — дерево
+              тем своих задач, справа — сложность и кнопки. */}
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <Space direction="vertical" size={8} style={{ flex: '2 1 320px', minWidth: 0 }}>
+              <Select
+                mode="multiple"
+                placeholder="Объект (фигура)"
+                allowClear showSearch
+                maxTagCount="responsive"
+                optionFilterProp="label"
+                style={{ width: '100%' }}
+                value={filters.tagsObject || []}
+                onChange={(v) => setFilters((f) => ({ ...f, tagsObject: v }))}
+                options={geoTags.object.map((t) => ({ value: t.id, label: t.name, title: t.name }))}
+              />
+              <Select
+                mode="multiple"
+                placeholder="Метод (приём)"
+                allowClear showSearch
+                maxTagCount="responsive"
+                optionFilterProp="label"
+                style={{ width: '100%' }}
+                value={filters.tagsMethod || []}
+                onChange={(v) => setFilters((f) => ({ ...f, tagsMethod: v }))}
+                options={geoTags.method.map((t) => ({ value: t.id, label: t.name, title: t.name }))}
+              />
+              <Select
+                mode="multiple"
+                placeholder="Факт (теорема)"
+                allowClear showSearch
+                maxTagCount="responsive"
+                optionFilterProp="label"
+                style={{ width: '100%' }}
+                value={filters.tagsFact || []}
+                onChange={(v) => setFilters((f) => ({ ...f, tagsFact: v }))}
+                options={geoTags.fact.map((t) => ({ value: t.id, label: t.name, title: t.name }))}
+              />
             </Space>
+
+            {filters.origin !== 'mccme' && (
+              <Space direction="vertical" size={8} style={{ flex: '1 1 220px', minWidth: 0 }}>
+                <Select
+                  placeholder="Тема (мои задачи)"
+                  allowClear showSearch
+                  optionFilterProp="label"
+                  style={{ width: '100%' }}
+                  value={filters.topic}
+                  onChange={(v) => setFilters((f) => ({ ...f, topic: v, subtopic: undefined }))}
+                  options={geoTopics.map((t) => ({ value: t.id, label: t.title, title: t.title }))}
+                />
+                <Select
+                  placeholder="Подтема"
+                  allowClear showSearch
+                  optionFilterProp="label"
+                  style={{ width: '100%' }}
+                  value={filters.subtopic}
+                  onChange={(v) => setFilters((f) => ({ ...f, subtopic: v }))}
+                  options={(filters.topic
+                    ? geoSubtopics.filter((s) => s.topic === filters.topic)
+                    : geoSubtopics
+                  ).map((s) => ({ value: s.id, label: s.title, title: s.title }))}
+                />
+                <Select
+                  placeholder="Источник"
+                  allowClear showSearch
+                  optionFilterProp="label"
+                  style={{ width: '100%' }}
+                  value={filters.source}
+                  onChange={(v) => setFilters((f) => ({ ...f, source: v }))}
+                  options={geoSources.map((s) => ({ value: s, label: s, title: s }))}
+                  notFoundContent="Источники не заданы"
+                />
+              </Space>
+            )}
 
             <Space direction="vertical" size={8} style={{ width: 240, flexShrink: 0 }}>
               <Select
@@ -637,9 +627,9 @@ export default function GeometryTaskList() {
                   { value: '5', label: '5 — Олимпиадный' },
                 ]}
               />
-              {filters.origin === 'mccme' && canEdit && (
+              {canEdit && (
                 <Button block icon={<EditOutlined />} onClick={() => setTagsModalOpen(true)}>
-                  Теги
+                  Фасеты
                 </Button>
               )}
               <Button block icon={<SearchOutlined />} onClick={() => setSemanticOpen(true)}>
@@ -651,8 +641,8 @@ export default function GeometryTaskList() {
               <Space style={{ width: '100%' }}>
                 <Button
                   style={{ flex: 1 }}
-                  onClick={() => { setFilters({ origin: filters.origin || 'manual' }); setSearchInput(''); }}
-                  disabled={!searchInput && !Object.keys(filters).some((k) => k !== 'origin' && filters[k])}
+                  onClick={() => { setFilters({ origin: filters.origin || 'manual' }); setSearchInput(''); setBankLoadAll(false); }}
+                  disabled={!searchInput && !Object.keys(filters).some((k) => k !== 'origin' && hasValue(filters[k]))}
                 >
                   Сбросить
                 </Button>
@@ -669,8 +659,8 @@ export default function GeometryTaskList() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text type="secondary">
           {bankIdle
-            ? <>Банк МЦНМО — выберите фасет</>
-            : (searchInput || Object.keys(filters).some((k) => k !== 'origin' && filters[k]))
+            ? <>Банк МЦНМО — сузьте поиск</>
+            : (searchInput || Object.keys(filters).some((k) => k !== 'origin' && hasValue(filters[k])))
               ? <>Найдено: <strong>{tasks.length}</strong></>
               : <>Всего задач: <strong>{tasks.length}</strong></>}
         </Text>
@@ -712,11 +702,12 @@ export default function GeometryTaskList() {
       {bankIdle ? (
         <Card style={{ textAlign: 'center', padding: '32px 16px' }}>
           <Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
-            В банке МЦНМО <strong>17 634</strong> задачи.
+            В банке МЦНМО <strong>17 634</strong> задачи — целиком их лучше не грузить.
           </Text>
           <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-            Выберите <strong>объект</strong>, <strong>метод</strong> или <strong>факт</strong> выше —
-            задачи подгрузятся по фасету. Либо загрузите весь банк (может быть медленно).
+            Выберите раздел <strong>«Стереометрия»</strong>, <strong>объект</strong>, <strong>метод</strong>{' '}
+            или <strong>факт</strong>, введите поиск или сложность — задачи подгрузятся.
+            Либо загрузите всё (может быть медленно).
           </Text>
           <Button onClick={() => setBankLoadAll(true)} loading={loading}>
             Загрузить все 17 634
@@ -736,7 +727,11 @@ export default function GeometryTaskList() {
           size="small"
           pagination={{ defaultPageSize: 20, showSizeChanger: true, pageSizeOptions: ['10', '20', '50'] }}
           onRow={(record) => ({
-            onDoubleClick: () => openEdit(record),
+            // Клик по строке — карточка задачи (кроме чекбокса, кнопок и ручки)
+            onClick: (e) => {
+              if (e.target.closest('button, a, input, label, .ant-checkbox-wrapper, .ant-table-selection-column, [draggable="true"]')) return;
+              openCard(record.id, tasks.map((t) => t.id));
+            },
             onDragOver: (e) => {
               if (!draggingTaskId || draggingTaskId === record.id) return;
               e.preventDefault();
@@ -803,8 +798,7 @@ export default function GeometryTaskList() {
                           type="text"
                           icon={<EyeOutlined />}
                           size="small"
-                          loading={quickPreviewLoadingId === record.id}
-                          onClick={() => openQuickPreview(record)}
+                          onClick={() => openCard(record.id, tasks.map((t) => t.id))}
                         />
                       </Tooltip>
                       {canEdit && (
@@ -841,7 +835,12 @@ export default function GeometryTaskList() {
                     </Space>
                   )}
                 >
-                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <Space
+                    direction="vertical"
+                    size={8}
+                    style={{ width: '100%', cursor: 'pointer' }}
+                    onClick={() => openCard(record.id, tasks.map((t) => t.id))}
+                  >
                     <Space size={4} wrap>
                       {record.difficulty ? (
                         <Tooltip title={DIFFICULTY_LABELS[record.difficulty]}>
@@ -982,13 +981,13 @@ export default function GeometryTaskList() {
       <GeometryBankDuplicatesModal
         open={bankDupOpen}
         onClose={() => setBankDupOpen(false)}
-        onOpenTask={openSimilarInPreview}
+        onOpenTask={openCardSingle}
       />
 
       <GeometrySemanticSearchModal
         open={semanticOpen}
         onClose={() => setSemanticOpen(false)}
-        onOpenTask={openSimilarInPreview}
+        onOpenTask={openCardSingle}
       />
 
       <GeometryTagsModal
@@ -998,91 +997,19 @@ export default function GeometryTaskList() {
         onChanged={reloadGeoTags}
       />
 
-      <Modal
-        title={quickPreviewTask ? `Быстрый просмотр: ${quickPreviewTask.code}` : 'Быстрый просмотр'}
-        open={quickPreviewOpen}
-        onCancel={closeQuickPreview}
-        width={760}
-        footer={[
-          <Button key="close" onClick={closeQuickPreview}>Закрыть</Button>,
-        ]}
-      >
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-            <Space wrap>
-              <Space size={8}>
-                <Switch checked={quickPreviewEditMode} onChange={setQuickPreviewEditMode} />
-                <Text>Редактировать макет</Text>
-              </Space>
-              <Space size={8}>
-                <Switch checked={quickPreviewShowAnswers} onChange={setQuickPreviewShowAnswers} />
-                <Text>Показывать ответ</Text>
-              </Space>
-              <Space size={6}>
-                <Text>Текст</Text>
-                <Segmented size="small" value={quickPreviewTextSize} onChange={setQuickPreviewTextSize} options={TEXT_SIZE_OPTIONS} />
-              </Space>
-              <Tag>Карточка A5</Tag>
-            </Space>
-            {/* Индикатор автосохранения */}
-            <span style={{ fontSize: 12, minWidth: 110, textAlign: 'right' }}>
-              {autosaveStatus === 'saving' && (
-                <Text type="secondary"><LoadingOutlined style={{ marginRight: 4 }} />Сохраняется…</Text>
-              )}
-              {autosaveStatus === 'saved' && (
-                <Text style={{ color: '#52c41a' }}><CheckCircleOutlined style={{ marginRight: 4 }} />Сохранено</Text>
-              )}
-              {autosaveStatus === 'error' && (
-                <Text type="danger"><WarningOutlined style={{ marginRight: 4 }} />Ошибка сохранения</Text>
-              )}
-            </span>
-          </div>
-
-          <div style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
-            <div
-              className="geometry-preview-grid a5"
-              style={{
-                gridTemplateColumns: '1fr',
-                gridTemplateRows: '1fr',
-                aspectRatio: String(PRINT_CELL_ASPECT_RATIO),
-                border: '1.5px solid #c0c0c0',
-                background: '#fff',
-              }}
-            >
-              {quickPreviewTask && (
-                <GeometryPreviewCard
-                  task={quickPreviewTask}
-                  index={0}
-                  showAnswers={quickPreviewShowAnswers}
-                  mode="student"
-                  drawingMode="task"
-                  editable={quickPreviewEditMode}
-                  layout={quickPreviewLayout}
-                  textScale={TEXT_SIZE_SCALE[quickPreviewTextSize]}
-                  onLayoutChange={handleQuickLayoutChange}
-                />
-              )}
-            </div>
-          </div>
-
-          {quickPreviewTask && (
-            <Collapse
-              size="small"
-              destroyInactivePanel
-              items={[{
-                key: 'similar',
-                label: '🔎 Похожие задачи (вектор)',
-                children: (
-                  <SimilarGeometryPanel
-                    taskId={quickPreviewTask.id}
-                    onOpenTask={openSimilarInPreview}
-                  />
-                ),
-              }]}
-            />
-          )}
-        </Space>
-      </Modal>
+      <GeometryTaskDrawer
+        taskId={card.id}
+        listIds={card.list}
+        geoTags={geoTags}
+        onOpen={openCard}
+        onClose={closeCard}
+        onFacet={handleFacet}
+        canEdit={canEdit}
+        onEdit={handleCardEdit}
+        onDuplicate={handleCardDuplicate}
+        onTakeToMine={handleTakeToMine}
+        busy={cardBusy}
+      />
 
       {/* ── Модал импорта в обычные задачи ───────────────────────────── */}
       <Modal
