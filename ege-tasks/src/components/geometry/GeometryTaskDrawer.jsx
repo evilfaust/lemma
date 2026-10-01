@@ -4,12 +4,16 @@ import {
 } from 'antd';
 import {
   CheckOutlined, CopyOutlined, EditOutlined, ImportOutlined, LeftOutlined, PaperClipOutlined,
-  PlusOutlined, RightOutlined, UndoOutlined,
+  PlayCircleOutlined, PlusOutlined, RightOutlined, UndoOutlined, CodeSandboxOutlined,
 } from '@ant-design/icons';
 import { useGeometryBasket } from '../../hooks/useGeometryBasket';
 import { api } from '../../shared/services/pocketbase';
 import { sanitizeSvg } from '../../utils/sanitizeSvg';
-import { stereoSpecFromSvg, parseStereoBlock } from '../../utils/stereo/dsl';
+import {
+  stereoSpecFromSvg, stereoSpecFromMarkdown, parseStereoBlock, requestOpenInStereoEditor,
+} from '../../utils/stereo/dsl';
+import { useNavigate } from 'react-router-dom';
+import StereoStepsModal from '../stereo/StereoStepsModal';
 import { evaluateScene } from '../../utils/stereo/scene';
 import { SECTION_LABELS } from '../../utils/geometrySection';
 import MathRenderer from '../MathRenderer';
@@ -133,6 +137,8 @@ export default function GeometryTaskDrawer({
   canEdit, onEdit, onDuplicate, onTakeToMine, busy = null, extra = null,
 }) {
   const basket = useGeometryBasket();
+  const navigate = useNavigate();
+  const [stepsOpen, setStepsOpen] = useState(false);
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -184,6 +190,24 @@ export default function GeometryTaskDrawer({
 
   const shown = task && task.id === taskId ? task : null;
   const isBank = shown?.origin === 'mccme';
+  // Построение по шагам: блок ```stereo в решении, иначе стереочертёж условия
+  // (если в нём есть шаги). Шаги решения идут после шагов чертежа условия.
+  const construction = useMemo(() => {
+    if (!shown) return null;
+    const parse = (spec) => {
+      if (!spec) return null;
+      try {
+        const p = parseStereoBlock(spec);
+        return p.errors.length && !p.scene.ops.length ? null : p;
+      } catch { return null; }
+    };
+    const drawing = parse(shown.drawing_view === 'svg' ? stereoSpecFromSvg(shown.drawing_svg) : null);
+    const solution = parse(stereoSpecFromMarkdown(shown.solution_md));
+    const base = solution || drawing;
+    if (!base || !base.scene.ops.length) return null;
+    const first = solution && drawing ? Math.min(drawing.scene.ops.length, solution.scene.ops.length - 1) : 0;
+    return { scene: base.scene, camera: base.camera, first, fromSolution: !!solution };
+  }, [shown]);
   const hints = parseJsonArray(shown?.hints).filter((h) => h?.text_md);
   const files = parseJsonArray(shown?.solution_files);
   const solutionImage = shown?.image_role === 'solution' ? api.getGeometryImageUrl(shown) : '';
@@ -283,6 +307,28 @@ export default function GeometryTaskDrawer({
               : <Text type="secondary">Условие не задано</Text>}
           </Section>
 
+          {construction && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+              <Button icon={<PlayCircleOutlined />} onClick={() => setStepsOpen(true)}>
+                {construction.fromSolution ? 'Решение по шагам' : 'Построение по шагам'}
+              </Button>
+              {canEdit && (
+                <Tooltip title="Открыть построение в стереоредакторе — оттуда его можно показать классу в эфире">
+                  <Button
+                    icon={<CodeSandboxOutlined />}
+                    onClick={() => {
+                      requestOpenInStereoEditor(construction.scene, construction.camera);
+                      onClose();
+                      navigate('/app/geometry/stereo');
+                    }}
+                  >
+                    В стереоредактор (эфир)
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+          )}
+
           <Section title="Ответ">
             {shown.answer
               ? <div style={{ fontSize: 15 }}><MathRenderer text={String(shown.answer)} /></div>
@@ -374,6 +420,16 @@ export default function GeometryTaskDrawer({
             }]}
           />
         </>
+      )}
+      {construction && (
+        <StereoStepsModal
+          open={stepsOpen}
+          onClose={() => setStepsOpen(false)}
+          scene={construction.scene}
+          camera={construction.camera}
+          firstStep={construction.first}
+          title={`${shown?.code || ''} — ${construction.fromSolution ? 'решение' : 'построение'} по шагам`}
+        />
       )}
     </Drawer>
   );

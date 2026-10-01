@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tooltip, Typography,
+  Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   FileTextOutlined, LinkOutlined, PaperClipOutlined, DeleteOutlined, DownloadOutlined,
@@ -39,6 +39,7 @@ export default function LessonModal({
   const [fileMaterials, setFileMaterials] = useState([]);
   const [sessionItems, setSessionItems] = useState([]); // ДЗ/тесты: ссылки на выданные сессии
   const [textItems, setTextItems] = useState([]);        // текстовые задания/объявления
+  const [geoItems, setGeoItems] = useState([]);          // работы раздела «Геометрия»
   const [coursePublished, setCoursePublished] = useState(true);
   const [newText, setNewText] = useState('');
   // Пикер ДЗ-работы: работы с выданными сессиями.
@@ -71,6 +72,7 @@ export default function LessonModal({
       setFileMaterials(all.filter((m) => m.type === 'material'));
       setSessionItems(all.filter((m) => m.type === 'session'));
       setTextItems(all.filter((m) => m.type === 'text'));
+      setGeoItems(all.filter((m) => m.type === 'geometry_work'));
       const ts = initial?.time_slot || '';
       const inten = /^(\d)-(\d)$/.exec(ts);
       const half = /^(\d)([ab])$/.exec(ts);
@@ -178,6 +180,7 @@ export default function LessonModal({
         ...fileMaterials,
         ...sessionItems,
         ...textItems,
+        ...geoItems,
       ],
     }, { published: coursePublished });
   };
@@ -353,6 +356,24 @@ export default function LessonModal({
             options={(works || []).map((w) => ({ value: w.id, label: w.title }))}
           />
         </Form.Item>
+        {geoItems.length > 0 && (
+          <Form.Item label="Работы по геометрии" tooltip="Прикрепляются из редактора геометрической работы">
+            <Space wrap size={4}>
+              {geoItems.map((m) => (
+                <Tag
+                  key={m.id}
+                  color="geekblue"
+                  closable={canEdit}
+                  onClose={(e) => { e.preventDefault(); setGeoItems((list) => list.filter((x) => x.id !== m.id)); }}
+                  style={{ cursor: 'pointer', margin: 0 }}
+                  onClick={() => onOpenMaterial?.(m.id, m.type)}
+                >
+                  {m.title || 'Работа по геометрии'}
+                </Tag>
+              ))}
+            </Space>
+          </Form.Item>
+        )}
         {isCourse && (
           <Form.Item
             name="conference_url"

@@ -336,14 +336,17 @@ export default function TeacherCalendar() {
     }
   };
 
-  const handleOpenMaterial = (workId) => {
+  // Работа урока: обычная — в редактор работ, геометрическая — в её редактор
+  const workPath = (id, type) => (type === 'geometry_work' ? `/app/geometry/works/${id}` : `/app/works/${id}/edit`);
+
+  const handleOpenMaterial = (workId, type) => {
     setModalOpen(false);
-    navigate(`/app/works/${workId}/edit`);
+    navigate(workPath(workId, type));
   };
 
-  const handleOpenWork = (workId) => {
+  const handleOpenWork = (workId, type) => {
     setSelected(null);
-    navigate(`/app/works/${workId}/edit`);
+    navigate(workPath(workId, type));
   };
 
   const handleOpenNoteById = (noteId) => {

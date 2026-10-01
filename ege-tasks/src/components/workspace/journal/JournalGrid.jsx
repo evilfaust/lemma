@@ -46,6 +46,7 @@ function columnTip(col, block) {
     col.category || null,
     col.lessonLabel ? `урок: ${col.lessonLabel} — «н» из посещаемости` : null,
     col.ref?.type === 'sheet' ? `лист генератора: «${col.ref.title || ''}»` : null,
+    col.ref?.type === 'geometry_work' ? `работа по геометрии: «${col.ref.title || ''}»` : null,
     col.online ? (col.virtual ? 'онлайн-работа: результаты из попыток учеников' : 'онлайн-работа') : null,
     columnWeight(col) === 0 ? 'не входит в средний' : columnWeight(col) !== 1 ? `вес ×${formatNumber(columnWeight(col))}` : null,
     col.note || null,

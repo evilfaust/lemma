@@ -275,3 +275,41 @@ export function stereoBlockMarkdown(scene, camera, { color = false, size = null,
   if (format === 'inline') return `\`stereo: ${stereoInlineFromSpec(text)}\``;
   return `\n\`\`\`stereo\n${text}\n\`\`\`\n`;
 }
+
+/** Исходник первого блока ```stereo в markdown (решение задачи); null — блока нет. */
+export function stereoSpecFromMarkdown(md) {
+  const m = /```stereo[ \t]*\r?\n([\s\S]*?)\r?\n```/.exec(String(md || ''));
+  return m ? m[1] : null;
+}
+
+// --- «Открыть в стереоредакторе» -------------------------------------------
+//
+// Карточка задачи кладёт построение в sessionStorage и переходит в редактор;
+// редактор при открытии забирает его (с переспросом, если в черновике есть
+// несохранённое). Через sessionStorage, а не состояние роутера: редактор
+// живёт и без роутера (окно задачи, тесты).
+
+export const STEREO_OPEN_KEY = 'stereo.editor.open';
+
+/** Положить сцену «на вход» стереоредактору. */
+export function requestOpenInStereoEditor(scene, camera = null) {
+  try {
+    sessionStorage.setItem(STEREO_OPEN_KEY, JSON.stringify({ scene, camera }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Забрать сцену «со входа» (один раз); null — ничего не просили. */
+export function takeStereoOpenRequest() {
+  try {
+    const raw = sessionStorage.getItem(STEREO_OPEN_KEY);
+    if (!raw) return null;
+    sessionStorage.removeItem(STEREO_OPEN_KEY);
+    const req = JSON.parse(raw);
+    return req?.scene?.body && Array.isArray(req.scene.ops) ? req : null;
+  } catch {
+    return null;
+  }
+}

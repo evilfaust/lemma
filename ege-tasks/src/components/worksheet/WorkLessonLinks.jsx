@@ -20,8 +20,10 @@ function fmtLessonLabel(lesson) {
  *
  * @param {string} workId
  * @param {string} workTitle
+ * @param {string} [materialType='work'] — тип записи в lessons.materials;
+ *   'geometry_work' — работа раздела «Геометрия» (GEOMETRY_TASKS_PLAN § 6)
  */
-export default function WorkLessonLinks({ workId, workTitle }) {
+export default function WorkLessonLinks({ workId, workTitle, materialType = 'work' }) {
   const { message } = App.useApp();
   const { canEdit } = useAuth();
   const [linked, setLinked] = useState([]);
@@ -38,12 +40,12 @@ export default function WorkLessonLinks({ workId, workTitle }) {
       const lessons = await api.getLessonsByMaterialId(workId);
       // ~ ищет подстроку в json — отфильтруем точное совпадение по id записи
       setLinked(lessons.filter(l =>
-        (Array.isArray(l.materials) ? l.materials : []).some(m => m.id === workId)
+        (Array.isArray(l.materials) ? l.materials : []).some(m => m.id === workId && (m.type || 'work') === materialType)
       ));
     } finally {
       setLoading(false);
     }
-  }, [workId]);
+  }, [workId, materialType]);
 
   useEffect(() => { loadLinked(); }, [loadLinked]);
 
@@ -66,7 +68,7 @@ export default function WorkLessonLinks({ workId, workTitle }) {
     try {
       const materials = Array.isArray(lesson.materials) ? lesson.materials : [];
       await api.updateLesson(lesson.id, {
-        materials: [...materials, { type: 'work', id: workId, title: workTitle || '' }],
+        materials: [...materials, { type: materialType, id: workId, title: workTitle || '' }],
       });
       message.success(`Работа прикреплена к уроку ${fmtLessonLabel(lesson)}`);
       setPickerOpen(false);
@@ -82,7 +84,7 @@ export default function WorkLessonLinks({ workId, workTitle }) {
     setBusyId(lesson.id);
     try {
       const materials = (Array.isArray(lesson.materials) ? lesson.materials : [])
-        .filter(m => m.id !== workId);
+        .filter(m => !(m.id === workId && (m.type || 'work') === materialType));
       await api.updateLesson(lesson.id, { materials });
       message.success('Работа откреплена от урока');
       await loadLinked();

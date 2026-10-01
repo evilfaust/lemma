@@ -89,7 +89,7 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
   const foreign = !!(myTeacherId && l.owner && l.owner !== myTeacherId);
   const topic = l.expand?.ktp_entry?.title || '';
   const mats = (Array.isArray(l.materials) ? l.materials : [])
-    .filter((m) => m.type === 'work' || m.type === 'material');
+    .filter((m) => m.type === 'work' || m.type === 'material' || m.type === 'geometry_work');
   const slot = slotLabel(l.time_slot);
   const hex = lessonHex(l);
 
@@ -139,7 +139,7 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
   const openMaterial = (m) => {
     if (m.type === 'material') { if (m.url) window.open(m.url, '_blank', 'noopener'); return; }
     onClose?.();
-    navigate(`/app/works/${m.id}/edit`);
+    navigate(m.type === 'geometry_work' ? `/app/geometry/works/${m.id}` : `/app/works/${m.id}/edit`);
   };
 
   return (

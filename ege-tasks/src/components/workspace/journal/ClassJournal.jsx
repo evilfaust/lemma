@@ -16,10 +16,11 @@ import useIsMobile from '../../../hooks/useIsMobile';
 import { currentAcademicYear } from '../../../utils/academicYear';
 import {
   buildGrid, collectOnline, columnMonths, columnScale, findSheetColumn, indexAttendance, indexMarks, inPeriod,
-  journalStudents, sheetColumnPreset,
+  journalStudents, sheetColumnPreset, findRefColumn, geometryWorkColumnPreset,
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
 } from '../../../utils/classJournal';
+import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
 import JournalGrid from './JournalGrid';
 import JournalColumnModal, { lessonOptionLabel } from './JournalColumnModal';
@@ -71,6 +72,8 @@ export default function ClassJournal() {
     entry: searchParams.get('entry'),
     // «В журнал» у листа генератора: колонка по этому листу (v3.9.240).
     sheet: searchParams.get('sheet'),
+    // «В журнал» у работы раздела «Геометрия»: колонка по этой работе.
+    gwork: searchParams.get('gwork'),
   });
   const isMobile = useIsMobile();
   const { teacher, isSuperAdmin, canEdit, canDelete, aiEnabled } = useAuth();
@@ -529,12 +532,16 @@ export default function ClassJournal() {
 
   // Колонка по листу генератора: настройки прошлой колонки класса (пороги,
   // вес), поверх — то, что задаёт лист (название, баллы, максимум, категория).
+  const presetOf = (cm) => (cm?.presetGeoWork
+    ? geometryWorkColumnPreset(cm.presetGeoWork)
+    : sheetColumnPreset(cm?.presetSheet));
   const sheetDefaults = useMemo(() => {
-    const preset = sheetColumnPreset(colModal?.presetSheet);
+    const preset = presetOf(colModal);
     if (!preset) return null;
     const { ref: _ref, ...rest } = preset; // ссылка уходит в запись при сохранении
     return { ...newDefaults, ...rest };
-  }, [colModal?.presetSheet, newDefaults]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colModal?.presetSheet, colModal?.presetGeoWork, newDefaults]);
 
   const saveColumn = async (values) => {
     const col = colModal?.column;
@@ -543,7 +550,7 @@ export default function ClassJournal() {
     setColSaving(true);
     try {
       if (!col) {
-        const ref = sheetColumnPreset(colModal?.presetSheet)?.ref;
+        const ref = presetOf(colModal)?.ref;
         const rec = await api.createJournalColumn({
           ...values, group: gid, source: 'manual', ...(ref ? { ref } : {}),
         });
@@ -817,7 +824,7 @@ export default function ClassJournal() {
   useEffect(() => {
     const p = pendingParams.current;
     if (!p || !data || data.groupId !== groupId) return;
-    if (!p.group && !p.lesson && !p.entry && !p.sheet) return;
+    if (!p.group && !p.lesson && !p.entry && !p.sheet && !p.gwork) return;
     if (p.group && data.groupId !== p.group) return;
     pendingParams.current = {};
     setSearchParams({}, { replace: true });
@@ -846,6 +853,24 @@ export default function ClassJournal() {
       api.getJournalSheet(p.sheet)
         .then((sheet) => setColModal({ column: null, presetSheet: sheet, openEntryAfter: true }))
         .catch(() => message.warning('Лист генератора не найден'));
+      return;
+    }
+    if (p.gwork && !data.missing && canEdit) {
+      const existing = findRefColumn(allColumns, 'geometry_work', p.gwork);
+      if (existing) {
+        setPeriod('all');
+        if (existing.hidden) setShowHidden(true);
+        setEntryKey(existing.key);
+        message.info(`Работа уже в журнале — колонка «${existing.title}»`);
+        return;
+      }
+      api.getGeometryWork(p.gwork)
+        .then((w) => setColModal({
+          column: null,
+          presetGeoWork: { id: w.id, title: w.title, positions: rowCount(normalizeStructure(w.structure)) },
+          openEntryAfter: true,
+        }))
+        .catch(() => message.warning('Работа по геометрии не найдена'));
       return;
     }
     if (p.lesson && !data.missing && canEdit) {
@@ -882,6 +907,7 @@ export default function ClassJournal() {
       case 'fill': setFill({ column: col, text: '', error: '' }); break;
       case 'open-work': navigate(`/app/works/${col.workId}/edit`); break;
       case 'open-sheet': openSheet(col.ref); break;
+      case 'open-geometry-work': navigate(`/app/geometry/works/${col.ref.id}`); break;
       case 'hide': setHidden(col, true); break;
       case 'show': setHidden(col, false); break;
       case 'clear': clearColumn(col); break;
@@ -901,6 +927,7 @@ export default function ClassJournal() {
     if (writable && !col.online) items.push({ key: 'fill', icon: <FormatPainterOutlined />, label: 'Заполнить пустые…' });
     if (col.workId) items.push({ key: 'open-work', icon: <ExportOutlined />, label: 'Открыть работу' });
     if (col.ref?.type === 'sheet') items.push({ key: 'open-sheet', icon: <ExportOutlined />, label: 'Открыть лист' });
+    if (col.ref?.type === 'geometry_work') items.push({ key: 'open-geometry-work', icon: <ExportOutlined />, label: 'Открыть работу' });
     if (manage) {
       items.push(col.hidden
         ? { key: 'show', icon: <EyeOutlined />, label: 'Показать колонку' }
@@ -1176,9 +1203,11 @@ export default function ClassJournal() {
         open={!!colModal}
         column={colModal?.column || null}
         defaults={blockDefaults || sheetDefaults || newDefaults}
-        sourceNote={colModal?.presetSheet
-          ? `По листу «${colModal.presetSheet.title}»: максимум — заданий в варианте, ссылка на лист сохранится в колонке.`
-          : ''}
+        sourceNote={colModal?.presetGeoWork
+          ? `По работе «${colModal.presetGeoWork.title}»: максимум — по баллу за задачу (поправьте, если задачи стоят больше), ссылка на работу сохранится в колонке.`
+          : colModal?.presetSheet
+            ? `По листу «${colModal.presetSheet.title}»: максимум — заданий в варианте, ссылка на лист сохранится в колонке.`
+            : ''}
         categories={categories}
         hasMarks={hasMarksInModalColumn}
         lessons={data?.lessons || []}

@@ -828,8 +828,34 @@ export function sheetColumnPreset(sheet) {
 
 /** Колонка журнала, уже заведённая по этому листу (чтобы не плодить вторую). */
 export function findSheetColumn(columns = [], sheetId) {
-  if (!sheetId) return null;
-  return columns.find((c) => c?.ref?.type === 'sheet' && c.ref.id === sheetId) || null;
+  return findRefColumn(columns, 'sheet', sheetId);
+}
+
+/** Колонка журнала по материалу без своей связи (`ref.type` + `ref.id`). */
+export function findRefColumn(columns = [], type, id) {
+  if (!id) return null;
+  return columns.find((c) => c?.ref?.type === type && c.ref.id === id) || null;
+}
+
+// ─── Колонка по работе раздела «Геометрия» ──────────────────────────────────
+
+/**
+ * Колонка по геометрической работе (`geometry_works`, GEOMETRY_TASKS_PLAN § 6):
+ * баллы, максимум = позиций в работе (по баллу за задачу — учитель поправит),
+ * категория «Контрольная», ссылка на работу — в `ref`.
+ * work — { id, title, positions }.
+ */
+export function geometryWorkColumnPreset(work) {
+  if (!work?.id) return null;
+  const title = String(work.title || '').trim() || 'Работа по геометрии';
+  const max = Number(work.positions) || 0;
+  return {
+    title,
+    scale: 'points',
+    ...(max > 0 ? { max_score: max } : {}),
+    category: 'Контрольная',
+    ref: { type: 'geometry_work', id: work.id, title },
+  };
 }
 
 // ─── Клетки и сводки ────────────────────────────────────────────────────────

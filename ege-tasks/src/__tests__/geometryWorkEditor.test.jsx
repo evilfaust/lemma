@@ -11,6 +11,7 @@ const mockApi = vi.hoisted(() => ({
   getGeometryImageUrl: vi.fn(() => ''),
   getSimilarGeometryTasks: vi.fn(),
   getGeometryTask: vi.fn(),
+  getLessonsByMaterialId: vi.fn(() => Promise.resolve([])),
 }));
 vi.mock('../shared/services/pocketbase', () => ({ api: mockApi, default: {} }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ canEdit: true, canDelete: true }) }));

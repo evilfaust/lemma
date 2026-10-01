@@ -53,7 +53,7 @@ export default function EventInspector({
         record: { title: m.title, original_name: m.url ? m.url.split('?')[0] : m.title },
       });
     } else {
-      onOpenWork(m.id);
+      onOpenWork(m.id, m.type);
     }
   };
 

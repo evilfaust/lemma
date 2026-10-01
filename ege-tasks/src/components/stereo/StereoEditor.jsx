@@ -27,6 +27,7 @@ import {
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, applyColorCommand, renamePoint,
   opToCommand, editStepCommand,
 } from '../../utils/stereo';
+import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
 import './stereo.css';
 
 const DRAFT_KEY = 'stereo.editor.v1';
@@ -167,6 +168,31 @@ export default function StereoEditor({
 
   const sceneSig = useMemo(() => JSON.stringify(scene), [scene]);
   const dirty = currentDoc ? sceneSig !== savedSig : scene.ops.length > 0;
+
+  // «Открыть в стереоредакторе» из карточки задачи: построение приходит через
+  // sessionStorage. Несохранённый черновик молча не затираем — переспрос.
+  useEffect(() => {
+    if (embedded) return;
+    const req = takeStereoOpenRequest();
+    if (!req) return;
+    const apply = () => {
+      const sc = { body: req.scene.body, ops: req.scene.ops.map((o) => (o.id ? o : { ...o, id: newOpId() })) };
+      setScene(sc);
+      setCamera(req.camera ? { ...DEFAULT_CAMERA, ...req.camera } : DEFAULT_CAMERA);
+      setCurrentDoc(null);
+      setSavedSig('');
+      setPending([]);
+      setViewStep(null);
+    };
+    if (!dirty) { apply(); return; }
+    modal.confirm({
+      title: 'Открыть построение задачи?',
+      content: 'В редакторе есть несохранённый чертёж — он будет заменён. Сохранить его можно в библиотеку (кнопка «Библиотека»).',
+      okText: 'Открыть',
+      cancelText: 'Оставить мой чертёж',
+      onOk: apply,
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const onSaved = useCallback((doc, { keepDirty = false } = {}) => {
     setCurrentDoc(doc);
     if (!keepDirty) setSavedSig(doc ? JSON.stringify(sceneRef.current) : '');

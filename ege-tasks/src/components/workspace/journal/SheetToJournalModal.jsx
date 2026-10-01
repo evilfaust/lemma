@@ -16,14 +16,22 @@ export function sheetJournalLink(groupId, sheetId) {
   return `/app/journal?${new URLSearchParams({ group: groupId, sheet: sheetId })}`;
 }
 
+/** То же для работы раздела «Геометрия» (?gwork=). */
+export function geometryWorkJournalLink(groupId, workId) {
+  return `/app/journal?${new URLSearchParams({ group: groupId, gwork: workId })}`;
+}
+
 /**
  * «В журнал» у листа генератора (v3.9.240): выбрать класс — и журнал откроется
  * с готовой колонкой этого листа (максимум = заданий в варианте, сегодняшний
  * урок класса подставится сам), после сохранения — сразу ввод отметок. Если
  * лист уже заведён в журнале класса, журнал откроет ввод в той колонке.
  * sheet — { id, title, questions_count? }.
+ * kind='geometry_work' — то же для геометрической работы (sheet = { id, title,
+ * questions_count: позиций }).
  */
-export default function SheetToJournalModal({ open, sheet, onClose }) {
+export default function SheetToJournalModal({ open, sheet, onClose, kind = 'sheet' }) {
+  const isGeo = kind === 'geometry_work';
   const { message } = App.useApp();
   const navigate = useNavigate();
   const [groups, setGroups] = useState([]);
@@ -57,7 +65,7 @@ export default function SheetToJournalModal({ open, sheet, onClose }) {
     if (!groupId || !sheet?.id) return;
     writeLS(groupId);
     onClose?.();
-    navigate(sheetJournalLink(groupId, sheet.id));
+    navigate(isGeo ? geometryWorkJournalLink(groupId, sheet.id) : sheetJournalLink(groupId, sheet.id));
   };
 
   const count = Number(sheet?.questions_count) || 0;
@@ -74,8 +82,8 @@ export default function SheetToJournalModal({ open, sheet, onClose }) {
       destroyOnHidden
     >
       <div style={{ marginBottom: 12 }}>
-        <Text strong>«{sheet?.title || 'Лист'}»</Text>
-        {count > 0 && <Text type="secondary"> · заданий в варианте: {count}</Text>}
+        <Text strong>«{sheet?.title || (isGeo ? 'Работа' : 'Лист')}»</Text>
+        {count > 0 && <Text type="secondary"> · {isGeo ? 'задач' : 'заданий в варианте'}: {count}</Text>}
       </div>
       <Select
         style={{ width: '100%' }}
@@ -89,9 +97,9 @@ export default function SheetToJournalModal({ open, sheet, onClose }) {
         notFoundContent={loading ? 'Загрузка…' : 'Классов нет — заведите класс в «Классах и группах»'}
       />
       <Text type="secondary" style={{ display: 'block', marginTop: 10, fontSize: 13 }}>
-        Откроется журнал этого класса с новой колонкой по листу: баллы из числа
-        заданий в варианте, урок сегодня подставится сам. После сохранения —
-        сразу ввод отметок.
+        {isGeo
+          ? 'Откроется журнал этого класса с новой колонкой по работе: баллы, максимум — по баллу за задачу, урок сегодня подставится сам. После сохранения — сразу ввод отметок.'
+          : 'Откроется журнал этого класса с новой колонкой по листу: баллы из числа заданий в варианте, урок сегодня подставится сам. После сохранения — сразу ввод отметок.'}
       </Text>
     </Modal>
   );

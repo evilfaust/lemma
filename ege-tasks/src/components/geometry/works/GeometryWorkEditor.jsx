@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import {
   ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined, EyeOutlined,
-  PlusOutlined, PrinterOutlined, SaveOutlined, SwapOutlined, ThunderboltOutlined,
+  PlusOutlined, PrinterOutlined, SaveOutlined, SwapOutlined, ThunderboltOutlined, TableOutlined,
 } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -23,6 +23,8 @@ import GeometryParallelPicker from './GeometryParallelPicker';
 import GeometryWorkAnswers from './GeometryWorkAnswers';
 import GeometryTaskPreview from '../../GeometryTaskPreview';
 import GeometryWorksheetPrint from '../../GeometryWorksheetPrint';
+import SheetToJournalModal from '../../workspace/journal/SheetToJournalModal';
+import WorkLessonLinks from '../../worksheet/WorkLessonLinks';
 import './geometryWorks.css';
 
 const { Text } = Typography;
@@ -56,6 +58,7 @@ export default function GeometryWorkEditor() {
   const [geoTags, setGeoTags] = useState({ object: [], method: [], fact: [] });
   const [basketVariant, setBasketVariant] = useState(0);
   const [autofill, setAutofill] = useState(null); // { done, total }
+  const [journalOpen, setJournalOpen] = useState(false);
 
   // Свежее состояние для сохранения из колбэков печати
   const stateRef = useRef({});
@@ -400,7 +403,14 @@ export default function GeometryWorkEditor() {
         >
           <Button icon={<PrinterOutlined />}>Печать</Button>
         </Dropdown>
+        {canEdit && (
+          <Tooltip title="Колонка в журнале класса по этой работе — сразу ввод отметок">
+            <Button icon={<TableOutlined />} onClick={() => setJournalOpen(true)} disabled={!rows}>В журнал</Button>
+          </Tooltip>
+        )}
       </div>
+
+      <WorkLessonLinks workId={workId} workTitle={title} materialType="geometry_work" />
 
       {/* ── действия над сеткой ── */}
       {canEdit && (
@@ -501,6 +511,13 @@ export default function GeometryWorkEditor() {
       )}
 
       {canEdit && <GeometryBasketBar onOpenTask={(id) => setCard({ id, list: [] })} />}
+
+      <SheetToJournalModal
+        open={journalOpen}
+        kind="geometry_work"
+        sheet={{ id: workId, title, questions_count: rows }}
+        onClose={() => setJournalOpen(false)}
+      />
 
       <GeometryParallelPicker
         open={!!picker}

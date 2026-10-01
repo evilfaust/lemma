@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+
+// Карточка зовёт useNavigate («В стереоредактор») — нужен роутер
+const render = (ui, opts) => {
+  const r = rtlRender(<MemoryRouter>{ui}</MemoryRouter>, opts);
+  return { ...r, rerender: (next) => r.rerender(<MemoryRouter>{next}</MemoryRouter>) };
+};
 
 const mockApi = vi.hoisted(() => ({
   getGeometryTask: vi.fn(),
