@@ -6,7 +6,9 @@ import '../GeometryTaskPreview.css';
 
 const { Text } = Typography;
 
-export default function TabLayout({ task, previewStatement, ggbImageBase64, layout, onLayoutChange, onReset }) {
+export default function TabLayout({
+  task, previewStatement, ggbImageBase64, drawingSvg, drawingView, layout, onLayoutChange, onReset,
+}) {
   const [layoutEditMode, setLayoutEditMode] = useState(true);
   const [showAnswers, setShowAnswers] = useState(false);
 
@@ -14,7 +16,9 @@ export default function TabLayout({ task, previewStatement, ggbImageBase64, layo
     ...(task || {}),
     statement_md: previewStatement || task?.statement_md || '',
     ...(ggbImageBase64 ? { geogebra_image_base64: ggbImageBase64 } : {}),
-  }), [task, previewStatement, ggbImageBase64]);
+    // живой чертёж редактора, а не сохранённый
+    ...(drawingView ? { drawing_view: drawingView, drawing_svg: drawingSvg || '' } : {}),
+  }), [task, previewStatement, ggbImageBase64, drawingSvg, drawingView]);
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>

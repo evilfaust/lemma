@@ -3,6 +3,7 @@ import { App, Button, Input, Segmented, Select, Space, Switch, Tag, Typography }
 import { ArrowLeftOutlined, PrinterOutlined, UndoOutlined } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import MathRenderer from './MathRenderer';
+import { sanitizeSvg } from '../utils/sanitizeSvg';
 import SaveGeometryPrintModal from './geometry/SaveGeometryPrintModal';
 import './GeometryTaskPreview.css';
 
@@ -188,7 +189,11 @@ export function GeometryPreviewCard({
   // раздатке с УСЛОВИЕМ его показывать нельзя (иначе ученик видит чертёж решения).
   const isSolutionImage = task?.image_role === 'solution';
   const showImage = (drawingMode === 'image' || drawingMode === 'task') && !isSolutionImage;
-  const hasImage = !isPlaceholder && showImage && !!imageValue;
+  // Чертёж текстом (стерео/планиметрия/SVG из GeoGebra) — рисуется вектором;
+  // раньше в карточки попадал только PNG, и у SVG-задач печать была пустой.
+  const svgValue = task?.drawing_view === 'svg' && task?.drawing_svg ? sanitizeSvg(task.drawing_svg) : '';
+  const hasSvg = !isPlaceholder && showImage && !!svgValue;
+  const hasImage = !isPlaceholder && showImage && (hasSvg || !!imageValue);
   // Без чертежа белый блок image-слоя закрывал клетку пустым пятном. Рисуем слой
   // только когда есть картинка; в режиме правки — прозрачную рамку (позиционирование).
   const showImageLayer = hasImage || (editable && !isPlaceholder);
@@ -328,7 +333,13 @@ export function GeometryPreviewCard({
             style={toLayerStyle(layout.image, 1)}
             onPointerDown={(e) => startInteraction(e, 'image', 'move')}
           >
-            {hasImage ? (
+            {hasSvg ? (
+              <div
+                className="geometry-preview-image geometry-preview-svg"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: svgValue }}
+              />
+            ) : hasImage ? (
               <img
                 className="geometry-preview-image"
                 src={imageValue}

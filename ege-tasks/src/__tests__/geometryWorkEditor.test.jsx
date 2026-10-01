@@ -12,7 +12,13 @@ const mockApi = vi.hoisted(() => ({
   getSimilarGeometryTasks: vi.fn(),
   getGeometryTask: vi.fn(),
   getLessonsByMaterialId: vi.fn(() => Promise.resolve([])),
+  getGeometryTasks: vi.fn(() => Promise.resolve([])),
+  getGeometryTopics: vi.fn(() => Promise.resolve([])),
+  getGeometrySubtopics: vi.fn(() => Promise.resolve([])),
+  getNextGeometryCode: vi.fn(() => Promise.resolve('GEO-999')),
 }));
+// Редактор задачи тянет апплет GeoGebra — в тестах не нужен
+vi.mock('../components/GeoGebraApplet', () => ({ default: () => <div data-testid="ggb" /> }));
 vi.mock('../shared/services/pocketbase', () => ({ api: mockApi, default: {} }));
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ canEdit: true, canDelete: true }) }));
 
@@ -92,5 +98,45 @@ describe('редактор геометрической работы', () => {
     expect(await screen.findByText('Расстояние')).toBeInTheDocument();
     expect(geometryBasket.getSnapshot()).toEqual([]);
     expect(screen.getByText(/Позиций: 3/)).toBeInTheDocument();
+  });
+});
+
+describe('редактор работы: добавить задачи и править их', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    geometryBasket._reload();
+    Object.values(mockApi).forEach((f) => f.mockClear?.());
+    mockApi.getGeometryWork.mockResolvedValue({
+      id: 'w1', title: 'Контрольная', structure: { variants: [{ items: [{ task: 'a' }] }] },
+    });
+    mockApi.getGeometryTasksByIds.mockImplementation((ids) => Promise.resolve(TASKS.filter((t) => ids.includes(t.id))));
+  });
+
+  it('«Добавить задачи → Из банка»: отмеченные — новыми позициями, взятые — недоступны', async () => {
+    mockApi.getGeometryTasks.mockResolvedValue([
+      { id: 'a', code: 'GEO-001', statement_md: 'Сечение куба' },
+      { id: 'z', code: 'GEO-077', statement_md: 'Угол между прямыми' },
+    ]);
+    renderEditor();
+    await screen.findByText('GEO-001');
+    fireEvent.mouseOver(screen.getByText('Добавить задачи'));
+    fireEvent.click(await screen.findByText('Из банка задач…'));
+    expect(await screen.findByText('GEO-077')).toBeInTheDocument();
+    expect(screen.getByText('уже в работе')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('GEO-077'));
+    fireEvent.click(screen.getByText('Добавить (1)'));
+    expect(await screen.findByText(/Позиций: 2/)).toBeInTheDocument();
+    expect(screen.getByText('Сохранить').closest('button')).not.toBeDisabled();
+  });
+
+  it('«Редактировать» в карточке задачи открывает редактор задачи поверх работы', async () => {
+    mockApi.getGeometryTask.mockResolvedValue({ ...TASKS[0], tags: [] });
+    renderEditor();
+    fireEvent.click(await screen.findByText('Сечение куба'));
+    fireEvent.click(await screen.findByText('Редактировать'));
+    expect(await screen.findByText('Назад к работе')).toBeInTheDocument();
+    expect(screen.getByText('Редактирование: GEO-001')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Назад к работе'));
+    expect(await screen.findByText(/Позиций: 1/)).toBeInTheDocument();
   });
 });

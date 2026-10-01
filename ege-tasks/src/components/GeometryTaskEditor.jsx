@@ -75,7 +75,11 @@ export function normalizeHints(raw) {
  *   onSaved  — callback после успешного сохранения
  *   onCancel — callback для кнопки «Назад»
  */
-export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
+/**
+ * @param {string} [backLabel] — подпись «Назад» (из работы — «Назад к работе»)
+ * @param {object} [defaults] — поля новой задачи по умолчанию (например, section)
+ */
+export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel = 'Назад к задачам', defaults = null }) {
   const { message, modal } = App.useApp();
   const [form] = Form.useForm();
   const isCreate = !task;
@@ -105,13 +109,23 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
   const [ggbBase64, setGgbBase64] = useState(task?.geogebra_base64 || '');
   const [ggbImageBase64, setGgbImageBase64] = useState('');
   const [ggbSaved, setGgbSaved] = useState(!!(task?.geogebra_base64 || task?.geogebra_image_base64 || task?.drawing_svg));
-  const existingDrawingUrl = api.getGeometryImageUrl(task);
+  // «Убрать чертёж» снимает и сохранённый PNG: при сохранении файл удаляется
+  const [imageCleared, setImageCleared] = useState(false);
+  const existingDrawingUrl = imageCleared ? '' : api.getGeometryImageUrl(task);
   const [savingDrawing, setSavingDrawing] = useState(false);
   const [appName, setAppName] = useState(task?.geogebra_appname || 'geometry');
   const [drawingView, setDrawingView] = useState(task?.drawing_view || 'image');
   const [drawingSvg, setDrawingSvg] = useState(task?.drawing_svg || '');
   const [convertingSvg, setConvertingSvg] = useState(false);
   const [stereoOpen, setStereoOpen] = useState(false);
+  // С какого режима открыть вкладку «Чертёж»: свой редактор — основной путь,
+  // GeoGebra — если задача уже в ней, картинка — если есть только PNG.
+  const [initialDrawingMode] = useState(() => {
+    if (stereoSpecFromSvg(task?.drawing_svg) || planimSpecFromSvg(task?.drawing_svg)) return 'editor';
+    if (task?.drawing_view === 'geogebra' || task?.geogebra_base64) return 'geogebra';
+    if (task?.geogebra_image_base64) return 'image';
+    return 'editor';
+  });
   const [planimOpen, setPlanimOpen] = useState(false);
 
   // ── Состояние макета ─────────────────────────────────────────────────────
@@ -226,6 +240,9 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
   const handleClearDrawing = useCallback(() => {
     setGgbBase64('');
     setGgbImageBase64('');
+    setDrawingSvg(''); // стерео/планиметрия/SVG тоже — раньше оставались
+    setDrawingView('image');
+    setImageCleared(true);
     setGgbSaved(false);
     setDirty(true);
     if (ggbApiRef.current) ggbApiRef.current.reset();
@@ -399,18 +416,20 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         },
       };
       if (drawingImageFile) payload.geogebra_image_base64 = drawingImageFile;
+      else if (imageCleared && task?.geogebra_image_base64) payload.geogebra_image_base64 = null;
       if (geoTags) {
         payload.tags = joinFacets({
           object: values.facetsObject, method: values.facetsMethod, fact: values.facetsFact, other: otherTagsRef.current,
         });
       }
 
-      if (isCreate) await api.createGeometryTask(payload);
-      else await api.updateGeometryTask(task.id, payload);
+      const saved = isCreate
+        ? await api.createGeometryTask(payload)
+        : await api.updateGeometryTask(task.id, payload);
 
       setDirty(false);
       message.success(isCreate ? 'Задача создана' : 'Задача сохранена');
-      onSaved();
+      onSaved(saved); // запись нужна, например, редактору работы — поставить задачу в ячейку
     } catch (error) {
       const fieldErrors = Object.entries(error?.data?.data || {})
         .map(([k, v]) => `${k}: ${v?.message || v?.code || JSON.stringify(v)}`)
@@ -474,7 +493,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
     code: task?.code || '',
     title: task?.title || '',
     ready: task?.task_type === 'ready',
-    section: task?.section || undefined,
+    section: task?.section || defaults?.section || undefined,
     topic: task?.topic || null,
     subtopic: task?.subtopic || null,
     difficulty: task?.difficulty || undefined,
@@ -545,6 +564,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         onOpenStereo={() => setStereoOpen(true)}
         isPlanim={!!planimSpec}
         onOpenPlanim={() => setPlanimOpen(true)}
+        initialMode={initialDrawingMode}
       />,
     },
     {
@@ -555,6 +575,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         task={task}
         previewStatement={previewStatement}
         ggbImageBase64={ggbImageBase64}
+        drawingSvg={drawingSvg}
+        drawingView={drawingView}
         layout={layoutPrint}
         onLayoutChange={handleEditorLayoutChange}
         onReset={handleEditorLayoutReset}
@@ -599,7 +621,7 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
       >
         <Space wrap>
           <Button icon={<ArrowLeftOutlined />} onClick={handleBack}>
-            Назад к задачам
+            {backLabel}
           </Button>
           <Title level={4} style={{ margin: 0 }}>
             {isCreate ? 'Новая геометрическая задача' : `Редактирование: ${task.code}`}

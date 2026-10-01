@@ -15,7 +15,6 @@ import {
   addTasksAsPositions, addVariant, emptyRows, emptyStructure, moveRow, normalizeStructure, removeRow,
   removeVariant, rowCount, rowReference, setCell, structureTaskIds, variantLabel, variantTasks, withLayouts,
 } from '../../../utils/geometryWork';
-import { statementPreview } from '../GeometryTaskColumns';
 import GeometryTaskThumb from '../GeometryTaskThumb';
 import GeometryTaskDrawer from '../GeometryTaskDrawer';
 import GeometryBasketBar from '../GeometryBasketBar';
@@ -24,10 +23,19 @@ import GeometryWorkAnswers from './GeometryWorkAnswers';
 import GeometryTaskPreview from '../../GeometryTaskPreview';
 import GeometryWorksheetPrint from '../../GeometryWorksheetPrint';
 import SheetToJournalModal from '../../workspace/journal/SheetToJournalModal';
+import GeometryTaskEditor from '../../GeometryTaskEditor';
+import MathRenderer from '../../MathRenderer';
+import GeometryTaskPickerModal from './GeometryTaskPickerModal';
 import WorkLessonLinks from '../../worksheet/WorkLessonLinks';
 import './geometryWorks.css';
 
 const { Text } = Typography;
+
+// Условие в ячейке: без картинок и блоков-чертежей (чертёж — миниатюра слева)
+const cellStatement = (md) => String(md || '')
+  .replace(/```(?:stereo|planim|plot|numline)[\s\S]*?```/g, '')
+  .replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '')
+  .trim();
 
 /**
  * Редактор геометрической работы (GEOMETRY_TASKS_PLAN.md § 4): сетка
@@ -59,12 +67,17 @@ export default function GeometryWorkEditor() {
   const [basketVariant, setBasketVariant] = useState(0);
   const [autofill, setAutofill] = useState(null); // { done, total }
   const [journalOpen, setJournalOpen] = useState(false);
+  // Правка/создание задачи прямо из работы: { task } | { create: true, row?, variant }
+  const [taskEdit, setTaskEdit] = useState(null);
+  // Выбор из банка: { variant } — новыми позициями; { row, variant } — в ячейку
+  const [bankPick, setBankPick] = useState(null);
 
   // Свежее состояние для сохранения из колбэков печати
   const stateRef = useRef({});
   stateRef.current = { title, klass, structure };
 
   // ── загрузка ────────────────────────────────────────────────────────────
+  // Перечитать задачи (после правки в редакторе задачи) — карточки сетки и печать
   const byIdRef = useRef(byId);
   byIdRef.current = byId;
   // Догрузить задачи по id. Реф обновляется сразу — автоподбор читает его
@@ -183,6 +196,56 @@ export default function GeometryWorkEditor() {
     update((s) => setCell(s, row, variant, task?.id || null));
   };
 
+  const refreshTasks = async (ids) => {
+    const recs = await api.getGeometryTasksByIds(ids);
+    const next = new Map(byIdRef.current);
+    recs.forEach((r) => next.set(r.id, r));
+    byIdRef.current = next;
+    setById(next);
+  };
+
+  // Задачи из банка: новыми позициями варианта или в одну ячейку
+  const addFromBank = (picked) => {
+    const target = bankPick;
+    setBankPick(null);
+    const next = new Map(byIdRef.current);
+    picked.forEach((t) => next.set(t.id, t));
+    byIdRef.current = next;
+    setById(next);
+    if (target?.row != null) {
+      update((s) => setCell(s, target.row, target.variant, picked[0].id));
+      return;
+    }
+    const r = addTasksAsPositions(structure, picked.map((t) => t.id), target?.variant || 0);
+    update(() => r.structure);
+    message.success(r.skipped.length
+      ? `Добавлено: ${r.added.length}, уже в работе: ${r.skipped.length}`
+      : `Добавлено позиций: ${r.added.length}`);
+  };
+
+  // Задача сохранена в редакторе: новая — в работу, правленая — перечитать
+  const onTaskSaved = async (saved) => {
+    const ctx = taskEdit;
+    setTaskEdit(null);
+    if (!saved?.id) return;
+    await refreshTasks([saved.id]);
+    if (ctx?.create) {
+      if (ctx.row != null) update((s) => setCell(s, ctx.row, ctx.variant, saved.id));
+      else update((s) => addTasksAsPositions(s, [saved.id], ctx.variant || 0).structure);
+      message.info('Задача добавлена в работу — не забудьте сохранить работу');
+    }
+  };
+
+  const openTaskEditor = async (task) => {
+    try {
+      const full = await api.getGeometryTask(task.id);
+      setCard({ id: null, list: [] });
+      setTaskEdit({ task: full });
+    } catch {
+      message.error('Не удалось открыть задачу');
+    }
+  };
+
   const putFromBasket = async (row, variant, id) => {
     await ensureTasks([id]);
     update((s) => setCell(s, row, variant, id));
@@ -263,6 +326,24 @@ export default function GeometryWorkEditor() {
     />
   );
 
+  if (taskEdit) {
+    const sec = (() => {
+      // раздел новой задачи — как у большинства задач работы
+      const counts = {};
+      for (const id of usedIds) { const s = byId.get(id)?.section; if (s) counts[s] = (counts[s] || 0) + 1; }
+      return Object.entries(counts).sort((x, y) => y[1] - x[1])[0]?.[0] || null;
+    })();
+    return (
+      <GeometryTaskEditor
+        task={taskEdit.task || null}
+        backLabel="Назад к работе"
+        defaults={sec ? { section: sec } : null}
+        onSaved={onTaskSaved}
+        onCancel={() => setTaskEdit(null)}
+      />
+    );
+  }
+
   if (view === 'cards') {
     return (
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
@@ -316,9 +397,15 @@ export default function GeometryWorkEditor() {
             <Space size={4} wrap>
               <Text code style={{ fontSize: 11 }}>{task?.code || '…'}</Text>
               {task?.origin === 'mccme' && <Tag color="geekblue" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>МЦНМО</Tag>}
-              {task?.answer && <Text type="secondary" style={{ fontSize: 11 }}>отв. {task.answer}</Text>}
+              {task?.answer && (
+                <Text type="secondary" style={{ fontSize: 11 }}>отв.&nbsp;<MathRenderer text={String(task.answer)} /></Text>
+              )}
             </Space>
-            <div className="gw-cell-text">{task ? statementPreview(task.statement_md) || '—' : 'задача удалена или недоступна'}</div>
+            <div className="gw-cell-text">
+              {task
+                ? (task.statement_md ? <MathRenderer text={cellStatement(task.statement_md)} /> : '—')
+                : 'задача удалена или недоступна'}
+            </div>
           </div>
           {canEdit && (
             <div className="gw-cell-actions">
@@ -353,7 +440,19 @@ export default function GeometryWorkEditor() {
                 <Button size="small" icon={<PlusOutlined />}>Из подборки</Button>
               </Dropdown>
             )}
-            {!ref && !basket.items.length && <Text type="secondary" style={{ fontSize: 12 }}>пусто</Text>}
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'bank', label: 'Из банка…' },
+                  { key: 'new', label: 'Новая задача' },
+                ],
+                onClick: ({ key }) => (key === 'bank'
+                  ? setBankPick({ row, variant: vi })
+                  : setTaskEdit({ create: true, row, variant: vi })),
+              }}
+            >
+              <Button size="small" type="dashed">ещё…</Button>
+            </Dropdown>
           </Space>
         ) : <Text type="secondary" style={{ fontSize: 12 }}>—</Text>}
       </div>
@@ -415,6 +514,19 @@ export default function GeometryWorkEditor() {
       {/* ── действия над сеткой ── */}
       {canEdit && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'bank', label: 'Из банка задач…' },
+                { key: 'new', label: 'Новая задача' },
+              ],
+              onClick: ({ key }) => (key === 'bank'
+                ? setBankPick({ variant: basketVariant })
+                : setTaskEdit({ create: true, variant: basketVariant })),
+            }}
+          >
+            <Button type="primary" icon={<PlusOutlined />}>Добавить задачи</Button>
+          </Dropdown>
           <Button icon={<PlusOutlined />} onClick={() => update(addVariant)} disabled={nVar >= 6}>
             Вариант
           </Button>
@@ -425,21 +537,20 @@ export default function GeometryWorkEditor() {
               </Button>
             </Tooltip>
           )}
+          {nVar > 1 && (
+            <Tooltip title="Куда добавлять новые позиции">
+              <Select
+                value={basketVariant}
+                onChange={setBasketVariant}
+                style={{ width: 130 }}
+                options={structure.variants.map((_, i) => ({ value: i, label: `в ${variantLabel(i).toLowerCase()}` }))}
+              />
+            </Tooltip>
+          )}
           {basket.items.length > 0 && (
-            <Space size={4}>
-              <Button icon={<PlusOutlined />} type="dashed" onClick={addFromBasket}>
-                Позиции из подборки ({basket.items.length})
-              </Button>
-              {nVar > 1 && (
-                <Select
-                  size="middle"
-                  value={basketVariant}
-                  onChange={setBasketVariant}
-                  style={{ width: 130 }}
-                  options={structure.variants.map((_, i) => ({ value: i, label: `в ${variantLabel(i).toLowerCase()}` }))}
-                />
-              )}
-            </Space>
+            <Button icon={<PlusOutlined />} type="dashed" onClick={addFromBasket}>
+              Позиции из подборки ({basket.items.length})
+            </Button>
           )}
           <Text type="secondary" style={{ marginLeft: 'auto' }}>
             Позиций: {rows} · вариантов: {nVar}
@@ -452,9 +563,9 @@ export default function GeometryWorkEditor() {
         <Empty
           description={(
             <span>
-              В работе пока нет задач. Добавьте их в подборку в{' '}
+              В работе пока нет задач. «Добавить задачи» — из банка или новую; либо соберите подборку в{' '}
               <a onClick={() => navigate('/app/geometry/tasks')}>банке задач</a>{' '}
-              (кнопка «В подборку» в карточке или у строки) — и сюда «Позиции из подборки».
+              («В подборку» у строки или в карточке) — и сюда «Позиции из подборки».
             </span>
           )}
         />
@@ -529,7 +640,19 @@ export default function GeometryWorkEditor() {
         onOpenTask={(id) => setCard({ id, list: [] })}
       />
 
+      <GeometryTaskPickerModal
+        open={!!bankPick}
+        onClose={() => setBankPick(null)}
+        usedIds={usedIds}
+        onAdd={addFromBank}
+        onOpenTask={(id) => setCard({ id, list: [] })}
+        variantOptions={bankPick?.row == null ? structure.variants.map((_, i) => ({ value: i, label: variantLabel(i) })) : null}
+        variant={bankPick?.variant || 0}
+        onVariantChange={(v) => setBankPick((b) => ({ ...b, variant: v }))}
+      />
+
       <GeometryTaskDrawer
+        onEdit={canEdit ? openTaskEditor : undefined}
         taskId={card.id}
         listIds={card.list}
         geoTags={geoTags}

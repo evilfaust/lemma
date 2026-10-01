@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { App, Button, Card, Divider, Modal, Popconfirm, Select, Tag, Tooltip, Typography } from 'antd';
+import { App, Button, Card, Divider, Modal, Popconfirm, Segmented, Select, Tag, Tooltip, Typography } from 'antd';
 import {
   ClearOutlined,
   CodeSandboxOutlined, RadiusSettingOutlined,
@@ -126,7 +126,16 @@ export default function TabDrawing({
   onOpenStereo,
   isPlanim = false,
   onOpenPlanim,
+  initialMode = 'editor',
 }) {
+  // Откуда чертёж (GEOMETRY_TASKS_PLAN, решение 02.10.2026): свой редактор —
+  // основной путь (стерео/планиметрия → SVG с исходником, правится снова),
+  // картинка — файл/скан, GeoGebra — только для сложных построений. Апплет
+  // GeoGebra монтируется при первом заходе в её режим и дальше живёт в фоне
+  // (несохранённое построение в нём не теряется).
+  const [mode, setMode] = useState(initialMode);
+  const [ggbMounted, setGgbMounted] = useState(initialMode === 'geogebra');
+  useEffect(() => { if (mode === 'geogebra') setGgbMounted(true); }, [mode]);
   const { message } = App.useApp();
   const drawingContainerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -215,192 +224,215 @@ export default function TabDrawing({
     }
   }, [imageBase64, onCropApplied, message]);
 
+  const VIEW_LABEL = { image: 'картинка (PNG)', geogebra: 'GeoGebra', svg: 'чертёж SVG' };
+  const svgCard = drawingSvg && (
+    <Card
+      size="small"
+      title={<Text type="secondary" style={{ fontSize: 12 }}>{isStereo ? 'Стереочертёж' : isPlanim ? 'Планиметрический чертёж' : 'SVG-чертёж'}</Text>}
+      styles={{ body: { padding: 8, display: 'flex', justifyContent: 'center' } }}
+      style={{ marginBottom: 12 }}
+    >
+      <div
+        // eslint-disable-next-line react/no-danger
+        dangerouslySetInnerHTML={{ __html: sanitizeSvg(drawingSvg) }}
+        style={{ lineHeight: 0, maxHeight: 340, maxWidth: 480, width: '100%', overflow: 'hidden' }}
+      />
+    </Card>
+  );
+  const imageCard = imageBase64 && (
+    <Card
+      size="small"
+      title={<Text type="secondary" style={{ fontSize: 12 }}>Картинка (PNG)</Text>}
+      styles={{ body: { padding: 8 } }}
+      style={{ marginBottom: 12 }}
+    >
+      <img src={imageBase64} alt="Чертёж" style={{ width: '100%', maxHeight: 340, objectFit: 'contain', display: 'block' }} />
+    </Card>
+  );
+  const bar = {
+    display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', padding: '6px 10px',
+    background: '#fafafa', border: '1px solid #f0f0f0', borderRadius: 8, marginBottom: 12,
+  };
+
+  // Картинка из буфера обмена (Ctrl+V) — в режиме «Картинка»
+  const handlePaste = (e) => {
+    if (mode !== 'image') return;
+    const item = [...(e.clipboardData?.items || [])].find((it) => it.type.startsWith('image/'));
+    if (!item) return;
+    e.preventDefault();
+    const reader = new FileReader();
+    reader.onload = (ev) => { onCropApplied(ev.target.result); message.success('Картинка вставлена'); };
+    reader.readAsDataURL(item.getAsFile());
+  };
+
   return (
-    <div style={{ paddingTop: 12 }}>
+    <div style={{ paddingTop: 12 }} onPaste={handlePaste}>
       <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
 
-      {/* ── Компактная панель инструментов ───────────────────────────────── */}
-      <div
-        style={{
-          display: 'flex',
-          gap: 6,
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          padding: '6px 10px',
-          background: '#fafafa',
-          border: '1px solid #f0f0f0',
-          borderRadius: 8,
-          marginBottom: 12,
-        }}
-      >
-        {/* Режим + Показывать */}
-        <Tooltip title="Режим GeoGebra">
-          <Select
-            size="small"
-            value={appName}
-            onChange={onAppNameChange}
-            options={APPNAME_OPTIONS}
-            style={{ width: 120 }}
-          />
+      {/* ── Откуда чертёж + что показывается в задаче ────────────────────── */}
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+        <Segmented
+          value={mode}
+          onChange={setMode}
+          options={[
+            { value: 'editor', label: 'Наш редактор' },
+            { value: 'image', label: 'Картинка' },
+            { value: 'geogebra', label: <Tooltip title="Для сложных построений: геометрические места, анимации, нестандартные чертежи">GeoGebra</Tooltip> },
+          ]}
+        />
+        <Tooltip title="Что показывается в задаче (печать, карточка, работа)">
+          <Text type="secondary" style={{ fontSize: 13 }}>В задаче:</Text>
         </Tooltip>
-        <Tooltip title="Что показывать в задаче">
-          <Select
-            size="small"
-            value={drawingView}
-            onChange={onDrawingViewChange}
-            style={{ width: 120 }}
-            options={[
-              { value: 'image',    label: 'PNG' },
-              { value: 'geogebra', label: 'GeoGebra' },
-              { value: 'svg',      label: 'SVG', disabled: !drawingSvg },
-            ]}
-          />
-        </Tooltip>
-
-        {DIVIDER}
-
-        {/* Сохранение */}
-        <Button size="small" type="primary" icon={<SaveOutlined />} loading={savingDrawing} onClick={onSaveDrawing}>
-          Сохранить
-        </Button>
-        <Tooltip title="Сохранить только PNG">
-          <Button size="small" icon={<FileImageOutlined />} loading={savingDrawing} onClick={onSaveDrawingAsImage} />
-        </Tooltip>
-        <Tooltip title="Загрузить из файла">
-          <Button size="small" icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()} />
-        </Tooltip>
-
-        {DIVIDER}
-
-        {/* Редактирование PNG */}
-        <Tooltip title="Обрезать PNG">
-          <Button size="small" icon={<ScissorOutlined />} onClick={handleOpenCrop} disabled={!imageBase64} />
-        </Tooltip>
-        <Tooltip title="Убрать белый фон">
-          <Button size="small" icon={<ClearOutlined />} loading={removingBg} disabled={!imageBase64} onClick={handleRemoveBg} />
-        </Tooltip>
-        <Tooltip title={isFullscreen ? 'Свернуть' : 'На весь экран'}>
-          <Button
-            size="small"
-            icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
-            onClick={toggleFullscreen}
-          />
-        </Tooltip>
-
-        {DIVIDER}
-
-        {/* SVG */}
-        <Tooltip title="Перевести чертёж GeoGebra в SVG (векторный, чёткий при печати)">
-          <Button size="small" loading={convertingSvg} disabled={!onConvertToSvg} onClick={onConvertToSvg}>
-            → SVG
-          </Button>
-        </Tooltip>
-        {drawingSvg && onSvgChange && !isStereo && !isPlanim && (
-          <Tooltip title="Редактировать SVG">
-            <Button size="small" icon={<EditOutlined />} onClick={handleOpenSvgEditor} />
-          </Tooltip>
-        )}
-
-        {onOpenPlanim && (
-          <>
-            {DIVIDER}
-            <Tooltip title="Планиметрический чертёж (треугольники, окружности, высоты, углы) — станет чертежом задачи в SVG; открывается снова на правку. Сложное — по-прежнему в GeoGebra">
-              <Button size="small" icon={<RadiusSettingOutlined />} type={isPlanim ? 'primary' : 'default'} ghost={isPlanim} onClick={onOpenPlanim}>
-                {isPlanim ? 'Планиметрия ✎' : 'Планиметрия'}
-              </Button>
-            </Tooltip>
-          </>
-        )}
-        {onOpenStereo && (
-          <>
-            {!onOpenPlanim && DIVIDER}
-            <Tooltip title="Стереочертёж (куб, призма, пирамида, сечения) — станет чертежом задачи в SVG; открывается снова на правку">
-              <Button size="small" icon={<CodeSandboxOutlined />} type={isStereo ? 'primary' : 'default'} ghost={isStereo} onClick={onOpenStereo}>
-                {isStereo ? 'Стерео ✎' : 'Стерео'}
-              </Button>
-            </Tooltip>
-          </>
-        )}
-
-        {DIVIDER}
-
-        {/* Очистить */}
+        <Select
+          size="small"
+          value={drawingView}
+          onChange={onDrawingViewChange}
+          style={{ width: 150 }}
+          options={[
+            { value: 'svg', label: VIEW_LABEL.svg, disabled: !drawingSvg },
+            { value: 'image', label: VIEW_LABEL.image, disabled: !imageBase64 },
+            { value: 'geogebra', label: VIEW_LABEL.geogebra },
+          ]}
+        />
         <Popconfirm
-          title="Очистить чертёж?"
-          okText="Да"
+          title="Убрать чертёж задачи?"
+          description="И картинку, и SVG, и состояние GeoGebra"
+          okText="Убрать"
           cancelText="Нет"
           okButtonProps={{ danger: true, size: 'small' }}
           onConfirm={onClearDrawing}
         >
-          <Button size="small" danger icon={<DeleteOutlined />}>Очистить</Button>
+          <Button size="small" danger icon={<DeleteOutlined />}>Убрать чертёж</Button>
         </Popconfirm>
-
-        {/* Статус */}
-        <Tag
-          color={ggbSaved ? 'success' : 'warning'}
-          style={{ margin: '0 0 0 auto', lineHeight: '20px' }}
-        >
-          {ggbSaved ? '✓ Сохранён' : 'Не сохранён'}
+        <Tag color={ggbSaved ? 'success' : 'default'} style={{ margin: '0 0 0 auto', lineHeight: '20px' }}>
+          {ggbSaved ? '✓ чертёж есть' : 'без чертежа'}
         </Tag>
       </div>
 
-      {/* ── Превью PNG и SVG рядом ───────────────────────────────────────── */}
-      {(imageBase64 || drawingSvg) && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: (imageBase64 && drawingSvg) ? '1fr 1fr' : '1fr',
-            gap: 12,
-            marginBottom: 12,
-          }}
-        >
-          {imageBase64 && (
-            <Card
-              size="small"
-              title={<Text type="secondary" style={{ fontSize: 12 }}>PNG-чертёж</Text>}
-              styles={{ body: { padding: 8 } }}
-            >
-              <img
-                src={imageBase64}
-                alt="PNG"
-                style={{ width: '100%', maxHeight: 200, objectFit: 'contain', display: 'block' }}
-              />
-            </Card>
+      {/* ── Наш редактор: стерео / планиметрия ───────────────────────────── */}
+      {mode === 'editor' && (
+        <>
+          {(isStereo || isPlanim) ? svgCard : drawingSvg && (
+            <>
+              <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
+                Сейчас у задачи SVG из GeoGebra — его правка в режиме «GeoGebra». Новый чертёж в нашем редакторе заменит его.
+              </Text>
+              {svgCard}
+            </>
           )}
-          {drawingSvg && (
-            <Card
-              size="small"
-              title={<Text type="secondary" style={{ fontSize: 12 }}>{isStereo ? 'Стереочертёж (SVG)' : isPlanim ? 'Планиметрический чертёж (SVG)' : 'SVG-чертёж'}</Text>}
-              styles={{ body: { padding: 8, display: 'flex', justifyContent: 'center' } }}
-            >
-              <div
-                // eslint-disable-next-line react/no-danger
-                dangerouslySetInnerHTML={{ __html: sanitizeSvg(drawingSvg) }}
-                style={{ lineHeight: 0, maxHeight: 200, overflow: 'hidden' }}
-              />
-            </Card>
-          )}
-        </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+            {onOpenStereo && (
+              <Card
+                hoverable
+                size="small"
+                onClick={onOpenStereo}
+                style={{ borderColor: isStereo ? '#1677ff' : undefined }}
+              >
+                <Card.Meta
+                  avatar={<CodeSandboxOutlined style={{ fontSize: 28, color: '#1677ff' }} />}
+                  title={isStereo ? 'Стереочертёж ✎ — править' : 'Стереометрия'}
+                  description="Куб, призма, пирамида, тетраэдр; точки на рёбрах и в гранях, сечения, следы, перпендикуляры. Можно крутить и показывать по шагам"
+                />
+              </Card>
+            )}
+            {onOpenPlanim && (
+              <Card
+                hoverable
+                size="small"
+                onClick={onOpenPlanim}
+                style={{ borderColor: isPlanim ? '#1677ff' : undefined }}
+              >
+                <Card.Meta
+                  avatar={<RadiusSettingOutlined style={{ fontSize: 28, color: '#1677ff' }} />}
+                  title={isPlanim ? 'Планиметрический чертёж ✎ — править' : 'Планиметрия'}
+                  description="Треугольники, четырёхугольники, окружности, высоты, биссектрисы, касательные, отметки углов и равных отрезков"
+                />
+              </Card>
+            )}
+          </div>
+          <Text type="secondary" style={{ display: 'block', marginTop: 10, fontSize: 12 }}>
+            Чертёж хранится текстом внутри задачи: открывается снова на правку, печатается вектором,
+            стереочертёж в карточке задачи крутится. Сложное — в режиме «GeoGebra».
+          </Text>
+        </>
       )}
 
-      {/* ── GeoGebra апплет ──────────────────────────────────────────────── */}
-      <div
-        ref={drawingContainerRef}
-        style={{
-          width: '100%',
-          background: '#fff',
-          borderRadius: 10,
-          padding: isFullscreen ? 10 : 0,
-        }}
-      >
-        <GeoGebraApplet
-          appName={appName}
-          readOnly={false}
-          initialBase64={initialBase64}
-          onApiReady={onApiReady}
-          height={appletHeight}
-        />
-      </div>
+      {/* ── Картинка: файл, вставка, обрезка ─────────────────────────────── */}
+      {mode === 'image' && (
+        <>
+          <div style={bar}>
+            <Button size="small" type="primary" icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>
+              Загрузить файл
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>или вставьте картинку: Ctrl+V</Text>
+            {DIVIDER}
+            <Tooltip title="Обрезать">
+              <Button size="small" icon={<ScissorOutlined />} onClick={handleOpenCrop} disabled={!imageBase64} />
+            </Tooltip>
+            <Tooltip title="Убрать белый фон">
+              <Button size="small" icon={<ClearOutlined />} loading={removingBg} disabled={!imageBase64} onClick={handleRemoveBg} />
+            </Tooltip>
+          </div>
+          {imageCard || (
+            <Card size="small" style={{ textAlign: 'center', color: '#8c8c8c' }}>
+              Картинки пока нет — загрузите файл (скан, фото, рисунок из учебника) или вставьте из буфера.
+            </Card>
+          )}
+        </>
+      )}
+
+      {/* ── GeoGebra: сложные построения ──────────────────────────────────── */}
+      {mode === 'geogebra' && (
+        <>
+          <div style={bar}>
+            <Tooltip title="Режим GeoGebra">
+              <Select size="small" value={appName} onChange={onAppNameChange} options={APPNAME_OPTIONS} style={{ width: 120 }} />
+            </Tooltip>
+            {DIVIDER}
+            <Button size="small" type="primary" icon={<SaveOutlined />} loading={savingDrawing} onClick={onSaveDrawing}>
+              Сохранить
+            </Button>
+            <Tooltip title="Сохранить только PNG">
+              <Button size="small" icon={<FileImageOutlined />} loading={savingDrawing} onClick={onSaveDrawingAsImage} />
+            </Tooltip>
+            <Tooltip title={isFullscreen ? 'Свернуть' : 'На весь экран'}>
+              <Button size="small" icon={isFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={toggleFullscreen} />
+            </Tooltip>
+            {DIVIDER}
+            <Tooltip title="Перевести чертёж GeoGebra в SVG (векторный, чёткий при печати)">
+              <Button size="small" loading={convertingSvg} disabled={!onConvertToSvg} onClick={onConvertToSvg}>→ SVG</Button>
+            </Tooltip>
+            {drawingSvg && onSvgChange && !isStereo && !isPlanim && (
+              <Tooltip title="Редактировать SVG">
+                <Button size="small" icon={<EditOutlined />} onClick={handleOpenSvgEditor} />
+              </Tooltip>
+            )}
+          </div>
+          {(imageCard || (!isStereo && !isPlanim && svgCard)) && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
+              {imageCard}
+              {!isStereo && !isPlanim && svgCard}
+            </div>
+          )}
+        </>
+      )}
+      {ggbMounted && (
+        <div
+          ref={drawingContainerRef}
+          style={mode === 'geogebra'
+            ? { width: '100%', background: '#fff', borderRadius: 10, padding: isFullscreen ? 10 : 0 }
+            // вне своего режима апплет живёт за экраном — не теряет построение
+            : { position: 'absolute', left: -10000, top: 0, width: 900, visibility: 'hidden' }}
+        >
+          <GeoGebraApplet
+            appName={appName}
+            readOnly={false}
+            initialBase64={initialBase64}
+            onApiReady={onApiReady}
+            height={appletHeight}
+          />
+        </div>
+      )}
 
       <CropModal
         open={cropModalOpen}
