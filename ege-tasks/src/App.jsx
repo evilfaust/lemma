@@ -7,7 +7,7 @@ import { Layout, Menu, ConfigProvider, Spin, Drawer, Button, Grid, Breadcrumb } 
 import { hybridTheme } from './theme/hybrid';
 import ErrorBoundary from './components/ErrorBoundary';
 import {
-  FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined,
+  FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, ThunderboltOutlined,
   UploadOutlined, ImportOutlined, PieChartOutlined, SolutionOutlined, EditOutlined,
   TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined,
   SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CheckSquareOutlined,
@@ -72,6 +72,7 @@ const GeometryTaskList = lazy(() => import('./components/GeometryTaskList'));
 const GeometryTopicManager = lazy(() => import('./components/geometry/GeometryTopicManager'));
 const GeometryWorksPage = lazy(() => import('./components/geometry/works/GeometryWorksPage'));
 const GeometryWorkEditor = lazy(() => import('./components/geometry/works/GeometryWorkEditor'));
+const SectionGenerator = lazy(() => import('./components/geometry/sections/SectionGenerator'));
 const StereoEditor = lazy(() => import('./components/stereo/StereoEditor'));
 const PlanimEditor = lazy(() => import('./components/planim/PlanimEditor'));
 const TDFManager = lazy(() => import('./components/tdf/TDFManager'));
@@ -194,6 +195,7 @@ export const R = {
   GEOMETRY_TOPICS:     '/app/geometry/topics',
   GEOMETRY_WORKS:      '/app/geometry/works',
   GEOMETRY_WORK:       '/app/geometry/works/:workId',
+  GEOMETRY_SECTIONS:   '/app/geometry/sections',
   GEOMETRY_STEREO:     '/app/geometry/stereo',
   GEOMETRY_PLANIM:     '/app/geometry/planim',
   // ТДФ
@@ -324,6 +326,7 @@ const ROUTE_META = [
   { re: /^\/app\/geometry\/tasks/,         menuKey: 'geometry-tasks',   menuGroup: 'geometry', title: 'Геометрические задачи' },
   { re: /^\/app\/geometry\/topics/,        menuKey: 'geometry-topics',  menuGroup: 'geometry', title: 'Геометрия — Темы и подтемы' },
   { re: /^\/app\/geometry\/works$/,        menuKey: 'geometry-works',   menuGroup: 'geometry', title: 'Геометрия — Работы' },
+  { re: /^\/app\/geometry\/sections/,      menuKey: 'geometry-sections', menuGroup: 'geometry', title: 'Геометрия — Генератор сечений' },
   { re: /^\/app\/geometry\/works\/[^/]+/,  menuKey: 'geometry-work',    menuGroup: 'geometry', title: 'Геометрия — Работа' },
   { re: /^\/app\/geometry\/stereo/,        menuKey: 'geometry-stereo',  menuGroup: 'geometry', title: 'Геометрия — Стереометрия' },
   { re: /^\/app\/geometry\/planim/,        menuKey: 'geometry-planim',  menuGroup: 'geometry', title: 'Геометрия — Планиметрия' },
@@ -416,6 +419,7 @@ const MENU_KEY_PATH = {
   'geometry-tasks':         R.GEOMETRY_TASKS,
   'geometry-topics':        R.GEOMETRY_TOPICS,
   'geometry-works':         R.GEOMETRY_WORKS,
+  'geometry-sections':      R.GEOMETRY_SECTIONS,
   'geometry-stereo':        R.GEOMETRY_STEREO,
   'geometry-planim':        R.GEOMETRY_PLANIM,
   tdf:                      R.TDF,
@@ -785,6 +789,7 @@ function AppLayout() {
       children: [
         { key: 'geometry-tasks',   icon: <UnorderedListOutlined />, label: 'Задачи' },
         { key: 'geometry-works',   icon: <FileTextOutlined />,      label: 'Работы' },
+        { key: 'geometry-sections', icon: <ThunderboltOutlined />,  label: 'Генератор сечений' },
         { key: 'geometry-planim',  icon: <RadiusSettingOutlined />, label: 'Планиметрия' },
         { key: 'geometry-stereo',  icon: <CodeSandboxOutlined />,   label: 'Стереометрия' },
         { key: 'geometry-topics',  icon: <FolderOutlined />,        label: 'Темы и подтемы', editOnly: true },
@@ -1116,6 +1121,7 @@ function App() {
               <Route path={R.GEOMETRY_TASKS}   element={<GeometryTaskList />} />
               <Route path={R.GEOMETRY_WORKS}   element={<GeometryWorksPage />} />
               <Route path={R.GEOMETRY_WORK}    element={<GeometryWorkEditor />} />
+              <Route path={R.GEOMETRY_SECTIONS} element={<SectionGenerator />} />
               <Route path={R.GEOMETRY_STEREO}  element={<StereoEditor />} />
               <Route path={R.GEOMETRY_PLANIM}  element={<PlanimEditor />} />
 

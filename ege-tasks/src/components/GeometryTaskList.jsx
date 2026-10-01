@@ -61,6 +61,7 @@ const SCOPE_OPTIONS = [
   { value: 'manual', label: 'Мои' },
   { value: 'mccme', label: 'МЦНМО' },
   { value: 'all', label: 'Все' },
+  { value: 'gen', label: 'Генератор' },
 ];
 
 const hasValue = (v) => (Array.isArray(v) ? v.length > 0 : !!v);
@@ -361,7 +362,7 @@ export default function GeometryTaskList() {
   // Свои задачи текущего списка без единого фасета (объект/метод/факт)
   const facetKinds = new Map();
   for (const kind of ['object', 'method', 'fact']) for (const t of geoTags[kind] || []) facetKinds.set(t.id, kind);
-  const untagged = tasks.filter((t) => t.origin !== 'mccme' && !(t.tags || []).some((id) => facetKinds.has(id)));
+  const untagged = tasks.filter((t) => t.origin !== 'mccme' && t.origin !== 'gen' && !(t.tags || []).some((id) => facetKinds.has(id)));
 
   // В области с банком МЦНМО без сужения и без явной «Загрузить все» — режим подсказки
   const bankIdle = needsNarrowing(filters) && !bankLoadAll;

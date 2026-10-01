@@ -148,6 +148,8 @@ export const geometryApi = {
       // 'all' (или пусто) — без фильтра
       if (filters.origin === 'mccme') {
         filterArr.push(`origin = "mccme"`);
+      } else if (filters.origin === 'gen') {
+        filterArr.push(`origin = "gen"`);
       } else if (filters.origin === 'manual') {
         filterArr.push(`(origin = "" || origin = "manual")`);
       }
@@ -206,6 +208,14 @@ export const geometryApi = {
     if (data.error === 'not_indexed') throw new Error('Задачи нет в индексе (мало текста или индекс не обновлён)');
     if (data.error) throw new Error(data.error);
     return data.items || [];
+  },
+
+  // Сохранить сгенерированные задачи (генератор сечений, origin = 'gen') —
+  // по одной, чтобы ошибка одной не теряла остальные. Возвращает записи.
+  async createGeneratedGeometryTasks(records) {
+    const out = [];
+    for (const r of records) out.push(await geometryApi.createGeometryTask(r));
+    return out;
   },
 
   // ─── Geometry Works (работы раздела, GEOMETRY_TASKS_PLAN.md § 4) ───────────

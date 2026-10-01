@@ -197,7 +197,9 @@ export default function GeometryTaskDrawer({
   const title = shown ? (
     <Space size={6} wrap>
       <Text code style={{ fontSize: 14 }}>{shown.code}</Text>
-      <Tag color={isBank ? 'geekblue' : 'green'} style={{ margin: 0 }}>{isBank ? 'МЦНМО' : 'Моя'}</Tag>
+      <Tag color={isBank ? 'geekblue' : shown.origin === 'gen' ? 'purple' : 'green'} style={{ margin: 0 }}>
+        {isBank ? 'МЦНМО' : shown.origin === 'gen' ? 'Генератор' : 'Моя'}
+      </Tag>
       {shown.section && <Tag style={{ margin: 0 }}>{SECTION_LABELS[shown.section]}</Tag>}
       {shown.difficulty ? (
         <Tooltip title={DIFFICULTY_LABELS[shown.difficulty]}>
