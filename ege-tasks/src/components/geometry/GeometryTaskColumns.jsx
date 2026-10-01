@@ -1,5 +1,5 @@
 import { Badge, Button, Popconfirm, Space, Tag, Tooltip, Typography } from 'antd';
-import { CopyOutlined, DeleteOutlined, EditOutlined, EyeOutlined, HolderOutlined } from '@ant-design/icons';
+import { CheckOutlined, CopyOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import MathRenderer from '../MathRenderer';
 import { SECTION_LABELS } from '../../utils/geometrySection';
@@ -11,7 +11,7 @@ export const DIFFICULTY_LABELS = { 1: 'Базовый', 2: 'Средний', 3: 
 
 // Превращает statement_md в короткий plain-текст для предпросмотра в таблице.
 // Убираем картинки, markdown-разметку и $-обёртки формул, схлопываем пробелы.
-function statementPreview(md) {
+export function statementPreview(md) {
   if (!md) return '';
   return String(md)
     .replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '')   // ![alt](url){M} — картинки
@@ -26,45 +26,11 @@ function statementPreview(md) {
 // Колонки таблицы задач геометрии, вынесены из GeometryTaskList.jsx (god-компонент).
 // Замыкания на state/обработчики передаются явным объектом deps.
 export function buildGeometryColumns({
-  setDraggingTaskId, setDropTargetTaskId,
-  canEdit, canDelete,
+  canEdit, canDelete, inBasket, toggleBasket,
   editorLoadingId, duplicatingId,
   openEdit, openCard, handleDuplicate, handleDelete,
 }) {
   return [
-    {
-      title: '',
-      key: 'drag',
-      width: 42,
-      align: 'center',
-      render: (_, record) => (
-        <Tooltip title="Перетащите для смены порядка">
-          <span
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation();
-              e.dataTransfer.effectAllowed = 'move';
-              setDraggingTaskId(record.id);
-            }}
-            onDragEnd={() => {
-              setDraggingTaskId(null);
-              setDropTargetTaskId(null);
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'grab',
-              color: '#8c8c8c',
-              width: 18,
-              height: 18,
-            }}
-          >
-            <HolderOutlined />
-          </span>
-        </Tooltip>
-      ),
-    },
     {
       title: 'Код',
       dataIndex: 'code',
@@ -197,10 +163,21 @@ export function buildGeometryColumns({
     {
       title: '',
       key: 'actions',
-      width: 130,
+      width: 160,
       align: 'right',
       render: (_, record) => (
         <Space size={4}>
+          {canEdit && (
+            <Tooltip title={inBasket(record.id) ? 'В подборке — убрать' : 'В подборку (для работы)'}>
+              <Button
+                type={inBasket(record.id) ? 'primary' : 'text'}
+                ghost={inBasket(record.id)}
+                icon={inBasket(record.id) ? <CheckOutlined /> : <PlusOutlined />}
+                size="small"
+                onClick={() => toggleBasket(record)}
+              />
+            </Tooltip>
+          )}
           {canEdit && (
             <Tooltip title="Редактировать">
               <Button

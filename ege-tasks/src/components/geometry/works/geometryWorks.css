@@ -1,0 +1,159 @@
+/* ── Редактор геометрической работы: сетка «позиции × варианты» ───────────── */
+
+.gw-grid {
+  display: grid;
+  gap: 8px;
+  align-items: stretch;
+  min-width: max-content;
+}
+
+.gw-head {
+  font-weight: 600;
+  padding: 6px 8px;
+  background: #f6f8ff;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.gw-rownum {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-weight: 600;
+  color: #595959;
+}
+
+.gw-cell {
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fff;
+  display: flex;
+  gap: 8px;
+  min-height: 84px;
+  min-width: 0;
+}
+
+.gw-cell:hover {
+  border-color: #adc6ff;
+}
+
+.gw-cell-body {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.gw-cell-text {
+  font-size: 12px;
+  line-height: 1.35;
+  color: #434343;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
+}
+
+.gw-cell-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gw-cell--empty {
+  border-style: dashed;
+  border-color: #d9d9d9;
+  background: #fafafa;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* ── Ключ ответов ───────────────────────────────────────────────────────── */
+
+.gw-answers-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.gw-answers-sheet {
+  background: #fff;
+  padding: 16px;
+  max-width: 900px;
+}
+
+.gw-answers-title {
+  font-size: 18px;
+  margin: 0 0 12px;
+}
+
+.gw-answers-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.gw-answers-table th,
+.gw-answers-table td {
+  border: 1px solid #bfbfbf;
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+.gw-answers-table th {
+  background: #fafafa;
+}
+
+.gw-answers-num {
+  width: 32px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.gw-answers-code {
+  float: right;
+  font-size: 10px;
+  color: #8c8c8c;
+  margin-left: 8px;
+}
+
+.gw-answers-none {
+  color: #bfbfbf;
+}
+
+@media print {
+  body:has(.gw-answers-root) * {
+    visibility: hidden;
+  }
+
+  body:has(.gw-answers-root) .gw-answers-root,
+  body:has(.gw-answers-root) .gw-answers-root * {
+    visibility: visible;
+  }
+
+  body:has(.gw-answers-root) .gw-answers-toolbar {
+    display: none !important;
+  }
+
+  body:has(.gw-answers-root) .gw-answers-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #fff;
+  }
+
+  .gw-answers-sheet {
+    max-width: none;
+    padding: 10mm;
+  }
+}

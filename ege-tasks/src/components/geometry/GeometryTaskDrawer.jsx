@@ -3,8 +3,10 @@ import {
   Alert, Badge, Button, Collapse, Divider, Drawer, Space, Spin, Tag, Tooltip, Typography,
 } from 'antd';
 import {
-  CopyOutlined, EditOutlined, ImportOutlined, LeftOutlined, PaperClipOutlined, RightOutlined, UndoOutlined,
+  CheckOutlined, CopyOutlined, EditOutlined, ImportOutlined, LeftOutlined, PaperClipOutlined,
+  PlusOutlined, RightOutlined, UndoOutlined,
 } from '@ant-design/icons';
+import { useGeometryBasket } from '../../hooks/useGeometryBasket';
 import { api } from '../../shared/services/pocketbase';
 import { sanitizeSvg } from '../../utils/sanitizeSvg';
 import { stereoSpecFromSvg, parseStereoBlock } from '../../utils/stereo/dsl';
@@ -122,11 +124,15 @@ function Section({ title, children, extra }) {
  * @param {object} geoTags — фасеты по видам { object: [...], method: [...], fact: [...] }
  * @param {function} onOpen — (id, listIds?) переход к другой задаче
  * @param {function} onFacet — (kind, tagId) отфильтровать банк по фасету
+ * @param {function} [onEdit|onDuplicate|onTakeToMine] — кнопки действий; не передан
+ *   обработчик — нет и кнопки (в редакторе работы карточка только смотрит)
+ * @param {ReactNode} [extra] — свои кнопки в подвал (например, «Поставить в ячейку»)
  */
 export default function GeometryTaskDrawer({
   taskId, listIds = [], geoTags, onOpen, onClose, onFacet,
-  canEdit, onEdit, onDuplicate, onTakeToMine, busy = null,
+  canEdit, onEdit, onDuplicate, onTakeToMine, busy = null, extra = null,
 }) {
+  const basket = useGeometryBasket();
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -216,23 +222,32 @@ export default function GeometryTaskDrawer({
     </Space>
   ) : null;
 
+  const inBasket = shown ? basket.items.some((x) => x.id === shown.id) : false;
   const footer = shown && canEdit ? (
     <Space wrap>
-      <Button
-        type={isBank ? 'default' : 'primary'}
-        icon={<EditOutlined />}
-        loading={busy === 'edit'}
-        onClick={() => onEdit(shown)}
-      >
-        Редактировать
-      </Button>
-      {isBank ? (
+      <Tooltip title="Подборка — задачи для новой работы (плашка внизу страницы)">
+        <Button
+          type={inBasket ? 'default' : 'primary'}
+          icon={inBasket ? <CheckOutlined /> : <PlusOutlined />}
+          onClick={() => basket.toggle(shown)}
+        >
+          {inBasket ? 'В подборке' : 'В подборку'}
+        </Button>
+      </Tooltip>
+      {extra}
+      {onEdit && (
+        <Button icon={<EditOutlined />} loading={busy === 'edit'} onClick={() => onEdit(shown)}>
+          Редактировать
+        </Button>
+      )}
+      {isBank && onTakeToMine && (
         <Tooltip title="Своя копия задачи: её можно править, не трогая банк. Фасеты и решение сохранятся">
-          <Button type="primary" icon={<ImportOutlined />} loading={busy === 'take'} onClick={() => onTakeToMine(shown)}>
+          <Button icon={<ImportOutlined />} loading={busy === 'take'} onClick={() => onTakeToMine(shown)}>
             Взять к себе
           </Button>
         </Tooltip>
-      ) : (
+      )}
+      {!isBank && onDuplicate && (
         <Button icon={<CopyOutlined />} loading={busy === 'copy'} onClick={() => onDuplicate(shown)}>
           Дублировать
         </Button>

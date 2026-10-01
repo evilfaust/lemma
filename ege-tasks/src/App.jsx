@@ -70,6 +70,8 @@ const StudentDetailPage = lazy(() => import('./components/StudentDetailPage'));
 const AchievementManager = lazy(() => import('./components/AchievementManager'));
 const GeometryTaskList = lazy(() => import('./components/GeometryTaskList'));
 const GeometryTopicManager = lazy(() => import('./components/geometry/GeometryTopicManager'));
+const GeometryWorksPage = lazy(() => import('./components/geometry/works/GeometryWorksPage'));
+const GeometryWorkEditor = lazy(() => import('./components/geometry/works/GeometryWorkEditor'));
 const StereoEditor = lazy(() => import('./components/stereo/StereoEditor'));
 const PlanimEditor = lazy(() => import('./components/planim/PlanimEditor'));
 const TDFManager = lazy(() => import('./components/tdf/TDFManager'));
@@ -190,6 +192,8 @@ export const R = {
   IMPORT:              '/app/import',
   GEOMETRY_TASKS:      '/app/geometry/tasks',
   GEOMETRY_TOPICS:     '/app/geometry/topics',
+  GEOMETRY_WORKS:      '/app/geometry/works',
+  GEOMETRY_WORK:       '/app/geometry/works/:workId',
   GEOMETRY_STEREO:     '/app/geometry/stereo',
   GEOMETRY_PLANIM:     '/app/geometry/planim',
   // ТДФ
@@ -319,6 +323,8 @@ const ROUTE_META = [
   { re: /^\/app\/import/,                  menuKey: 'import',                    title: 'Импорт задач' },
   { re: /^\/app\/geometry\/tasks/,         menuKey: 'geometry-tasks',   menuGroup: 'geometry', title: 'Геометрические задачи' },
   { re: /^\/app\/geometry\/topics/,        menuKey: 'geometry-topics',  menuGroup: 'geometry', title: 'Геометрия — Темы и подтемы' },
+  { re: /^\/app\/geometry\/works$/,        menuKey: 'geometry-works',   menuGroup: 'geometry', title: 'Геометрия — Работы' },
+  { re: /^\/app\/geometry\/works\/[^/]+/,  menuKey: 'geometry-work',    menuGroup: 'geometry', title: 'Геометрия — Работа' },
   { re: /^\/app\/geometry\/stereo/,        menuKey: 'geometry-stereo',  menuGroup: 'geometry', title: 'Геометрия — Стереометрия' },
   { re: /^\/app\/geometry\/planim/,        menuKey: 'geometry-planim',  menuGroup: 'geometry', title: 'Геометрия — Планиметрия' },
   { re: /^\/app\/tdf$/,                    menuKey: 'tdf',              menuGroup: 'tdf-group', title: 'ТДФ — Теоремы, Определения, Формулы' },
@@ -409,6 +415,7 @@ const MENU_KEY_PATH = {
   import:                   R.IMPORT,
   'geometry-tasks':         R.GEOMETRY_TASKS,
   'geometry-topics':        R.GEOMETRY_TOPICS,
+  'geometry-works':         R.GEOMETRY_WORKS,
   'geometry-stereo':        R.GEOMETRY_STEREO,
   'geometry-planim':        R.GEOMETRY_PLANIM,
   tdf:                      R.TDF,
@@ -476,6 +483,7 @@ const GROUP_META = {
 // Явные родители для страниц без menuGroup
 const PARENT_META = {
   'work-editor': { label: 'Мои работы', path: R.WORKS },
+  'geometry-work': { label: 'Работы по геометрии', path: R.GEOMETRY_WORKS },
   'work-import': { label: 'Мои работы', path: R.WORKS },
   catalog:       { label: 'Аналитика',  path: R.STATS },
 };
@@ -776,6 +784,7 @@ function AppLayout() {
       key: 'geometry', icon: <CompassOutlined />, label: 'Геометрия', section: 'geometry',
       children: [
         { key: 'geometry-tasks',   icon: <UnorderedListOutlined />, label: 'Задачи' },
+        { key: 'geometry-works',   icon: <FileTextOutlined />,      label: 'Работы' },
         { key: 'geometry-planim',  icon: <RadiusSettingOutlined />, label: 'Планиметрия' },
         { key: 'geometry-stereo',  icon: <CodeSandboxOutlined />,   label: 'Стереометрия' },
         { key: 'geometry-topics',  icon: <FolderOutlined />,        label: 'Темы и подтемы', editOnly: true },
@@ -1105,6 +1114,8 @@ function App() {
 
               {/* Геометрия — список (viewer тоже видит) */}
               <Route path={R.GEOMETRY_TASKS}   element={<GeometryTaskList />} />
+              <Route path={R.GEOMETRY_WORKS}   element={<GeometryWorksPage />} />
+              <Route path={R.GEOMETRY_WORK}    element={<GeometryWorkEditor />} />
               <Route path={R.GEOMETRY_STEREO}  element={<StereoEditor />} />
               <Route path={R.GEOMETRY_PLANIM}  element={<PlanimEditor />} />
 

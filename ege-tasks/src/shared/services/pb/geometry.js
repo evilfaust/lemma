@@ -3,6 +3,29 @@ import { PB_BASE_URL } from '../pocketbaseUrl';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { searchCaseVariants, MIN_SEARCH_LENGTH } from '../../utils/searchVariants';
+import { getFullListByOr } from './chunked.js';
+import { normalizeStructure, structureTaskIds } from '../../../utils/geometryWork';
+
+// Поля задачи для списков и работ: без тяжёлых geogebra_base64 (XML состояния
+// апплета, 30–100 КБ) и solution_md — они нужны редактору и карточке задачи
+// (getGeometryTask).
+const GEO_LIGHT_FIELDS = [
+  'id', 'code', 'title', 'topic', 'subtopic', 'difficulty',
+  'statement_md', // нужен для быстрого предпросмотра
+  'answer', 'hints', 'geogebra_appname', 'drawing_view', 'drawing_svg', 'source', 'year',
+  'origin', 'mccme_id', 'tags', 'section', 'image_role', 'task_type',
+  'preview_layout', 'geogebra_image_base64', 'drawing_image', 'created', 'updated',
+  'expand.topic.id', 'expand.topic.title',
+  'expand.subtopic.id', 'expand.subtopic.title',
+].join(',');
+
+// Работа хранит список всех своих задач отдельным relation-полем — для expand
+// и обратного поиска «в каких работах задача». Источник истины — structure.
+const withWorkTasks = (data) => {
+  if (!('structure' in data)) return data;
+  const structure = normalizeStructure(data.structure);
+  return { ...data, structure, tasks: structureTaskIds(structure) };
+};
 
 export const geometryApi = {
   // ─── Geometry Topics ──────────────────────────────────────────────────────
@@ -145,30 +168,79 @@ export const geometryApi = {
         filterArr.push(`(${conds.join(' || ')})`);
       }
 
-      // Исключаем тяжёлые base64-поля из списка — они перенесены в файловое поле drawing_image.
-      // geogebra_base64 (XML состояние, ~30-100KB) нужен только в редакторе → getGeometryTask().
-      const LIGHT_FIELDS = [
-        'id', 'code', 'title', 'topic', 'subtopic', 'difficulty',
-        'statement_md',  // нужен для быстрого предпросмотра
-        'answer', 'hints', 'geogebra_appname', 'drawing_view', 'drawing_svg', 'source', 'year',
-        'origin', 'mccme_id', 'tags', 'section', 'image_role', 'task_type',
-        'preview_layout', 'geogebra_image_base64', 'drawing_image', 'created', 'updated',
-        'expand.topic.id', 'expand.topic.title',
-        'expand.subtopic.id', 'expand.subtopic.title',
-        // geogebra_base64 (XML состояние, ~30-100KB) только в редакторе → getGeometryTask()
-        // solution_md только в редакторе → getGeometryTask()
-      ].join(',');
-
       return await pb.collection('geometry_tasks').getFullList({
         filter: filterArr.join(' && '),
         sort: 'code',
         expand: 'topic,subtopic',
-        fields: LIGHT_FIELDS,
+        fields: GEO_LIGHT_FIELDS,
       });
     } catch (error) {
       console.error('Error fetching geometry tasks:', error);
       return [];
     }
+  },
+
+  // Задачи по списку id (для работы) — лёгкие поля, OR-фильтр кусками.
+  async getGeometryTasksByIds(ids) {
+    const uniq = [...new Set((ids || []).filter(Boolean))];
+    if (!uniq.length) return [];
+    return getFullListByOr('geometry_tasks', 'id', uniq, {
+      expand: 'topic,subtopic',
+      fields: GEO_LIGHT_FIELDS,
+    });
+  },
+
+  // Похожие задачи (/geo/similar, векторный индекс геометрии) — кандидаты в
+  // параллель для другого варианта. Возвращает [{ task_id, code, origin, pct, … }].
+  async getSimilarGeometryTasks(taskId, { limit = 12, origin } = {}) {
+    const base = import.meta.env.VITE_PDF_SERVICE_URL || 'http://localhost:3001';
+    const res = await fetch(`${base}/geo/similar`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId, limit, ...(origin && origin !== 'all' ? { origin } : {}) }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) throw new Error(`Сервис поиска ответил ${res.status}`);
+    const data = await res.json();
+    if (data.error === 'no_index') throw new Error('Векторный индекс геометрии не построен');
+    if (data.error === 'not_indexed') throw new Error('Задачи нет в индексе (мало текста или индекс не обновлён)');
+    if (data.error) throw new Error(data.error);
+    return data.items || [];
+  },
+
+  // ─── Geometry Works (работы раздела, GEOMETRY_TASKS_PLAN.md § 4) ───────────
+
+  async getGeometryWorks() {
+    return pb.collection('geometry_works').getFullList({
+      sort: '-updated',
+      filter: andOwner(),
+      fields: 'id,title,class,note,structure,print,created,updated,owner',
+    });
+  },
+
+  async getGeometryWork(id) {
+    return pb.collection('geometry_works').getOne(id);
+  },
+
+  async createGeometryWork(data) {
+    const rec = await pb.collection('geometry_works').create(withOwner(withWorkTasks(data)));
+    _logAudit('create', 'geometry_works', rec.id, rec.title);
+    return rec;
+  },
+
+  async updateGeometryWork(id, data) {
+    return pb.collection('geometry_works').update(id, withWorkTasks(data));
+  },
+
+  async deleteGeometryWork(id) {
+    let summary = id;
+    try {
+      const w = await pb.collection('geometry_works').getOne(id, { fields: 'id,title' });
+      summary = w.title || id;
+    } catch (_) { /* удалим и без названия */ }
+    const res = await pb.collection('geometry_works').delete(id);
+    _logAudit('delete', 'geometry_works', id, summary);
+    return res;
   },
 
   // Фасетные теги банка МЦНМО (geometry_tags). kind: object|method|fact|named|source.

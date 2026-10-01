@@ -394,8 +394,30 @@ export function GeometryPreviewCard({
   );
 }
 
-export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = null }) {
+/**
+ * «Просмотр» и печать карточками A5/A4.
+ *
+ * Два режима:
+ * - лист из списка задач (`tasks`): макет правится в самой задаче
+ *   (`preview_layout`), лист можно сохранить в `geometry_print_tests`;
+ * - работа (`sections` + `onLayoutsSave`, GEOMETRY_TASKS_PLAN.md § 4): каждый
+ *   вариант — с нового листа и со своей нумерацией, порядок задаёт редактор
+ *   работы, макет сохраняется в работу (`layoutSnapshot` → `onLayoutsSave`).
+ *
+ * @param {Array<{label: string, tasks: object[]}>} [sections] — варианты работы
+ * @param {object} [layoutSnapshot] — { taskId: макет печати } из работы
+ * @param {function} [onLayoutsSave] — (patch: { taskId: макет }) => Promise
+ */
+export default function GeometryTaskPreview({
+  tasks: tasksProp, onBack, initialPrintTest = null,
+  sections = null, layoutSnapshot = null, onLayoutsSave = null, initialHeader = '',
+}) {
   const { message } = App.useApp();
+  const workMode = !!onLayoutsSave;
+  const tasks = useMemo(
+    () => (sections ? sections.flatMap((sec) => sec.tasks) : tasksProp || []),
+    [sections, tasksProp],
+  );
   const [orderedTasks, setOrderedTasks] = useState(tasks);
   const [mode, setMode] = useState('print');
   const [showAnswers, setShowAnswers] = useState(false);
@@ -419,9 +441,11 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
   const taskLayoutsRef = useRef(null);
   const tasksRef = useRef(orderedTasks);
   tasksRef.current = orderedTasks;
+  const onLayoutsSaveRef = useRef(onLayoutsSave);
+  onLayoutsSaveRef.current = onLayoutsSave;
 
   // Заголовок листа — редактируется прямо в тулбаре, отображается сразу
-  const [headerTopic, setHeaderTopic] = useState(initialPrintTest?.sheet_topic || '');
+  const [headerTopic, setHeaderTopic] = useState(initialPrintTest?.sheet_topic || initialHeader || '');
   const [headerSubtopic, setHeaderSubtopic] = useState(initialPrintTest?.sheet_subtopic || '');
 
   const [taskLayouts, setTaskLayouts] = useState(() => {
@@ -470,6 +494,20 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
       let failCount = 0;
       const allTasks = tasksRef.current;
       const currentTaskLayouts = taskLayoutsRef.current;
+
+      // Работа: макет печати — в работу, задача не трогается
+      if (onLayoutsSaveRef.current && currentMode === 'print') {
+        const patch = {};
+        for (const [taskKey, layoutForMode] of entries) patch[taskKey] = normalizeLayout(layoutForMode, 'print');
+        try {
+          await onLayoutsSaveRef.current(patch);
+          setAutosaveStatus('saved');
+          setTimeout(() => setAutosaveStatus((st) => (st === 'saved' ? null : st)), 3000);
+        } catch {
+          setAutosaveStatus('error');
+        }
+        return;
+      }
 
       for (const [taskKey, layoutForMode] of entries) {
         const task = allTasks.find((t, idx) => (t?.id || t?.code || `slot-${idx}`) === taskKey);
@@ -535,21 +573,37 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
     setLayoutOverrides({ print: {}, student: {} });
   }, [tasks]);
 
+  // Листы печати: { tasks (дополнены пустыми до perPage), label, start —
+  // номер первой задачи листа в своём варианте, base — индекс в общем списке }.
+  // У работы каждый вариант начинается с нового листа и нумеруется заново.
   const printPages = useMemo(() => {
+    const groups = sections
+      ? sections.map((sec) => ({ label: sec.label, tasks: sec.tasks }))
+      : [{ label: '', tasks: orderedTasks }];
     const pages = [];
-    for (let i = 0; i < orderedTasks.length; i += perPage) {
-      pages.push(orderedTasks.slice(i, i + perPage));
+    let base = 0;
+    for (const g of groups) {
+      for (let i = 0; i < g.tasks.length || (i === 0 && !sections); i += perPage) {
+        const slice = g.tasks.slice(i, i + perPage);
+        pages.push({
+          tasks: Array.from({ length: perPage }, (_, k) => slice[k] || null),
+          label: g.label,
+          start: i,
+          base: base + i,
+        });
+        if (!g.tasks.length) break;
+      }
+      base += g.tasks.length;
     }
-    if (pages.length === 0) pages.push([]);
-    return pages.map((pageTasks) =>
-      Array.from({ length: perPage }, (_, i) => pageTasks[i] || null));
-  }, [orderedTasks, perPage]);
-  const visibleTasks = mode === 'print' ? printPages.flat() : orderedTasks;
+    if (pages.length === 0) pages.push({ tasks: Array(perPage).fill(null), label: '', start: 0, base: 0 });
+    return pages;
+  }, [orderedTasks, perPage, sections]);
+  const visibleTasks = mode === 'print' ? printPages.flatMap((p) => p.tasks) : orderedTasks;
   const pendingCount = Object.keys(layoutOverrides[mode] || {}).length;
   const snapshotLayouts = useMemo(() => {
-    const raw = safeParseLayout(currentPrintTest?.layout_snapshot);
+    const raw = safeParseLayout(workMode ? layoutSnapshot : currentPrintTest?.layout_snapshot);
     return raw && typeof raw === 'object' ? raw : {};
-  }, [currentPrintTest?.layout_snapshot]);
+  }, [workMode, layoutSnapshot, currentPrintTest?.layout_snapshot]);
 
   const getTaskLayout = useCallback((task, idx) => {
     const taskKey = task?.id || task?.code || `slot-${idx}`;
@@ -749,7 +803,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
       <div className="geometry-preview-toolbar">
         <Space wrap>
           <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
-            Назад к списку
+            {workMode ? 'К работе' : 'Назад к списку'}
           </Button>
           <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} />
           <Segmented options={DRAWING_OPTIONS} value={drawingMode} onChange={setDrawingMode} />
@@ -757,7 +811,7 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
             <Switch checked={layoutEdit} onChange={setLayoutEdit} />
             <Text>Редактировать макет</Text>
           </Space>
-          {!layoutEdit && (
+          {!layoutEdit && !sections && (
             <Tag>Перетаскивайте карточки для смены порядка</Tag>
           )}
           {layoutEdit && (
@@ -791,12 +845,14 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
           )}
         </Space>
         <Space>
-          <Button
-            onClick={() => setSaveModalVisible(true)}
-            disabled={mode !== 'print'}
-          >
-            {currentPrintTest?.id ? 'Обновить лист' : 'Сохранить лист'}
-          </Button>
+          {!workMode && (
+            <Button
+              onClick={() => setSaveModalVisible(true)}
+              disabled={mode !== 'print'}
+            >
+              {currentPrintTest?.id ? 'Обновить лист' : 'Сохранить лист'}
+            </Button>
+          )}
           {autosaveStatus === 'saving' && <Tag color="processing">Сохранение макета…</Tag>}
           {autosaveStatus === 'saved' && <Tag color="success">Макет сохранён ✓</Tag>}
           {autosaveStatus === 'error' && (
@@ -836,32 +892,35 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
 
       {mode === 'print' ? (
         <div className="geometry-preview-pages">
-          {printPages.map((pageTasks, pageIndex) => (
+          {printPages.map((page, pageIndex) => (
             <div
               className="geometry-preview-sheet is-print"
               key={`page-${pageIndex + 1}`}
               style={{ width: `${pageDims.w}mm`, height: `${pageDims.h}mm`, padding: `${SHEET_PADDING_MM}mm` }}
             >
-              {(headerTopic || headerSubtopic) && (
+              {(headerTopic || headerSubtopic || page.label) && (
                 <div className="geometry-preview-sheet-header">
                   {headerTopic && (
                     <div className="geometry-preview-sheet-topic">{headerTopic}</div>
                   )}
-                  {headerSubtopic && (
-                    <div className="geometry-preview-sheet-subtopic">{headerSubtopic}</div>
+                  {(headerSubtopic || page.label) && (
+                    <div className="geometry-preview-sheet-subtopic">
+                      {[page.label, headerSubtopic].filter(Boolean).join(' · ')}
+                    </div>
                   )}
                 </div>
               )}
               <div className="geometry-preview-grid is-print" style={gridTemplate}>
-                {pageTasks.map((task, idx) => {
-                  const globalIndex = pageIndex * perPage + idx;
+                {page.tasks.map((task, idx) => {
+                  const globalIndex = page.base + idx;
                   const taskKey = task?.id || task?.code || `slot-${pageIndex}-${idx}`;
                   const layout = getTaskLayout(task, globalIndex);
+                  const canDrag = !layoutEdit && !!task && !sections;
                   return (
                     <GeometryPreviewCard
-                      key={taskKey}
+                      key={`${pageIndex}-${taskKey}`}
                       task={task || {}}
-                      index={globalIndex}
+                      index={page.start + idx}
                       isPlaceholder={!task}
                       showAnswers={showAnswers}
                       mode={mode}
@@ -874,14 +933,14 @@ export default function GeometryTaskPreview({ tasks, onBack, initialPrintTest = 
                       textScale={TEXT_SIZE_SCALE[textSize]}
                       showGrid={showGrid}
                       onLayoutChange={(layerName, patch) => handleLayoutChange(taskKey, layerName, patch)}
-                      draggable={!layoutEdit && !!task}
-                      onDragStart={!layoutEdit && !!task ? () => setDragTaskIndex(globalIndex) : undefined}
-                      onDragOver={!layoutEdit ? (e) => {
+                      draggable={canDrag}
+                      onDragStart={canDrag ? () => setDragTaskIndex(globalIndex) : undefined}
+                      onDragOver={!layoutEdit && !sections ? (e) => {
                         if (layoutEdit || dragTaskIndex === null || dragTaskIndex === globalIndex) return;
                         e.preventDefault();
                         setDropTaskIndex(globalIndex);
                       } : undefined}
-                      onDrop={!layoutEdit ? (e) => {
+                      onDrop={!layoutEdit && !sections ? (e) => {
                         if (layoutEdit) return;
                         e.preventDefault();
                         reorderTasks(dragTaskIndex, globalIndex);

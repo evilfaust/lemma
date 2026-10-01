@@ -25,8 +25,6 @@ import {
   EyeOutlined,
   EditOutlined,
   FileTextOutlined,
-  FolderOpenOutlined,
-  HolderOutlined,
   ImportOutlined,
   PlusOutlined,
   ReloadOutlined,
@@ -34,12 +32,12 @@ import {
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import { sanitizeSvg } from '../utils/sanitizeSvg';
+import { useNavigate } from 'react-router-dom';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import GeometryTaskEditor from './GeometryTaskEditor';
-import GeometryTaskPreview from './GeometryTaskPreview';
-import GeometryWorksheetPrint from './GeometryWorksheetPrint';
-import LoadGeometryPrintModal from './geometry/LoadGeometryPrintModal';
+import GeometryBasketBar from './geometry/GeometryBasketBar';
+import { useGeometryBasket } from '../hooks/useGeometryBasket';
 import MathRenderer from './MathRenderer';
 import { buildGeometryColumns, DIFFICULTY_COLORS, DIFFICULTY_LABELS } from './geometry/GeometryTaskColumns';
 import GeometryTagsModal from './geometry/GeometryTagsModal';
@@ -80,6 +78,8 @@ export default function GeometryTaskList() {
   const { message } = App.useApp();
   const { topics: regularTopics, subtopics: regularSubtopics } = useReferenceData();
   const { canEdit, canDelete } = useAuth();
+  const navigate = useNavigate();
+  const basket = useGeometryBasket();
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({ origin: 'manual' });
@@ -100,21 +100,10 @@ export default function GeometryTaskList() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editorLoadingId, setEditorLoadingId] = useState(null);
   const [duplicatingId, setDuplicatingId] = useState(null);
-  const [previewOpen, setPreviewOpen] = useState(false);
-  const [previewTasks, setPreviewTasks] = useState([]);
-  const [previewPrintTest, setPreviewPrintTest] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
-  const [savedSheetsOpen, setSavedSheetsOpen] = useState(false);
-  const [savedSheetsLoading, setSavedSheetsLoading] = useState(false);
-  const [savedSheets, setSavedSheets] = useState([]);
   // Карточка задачи: какая открыта и по какому списку листать ← / →
   const [card, setCard] = useState({ id: null, list: [] });
   const [cardBusy, setCardBusy] = useState(null); // 'edit' | 'copy' | 'take'
-  const [worksheetOpen, setWorksheetOpen] = useState(false);
-  const [worksheetTasks, setWorksheetTasks] = useState([]);
-  const [worksheetTopicLabel, setWorksheetTopicLabel] = useState('');
-  const [draggingTaskId, setDraggingTaskId] = useState(null);
-  const [dropTargetTaskId, setDropTargetTaskId] = useState(null);
   const [viewMode, setViewMode] = useState('table');
   const [cardsPage, setCardsPage] = useState(1);
   const [cardsPageSize, setCardsPageSize] = useState(20);
@@ -231,49 +220,6 @@ export default function GeometryTaskList() {
     loadTasks();
   };
 
-  const openWorksheet = () => {
-    const selected = selectedRowKeys.length > 0
-      ? tasks.filter((t) => selectedRowKeys.includes(t.id))
-      : tasks;
-
-    if (selected.length === 0) {
-      message.warning('Нет задач для рабочего листа');
-      return;
-    }
-
-    // Автоматически подставляем тему из первой задачи
-    const firstTask = selected[0];
-    const topicTitle = firstTask?.expand?.topic?.title || '';
-    const subtopicTitle = firstTask?.expand?.subtopic?.title || '';
-    const autoLabel = subtopicTitle ? `${topicTitle} — ${subtopicTitle}` : topicTitle;
-
-    setWorksheetTasks(selected);
-    setWorksheetTopicLabel(autoLabel);
-    setWorksheetOpen(true);
-  };
-
-  const openPreview = (singleTask = null) => {
-    const selectedTasks = singleTask
-      ? [singleTask]
-      : (selectedRowKeys.length > 0
-          ? tasks.filter((t) => selectedRowKeys.includes(t.id))
-          : tasks);
-
-    if (selectedTasks.length === 0) {
-      message.warning('Нет задач для просмотра');
-      return;
-    }
-
-    setPreviewTasks(selectedTasks);
-    setPreviewOpen(true);
-  };
-
-  const closePreview = () => {
-    setPreviewOpen(false);
-    setPreviewTasks([]);
-    setPreviewPrintTest(null);
-  };
-
   const openCard = useCallback((id, list) => {
     if (!id) return;
     setCard((c) => ({ id, list: list || c.list }));
@@ -331,81 +277,6 @@ export default function GeometryTaskList() {
     setFilters((f) => ({ origin: f.origin === 'manual' ? 'all' : f.origin, section: f.section, [key]: [tagId] }));
   };
 
-  const openSavedSheets = async () => {
-    setSavedSheetsOpen(true);
-    setSavedSheetsLoading(true);
-    try {
-      const tests = await api.getGeometryPrintTests();
-      setSavedSheets(tests);
-    } catch {
-      message.error('Ошибка загрузки сохранённых листов');
-    } finally {
-      setSavedSheetsLoading(false);
-    }
-  };
-
-  const handleOpenSavedSheet = async (testId) => {
-    setSavedSheetsLoading(true);
-    try {
-      const test = await api.getGeometryPrintTest(testId);
-      const expandedTasks = Array.isArray(test?.expand?.tasks) ? test.expand.tasks : [];
-      const byId = new Map(expandedTasks.map((task) => [task.id, task]));
-      const orderedIds = Array.isArray(test?.task_order) && test.task_order.length > 0
-        ? test.task_order
-        : (Array.isArray(test?.tasks) ? test.tasks : []);
-      const orderedTasks = orderedIds.map((id) => byId.get(id)).filter(Boolean);
-
-      if (orderedTasks.length === 0) {
-        message.error('В сохранённом листе не удалось восстановить задачи');
-        return;
-      }
-
-      setPreviewTasks(orderedTasks);
-      setPreviewPrintTest(test);
-      setPreviewOpen(true);
-      setSavedSheetsOpen(false);
-      message.success(`Лист "${test.title || 'без названия'}" открыт`);
-    } catch {
-      message.error('Ошибка открытия листа');
-    } finally {
-      setSavedSheetsLoading(false);
-    }
-  };
-
-  const handleDeleteSavedSheet = (testId, title) => {
-    Modal.confirm({
-      title: 'Удалить лист?',
-      content: `Вы уверены, что хотите удалить лист "${title || 'без названия'}"?`,
-      okText: 'Удалить',
-      okType: 'danger',
-      cancelText: 'Отмена',
-      onOk: async () => {
-        try {
-          await api.deleteGeometryPrintTest(testId);
-          setSavedSheets((prev) => prev.filter((sheet) => sheet.id !== testId));
-          message.success('Лист удалён');
-        } catch {
-          message.error('Ошибка удаления листа');
-        }
-      },
-    });
-  };
-
-  const moveTaskBefore = useCallback((fromId, toId) => {
-    if (!fromId || !toId || fromId === toId) return;
-
-    setTasks((prev) => {
-      const fromIndex = prev.findIndex((t) => t.id === fromId);
-      const toIndex = prev.findIndex((t) => t.id === toId);
-      if (fromIndex < 0 || toIndex < 0) return prev;
-
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
-  }, []);
-
   const pagedCardTasks = useMemo(() => {
     const start = (cardsPage - 1) * cardsPageSize;
     return tasks.slice(start, start + cardsPageSize);
@@ -437,30 +308,11 @@ export default function GeometryTaskList() {
     );
   }
 
-  if (worksheetOpen) {
-    return (
-      <GeometryWorksheetPrint
-        tasks={worksheetTasks}
-        onBack={() => setWorksheetOpen(false)}
-        initialTopicLabel={worksheetTopicLabel}
-      />
-    );
-  }
-
-  if (previewOpen) {
-    return (
-      <GeometryTaskPreview
-        tasks={previewTasks}
-        onBack={closePreview}
-        initialPrintTest={previewPrintTest}
-      />
-    );
-  }
-
   // ── Колонки таблицы ───────────────────────────────────────────────────────
   const columns = buildGeometryColumns({
-    setDraggingTaskId, setDropTargetTaskId,
     canEdit, canDelete,
+    inBasket: (id) => basket.items.some((x) => x.id === id),
+    toggleBasket: (task) => basket.toggle(task),
     editorLoadingId, duplicatingId,
     openEdit, openCard: (task) => openCard(task.id, tasks.map((t) => t.id)), handleDuplicate, handleDelete,
   });
@@ -673,14 +525,20 @@ export default function GeometryTaskList() {
               { label: 'Карточки', value: 'cards' },
             ]}
           />
-          <Button icon={<FolderOpenOutlined />} onClick={openSavedSheets}>
-            Листы A5
-          </Button>
-          <Button icon={<FileTextOutlined />} onClick={openWorksheet}>
-            Рабочий лист ({selectedRowKeys.length > 0 ? `выбрано ${selectedRowKeys.length}` : `все ${tasks.length}`})
-          </Button>
-          <Button icon={<EyeOutlined />} onClick={() => openPreview()}>
-            Просмотр ({selectedRowKeys.length > 0 ? `выбрано ${selectedRowKeys.length}` : `все ${tasks.length}`})
+          {canEdit && selectedRowKeys.length > 0 && (
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => {
+                const n = basket.add(tasks.filter((t) => selectedRowKeys.includes(t.id)));
+                message.success(n ? `В подборке +${n}` : 'Эти задачи уже в подборке');
+                setSelectedRowKeys([]);
+              }}
+            >
+              В подборку ({selectedRowKeys.length})
+            </Button>
+          )}
+          <Button icon={<FileTextOutlined />} onClick={() => navigate('/app/geometry/works')}>
+            Работы
           </Button>
           {canEdit && selectedRowKeys.length > 0 && (
             <Button
@@ -732,21 +590,8 @@ export default function GeometryTaskList() {
               if (e.target.closest('button, a, input, label, .ant-checkbox-wrapper, .ant-table-selection-column, [draggable="true"]')) return;
               openCard(record.id, tasks.map((t) => t.id));
             },
-            onDragOver: (e) => {
-              if (!draggingTaskId || draggingTaskId === record.id) return;
-              e.preventDefault();
-              if (dropTargetTaskId !== record.id) setDropTargetTaskId(record.id);
-            },
-            onDrop: (e) => {
-              e.preventDefault();
-              if (!draggingTaskId || draggingTaskId === record.id) return;
-              moveTaskBefore(draggingTaskId, record.id);
-              setDraggingTaskId(null);
-              setDropTargetTaskId(null);
-            },
             style: {
               cursor: 'pointer',
-              background: dropTargetTaskId === record.id ? '#e6f4ff' : undefined,
             },
           })}
           locale={{ emptyText: 'Нет задач. Создайте первую!' }}
@@ -969,15 +814,6 @@ export default function GeometryTaskList() {
         </Card>
       )}
 
-      <LoadGeometryPrintModal
-        visible={savedSheetsOpen}
-        onCancel={() => setSavedSheetsOpen(false)}
-        tests={savedSheets}
-        loading={savedSheetsLoading}
-        onLoad={handleOpenSavedSheet}
-        onDelete={handleDeleteSavedSheet}
-      />
-
       <GeometryBankDuplicatesModal
         open={bankDupOpen}
         onClose={() => setBankDupOpen(false)}
@@ -996,6 +832,8 @@ export default function GeometryTaskList() {
         geoTags={geoTags}
         onChanged={reloadGeoTags}
       />
+
+      {canEdit && <GeometryBasketBar onOpenTask={openCardSingle} />}
 
       <GeometryTaskDrawer
         taskId={card.id}
