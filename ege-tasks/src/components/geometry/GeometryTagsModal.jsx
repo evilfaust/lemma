@@ -1,14 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Modal, Table, Input, Select, Button, Space, Tag, Popconfirm, message } from 'antd';
-import { SearchOutlined, SaveOutlined, DeleteOutlined } from '@ant-design/icons';
+import { SearchOutlined, SaveOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 
 const KIND_LABELS = { object: 'Объект', method: 'Метод', fact: 'Факт', named: 'Имя', source: 'Источник' };
 const KIND_COLORS = { object: 'blue', method: 'green', fact: 'volcano', named: 'purple', source: 'default' };
 
 /**
- * Менеджер фасетных тегов банка МЦНМО (geometry_tags) — правка имени и удаление.
- * Открывается из каталога геометрии (режим «Банк МЦНМО»).
+ * Справочник фасетов (geometry_tags) — общий для банка МЦНМО и своих задач:
+ * новый фасет, правка имени, удаление. Кнопка «Фасеты» в банке геометрии.
  */
 export default function GeometryTagsModal({ open, onClose, geoTags, onChanged }) {
   const [kindFilter, setKindFilter] = useState('');
@@ -16,6 +16,30 @@ export default function GeometryTagsModal({ open, onClose, geoTags, onChanged })
   const [drafts, setDrafts] = useState({});   // { id: editedName }
   const [savingId, setSavingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [newKind, setNewKind] = useState('object');
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  const handleCreate = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const dup = allTags.find((t) => t.kind === newKind && (t.name || '').trim().toLowerCase() === name.toLowerCase());
+    if (dup) {
+      message.warning('Такой фасет уже есть');
+      return;
+    }
+    setCreating(true);
+    try {
+      await api.createGeometryTag({ kind: newKind, name });
+      message.success('Фасет добавлен');
+      setNewName('');
+      onChanged?.();
+    } catch {
+      message.error('Не удалось добавить фасет');
+    } finally {
+      setCreating(false);
+    }
+  };
 
   // Плоский список всех тегов из сгруппированного geoTags
   const allTags = useMemo(() => {
@@ -106,10 +130,32 @@ export default function GeometryTagsModal({ open, onClose, geoTags, onChanged })
     <Modal
       open={open}
       onCancel={onClose}
-      title="Теги банка МЦНМО — объекты / методы / факты"
+      title="Фасеты — объекты / методы / факты (общие для банка МЦНМО и своих задач)"
       footer={<Button onClick={onClose}>Закрыть</Button>}
       width={760}
     >
+      <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
+        <Select
+          value={newKind}
+          onChange={setNewKind}
+          style={{ width: 130 }}
+          options={[
+            { value: 'object', label: 'Объект' },
+            { value: 'method', label: 'Метод' },
+            { value: 'fact', label: 'Факт' },
+          ]}
+        />
+        <Input
+          placeholder="Новый фасет, например «Сечение куба»"
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          onPressEnter={handleCreate}
+          maxLength={300}
+        />
+        <Button type="primary" icon={<PlusOutlined />} loading={creating} disabled={!newName.trim()} onClick={handleCreate}>
+          Добавить
+        </Button>
+      </Space.Compact>
       <Space style={{ marginBottom: 12 }} wrap>
         <Select
           value={kindFilter}

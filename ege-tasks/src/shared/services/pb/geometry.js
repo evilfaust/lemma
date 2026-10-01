@@ -260,6 +260,48 @@ export const geometryApi = {
     }
   },
 
+  // Новый фасет (для своих задач). slug — латиница не обязательна, пусть пусто.
+  async createGeometryTag({ kind, name }) {
+    const rec = await pb.collection('geometry_tags').create({ kind, name: String(name).trim() });
+    _logAudit('create', 'geometry_tags', rec.id, `${kind}: ${rec.name}`);
+    return rec;
+  },
+
+  // Соседи задачи из банка МЦНМО с их фасетами — для подсказки фасетов
+  // (utils/geometryFacets.suggestFacets). [{ pct, tags }]
+  async getGeometryFacetNeighbors(taskId, { limit = 12 } = {}) {
+    const similar = await geometryApi.getSimilarGeometryTasks(taskId, { limit, origin: 'mccme' });
+    if (!similar.length) return [];
+    const recs = await getFullListByOr('geometry_tasks', 'id', similar.map((x) => x.task_id), { fields: 'id,tags' });
+    const tagsById = new Map(recs.map((r) => [r.id, r.tags || []]));
+    return similar.map((x) => ({ pct: x.pct, tags: tagsById.get(x.task_id) || [] }));
+  },
+
+  // Массово добавить/снять фасеты у задач — модификаторами tags+/tags-, чтобы
+  // не затирать остальные фасеты каждой задачи. По 6 запросов параллельно.
+  async updateGeometryTasksTags(ids, { add = [], remove = [] } = {}) {
+    const data = {};
+    if (add.length) data['tags+'] = add;
+    if (remove.length) data['tags-'] = remove;
+    if (!Object.keys(data).length) return { ok: 0, failed: 0 };
+    let ok = 0;
+    let failed = 0;
+    const queue = [...ids];
+    const worker = async () => {
+      while (queue.length) {
+        const id = queue.shift();
+        try {
+          await pb.collection('geometry_tasks').update(id, data, { requestKey: null });
+          ok += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, ids.length) }, worker));
+    return { ok, failed };
+  },
+
   async updateGeometryTag(id, data) {
     try {
       return await pb.collection('geometry_tags').update(id, data);

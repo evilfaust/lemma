@@ -5,6 +5,7 @@ import {
   Button,
   Card,
   Checkbox,
+  Dropdown,
   Input,
   Modal,
   Pagination,
@@ -29,6 +30,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
+  TagsOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import { sanitizeSvg } from '../utils/sanitizeSvg';
@@ -37,6 +39,7 @@ import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import GeometryTaskEditor from './GeometryTaskEditor';
 import GeometryBasketBar from './geometry/GeometryBasketBar';
+import { FacetBulkModal, FacetReviewModal } from './geometry/FacetModals';
 import { useGeometryBasket } from '../hooks/useGeometryBasket';
 import MathRenderer from './MathRenderer';
 import { buildGeometryColumns, DIFFICULTY_COLORS, DIFFICULTY_LABELS } from './geometry/GeometryTaskColumns';
@@ -101,6 +104,10 @@ export default function GeometryTaskList() {
   const [editorLoadingId, setEditorLoadingId] = useState(null);
   const [duplicatingId, setDuplicatingId] = useState(null);
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  // Фасеты: массовая правка выделенных и разметка по очереди (снимок очереди)
+  const [facetBulkOpen, setFacetBulkOpen] = useState(false);
+  const [facetQueue, setFacetQueue] = useState(null);
+
   // Карточка задачи: какая открыта и по какому списку листать ← / →
   const [card, setCard] = useState({ id: null, list: [] });
   const [cardBusy, setCardBusy] = useState(null); // 'edit' | 'copy' | 'take'
@@ -351,6 +358,11 @@ export default function GeometryTaskList() {
     setImportResults(null);
   };
 
+  // Свои задачи текущего списка без единого фасета (объект/метод/факт)
+  const facetKinds = new Map();
+  for (const kind of ['object', 'method', 'fact']) for (const t of geoTags[kind] || []) facetKinds.set(t.id, kind);
+  const untagged = tasks.filter((t) => t.origin !== 'mccme' && !(t.tags || []).some((id) => facetKinds.has(id)));
+
   // В области с банком МЦНМО без сужения и без явной «Загрузить все» — режим подсказки
   const bankIdle = needsNarrowing(filters) && !bankLoadAll;
 
@@ -536,6 +548,29 @@ export default function GeometryTaskList() {
             >
               В подборку ({selectedRowKeys.length})
             </Button>
+          )}
+          {canEdit && selectedRowKeys.length > 0 && (
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'bulk', label: 'Добавить / снять фасеты…' },
+                  { key: 'review', label: 'Разметить по очереди (с подсказкой)' },
+                ],
+                onClick: ({ key }) => {
+                  if (key === 'bulk') setFacetBulkOpen(true);
+                  else setFacetQueue(tasks.filter((t) => selectedRowKeys.includes(t.id)));
+                },
+              }}
+            >
+              <Button icon={<TagsOutlined />}>Фасеты ({selectedRowKeys.length})</Button>
+            </Dropdown>
+          )}
+          {canEdit && !selectedRowKeys.length && untagged.length > 0 && (
+            <Tooltip title="Свои задачи списка без фасетов — по очереди, с подсказкой по похожим задачам МЦНМО">
+              <Button icon={<TagsOutlined />} onClick={() => setFacetQueue(untagged)}>
+                Разметить фасетами ({untagged.length})
+              </Button>
+            </Tooltip>
           )}
           <Button icon={<FileTextOutlined />} onClick={() => navigate('/app/geometry/works')}>
             Работы
@@ -834,6 +869,21 @@ export default function GeometryTaskList() {
       />
 
       {canEdit && <GeometryBasketBar onOpenTask={openCardSingle} />}
+
+      <FacetBulkModal
+        open={facetBulkOpen}
+        onClose={() => setFacetBulkOpen(false)}
+        taskIds={selectedRowKeys}
+        geoTags={geoTags}
+        onDone={() => { setFacetBulkOpen(false); loadTasks(); }}
+      />
+      <FacetReviewModal
+        open={!!facetQueue}
+        onClose={() => setFacetQueue(null)}
+        tasks={facetQueue || []}
+        geoTags={geoTags}
+        onSaved={(id, tags) => setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, tags } : t)))}
+      />
 
       <GeometryTaskDrawer
         taskId={card.id}

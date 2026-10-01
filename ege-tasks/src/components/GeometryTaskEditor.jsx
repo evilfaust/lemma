@@ -24,6 +24,7 @@ import { ggbXmlToSvg } from '../utils/ggbToSvg';
 import { stereoDrawingSvg, stereoSpecFromSvg } from '../utils/stereo/dsl';
 import { planimDrawingSvg, planimSpecFromSvg } from '../utils/planim/dsl';
 import { guessGeometrySection } from '../utils/geometrySection';
+import { joinFacets, splitFacets } from '../utils/geometryFacets';
 import useFieldInserts from '../hooks/useFieldInserts';
 import TabCondition from './geometry/TabCondition';
 import TabDrawing from './geometry/TabDrawing';
@@ -156,6 +157,27 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
       })
       .catch(() => {});
   }, []);
+
+  // ── Фасеты (общие с банком МЦНМО, GEOMETRY_TASKS_PLAN.md § 3) ─────────────
+  // Пока справочник не загружен, виды фасетов неизвестны — поле tags тогда
+  // не отправляется вовсе (сохраняется как было).
+  const [geoTags, setGeoTags] = useState(null);
+  const otherTagsRef = useRef([]);
+  useEffect(() => {
+    let alive = true;
+    Promise.resolve(api.getGeometryTags?.())
+      .then((tags) => {
+        if (!alive || !tags) return;
+        const byId = new Map();
+        for (const [kind, arr] of Object.entries(tags)) for (const t of arr || []) byId.set(t.id, { ...t, kind });
+        const parts = splitFacets(task?.tags || [], byId);
+        otherTagsRef.current = parts.other;
+        form.setFieldsValue({ facetsObject: parts.object, facetsMethod: parts.method, facetsFact: parts.fact });
+        setGeoTags(tags);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [task?.id, form]);
 
   // Код новой задачи — следующий свободный GEO-NNN по всей базе.
   useEffect(() => {
@@ -377,6 +399,11 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         },
       };
       if (drawingImageFile) payload.geogebra_image_base64 = drawingImageFile;
+      if (geoTags) {
+        payload.tags = joinFacets({
+          object: values.facetsObject, method: values.facetsMethod, fact: values.facetsFact, other: otherTagsRef.current,
+        });
+      }
 
       if (isCreate) await api.createGeometryTask(payload);
       else await api.updateGeometryTask(task.id, payload);
@@ -472,6 +499,9 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel }) {
         inserts={inserts}
         geoTopics={geoTopics}
         geoSubtopics={geoSubtopics}
+        geoTags={geoTags}
+        taskId={task?.id}
+        onFacetsChange={markDirty}
         selectedTopicId={selectedTopicId}
         onTopicChange={(id) => {
           setSelectedTopicId(id);

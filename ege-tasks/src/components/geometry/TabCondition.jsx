@@ -5,6 +5,9 @@ import MathRenderer from '../MathRenderer';
 import LatexField from '../shared/LatexField';
 import FieldInsertToolbar from '../shared/FieldInsertToolbar';
 import { GEOMETRY_SECTIONS } from '../../utils/geometrySection';
+import { FacetSelect, FacetSuggestions, useTagById } from './FacetFields';
+
+const FACET_FIELDS = { object: 'facetsObject', method: 'facetsMethod', fact: 'facetsFact' };
 
 const { Text } = Typography;
 
@@ -18,8 +21,21 @@ const DIFFICULTY_OPTIONS = [
 
 export default function TabCondition({
   fieldMode = 'plain', previewStatement, onStatementChange, statementRef, inserts,
-  geoTopics, geoSubtopics, selectedTopicId, onTopicChange,
+  geoTopics, geoSubtopics, selectedTopicId, onTopicChange, geoTags = null, taskId = null, onFacetsChange,
 }) {
+  const form = Form.useFormInstance();
+  const tagById = useTagById(geoTags);
+  const facetObject = Form.useWatch('facetsObject', form) || [];
+  const facetMethod = Form.useWatch('facetsMethod', form) || [];
+  const facetFact = Form.useWatch('facetsFact', form) || [];
+  const addFacet = (kind, id) => {
+    const name = FACET_FIELDS[kind];
+    const cur = form.getFieldValue(name) || [];
+    if (!cur.includes(id)) form.setFieldValue(name, [...cur, id]);
+    // setFieldValue не зовёт onValuesChange — отмечаем правку явно
+    form.setFields([{ name, touched: true }]);
+    onFacetsChange?.();
+  };
   const filteredSubtopics = selectedTopicId
     ? geoSubtopics.filter((s) => s.topic === selectedTopicId)
     : geoSubtopics;
@@ -91,6 +107,28 @@ export default function TabCondition({
           />
         </Form.Item>
       </div>
+
+      {geoTags && (
+        <Card
+          size="small"
+          title={<Text style={{ fontSize: 13 }}>Фасеты — общие с банком МЦНМО</Text>}
+          styles={{ body: { padding: '10px 12px' } }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+            {Object.entries(FACET_FIELDS).map(([kind, name]) => (
+              <Form.Item key={kind} name={name} style={{ marginBottom: 8 }}>
+                <FacetSelect kind={kind} geoTags={geoTags} />
+              </Form.Item>
+            ))}
+          </div>
+          <FacetSuggestions
+            taskId={taskId}
+            tagById={tagById}
+            have={[...facetObject, ...facetMethod, ...facetFact]}
+            onAdd={addFacet}
+          />
+        </Card>
+      )}
 
       <Form.Item
         name="statement_md"
