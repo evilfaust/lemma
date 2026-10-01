@@ -113,7 +113,7 @@ export function constructSection(body, given, poly) {
       if (!edge) return false;
       const name = fresh(VERTEX_NAMES);
       if (!name) return false;
-      op({ type: 'intersect', name, l1, l2: [...edge] });
+      op({ type: 'intersect', name, l1, l2: orientEdge(body, edge, [1, 1]).edge });
       known.push({ name, pos: E });
     }
     op({ type: 'segment', ref: [nameAt(side.a), nameAt(side.b)] });
@@ -165,14 +165,17 @@ export function constructSection(body, given, poly) {
     if (c.far > 2.6 * size) return null; // след слишком далеко — чертёж не поместится
     const name = fresh(TRACE_NAMES);
     if (!name) return null;
-    op({ type: 'trace', name, ref: [c.d.na, c.d.nb], plane: [...c.s.face.verts] });
+    op({ type: 'trace', name, ref: [c.d.na, c.d.nb], plane: faceNames(body, c.s.face.verts) });
     known.push({ name, pos: c.T });
     traces += 1;
   }
   if (todo.length) return null;
   op({ type: 'section', pts: given.map((g) => g.name) });
-  const names = poly.map((p) => nameAt(p));
+  let names = poly.map((p) => nameAt(p));
   if (names.some((n) => !n)) return null;
+  // Многоугольник — с первой данной точки (M…), обход тот же
+  const m = names.indexOf(given[0].name);
+  if (m > 0) names = [...names.slice(m), ...names.slice(0, m)];
   return { ops, traces, parallels, names };
 }
 
@@ -268,10 +271,24 @@ function orientEdge(body, edge, ratio) {
   const apex = body.spec.kind === 'pyramid' || body.spec.kind === 'tetra' ? body.order[body.order.length - 1] : null;
   const key = (n) => [n.charCodeAt(0), Number(n.slice(1) || 0)];
   const [u, v] = edge;
-  const flip = apex
+  const flip = apex && (u === apex || v === apex)
     ? v === apex
     : key(u)[0] > key(v)[0] || (key(u)[0] === key(v)[0] && key(u)[1] > key(v)[1]);
   return flip ? { edge: [v, u], ratio: [ratio[1], ratio[0]] } : { edge: [u, v], ratio: [...ratio] };
+}
+
+// Грань по-учебному: вершина пирамиды первой («SAB»), иначе с наименьшей
+// вершины основания, обход сохраняется («AA₁D₁D», а не «DAA₁D₁»). Движку
+// порядок имён грани не важен (findFace ищет по набору).
+function faceNames(body, verts) {
+  const apex = body.spec.kind === 'pyramid' || body.spec.kind === 'tetra' ? body.order[body.order.length - 1] : null;
+  const rank = (n) => (n === apex ? -1 : body.order.indexOf(n));
+  let start = 0;
+  verts.forEach((n, i) => { if (rank(n) < rank(verts[start])) start = i; });
+  const rot = [...verts.slice(start), ...verts.slice(0, start)];
+  // из двух направлений обхода — то, где следующая вершина «меньше»
+  const rev = [rot[0], ...rot.slice(1).reverse()];
+  return rank(rev[1]) < rank(rot[1]) ? rev : rot;
 }
 
 // Ответ «по-школьному»: знаменатель до 4, под корнем до 150
@@ -342,7 +359,7 @@ export function generateSectionTask({ body: bodyKey = 'cube', type = 'build', le
       const st = affineCoords(A, B, C, pos);
       if (!st) continue;
       given.push({
-        name: 'K', face: [...face.verts], pos,
+        name: 'K', face: faceNames(body, face.verts), pos,
         op: { id: 'g2', type: 'pointOnFace', name: 'K', face: [...face.verts], s: st.s, t: st.t },
       });
     }
