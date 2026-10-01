@@ -27,6 +27,7 @@
   передача сцены в редактор — через sessionStorage (`requestOpenInStereoEditor`
   / `takeStereoOpenRequest` в `utils/stereo/dsl.js`).
 - Тесты: +6 (`geometryLinks.test.jsx`).
+- **Деплой 02.10.2026:** учительский `3.9.275-20261001212327` (без миграций).
 
 ## [3.9.274] - 2026-10-02
 
