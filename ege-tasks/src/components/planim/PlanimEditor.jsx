@@ -13,13 +13,15 @@ import PlanimTextModal from './PlanimTextModal';
 import PlanimHelpModal from './PlanimHelpModal';
 import PlanimPointModal from './PlanimPointModal';
 import PlanimFigureModal from './PlanimFigureModal';
+import PlanimMarkTextModal from './PlanimMarkTextModal';
 import StereoLibrary from '../stereo/StereoLibrary';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
   evaluateScene, tryAppendOps, removeOpCascade, applyAction,
   parseCommand, describeOp, freeOrigin, figureOps, figureVertexCount, nextFreeNames,
   TOOLS, toolHint, toolClick, finishPending, chooseHit,
-  pickPoint, pickLines, pickCircle, pickPoly, pickLabel, gridStep,
+  pickPoint, pickLines, pickCircle, pickPoly, pickLabel, pickMarkText, gridStep,
+  setMarkTextPosition, setMarkText, markTextOf,
   draggableOp, dragTarget, dragPosition, setOpPosition, labelAngleAt, snapPosition, snapWorld,
   setPointColors, setSegStyles, setOpStyle, setLabelAngle, newOpId,
   POINT_COLORS, planimFrame, planimSvgString,
@@ -134,6 +136,8 @@ export default function PlanimEditor({
   const [textOpen, setTextOpen] = useState(false);
   const [figureOpen, setFigureOpen] = useState(false);
   const [pointTarget, setPointTarget] = useState(null);
+  // Подпись: { create: true, at } — новая надпись, { opId } — правка готовой
+  const [markTarget, setMarkTarget] = useState(null);
   const [paintColor, setPaintColor] = useState('red');
   const [toolOpts, setToolOpts] = useState({ arcs: 1, angleLabel: '', ticks: 1, measureText: '' });
   const [libOpen, setLibOpen] = useState(false);
@@ -214,6 +218,15 @@ export default function PlanimEditor({
       const op = draggableOp(sceneRef.current, name);
       return op ? dragTarget(model, op) : null;
     }
+    // Подпись пометки тянется в любом инструменте: короткий клик по ней
+    // остаётся кликом инструмента, сдвиг — перетаскивание.
+    const mark = pickMarkText(frame, pt.x, pt.y);
+    if (mark) {
+      return {
+        kind: 'mark', name: null, opId: mark.opId,
+        grab: { dx: pt.x - mark.x, dy: pt.y - (mark.y - 5) },
+      };
+    }
     if (tool !== 'move') return null;
     const label = pickLabel(frame, pt.x, pt.y);
     return label ? { kind: 'label', name: label.name, label } : null;
@@ -224,7 +237,7 @@ export default function PlanimEditor({
     if (phase === 'start') {
       pushHistory(sceneRef.current);
       setPending([]);
-      setDragging(target.name);
+      setDragging(target.name || '#mark'); // у подписи имени нет — курсор всё равно «тащу»
       return;
     }
     if (phase === 'end') {
@@ -233,7 +246,10 @@ export default function PlanimEditor({
       return;
     }
     let next;
-    if (target.kind === 'label') {
+    if (target.kind === 'mark') {
+      // Центр подписи — там, где его держит курсор (с поправкой на место захвата).
+      next = setMarkTextPosition(sceneRef.current, target.opId, frame.toWorld(x - target.grab.dx, y - target.grab.dy));
+    } else if (target.kind === 'label') {
       next = setLabelAngle(sceneRef.current, target.name, labelAngleAt(target.label, x, y));
     } else {
       const pos = dragPosition(target, frame, x, y, { step: altKey ? 0 : gridStep(frame.scale) / 2 });
@@ -262,8 +278,13 @@ export default function PlanimEditor({
   // --- клики по чертежу -----------------------------------------------------
   const handleClick = useCallback(({ x, y, frame, shiftKey, altKey }) => {
     if (tool === 'move' || replay) return;
+    if (tool === 'text') {
+      const mark = pickMarkText(frame, x, y);
+      if (mark) { setMarkTarget({ opId: mark.opId }); return; }
+    }
     const hit = buildHit(frame, x, y, { shift: shiftKey, alt: altKey });
     const r = toolClick(tool, pending, hit, model, toolOpts);
+    if (r.textAt) { setMarkTarget({ create: true, at: r.textAt }); return; }
     if (r.error) showNotice('error', r.error);
     let ok = true;
     if (r.ops?.length) ok = commit(r.ops).ok;
@@ -295,7 +316,9 @@ export default function PlanimEditor({
   const hoverKey = useRef('');
   const handleHover = useCallback(({ x, y, frame }) => {
     const over = pickPoint(frame, x, y);
-    setHoverMovable(!!(over && draggableOp(sceneRef.current, over)) || (tool === 'move' && !over && !!pickLabel(frame, x, y)));
+    setHoverMovable(!!(over && draggableOp(sceneRef.current, over))
+      || (!over && !!pickMarkText(frame, x, y))
+      || (tool === 'move' && !over && !!pickLabel(frame, x, y)));
     if (tool === 'move') {
       if (hoverKey.current) { hoverKey.current = ''; setHover(null); }
       return;
@@ -409,6 +432,34 @@ export default function PlanimEditor({
     const res = commit(r.ops || [r.op], { quiet: true });
     if (!res.ok) { setCmdError(res.error); return; }
     setCmd('');
+  };
+
+  // --- подписи на чертеже ------------------------------------------------------
+  const markOp = markTarget?.opId ? scene.ops.find((o) => o.id === markTarget.opId) : null;
+  const markModal = useMemo(() => {
+    if (!markTarget) return null;
+    if (markTarget.create) return { kind: 'text', text: '', create: true };
+    if (!markOp) return null;
+    return {
+      kind: markOp.type,
+      text: markTextOf(markOp),
+      moved: markOp.type !== 'text' && !!markOp.at,
+    };
+  }, [markTarget, markOp]);
+
+  const applyMarkText = (text) => {
+    const value = String(text || '').trim();
+    const target = markTarget;
+    setMarkTarget(null);
+    if (!target) return;
+    if (target.create) {
+      if (value) commit([{ id: newOpId(), type: 'text', x: target.at.x, y: target.at.y, text: value }]);
+      return;
+    }
+    const op = sceneRef.current.ops.find((o) => o.id === target.opId);
+    if (!op) return;
+    if (!value && op.type !== 'angle') { deleteStep(op.id); return; }
+    setScene(setMarkText(sceneRef.current, op.id, value));
   };
 
   // --- журнал -----------------------------------------------------------------
@@ -555,9 +606,13 @@ export default function PlanimEditor({
             onClick={handleClick}
             onHover={handleHover}
             onDoubleClick={({ x, y, frame }) => {
-              // Двойной клик по точке — её свойства; по пустому месту — вписать.
+              // Двойной клик по точке — её свойства, по подписи — её текст;
+              // по пустому месту — вписать.
+              if (replay) return;
               const name = pickPoint(frame, x, y);
+              const mark = name ? null : pickMarkText(frame, x, y);
               if (name) setPointTarget(name);
+              else if (mark) setMarkTarget({ opId: mark.opId });
               else if (tool === 'move') setView(null);
             }}
             highlight={highlight}
@@ -800,6 +855,16 @@ export default function PlanimEditor({
           setPointTarget(null);
           setPending([]);
         }}
+      />
+      <PlanimMarkTextModal
+        target={markModal}
+        onClose={() => setMarkTarget(null)}
+        onApply={applyMarkText}
+        onDelete={markTarget?.opId ? () => { setMarkTarget(null); deleteStep(markTarget.opId); } : null}
+        onReset={markTarget?.opId ? () => {
+          setScene(setMarkTextPosition(sceneRef.current, markTarget.opId, null));
+          setMarkTarget(null);
+        } : null}
       />
       <PlanimFigureModal
         open={figureOpen}

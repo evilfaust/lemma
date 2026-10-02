@@ -6,7 +6,7 @@
 // Пометки (дуги углов, штрихи равных отрезков, подписи) имеют постоянный
 // экранный размер, поэтому считаются здесь, а не в модели.
 
-import { sub, len, lerp, dist } from './vec2';
+import { add, sub, mul, len, lerp, dist } from './vec2';
 import { POINT_COLORS, pointColorHex, colorKeyFromWord, splitLabel } from '../stereo/render';
 
 export { POINT_COLORS, pointColorHex, colorKeyFromWord, splitLabel };
@@ -262,10 +262,11 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   const center = P(model.center);
   const texts = [];
   const reserved = [];
-  const pushText = (id, x, y, raw, step, size = 15) => {
+  // opId — шаг, чья это подпись (её двигают и правят мышью, pickMarkText).
+  const pushText = (id, x, y, raw, step, opId = id, size = 15) => {
     const text = formatMarkText(raw);
     const w = textWidth(text, size);
-    texts.push({ id, x, y, text, italic: isItalic(text), size, step, w, h: size + 2 });
+    texts.push({ id, opId, x, y, text, italic: isItalic(text), size, step, w, h: size + 2 });
     reserved.push({ x, y, w, h: size + 2 });
   };
 
@@ -298,7 +299,10 @@ export function renderPlanim(model, view, viewport, opts = {}) {
         d: `M${p1.x.toFixed(2)} ${p1.y.toFixed(2)}L${p2.x.toFixed(2)} ${p2.y.toFixed(2)}L${p3.x.toFixed(2)} ${p3.y.toFixed(2)}`,
         box: { x0: Math.min(p1.x, p2.x, p3.x, V.x), y0: Math.min(p1.y, p2.y, p3.y, V.y), x1: Math.max(p1.x, p2.x, p3.x, V.x), y1: Math.max(p1.y, p2.y, p3.y, V.y) },
       });
-      if (an.label) pushText(`${an.id}:t`, V.x + Math.cos(midA) * (s + 16), V.y + Math.sin(midA) * (s + 16) + 5, an.label, an.step);
+      if (an.label) {
+        const at = an.at ? P(add(an.V, an.at)) : { x: V.x + Math.cos(midA) * (s + 16), y: V.y + Math.sin(midA) * (s + 16) };
+        pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id);
+      }
       continue;
     }
     // Узкому углу — дуга подальше, иначе она сливается с вершиной.
@@ -322,7 +326,8 @@ export function renderPlanim(model, view, viewport, opts = {}) {
     if (an.label) {
       const text = formatMarkText(an.label);
       const rl = Math.min(64, Math.max(rMax + 11, 9 / Math.max(0.12, Math.sin(Math.abs(delta) / 2)))) + textWidth(text) * 0.18;
-      pushText(`${an.id}:t`, V.x + Math.cos(midA) * rl, V.y + Math.sin(midA) * rl + 5, an.label, an.step);
+      const at = an.at ? P(add(an.V, an.at)) : { x: V.x + Math.cos(midA) * rl, y: V.y + Math.sin(midA) * rl };
+      pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id);
     }
   }
 
@@ -353,6 +358,12 @@ export function renderPlanim(model, view, viewport, opts = {}) {
     const b = P(ms.b);
     const L = dist(a, b);
     if (L < 1e-6) continue;
+    // Подпись, которую учитель поставил мышью, — на её месте.
+    if (ms.at) {
+      const at = P(add(mul(add(ms.a, ms.b), 0.5), ms.at));
+      pushText(ms.id, at.x, at.y + 5, ms.text, ms.step);
+      continue;
+    }
     const n0 = { x: -(b.y - a.y) / L, y: (b.x - a.x) / L };
     const text = formatMarkText(ms.text);
     const w = textWidth(text);
@@ -481,6 +492,18 @@ export function pickPoly(frame, x, y) {
   for (let i = frame.polys.length - 1; i >= 0; i--) {
     const pg = frame.polys[i];
     if (pg.pts?.length >= 3 && pointInPoly(x, y, pg.pts)) return pg;
+  }
+  return null;
+}
+
+/**
+ * Подпись пометки под курсором — надпись, «длина», подпись угла. Последняя
+ * нарисованная — сверху, её и берём. В ответе opId — шаг журнала.
+ */
+export function pickMarkText(frame, x, y) {
+  for (let i = frame.texts.length - 1; i >= 0; i--) {
+    const t = frame.texts[i];
+    if (Math.abs(x - t.x) <= t.w / 2 + 3 && Math.abs(y - (t.y - 5)) <= t.h / 2 + 2) return t;
   }
   return null;
 }

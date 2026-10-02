@@ -56,6 +56,17 @@ function baseSize(ops) {
   return d > 0 ? d : 4;
 }
 
+/**
+ * Сдвиг подписи пометки, который учитель задал мышью: у «длины» — от
+ * середины отрезка, у угла — от вершины, в единицах чертежа. Без него
+ * подпись ставится сама (render.js). null — сдвига нет.
+ */
+export function markOffset(at) {
+  const x = Number(at?.x);
+  const y = Number(at?.y);
+  return Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+}
+
 /** Ключ отрезка между двумя точками — без учёта порядка: «A-B». */
 export const segKey = (a, b) => [a, b].sort().join('-');
 
@@ -354,6 +365,7 @@ export function evaluateScene(scene, opts = {}) {
             arcs: Math.min(3, Math.max(1, Math.round(Number(op.arcs) || 1))),
             label: op.label ? String(op.label) : '',
             right: !!op.right || Math.abs(deg - 90) < 0.01,
+            at: markOffset(op.at),
             step: stepIdx,
           });
           created.marks.push(opId);
@@ -377,7 +389,9 @@ export function evaluateScene(scene, opts = {}) {
           const L = lineOf(op.ref);
           const text = String(op.text ?? '').trim();
           if (!text) fail('Нет подписи отрезка');
-          measures.push({ id: opId, names: op.ref, a: L.p, b: add(L.p, L.u), text, step: stepIdx });
+          measures.push({
+            id: opId, names: op.ref, a: L.p, b: add(L.p, L.u), text, at: markOffset(op.at), step: stepIdx,
+          });
           created.marks.push(opId);
           break;
         }
@@ -702,6 +716,78 @@ export function setLabelAngle(scene, name, angle) {
   const next = { ...scene, labelAngles };
   if (!Object.keys(labelAngles).length) delete next.labelAngles;
   return next;
+}
+
+// --- подписи пометок: надпись, «длина», подпись угла --------------------------
+//
+// Подпись на чертеже — это шаг журнала (text) или часть шага (measure.text,
+// angle.label). Двигают и правят её мышью, поэтому здесь — чистые операции
+// над сценой: куда подпись встала и что в ней написано.
+
+const round2 = (v) => Math.round(v * 100) / 100 + 0;
+
+/** Откуда отсчитывается сдвиг подписи шага (в единицах чертежа). */
+export function markTextAnchor(model, op) {
+  if (op?.type === 'measure') {
+    const m = model.measures.find((x) => x.id === op.id);
+    return m ? mul(add(m.a, m.b), 0.5) : null;
+  }
+  if (op?.type === 'angle') return model.angles.find((x) => x.id === op.id)?.V || null;
+  if (op?.type === 'text') return { x: 0, y: 0 };
+  return null;
+}
+
+/**
+ * Подпись шага opId встала в точку world (центр текста, единицы чертежа).
+ * Надпись получает новые координаты, «длина» и угол — сдвиг `at` от своей
+ * опоры. world = null снимает сдвиг (подпись снова ставится сама).
+ */
+export function setMarkTextPosition(scene, opId, world) {
+  const model = evaluateScene(scene);
+  return {
+    ...scene,
+    ops: scene.ops.map((op) => {
+      if (op.id !== opId) return op;
+      if (op.type === 'text') {
+        return world ? { ...op, x: round2(world.x), y: round2(world.y) } : op;
+      }
+      const next = { ...op };
+      const anchor = markTextAnchor(model, op);
+      if (world && anchor) next.at = { x: round2(world.x - anchor.x), y: round2(world.y - anchor.y) };
+      else delete next.at;
+      return next;
+    }),
+  };
+}
+
+/** Текст подписи шага: надпись, «длина», подпись угла (пусто — у угла без подписи). */
+export function markTextOf(op) {
+  if (op?.type === 'text' || op?.type === 'measure') return String(op.text ?? '');
+  if (op?.type === 'angle') return String(op.label ?? '');
+  return '';
+}
+
+/**
+ * Новый текст подписи. Пустая надпись или «длина» шагом не бывают —
+ * вызывающий удаляет такой шаг сам (removeOpCascade); у угла пустой текст
+ * снимает подпись, дуга остаётся.
+ */
+export function setMarkText(scene, opId, text) {
+  const value = String(text ?? '').trim();
+  return {
+    ...scene,
+    ops: scene.ops.map((op) => {
+      if (op.id !== opId) return op;
+      if (op.type === 'text' || op.type === 'measure') return { ...op, text: value };
+      if (op.type === 'angle') {
+        const next = { ...op };
+        if (value) next.label = /^\d+(?:[.,]\d+)?$/.test(value) ? `${value}°` : value;
+        else { delete next.label; delete next.at; }
+        return next;
+      }
+      return op;
+    }),
+  };
 }
 
 /** Точки модели, лежащие на прямой p + t·u, по возрастанию t. */

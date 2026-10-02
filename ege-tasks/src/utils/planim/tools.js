@@ -36,6 +36,7 @@ export const TOOLS = [
   { key: 'angle', label: 'Угол', glyph: '∠', hot: 'U', group: 'Пометки' },
   { key: 'tick', label: 'Равные', glyph: '≡', hot: 'E', group: 'Пометки' },
   { key: 'measure', label: 'Длина', glyph: '5', hot: 'D', group: 'Пометки' },
+  { key: 'text', label: 'Надпись', glyph: 'Т', hot: 'Y', group: 'Пометки' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F', group: 'Оформление' },
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'K', group: 'Оформление' },
   { key: 'dash', label: 'Пунктир', glyph: '┄', hot: 'X', group: 'Оформление' },
@@ -114,6 +115,7 @@ export function toolHint(tool, pending = []) {
     case 'angle': return names.length ? `Угол ${names.join('')}… — ещё ${3 - names.length}` : 'Пометка угла: три точки, вершина — вторая (число дуг и подпись — под инструментами)';
     case 'tick': return names.length ? `Отрезок ${names[0]}… — вторая точка` : 'Штрихи равных отрезков: кликайте по отрезкам (число штрихов — под инструментами)';
     case 'measure': return names.length ? `Отрезок ${names[0]}… — вторая точка` : 'Подпись отрезка: клик по отрезку (текст — под инструментами; пусто — его длина)';
+    case 'text': return 'Клик по чертежу — надпись в этом месте (6, 60°, x, α, a ∥ b); клик по подписи — исправить её. Подписи тянутся мышью';
     case 'fill':
       return names.length >= 3
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
@@ -121,7 +123,7 @@ export function toolHint(tool, pending = []) {
     case 'color': return 'Клик по точке, отрезку, окружности или заливке — окрасится выбранным цветом (повторный клик снимает)';
     case 'dash': return 'Клик по отрезку или окружности — пунктир (повторный клик — снова сплошная)';
     case 'rename': return 'Кликните по точке: имя, «скрыть точку». Или двойной клик по точке в любом инструменте';
-    default: return 'Тяните точки и буквы; пустое место — сдвиг чертежа, колёсико — масштаб, двойной клик — вписать';
+    default: return 'Тяните точки, буквы и подписи; двойной клик по подписи — исправить; пустое место — сдвиг чертежа, колёсико — масштаб';
   }
 }
 
@@ -147,6 +149,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'color': return ['point', 'line', 'circle', 'poly'];
     case 'dash': return ['line', 'circle'];
     case 'rename': return ['point'];
+    case 'text': return ['empty'];
     default: return [];
   }
 }
@@ -177,9 +180,17 @@ function pieceOf(model, target) {
  * @param hit  — { point?, line?: { id, ref, t, ratio?, pos, p, u }, line2?, circle?: { id, ref, angle },
  *                 poly?: { id }, pos: { x, y } (мир, с прилипанием), raw: { x, y }, shift? }
  * @param opts — { arcs, angleLabel, ticks, measureText } — настройки пометок
- * @returns {{ pending, ops?, error?, paint?, dash?, rename? }}
+ * @returns {{ pending, ops?, error?, paint?, dash?, rename?, textAt? }}
+ *   textAt — «Надпись»: где её поставить (мир, без прилипания); текст
+ *   спрашивает редактор
  */
 export function toolClick(tool, pending, hit, model, opts = {}) {
+  if (tool === 'text') {
+    const at = hit.raw || hit.pos;
+    if (!at) return { pending: [] };
+    return { pending: [], textAt: { x: Math.round(at.x * 100) / 100 + 0, y: Math.round(at.y * 100) / 100 + 0 } };
+  }
+
   const used = new Set(Object.keys(model.points));
   const fresh = (kind) => {
     const n = nextFreeName(used, kind);

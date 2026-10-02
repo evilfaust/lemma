@@ -127,19 +127,36 @@ function parseLabelDir(word) {
 
 // --- команды с подписью: её текст нельзя «нормализовать» (x не должен стать X) ---
 
+// Сдвиг подписи, поставленной мышью: «длина AB 5 @(0,4; -0,3)» — от середины
+// отрезка, «угол ABC 60 @(0,5; 0,6)» — от вершины (единицы чертежа).
+const AT_TAIL = new RegExp(`\\s*@\\s*\\(\\s*(${NUM})\\s*;\\s*(${NUM})\\s*\\)\\s*$`);
+
+function takeAt(tail) {
+  const src = String(tail || '').replace(/−/g, '-');
+  const m = AT_TAIL.exec(src);
+  if (!m) return { rest: String(tail || '').trim(), at: null };
+  return { rest: src.slice(0, m.index).trim(), at: { x: toNum(m[1]), y: toNum(m[2]) } };
+}
+
+const atText = (at) => (at && Number.isFinite(Number(at.x)) && Number.isFinite(Number(at.y))
+  ? ` @(${fmt(at.x)}; ${fmt(at.y)})` : '');
+
 function parseLabeled(raw, model) {
   let m = /^(?:длина|подпись|length|label)\s+(\S+)(?:\s+(.+))?$/i.exec(raw);
   if (m) {
     const n = splitNames(normalizeCommand(m[1]));
     if (!n || n.length !== 2) throw new Error('Подпись отрезка: «длина AB 5» (без числа — подставится его длина)');
-    let text = (m[2] || '').trim();
+    const { rest, at } = takeAt(m[2]);
+    let text = rest;
     if (!text) {
       const A = model?.points?.[n[0]]?.pos;
       const B = model?.points?.[n[1]]?.pos;
       if (!A || !B) throw new Error(`Нет точки ${prettyName(A ? n[1] : n[0])}`);
       text = fmt2(dist(A, B));
     }
-    return { op: { id: newOpId(), type: 'measure', ref: n, text } };
+    const op = { id: newOpId(), type: 'measure', ref: n, text };
+    if (at) op.at = at;
+    return { op };
   }
 
   m = /^(?:текст|надпись|text)\s+(.+)$/i.exec(raw);
@@ -158,11 +175,13 @@ function parseLabeled(raw, model) {
     if (!n || n.length !== 3) throw new Error('Угол — тремя точками, вершина посередине: «угол ABC»');
     const op = { id: newOpId(), type: 'angle', pts: n };
     if (/^прямой/i.test(m[1])) op.right = true;
-    const words = (m[3] || '').trim().split(/\s+/).filter(Boolean);
+    const { rest, at } = takeAt(m[3]);
+    const words = rest.split(/\s+/).filter(Boolean);
     if (words.length && /^[123]$/.test(words[0])) op.arcs = Number(words.shift());
     let label = words.join(' ');
     if (/^\d+(?:[.,]\d+)?$/.test(label)) label += '°';
     if (label) op.label = label;
+    if (label && at) op.at = at;
     return { op };
   }
   return null;
@@ -667,10 +686,10 @@ export function opToCommand(op) {
     case 'angle': {
       const label = op.label ? String(op.label) : '';
       const arcs = op.arcs > 1 || /^[123]$/.test(label.split(/\s+/)[0] || '') ? ` ${op.arcs || 1}` : '';
-      return `${op.right ? 'прямой угол' : 'угол'} ${n(op.pts)}${arcs}${label ? ` ${label}` : ''}`;
+      return `${op.right ? 'прямой угол' : 'угол'} ${n(op.pts)}${arcs}${label ? ` ${label}${atText(op.at)}` : ''}`;
     }
     case 'tick': return `равны ${(op.segs || []).map(n).join(' ')} ${op.n || 1}`;
-    case 'measure': return `длина ${n(op.ref)} ${op.text}`;
+    case 'measure': return `длина ${n(op.ref)} ${op.text}${atText(op.at)}`;
     case 'text': return `текст (${fmt(op.x)}; ${fmt(op.y)}) ${op.text}`;
     default: return '';
   }
