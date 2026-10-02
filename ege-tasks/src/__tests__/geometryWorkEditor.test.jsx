@@ -87,6 +87,21 @@ describe('редактор геометрической работы', () => {
     expect(data.structure.variants[1].items).toEqual([null, null]);
   });
 
+  it('«Печать → Лист задач»: оба варианта листом Генератора, класс — в шапке', async () => {
+    renderEditor();
+    await screen.findByText('GEO-001');
+    fireEvent.mouseOver(screen.getByText('Печать'));
+    fireEvent.click(await screen.findByText('Лист задач (оформление Генератора)'));
+    expect(await screen.findByText('Оформление')).toBeInTheDocument();
+    await waitFor(() => expect(document.querySelectorAll('.ps-page').length).toBeGreaterThan(0));
+    const pages = [...document.querySelectorAll('.ps-page')].map((p) => p.textContent).join(' ');
+    expect(pages).toMatch(/Контрольная/);
+    expect(pages).toMatch(/Сечение куба/);
+    expect(pages).toMatch(/Угол в пирамиде/); // второй вариант
+    expect(screen.getByDisplayValue('10 класс')).toBeInTheDocument();
+    expect(screen.queryByText('Шифровка по ответам')).toBeNull();
+  });
+
   it('позиции из подборки — в выбранный вариант, подборка пустеет', async () => {
     geometryBasket.add([{ id: 'c', code: 'GEO-003' }]);
     mockApi.getGeometryTasksByIds.mockImplementation((ids) => Promise.resolve(

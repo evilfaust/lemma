@@ -59,7 +59,9 @@ export default function SheetTask({
   const numberLabel = task.numberLabel || '';
   const raw = task.statement_md || '';
   const text = hideTaskPrefixes ? filterTaskText(raw) : raw;
-  const imageUrl = task.has_image ? api.getTaskImageUrl(task) : null;
+  // `figureUrl` — готовый адрес чертежа от вызывающего (у геометрии чертёж
+  // живёт не в tasks: SVG или свой файл, см. utils/geometrySheet.js).
+  const imageUrl = task.figureUrl || (task.has_image ? api.getTaskImageUrl(task) : null);
 
   const dnd = editing?.dragDropHandlers;
   const vi = editing?.variantIndex ?? 0;
@@ -188,22 +190,26 @@ export default function SheetTask({
               />
             </Tooltip>
           )}
-          <Tooltip title="Редактировать задачу">
-            <Button
-              type="text"
-              size="small"
-              icon={<EditOutlined />}
-              onClick={() => editing.onEditTask?.(task)}
-            />
-          </Tooltip>
-          <Tooltip title="Заменить задачу">
-            <Button
-              type="text"
-              size="small"
-              icon={<SwapOutlined />}
-              onClick={() => editing.onReplaceTask?.(vi, taskIndex, task)}
-            />
-          </Tooltip>
+          {editing.onEditTask && (
+            <Tooltip title="Редактировать задачу">
+              <Button
+                type="text"
+                size="small"
+                icon={<EditOutlined />}
+                onClick={() => editing.onEditTask(task)}
+              />
+            </Tooltip>
+          )}
+          {editing.onReplaceTask && (
+            <Tooltip title="Заменить задачу">
+              <Button
+                type="text"
+                size="small"
+                icon={<SwapOutlined />}
+                onClick={() => editing.onReplaceTask(vi, taskIndex, task)}
+              />
+            </Tooltip>
+          )}
         </div>
       )}
     </article>

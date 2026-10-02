@@ -72,7 +72,7 @@ function VariantPages({
     meta.eyebrow, meta.classLabel, meta.dateLabel, meta.duration,
     meta.showStudentFields, meta.showClassField,
     tail ? '1' : '0',
-    tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || 'm'}|${t.figurePlacement || ''}`).join('§'),
+    tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.figureUrl ? t.figureUrl.length : 0}|${t.kimImageSize || 'm'}|${t.figurePlacement || ''}`).join('§'),
   ].join('¦'), [tasks, layout, headerMode, options, meta, tail, columns, margins, pageFormat]);
 
   // Шрифты KaTeX догружаются асинхронно — после готовности меряем заново.

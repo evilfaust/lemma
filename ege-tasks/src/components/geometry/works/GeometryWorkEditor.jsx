@@ -23,6 +23,7 @@ import GeometryParallelPicker from './GeometryParallelPicker';
 import GeometryWorkAnswers from './GeometryWorkAnswers';
 import GeometryTaskPreview from '../../GeometryTaskPreview';
 import GeometryWorksheetPrint from '../../GeometryWorksheetPrint';
+import GeometrySheetPrint from './GeometrySheetPrint';
 import SheetToJournalModal from '../../workspace/journal/SheetToJournalModal';
 import GeometryTaskEditor from '../../GeometryTaskEditor';
 import MathRenderer from '../../MathRenderer';
@@ -43,7 +44,8 @@ const cellStatement = (md) => String(md || '')
  * «позиции × варианты». Задачи приходят из подборки; пустые ячейки других
  * вариантов заполняются параллелями (/geo/similar) — по одной или все сразу.
  * Печать — шаблоны одной работы: карточки A5/A4 (макет хранится в работе),
- * рабочий лист с клеткой, ключ ответов.
+ * лист задач (движок и «Оформление» Генератора), рабочий лист с клеткой,
+ * ключ ответов.
  */
 export default function GeometryWorkEditor() {
   const { workId } = useParams();
@@ -60,7 +62,7 @@ export default function GeometryWorkEditor() {
   const [byId, setById] = useState(() => new Map());
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [view, setView] = useState('edit'); // edit | cards | sheet | answers
+  const [view, setView] = useState('edit'); // edit | cards | print | sheet | answers
   const [printVariant, setPrintVariant] = useState('all');
   const [picker, setPicker] = useState(null); // { row, variant }
   const [card, setCard] = useState({ id: null, list: [] });
@@ -358,6 +360,23 @@ export default function GeometryWorkEditor() {
       </Space>
     );
   }
+  if (view === 'print') {
+    const picked = printVariant === 'all'
+      ? structure.variants.map((_, vi) => vi)
+      : [printVariant];
+    return (
+      <Space direction="vertical" size={12} style={{ width: '100%' }}>
+        <div className="no-print">{variantPicker}</div>
+        <GeometrySheetPrint
+          variants={picked.map((vi) => ({ number: vi + 1, tasks: variantTasks(structure, vi, byId) }))}
+          title={title}
+          classLabel={klass ? `${klass} класс` : ''}
+          onBack={() => setView('edit')}
+          onEditTask={openTaskEditor}
+        />
+      </Space>
+    );
+  }
   if (view === 'sheet') {
     const v = printVariant === 'all' ? 0 : printVariant;
     return (
@@ -490,6 +509,7 @@ export default function GeometryWorkEditor() {
           disabled={!rows}
           menu={{
             items: [
+              { key: 'print', label: 'Лист задач (оформление Генератора)' },
               { key: 'cards', label: 'Карточки A5 / A4' },
               { key: 'sheet', label: 'Рабочий лист с клеткой' },
               { key: 'answers', label: 'Ключ ответов' },

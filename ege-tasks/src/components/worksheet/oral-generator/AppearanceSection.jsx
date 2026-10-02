@@ -123,6 +123,10 @@ export default function AppearanceSection({
   cardSettings,
   patchCardSettings,
   setCardLayout,
+  // Шифровка нужна не везде (у геометрии ответы — не числа); панель открыта
+  // сразу там, где она единственная настройка экрана.
+  allowCryptogram = true,
+  defaultOpen = false,
 }) {
   const lettersCount = getCryptogramLetterCount(cryptogramPhrase);
   const halfSheet = pageFormat === 'half';
@@ -228,7 +232,7 @@ export default function AppearanceSection({
           hint="Готовый ответ под условием — экземпляр для учителя."
           checked={showAnswersInline}
           onChange={setShowAnswersInline}
-          disabled={cryptogramEnabled}
+          disabled={allowCryptogram && cryptogramEnabled}
         />
         <SwitchField
           label="Код задачи"
@@ -425,14 +429,16 @@ export default function AppearanceSection({
           checked={showAnswersPage}
           onChange={setShowAnswersPage}
         />
-        <SwitchField
-          label="Шифровка по ответам"
-          checked={cryptogramEnabled}
-          onChange={setCryptogramEnabled}
-        />
+        {allowCryptogram && (
+          <SwitchField
+            label="Шифровка по ответам"
+            checked={cryptogramEnabled}
+            onChange={setCryptogramEnabled}
+          />
+        )}
       </Space>
 
-      {cryptogramEnabled && (
+      {allowCryptogram && cryptogramEnabled && (
         <Space size={6} style={{ width: '100%', marginTop: 10 }} direction="vertical">
           <Field label="Слово или фраза для шифровки">
             <Input
@@ -464,6 +470,7 @@ export default function AppearanceSection({
 
   return (
     <Collapse
+      defaultActiveKey={defaultOpen ? ['appearance'] : undefined}
       items={[
         {
           key: 'appearance',
