@@ -1,0 +1,60 @@
+/* Живой стереоблок в статье теории (TheoryStereoBlock + useStereoBlocks).
+ * На экране — холст, статичная картинка блока спрятана; в печати и при
+ * экспорте PDF (.theory-exporting) — наоборот: картинка ч/б, без кнопок. */
+
+.theory-stereo {
+  width: 100%;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.theory-stereo-stage {
+  position: relative;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.theory-stereo-stage .stereo-canvas {
+  border-radius: 0;
+}
+
+.theory-stereo-tools {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: flex;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 6px;
+}
+
+.theory-stereo-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.theory-stereo-caption {
+  flex: 1;
+  min-width: 0;
+  color: #374151;
+}
+
+.stereo-block--live > svg,
+.stereo-block--live > .stereo-svg-errors {
+  display: none;
+}
+
+.theory-exporting .stereo-block--live > svg { display: inline; }
+.theory-exporting .stereo-block--live > .stereo-svg-errors { display: block; }
+.theory-exporting .stereo-live-block { display: none; }
+
+@media print {
+  .stereo-block--live > svg { display: inline !important; }
+  .stereo-block--live > .stereo-svg-errors { display: block !important; }
+  .stereo-live-block { display: none !important; }
+}

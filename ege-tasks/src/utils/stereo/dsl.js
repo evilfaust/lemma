@@ -10,6 +10,9 @@
 //   вид 22 22
 //   ```
 //
+// В статье теории блок крутится (components/stereo/TheoryStereoBlock); строка
+// «статично» оставляет его картинкой. Печать и PDF — всегда картинка.
+//
 // Первая строка — тело, дальше — команды строки редактора (commands.js),
 // служебные: «вид yaw pitch [масштаб]», «размер ширина [высота]», «цвет»
 // (по умолчанию чертёж ч/б — печатный стек Lemma печатает только чёрным).
@@ -87,6 +90,13 @@ function bodyShapeLine(s) {
   }
 }
 
+const STILL_RE = /^(статично|статичный|static|без вращения)$/;
+
+/** Блок помечен «статично» — в статье теории его не крутят. */
+export function isStillStereoSpec(text) {
+  return String(text || '').split(/\r?\n/).some((l) => STILL_RE.test(l.replace(/\/\/.*$/, '').trim().toLowerCase()));
+}
+
 /**
  * Разбор блока.
  * @returns {{ scene, camera, size: {width,height}, color: boolean, errors: {line:number, message:string}[] }}
@@ -97,6 +107,7 @@ export function parseStereoBlock(text) {
   let camera = { ...DEFAULT_CAMERA };
   let size = { width: 360, height: 300 };
   let color = false;
+  let still = false;
   let bodySet = false;
   const errors = [];
 
@@ -141,6 +152,8 @@ export function parseStereoBlock(text) {
       return;
     }
     if (/^(цвет|цветной|color)$/.test(low)) { color = true; return; }
+    // «статично» — в статье теории блок остаётся картинкой (не крутится)
+    if (STILL_RE.test(low)) { still = true; return; }
 
     const r = parseCommand(cmd, evaluateScene(scene));
     if (r.error) { errors.push({ line: lineNo, message: r.error }); return; }
@@ -157,7 +170,7 @@ export function parseStereoBlock(text) {
     scene = res.scene;
   });
 
-  return { scene, camera, size, color, errors };
+  return { scene, camera, size, color, still, errors };
 }
 
 /**
@@ -268,9 +281,12 @@ export function stereoSpecFromSvg(svg) {
 }
 
 /** Блок для вставки в текст: с оградой и пустыми строками вокруг. */
-export function stereoBlockMarkdown(scene, camera, { color = false, size = null, format = 'block' } = {}) {
+export function stereoBlockMarkdown(scene, camera, {
+  color = false, size = null, format = 'block', still = false,
+} = {}) {
   let { text } = buildStereoBlock(scene, camera, { color });
   if (size && (size.width !== 360 || size.height !== 300)) text += `\nразмер ${size.width} ${size.height}`;
+  if (still) text += '\nстатично';
   // В строку — для ячейки таблицы: `stereo: куб 4; …` (см. inline.js).
   if (format === 'inline') return `\`stereo: ${stereoInlineFromSpec(text)}\``;
   return `\n\`\`\`stereo\n${text}\n\`\`\`\n`;

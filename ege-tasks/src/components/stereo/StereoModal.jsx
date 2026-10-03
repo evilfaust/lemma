@@ -8,7 +8,8 @@ import { parseStereoBlock } from '../../utils/stereo/dsl';
  * initialSpec — текст блока ```stereo на правку (без ограды) или null.
  * defaultFormat — 'block' (```stereo) | 'inline' (`stereo: …` в ячейку таблицы).
  * showFormat — показывать выбор вида (чертёж геометрической задачи — картинка, ему не нужно).
- * onApply({ scene, camera, color, size, format }) — вставить/обновить чертёж.
+ * onApply({ scene, camera, color, size, format, still }) — вставить/обновить чертёж
+ *   (size и still — из правимого блока, чтобы правка их не теряла).
  */
 export default function StereoModal({
   open, onClose, initialSpec = null, onApply, applyLabel, defaultFormat = 'block', showFormat = true,
@@ -57,7 +58,7 @@ export default function StereoModal({
           initialColor={!!initial?.color}
           applyLabel={applyLabel || (initialSpec ? 'Обновить чертёж' : 'Вставить чертёж')}
           onApply={(scene, camera, { color }) => onApply?.({
-            scene, camera, color, size: initial?.size || null, format,
+            scene, camera, color, size: initial?.size || null, format, still: !!initial?.still,
           })}
         />
       )}

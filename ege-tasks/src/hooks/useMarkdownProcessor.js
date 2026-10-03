@@ -9,7 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import DOMPurify from 'dompurify'
 import { numberLineSvgFromSpec } from '../utils/numberLine'
 import { coordPlotSvgFromSpec } from '../utils/coordPlot'
-import { stereoSvgFromSpec } from '../utils/stereo/dsl'
+import { stereoSvgFromSpec, isStillStereoSpec } from '../utils/stereo/dsl'
 import { stereoSpecFromInline, STEREO_INLINE_WIDTH } from '../utils/stereo/inline'
 import { planimSvgFromSpec } from '../utils/planim/dsl'
 import { planimSpecFromInline, PLANIM_INLINE_WIDTH } from '../utils/planim/inline'
@@ -289,7 +289,10 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
       const spec = decodeEntities(body)
       let svg
       try { svg = stereoSvgFromSpec(spec) } catch { svg = '<span style="color:#b91c1c">Чертёж не построился</span>' }
-      return `<div class="stereo-block" style="text-align:center;margin:10px 0">${svg}</div>`
+      // Исходник — в data-атрибуте: в статье теории блок оживает (useStereoBlocks),
+      // а картинка остаётся для печати и PDF. «статично» — только картинка.
+      const live = isStillStereoSpec(spec) ? '' : ` data-stereo-spec="${escapeAttr(spec)}"`
+      return `<div class="stereo-block"${live} style="text-align:center;margin:10px 0">${svg}</div>`
     },
   )
 

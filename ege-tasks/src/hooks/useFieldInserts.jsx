@@ -361,8 +361,12 @@ export default function useFieldInserts({ form, fields = {} }) {
             initialSpec={stereoTarget.spec || null}
             defaultFormat={stereoTarget.format || 'block'}
             onClose={() => setStereoTarget(null)}
-            onApply={({ scene, camera, color, size, format }) => {
-              applyTarget(stereoTarget, stereoBlockMarkdown(scene, camera, { color, size, format }));
+            onApply={({
+              scene, camera, color, size, format, still,
+            }) => {
+              applyTarget(stereoTarget, stereoBlockMarkdown(scene, camera, {
+                color, size, format, still,
+              }));
               setStereoTarget(null);
             }}
           />

@@ -4,7 +4,7 @@ import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
   PrinterOutlined, BookOutlined
 } from '@ant-design/icons';
-import { useMarkdownProcessor, useGeoGebraInjection } from '../hooks';
+import { useMarkdownProcessor, useGeoGebraInjection, useStereoBlocks } from '../hooks';
 import {
   getPageDimensions, DEFAULT_SETTINGS, printWithPageSize,
   printThemeClass, normalizePrintTheme, loadPrintTheme, savePrintTheme,
@@ -146,6 +146,8 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
 
   // Inject GeoGebra images into rendered HTML
   useGeoGebraInjection(previewRef, printHtml, geogebraAppletsById);
+  // Блоки ```stereo крутятся (печать и PDF — картинка)
+  useStereoBlocks(previewRef, printHtml);
 
   // IntersectionObserver for active TOC item
   useEffect(() => {
@@ -200,6 +202,8 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     const el = previewRef.current;
     const prevPad = el.style.padding;
     const prevWidth = el.style.width;
+    // Живые стереоблоки в PDF — статичной картинкой (theoryStereo.css)
+    el.classList.add('theory-exporting');
     try {
       const dims = getPageDimensions(pageSettings.pageSize, pageSettings.orientation);
       const mT = pageSettings.marginTop ?? DEFAULT_SETTINGS.marginTop;
@@ -222,6 +226,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       console.error('PDF export error:', error);
       message.error('Ошибка при экспорте PDF');
     } finally {
+      el.classList.remove('theory-exporting');
       el.style.padding = prevPad;
       el.style.width = prevWidth;
       setIsExporting(false);

@@ -20,6 +20,8 @@ const PITCH_PER_PX = 0.35;
  * @param getDragTarget — (pt, frame) → цель или null: нажатие на неё и
  *   перетаскивание двигают объект (точку), а не крутят чертёж
  * @param onDrag    — ({ phase: 'start'|'move'|'end', x, y, frame, target })
+ * @param wheelZoom — 'always' (редактор, эфир) или 'modifier' — масштаб только
+ *   с Ctrl/⌘, а простое колёсико листает страницу (блок в статье теории)
  */
 export default function StereoCanvas({
   model,
@@ -34,6 +36,7 @@ export default function StereoCanvas({
   flashStep = null,
   pulse = null,
   cursor = 'grab',
+  wheelZoom = 'always',
   className = '',
   style,
   ariaLabel = 'Стереометрический чертёж',
@@ -160,13 +163,14 @@ export default function StereoCanvas({
     const el = svgRef.current;
     if (!el) return undefined;
     const onWheel = (e) => {
+      if (wheelZoom === 'modifier' && !e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
       const k = Math.exp(-e.deltaY * 0.0015);
       onCameraChange?.(clampCamera({ ...camRef.current, zoom: (camRef.current.zoom || 1) * k }));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [onCameraChange]);
+  }, [onCameraChange, wheelZoom]);
 
   // --- отрисовка ----------------------------------------------------------------
   const hlLine = (s) => highlight?.lines?.has(s.objId) || [...(highlight?.lines || [])].some((id) => s.objId.startsWith(`${id}:e`));

@@ -595,9 +595,13 @@ export default function EditorToolbar({ editorRef }) {
             initialSpec={stereo.spec || null}
             defaultFormat={stereo.format || 'block'}
             onClose={() => setStereo(null)}
-            onApply={async ({ scene, camera, color, size, format }) => {
+            onApply={async ({
+              scene, camera, color, size, format, still,
+            }) => {
               const toMarkdown = await loadStereoMarkdown();
-              const snippet = toMarkdown(scene, camera, { color, size, format });
+              const snippet = toMarkdown(scene, camera, {
+                color, size, format, still,
+              });
               if (!stereo.range || !replaceInEditor(editorRef.current, stereo.range, snippet)) {
                 insertIntoEditor(editorRef.current, { text: snippet });
               }
