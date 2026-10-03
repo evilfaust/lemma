@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Alert, App, Button, Card, Empty, Form, Input, InputNumber, Modal, Segmented, Space, Tag, Tooltip, Typography,
+  Alert, App, Button, Card, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   EyeOutlined, FileAddOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined,
@@ -11,8 +11,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useGeometryBasket } from '../../../hooks/useGeometryBasket';
 import { sanitizeSvg } from '../../../utils/sanitizeSvg';
 import {
-  SECTION_BODIES, SECTION_LEVELS, generateSectionTask, sectionTaskToRecord,
-} from '../../../utils/stereo/sectionTasks';
+  GEN_BODIES, GEN_TYPES, GEN_TYPE_GROUPS, GEN_LEVELS, familyOf, generateGenTask, genTaskToRecord, genCodePrefix, slotPlan,
+} from '../../../utils/stereo/genTasks';
 import { stereoDrawingSvg } from '../../../utils/stereo/dsl';
 import { DEFAULT_CAMERA } from '../../../utils/stereo/camera';
 import { variantLabel } from '../../../utils/geometryWork';
@@ -21,40 +21,33 @@ import SectionStepsModal from './SectionStepsModal';
 
 const { Text } = Typography;
 
-const BODY_OPTIONS = Object.entries(SECTION_BODIES).map(([value, b]) => ({ value, label: b.label }));
-const TYPE_OPTIONS = [
-  { value: 'build', label: 'Построить сечение' },
-  { value: 'area', label: 'Площадь сечения куба' },
-];
-const LEVEL_OPTIONS = [1, 2, 3].map((v) => ({
-  value: v,
-  label: <Tooltip title={SECTION_LEVELS[v]}>{['Простое', 'Среднее', 'Сложное'][v - 1]}</Tooltip>,
+const BODY_OPTIONS = Object.entries(GEN_BODIES).map(([value, b]) => ({ value, label: b.label }));
+const TYPE_OPTIONS = GEN_TYPE_GROUPS.map((group) => ({
+  label: group,
+  title: group,
+  options: Object.entries(GEN_TYPES).filter(([, t]) => t.group === group).map(([value, t]) => ({ value, label: t.label })),
 }));
-
-// Фасеты МЦНМО для сгенерированных задач (по точным именам справочника)
-const FACETS = {
-  cube: 'Куб',
-  prism3: 'Правильная треугольная призма',
-  pyramid4: 'Правильная четырёхугольная пирамида',
-  tetra: 'Правильный тетраэдр',
-};
+const LEVEL_NAMES = ['Простое', 'Среднее', 'Сложное'];
 
 const newSeed = () => Math.floor(Math.random() * 900000) + 100000;
 
-/** Сетка «позиции × варианты»: одинаковые настройки — параллельные задания. */
+/** Сетка «позиции × варианты»: одна позиция во всех вариантах — параллельные задания. */
 function generateSheet(cfg, base) {
   const seen = new Set();
   return Array.from({ length: cfg.variants }, (_, v) => Array.from({ length: cfg.count }, (__, r) => {
+    const plan = slotPlan(cfg.types, cfg.bodies, r);
     let seed = base + v * 1009 + r * 37;
     for (let k = 0; k < 12; k += 1, seed += 7919) {
-      const t = generateSectionTask({ body: cfg.body, type: cfg.type, level: cfg.level, seed });
+      const t = generateGenTask({ ...plan, level: cfg.level, seed });
       if (t && !seen.has(t.statement)) { seen.add(t.statement); return t; }
     }
     return null;
   }));
 }
 
-function TaskCell({ task, onSteps, onReplace, index }) {
+function TaskCell({
+  task, onSteps, onReplace, index, showBody,
+}) {
   const svg = useMemo(() => (task ? sanitizeSvg(stereoDrawingSvg(task.scene, DEFAULT_CAMERA, { width: 360, height: 300 })) : ''), [task]);
   if (!task) {
     return (
@@ -67,7 +60,13 @@ function TaskCell({ task, onSteps, onReplace, index }) {
   return (
     <Card
       size="small"
-      title={<Space size={6}><Text strong>№{index + 1}</Text><Tag style={{ margin: 0 }}>{task.polygon.word}</Tag></Space>}
+      title={(
+        <Space size={6} wrap>
+          <Text strong>№{index + 1}</Text>
+          <Tag style={{ margin: 0 }}>{task.tag}</Tag>
+          {showBody && <Tag color="blue" style={{ margin: 0 }}>{GEN_BODIES[task.body].short}</Tag>}
+        </Space>
+      )}
       extra={(
         <Space size={2}>
           <Tooltip title="Решение по шагам"><Button size="small" type="text" icon={<EyeOutlined />} onClick={onSteps} /></Tooltip>
@@ -89,37 +88,45 @@ function TaskCell({ task, onSteps, onReplace, index }) {
   );
 }
 
+/** Название работы по составу листа. */
+function workTitle(cfg) {
+  const one = GEN_TYPES[cfg.types[0]];
+  const kind = cfg.types.length === 1 ? one.short || one.label : 'Стереометрия';
+  const body = cfg.bodies.length === 1 ? ` · ${GEN_BODIES[cfg.bodies[0]].short}` : '';
+  return `${kind}${body} · ${new Date().toLocaleDateString('ru-RU')}`;
+}
+
 /**
- * Генератор задач на сечения (GEOMETRY_TASKS_PLAN.md § 5): тело, тип,
- * сложность, сколько задач и вариантов → сетка заданий (одна позиция во всех
- * вариантах — параллельные задания) → работа или подборка. Задания сохраняются
- * задачами банка с origin = 'gen' (область «Генератор» в банке).
+ * Генератор задач по стереометрии (GEOMETRY_TASKS_PLAN.md § 5): сечения,
+ * углы, расстояния, объём пирамиды. Несколько типов и тел — по позициям
+ * листа (типы по кругу, тела — после каждого круга типов). Сетка заданий
+ * «позиции × варианты» → работа или подборка. Задания сохраняются задачами
+ * банка с origin = 'gen' (область «Генератор» в банке).
  */
 export default function SectionGenerator() {
   const navigate = useNavigate();
   const { message } = App.useApp();
   const { canEdit } = useAuth();
   const basket = useGeometryBasket();
-  const [cfg, setCfg] = useState({ body: 'cube', type: 'build', level: 2, count: 4, variants: 2 });
+  const [cfg, setCfg] = useState({ bodies: ['cube'], types: ['build'], level: 2, count: 4, variants: 2 });
   const [sheet, setSheet] = useState(null);
   const [steps, setSteps] = useState(null);
   const [saving, setSaving] = useState(false);
   const [workOpen, setWorkOpen] = useState(false);
   const [form] = Form.useForm();
 
-  const set = (patch) => setCfg((c) => {
-    const next = { ...c, ...patch };
-    if (next.type === 'area') next.body = 'cube';
-    return next;
-  });
+  const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
+  const families = [...new Set(cfg.types.map(familyOf))];
+  const ready = cfg.types.length > 0 && cfg.bodies.length > 0;
 
   const run = () => setSheet({ cfg, rows: generateSheet(cfg, newSeed()) });
 
   const replace = (v, r) => setSheet((s) => {
     const rows = s.rows.map((col) => [...col]);
     const taken = new Set(rows.flat().filter(Boolean).map((t) => t.statement));
+    const plan = slotPlan(s.cfg.types, s.cfg.bodies, r);
     for (let k = 0; k < 20; k += 1) {
-      const t = generateSectionTask({ ...s.cfg, seed: newSeed() });
+      const t = generateGenTask({ ...plan, level: s.cfg.level, seed: newSeed() });
       if (t && !taken.has(t.statement)) { rows[v][r] = t; break; }
     }
     return { ...s, rows };
@@ -138,9 +145,8 @@ export default function SectionGenerator() {
       for (const task of col) {
         if (!task) { out.push(null); continue; }
         n += 1;
-        const rec = sectionTaskToRecord(task, { code: `SEC-${stamp}-${n}` });
-        const facetNames = [FACETS[task.body], 'Сечение многогранника', ...(task.type === 'area' ? ['Площадь сечения'] : [])];
-        rec.tags = facetNames.map((nm) => byName.get(nm)).filter(Boolean);
+        const rec = genTaskToRecord(task, { code: `${genCodePrefix(task.type)}-${stamp}-${n}` });
+        rec.tags = [...new Set((task.facets || []).map((nm) => byName.get(nm)).filter(Boolean))];
         const [saved] = await api.createGeneratedGeometryTasks([rec]);
         out.push(saved);
       }
@@ -182,44 +188,70 @@ export default function SectionGenerator() {
   };
 
   const openWork = () => {
-    const b = SECTION_BODIES[sheet.cfg.body];
-    form.setFieldsValue({
-      title: `${sheet.cfg.type === 'area' ? 'Площадь сечения' : 'Сечения'} · ${b.short} · ${new Date().toLocaleDateString('ru-RU')}`,
-      class: null,
-    });
+    form.setFieldsValue({ title: workTitle(sheet.cfg), class: null });
     setWorkOpen(true);
   };
 
   const filled = sheet ? sheet.rows.flat().filter(Boolean).length : 0;
+  const levelHint = families.map((f) => GEN_LEVELS[f][cfg.level]).join('; ');
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card size="small">
         <Space direction="vertical" size={10} style={{ width: '100%' }}>
-          <Space wrap>
-            <Text>Тело</Text>
-            <Segmented
-              value={cfg.body}
-              onChange={(v) => set({ body: v })}
-              options={BODY_OPTIONS.map((o) => ({ ...o, disabled: cfg.type === 'area' && o.value !== 'cube' }))}
-            />
+          <Space wrap align="start" size={16}>
+            <Space direction="vertical" size={4}>
+              <Text>Задания</Text>
+              <Select
+                mode="multiple"
+                value={cfg.types}
+                onChange={(v) => set({ types: v })}
+                options={TYPE_OPTIONS}
+                placeholder="Что решать"
+                style={{ minWidth: 360, maxWidth: 560 }}
+                maxTagCount="responsive"
+                aria-label="Типы заданий"
+              />
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Text>Тела</Text>
+              <Select
+                mode="multiple"
+                value={cfg.bodies}
+                onChange={(v) => set({ bodies: v })}
+                options={BODY_OPTIONS}
+                placeholder="Многогранники"
+                style={{ minWidth: 320, maxWidth: 560 }}
+                maxTagCount="responsive"
+                aria-label="Тела"
+              />
+            </Space>
           </Space>
           <Space wrap size={16}>
-            <Space><Text>Задание</Text><Segmented value={cfg.type} onChange={(v) => set({ type: v })} options={TYPE_OPTIONS} /></Space>
-            <Space><Text>Сложность</Text><Segmented value={cfg.level} onChange={(v) => set({ level: v })} options={LEVEL_OPTIONS} /></Space>
-            <Space><Text>Задач</Text><InputNumber min={1} max={10} value={cfg.count} onChange={(v) => set({ count: v || 1 })} style={{ width: 70 }} /></Space>
+            <Space>
+              <Text>Сложность</Text>
+              <Segmented
+                value={cfg.level}
+                onChange={(v) => set({ level: v })}
+                options={[1, 2, 3].map((v) => ({
+                  value: v,
+                  label: <Tooltip title={families.map((f) => GEN_LEVELS[f][v]).join('; ')}>{LEVEL_NAMES[v - 1]}</Tooltip>,
+                }))}
+              />
+            </Space>
+            <Space><Text>Задач</Text><InputNumber min={1} max={12} value={cfg.count} onChange={(v) => set({ count: v || 1 })} style={{ width: 70 }} /></Space>
             <Space><Text>Вариантов</Text><Segmented value={cfg.variants} onChange={(v) => set({ variants: v })} options={[1, 2, 3, 4]} /></Space>
-            <Button type="primary" icon={<ThunderboltOutlined />} onClick={run}>Сгенерировать</Button>
+            <Button type="primary" icon={<ThunderboltOutlined />} onClick={run} disabled={!ready}>Сгенерировать</Button>
           </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {SECTION_LEVELS[cfg.level]}. Чертёж, ответ и решение по шагам строит одна модель — построение
-            проверено движком. Задачи одной позиции во всех вариантах — параллельные.
+            {levelHint}. Несколько типов и тел чередуются по позициям; задачи одной позиции во всех вариантах —
+            параллельные. Чертёж, ответ и решение даёт одна модель: ответ точный и сверен с чертежом движка.
           </Text>
         </Space>
       </Card>
 
       {!sheet ? (
-        <Empty description="Выберите настройки и нажмите «Сгенерировать»" />
+        <Empty description="Выберите задания, тела и нажмите «Сгенерировать»" />
       ) : (
         <>
           {filled < sheet.rows.flat().length && (
@@ -242,6 +274,7 @@ export default function SectionGenerator() {
                   key={`${v}-${r}-${col[r]?.seed || 'x'}`}
                   task={col[r]}
                   index={r}
+                  showBody={sheet.cfg.bodies.length > 1}
                   onSteps={() => setSteps(col[r])}
                   onReplace={() => replace(v, r)}
                 />

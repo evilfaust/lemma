@@ -23,7 +23,7 @@ import SectionGenerator from '../components/geometry/sections/SectionGenerator';
 describe('генератор сечений — страница', () => {
   beforeEach(() => {
     created = 0;
-    mockNavigate.mockClear();
+    vi.clearAllMocks();
     mockApi.getGeometryTags.mockResolvedValue({
       object: [{ id: 'cube', name: 'Куб' }, { id: 'sec', name: 'Сечение многогранника' }], method: [], fact: [],
     });
@@ -54,5 +54,35 @@ describe('генератор сечений — страница', () => {
     expect(work.structure.variants[0].items).toHaveLength(4);
     expect(work.structure.variants[1].items[0]).toEqual({ task: 't5' });
     expect(mockNavigate).toHaveBeenCalledWith('/app/geometry/works/w9');
+  });
+
+  it('несколько типов и тел: позиции чередуются, у метрических — точный ответ и фасеты', async () => {
+    mockApi.getGeometryTags.mockResolvedValue({
+      object: [{ id: 'cube', name: 'Куб' }, { id: 'skew', name: 'Угол между скрещивающимися прямыми' }],
+      method: [{ id: 'coord', name: 'Метод координат в пространстве' }],
+      fact: [],
+    });
+    const { container } = render(<AntApp><MemoryRouter><SectionGenerator /></MemoryRouter></AntApp>);
+    // Типы: + «Угол между прямыми»
+    fireEvent.mouseDown(container.querySelector('[aria-label="Типы заданий"]').closest('.ant-select').querySelector('.ant-select-selector'));
+    fireEvent.click(await screen.findByTitle('Угол между прямыми'));
+    // Тела: + пирамида
+    fireEvent.mouseDown(container.querySelector('[aria-label="Тела"]').closest('.ant-select').querySelector('.ant-select-selector'));
+    fireEvent.click(await screen.findByTitle('Правильная четырёхугольная пирамида'));
+    fireEvent.click(screen.getByText('Сгенерировать'));
+    expect(await screen.findByText('Вариант 2')).toBeInTheDocument();
+    // 4 позиции: сечение/куб, угол/куб, сечение/пирамида, угол/пирамида — по 2 варианта
+    expect(screen.getAllByText(/Постройте сечение куба/)).toHaveLength(2);
+    expect(screen.getAllByText(/Постройте сечение пирамиды/)).toHaveLength(2);
+    expect(screen.getAllByText(/Найдите угол между прямыми/)).toHaveLength(4);
+
+    fireEvent.click(screen.getByText('Создать работу'));
+    fireEvent.click(await screen.findByText('Создать'));
+    await waitFor(() => expect(mockApi.createGeometryWork).toHaveBeenCalled());
+    const recs = mockApi.createGeneratedGeometryTasks.mock.calls.map((c) => c[0][0]);
+    const angle = recs.find((r) => r.code.startsWith('ANG-'));
+    expect(angle.title).toMatch(/^Угол между прямыми: куб/);
+    expect(angle.tags).toEqual(expect.arrayContaining(['cube', 'skew']));
+    expect(mockApi.createGeometryWork.mock.calls[0][0].title).toMatch(/^Стереометрия · /);
   });
 });

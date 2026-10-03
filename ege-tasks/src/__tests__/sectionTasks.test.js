@@ -90,13 +90,30 @@ describe('площадь сечения куба — точно', () => {
       expect(t.statement).toMatch(/Ребро куба .* равно \$\d+\$.*Найдите площадь сечения/);
       const model = evaluateScene(t.solutionScene);
       const poly = model.polys.find((p) => p.kind === 'section');
-      const k = t.a / 4; // чертёж — куб с ребром 4
-      expect(t.area.value).toBeCloseTo(polyArea(poly.pts) * k * k, 6);
+      // чертёж — тело в настоящих размерах условия
+      expect(t.area.value).toBeCloseTo(polyArea(poly.pts), 6);
       const den = /\{(\d+)\}$/.exec(t.area.latex);
       if (t.area.latex.startsWith('\\dfrac')) expect(Number(den[1])).toBeLessThanOrEqual(4);
       const root = /\\sqrt\{(\d+)\}/.exec(t.area.latex);
       if (root) expect(Number(root[1])).toBeLessThanOrEqual(150);
       expect(t.answer).toBe(`$${t.area.latex}$`);
+    }
+  });
+
+  it('площадь сечения призм, пирамид и тетраэдра — точно и по чертежу', () => {
+    for (const body of Object.keys(SECTION_BODIES)) {
+      for (const level of [1, 2]) {
+        for (let seed = 1; seed <= 4; seed += 1) {
+          const t = generateSectionTask({ body, type: 'area', level, seed });
+          const where = `${body} L${level} seed ${seed}`;
+          expect(t, where).not.toBeNull();
+          expect(t.statement, where).toMatch(/Найдите площадь сечения/);
+          expect(t.dims, where).toBeTruthy();
+          const poly = evaluateScene(t.solutionScene).polys.find((p) => p.kind === 'section');
+          expect(t.area.value, where).toBeCloseTo(polyArea(poly.pts), 6);
+          expect(t.facets, where).toContain('Площадь сечения');
+        }
+      }
     }
   });
 

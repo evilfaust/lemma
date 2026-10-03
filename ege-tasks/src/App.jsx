@@ -326,7 +326,7 @@ const ROUTE_META = [
   { re: /^\/app\/geometry\/tasks/,         menuKey: 'geometry-tasks',   menuGroup: 'geometry', title: 'Геометрические задачи' },
   { re: /^\/app\/geometry\/topics/,        menuKey: 'geometry-topics',  menuGroup: 'geometry', title: 'Геометрия — Темы и подтемы' },
   { re: /^\/app\/geometry\/works$/,        menuKey: 'geometry-works',   menuGroup: 'geometry', title: 'Геометрия — Работы' },
-  { re: /^\/app\/geometry\/sections/,      menuKey: 'geometry-sections', menuGroup: 'geometry', title: 'Геометрия — Генератор сечений' },
+  { re: /^\/app\/geometry\/sections/,      menuKey: 'geometry-sections', menuGroup: 'geometry', title: 'Геометрия — Генератор задач' },
   { re: /^\/app\/geometry\/works\/[^/]+/,  menuKey: 'geometry-work',    menuGroup: 'geometry', title: 'Геометрия — Работа' },
   { re: /^\/app\/geometry\/stereo/,        menuKey: 'geometry-stereo',  menuGroup: 'geometry', title: 'Геометрия — Стереометрия' },
   { re: /^\/app\/geometry\/planim/,        menuKey: 'geometry-planim',  menuGroup: 'geometry', title: 'Геометрия — Планиметрия' },
@@ -789,7 +789,7 @@ function AppLayout() {
       children: [
         { key: 'geometry-tasks',   icon: <UnorderedListOutlined />, label: 'Задачи' },
         { key: 'geometry-works',   icon: <FileTextOutlined />,      label: 'Работы' },
-        { key: 'geometry-sections', icon: <ThunderboltOutlined />,  label: 'Генератор сечений' },
+        { key: 'geometry-sections', icon: <ThunderboltOutlined />,  label: 'Генератор задач' },
         { key: 'geometry-planim',  icon: <RadiusSettingOutlined />, label: 'Планиметрия' },
         { key: 'geometry-stereo',  icon: <CodeSandboxOutlined />,   label: 'Стереометрия' },
         { key: 'geometry-topics',  icon: <FolderOutlined />,        label: 'Темы и подтемы', editOnly: true },

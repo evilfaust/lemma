@@ -8,9 +8,9 @@
 // Задание, которое модель не подтвердила (построение не сошлось с сечением),
 // отбраковывается.
 //
-// Площадь сечения куба считается точно — в рациональных числах (BigInt):
-// при целом ребре и рациональных долях координаты вершин сечения
-// рациональны, а площадь = √(рациональное) → «k√m / q».
+// Площадь сечения считается точно для любого тела каталога (genBodies.js):
+// при рациональных долях точек вершины сечения лежат в «решётке» тела, а
+// площадь = √(рациональное) → «k√m / q» (exact.js).
 
 import { buildBody } from './bodies';
 import { evaluateScene } from './scene';
@@ -19,17 +19,24 @@ import { sub, mul, add, dot, dist, distToLine, paramOnLine } from './vec3';
 import { describeOp } from './commands';
 import { stereoDrawingSvg, stereoBlockMarkdown } from './dsl';
 import { DEFAULT_CAMERA } from './camera';
+import {
+  Q, qsub, qmul, qdiv, qsign, qzero, vadd, vsub, vscale, ccross, ldot, vreal, polygonArea2,
+  sqrtQ, surdLatex, surdValue,
+} from './exact';
+import {
+  GEN_BODIES, texName, texNames, scaleDims, maxDim, bodyIntro,
+} from './genBodies';
 
-export const SECTION_BODIES = {
-  cube: { label: 'Куб', short: 'куб', spec: { kind: 'cube', a: 4 } },
-  prism3: { label: 'Правильная треугольная призма', short: 'призма', spec: { kind: 'prism', n: 3, a: 4, h: 4.8 } },
-  pyramid4: { label: 'Правильная четырёхугольная пирамида', short: 'пирамида', spec: { kind: 'pyramid', n: 4, a: 4, h: 4.4, apex: 'S' } },
-  tetra: { label: 'Тетраэдр', short: 'тетраэдр', spec: { kind: 'tetra', a: 4, apex: 'D' } },
-};
+export { texName };
+
+/** Тела генератора сечений: чертёж для «Постройте сечение» — draw каталога. */
+export const SECTION_BODIES = Object.fromEntries(Object.entries(GEN_BODIES).map(([key, b]) => [
+  key, { label: b.label, short: b.short, spec: b.draw },
+]));
 
 export const SECTION_TYPES = {
   build: { label: 'Построить сечение' },
-  area: { label: 'Площадь сечения (куб)' },
+  area: { label: 'Площадь сечения' },
 };
 
 export const SECTION_LEVELS = {
@@ -42,7 +49,9 @@ const RATIOS = [[1, 1], [1, 2], [2, 1], [1, 3], [3, 1]];
 const GIVEN_NAMES = ['M', 'N', 'K'];
 const VERTEX_NAMES = ['L', 'P', 'Q', 'R', 'E', 'F', 'G'];
 const TRACE_NAMES = ['X', 'Y', 'Z', 'T', 'U', 'V', 'W'];
-const POLY_WORDS = { 3: 'треугольник', 4: 'четырёхугольник', 5: 'пятиугольник', 6: 'шестиугольник' };
+const POLY_WORDS = {
+  3: 'треугольник', 4: 'четырёхугольник', 5: 'пятиугольник', 6: 'шестиугольник', 7: 'семиугольник', 8: 'восьмиугольник',
+};
 
 /** Детерминированный ГПСЧ (mulberry32) — задание воспроизводится по seed. */
 export function rng(seed) {
@@ -57,10 +66,6 @@ export function rng(seed) {
 }
 
 const pick = (rand, arr) => arr[Math.floor(rand() * arr.length)];
-
-/** «A1» → «A_1» для LaTeX. */
-export const texName = (name) => String(name).replace(/(\d+)/, '_{$1}').replace(/_\{(\d)\}/, '_$1');
-const texNames = (arr) => arr.map(texName).join('');
 
 // ─── построение методом следов ────────────────────────────────────────────
 
@@ -179,95 +184,76 @@ export function constructSection(body, given, poly) {
   return { ops, traces, parallels, names };
 }
 
-// ─── точная площадь (куб) ─────────────────────────────────────────────────
+// ─── точная площадь ──────────────────────────────────────────────────────
 
-const bgcd = (a, b) => { let x = a < 0n ? -a : a; let y = b < 0n ? -b : b; while (y) [x, y] = [y, x % y]; return x || 1n; };
-const F = (n, d = 1n) => {
-  let nn = BigInt(n);
-  let dd = BigInt(d);
-  if (dd < 0n) { nn = -nn; dd = -dd; }
-  const g = bgcd(nn, dd);
-  return { n: nn / g, d: dd / g };
-};
-const fa = (a, b) => F(a.n * b.d + b.n * a.d, a.d * b.d);
-const fs = (a, b) => F(a.n * b.d - b.n * a.d, a.d * b.d);
-const fm = (a, b) => F(a.n * b.n, a.d * b.d);
-const fdiv = (a, b) => F(a.n * b.d, a.d * b.n);
-const fsign = (a) => (a.n > 0n ? 1 : a.n < 0n ? -1 : 0);
-const V = (x, y, z) => ({ x, y, z });
-const vs = (a, b) => V(fs(a.x, b.x), fs(a.y, b.y), fs(a.z, b.z));
-const va = (a, b) => V(fa(a.x, b.x), fa(a.y, b.y), fa(a.z, b.z));
-const vm = (a, k) => V(fm(a.x, k), fm(a.y, k), fm(a.z, k));
-const vdot = (a, b) => fa(fa(fm(a.x, b.x), fm(a.y, b.y)), fm(a.z, b.z));
-const vcross = (a, b) => V(
-  fs(fm(a.y, b.z), fm(a.z, b.y)),
-  fs(fm(a.z, b.x), fm(a.x, b.z)),
-  fs(fm(a.x, b.y), fm(a.y, b.x)),
-);
-
-/** √N = k·√m (m без квадратов). */
-function sqrtParts(N) {
-  let k = 1n;
-  let m = N;
-  for (let p = 2n; p * p <= m; p += 1n) {
-    while (m % (p * p) === 0n) { m /= p * p; k *= p; }
-  }
-  return { k, m };
+/** Точка на ребре в решётке: U + (W − U)·p/(p+q). */
+export function latticeEdgePoint(lat, edge, ratio) {
+  const U = lat.vertices[edge[0]];
+  const W = lat.vertices[edge[1]];
+  return vadd(U, vscale(vsub(W, U), Q(ratio[0], ratio[0] + ratio[1])));
 }
 
 /**
- * Площадь сечения куба с ребром a: { latex, value }.
- * @param {Array<{edge:[string,string], ratio:[number,number]}>} given — точки на рёбрах
- * @param {Array<{x,y,z}>} polyOrder — вершины сечения движка (задают обход)
+ * Квадрат площади сечения тела плоскостью трёх точек на рёбрах (точно).
+ * Вершины сечения — пересечения плоскости с рёбрами (и вершины тела в ней);
+ * обход — по углу вокруг центра, площадь — exact.polygonArea2.
+ * @returns {{ area2, count }} | null
  */
-export function exactCubeSectionArea(body, a, given, polyOrder) {
-  // Вершины куба в рамке [0, a]³ (движок центрирует тело в нуле)
-  const vx = {};
-  for (const name of body.order) {
-    const p = body.vertices[name];
-    vx[name] = V(F(p.x > 0 ? a : 0), F(p.y > 0 ? a : 0), F(p.z > 0 ? a : 0));
-  }
-  const pts = given.map(({ edge, ratio }) => va(vx[edge[0]], vm(vs(vx[edge[1]], vx[edge[0]]), F(ratio[0], ratio[0] + ratio[1]))));
-  const n = vcross(vs(pts[1], pts[0]), vs(pts[2], pts[0]));
-  const d = vdot(n, pts[0]);
+export function exactSectionArea2(lat, edges, given) {
+  const pts = given.map(({ edge, ratio }) => latticeEdgePoint(lat, edge, ratio));
+  const c = ccross(vsub(pts[1], pts[0]), vsub(pts[2], pts[0]));
+  if (c.every(qzero)) return null;
+  const one = [1, 1, 1];
+  const d = ldot(one, c, pts[0]);
   const sec = [];
-  for (const [u, w] of body.edges) {
-    const du = fs(vdot(n, vx[u]), d);
-    const dw = fs(vdot(n, vx[w]), d);
-    if (fsign(du) * fsign(dw) < 0) {
-      const t = fdiv(du, fs(du, dw));
-      sec.push(va(vx[u], vm(vs(vx[w], vx[u]), t)));
-    }
+  const push = (P) => { if (!sec.some((X) => X.every((x, i) => x.n === P[i].n && x.d === P[i].d))) sec.push(P); };
+  for (const [u, w] of edges) {
+    const U = lat.vertices[u];
+    const W = lat.vertices[w];
+    const du = qsub(ldot(one, c, U), d);
+    const dw = qsub(ldot(one, c, W), d);
+    if (qzero(du)) push(U);
+    if (qzero(dw)) push(W);
+    if (qsign(du) * qsign(dw) < 0) push(vadd(U, vscale(vsub(W, U), qdiv(du, qsub(du, dw)))));
   }
-  // Порядок обхода — как у сечения движка (сопоставление по ближайшей точке)
-  const scale = a / body.spec.a;
-  const toWorld = (p) => ({
-    x: (Number(p.x.n) / Number(p.x.d)) / scale - body.spec.a / 2,
-    y: (Number(p.y.n) / Number(p.y.d)) / scale - body.spec.a / 2,
-    z: (Number(p.z.n) / Number(p.z.d)) / scale - body.spec.a / 2,
+  if (sec.length < 3) return null;
+  // Обход по углу в плоскости сечения (в настоящих координатах)
+  const real = sec.map((P) => vreal(lat.g, P));
+  const cx = real.reduce((acc, p) => acc.map((x, i) => x + p[i] / real.length), [0, 0, 0]);
+  const e1 = real[0].map((x, i) => x - cx[i]);
+  const e2raw = real[1].map((x, i) => x - cx[i]);
+  const n = [e1[1] * e2raw[2] - e1[2] * e2raw[1], e1[2] * e2raw[0] - e1[0] * e2raw[2], e1[0] * e2raw[1] - e1[1] * e2raw[0]];
+  const e2 = [n[1] * e1[2] - n[2] * e1[1], n[2] * e1[0] - n[0] * e1[2], n[0] * e1[1] - n[1] * e1[0]];
+  const ang = real.map((p) => {
+    const v = p.map((x, i) => x - cx[i]);
+    return Math.atan2(v[0] * e2[0] + v[1] * e2[1] + v[2] * e2[2], v[0] * e1[0] + v[1] * e1[1] + v[2] * e1[2]);
   });
-  const ordered = polyOrder.map((P) => sec.reduce((best, q) => (dist(toWorld(q), P) < dist(toWorld(best), P) ? q : best), sec[0]));
-  let S = V(F(0), F(0), F(0));
-  for (let i = 0; i < ordered.length; i += 1) S = va(S, vcross(ordered[i], ordered[(i + 1) % ordered.length]));
-  // |S|/2: площадь² = (Sx² + Sy² + Sz²) / 4
-  const q2 = fdiv(vdot(S, S), F(4));
-  const { k: k0, m } = sqrtParts(q2.n * q2.d);
-  const g = bgcd(k0, q2.d);
-  const k = k0 / g;
-  const q = q2.d / g;
-  const num = m === 1n ? `${k}` : `${k === 1n ? '' : k}\\sqrt{${m}}`;
-  const latex = q === 1n ? num : `\\dfrac{${num}}{${q}}`;
-  const value = (Number(k) * Math.sqrt(Number(m))) / Number(q);
-  return { latex, value };
+  const order = sec.map((_, i) => i).sort((i, j) => ang[i] - ang[j]);
+  return { area2: polygonArea2(lat.g, order.map((i) => sec[i])), count: sec.length };
+}
+
+/** √(площадь²) → { latex, value }; null — числа слишком велики. */
+export function areaFromSquare(area2) {
+  const s = sqrtQ(area2);
+  return s ? { latex: surdLatex(s), value: surdValue(s), surd: s } : null;
+}
+
+/**
+ * Площадь сечения куба с ребром a: { latex, value } (для совместимости;
+ * общий случай — exactSectionArea2).
+ * @param {Array<{edge:[string,string], ratio:[number,number]}>} given — точки на рёбрах
+ */
+export function exactCubeSectionArea(body, a, given) {
+  const lat = GEN_BODIES.cube.lattice({ a });
+  const r = exactSectionArea2(lat, body.edges, given);
+  return r ? areaFromSquare(r.area2) : null;
 }
 
 // ─── генерация задания ────────────────────────────────────────────────────
 
-const lcm = (a, b) => { const g = Number(bgcd(BigInt(a), BigInt(b))); return (a / g) * b; };
-
 // Ребро по-учебному: вершина пирамиды первой («SA»), иначе по алфавиту и
 // индексу («A₁D₁», а не «D₁A₁»). Доля переворачивается вместе с ребром.
-function orientEdge(body, edge, ratio) {
+export function orientEdge(body, edge, ratio) {
   const apex = body.spec.kind === 'pyramid' || body.spec.kind === 'tetra' ? body.order[body.order.length - 1] : null;
   const key = (n) => [n.charCodeAt(0), Number(n.slice(1) || 0)];
   const [u, v] = edge;
@@ -280,7 +266,7 @@ function orientEdge(body, edge, ratio) {
 // Грань по-учебному: вершина пирамиды первой («SAB»), иначе с наименьшей
 // вершины основания, обход сохраняется («AA₁D₁D», а не «DAA₁D₁»). Движку
 // порядок имён грани не важен (findFace ищет по набору).
-function faceNames(body, verts) {
+export function faceNames(body, verts) {
   const apex = body.spec.kind === 'pyramid' || body.spec.kind === 'tetra' ? body.order[body.order.length - 1] : null;
   const rank = (n) => (n === apex ? -1 : body.order.indexOf(n));
   let start = 0;
@@ -292,29 +278,14 @@ function faceNames(body, verts) {
 }
 
 // Ответ «по-школьному»: знаменатель до 4, под корнем до 150
-const niceArea = (latex) => {
-  const den = latex.startsWith('\\dfrac') ? /\{(\d+)\}$/.exec(latex) : null;
-  const root = /\\sqrt\{(\d+)\}/.exec(latex);
-  return (!den || Number(den[1]) <= 4) && (!root || Number(root[1]) <= 150);
-};
+const niceArea = (s) => s && s.q <= 4n && s.m <= 150n && s.k <= 999n;
 
-function describeGiven(g) {
+export function describeGiven(g) {
   if (g.face) return `точка $${g.name}$ лежит в грани $${texNames(g.face)}$`;
   const [u, v] = g.edge;
   const [p, q] = g.ratio;
   if (p === q) return `точка $${g.name}$ — середина ребра $${texNames([u, v])}$`;
   return `точка $${g.name}$ лежит на ребре $${texNames([u, v])}$, причём $${texName(u)}${g.name}:${g.name}${texName(v)} = ${p}:${q}$`;
-}
-
-function bodyIntro(key, body, a) {
-  const names = texNames(body.order);
-  if (key === 'cube') return a ? `Ребро куба $${names}$ равно $${a}$.` : `Дан куб $${names}$.`;
-  if (key === 'prism3') return `Дана правильная треугольная призма $${names}$.`;
-  if (key === 'pyramid4') {
-    const apex = body.order[body.order.length - 1];
-    return `Дана правильная четырёхугольная пирамида $${texName(apex)}${texNames(body.order.slice(0, -1))}$.`;
-  }
-  return `Дан тетраэдр $${texName(body.order[body.order.length - 1])}${texNames(body.order.slice(0, -1))}$.`;
 }
 
 function classify(c, poly, hasFacePoint) {
@@ -323,22 +294,45 @@ function classify(c, poly, hasFacePoint) {
   return 2;
 }
 
+// Масштаб тела для площади: размеры до 12, ответ — «школьный». Площадь²
+// растёт как k⁴, поэтому достаточно пересчитать квадрат.
+function pickAreaScale(rand, shape, area2) {
+  const options = [];
+  for (let k = 1; maxDim(shape) * k <= 12; k += 1) {
+    const s = sqrtQ(qmul(area2, Q(k ** 4)));
+    if (niceArea(s) && maxDim(shape) * k >= 2) options.push(k);
+  }
+  return options.length ? pick(rand, options) : null;
+}
+
 /**
  * Сгенерировать задание на сечение.
- * @param {{ body: 'cube'|'prism3'|'pyramid4'|'tetra', type: 'build'|'area', level: 1|2|3, seed: number }} opts
+ * @param {{ body: string, type: 'build'|'area', level: 1|2|3, seed: number }} opts —
+ *   body — ключ каталога GEN_BODIES
  * @returns {object|null} — null, если за отведённые попытки подходящее не нашлось
  */
 export function generateSectionTask({ body: bodyKey = 'cube', type = 'build', level = 2, seed = 1, attempts = 3000 } = {}) {
-  const def = SECTION_BODIES[bodyKey] || SECTION_BODIES.cube;
+  const bodyK = bodyKey in GEN_BODIES ? bodyKey : 'cube';
+  const def = GEN_BODIES[bodyK];
   const kind = type === 'area' ? 'area' : 'build';
-  const bodyK = kind === 'area' ? 'cube' : bodyKey in SECTION_BODIES ? bodyKey : 'cube';
-  const spec = (SECTION_BODIES[bodyK] || def).spec;
-  const body = buildBody(spec);
+  // У треугольных пирамид сечение — не больше четырёхугольника, а точку в
+  // грани для площади не взять (её место задано только рисунком): самое
+  // сложное, что есть, — уровень 2.
+  const want = kind === 'area' && def.n === 3 && !def.prism ? Math.min(level, 2) : level;
   const rand = rng(seed);
-  const size = body.size;
+  // Площадь — с числами: форма тела из каталога, масштаб — под ответ
+  let shape = null;
+  let body = buildBody(def.draw);
+  let size = body.size;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const useFace = kind === 'build' && level === 3 && rand() < 0.4;
+    // Площадь: форма тела из каталога; не выходит «школьный» ответ — другая форма
+    if (kind === 'area' && attempt % 300 === 0) {
+      shape = def.shape(rand);
+      body = buildBody(def.spec(shape));
+      size = body.size;
+    }
+    const useFace = kind === 'build' && want === 3 && rand() < 0.4;
     const edges = [...body.edges].sort(() => rand() - 0.5).slice(0, useFace ? 2 : 3);
     const given = edges.map((rawEdge, i) => {
       const { edge, ratio } = orientEdge(body, rawEdge, pick(rand, RATIOS));
@@ -379,7 +373,20 @@ export function generateSectionTask({ body: bodyKey = 'cube', type = 'build', le
     const c = constructSection(body, given, poly);
     if (!c) continue;
     const lv = classify(c, poly, useFace);
-    if (lv !== level) continue;
+    if (lv !== want) continue;
+
+    // Площадь — точно; масштаб тела подбирается под «школьный» ответ
+    let dims = null;
+    let area = null;
+    if (kind === 'area') {
+      const exact = exactSectionArea2(def.lattice(shape), body.edges, given);
+      if (!exact || exact.count !== poly.length) continue;
+      const k = pickAreaScale(rand, shape, exact.area2);
+      if (!k) continue;
+      dims = scaleDims(shape, k);
+      area = areaFromSquare(qmul(exact.area2, Q(k ** 4)));
+    }
+    const spec = dims ? def.spec(dims) : def.draw;
 
     const givenOps = given.map((g) => g.op);
     const scene = { body: spec, ops: givenOps };
@@ -387,32 +394,25 @@ export function generateSectionTask({ body: bodyKey = 'cube', type = 'build', le
     // Модель подтверждает: все шаги без ошибок, сечение то же
     const model = evaluateScene(solutionScene);
     if (model.steps.some((s) => !s.ok)) continue;
+    if (area) {
+      const sec = model.polys.find((p) => p.kind === 'section');
+      if (!sec || Math.abs(polyAreaFloat(sec.pts) - area.value) > 1e-6 * Math.max(1, area.value)) continue;
+    }
 
     const polyName = c.names.join('');
     const word = POLY_WORDS[poly.length] || `${poly.length}-угольник`;
-    let a = null;
-    let area = null;
-    if (kind === 'area') {
-      const L = given.reduce((acc, g) => lcm(acc, g.ratio[0] + g.ratio[1]), 1);
-      const options = [];
-      for (let m = L; m <= 12; m += L) if (m >= 3) options.push(m);
-      if (!options.length) options.push(L);
-      a = pick(rand, options);
-      area = exactCubeSectionArea(body, a, given, poly);
-      if (!niceArea(area.latex)) continue;
-    }
 
     const points = given.map(describeGiven);
-    const intro = bodyIntro(bodyK, body, a);
-    const what = bodyK === 'cube' ? 'куба' : bodyK === 'prism3' ? 'призмы' : bodyK === 'pyramid4' ? 'пирамиды' : 'тетраэдра';
+    const intro = bodyIntro(bodyK, model.body.order, dims, kind === 'area');
     const planeTex = `${given.map((g) => g.name).join('')}`;
     const pointsText = `${points.join(', ')}${useFace ? ' (см. рисунок)' : ''}.`;
     const statement = kind === 'area'
-      ? `${intro} ${pointsText[0].toUpperCase()}${pointsText.slice(1)} Найдите площадь сечения куба плоскостью $${planeTex}$.`
-      : `${intro} ${pointsText[0].toUpperCase()}${pointsText.slice(1)} Постройте сечение ${what} плоскостью $${planeTex}$.`;
+      ? `${intro} ${pointsText[0].toUpperCase()}${pointsText.slice(1)} Найдите площадь сечения ${def.gen} плоскостью $${planeTex}$.`
+      : `${intro} ${pointsText[0].toUpperCase()}${pointsText.slice(1)} Постройте сечение ${def.gen} плоскостью $${planeTex}$.`;
 
     return {
-      seed, body: bodyK, type: kind, level, a,
+      family: 'section',
+      seed, body: bodyK, type: kind, level: want, dims, a: dims?.a ?? null,
       scene, solutionScene, model,
       given: given.map(({ name, edge, ratio, face }) => ({ name, edge, ratio, face })),
       polygon: { count: poly.length, word, names: c.names },
@@ -421,9 +421,22 @@ export function generateSectionTask({ body: bodyKey = 'cube', type = 'build', le
       answer: kind === 'area' ? `$${area.latex}$` : `${word[0].toUpperCase()}${word.slice(1)} $${c.names.map(texName).join('')}$`,
       area,
       polyName,
+      tag: word,
+      facets: [def.facet, 'Сечение многогранника', ...(kind === 'area' ? ['Площадь сечения'] : [])],
     };
   }
   return null;
+}
+
+/** Площадь плоского многоугольника модели (числами, для сверки). */
+function polyAreaFloat(pts) {
+  let s = { x: 0, y: 0, z: 0 };
+  for (let i = 0; i < pts.length; i += 1) {
+    const P = pts[i];
+    const R = pts[(i + 1) % pts.length];
+    s = add(s, { x: P.y * R.z - P.z * R.y, y: P.z * R.x - P.x * R.z, z: P.x * R.y - P.y * R.x });
+  }
+  return Math.hypot(s.x, s.y, s.z) / 2;
 }
 
 /** Шаги построения (без данных точек) — для текста решения. */
