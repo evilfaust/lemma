@@ -31,6 +31,7 @@ import {
 } from './scene';
 import { colorKeyFromWord } from './render';
 import { nextFreeName, nextFootName } from './naming';
+import { makeMeasure, makeVertexAngle } from './measure';
 
 const CYR_TO_LAT = {
   А: 'A', В: 'B', С: 'C', Е: 'E', Н: 'H', К: 'K', М: 'M', О: 'O', Р: 'P', Т: 'T', Х: 'X', У: 'Y',
@@ -39,7 +40,7 @@ const CYR_TO_LAT = {
 // Латинские служебные слова; всё остальное латиницей — имена точек.
 const LATIN_WORDS = new Set([
   'seg', 'segment', 'line', 'par', 'perp', 'angle', 'section', 'plane', 'face', 'fill', 'rename',
-  'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x',
+  'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x', 'measure',
   'color', 'red', 'blue', 'green', 'orange', 'violet', 'purple', 'black',
 ]);
 
@@ -265,7 +266,8 @@ const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч
 /**
  * Разбирает команду в операцию.
  * @returns {{ op } | { action: 'undo' } | { action: 'rename', from, to }
- *   | { action: 'color', names, lines?, segments?, color } | { error }}
+ *   | { action: 'color', names, lines?, segments?, color }
+ *   | { action: 'measure', measure } | { error }}
  */
 export function parseCommand(text, model) {
   const src = normalizeCommand(text);
@@ -280,7 +282,12 @@ export function parseCommand(text, model) {
   try {
     if (/^(отмена|отменить|undo|назад)$/.test(low)) return { action: 'undo' };
 
-    let m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
+    // «измерить AB», «измерить ABC», «измерить AB CD» — не шаг: измерение видит
+    // только учитель (utils/stereo/measure.js).
+    let m = /^(?:измерить|измерь|measure)\s+(.+)$/i.exec(src);
+    if (m) return { action: 'measure', measure: parseMeasure(m[1], model) };
+
+    m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
 
     // «цвет прямой AB красный» — прямая целиком (с продолжениями);
@@ -616,3 +623,45 @@ export function editStepCommand(scene, opId, text) {
   return { scene: next, broken };
 }
 
+
+// --- «измерить …» ---------------------------------------------------------------
+
+const MEASURE_HELP = 'Измерить: «измерить AB» — длина, «измерить ABC» — угол ∠ABC, «измерить AB CD» — угол и расстояние между прямыми, «измерить M (ABC)», «измерить AB (ABC)», «измерить (ABC) (A1BD)»';
+
+/** Объект измерения из слова: точка, прямая («AB», «(P||AB)») или плоскость («(ABC)», «ABC»). */
+function measureObject(tok, model) {
+  const known = (names) => {
+    const miss = names.find((n) => !model?.points?.[n]);
+    if (miss) throw new Error(`Нет точки ${prettyName(miss)}`);
+    return names;
+  };
+  if (isPlaneTok(tok)) {
+    const ref = parsePlaneRef(tok, model);
+    if (Array.isArray(ref)) known(ref);
+    return { kind: 'plane', ref };
+  }
+  if (/\|\||⊥/.test(tok)) return { kind: 'line', ref: parseLineRef(tok, model) };
+  const names = splitNames(tok);
+  if (!names) throw new Error(MEASURE_HELP);
+  known(names);
+  if (names.length === 1) return { kind: 'point', name: names[0] };
+  if (names.length === 2) return { kind: 'line', ref: names };
+  return { kind: 'plane', ref: names };
+}
+
+/** «AB» → длина, «ABC» → ∠ABC, два слова → по видам объектов. */
+export function parseMeasure(text, model) {
+  const toks = String(text || '').trim().split(/\s+/).filter((t) => !/^(и|между|and|от|до)$/i.test(t));
+  if (toks.length === 1) {
+    const names = /^\(/.test(toks[0]) ? null : splitNames(toks[0]);
+    if (names?.length === 2 || names?.length === 3) {
+      names.forEach((n) => { if (!model?.points?.[n]) throw new Error(`Нет точки ${prettyName(n)}`); });
+      return names.length === 2
+        ? makeMeasure({ kind: 'point', name: names[0] }, { kind: 'point', name: names[1] })
+        : makeVertexAngle(names);
+    }
+    throw new Error(MEASURE_HELP);
+  }
+  if (toks.length !== 2) throw new Error(MEASURE_HELP);
+  return makeMeasure(measureObject(toks[0], model), measureObject(toks[1], model));
+}

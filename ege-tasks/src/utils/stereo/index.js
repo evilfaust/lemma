@@ -12,3 +12,4 @@ export { intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon } f
 export { isPointHidden, hiddenInterval, splitByVisibility } from './visibility';
 export * from './help';
 export * from './inline';
+export * from './measure';

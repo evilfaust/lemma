@@ -26,12 +26,15 @@ import {
   vsub, vadd, vscale, vzero, vparallel, ldot, lnorm2, lnormal, cdet, vprimitive, tetraVolume2,
   sqrtQ, surdLatex, surdValue, surdComplexity, coordLatex, vecLatex, bgcd,
 } from './exact';
+import { formatAngle } from './exact';
 import {
   GEN_BODIES, texName, scaleDims, maxDim, bodyIntro, latticeCenter,
 } from './genBodies';
 import { rng, orientEdge, faceNames, describeGiven, latticeEdgePoint } from './sectionTasks';
 
 const COORD_FACET = 'Метод координат в пространстве';
+
+export { formatAngle };
 
 /** Типы задач: slots — группы точек (прямая — 2, плоскость — 3, точка — 1). */
 export const METRIC_TYPES = {
@@ -159,30 +162,6 @@ function sortNames(names, apex) {
 }
 
 // ─── ответ ────────────────────────────────────────────────────────────────
-
-const SPECIAL_ANGLES = [[Q(0), 90], [Q(1, 4), 60], [Q(1, 2), 45], [Q(3, 4), 30]];
-const ANGLE_FN = { cos: '\\arccos', sin: '\\arcsin', tg: '\\arctg' };
-
-/**
- * Угол по cos² — «по-школьному»: 30°/45°/60°/90° или arccos / arcsin / arctg
- * (что короче; при равенстве — prefer).
- * @returns {{ latex, deg, special, fn, surd }}
- */
-export function formatAngle(cos2, prefer = 'cos') {
-  const deg = (Math.acos(Math.min(1, Math.sqrt(qnum(cos2)))) * 180) / Math.PI;
-  for (const [c, d] of SPECIAL_ANGLES) if (qeq(cos2, c)) return { latex: `${d}^\\circ`, deg: d, special: true };
-  const sin2 = qsub(ONE, cos2);
-  const cands = [
-    { fn: 'cos', surd: sqrtQ(cos2) },
-    { fn: 'sin', surd: sqrtQ(sin2) },
-    { fn: 'tg', surd: qzero(cos2) ? null : sqrtQ(qdiv(sin2, cos2)) },
-  ].filter((c) => c.surd);
-  if (!cands.length) return null;
-  cands.forEach((c) => { c.score = surdComplexity(c.surd) + (c.fn === prefer ? 0 : 0.6); });
-  cands.sort((a, b) => a.score - b.score);
-  const best = cands[0];
-  return { latex: `${ANGLE_FN[best.fn]} ${surdLatex(best.surd)}`, deg, special: false, fn: best.fn, surd: best.surd };
-}
 
 const niceSurd = (s, { q = 6, m = 99, k = 999 } = {}) => !!s && s.q <= BigInt(q) && s.m <= BigInt(m) && s.k <= BigInt(k);
 

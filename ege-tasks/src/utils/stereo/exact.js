@@ -191,3 +191,45 @@ export function vecLatex(u, g) {
 export function lengthLatex(r, opts) {
   return surdLatex(sqrtQ(r), opts);
 }
+
+// ─── углы и распознавание ────────────────────────────────────────────────
+
+const SPECIAL_ANGLES = [[Q(0), 90], [Q(1, 4), 60], [Q(1, 2), 45], [Q(3, 4), 30], [Q(1), 0]];
+const ANGLE_FN = { cos: '\\arccos', sin: '\\arcsin', tg: '\\arctg' };
+
+/**
+ * Угол (острый) по cos² — «по-школьному»: 0°/30°/45°/60°/90° или arccos /
+ * arcsin / arctg (что короче; при равенстве — prefer).
+ * @returns {{ latex, deg, special, fn?, surd? } | null}
+ */
+export function formatAngle(cos2, prefer = 'cos') {
+  const deg = (Math.acos(Math.min(1, Math.sqrt(qnum(cos2)))) * 180) / Math.PI;
+  for (const [c, d] of SPECIAL_ANGLES) if (qeq(cos2, c)) return { latex: `${d}^\\circ`, deg: d, special: true };
+  const sin2 = qsub(ONE, cos2);
+  const cands = [
+    { fn: 'cos', surd: sqrtQ(cos2) },
+    { fn: 'sin', surd: sqrtQ(sin2) },
+    { fn: 'tg', surd: qzero(cos2) ? null : sqrtQ(qdiv(sin2, cos2)) },
+  ].filter((c) => c.surd);
+  if (!cands.length) return null;
+  cands.forEach((c) => { c.score = surdComplexity(c.surd) + (c.fn === prefer ? 0 : 0.6); });
+  cands.sort((a, b) => a.score - b.score);
+  const best = cands[0];
+  return { latex: `${ANGLE_FN[best.fn]} ${surdLatex(best.surd)}`, deg, special: false, fn: best.fn, surd: best.surd };
+}
+
+/**
+ * Рациональное по приближённому числу: знаменатель до maxDen, совпадение
+ * до относительной 1e-9. null — не узнали (число «некрасивое» или
+ * иррациональное). Нужно измерениям: чертёж считается числами, а ответ
+ * хочется видеть точным (2√2, arccos ⅓).
+ */
+export function recognizeRational(x, maxDen = 400) {
+  if (!Number.isFinite(x)) return null;
+  const tol = 1e-9 * Math.max(1, Math.abs(x));
+  for (let q = 1; q <= maxDen; q += 1) {
+    const n = Math.round(x * q);
+    if (Math.abs(x - n / q) <= tol && Math.abs(n) < 1e12) return Q(n, q);
+  }
+  return null;
+}

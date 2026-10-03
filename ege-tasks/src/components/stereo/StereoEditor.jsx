@@ -25,9 +25,10 @@ import {
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, applyColorCommand, renamePoint,
-  opToCommand, editStepCommand,
+  opToCommand, editStepCommand, measureKey, measurePoints,
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
+import StereoMeasures from './StereoMeasures';
 import './stereo.css';
 
 const DRAFT_KEY = 'stereo.editor.v1';
@@ -131,6 +132,12 @@ export default function StereoEditor({
   const [libOpen, setLibOpen] = useState(false);
   const [paintColor, setPaintColor] = useState('red');
   const [renameTarget, setRenameTarget] = useState(null);
+  // Измерения — только учителю: не шаги, в сцену и эфир не попадают.
+  const [measures, setMeasures] = useState([]);
+  const [measureHover, setMeasureHover] = useState(null);
+  const addMeasure = useCallback((m) => {
+    setMeasures((list) => [m, ...list.filter((x) => measureKey(x) !== measureKey(m))].slice(0, 30));
+  }, []);
   // Открытый из библиотеки чертёж и «подпись» сохранённого состояния — по ней
   // видно, есть ли несохранённые изменения.
   const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
@@ -139,6 +146,9 @@ export default function StereoEditor({
   const bodyKind = Form.useWatch('kind', bodyForm);
 
   const model = useMemo(() => evaluateScene(scene), [scene]);
+  // Новое тело — прежние измерения ни к чему
+  const bodySig = JSON.stringify(scene.body);
+  useEffect(() => { setMeasures([]); }, [bodySig]);
   // Пошаговый показ: null — всё построение, число — сколько шагов видно.
   const [viewStep, setViewStep] = useState(null);
   const replay = viewStep != null;
@@ -301,7 +311,7 @@ export default function StereoEditor({
 
   // --- клики по чертежу -----------------------------------------------------
   const handleClick = useCallback(({ x, y, frame, shiftKey }) => {
-    if (tool === 'rotate' || (replay && tool !== 'attention' && tool !== 'view')) return;
+    if (tool === 'rotate' || (replay && tool !== 'attention' && tool !== 'view' && tool !== 'measure')) return;
     const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey, model), model);
     if (r.error) showNotice('error', r.error);
     setPending(r.pending);
@@ -309,6 +319,7 @@ export default function StereoEditor({
     if (r.attention) attention(r.attention);
     if (r.rename) setRenameTarget(r.rename.name);
     if (r.erase) deleteStep(r.erase.opId);
+    if (r.measure) addMeasure(r.measure);
     if (r.view) {
       // Вид перпендикулярно плоскости — и сразу обратно к вращению.
       setCamera((c) => cameraFacing(r.view.normal, c));
@@ -328,7 +339,7 @@ export default function StereoEditor({
         setScene(setPointColors(sc, [r.paint.name], cur === paintColor ? '' : paintColor));
       }
     }
-  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool]);
+  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure]);
 
   // --- пошаговый показ ----------------------------------------------------------
   const stepsTotal = scene.ops.length;
@@ -383,8 +394,10 @@ export default function StereoEditor({
       if (p.kind === 'poly') polys.add(p.id);
     }
     if (dragging) points.add(dragging);
+    const hovered = measureHover && measures.find((m) => m.id === measureHover);
+    if (hovered) measurePoints(hovered, model).forEach((n) => points.add(n));
     return { points, lines, faces, polys };
-  }, [pending, hover, dragging]);
+  }, [pending, hover, dragging, measureHover, measures, model]);
 
   // --- клавиатура -----------------------------------------------------------
   useEffect(() => {
@@ -435,6 +448,7 @@ export default function StereoEditor({
     if (r.error) { setCmdError(r.error); return; }
     setCmdError('');
     if (r.action === 'undo') { undo(); setCmd(''); return; }
+    if (r.action === 'measure') { addMeasure(r.measure); setCmd(''); return; }
     if (r.action === 'color') {
       const res = applyColorCommand(scene, r);
       if (res.error) { setCmdError(res.error); return; }
@@ -697,6 +711,16 @@ export default function StereoEditor({
                 Снять все
               </Button>
             </div>
+          )}
+
+          {(measures.length > 0 || tool === 'measure') && (
+            <StereoMeasures
+              model={model}
+              measures={measures}
+              onRemove={(id) => setMeasures((list) => list.filter((m) => m.id !== id))}
+              onClear={() => setMeasures([])}
+              onHover={setMeasureHover}
+            />
           )}
 
           <div>

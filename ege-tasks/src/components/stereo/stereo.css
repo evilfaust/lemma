@@ -552,3 +552,60 @@ button.stereo-help__cmd:hover { border-color: #2563eb; color: #1d4ed8; }
 @media (max-width: 600px) {
   .stereo-help__row { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* --- измерения (только учителю) --------------------------------------------- */
+
+.stereo-measures {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #fafafa;
+}
+.stereo-measures__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.stereo-measures__private { color: #9ca3af; }
+.stereo-measures__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.stereo-measure {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 4px 2px;
+  border-top: 1px dashed #e5e7eb;
+  font-size: 13px;
+}
+.stereo-measure:first-child { border-top: 0; }
+.stereo-measure:hover { background: #eef2ff; border-radius: 6px; }
+.stereo-measure__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
+}
+.stereo-measure__label {
+  font-family: 'Times New Roman', Times, serif;
+  font-style: italic;
+  font-size: 15px;
+}
+.stereo-measure__what { color: #6b7280; }
+.stereo-measure__approx {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: #374151;
+}
+.stereo-measure__note {
+  flex-basis: 100%;
+  color: #6b7280;
+  font-size: 12px;
+}

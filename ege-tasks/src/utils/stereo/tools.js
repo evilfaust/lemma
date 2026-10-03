@@ -9,6 +9,7 @@ import {
   newOpId, lineColorKey, segmentAt, pointInPlane, pointOnLineRef, makeAngleOp,
 } from './scene';
 import { nextFreeName, nextFootName } from './naming';
+import { makeMeasure } from './measure';
 import { prettyName } from './bodies';
 import { paramOnLine, add, mul, sub } from './vec3';
 import {
@@ -31,6 +32,7 @@ export const TOOLS = [
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'O' },
+  { key: 'measure', label: 'Измерить', glyph: '⟷', hot: 'U' },
   { key: 'rename', label: 'Имя', glyph: 'Aa', hot: 'R' },
   { key: 'erase', label: 'Удалить', glyph: '⌫', hot: 'D' },
   { key: 'attention', label: 'Внимание', glyph: '!', hot: 'W' },
@@ -119,6 +121,14 @@ export function toolHint(tool, pending = []) {
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
+    case 'measure': {
+      const first = pending[0];
+      if (first) {
+        const what = first.kind === 'point' ? `точка ${prettyName(first.name)}` : first.kind === 'line' ? 'прямая' : 'плоскость';
+        return `Выбрана ${what} — теперь второй объект: точка, прямая, грань или сечение (Shift — задняя грань)`;
+      }
+      return 'Две точки — длина; точка и прямая / плоскость — расстояние; две прямые, прямая и плоскость, две плоскости — угол (∠ABC — командой «измерить ABC»). Видно только вам';
+    }
     case 'view': return 'Кликните по грани или сечению — чертёж повернётся перпендикулярно этой плоскости (Esc — отмена)';
     case 'color': return 'Клик по точке или отрезку — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
@@ -154,6 +164,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
     case 'attention': return ['point', 'line'];
+    case 'measure': return ['point', 'line', 'poly', 'face'];
     case 'color': return ['point', 'line'];
     case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
@@ -178,7 +189,7 @@ export function chooseHit(tool, pending, hit) {
 /**
  * Клик инструмента.
  * @param hit — { point?: name, line?: { id, ref, t, ratio?, pos?, p?, u? }, face?: { id, verts }, poly?: { id }, shift? }
- * @returns {{ pending, op?, error?, attention?, paint?, rename?, view? }}
+ * @returns {{ pending, op?, error?, attention?, paint?, rename?, view?, erase?, measure? }}
  */
 export function toolClick(tool, pending, hit, model) {
   const target = chooseHit(tool, pending, hit);
@@ -299,6 +310,14 @@ export function toolClick(tool, pending, hit, model) {
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
     case 'rename':
       return { pending: [], rename: { name: target.name } };
+    case 'measure': {
+      // Не операция журнала: измерение видит только учитель.
+      if (!pending.length) return { pending: [target] };
+      const a = measureObject(model, pending[0]);
+      const b = measureObject(model, target);
+      if (!a || !b) return { pending: [] };
+      return { pending: [], measure: makeMeasure(a, b) };
+    }
     case 'erase': {
       // Не операция журнала: редактор удаляет шаг, построивший объект.
       const opId = stepOfTarget(model, target);
@@ -355,6 +374,14 @@ function planeOfTarget(model, target) {
   const op = model.opsById[target.id];
   if (op?.type === 'perpPlane') return op.id;
   return op?.pts || null;
+}
+
+/** Попадание инструмента → объект измерения (measure.js). */
+function measureObject(model, target) {
+  if (target.kind === 'point') return { kind: 'point', name: target.name };
+  if (target.kind === 'line') return { kind: 'line', ref: target.ref };
+  const ref = planeOfTarget(model, target);
+  return ref ? { kind: 'plane', ref } : null;
 }
 
 /** Enter у «Закрасить»: замкнуть многоугольник. */
