@@ -7,9 +7,11 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { roomCodeFromName, normalizeRoomCode, roomLink } from '../../utils/stereo/room';
+import StereoGroupsSelect from './StereoGroupsSelect';
 
 /**
- * Панель «Эфир» редактора: комната класса, ссылка для доски, старт/стоп,
+ * Панель «Эфир» редактора: комната класса, классы трансляции (у их учеников
+ * идущий эфир виден в личном кабинете), ссылка для доски, старт/стоп,
  * «Смотрите отсюда» (разово) и «Все смотрят сюда» (ученики следят за каждым
  * поворотом учителя и сами не крутят). Состояние — хук useStereoLive
  * (передаётся целиком).
@@ -38,6 +40,14 @@ export default function StereoLivePanel({ live, camera }) {
       message.success('Ссылка скопирована');
     } catch {
       message.info(link.full);
+    }
+  };
+
+  const saveGroups = async (groups) => {
+    try {
+      await live.setGroups(groups);
+    } catch (e) {
+      message.error(e?.message || 'Не удалось сохранить классы');
     }
   };
 
@@ -78,6 +88,22 @@ export default function StereoLivePanel({ live, camera }) {
               <Button icon={<DeleteOutlined />} onClick={remove} disabled={live.isLive} />
             </Tooltip>
           </Space.Compact>
+
+          {/* Поля groups нет до миграции 1787500000 — тогда и выбора нет. */}
+          {Array.isArray(room.groups) && (
+            <div className="stereo-live__groups">
+              <StereoGroupsSelect
+                value={room.groups}
+                onChange={saveGroups}
+                placeholder="Для каких классов"
+              />
+              <div className="stereo-cmd-help">
+                {room.groups.length
+                  ? 'Пока идёт эфир, ученики этих классов видят его в личном кабинете. По ссылке смотреть может любой.'
+                  : 'Выберите классы — эфир появится у их учеников в личном кабинете. По ссылке смотреть может любой.'}
+              </div>
+            </div>
+          )}
 
           <div className="stereo-live__link">
             <span>{link.short}</span>

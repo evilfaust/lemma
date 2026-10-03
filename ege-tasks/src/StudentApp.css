@@ -768,6 +768,160 @@
   color: #7b8fff;
 }
 
+/* ---- Эфир и чертежи учителя в кабинете (StudentStereoFeed) ---- */
+.student-stereo-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.student-live-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #fff1f1;
+  border: 1px solid #fca5a5;
+  color: #1f2937 !important;
+  text-decoration: none !important;
+  animation: studentFadeInUp 0.3s ease-out;
+}
+
+.student-live-card:active {
+  transform: scale(0.99);
+}
+
+.student-live-card__dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  color: #dc2626;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.student-live-card__dot::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #dc2626;
+  animation: studentLiveBlink 1.2s ease-in-out infinite;
+}
+
+@keyframes studentLiveBlink {
+  50% { opacity: 0.25; }
+}
+
+.student-live-card__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.student-live-card__go {
+  flex-shrink: 0;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.student-theme-dark .student-live-card {
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(248, 113, 113, 0.45);
+  color: #f0f0f0 !important;
+}
+
+.student-theme-dark .student-live-card__dot,
+.student-theme-dark .student-live-card__go {
+  color: #f87171;
+}
+
+.student-drawings {
+  border: 1px solid #e8eaf0;
+  border-radius: 14px;
+  padding: 10px 12px 8px;
+}
+
+.student-drawings__head {
+  font-size: 12px;
+  font-weight: 600;
+  color: #8a90a6;
+  margin-bottom: 4px;
+}
+
+.student-drawings__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.student-drawings__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 2px;
+  color: #3a3f5c !important;
+  text-decoration: none !important;
+  font-size: 14px;
+}
+
+.student-drawings__list li + li .student-drawings__item {
+  border-top: 1px solid #f1f2f6;
+}
+
+.student-drawings__item .anticon {
+  color: #4361ee;
+}
+
+.student-drawings__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.student-drawings__item .student-drawings__arrow {
+  color: #b0b5c4;
+  font-size: 11px;
+}
+
+.student-drawings__more {
+  border: 0;
+  background: none;
+  padding: 4px 0 2px;
+  color: #4361ee;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.student-theme-dark .student-drawings {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.student-theme-dark .student-drawings__item {
+  color: #d0d4f0 !important;
+}
+
+.student-theme-dark .student-drawings__list li + li .student-drawings__item {
+  border-top-color: rgba(255, 255, 255, 0.06);
+}
+
+.student-theme-dark .student-drawings__item .anticon:not(.student-drawings__arrow) {
+  color: #7b8fff;
+}
+
 /* ---- Навигационные кнопки ---- */
 .student-home-nav-btns {
   display: grid;

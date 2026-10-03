@@ -229,6 +229,8 @@
   animation: stereo-live-blink 1.2s ease-in-out infinite;
 }
 @keyframes stereo-live-blink { 50% { opacity: 0.25; } }
+.stereo-live__groups { display: flex; flex-direction: column; gap: 4px; }
+.stereo-live__groups .stereo-cmd-help { margin: 0; }
 .stereo-live__link {
   display: flex;
   align-items: center;
@@ -438,6 +440,7 @@
 .stereo-lib__list { list-style: none; margin: 0; padding: 0; border: 1px solid var(--lemma-border, #e5e7eb); border-radius: 10px; }
 .stereo-lib__item {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -445,6 +448,7 @@
 }
 .stereo-lib__item:last-child { border-bottom: 0; }
 .stereo-lib__item.is-current { background: #eff6ff; }
+.stereo-lib__groups { flex-basis: 100%; min-width: 0; }
 .stereo-lib__main { flex: 1; min-width: 0; }
 .stereo-lib__title {
   display: block;

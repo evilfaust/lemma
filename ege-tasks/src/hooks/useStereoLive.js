@@ -165,6 +165,17 @@ export default function useStereoLive({ scene, enabled = true }) {
     return rec;
   }, [scene, selectRoom]);
 
+  // Классы эфира: правка сразу, мимо очереди сцены (поле своё, гонки за
+  // журнал нет). До миграции 1787500000 поля нет — панель выбор не показывает.
+  const setGroups = useCallback(async (groups) => {
+    const id = roomRef.current?.id;
+    if (!id) return;
+    const rec = await api.updateStereoRoom(id, { groups });
+    setRooms((list) => (Array.isArray(list)
+      ? list.map((r) => (r.id === id ? { ...r, groups: rec.groups } : r))
+      : list));
+  }, []);
+
   const deleteRoom = useCallback(async (id) => {
     await api.deleteStereoRoom(id);
     setRooms((list) => (Array.isArray(list) ? list.filter((r) => r.id !== id) : list));
@@ -172,7 +183,7 @@ export default function useStereoLive({ scene, enabled = true }) {
 
   return {
     rooms, room, isLive, saving, error,
-    selectRoom, reload, createRoom, deleteRoom,
+    selectRoom, reload, createRoom, deleteRoom, setGroups,
     start, stop, pushCamera, pushPulse, pushNotice,
     isLeading: lead && isLive, setLead, streamCamera,
   };

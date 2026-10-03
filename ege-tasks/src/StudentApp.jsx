@@ -53,6 +53,7 @@ import StudentCoursePortal from './components/student/StudentCoursePortal';
 import { api } from './services/pocketbase';
 import { useVersionSync } from './shared/version/useVersionSync';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
+import StudentStereoFeed from './components/student/StudentStereoFeed';
 import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
 
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
@@ -235,6 +236,8 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
               <UserOutlined />
               <span>{student.name}</span>
             </div>
+            {/* Эфир учителя (пока идёт) и пособия-чертежи для классов ученика */}
+            <StudentStereoFeed />
             <Button
               block
               className="student-home-nav-btn"

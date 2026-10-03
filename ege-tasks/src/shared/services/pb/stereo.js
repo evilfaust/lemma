@@ -21,7 +21,9 @@ async function listScenes(kindFilter, { withoutKind } = {}) {
   const load = (filter) => pb.collection(S).getFullList({
     sort: '-updated',
     filter,
-    fields: 'id,title,note,public,kind,created,updated',
+    // groups нет до миграции 1787500000 — тогда его просто нет в записи, и
+    // выбор классов в библиотеке не показывается.
+    fields: 'id,title,note,public,kind,groups,created,updated',
   });
   try {
     return await load(`owner = "${t.id}" && ${kindFilter}`);
@@ -57,7 +59,10 @@ export const stereoApi = {
     for (const candidate of codeCandidates(code)) {
       try {
         const data = withOwner({ code: candidate, title, live: false });
-        if (group) data.group = group;
+        if (group) {
+          data.group = group;
+          data.groups = [group]; // до миграции 1787500000 PB лишнее поле молча пропустит
+        }
         if (scene) data.scene = scene;
         const rec = await pb.collection(C).create(data);
         _logAudit('create', C, rec.id, `Комната ${candidate}`);
@@ -86,6 +91,20 @@ export const stereoApi = {
   },
 
   // --- ученик ------------------------------------------------------------------
+
+  // Личный кабинет: эфиры, которые идут сейчас, и открытые пособия, адресованные
+  // классам ученика (хук pb_hooks/stereo_feed.pb.js — классы ученика собирает
+  // сервер, членства ученику не видны). null — хука ещё нет на сервере или
+  // вход ученика истёк: раздел в кабинете просто не показывается.
+  async getMyStereoFeed() {
+    try {
+      const res = await pb.send('/api/stereo/my', { method: 'GET', requestKey: null });
+      return { rooms: res?.rooms || [], scenes: res?.scenes || [] };
+    } catch (error) {
+      if ([401, 403, 404].includes(error?.status)) return null;
+      throw error;
+    }
+  },
 
   // Комната в эфире по коду; null — эфира нет (или такой комнаты нет вовсе:
   // аноним не отличит одно от другого, и это нарочно).

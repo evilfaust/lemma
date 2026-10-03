@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { manualLink } from '../../utils/stereo/room';
+import StereoGroupsSelect from './StereoGroupsSelect';
 
 const fmtDate = (s) => {
   const d = new Date(String(s).replace(' ', 'T'));
@@ -34,7 +35,8 @@ const KINDS = {
 
 /**
  * Библиотека чертежей: сохранить текущий, открыть сохранённый, открыть
- * ученикам пошаговое пособие по ссылке (student.oipav.ru/s/<id>).
+ * ученикам пошаговое пособие по ссылке (student.oipav.ru/s/<id>) и отметить,
+ * в кабинете каких классов оно появится (младшим — не чертежи старшей школы).
  * kind — 'stereo' | 'planim'.
  */
 export default function StereoLibrary({
@@ -115,6 +117,17 @@ export default function StereoLibrary({
       setList((l) => l.map((x) => (x.id === item.id ? { ...x, public: value } : x)));
     } catch (e) {
       message.error(e?.message || 'Не удалось изменить доступ');
+    }
+  };
+
+  const saveGroups = async (item, groups) => {
+    const prev = item.groups;
+    setList((l) => l.map((x) => (x.id === item.id ? { ...x, groups } : x)));
+    try {
+      await api.updateStereoScene(item.id, { groups });
+    } catch (e) {
+      setList((l) => l.map((x) => (x.id === item.id ? { ...x, groups: prev } : x)));
+      message.error(e?.message || 'Не удалось сохранить классы');
     }
   };
 
@@ -225,6 +238,17 @@ export default function StereoLibrary({
                       <Button size="small" type="text" icon={<DeleteOutlined />} onClick={() => remove(item)} aria-label="Удалить" />
                     </div>
                   )}
+                  {/* Поля groups нет до миграции 1787500000 — тогда и выбора нет. */}
+                  {canEdit && item.public && Array.isArray(item.groups) && (
+                    <div className="stereo-lib__groups">
+                      <StereoGroupsSelect
+                        size="small"
+                        value={item.groups}
+                        onChange={(v) => saveGroups(item, v)}
+                        placeholder="В кабинете каких классов показать"
+                      />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -232,7 +256,8 @@ export default function StereoLibrary({
           <div className="stereo-cmd-help">
             Переключатель открывает чертёж ученикам как пошаговое пособие:
             ссылка <code>student.oipav.ru/s/…</code>, {K.help}. Подписи к
-            шагам — из журнала редактора.
+            шагам — из журнала редактора. Отмеченные классы увидят пособие в
+            личном кабинете; по ссылке оно открыто всем.
           </div>
         </Space>
       )}
