@@ -6,7 +6,7 @@ import {
 } from 'antd';
 import {
   ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined, EyeOutlined,
-  PlusOutlined, PrinterOutlined, SaveOutlined, SwapOutlined, ThunderboltOutlined, TableOutlined,
+  PlusOutlined, PrinterOutlined, SaveOutlined, SwapOutlined, ThunderboltOutlined, TableOutlined, ShareAltOutlined,
 } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -29,6 +29,7 @@ import GeometryTaskEditor from '../../GeometryTaskEditor';
 import MathRenderer from '../../MathRenderer';
 import GeometryTaskPickerModal from './GeometryTaskPickerModal';
 import WorkLessonLinks from '../../worksheet/WorkLessonLinks';
+import GeometryWorkShareModal from './GeometryWorkShareModal';
 import './geometryWorks.css';
 
 const { Text } = Typography;
@@ -59,6 +60,9 @@ export default function GeometryWorkEditor() {
   const [title, setTitle] = useState('');
   const [klass, setKlass] = useState(null);
   const [structure, setStructure] = useState(() => emptyStructure(1));
+  // Ссылка ученику: открыта ли работа и каким классам (сохраняется сразу, мимо «Сохранить»)
+  const [sharing, setSharing] = useState({ public: false, groups: [] });
+  const [shareOpen, setShareOpen] = useState(false);
   const [byId, setById] = useState(() => new Map());
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -105,6 +109,7 @@ export default function GeometryWorkEditor() {
         const s = normalizeStructure(rec.structure);
         setTitle(rec.title || '');
         setKlass(rec.class || null);
+        setSharing({ public: !!rec.public, groups: Array.isArray(rec.groups) ? rec.groups : [] });
         setStructure(s);
         const recs = await api.getGeometryTasksByIds(structureTaskIds(s));
         if (!alive) return;
@@ -523,6 +528,13 @@ export default function GeometryWorkEditor() {
           <Button icon={<PrinterOutlined />}>Печать</Button>
         </Dropdown>
         {canEdit && (
+          <Tooltip title="Ссылка для учеников без входа: условия и чертежи, без ответов; классам — в личный кабинет">
+            <Button icon={<ShareAltOutlined />} onClick={() => setShareOpen(true)} disabled={!rows}>
+              Ученикам{sharing.public && <Tag color="green" style={{ marginLeft: 6, marginRight: 0 }}>открыта</Tag>}
+            </Button>
+          </Tooltip>
+        )}
+        {canEdit && (
           <Tooltip title="Колонка в журнале класса по этой работе — сразу ввод отметок">
             <Button icon={<TableOutlined />} onClick={() => setJournalOpen(true)} disabled={!rows}>В журнал</Button>
           </Tooltip>
@@ -642,6 +654,16 @@ export default function GeometryWorkEditor() {
       )}
 
       {canEdit && <GeometryBasketBar onOpenTask={(id) => setCard({ id, list: [] })} />}
+
+      <GeometryWorkShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        workId={workId}
+        variants={structure.variants.length}
+        sharing={sharing}
+        onChange={setSharing}
+        dirty={dirty}
+      />
 
       <SheetToJournalModal
         open={journalOpen}

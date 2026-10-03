@@ -55,10 +55,12 @@ import { useVersionSync } from './shared/version/useVersionSync';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import StudentStereoFeed from './components/student/StudentStereoFeed';
 import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
+import { workFromLocation } from './utils/geometryWorkLink';
 
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
 const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
 const StudentStereoManual = lazy(() => import('./components/stereo/StudentStereoManual'));
+const StudentGeometryWork = lazy(() => import('./components/geometry/student/StudentGeometryWork'));
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -279,6 +281,8 @@ function StudentApp() {
   const stereoCode = useMemo(() => roomCodeFromPath(window.location.pathname), []);
   // Пошаговое пособие: /s/{id} (или /student/s/{id})
   const manualId = useMemo(() => manualIdFromPath(window.location.pathname), []);
+  // Работа по геометрии: /w/{id} (или /student/w/{id}), вариант — ?v=N
+  const geoWork = useMemo(() => workFromLocation(window.location.pathname, window.location.search), []);
 
   const generateDeviceId = () => {
     if (globalThis.crypto?.randomUUID) {
@@ -301,10 +305,10 @@ function StudentApp() {
   // Извлекаем sessionId из URL: /student/{sessionId}
   // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
-    if (marathonLiveMatch || stereoCode || manualId) return '';
+    if (marathonLiveMatch || stereoCode || manualId || geoWork) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, [marathonLiveMatch, stereoCode, manualId]);
+  }, [marathonLiveMatch, stereoCode, manualId, geoWork]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -366,6 +370,14 @@ function StudentApp() {
 
   if (marathonLiveMatch) {
     return <MarathonLiveBoard marathonId={marathonLiveMatch[1]} />;
+  }
+
+  if (geoWork) {
+    return (
+      <Suspense fallback={null}>
+        <StudentGeometryWork id={geoWork.id} variant={geoWork.variant} />
+      </Suspense>
+    );
   }
 
   if (manualId) {

@@ -1,0 +1,127 @@
+/* Работа по геометрии для ученика: student.oipav.ru/w/<id>. Телефон — первым. */
+
+.sgw {
+  min-height: 100vh;
+  background: #f5f6f8;
+  color: #111827;
+  padding: 16px 12px 40px;
+  font-size: 16px;
+}
+
+.sgw-head,
+.sgw-tasks,
+.sgw-pick {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.sgw-head { margin-bottom: 14px; }
+.sgw-head__brand {
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.sgw-head__title {
+  margin: 4px 0 6px;
+  font-size: 22px;
+  line-height: 1.25;
+}
+.sgw-head__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: #4b5563;
+  font-size: 14px;
+}
+.sgw-head__variant {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #1f2937;
+  color: #fff;
+  font-weight: 600;
+}
+.sgw-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.sgw-pick {
+  background: #fff;
+  border-radius: 14px;
+  padding: 18px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.sgw-pick__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.sgw-pick__btn {
+  padding: 16px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.sgw-pick__btn:hover { border-color: #2563eb; color: #2563eb; }
+
+.sgw-task {
+  display: flex;
+  gap: 12px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.sgw-task__no {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: #111827;
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sgw-task__body {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.sgw-task__body img,
+.sgw-task__body svg { max-width: 100%; height: auto; }
+
+.sgw-figure {
+  margin-top: 10px;
+  text-align: center;
+}
+.sgw-figure img { max-height: 360px; }
+.sgw-figure--svg svg { width: 100%; max-width: 420px; height: auto; }
+.sgw-figure--live .theory-stereo { max-width: 420px; }
+
+.sgw-empty {
+  max-width: 760px;
+  margin: 40px auto;
+  text-align: center;
+  color: #4b5563;
+}
+.sgw-muted { color: #9ca3af; }
+.sgw-foot {
+  margin-top: 18px;
+  text-align: center;
+  font-size: 13px;
+  color: #6b7280;
+}

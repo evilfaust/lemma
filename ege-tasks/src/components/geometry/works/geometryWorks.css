@@ -157,3 +157,14 @@
     padding: 10mm;
   }
 }
+
+/* --- «Ученикам»: ссылки на работу ------------------------------------------ */
+.gws-links { display: flex; flex-direction: column; gap: 6px; }
+.gws-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.gws-link__label { width: 170px; color: #374151; }
+.gws-link__url { flex: 1; min-width: 0; overflow-wrap: anywhere; }

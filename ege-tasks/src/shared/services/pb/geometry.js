@@ -227,7 +227,7 @@ export const geometryApi = {
     return pb.collection('geometry_works').getFullList({
       sort: '-updated',
       filter: andOwner(),
-      fields: 'id,title,class,note,structure,print,created,updated,owner',
+      fields: 'id,title,class,note,structure,print,public,groups,created,updated,owner',
     });
   },
 
@@ -243,6 +243,43 @@ export const geometryApi = {
 
   async updateGeometryWork(id, data) {
     return pb.collection('geometry_works').update(id, withWorkTasks(data));
+  },
+
+  // ─── Ссылка ученику (v3.9.284) ───────────────────────────────────────────
+  // Открыть работу ученикам: student.oipav.ru/w/<id>; groups — классы, в
+  // кабинете которых она появится (pb_hooks/stereo_feed.pb.js).
+  async setGeometryWorkSharing(id, { public: isPublic, groups }) {
+    const rec = await pb.collection('geometry_works').update(id, {
+      public: !!isPublic,
+      groups: Array.isArray(groups) ? groups : [],
+    });
+    _logAudit('update', 'geometry_works', id, `${rec.title}: ${isPublic ? 'открыта ученикам' : 'закрыта для учеников'}`);
+    return rec;
+  },
+
+  // Работа для ученика по ссылке (без входа): только то, что нужно странице.
+  // null — работы нет или она закрыта (аноним этого не различит, и так нарочно).
+  async getPublicGeometryWork(id) {
+    try {
+      return await pb.collection('geometry_works').getOne(id, {
+        fields: 'id,title,class,structure,public,updated',
+        requestKey: null,
+      });
+    } catch (error) {
+      if ([403, 404].includes(error?.status)) return null;
+      throw error;
+    }
+  },
+
+  // Задачи для ученика: условие и чертёж. Ответ, решение, указания и
+  // критерии НЕ запрашиваются — ученик решает сам.
+  async getStudentGeometryTasks(ids) {
+    const uniq = [...new Set((ids || []).filter(Boolean))];
+    if (!uniq.length) return [];
+    return getFullListByOr('geometry_tasks', 'id', uniq, {
+      fields: 'id,code,statement_md,drawing_view,drawing_svg,image_role,geogebra_image_base64,drawing_image',
+      requestKey: null,
+    });
   },
 
   async deleteGeometryWork(id) {

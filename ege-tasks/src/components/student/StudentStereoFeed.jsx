@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { RightOutlined, CodeSandboxOutlined, BorderOuterOutlined } from '@ant-design/icons';
+import {
+  RightOutlined, CodeSandboxOutlined, BorderOuterOutlined, FileTextOutlined,
+} from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 
 const POLL_MS = 20000;
@@ -13,6 +15,7 @@ const SHOW_SCENES = 4;
  * Подбор по классам делает сервер (GET /api/stereo/my). Эфир начинается посреди
  * урока, поэтому кабинет переспрашивает раз в 20 с и при возврате на вкладку.
  * Ссылки — те же /b/<код> и /s/<id>, что учитель даёт на доске.
+ * Работы по геометрии (v3.9.284) — открытые учителем, по /w/<id>: только условия.
  */
 export default function StudentStereoFeed() {
   const [feed, setFeed] = useState(null);
@@ -39,7 +42,8 @@ export default function StudentStereoFeed() {
     };
   }, [load]);
 
-  if (!feed || (!feed.rooms.length && !feed.scenes.length)) return null;
+  const works = feed?.works || [];
+  if (!feed || (!feed.rooms.length && !feed.scenes.length && !works.length)) return null;
 
   const scenes = showAll ? feed.scenes : feed.scenes.slice(0, SHOW_SCENES);
 
@@ -52,6 +56,23 @@ export default function StudentStereoFeed() {
           <span className="student-live-card__go">Смотреть <RightOutlined /></span>
         </a>
       ))}
+
+      {works.length > 0 && (
+        <div className="student-drawings">
+          <div className="student-drawings__head">Работы по геометрии</div>
+          <ul className="student-drawings__list">
+            {works.map((w) => (
+              <li key={w.id}>
+                <a className="student-drawings__item" href={`/student/w/${w.id}`}>
+                  <FileTextOutlined />
+                  <span className="student-drawings__title">{w.title}</span>
+                  <RightOutlined className="student-drawings__arrow" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {feed.scenes.length > 0 && (
         <div className="student-drawings">

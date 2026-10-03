@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Alert, App, Button, Card, Collapse, Empty, Input, Modal, Popconfirm, Select, Space, Table, Tooltip, Typography,
+  Alert, App, Button, Card, Collapse, Empty, Input, Modal, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   CopyOutlined, DeleteOutlined, FileAddOutlined, FolderOpenOutlined, SearchOutlined,
@@ -149,7 +149,10 @@ export default function GeometryWorksPage() {
       key: 'title',
       render: (_, w) => (
         <Space direction="vertical" size={0}>
-          <a onClick={() => navigate(`/app/geometry/works/${w.id}`)} style={{ fontWeight: 600 }}>{w.title}</a>
+          <Space size={6}>
+            <a onClick={() => navigate(`/app/geometry/works/${w.id}`)} style={{ fontWeight: 600 }}>{w.title}</a>
+            {w.public && <Tag color="green" style={{ margin: 0 }}>ученикам</Tag>}
+          </Space>
           {w.note && <Text type="secondary" style={{ fontSize: 12 }}>{w.note}</Text>}
         </Space>
       ),

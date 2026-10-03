@@ -4,10 +4,13 @@
  * Эфир и чертежи в личном кабинете ученика (v3.9.283).
  *
  *   GET /api/stereo/my  →  { rooms: [{ code, title, updated }],
- *                            scenes: [{ id, title, note, kind, updated }] }
+ *                            scenes: [{ id, title, note, kind, updated }],
+ *                            works: [{ id, title, class, updated }] }
  *
  * rooms  — эфиры, которые идут СЕЙЧАС (live = true) и адресованы классам ученика;
- * scenes — открытые пособия (public = true), отмеченные классами ученика.
+ * scenes — открытые пособия (public = true), отмеченные классами ученика;
+ * works  — открытые геометрические работы (geometry_works.public, v3.9.284),
+ *          отмеченные классами ученика; открываются по /w/<id> (только условия).
  *
  * Почему хук, а не правила коллекций: классы ученика надо собрать из
  * group_memberships, а их ученик читать не может (там заметки учителя).
@@ -45,7 +48,7 @@ routerAdd("GET", "/api/stereo/my", (c) => {
   each("course_members", "student = {:s} && active != false", (r) => add(r.getString("course")));
 
   const ids = Object.keys(groups).slice(0, 60);
-  if (!ids.length) return c.json(200, { rooms: [], scenes: [] });
+  if (!ids.length) return c.json(200, { rooms: [], scenes: [], works: [] });
 
   // Мульти-relation — только через .id: `groups ?= x` в PB 0.36 молча пуст.
   const params = {};
@@ -74,5 +77,14 @@ routerAdd("GET", "/api/stereo/my", (c) => {
       updated: r.getString("updated"),
     });
   }
-  return c.json(200, { rooms: rooms, scenes: scenes });
+  const works = [];
+  for (const r of find("geometry_works", "public = true", "-updated", 100)) {
+    works.push({
+      id: r.id,
+      title: r.getString("title"),
+      class: r.getInt("class") || null,
+      updated: r.getString("updated"),
+    });
+  }
+  return c.json(200, { rooms: rooms, scenes: scenes, works: works });
 });

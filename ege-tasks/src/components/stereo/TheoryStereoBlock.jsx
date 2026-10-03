@@ -19,8 +19,11 @@ const ZOOM_STEP = 1.25;
  * начиная с готового чертежа. Ракурс и размер — из самого блока («вид»,
  * «размер»). Печать и PDF берут статичную картинку блока — её этот компонент
  * не трогает (см. useStereoBlocks).
+ *
+ * steps={false} — без листания шагов (чертёж условия задачи: шаги там — это
+ * данные точки, показываются сразу все).
  */
-export default function TheoryStereoBlock({ spec }) {
+export default function TheoryStereoBlock({ spec, steps: withSteps = true }) {
   const parsed = useMemo(() => parseStereoBlock(spec), [spec]);
   const { scene, size } = parsed;
   const camera0 = parsed.camera;
@@ -81,7 +84,7 @@ export default function TheoryStereoBlock({ spec }) {
           </Tooltip>
         </div>
       </div>
-      {total > 0 && (
+      {withSteps && total > 0 && (
         <div className="theory-stereo-steps">
           <Button size="small" icon={<LeftOutlined />} disabled={step <= 0} onClick={() => go(step - 1)} aria-label="Предыдущий шаг" />
           <span className="theory-stereo-caption">{caption}</span>
