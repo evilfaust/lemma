@@ -99,9 +99,22 @@ export function endForLesson(l, start) {
   return endForStart(start);
 }
 
+// Старт урока. Обычно это date_plan, но урок, созданный кликом по ячейке сетки
+// (до v3.9.290), сохранился с полуночью и одним time_slot — время старта тогда
+// берём из расписания пары, иначе он «идёт» с 00:00 и показывает «00:00».
+export function lessonStart(l) {
+  const start = new Date(l.date_plan);
+  if (Number.isNaN(start.getTime()) || start.getHours() || start.getMinutes()) return start;
+  const r = slotRangeFromCode(l.time_slot);
+  if (!r) return start;
+  const [h, m] = r[0].split(':').map(Number);
+  start.setHours(h, m, 0, 0);
+  return start;
+}
+
 // Пара Date {start, end} для урока (по date_plan + time_slot).
 export function lessonStartEnd(l) {
-  const start = new Date(l.date_plan);
+  const start = lessonStart(l);
   return { start, end: endForLesson(l, start) };
 }
 

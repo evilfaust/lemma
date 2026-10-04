@@ -11,7 +11,7 @@ import 'dayjs/locale/ru';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Chip, groupHex, lessonHex, TONE_HEX, SectionCard } from './ui';
-import { lessonStartEnd, lessonProgress } from './lessonTime';
+import { lessonStart, lessonStartEnd, lessonProgress } from './lessonTime';
 import { KIND_COLORS } from '../../shared/services/pb/schoolEvents';
 import WeekNavigator from './today/WeekNavigator';
 import NowHero from './today/NowHero';
@@ -153,7 +153,7 @@ export default function TodayDashboard() {
   const selectedLessons = useMemo(
     () => weekLessons
       .filter((l) => dayjs(l.date_plan).isSame(selectedDate, 'day'))
-      .sort((a, b) => new Date(a.date_plan) - new Date(b.date_plan)),
+      .sort((a, b) => lessonStart(a) - lessonStart(b)),
     [weekLessons, selectedDate],
   );
 

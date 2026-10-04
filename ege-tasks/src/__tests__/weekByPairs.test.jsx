@@ -50,6 +50,18 @@ describe('slotPairIndexes', () => {
 });
 
 describe('WeekByPairs', () => {
+  it('урок, сохранённый полночью с парой, показывает время пары, а не 00:00', () => {
+    const { container } = renderWeek([lesson({ date_plan: `${MONDAY} 00:00:00`, time_slot: '2' })]);
+    const block = container.querySelector('.cw-lesson');
+    expect(blockRows(block)).toBe('3 / 4');
+    expect(screen.getByText(/12:00 · 11 БАЗА/)).toBeInTheDocument();
+    expect(screen.queryByText(/00:00/)).toBeNull();
+    const ev = lessonToEvent(lesson({ date_plan: `${MONDAY} 00:00:00`, time_slot: '2b' }));
+    expect(ev.start.getHours()).toBe(12);
+    expect(ev.start.getMinutes()).toBe(50);
+    expect(ev.end.getHours()).toBe(13);
+  });
+
   it('интенсив «1-4» растягивается на четыре строки сетки', () => {
     const { container } = renderWeek([lesson()]);
     const block = container.querySelector('.cw-lesson');

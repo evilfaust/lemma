@@ -38,7 +38,13 @@ export default function CreateEventModal({
       setType(initType || 'lesson');
       setPair(initPair || null);
       setPart('full');
-      const base = day ? dayjs(day) : dayjs();
+      // Клик по ячейке пары: день приходит полночью — ставим время старта пары,
+      // иначе урок сохранялся на 00:00.
+      const pairDef = PAIRS.find((p) => p.key === initPair);
+      const [ph, pm] = pairDef ? pairDef.full[0].split(':').map(Number) : [];
+      const base = pairDef
+        ? dayjs(day || undefined).hour(ph).minute(pm).second(0).millisecond(0)
+        : (day ? dayjs(day) : dayjs());
       form.setFieldsValue({
         title: '', group: undefined, work: undefined,
         date: base, due: base,

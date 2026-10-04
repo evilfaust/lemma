@@ -11,7 +11,7 @@ import MaterialPickerModal from '../MaterialPickerModal';
 import AttendanceRoster from '../AttendanceRoster';
 import LessonJournalBlock from './LessonJournalBlock';
 import { Chip, GroupColorPicker } from '../ui';
-import { PAIRS, guessSlot, slotRangeFromCode } from '../lessonTime';
+import { PAIRS, guessSlot, slotRangeFromCode, lessonStart } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
 import DateTimeField from './DateTimeField';
@@ -58,7 +58,7 @@ export default function LessonModal({
   useEffect(() => {
     if (open) {
       const all = Array.isArray(initial?.materials) ? initial.materials : [];
-      const startDate = initial?.date_plan ? dayjs(initial.date_plan)
+      const startDate = initial?.date_plan ? dayjs(lessonStart(initial))
         : (initial?.slotDate ? dayjs(initial.slotDate) : dayjs());
       form.setFieldsValue({
         title: initial?.title || '',

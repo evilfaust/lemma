@@ -4,7 +4,7 @@
  * производных метрик для правого рейла.
  */
 import dayjs from 'dayjs';
-import { endForLesson } from '../lessonTime';
+import { endForLesson, lessonStart } from '../lessonTime';
 
 // Порядок типов в ячейке месяца: школьное → дедлайн → урок → дело.
 // Мероприятие сверху намеренно: оно меняет весь день (педсовет, каникулы),
@@ -29,7 +29,7 @@ export function initialsOf(name = '') {
 // Урок → RBC-событие. myTeacherId — чтобы отличить свой урок от чужого
 // (со-ведение класса или точечный доступ): у чужого на чипе метка ведущего.
 export function lessonToEvent(l, myTeacherId = '') {
-  const start = new Date(l.date_plan);
+  const start = lessonStart(l);
   const hasMaterials = Array.isArray(l.materials) && l.materials.length > 0;
   const ownerName = l.expand?.owner?.name || l.expand?.owner?.username || '';
   return {
