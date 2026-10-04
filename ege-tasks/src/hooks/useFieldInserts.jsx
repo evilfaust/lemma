@@ -4,7 +4,10 @@ import NumberLineModal from '../components/shared/NumberLineModal';
 import PlotModal from '../components/shared/PlotModal';
 import GridPaperModal from '../components/shared/GridPaperModal';
 import { TABLE_SNIPPETS } from '../utils/markdownTables';
-import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor } from '../utils/plotSnippet';
+import {
+  findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor, findNumlineAtCursor,
+} from '../utils/plotSnippet';
+import { specToNumlineState } from '../utils/numberLine';
 import { insertAtCaret } from '../utils/caretInsert';
 import { fixLatexRoots } from '../utils/fixLatexRoots';
 import { stereoBlockMarkdown } from '../utils/stereo/dsl';
@@ -129,7 +132,20 @@ export default function useFieldInserts({ form, fields = {} }) {
     return pos == null ? null : finder(form.getFieldValue(field) || '', pos);
   }, [form, fieldCaret]);
 
-  const openNumline = useCallback((field) => setNumlineTarget(field), []);
+  // Прямую, которую конструктор не покажет без потерь (комментарии, опечатки,
+  // засечки вперемешку со штриховкой), не трогаем: откроется новая, старую —
+  // текстом. Иначе «Сохранить» молча выбросило бы часть чертежа.
+  const openNumline = useCallback((field) => {
+    const found = findAt(field, findNumlineAtCursor);
+    if (!found) { setNumlineTarget({ field }); return; }
+    const parsed = specToNumlineState(found.spec);
+    if (!parsed.ok) {
+      message.warning(`Эту прямую конструктор не разберёт (${parsed.bad.slice(0, 2).join('; ')}) — правьте её текстом. Откроется новая прямая.`, 6);
+      setNumlineTarget({ field });
+      return;
+    }
+    setNumlineTarget({ field, spec: found.spec, format: found.format, range: [found.start, found.end] });
+  }, [findAt, message]);
 
   const openPlot = useCallback((field, kind) => {
     const found = findAt(field, findPlotAtCursor);
@@ -276,9 +292,10 @@ export default function useFieldInserts({ form, fields = {} }) {
     <>
       <NumberLineModal
         open={!!numlineTarget}
+        initialSpec={numlineTarget?.spec || null}
+        defaultFormat={numlineTarget?.format || 'inline'}
         onCancel={() => setNumlineTarget(null)}
-        onInsert={(snippet) => { insertSnippet(numlineTarget, snippet); setNumlineTarget(null); }}
-        defaultFormat="inline"
+        onInsert={(snippet) => { applyTarget(numlineTarget, snippet); setNumlineTarget(null); }}
       />
       <GridPaperModal
         open={!!gridTarget}

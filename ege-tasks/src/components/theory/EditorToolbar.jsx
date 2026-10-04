@@ -18,7 +18,10 @@ import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
 import GridPaperModal from '../shared/GridPaperModal';
 import MaterialPickerModal from '../workspace/MaterialPickerModal';
-import { findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor } from '../../utils/plotSnippet';
+import {
+  findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor, findNumlineAtCursor,
+} from '../../utils/plotSnippet';
+import { specToNumlineState } from '../../utils/numberLine';
 import { materialsApi } from '../../shared/services/pb/filesClient';
 import { dataUrlToFile } from '../../utils/cropImage';
 import './EditorToolbar.css';
@@ -86,7 +89,9 @@ export default function EditorToolbar({ editorRef }) {
   const [linkModalOpen, setLinkModalOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
-  const [numlineOpen, setNumlineOpen] = useState(false);
+  // Числовая прямая: null | { spec?, format?, range? } — правка, если курсор
+  // стоял внутри готовой прямой.
+  const [numline, setNumline] = useState(null);
   // Поле «в клетку»: null | { spec?, format?, range? } — правка, если курсор
   // стоял внутри готового поля.
   const [grid, setGrid] = useState(null);
@@ -128,6 +133,23 @@ export default function EditorToolbar({ editorRef }) {
       : null;
     setPlanim(found ? { spec: found.spec, format: found.format, range: [found.start, found.end] } : {});
   }, [editorRef]);
+
+  // Прямую, которую конструктор не покажет без потерь, не трогаем: откроется
+  // новая, а старую правят текстом.
+  const openNumline = useCallback(() => {
+    const view = editorRef.current?.view;
+    const found = view
+      ? findNumlineAtCursor(view.state.doc.toString(), view.state.selection.main.head)
+      : null;
+    if (!found) { setNumline({}); return; }
+    const parsed = specToNumlineState(found.spec);
+    if (!parsed.ok) {
+      message.warning(`Эту прямую конструктор не разберёт (${parsed.bad.slice(0, 2).join('; ')}) — правьте её текстом. Откроется новая прямая.`, 6);
+      setNumline({});
+      return;
+    }
+    setNumline({ spec: found.spec, format: found.format, range: [found.start, found.end] });
+  }, [editorRef, message]);
 
   const openGrid = useCallback(() => {
     const view = editorRef.current?.view;
@@ -349,9 +371,9 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<PictureOutlined />}
             onClick={() => setImageModalOpen(true)} />
         </Tooltip>
-        <Tooltip title="Числовая прямая со штриховкой">
+        <Tooltip title="Числовая прямая со штриховкой. Курсор внутри готовой прямой — откроется её правка">
           <Button size="small" type="text" className="tf-btn" icon={<DashOutlined />}
-            onClick={() => setNumlineOpen(true)} />
+            onClick={openNumline} />
         </Tooltip>
         <Tooltip title="График функции на клетчатой плоскости. Курсор внутри готового чертежа — откроется его правка">
           <Button size="small" type="text" className="tf-btn" icon={<LineChartOutlined />}
@@ -550,11 +572,15 @@ export default function EditorToolbar({ editorRef }) {
 
       {/* Modal: конструктор числовой прямой */}
       <NumberLineModal
-        open={numlineOpen}
-        onCancel={() => setNumlineOpen(false)}
+        open={!!numline}
+        initialSpec={numline?.spec || null}
+        defaultFormat={numline?.format || 'block'}
+        onCancel={() => setNumline(null)}
         onInsert={(snippet) => {
-          insertIntoEditor(editorRef.current, { text: snippet });
-          setNumlineOpen(false);
+          if (!numline?.range || !replaceInEditor(editorRef.current, numline.range, snippet)) {
+            insertIntoEditor(editorRef.current, { text: snippet });
+          }
+          setNumline(null);
         }}
       />
 

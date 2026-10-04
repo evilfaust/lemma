@@ -17,6 +17,7 @@
 //   numberLineSvg(model, opts?)  → '<svg>…</svg>'
 //   numberLineSvgFromSpec(spec)  → '<svg>…</svg>'  (parse + render)
 //   shapesToSpec({domain,shapes})→ текст DSL (для конструктора)
+//   specToNumlineState(spec)     → состояние конструктора (правка готовой прямой)
 //
 // DSL (по одной команде на строку; строки c # — комментарии):
 //   domain 0 3            — диапазон оси (по умолчанию 0..5)
@@ -394,15 +395,129 @@ export function shapesToSpec({
  * @param {{scale:{from,to,step}, marks:Array<{label,x}>, axisLabel?:string}} state
  */
 export function pointsToSpec({
-  scale, marks = [], axisLabel = 'x', axisBold = false,
+  scale, marks = [], axisLabel = 'x', axisBold = false, domain = null, showLabels = true,
 } = {}) {
   const lines = [];
   if ((axisLabel && axisLabel !== 'x') || axisBold) lines.push(`axis ${axisLabel || 'x'}${axisBold ? ' bold' : ''}`);
+  // Без засечек nolabels только поджимает холст снизу, с засечками — прячет их числа.
+  if (!showLabels) lines.push('nolabels');
   if (scale) {
     lines.push(`scale ${coordToken(scale.from)} ${coordToken(scale.to)} ${scale.step || 1}`);
+  } else if (domain) {
+    // Без засечек: голая ось с буквами над точками — диапазон задаём явно.
+    lines.push(`domain ${coordToken(domain[0])} ${coordToken(domain[1])}`);
   }
   for (const m of marks) {
     if (m.label && m.x != null) lines.push(`mark ${m.label} ${coordToken(m.x)}${m.bold ? ' bold' : ''}`);
   }
   return lines.join('\n');
+}
+
+// Команды вкладки «Точки на прямой»; остальные — «Неравенства», axis — общая.
+const POINTS_CMDS = new Set(['scale', 'mark']);
+
+/**
+ * Обратный ход конструктора: готовый текст DSL → состояние NumberLineModal.
+ * Нужен для правки уже вставленной прямой (курсор внутри блока → конструктор
+ * открывается с ней, а не с образцом).
+ *
+ * Разбираем только то, что конструктор умеет показать и записать обратно без
+ * потерь. Всё остальное (комментарии, опечатки, засечки вперемешку со
+ * штриховкой) — в `bad`: такую прямую правят текстом, иначе «Сохранить»
+ * молча выбросило бы часть чертежа.
+ *
+ * @returns {{ok:true, state:object} | {ok:false, bad:string[]}}
+ */
+export function specToNumlineState(spec) {
+  const bad = [];
+  let axisLabel = 'x';
+  let axisBold = false;
+  let domain = null;
+  let showLabels = true;
+  let scale = null;
+  const shapes = [];
+  const marks = [];
+  let usesPoints = false;
+
+  const finite = (tok) => Number.isFinite(parseCoord(tok));
+
+  for (const rawLine of String(spec ?? '').split(/[\n;]/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const p = line.split(/\s+/);
+    const cmd = p[0].toLowerCase();
+    const fail = () => bad.push(line);
+
+    if (cmd === 'axis' || cmd === 'label') {
+      const { parts, bold } = takeTrailingBold(p.slice(1), 1);
+      if (!parts.length) { fail(); continue; }
+      axisLabel = parts.join(' ');
+      axisBold = bold;
+      continue;
+    }
+    if (POINTS_CMDS.has(cmd)) usesPoints = true;
+
+    if (cmd === 'domain') {
+      const a = parseCoord(p[1]);
+      const b = parseCoord(p[2]);
+      if (p.length !== 3 || !Number.isFinite(a) || !Number.isFinite(b) || a >= b) fail();
+      else domain = [a, b];
+    } else if (cmd === 'nolabels' && p.length === 1) {
+      showLabels = false;
+    } else if (cmd === 'labels' && p.length === 2 && /^(on|off)$/i.test(p[1])) {
+      showLabels = p[1].toLowerCase() !== 'off';
+    } else if (cmd === 'all' && p.length === 1) {
+      shapes.push({ type: 'all' });
+    } else if (cmd === 'ray') {
+      const dir = String(p[1] || '').toLowerCase();
+      if (p.length > 4 || !/^(left|right)$/.test(dir) || !finite(p[2])) fail();
+      else shapes.push({ type: 'ray', dir, x: p[2], filled: isFilledToken(p[3]) });
+    } else if (cmd === 'seg' || cmd === 'segment') {
+      if (p.length > 5 || !finite(p[1]) || !finite(p[2]) || parseCoord(p[1]) === parseCoord(p[2])) fail();
+      else shapes.push({ type: 'seg', a: p[1], b: p[2], ea: isFilledToken(p[3]), eb: isFilledToken(p[4]) });
+    } else if (cmd === 'point') {
+      if (p.length > 3 || !finite(p[1])) fail();
+      else shapes.push({ type: 'point', x: p[1], filled: isFilledToken(p[2]) });
+    } else if (cmd === 'tick') {
+      const { parts, bold } = takeTrailingBold(p.slice(1), 1);
+      if (!finite(parts[0])) fail();
+      else shapes.push({ type: 'tick', x: parts[0], label: parts.slice(1).join(' '), bold });
+    } else if (cmd === 'scale') {
+      const from = parseCoord(p[1]);
+      const to = parseCoord(p[2]);
+      const step = p[3] != null ? parseCoord(p[3]) : 1;
+      if (p.length > 4 || !Number.isFinite(from) || !Number.isFinite(to) || from >= to
+        || !Number.isFinite(step) || step <= 0) fail();
+      else scale = { from, to, step };
+    } else if (cmd === 'mark') {
+      const { parts, bold } = takeTrailingBold(p.slice(1), 2);
+      if (parts.length !== 2 || !finite(parts[1])) fail();
+      else marks.push({ label: parts[0], x: parseCoord(parts[1]), bold });
+    } else {
+      fail();
+    }
+  }
+
+  if (usesPoints) {
+    // «Точки на прямой»: засечки ЛИБО голая ось с диапазоном. Штриховку сюда
+    // не смешать.
+    const stray = shapes.length > 0 || (scale && domain);
+    if (stray) {
+      return { ok: false, bad: bad.length ? bad : ['засечки и буквы вперемешку со штриховкой'] };
+    }
+    if (bad.length) return { ok: false, bad };
+    return {
+      ok: true,
+      state: {
+        kind: 'points', axisLabel, axisBold, scale, domain: scale ? null : (domain || [...DEFAULT_DOMAIN]), marks, showLabels,
+      },
+    };
+  }
+  if (bad.length) return { ok: false, bad };
+  return {
+    ok: true,
+    state: {
+      kind: 'intervals', axisLabel, axisBold, domain: domain || [...DEFAULT_DOMAIN], shapes, showLabels,
+    },
+  };
 }

@@ -50,7 +50,7 @@ export default function FieldInsertToolbar({
         </Tooltip>
       )}
       {has('numline') && (
-        <Tooltip title="Вставить числовую прямую со штриховкой (конструктор)">
+        <Tooltip title="Конструктор числовой прямой. Курсор внутри готовой прямой — откроется её правка">
           <Button size="small" icon={<DashOutlined />} onClick={() => tools.openNumline(field)} style={btn}>
             Числовая прямая
           </Button>

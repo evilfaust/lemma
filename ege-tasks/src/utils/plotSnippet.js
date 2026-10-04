@@ -1,4 +1,5 @@
-// Поиск готового чертежа (координатная плоскость) или поля для записи решения
+// Поиск готового чертежа (координатная плоскость, числовая прямая, стерео,
+// планиметрия) или поля для записи решения
 // вокруг курсора.
 //
 // Нужен обоим редакторам (условие задачи и теория): учитель ставит курсор
@@ -133,4 +134,19 @@ export function findPlanimAtCursor(text, pos) {
   if (!found) return null;
   const spec = found.format === 'inline' ? planimSpecFromInline(found.spec) : found.spec;
   return { start: found.start, end: found.end, spec, format: found.format };
+}
+
+// Числовая прямая (utils/numberLine.js): блок ```numline и инлайн `numline: …`.
+const NUMLINE_FENCE_OPEN = /^\s{0,3}```(numline)\s*$/i;
+const NUMLINE_INLINE_RE = /`(numline)\s*:([^`\n]*)`/gi;
+
+/**
+ * Найти числовую прямую, внутри которой стоит курсор. spec — как записан
+ * (в инлайне команды через «;» — разбор понимает обе формы).
+ * @returns {{start:number,end:number,spec:string,format:'block'|'inline'}|null}
+ */
+export function findNumlineAtCursor(text, pos) {
+  const found = findSnippetAtCursor(text, pos, NUMLINE_FENCE_OPEN, NUMLINE_INLINE_RE);
+  if (!found) return null;
+  return { start: found.start, end: found.end, spec: found.spec, format: found.format };
 }

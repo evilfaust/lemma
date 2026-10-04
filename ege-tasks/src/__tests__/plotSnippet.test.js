@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findPlotAtCursor, plotKindOf } from '../utils/plotSnippet';
+import { findPlotAtCursor, findNumlineAtCursor, plotKindOf } from '../utils/plotSnippet';
 
 // Текст с двумя чертежами: блок в условии и inline в ячейке таблицы.
 const TEXT = [
@@ -68,5 +68,36 @@ describe('findPlotAtCursor', () => {
     const two = '```plot\nf x\n```\n\n```plot\nf 2x\n```';
     expect(findPlotAtCursor(two, two.indexOf('f 2x')).spec).toBe('f 2x');
     expect(findPlotAtCursor(two, two.indexOf('f x')).spec).toBe('f x');
+  });
+});
+
+describe('findNumlineAtCursor', () => {
+  const NL = [
+    'Решите неравенство.',
+    '',
+    '```numline',
+    'domain -3 5',
+    'seg -1 3 fill open',
+    '```',
+    '',
+    '| 1) `numline: domain -4 4; ray left -1 open` | 2) `plot: x -3 3; f x` |',
+  ].join('\n');
+  const pos = (needle) => NL.indexOf(needle);
+
+  it('курсор в блоке ```numline — спека и границы блока', () => {
+    const found = findNumlineAtCursor(NL, pos('seg -1'));
+    expect(found).toMatchObject({ format: 'block', spec: 'domain -3 5\nseg -1 3 fill open' });
+    expect(NL.slice(found.start, found.end)).toBe('```numline\ndomain -3 5\nseg -1 3 fill open\n```');
+  });
+
+  it('курсор в инлайне `numline: …` — спека ячейки', () => {
+    const found = findNumlineAtCursor(NL, pos('ray left'));
+    expect(found).toMatchObject({ format: 'inline', spec: 'domain -4 4; ray left -1 open' });
+    expect(NL.slice(found.start, found.end)).toBe('`numline: domain -4 4; ray left -1 open`');
+  });
+
+  it('вне прямой (в тексте, в чужом чертеже) — null', () => {
+    expect(findNumlineAtCursor(NL, pos('Решите'))).toBeNull();
+    expect(findNumlineAtCursor(NL, pos('f x'))).toBeNull();
   });
 });

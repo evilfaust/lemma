@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  parseNumberLine, numberLineSvg, numberLineSvgFromSpec, shapesToSpec, pointsToSpec,
+  parseNumberLine, numberLineSvg, numberLineSvgFromSpec, shapesToSpec, pointsToSpec, specToNumlineState,
 } from '../utils/numberLine';
 import { buildNumlineSnippet } from '../components/shared/NumberLineModal';
 
@@ -338,5 +338,77 @@ describe('точки вне видимого диапазона', () => {
     const svg = numberLineSvgFromSpec('domain 0 3\npoint 2 fill');
     expect(svg).toContain('<circle');
     expect(svg).toMatch(/>2<\/text>/);
+  });
+});
+
+describe('specToNumlineState — правка готовой прямой в конструкторе', () => {
+  // Состояние → текст тем же путём, что и конструктор (NumberLineModal).
+  const toSpec = (st) => (st.kind === 'points'
+    ? pointsToSpec(st)
+    : shapesToSpec(st));
+  // Модель без потерь = та же картинка: сравниваем и разбор, и сам SVG.
+  const sameDrawing = (spec) => {
+    const r = specToNumlineState(spec);
+    expect(r.ok).toBe(true);
+    const back = toSpec(r.state);
+    expect(parseNumberLine(back)).toEqual(parseNumberLine(spec));
+    expect(numberLineSvgFromSpec(back)).toBe(numberLineSvgFromSpec(spec));
+    return r.state;
+  };
+
+  it.each([
+    'domain -3 5\nseg -1 3 fill open',
+    'ray right 2 open',
+    'domain 0 3\npoint 1 fill\ntick 1.41 \\sqrt{2}',
+    'domain -4 4; ray left -1 open',
+    'domain -4 4; all',
+    'domain -6 6; ray left -4 open',
+    'domain 0 3\nnolabels\nray right 1 open',
+    'domain -2 2\nlabels off\nseg -1 1 fill fill',
+    'axis t bold\ndomain 0 2\nray left 1/2 fill\ntick 1.5 1,5 bold',
+    'segment 3 1 closed open',
+    'scale -1 5 1\nmark A 0\nmark B 2',
+    'axis y\nscale -2 2 0.5\nmark A_1 1/2 bold',
+    'domain -3 3; mark A -2; mark B 1; nolabels',
+    'scale 0 4 1\nnolabels\nmark A 1',
+  ])('без потерь: %s', (spec) => {
+    sameDrawing(spec);
+  });
+
+  it('координаты лучей и отрезков остаются как написаны (дробь не превращается в 0.5)', () => {
+    const st = sameDrawing('domain 0 2\nray right 1/2 open\nseg 1,5 2 fill fill');
+    expect(st.kind).toBe('intervals');
+    expect(st.shapes).toEqual([
+      { type: 'ray', dir: 'right', x: '1/2', filled: false },
+      { type: 'seg', a: '1,5', b: '2', ea: true, eb: true },
+    ]);
+  });
+
+  it('засечки и буквы → вкладка «Точки на прямой»; без scale — ось с диапазоном', () => {
+    expect(specToNumlineState('scale -1 5 1\nmark A 0').state)
+      .toMatchObject({ kind: 'points', scale: { from: -1, to: 5, step: 1 }, domain: null });
+    expect(specToNumlineState('domain -3 3; mark A -2').state)
+      .toMatchObject({ kind: 'points', scale: null, domain: [-3, 3] });
+  });
+
+  it('без domain — диапазон по умолчанию, как и у рендера', () => {
+    expect(specToNumlineState('ray right 2 open').state.domain).toEqual([0, 5]);
+  });
+
+  it.each([
+    ['# комментарий\nray right 1 open', '# комментарий'],
+    ['ray rigth 1 open', 'ray rigth 1 open'],
+    ['domain 0 3\nrya right 1 open', 'rya right 1 open'],
+    ['domain 3 0\nray right 1 open', 'domain 3 0'],
+    ['ray right abc open', 'ray right abc open'],
+  ])('не разбирает без потерь: %s', (spec, line) => {
+    const r = specToNumlineState(spec);
+    expect(r.ok).toBe(false);
+    expect(r.bad).toContain(line);
+  });
+
+  it('штриховка вперемешку с засечками — отказ (конструктор держит одно из двух)', () => {
+    expect(specToNumlineState('domain 0 3\nray right 1 open\nmark A 2').ok).toBe(false);
+    expect(specToNumlineState('domain -2 6\nscale -1 5 1').ok).toBe(false);
   });
 });
