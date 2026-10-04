@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button, Spin, Tag, Tooltip, App } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
-  PrinterOutlined, BookOutlined
+  PrinterOutlined, BookOutlined, ShareAltOutlined,
 } from '@ant-design/icons';
 import { useMarkdownProcessor, useGeoGebraInjection, useStereoBlocks } from '../hooks';
 import {
@@ -11,6 +11,7 @@ import {
 } from '../utils/theoryThemes';
 import { withSheetHead } from '../utils/theorySheetHead';
 import PrintThemeSwitch from './theory/PrintThemeSwitch';
+import TheoryShareModal from './theory/TheoryShareModal';
 import { api } from '../services/pocketbase';
 import MathRenderer from './MathRenderer';
 import html2pdf from 'html2pdf.js';
@@ -40,6 +41,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   // переключатель в панели — разовый выбор читателя и в БД не пишется.
   const [printTheme, setPrintTheme] = useState(loadPrintTheme);
   const [isExporting, setIsExporting] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [relatedTasks, setRelatedTasks] = useState([]);
   const [relatedTags, setRelatedTags] = useState([]);
   const [loadingRelated, setLoadingRelated] = useState(false);
@@ -266,6 +268,18 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
               <Button type="text" icon={<EditOutlined />} onClick={() => onEdit?.(articleId)} />
             </Tooltip>
           )}
+          {canEdit && (
+            <Tooltip title={article.public ? 'Статья открыта по ссылке' : 'Поделиться ссылкой на статью'}>
+              <Button
+                type={article.public ? 'link' : 'text'}
+                icon={<ShareAltOutlined />}
+                onClick={() => setShareOpen(true)}
+                aria-label="Поделиться"
+              >
+                {article.public ? 'По ссылке' : null}
+              </Button>
+            </Tooltip>
+          )}
           <Tooltip title="Печать">
             <Button type="text" icon={<PrinterOutlined />} onClick={handlePrint} />
           </Tooltip>
@@ -372,6 +386,16 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
           )}
         </div>
       </div>
+
+      {canEdit && (
+        <TheoryShareModal
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          articleId={article.id}
+          isPublic={article.public}
+          onChange={(v) => setArticle((a) => ({ ...a, public: v }))}
+        />
+      )}
 
       {/* Floating actions */}
       <div className="theory-floating-actions no-print">

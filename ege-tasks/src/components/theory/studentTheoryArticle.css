@@ -1,0 +1,185 @@
+/* Статья теории по ссылке (StudentTheoryArticle, /t/<id>, v3.9.285).
+   Не лист A4, а вёрстка для чтения: колонка ~780 px на компьютере и во всю
+   ширину на телефоне. Типографика статьи — из печатной темы (themes.css /
+   themeSheet.css); здесь — только то, что нужно экрану: кегль, поля,
+   картинки и таблицы не шире экрана. */
+
+.sta {
+  min-height: 100vh;
+  padding: 32px 16px 24px;
+  box-sizing: border-box;
+  background: #f3f4f7;
+  color-scheme: light;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.sta-article {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 36px 44px 40px;
+  box-sizing: border-box;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(13, 19, 33, 0.06), 0 8px 28px rgba(13, 19, 33, 0.06);
+}
+
+/* ── Шапка ── */
+.sta-eyebrow {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #6b7280;
+}
+.sta-title {
+  margin: 0 0 10px;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: #0d1321;
+}
+.sta-summary {
+  margin: 0 0 12px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: #3f4654;
+}
+.sta-meta {
+  font-size: 13px;
+  color: #9aa0ac;
+}
+.sta-head {
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #eceef2;
+}
+
+/* ── Оглавление ── */
+.sta-toc {
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  border: 1px solid #eceef2;
+  border-radius: 12px;
+  background: #fafbfc;
+}
+.sta-toc summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #0d1321;
+}
+.sta-toc ol {
+  margin: 10px 0 2px;
+  padding-left: 20px;
+}
+.sta-toc__item { margin: 4px 0; }
+.sta-toc__item--h3 { margin-left: 16px; list-style: circle; }
+.sta-toc a { color: #3451d1; text-decoration: none; }
+.sta-toc a:hover { text-decoration: underline; }
+
+/* ── Текст статьи: тема даёт стиль, здесь — размеры для экрана ── */
+.sta-content.theory-preview-content {
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1.65;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+.sta-content.theory-preview-content p { line-height: 1.65; margin-bottom: 0.8em; }
+.sta-content.theory-preview-content li { margin-bottom: 0.3em; }
+.sta-content.theory-preview-content h2,
+.sta-content.theory-preview-content h3 { scroll-margin-top: 16px; }
+.sta-content.theory-preview-content h1 { margin-left: 0; margin-right: 0; }
+
+/* Картинки — скриншоты и чертежи — не шире колонки и с рамкой: светлый
+   скриншот на белом фоне иначе сливается со страницей. */
+.sta-content.theory-preview-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid #e6e8ee;
+}
+.sta-content.theory-preview-content .stereo-block img,
+.sta-content.theory-preview-content svg img { border: 0; border-radius: 0; }
+
+/* Широкая таблица и длинная формула прокручиваются сами, страница — нет. */
+.sta-content.theory-preview-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0;
+}
+
+/* ── Подвал ── */
+.sta-foot {
+  max-width: 780px;
+  margin: 20px auto 0;
+  text-align: center;
+  font-size: 12px;
+  color: #9aa0ac;
+}
+.sta-foot a { color: inherit; }
+
+/* ── Загрузка / недоступна ── */
+.sta--state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sta-state {
+  max-width: 420px;
+  padding: 32px 28px;
+  text-align: center;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(13, 19, 33, 0.06);
+}
+.sta-state h1 { margin: 0 0 8px; font-size: 22px; color: #0d1321; }
+.sta-state p { margin: 0; color: #5b6271; line-height: 1.5; }
+.sta-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #dfe3ea;
+  border-top-color: #4361ee;
+  border-radius: 50%;
+  animation: sta-spin 0.8s linear infinite;
+}
+@keyframes sta-spin { to { transform: rotate(360deg); } }
+
+/* ── Телефон ── */
+@media (max-width: 640px) {
+  .sta { padding: 0 0 20px; background: #fff; }
+  .sta-article {
+    padding: 22px 16px 28px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .sta-title { font-size: 25px; }
+  .sta-summary { font-size: 16.5px; }
+  .sta-content.theory-preview-content { font-size: 16px; }
+  .sta-foot { padding: 0 16px; }
+
+  /* Размеры S/M/L — доли колонки A4; на узком экране картинка нужна
+     крупнее, иначе подписи на скриншоте не читаются. */
+  .sta-content.theory-preview-content img.theory-img--s { max-width: 60%; }
+  .sta-content.theory-preview-content img.theory-img--m,
+  .sta-content.theory-preview-content img.theory-img--l { max-width: 100%; }
+
+  /* Таблица шире экрана — прокрутка внутри неё, а не всей страницы. */
+  .sta-content.theory-preview-content table:not(.md-table--gallery):not(.md-table--plain) {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sta-content.theory-preview-content th { white-space: normal; }
+}
+
+@media print {
+  .sta { padding: 0; background: #fff; }
+  .sta-article { max-width: none; padding: 0; box-shadow: none; border-radius: 0; }
+  .sta-toc, .sta-foot { display: none; }
+}

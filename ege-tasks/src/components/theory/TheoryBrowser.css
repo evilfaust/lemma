@@ -216,3 +216,16 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Статья открыта по ссылке (v3.9.285) */
+.theory-article-shared {
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  line-height: 18px;
+  color: var(--teal-ink, #0b7a6b);
+  background: var(--teal-soft, #e3f5f1);
+  white-space: nowrap;
+}

@@ -56,11 +56,14 @@ import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import StudentStereoFeed from './components/student/StudentStereoFeed';
 import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
 import { workFromLocation } from './utils/geometryWorkLink';
+import { articleIdFromPath } from './utils/theoryLink';
 
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
 const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
 const StudentStereoManual = lazy(() => import('./components/stereo/StudentStereoManual'));
 const StudentGeometryWork = lazy(() => import('./components/geometry/student/StudentGeometryWork'));
+// Статья теории по ссылке — отдельный чанк (markdown + KaTeX + стили темы).
+const StudentTheoryArticle = lazy(() => import('./components/theory/StudentTheoryArticle'));
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
@@ -283,6 +286,8 @@ function StudentApp() {
   const manualId = useMemo(() => manualIdFromPath(window.location.pathname), []);
   // Работа по геометрии: /w/{id} (или /student/w/{id}), вариант — ?v=N
   const geoWork = useMemo(() => workFromLocation(window.location.pathname, window.location.search), []);
+  // Статья теории по ссылке: /t/{id} (или /student/t/{id})
+  const theoryArticleId = useMemo(() => articleIdFromPath(window.location.pathname), []);
 
   const generateDeviceId = () => {
     if (globalThis.crypto?.randomUUID) {
@@ -305,10 +310,10 @@ function StudentApp() {
   // Извлекаем sessionId из URL: /student/{sessionId}
   // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
-    if (marathonLiveMatch || stereoCode || manualId || geoWork) return '';
+    if (marathonLiveMatch || stereoCode || manualId || geoWork || theoryArticleId) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, [marathonLiveMatch, stereoCode, manualId, geoWork]);
+  }, [marathonLiveMatch, stereoCode, manualId, geoWork, theoryArticleId]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -370,6 +375,14 @@ function StudentApp() {
 
   if (marathonLiveMatch) {
     return <MarathonLiveBoard marathonId={marathonLiveMatch[1]} />;
+  }
+
+  if (theoryArticleId) {
+    return (
+      <Suspense fallback={null}>
+        <StudentTheoryArticle id={theoryArticleId} />
+      </Suspense>
+    );
   }
 
   if (geoWork) {

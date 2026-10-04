@@ -180,6 +180,11 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
                       {cat.title}
                     </span>
                   )}
+                  {article.public && (
+                    <Tooltip title="Статья открыта по ссылке — её может прочитать любой">
+                      <span className="theory-article-shared">по ссылке</span>
+                    </Tooltip>
+                  )}
                   <span className="theory-article-date">
                     {formatDate(article.updated)}
                   </span>

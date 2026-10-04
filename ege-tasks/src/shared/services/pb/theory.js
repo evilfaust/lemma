@@ -72,7 +72,7 @@ export const theoryApi = {
 
       const records = await pb.collection('theory_articles').getFullList({
         filter: filterString,
-        fields: 'id,title,category,summary,tags,order,created,updated',
+        fields: 'id,title,category,summary,tags,order,public,created,updated',
         expand: 'category',
         sort: filters.sort || 'order,title',
       });
@@ -114,6 +114,29 @@ export const theoryApi = {
       return await pb.collection('theory_articles').update(id, data);
     } catch (error) {
       console.error('Error updating theory article:', error);
+      throw error;
+    }
+  },
+
+  // Открыть / закрыть статью по ссылке (student.oipav.ru/t/<id>)
+  async setTheoryArticlePublic(id, isPublic) {
+    const rec = await pb.collection('theory_articles').update(id, { public: !!isPublic });
+    _logAudit('update', 'theory_articles', id, `${rec.title}: ${isPublic ? 'открыта по ссылке' : 'закрыта по ссылке'}`);
+    return rec;
+  },
+
+  // Статья по ссылке (без входа): только то, что нужно странице.
+  // null — статьи нет или она закрыта (читатель этого не различит, и так нарочно).
+  async getPublicTheoryArticle(id) {
+    try {
+      const rec = await pb.collection('theory_articles').getOne(id, {
+        fields: 'id,title,summary,content_md,tags,theme_settings,public,updated,expand.category.title,expand.category.color',
+        expand: 'category',
+        requestKey: null,
+      });
+      return rec?.public ? rec : null;
+    } catch (error) {
+      if ([403, 404].includes(error?.status)) return null;
       throw error;
     }
   },
