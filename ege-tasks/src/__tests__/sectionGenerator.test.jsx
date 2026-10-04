@@ -39,6 +39,9 @@ describe('генератор сечений — страница', () => {
     fireEvent.click(screen.getByText('Сгенерировать'));
     expect(await screen.findByText('Вариант 2')).toBeInTheDocument();
     expect(screen.getAllByText(/Постройте сечение куба/)).toHaveLength(8); // 4 задачи × 2 варианта
+    // Сетка не тянется по длине условия в одну строку (было minWidth: max-content → карточки по 1700 px)
+    const grid = screen.getByText('Вариант 2').closest('div');
+    expect(grid.style.minWidth).toBe('572px'); // 2 × 280 + 12
 
     fireEvent.click(screen.getByText('Создать работу'));
     fireEvent.click(await screen.findByText('Создать'));

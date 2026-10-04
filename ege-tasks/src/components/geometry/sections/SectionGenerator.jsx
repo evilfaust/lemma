@@ -263,7 +263,10 @@ export default function SectionGenerator() {
                 display: 'grid',
                 gridTemplateColumns: `repeat(${sheet.rows.length}, minmax(280px, 1fr))`,
                 gap: 12,
-                minWidth: 'max-content',
+                // Не 'max-content': он брал ширину условия, набранного в одну
+                // строку, и карточка растягивалась до 1700 px. Минимум — 280 px
+                // на вариант, дальше колонки делят ширину экрана.
+                minWidth: sheet.rows.length * 280 + (sheet.rows.length - 1) * 12,
               }}
             >
               {sheet.rows.map((_, v) => (
