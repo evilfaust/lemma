@@ -5,7 +5,7 @@ import StereoEditor from '../components/stereo/StereoEditor';
 import {
   evaluateScene, renderStereo, stereoSvgString, DEFAULT_CAMERA, setPointColors,
   removeOpCascade, renamePointInScene, parseCommand, toolClick, colorKeyFromWord,
-  pointColorHex, parseStereoBlock, buildStereoBlock, tryAppendOp,
+  pointColorHex, parseStereoBlock, buildStereoBlock, tryAppendOp, setPolyColors, applyColorCommand,
 } from '../utils/stereo';
 
 const cube = { kind: 'cube', a: 4 };
@@ -97,12 +97,73 @@ describe('цвет точек: редактор', () => {
     expect(screen.queryByText(/Не понял/)).toBeNull();
     expect(screen.getByLabelText('Строка команд').value).toBe('');
     fireEvent.keyDown(window, { key: 'o', code: 'KeyO' });
-    expect(screen.getByRole('radiogroup', { name: 'Цвет точек и прямых' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'Цвет точек, прямых и сечений' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'красный' }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(screen.getByRole('radio', { name: 'синий' }));
     expect(screen.getByRole('radio', { name: 'синий' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByText('Снять все').closest('button').disabled).toBe(false);
     fireEvent.keyDown(window, { key: 'z', code: 'KeyZ', ctrlKey: true });
     expect(screen.getByText('Снять все').closest('button').disabled).toBe(true);
+  });
+});
+
+describe('цвет сечений и плоскостей', () => {
+  // Два сечения на одном кубе: MNB и через K, L, P.
+  const two = {
+    body: cube,
+    ops: [
+      ...base.ops,
+      { id: 'k', type: 'pointOnLine', name: 'K', ref: ['A', 'B'], t: 0.5 },
+      { id: 'l', type: 'pointOnLine', name: 'L', ref: ['B', 'C'], t: 0.5 },
+      { id: 'p', type: 'pointOnLine', name: 'P', ref: ['B', 'B1'], t: 0.5 },
+      { id: 's2', type: 'section', pts: ['K', 'L', 'P'] },
+    ],
+  };
+
+  it('новые цвета палитры', () => {
+    expect(colorKeyFromWord('голубой')).toBe('cyan');
+    expect(colorKeyFromWord('желтый')).toBe('yellow');
+    expect(colorKeyFromWord('серым')).toBe('gray');
+    expect(pointColorHex('pink')).toBe('#db2777');
+  });
+
+  it('команда красит сечение по его точкам и по точкам в его плоскости', () => {
+    const m = evaluateScene(two);
+    expect(parseCommand('цвет сечения MNB зелёный', m))
+      .toEqual({ action: 'color', names: [], planes: [['M', 'N', 'B']], color: 'green' });
+    expect(parseCommand('цвет сечений MNB, KLP розовый', m).planes).toHaveLength(2);
+    expect(parseCommand('цвет сечения MN красный', m).error).toMatch(/тремя точками/);
+    expect(applyColorCommand(two, parseCommand('цвет сечения BNM зелёный', m)).scene.polyColors).toEqual({ c: 'green' });
+    expect(applyColorCommand(two, parseCommand('цвет плоскости KLP красный', m)).scene.polyColors).toEqual({ s2: 'red' });
+    expect(applyColorCommand(two, parseCommand('цвет сечения ABC красный', m)).error).toMatch(/не построено/);
+  });
+
+  it('отрисовка: заливка и контур своим цветом, второе сечение — по умолчанию', () => {
+    const s = setPolyColors(two, ['c'], 'green');
+    const frame = renderStereo(evaluateScene(s), DEFAULT_CAMERA, { width: 500, height: 400 });
+    expect(frame.polys.find((p) => p.id === 'c').fill).toBe('#16a34a');
+    expect(frame.polys.find((p) => p.id === 's2').fill).toBe('#3b82f6');
+    expect(frame.strokes.filter((st) => st.objId.startsWith('c:e')).every((st) => st.color === '#16a34a')).toBe(true);
+  });
+
+  it('инструмент: клик внутри сечения, по грани без плоскости — подсказка', () => {
+    const m = evaluateScene(two);
+    expect(toolClick('color', [], { poly: { id: 's2' } }, m)).toEqual({ pending: [], paint: { poly: 's2' } });
+    expect(toolClick('color', [], { face: { id: 'ABCD', verts: ['A', 'B', 'C', 'D'] } }, m).error).toMatch(/плоскость/);
+    const withFace = evaluateScene({ ...two, ops: [...two.ops, { id: 'f', type: 'plane', pts: ['A', 'B', 'C', 'D'] }] });
+    const faceId = withFace.polys.find((p) => p.id === 'f').faceId;
+    expect(toolClick('color', [], { face: { id: faceId, verts: ['A', 'B', 'C', 'D'] } }, withFace).paint).toEqual({ poly: 'f' });
+  });
+
+  it('удаление шага уносит цвет; блок ```stereo — туда и обратно', () => {
+    const s = setPolyColors(setPolyColors(two, ['c'], 'green'), ['s2'], 'orange');
+    expect(removeOpCascade(s, 'k').scene.polyColors).toEqual({ c: 'green' });
+    expect(removeOpCascade(removeOpCascade(s, 'k').scene, 'a').scene.polyColors).toBeUndefined();
+    const { text } = buildStereoBlock(s, DEFAULT_CAMERA);
+    expect(text).toContain('цвет сечения MNB зелёный');
+    expect(text).toContain('цвет сечения KLP оранжевый');
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    expect(Object.values(back.scene.polyColors).sort()).toEqual(['green', 'orange']);
   });
 });

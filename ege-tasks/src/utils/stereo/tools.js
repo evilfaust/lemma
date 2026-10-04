@@ -130,7 +130,7 @@ export function toolHint(tool, pending = []) {
       return 'Две точки — длина; точка и прямая / плоскость — расстояние; две прямые, прямая и плоскость, две плоскости — угол (∠ABC — командой «измерить ABC»). Видно только вам';
     }
     case 'view': return 'Кликните по грани или сечению — чертёж повернётся перпендикулярно этой плоскости (Esc — отмена)';
-    case 'color': return 'Клик по точке или отрезку — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
+    case 'color': return 'Клик по точке, отрезку или внутри сечения — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
     case 'erase': return 'Кликните по точке, прямой или сечению — уберётся шаг, который их построил (вместе с зависящими от него). Ctrl+Z вернёт';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
@@ -165,7 +165,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'fill': return ['point'];
     case 'attention': return ['point', 'line'];
     case 'measure': return ['point', 'line', 'poly', 'face'];
-    case 'color': return ['point', 'line'];
+    case 'color': return ['point', 'line', 'poly', 'face'];
     case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
     case 'erase': return ['point', 'line', 'poly'];
@@ -330,6 +330,13 @@ export function toolClick(tool, pending, hit, model) {
       // кусок между соседними точками, Shift — прямая целиком (и когда с
       // одной стороны точек нет).
       if (target.kind === 'point') return { pending: [], paint: { name: target.name } };
+      if (target.kind === 'poly') return { pending: [], paint: { poly: target.id } };
+      if (target.kind === 'face') {
+        // Грань красится, если по ней построена плоскость (инструмент «Плоскость»).
+        const pg = model.polys.find((p) => p.faceId === target.id);
+        if (pg) return { pending: [], paint: { poly: pg.id } };
+        return { pending: [], error: 'Чтобы закрасить грань, сначала постройте по ней плоскость (инструмент «Плоскость», клик по грани)' };
+      }
       if (!hit.shift) {
         const seg = segmentAt(model, target, target.pos);
         if (seg) return { pending: [], paint: { segment: lineColorKey(seg) } };

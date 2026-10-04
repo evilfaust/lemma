@@ -219,6 +219,18 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
   for (const [key, segs] of Object.entries(segsByColor)) {
     out.push(`цвет ${segs.length > 1 ? 'отрезков' : 'отрезка'} ${segs.join(', ')} ${wordOf(key)}`);
   }
+  // Цвета сечений/плоскостей: «цвет сечений MNB, KLP зелёный» — по точкам
+  // шага. Плоскость без своих точек (⊥ прямой) текстом не выражается.
+  const polysByColor = {};
+  const opById = Object.fromEntries((scene?.ops || []).map((op) => [op.id, op]));
+  for (const [id, key] of Object.entries(scene?.polyColors || {})) {
+    const pts = opById[id]?.pts;
+    if (!key || !Array.isArray(pts) || pts.length < 3) continue;
+    (polysByColor[key] = polysByColor[key] || []).push(pts.join(''));
+  }
+  for (const [key, polys] of Object.entries(polysByColor)) {
+    out.push(`цвет ${polys.length > 1 ? 'сечений' : 'сечения'} ${polys.join(', ')} ${wordOf(key)}`);
+  }
   const c = clampCamera(camera);
   out.push(`вид ${fmt(c.yaw)} ${fmt(c.pitch)}${Math.abs(c.zoom - 1) > 0.01 ? ` ${fmt(c.zoom)}` : ''}`);
   if (color) out.push('цвет');

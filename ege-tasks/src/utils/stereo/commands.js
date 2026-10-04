@@ -29,7 +29,7 @@ import { prettyName } from './bodies';
 import {
   newOpId, refName, planeName, pointInPlane, pointOnLineRef, makeAngleOp, evaluateScene,
 } from './scene';
-import { colorKeyFromWord } from './render';
+import { colorKeyFromWord, COLOR_WORDS } from './render';
 import { nextFreeName, nextFootName } from './naming';
 import { makeMeasure, makeVertexAngle } from './measure';
 
@@ -42,6 +42,7 @@ const LATIN_WORDS = new Set([
   'seg', 'segment', 'line', 'par', 'perp', 'angle', 'section', 'plane', 'face', 'fill', 'rename',
   'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x', 'measure',
   'color', 'red', 'blue', 'green', 'orange', 'violet', 'purple', 'black',
+  'cyan', 'pink', 'yellow', 'brown', 'gray', 'grey',
 ]);
 
 /**
@@ -266,7 +267,7 @@ const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч
 /**
  * Разбирает команду в операцию.
  * @returns {{ op } | { action: 'undo' } | { action: 'rename', from, to }
- *   | { action: 'color', names, lines?, segments?, color }
+ *   | { action: 'color', names, lines?, segments?, planes?, color }
  *   | { action: 'measure', measure } | { error }}
  */
 export function parseCommand(text, model) {
@@ -290,6 +291,19 @@ export function parseCommand(text, model) {
     m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
 
+    // «цвет сечения MNB зелёный», «цвет плоскостей MNB, KLP …» — заливка и
+    // контур сечения/плоскости через эти точки.
+    m = /^(?:цвет|color)\s+(?:сечен|плоск|закраск|гран|plane|section|face)[а-яёa-z]*\s+(.+?)\s+(\S+)$/i.exec(src);
+    if (m) {
+      const groups = m[1].split(/[\s,;]+/).filter(Boolean).map(splitNames);
+      if (!groups.length || groups.some((n) => !n || n.length < 3)) {
+        throw new Error('Сечение — тремя точками: «цвет сечения MNB зелёный»');
+      }
+      const color = colorKeyFromWord(m[2]);
+      if (color == null) throw new Error(`Цвета: ${COLOR_WORDS}; «нет» — снять`);
+      return { action: 'color', names: [], planes: groups, color };
+    }
+
     // «цвет прямой AB красный» — прямая целиком (с продолжениями);
     // «цвет отрезка AM синий», «цвет отрезков AM, BK …» — только кусок.
     m = /^(?:цвет|color)\s+(прям|отрез|лини|line|seg)[а-яёa-z]*\s+(.+?)\s+(\S+)$/i.exec(src);
@@ -300,7 +314,7 @@ export function parseCommand(text, model) {
         throw new Error(isSeg ? 'Отрезок — двумя точками: «цвет отрезка AM красный»' : 'Прямая — двумя точками: «цвет прямой AB красный»');
       }
       const color = colorKeyFromWord(m[3]);
-      if (color == null) throw new Error('Цвета: красный, синий, зелёный, оранжевый, фиолетовый; «нет» — снять');
+      if (color == null) throw new Error(`Цвета: ${COLOR_WORDS}; «нет» — снять`);
       return isSeg
         ? { action: 'color', names: [], segments: pairs, color }
         : { action: 'color', names: [], lines: pairs, color };
@@ -312,7 +326,7 @@ export function parseCommand(text, model) {
       const names = splitNames(m[1]);
       if (!names) throw new Error('Цвет: «цвет MNB красный»');
       const color = colorKeyFromWord(m[2]);
-      if (color == null) throw new Error('Цвета: красный, синий, зелёный, оранжевый, фиолетовый; «нет» — снять');
+      if (color == null) throw new Error(`Цвета: ${COLOR_WORDS}; «нет» — снять`);
       return { action: 'color', names, color };
     }
 

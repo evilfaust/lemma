@@ -9,9 +9,10 @@ import { makeProjector } from './camera';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
 
 /**
- * Палитра выделения: точки (например, через которые проводится сечение) и
- * прямые. Ключи хранятся в scene.colors — { M: 'red' } и
- * scene.lineColors — { 'A-B': 'blue' }.
+ * Палитра выделения: точки (например, через которые проводится сечение),
+ * прямые, отрезки и плоскости. Ключи хранятся в scene.colors — { M: 'red' },
+ * scene.lineColors — { 'A-B': 'blue' }, scene.segmentColors и
+ * scene.polyColors — { <id шага сечения>: 'green' }.
  */
 export const POINT_COLORS = [
   { key: 'red', label: 'красный', hex: '#dc2626', words: ['красный', 'красная', 'красные', 'красным', 'red'] },
@@ -19,7 +20,15 @@ export const POINT_COLORS = [
   { key: 'green', label: 'зелёный', hex: '#16a34a', words: ['зелёный', 'зеленый', 'зелёная', 'зеленая', 'зелёные', 'зеленые', 'green'] },
   { key: 'orange', label: 'оранжевый', hex: '#ea580c', words: ['оранжевый', 'оранжевая', 'оранжевые', 'orange'] },
   { key: 'violet', label: 'фиолетовый', hex: '#7c3aed', words: ['фиолетовый', 'фиолетовая', 'фиолетовые', 'violet', 'purple'] },
+  { key: 'cyan', label: 'голубой', hex: '#0891b2', words: ['голубой', 'голубая', 'голубые', 'голубым', 'cyan'] },
+  { key: 'pink', label: 'розовый', hex: '#db2777', words: ['розовый', 'розовая', 'розовые', 'розовым', 'pink'] },
+  { key: 'yellow', label: 'жёлтый', hex: '#ca8a04', words: ['жёлтый', 'желтый', 'жёлтая', 'желтая', 'жёлтые', 'желтые', 'жёлтым', 'желтым', 'yellow'] },
+  { key: 'brown', label: 'коричневый', hex: '#92400e', words: ['коричневый', 'коричневая', 'коричневые', 'коричневым', 'brown'] },
+  { key: 'gray', label: 'серый', hex: '#6b7280', words: ['серый', 'серая', 'серые', 'серым', 'gray', 'grey'] },
 ];
+
+/** «красный, синий, …» — для подсказок в ошибках. */
+export const COLOR_WORDS = POINT_COLORS.map((c) => c.label).join(', ');
 
 /** Цвет точки по ключу палитры (или готовому #hex); null — обычная точка. */
 export function pointColorHex(key) {
@@ -154,7 +163,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   // Заливки: сечения, плоскости, многоугольники.
   const polys = model.polys.map((pg) => {
     const pts = pg.pts.map(P);
-    const color = pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : STEREO_COLORS.sectionFill);
+    const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : STEREO_COLORS.sectionFill);
     return {
       id: pg.id,
       kind: pg.kind,
@@ -199,7 +208,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   }
   for (const pg of model.polys) {
     if (pg.kind !== 'section') continue;
-    const color = pg.color || STEREO_COLORS.section;
+    const color = pointColorHex(pg.color) || pg.color || STEREO_COLORS.section;
     pg.pts.forEach((A, i) => {
       const B = pg.pts[(i + 1) % pg.pts.length];
       if (len(sub(B, A)) < 1e-9) return;

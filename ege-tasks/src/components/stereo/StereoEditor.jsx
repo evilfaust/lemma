@@ -24,7 +24,7 @@ import {
   renderStereo, stereoSvgString, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
-  POINT_COLORS, setPointColors, setLineColors, setSegmentColors, applyColorCommand, renamePoint,
+  POINT_COLORS, setPointColors, setLineColors, setSegmentColors, setPolyColors, applyColorCommand, renamePoint,
   opToCommand, editStepCommand, measureKey, measurePoints,
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
@@ -328,7 +328,10 @@ export default function StereoEditor({
     if (r.paint) {
       // Повторный клик тем же цветом снимает выделение.
       const sc = sceneRef.current;
-      if (r.paint.segment) {
+      if (r.paint.poly) {
+        const cur = sc.polyColors?.[r.paint.poly];
+        setScene(setPolyColors(sc, [r.paint.poly], cur === paintColor ? '' : paintColor));
+      } else if (r.paint.segment) {
         const cur = sc.segmentColors?.[r.paint.segment];
         setScene(setSegmentColors(sc, [r.paint.segment], cur === paintColor ? '' : paintColor));
       } else if (r.paint.line) {
@@ -680,7 +683,7 @@ export default function StereoEditor({
           </div>
 
           {tool === 'color' && (
-            <div className="stereo-palette" role="radiogroup" aria-label="Цвет точек и прямых">
+            <div className="stereo-palette" role="radiogroup" aria-label="Цвет точек, прямых и сечений">
               {POINT_COLORS.map((c) => (
                 <button
                   key={c.key}
@@ -697,14 +700,18 @@ export default function StereoEditor({
               <Button
                 size="small"
                 type="text"
-                disabled={!scene.colors && !scene.lineColors && !scene.segmentColors}
-                onClick={() => setScene((sc) => setSegmentColors(
-                  setLineColors(
-                    setPointColors(sc, Object.keys(sc.colors || {}), ''),
-                    Object.keys(sc.lineColors || {}),
+                disabled={!scene.colors && !scene.lineColors && !scene.segmentColors && !scene.polyColors}
+                onClick={() => setScene((sc) => setPolyColors(
+                  setSegmentColors(
+                    setLineColors(
+                      setPointColors(sc, Object.keys(sc.colors || {}), ''),
+                      Object.keys(sc.lineColors || {}),
+                      '',
+                    ),
+                    Object.keys(sc.segmentColors || {}),
                     '',
                   ),
-                  Object.keys(sc.segmentColors || {}),
+                  Object.keys(sc.polyColors || {}),
                   '',
                 ))}
               >

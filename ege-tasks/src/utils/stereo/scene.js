@@ -684,6 +684,15 @@ export function evaluateScene(scene, opts = {}) {
     }
   }
 
+  // Цвета сечений и плоскостей — оформление по id шага: scene.polyColors =
+  // { <id шага>: 'green' }. Красится и заливка, и контур сечения — так на
+  // одном теле различаются два сечения.
+  const polyColors = scene?.polyColors && typeof scene.polyColors === 'object' ? scene.polyColors : {};
+  for (const pg of polys) {
+    const c = polyColors[pg.id];
+    if (c) { pg.color = c; pg.painted = true; }
+  }
+
   return {
     body, points, pointOrder, lines, polys, marks, arcs: angleArcs, steps, opsById, planes: planeDefs,
     radius, viewCenter, center: body.center,
@@ -751,6 +760,10 @@ export function removeOpCascade(scene, opId) {
       const ref = refOfLineColorKey(k);
       return Array.isArray(ref) ? !ref.some((n) => deadNames.has(n)) : !deadIds.has(ref);
     }));
+  }
+  if (scene?.polyColors) {
+    next.polyColors = withoutKeys(scene.polyColors, deadIds);
+    if (!Object.keys(next.polyColors).length) delete next.polyColors;
   }
   return {
     scene: next,
@@ -868,6 +881,49 @@ export function setSegmentColors(scene, keys, color) {
   return next;
 }
 
+/** Покрасить сечения/плоскости по id их шагов (color = '' — снять). */
+export function setPolyColors(scene, ids, color) {
+  const polyColors = { ...(scene?.polyColors || {}) };
+  for (const id of ids) {
+    if (color) polyColors[id] = color; else delete polyColors[id];
+  }
+  const next = { ...scene, polyColors };
+  if (!Object.keys(polyColors).length) delete next.polyColors;
+  return next;
+}
+
+/**
+ * Сечение/плоскость/закраска через названные точки (для команды
+ * «цвет сечения MNB …»): сначала шаг, построенный ровно по этим точкам,
+ * иначе — последний, в плоскости которого все они лежат.
+ * @returns {string | null} id шага
+ */
+export function polyThroughPoints(model, names) {
+  const want = [...names].sort().join(',');
+  for (let i = model.polys.length - 1; i >= 0; i--) {
+    const op = model.opsById[model.polys[i].id];
+    if (Array.isArray(op?.pts) && [...op.pts].sort().join(',') === want) return op.id;
+  }
+  const tol = 1e-5 * model.body.size;
+  for (let i = model.polys.length - 1; i >= 0; i--) {
+    const pg = model.polys[i];
+    if (pg.pts.length < 3) continue;
+    // Нормаль Ньюэлла — устойчива и для почти вырожденных углов.
+    const n = { x: 0, y: 0, z: 0 };
+    pg.pts.forEach((a, k) => {
+      const b = pg.pts[(k + 1) % pg.pts.length];
+      n.x += (a.y - b.y) * (a.z + b.z);
+      n.y += (a.z - b.z) * (a.x + b.x);
+      n.z += (a.x - b.x) * (a.y + b.y);
+    });
+    if (len(n) < 1e-12) continue;
+    const u = norm(n);
+    const d = dot(u, pg.pts[0]);
+    if (names.every((nm) => Math.abs(dot(u, model.points[nm].pos) - d) <= tol)) return pg.id;
+  }
+  return null;
+}
+
 /** Точки модели, лежащие на прямой p + t·u, по возрастанию t. */
 function pointsOnLine(model, p, u) {
   const tol = 1e-5 * model.body.size;
@@ -911,7 +967,8 @@ export function segmentColorError(model, a, b) {
 }
 
 /**
- * Команда цвета («цвет MN красный», «цвет прямой AB …», «цвет отрезка AM …»)
+ * Команда цвета («цвет MN красный», «цвет прямой AB …», «цвет отрезка AM …»,
+ * «цвет сечения MNB …»)
  * → новая сцена. Общая для строки команд и блока ```stereo.
  * @returns {{ scene } | { error }}
  */
@@ -919,7 +976,8 @@ export function applyColorCommand(scene, r) {
   const model = evaluateScene(scene);
   const lines = r.lines || [];
   const segs = r.segments || [];
-  const missing = [...(r.names || []), ...lines.flat(), ...segs.flat()].filter((n) => !model.points[n]);
+  const planes = r.planes || [];
+  const missing = [...(r.names || []), ...lines.flat(), ...segs.flat(), ...planes.flat()].filter((n) => !model.points[n]);
   if (missing.length) return { error: `Нет точки ${missing.map(prettyName).join(', ')}` };
   if (r.color) {
     for (const [a, b] of segs) {
@@ -927,8 +985,15 @@ export function applyColorCommand(scene, r) {
       if (err) return { error: err };
     }
   }
+  const polyIds = [];
+  for (const names of planes) {
+    const id = polyThroughPoints(model, names);
+    if (!id) return { error: `Через ${names.map(prettyName).join('')} не построено ни сечения, ни плоскости` };
+    polyIds.push(id);
+  }
   let next = setPointColors(scene, r.names || [], r.color);
   if (lines.length) next = setLineColors(next, lines.map(lineColorKey), r.color);
   if (segs.length) next = setSegmentColors(next, segs.map(lineColorKey), r.color);
+  if (polyIds.length) next = setPolyColors(next, polyIds, r.color);
   return { scene: next };
 }
