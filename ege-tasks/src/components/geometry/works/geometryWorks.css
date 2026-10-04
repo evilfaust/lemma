@@ -4,7 +4,8 @@
   display: grid;
   gap: 8px;
   align-items: stretch;
-  min-width: max-content;
+  /* min-width — inline из колонок (GeometryWorkEditor): «max-content» брал
+     ширину условия в одну строку, и ячейка растягивалась на весь экран. */
 }
 
 .gw-head {

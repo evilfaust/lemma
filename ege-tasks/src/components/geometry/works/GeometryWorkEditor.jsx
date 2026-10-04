@@ -405,6 +405,8 @@ export default function GeometryWorkEditor() {
   const rows = rowCount(structure);
   const nVar = structure.variants.length;
   const cols = `56px repeat(${nVar}, minmax(240px, 1fr))${canEdit ? ' 36px' : ''}`;
+  // Минимум сетки — сумма минимальных колонок и зазоров (8 px): шире — по экрану
+  const gridMinWidth = 56 + nVar * 240 + (canEdit ? 36 : 0) + 8 * (nVar + (canEdit ? 1 : 0));
   const pickerRef = picker ? byId.get(rowReference(structure, picker.row)) : null;
 
   const renderCell = (row, vi) => {
@@ -603,7 +605,7 @@ export default function GeometryWorkEditor() {
         />
       ) : (
         <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-          <div className="gw-grid" style={{ gridTemplateColumns: cols }}>
+          <div className="gw-grid" style={{ gridTemplateColumns: cols, minWidth: gridMinWidth }}>
             <div />
             {structure.variants.map((v, vi) => (
               <div className="gw-head" key={`h${vi}`}>

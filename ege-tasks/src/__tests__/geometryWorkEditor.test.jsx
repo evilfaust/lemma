@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -69,6 +71,11 @@ describe('редактор геометрической работы', () => {
     expect(screen.getByText('Подобрать')).toBeInTheDocument(); // у пустой ячейки есть образец
     expect(screen.getByText('Заполнить пустые (1)')).toBeInTheDocument();
     expect(screen.getByText('Сохранено').closest('button')).toBeDisabled();
+    // Ширина сетки — от колонок, не от условия в одну строку (было min-width: max-content)
+    const grid = document.querySelector('.gw-grid');
+    expect(grid.style.minWidth).toBe(`${56 + 2 * 240 + 36 + 8 * 3}px`);
+    const css = readFileSync(resolve(__dirname, '../components/geometry/works/geometryWorks.css'), 'utf8');
+    expect(css).not.toMatch(/\.gw-grid\s*\{[^}]*min-width:\s*max-content/);
   });
 
   it('правка → «Сохранить» пишет структуру работы', async () => {
