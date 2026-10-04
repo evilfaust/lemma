@@ -173,21 +173,24 @@ describe('окно «Статья по ссылке»', () => {
   });
 });
 
-describe('статья-инструкция по стереометрии', () => {
-  const dir = resolve(__dirname, '../../public/help/stereo');
+describe.each([
+  ['stereo', 8],
+  ['stereo-gen', 5],
+])('статья-инструкция public/help/%s', (topic, minImages) => {
+  const dir = resolve(__dirname, `../../public/help/${topic}`);
   const md = readFileSync(resolve(dir, 'article.md'), 'utf8');
 
-  it('каждая картинка статьи лежит в public/help/stereo', () => {
+  it('каждая картинка статьи лежит в своей папке public/help', () => {
     const srcs = [...md.matchAll(/!\[[^\]]*\]\(([^)]+)\)/g)].map((m) => m[1]);
-    expect(srcs.length).toBeGreaterThanOrEqual(8);
+    expect(srcs.length).toBeGreaterThanOrEqual(minImages);
     for (const src of srcs) {
-      expect(src.startsWith('/help/stereo/')).toBe(true);
-      expect(existsSync(resolve(dir, src.replace('/help/stereo/', '')))).toBe(true);
+      expect(src.startsWith(`/help/${topic}/`)).toBe(true);
+      expect(existsSync(resolve(dir, src.replace(`/help/${topic}/`, '')))).toBe(true);
     }
   });
 
   it('каллауты закрыты', () => {
-    const opens = md.split('\n').filter((l) => /^:::(example|note|remark)\b/.test(l)).length;
+    const opens = md.split('\n').filter((l) => /^:::(example|note|remark|definition|theorem)\b/.test(l)).length;
     const closes = md.split('\n').filter((l) => l.trim() === ':::').length;
     expect(closes).toBe(opens);
   });
