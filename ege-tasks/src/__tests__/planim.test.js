@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  evaluateScene, tryAppendOps, removeOpCascade, renamePoint, applyAction,
+  evaluateScene, tryAppendOps, removeOpCascade, renamePoint, applyAction, editStepCommand, stepOfTarget,
   parseCommand, opToCommand, describeOp, normalizeCommand,
   figureOps, figurePoints, FIGURE_KINDS,
   parsePlanimBlock, buildPlanimBlock, planimSvgFromSpec, planimDrawingSvg, planimSpecFromSvg,
@@ -354,6 +354,90 @@ describe('журнал: удаление, переименование', () => {
     expect(text).toMatch(/пунктир BP/);
     expect(text).toMatch(/метка P 200/);
     expect(renamePoint(s, 'A', 'B').error).toMatch(/занято/);
+  });
+});
+
+describe('правка шага командой', () => {
+  const opOf = (s, type) => s.ops.find((o) => o.type === type);
+
+  it('радиус окружности меняется на месте: тот же id, цвет и подпись к шагу', () => {
+    let s = build('O = (0; 0)', 'окружность O 2', 'цвет окр(O) зелёный', 'A = (1; 1)');
+    const c = opOf(s, 'circle');
+    s = { ...s, ops: s.ops.map((o) => (o.id === c.id ? { ...o, note: 'окружность' } : o)) };
+    const r = editStepCommand(s, c.id, 'окружность O 3');
+    expect(r.error).toBeUndefined();
+    expect(opOf(r.scene, 'circle')).toMatchObject({ id: c.id, color: 'green', note: 'окружность', circle: { k: 'cr', o: 'O', r: 3 } });
+    expect(r.scene.ops.map((o) => o.type)).toEqual(s.ops.map((o) => o.type));
+    expect(r.broken).toEqual([]);
+  });
+
+  it('правка точки, после которой дальнейший шаг не строится, — его номер в broken', () => {
+    const s = build('A = (0; 0)', 'B = (4; 0)', 'C = (0; 3)', 'D = (1; 3)', 'X = AC ∩ BD');
+    const d = s.ops.find((o) => o.name === 'D');
+    const r = editStepCommand(s, d.id, 'D = (4; 5)'); // BD ∥ AC
+    expect(r.error).toBeUndefined();
+    expect(r.broken).toEqual([5]);
+  });
+
+  it('основание высоты из другой вершины: имя H сохраняется, отрезок BH едет следом', () => {
+    const s = build('треугольник ABC 5 6 7', 'H = основание B AC', 'отрезок BH');
+    const foot = opOf(s, 'foot');
+    const r = editStepCommand(s, foot.id, 'основание A BC');
+    expect(r.error).toBeUndefined();
+    expect(opOf(r.scene, 'foot')).toMatchObject({ id: foot.id, name: 'H', from: 'A', ref: ['B', 'C'] });
+    expect(r.broken).toEqual([]);
+    expect(evaluateScene(r.scene).steps.every((st) => st.ok)).toBe(true);
+  });
+
+  it('новое имя, написанное явно, переименовывает точку и в дальнейших шагах', () => {
+    const s = build('треугольник ABC 5 6 7', 'M = середина AC', 'отрезок BM', 'цвет M красный');
+    const mid = s.ops.find((o) => o.name === 'M');
+    const r = editStepCommand(s, mid.id, 'K на AC 1:2');
+    expect(r.error).toBeUndefined();
+    expect(r.scene.ops.find((o) => o.id === mid.id)).toMatchObject({ name: 'K', ratio: [1, 2] });
+    expect(opOf(r.scene, 'segment').ref).toEqual(['B', 'K']);
+    expect(r.scene.colors).toEqual({ K: 'red' });
+    expect(editStepCommand(s, mid.id, 'B на AC 1:2').error).toMatch(/занято/);
+  });
+
+  it('шаг можно заменить составной командой — встаёт несколькими шагами подряд', () => {
+    const s = build('треугольник ABC 5 6 7', 'H = основание B AC', 'AB');
+    const foot = opOf(s, 'foot');
+    const r = editStepCommand(s, foot.id, 'H = высота B AC');
+    expect(r.error).toBeUndefined();
+    const types = r.scene.ops.map((o) => o.type);
+    expect(types.slice(4)).toEqual(['foot', 'segment', 'angle', 'segment']);
+    expect(r.scene.ops[4].id).toBe(foot.id);
+  });
+
+  it('ошибки: оформление вместо построения, неразборчивая команда, не строится', () => {
+    const s = build('треугольник ABC 5 6 7', 'AC');
+    const seg = opOf(s, 'segment');
+    expect(editStepCommand(s, seg.id, 'пунктир AC').error).toMatch(/построение/);
+    expect(editStepCommand(s, seg.id, 'абракадабра').error).toBeTruthy();
+    expect(editStepCommand(s, seg.id, 'отрезок AA').error).toBeTruthy();
+    expect(editStepCommand(s, 'nope', 'AC').error).toMatch(/Нет такого шага/);
+    // исходная сцена не тронута
+    expect(opOf(s, 'segment').ref).toEqual(['A', 'C']);
+  });
+
+  it('объект на чертеже → шаг, который его построил', () => {
+    const s = build('треугольник ABC 5 6 7', 'H = высота B AC', 'O = описанная ABC', 'заливка ABH');
+    const m = evaluateScene(s);
+    const idOf = (type) => s.ops.find((o) => o.type === type).id;
+    expect(stepOfTarget(m, { kind: 'point', name: 'H' })).toBe(idOf('foot'));
+    expect(stepOfTarget(m, { kind: 'circle', id: m.circles[0].id })).toBe(idOf('circle'));
+    expect(stepOfTarget(m, { kind: 'poly', id: m.polys.find((p) => p.names.length === 3 && p.names.includes('H')).id })).toBe(idOf('fill'));
+    const side = m.lines.find((l) => l.kind === 'side');
+    expect(stepOfTarget(m, { kind: 'line', id: side.id })).toBe(idOf('polygon'));
+    expect(stepOfTarget(m, { kind: 'point', name: 'Z' })).toBeNull();
+  });
+
+  it('инструмент «Правка»: клик по объекту отдаёт его шаг', () => {
+    const s = build('O = (0; 0)', 'окружность O 2');
+    const m = evaluateScene(s);
+    const r = toolClick('edit', [], { circle: { id: m.circles[0].id, ref: m.circles[0].ref, angle: 0 }, pos: { x: 2, y: 0 } }, m);
+    expect(r.edit).toEqual({ opId: s.ops[1].id });
   });
 });
 

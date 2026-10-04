@@ -41,6 +41,7 @@ export const TOOLS = [
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'K', group: 'Оформление' },
   { key: 'dash', label: 'Пунктир', glyph: '┄', hot: 'X', group: 'Оформление' },
   { key: 'rename', label: 'Имя', glyph: 'Aa', hot: 'N', group: 'Оформление' },
+  { key: 'edit', label: 'Правка', glyph: '✎', hot: 'Z', group: 'Оформление' },
 ];
 
 export const TOOL_GROUPS = [...new Set(TOOLS.map((t) => t.group))];
@@ -123,6 +124,7 @@ export function toolHint(tool, pending = []) {
     case 'color': return 'Клик по точке, отрезку, окружности или заливке — окрасится выбранным цветом (повторный клик снимает)';
     case 'dash': return 'Клик по отрезку или окружности — пунктир (повторный клик — снова сплошная)';
     case 'rename': return 'Кликните по точке: имя, «скрыть точку». Или двойной клик по точке в любом инструменте';
+    case 'edit': return 'Клик по точке, линии, окружности, заливке или подписи — её шаг откроется в журнале командой: поправьте и Enter';
     default: return 'Тяните точки, буквы и подписи; двойной клик по подписи — исправить; пустое место — сдвиг чертежа, колёсико — масштаб';
   }
 }
@@ -149,6 +151,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'color': return ['point', 'line', 'circle', 'poly'];
     case 'dash': return ['line', 'circle'];
     case 'rename': return ['point'];
+    case 'edit': return ['point', 'line', 'circle', 'poly'];
     case 'text': return ['empty'];
     default: return [];
   }
@@ -410,9 +413,24 @@ export function toolClick(tool, pending, hit, model, opts = {}) {
     }
     case 'rename':
       return { pending: [], rename: { name: target.name } };
+    case 'edit': {
+      // Не операция журнала: редактор открывает правку шага, построившего объект.
+      const opId = stepOfTarget(model, target);
+      return opId ? { pending: [], edit: { opId } } : { pending: [] };
+    }
     default:
       return { pending: [] };
   }
+}
+
+/** Id шага, который построил точку / линию / окружность / заливку. */
+export function stepOfTarget(model, target) {
+  let step = -1;
+  if (target?.kind === 'point') step = model.points[target.name]?.step ?? -1;
+  else if (target?.kind === 'line') step = model.lines.find((l) => l.id === target.id)?.step ?? -1;
+  else if (target?.kind === 'circle') step = model.circles.find((c) => c.id === target.id)?.step ?? -1;
+  else if (target?.kind === 'poly') step = model.polys.find((pg) => pg.id === target.id)?.step ?? -1;
+  return step >= 0 ? model.steps[step]?.op.id || null : null;
 }
 
 /** Enter: замкнуть многоугольник / заливку. */

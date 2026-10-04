@@ -5,7 +5,7 @@ import {
 import {
   DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined, EditOutlined, LeftOutlined,
   RightOutlined, PlayCircleOutlined, FileTextOutlined, QuestionOutlined, ExpandOutlined,
-  BorderInnerOutlined, RadiusSettingOutlined, BookOutlined,
+  BorderInnerOutlined, RadiusSettingOutlined, BookOutlined, CodeOutlined,
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import PlanimCanvas from './PlanimCanvas';
@@ -18,7 +18,7 @@ import StereoLibrary from '../stereo/StereoLibrary';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
   evaluateScene, tryAppendOps, removeOpCascade, applyAction,
-  parseCommand, describeOp, freeOrigin, figureOps, figureVertexCount, nextFreeNames,
+  parseCommand, describeOp, opToCommand, editStepCommand, stepOfTarget, freeOrigin, figureOps, figureVertexCount, nextFreeNames,
   TOOLS, toolHint, toolClick, finishPending, chooseHit,
   pickPoint, pickLines, pickCircle, pickPoly, pickLabel, pickMarkText, gridStep,
   setMarkTextPosition, setMarkText, markTextOf,
@@ -156,6 +156,9 @@ export default function PlanimEditor({
     [replay, scene, viewStep, model],
   );
   const [editNote, setEditNote] = useState(null); // { opId, text }
+  // Правка шага командой: { opId, text, error }. Шаг заменяется на месте.
+  const [editCmd, setEditCmd] = useState(null);
+  const stepsRef = useRef(null);
 
   // Черновик переживает перезагрузку страницы.
   useEffect(() => {
@@ -204,6 +207,7 @@ export default function PlanimEditor({
 
   const undo = useCallback(() => {
     setPending([]);
+    setEditCmd(null);
     const prev = historyRef.current.pop();
     if (prev) { sceneRef.current = prev; setSceneRaw(prev); return; }
     // Черновик после перезагрузки истории не имеет — снимаем последний шаг.
@@ -275,15 +279,48 @@ export default function PlanimEditor({
     setHover(null);
   }, []);
 
+  // --- правка шага командой ---------------------------------------------------
+  // Клик «Правкой» / двойной клик по объекту / кнопка в журнале → команда шага
+  // открывается в журнале на месте; Enter заменяет шаг, дальнейшие пересчитываются.
+  const startStepEdit = useCallback((opId) => {
+    const sc = sceneRef.current;
+    const idx = sc.ops.findIndex((o) => o.id === opId);
+    const text = idx >= 0 ? opToCommand(sc.ops[idx]) : '';
+    if (!text) { showNotice('error', 'Этот шаг командой не выражается — его можно только удалить'); return; }
+    setEditNote(null);
+    setPending([]);
+    setEditCmd({ opId, text, error: '' });
+    setFlashStep(idx);
+    setTimeout(() => {
+      stepsRef.current?.querySelector(`[data-op-id="${opId}"]`)?.scrollIntoView?.({ block: 'nearest' });
+    }, 0);
+  }, [showNotice]);
+
+  const applyStepEdit = () => {
+    if (!editCmd) return;
+    const res = editStepCommand(sceneRef.current, editCmd.opId, editCmd.text);
+    if (res.error) { setEditCmd({ ...editCmd, error: res.error }); return; }
+    setScene(res.scene);
+    setEditCmd(null);
+    setPending([]);
+    const idx = res.scene.ops.findIndex((o) => o.id === editCmd.opId);
+    if (idx >= 0) setFlashStep(idx);
+    if (res.broken.length) {
+      showNotice('error', `После правки не строятся шаги ${res.broken.join(', ')} — поправьте их или верните как было (Ctrl+Z)`);
+    }
+  };
+
   // --- клики по чертежу -----------------------------------------------------
   const handleClick = useCallback(({ x, y, frame, shiftKey, altKey }) => {
     if (tool === 'move' || replay) return;
-    if (tool === 'text') {
+    if (tool === 'text' || tool === 'edit') {
       const mark = pickMarkText(frame, x, y);
-      if (mark) { setMarkTarget({ opId: mark.opId }); return; }
+      if (mark && tool === 'text') { setMarkTarget({ opId: mark.opId }); return; }
+      if (mark) { startStepEdit(mark.opId); return; }
     }
     const hit = buildHit(frame, x, y, { shift: shiftKey, alt: altKey });
     const r = toolClick(tool, pending, hit, model, toolOpts);
+    if (r.edit) { startStepEdit(r.edit.opId); return; }
     if (r.textAt) { setMarkTarget({ create: true, at: r.textAt }); return; }
     if (r.error) showNotice('error', r.error);
     let ok = true;
@@ -311,7 +348,7 @@ export default function PlanimEditor({
         setScene(setOpStyle(sc, [r.dash.circle], { dash: !sc.ops.find((o) => o.id === r.dash.circle)?.dash }));
       }
     }
-  }, [tool, pending, model, toolOpts, commit, showNotice, replay, paintColor, setScene]);
+  }, [tool, pending, model, toolOpts, commit, showNotice, replay, paintColor, setScene, startStepEdit]);
 
   const hoverKey = useRef('');
   const handleHover = useCallback(({ x, y, frame }) => {
@@ -608,11 +645,16 @@ export default function PlanimEditor({
             onDoubleClick={({ x, y, frame }) => {
               // Двойной клик по точке — её свойства, по подписи — её текст;
               // по пустому месту — вписать.
+              // По линии, окружности, заливке — правка шага, который её построил.
               if (replay) return;
               const name = pickPoint(frame, x, y);
               const mark = name ? null : pickMarkText(frame, x, y);
-              if (name) setPointTarget(name);
-              else if (mark) setMarkTarget({ opId: mark.opId });
+              if (name) { setPointTarget(name); return; }
+              if (mark) { setMarkTarget({ opId: mark.opId }); return; }
+              const hit = buildHit(frame, x, y);
+              const target = chooseHit('edit', [], hit);
+              const opId = target ? stepOfTarget(model, target) : null;
+              if (opId) startStepEdit(opId);
               else if (tool === 'move') setView(null);
             }}
             highlight={highlight}
@@ -790,10 +832,11 @@ export default function PlanimEditor({
                 выберите инструмент и кликайте по листу — точки появятся сами.
               </div>
             ) : (
-              <ol className="stereo-steps">
+              <ol className="stereo-steps" ref={stepsRef}>
                 {model.steps.map((st) => (
                   <li
                     key={st.op.id || st.index}
+                    data-op-id={st.op.id}
                     className={[
                       'stereo-step',
                       flashStep === st.index ? 'is-flash' : '',
@@ -802,8 +845,32 @@ export default function PlanimEditor({
                     onClick={() => (replay ? goStep(st.index + 1) : setFlashStep(st.index))}
                   >
                     <span className="stereo-step__no">{st.index + 1}</span>
-                    <span className="stereo-step__text">
-                      {describeOp(st.op)}
+                    <span
+                      className="stereo-step__text"
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (!replay) startStepEdit(st.op.id);
+                      }}
+                    >
+                      {editCmd && editCmd.opId === st.op.id ? (
+                        <>
+                          <Input
+                            size="small"
+                            autoFocus
+                            className="stereo-step__cmd"
+                            aria-label="Команда шага"
+                            value={editCmd.text}
+                            status={editCmd.error ? 'error' : undefined}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => setEditCmd({ ...editCmd, text: e.target.value, error: '' })}
+                            onPressEnter={applyStepEdit}
+                            onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setEditCmd(null); } }}
+                          />
+                          {editCmd.error
+                            ? <div className="stereo-cmd-error">{editCmd.error}</div>
+                            : <div className="stereo-cmd-help">Enter — заменить шаг, Esc — отмена</div>}
+                        </>
+                      ) : describeOp(st.op)}
                       {!st.ok && <div className="stereo-cmd-error">{st.error}</div>}
                       {editNote && editNote.opId === st.op.id ? (
                         <Input
@@ -820,6 +887,17 @@ export default function PlanimEditor({
                         />
                       ) : st.op.note && <div className="stereo-step__note">{st.op.note}</div>}
                     </span>
+                    <Tooltip title={opToCommand(st.op) ? 'Изменить построение — команда шага (или двойной клик)' : 'Этот шаг командой не выражается'}>
+                      <Button
+                        className="stereo-step__del"
+                        size="small"
+                        type="text"
+                        icon={<CodeOutlined />}
+                        disabled={replay || !opToCommand(st.op)}
+                        onClick={(e) => { e.stopPropagation(); startStepEdit(st.op.id); }}
+                        aria-label="Изменить построение"
+                      />
+                    </Tooltip>
                     <Tooltip title="Подпись к шагу">
                       <Button
                         className="stereo-step__del"
@@ -850,6 +928,11 @@ export default function PlanimEditor({
         name={pointTarget}
         scene={scene}
         onClose={() => setPointTarget(null)}
+        onEditStep={pointTarget && model.points[pointTarget] ? () => {
+          const opId = stepOfTarget(model, { kind: 'point', name: pointTarget });
+          setPointTarget(null);
+          if (opId) startStepEdit(opId);
+        } : null}
         onApply={(next) => {
           setScene(next);
           setPointTarget(null);

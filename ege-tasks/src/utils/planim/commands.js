@@ -22,7 +22,7 @@ import {
   prettyName, splitNames, parseLineRef, parseCircleRef, isCircleTok, lineRefText, circleRefText,
   lineRefPretty, circleRefPretty,
 } from './refs';
-import { newOpId } from './scene';
+import { newOpId, evaluateScene, renamePoint } from './scene';
 import { nextFreeName, nextFreeNames } from './naming';
 import { figureOps, figureVertexCount } from './figures';
 import { lineCircle, circleCircle } from './geometry';
@@ -693,4 +693,65 @@ export function opToCommand(op) {
     case 'text': return `текст (${fmt(op.x)}; ${fmt(op.y)}) ${op.text}`;
     default: return '';
   }
+}
+
+// --- правка шага командой -------------------------------------------------------
+
+/**
+ * Заменить шаг журнала новой командой — на том же месте. Команда разбирается
+ * на чертеже ДО этого шага; составная («H = высота B AC») встаёт несколькими
+ * шагами подряд. Первый новый шаг получает id старого, подпись к шагу,
+ * цвет, пунктир и сдвинутую подпись пометки — они не теряются.
+ *
+ * Имя точки, которое учитель в новой команде не написал, остаётся прежним
+ * (автоимя на чертеже «до шага» могло бы дать другую букву). Написал другое —
+ * точка переименовывается во всём дальнейшем журнале и оформлении, так что
+ * построения на ней не рвутся.
+ *
+ * @returns {{ scene, broken: number[] } | { error }} broken — номера (с 1)
+ *   дальнейших шагов, которые после правки перестали строиться
+ */
+export function editStepCommand(scene, opId, text) {
+  const ops = scene?.ops || [];
+  const idx = ops.findIndex((o) => o.id === opId);
+  if (idx < 0) return { error: 'Нет такого шага' };
+  const r = parseCommand(text, evaluateScene(scene, { upTo: idx }));
+  if (r.error) return { error: r.error };
+  const fresh = r.ops || (r.op ? [r.op] : []);
+  if (!fresh.length) {
+    return { error: 'Шаг — это построение; цвет, пунктир, имя и отмена делаются отдельно' };
+  }
+  const old = ops[idx];
+  const repl = fresh.map((o, i) => (i === 0 ? { ...o, id: old.id } : o));
+  const first = repl[0];
+  if (old.note) first.note = old.note;
+  if (first.type === old.type) {
+    for (const f of ['color', 'dash', 'at']) if (old[f] != null && first[f] == null) first[f] = old[f];
+  }
+
+  // Шаг, который ставит точку: прежнее имя остаётся, если другое не написано.
+  let renameTo = null;
+  const main = old.name ? repl.find((o) => o.name) : null;
+  if (main && main.name !== old.name) {
+    const typed = normalizeCommand(text);
+    const written = new RegExp(`(^|[^A-Z0-9])${main.name}(?![0-9])`).test(typed);
+    if (written) renameTo = main.name;
+    main.name = old.name;
+  }
+
+  let next = { ...scene, ops: [...ops.slice(0, idx), ...repl, ...ops.slice(idx + 1)] };
+  if (renameTo) {
+    const rn = renamePoint(next, old.name, renameTo);
+    if (rn.error) return { error: rn.error };
+    next = rn.scene;
+  }
+
+  const now = evaluateScene(next).steps;
+  const own = now.slice(idx, idx + repl.length).find((st) => !st.ok);
+  if (own) return { error: own.error };
+  const wasOk = new Map(evaluateScene(scene).steps.map((st) => [st.op.id, st.ok]));
+  const broken = now
+    .filter((st, i) => i >= idx + repl.length && !st.ok && wasOk.get(st.op.id))
+    .map((st) => st.index + 1);
+  return { scene: next, broken };
 }

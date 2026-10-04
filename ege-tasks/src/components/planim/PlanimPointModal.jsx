@@ -8,7 +8,9 @@ import {
  * Точка: имя, «скрыть», место буквы. Проверка имени — на лету той же
  * renamePoint, что и применение, поэтому окно и результат не разойдутся.
  */
-export default function PlanimPointModal({ name, scene, onApply, onClose }) {
+export default function PlanimPointModal({
+  name, scene, onApply, onClose, onEditStep,
+}) {
   const [value, setValue] = useState('');
   const [hidden, setHiddenFlag] = useState(false);
   useEffect(() => {
@@ -66,6 +68,14 @@ export default function PlanimPointModal({ name, scene, onApply, onClose }) {
           <Button size="small" onClick={() => onApply(setLabelAngle(scene, name, null))}>
             Вернуть букве место по умолчанию
           </Button>
+        </div>
+      )}
+      {onEditStep && (
+        <div style={{ marginTop: 12 }}>
+          <Button size="small" onClick={onEditStep}>Изменить построение…</Button>
+          <div className="stereo-cmd-help" style={{ marginTop: 4 }}>
+            Откроет в журнале команду шага, который поставил точку: другая сторона, другое отношение, координаты
+          </div>
         </div>
       )}
     </Modal>

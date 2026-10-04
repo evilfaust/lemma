@@ -129,6 +129,38 @@ describe('редактор', () => {
     expect(screen.getByLabelText('Строка команд').value).toBe('середина AC');
   });
 
+  it('правка построения: команда шага открывается в журнале и заменяет шаг на месте', async () => {
+    mount();
+    await runCmd('треугольник ABC 5 6 7');
+    await runCmd('O = (2; 1)');
+    await runCmd('окружность O 2');
+    const journal = () => document.querySelector('.stereo-steps').textContent;
+    const stepLi = (text) => [...document.querySelectorAll('.stereo-step')].find((li) => li.textContent.includes(text));
+    expect(journal()).toContain('Окружность (O; 2)');
+    const step = stepLi('Окружность (O; 2)');
+    fireEvent.click(within(step).getByLabelText('Изменить построение'));
+    const field = screen.getByLabelText('Команда шага');
+    expect(field.value).toBe('окр(O;2)');
+    fireEvent.change(field, { target: { value: 'окружность O 3' } });
+    await act(async () => {
+      fireEvent.keyDown(field, { key: 'Enter', code: 'Enter', keyCode: 13 });
+      fireEvent.keyUp(field, { key: 'Enter', code: 'Enter', keyCode: 13 });
+    });
+    expect(screen.queryByLabelText('Команда шага')).toBeNull();
+    expect(journal()).toContain('Окружность (O; 3)');
+    expect(journal()).not.toContain('Окружность (O; 2)');
+    // ошибка остаётся в поле, шаг не меняется
+    fireEvent.click(within(stepLi('Окружность (O; 3)')).getByLabelText('Изменить построение'));
+    const again = screen.getByLabelText('Команда шага');
+    fireEvent.change(again, { target: { value: 'пунктир AC' } });
+    await act(async () => {
+      fireEvent.keyDown(again, { key: 'Enter', code: 'Enter', keyCode: 13 });
+      fireEvent.keyUp(again, { key: 'Enter', code: 'Enter', keyCode: 13 });
+    });
+    expect(screen.getByText(/Шаг — это построение/)).toBeTruthy();
+    expect(screen.getByLabelText('Команда шага').value).toBe('пунктир AC');
+  });
+
   it('строка команд: фигура, построение, ошибка с объяснением, отмена', async () => {
     mount();
     await runCmd('треугольник ABC 5 6 7');
