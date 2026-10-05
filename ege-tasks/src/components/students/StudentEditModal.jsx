@@ -13,6 +13,7 @@ import {
 } from '../../utils/studentModeration';
 import { collectAcademicYears, currentAcademicYear } from '../../utils/academicYear';
 import { addressOf } from '../../utils/intensiveFeedback';
+import { isMachineLogin, suggestLogin } from '../../utils/studentLogins';
 
 const { Text, Paragraph } = Typography;
 
@@ -335,16 +336,18 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
               type="warning"
               style={{ marginBottom: 16 }}
               message="Ученик вписан вручную, без рабочего аккаунта"
-              description="Ему доступны только заметки и посещаемость. Чтобы он мог проходить тесты, снимите отметку и выдайте пароль — логин уже есть."
+              description="Ему доступны только заметки и посещаемость. «Выдать аккаунт» даст логин из фамилии и простой пароль (при первом входе ученик придумает свой). Отметки в журнале останутся."
               action={canManage && (
                 <Button
                   size="small"
                   onClick={async () => {
                     try {
-                      await api.updateStudentProfile(student.id, { external: false });
-                      const res = await api.setStudentPassword(student.id);
+                      const res = await api.issueStudentCredentials(student.id, {
+                        username: suggestLogin(student.name, takenUsernames),
+                      });
                       setCredentials(res);
-                      onSaved?.({ ...student, external: false });
+                      form.setFieldsValue({ username: res.username });
+                      onSaved?.({ ...student, external: false, username: res.username });
                       message.success('Аккаунт выдан');
                     } catch (e) {
                       message.error(`Не удалось выдать аккаунт: ${e?.message || ''}`);
@@ -362,7 +365,21 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
               name="username"
               label="Логин"
               style={{ flex: 1 }}
-              extra="Ученик будет входить по новому логину; уже открытая сессия не прервётся"
+              extra={(
+                <>
+                  Ученик будет входить по новому логину; уже открытая сессия не прервётся.
+                  {canManage && (
+                    <>
+                      {' '}
+                      <Typography.Link
+                        onClick={() => form.setFieldsValue({ username: suggestLogin(student.name, takenUsernames) })}
+                      >
+                        {isMachineLogin(student.username) ? 'Логин из фамилии' : 'Предложить из фамилии'}
+                      </Typography.Link>
+                    </>
+                  )}
+                </>
+              )}
               rules={[{
                 validator: (_, value) => {
                   const err = validateUsername(value, { taken: takenUsernames });
@@ -375,7 +392,7 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
             <Form.Item style={{ marginBottom: 24 }}>
               <Popconfirm
                 title="Выдать новый пароль?"
-                description="Старый перестанет работать. Новый покажем один раз."
+                description="Старый перестанет работать. Новый (простой) покажем один раз — при входе ученик придумает свой."
                 okText="Выдать"
                 cancelText="Отмена"
                 onConfirm={handleResetPassword}

@@ -12,7 +12,6 @@ import {
 } from 'antd';
 import {
   ArrowLeftOutlined,
-  CopyOutlined,
   DisconnectOutlined,
   EditOutlined,
   IdcardOutlined,
@@ -25,6 +24,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
 import StudentEditModal from '../students/StudentEditModal';
+import StudentLoginsModal from '../students/StudentLoginsModal';
 import { useAuth } from '../../contexts/AuthContext';
 import { WorkspacePageHeader, EmptyState, SectionCard, Chip, groupTone, groupHex } from './ui';
 import GroupCampaignsSection from './summer/GroupCampaignsSection';
@@ -51,8 +51,6 @@ export default function GroupDetail() {
   const [editStudent, setEditStudent] = useState(null);
   // Создание полноценных аккаунтов учеников (v3.9.120)
   const [accOpen, setAccOpen] = useState(false);
-  const [accText, setAccText] = useState('');
-  const [accResults, setAccResults] = useState(null); // [{name, username, password}] после создания
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -140,47 +138,6 @@ export default function GroupDetail() {
     }
   };
 
-  // Создать полноценные аккаунты (по имени на строку): логины/пароли
-  // генерируются и показываются ОДИН раз — скопировать и раздать ученикам.
-  const handleCreateAccounts = async () => {
-    const names = accText.split('\n').map((s) => s.trim()).filter(Boolean);
-    if (!names.length) return;
-    setBusy(true);
-    const results = [];
-    let failed = 0;
-    for (const name of names) {
-      try {
-        const { username, password } = await api.createStudentAccount({
-          name,
-          groupId,
-          studentClass: group?.name || '',
-          groupYear: group?.year,
-        });
-        results.push({ name, username, password });
-      } catch {
-        failed += 1;
-      }
-    }
-    setBusy(false);
-    if (results.length) {
-      setAccResults(results);
-      setAccText('');
-      load();
-    }
-    if (failed) message.error(`Не удалось создать: ${failed}`);
-  };
-
-  const copyAccResults = async () => {
-    const text = (accResults || [])
-      .map((r) => `${r.name}\tлогин: ${r.username}\tпароль: ${r.password}`)
-      .join('\n');
-    try {
-      await navigator.clipboard.writeText(text);
-      message.success('Список логинов и паролей скопирован');
-    } catch {
-      message.error('Не удалось скопировать — выделите текст вручную');
-    }
-  };
 
   const handleUnlink = async (student) => {
     try {
@@ -285,10 +242,10 @@ export default function GroupDetail() {
             <Button
               size="small"
               icon={<IdcardOutlined />}
-              onClick={() => { setAccResults(null); setAccOpen(true); }}
-              title="Создать ученикам полноценные аккаунты с логином и паролем"
+              onClick={() => setAccOpen(true)}
+              title="Логины из фамилий и простые пароли — ученикам группы и новым; карточки для раздачи"
             >
-              Аккаунты
+              Логины и пароли
             </Button>
             <Button size="small" type="primary" icon={<PlusOutlined />} onClick={() => setAddOpen(true)}>
               Добавить
@@ -398,64 +355,14 @@ export default function GroupDetail() {
         onDeleted={load}
       />
 
-      <Modal
+      <StudentLoginsModal
         open={accOpen}
-        title="Создать аккаунты учеников"
-        onCancel={() => { setAccOpen(false); setAccResults(null); }}
-        confirmLoading={busy}
-        okText={accResults ? 'Готово' : 'Создать'}
-        cancelText="Отмена"
-        onOk={accResults ? () => { setAccOpen(false); setAccResults(null); } : handleCreateAccounts}
-        okButtonProps={accResults ? {} : { disabled: !accText.trim() }}
-        width={620}
-        destroyOnHidden
-      >
-        {!accResults ? (
-          <>
-            <Text type="secondary">
-              По одному ученику на строку (Фамилия Имя). Каждому создаётся
-              полноценный аккаунт с логином и паролем, привязанный к этой группе.
-            </Text>
-            <Input.TextArea
-              value={accText}
-              onChange={(e) => setAccText(e.target.value)}
-              autoSize={{ minRows: 5, maxRows: 14 }}
-              placeholder={'Иванов Иван\nПетрова Мария'}
-              style={{ marginTop: 8 }}
-              autoFocus
-            />
-          </>
-        ) : (
-          <>
-            <Text strong style={{ color: '#d4380d' }}>
-              Пароли показываются один раз — скопируйте список и раздайте ученикам.
-            </Text>
-            <div style={{ margin: '12px 0', maxHeight: 320, overflowY: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', color: '#888' }}>
-                    <th style={{ padding: '4px 8px' }}>Ученик</th>
-                    <th style={{ padding: '4px 8px' }}>Логин</th>
-                    <th style={{ padding: '4px 8px' }}>Пароль</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accResults.map((r) => (
-                    <tr key={r.username} style={{ borderTop: '1px solid #f0f0f0' }}>
-                      <td style={{ padding: '4px 8px' }}>{r.name}</td>
-                      <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{r.username}</td>
-                      <td style={{ padding: '4px 8px', fontFamily: 'monospace' }}>{r.password}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <Button icon={<CopyOutlined />} onClick={copyAccResults}>
-              Скопировать список
-            </Button>
-          </>
-        )}
-      </Modal>
+        onClose={() => setAccOpen(false)}
+        group={group}
+        students={students}
+        taken={allStudents.map((s) => s.username).filter(Boolean)}
+        onDone={load}
+      />
     </div>
   );
 }

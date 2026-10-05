@@ -42,6 +42,7 @@ function ThemeCornerBtn({ isDark, onToggle }) {
 }
 import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
+import StudentPasswordChange from './components/student/StudentPasswordChange';
 import StudentEntryPage from './components/student/StudentEntryPage';
 import StudentTestPage from './components/student/StudentTestPage';
 import StudentMCTestPage from './components/student/StudentMCTestPage';
@@ -351,6 +352,14 @@ function StudentApp() {
   const studentSession = useStudentSession(sessionId, deviceId, student?.id || null);
   const { attempt, session } = studentSession;
   const [viewOverride, setViewOverride] = useState(null); // Для ручной смены экрана (например, галерея)
+  // Пароль выдал учитель → «Придумай свой пароль»; «Позже» — до конца вкладки (v3.9.294).
+  const [pwLater, setPwLater] = useState(() => {
+    try { return sessionStorage.getItem('student.pwLater') === '1'; } catch { return false; }
+  });
+  const postponePassword = () => {
+    try { sessionStorage.setItem('student.pwLater', '1'); } catch { /* приватный режим */ }
+    setPwLater(true);
+  };
   const canOpenAchievements = !!attempt;
 
   const handleAuthSuccess = (authStudent) => {
@@ -417,6 +426,16 @@ function StudentApp() {
     token: { colorPrimary: '#4361ee', fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' },
     algorithm: isDark ? theme.darkAlgorithm : theme.defaultAlgorithm,
   };
+
+  if (student?.must_change_password && !pwLater) {
+    return (
+      <ConfigProvider theme={antdTheme}>
+        <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
+          <StudentPasswordChange student={student} onDone={setStudent} onLater={postponePassword} />
+        </div>
+      </ConfigProvider>
+    );
+  }
 
   if (!sessionId) {
     return (

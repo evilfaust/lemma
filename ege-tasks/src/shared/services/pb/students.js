@@ -2,6 +2,7 @@ import { pb, _logAudit, withOwner, andOwnerOrFree, andRelOwnerOrFree, authHeader
 import { PB_BASE_URL } from '../pocketbaseUrl';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { loginCandidates, simplePassword } from '../../../utils/studentLogins';
 
 export const studentsApi = {
   // ============ СТУДЕНТЫ (STUDENTS AUTH) ============
@@ -267,22 +268,25 @@ export const studentsApi = {
   },
 
   // Полноценный аккаунт ученика, созданный учителем (v3.9.120): логин и пароль
-  // генерируются и возвращаются наружу — показать учителю ОДИН раз (в БД
-  // хранится только хэш). owner = создавший учитель. Группа — указатель И
-  // членство, как у createManualStudent.
-  async createStudentAccount({ name, groupId = null, studentClass = '', groupYear } = {}) {
+  // возвращаются наружу — показать учителю ОДИН раз (в БД хранится только
+  // хэш). owner = создавший учитель. Группа — указатель И членство, как у
+  // createManualStudent. С v3.9.294 логин человекочитаемый (ivanov.p, при
+  // совпадении — следующий кандидат), пароль простой, при первом входе ученик
+  // придумает свой (must_change_password). `username`/`password` можно задать.
+  async createStudentAccount({ name, groupId = null, studentClass = '', groupYear, username: wanted = '', password: given = '' } = {}) {
     const nm = (name || '').trim();
     if (!nm) throw new Error('Имя обязательно');
+    const password = given || simplePassword();
+    const candidates = wanted ? [wanted, ...loginCandidates(nm).filter((c) => c !== wanted)] : loginCandidates(nm);
     let lastErr;
-    for (let i = 0; i < 3; i += 1) {
-      const username = `st_${Math.random().toString(36).slice(2, 8)}`;
-      const password = Math.random().toString(36).slice(2, 6) + Math.random().toString(36).slice(2, 6);
+    for (const username of candidates.slice(0, 12)) {
       try {
         const rec = await pb.collection('students').create(withOwner({
           name: nm,
           username,
           password,
           passwordConfirm: password,
+          must_change_password: true,
           ...(studentClass ? { student_class: studentClass } : {}),
           ...(groupId ? { teaching_group: groupId } : {}),
         }));
@@ -408,6 +412,8 @@ export const studentsApi = {
   // Новый пароль возвращается наружу ОДИН раз — в базе только хэш.
   // Пустой password → сервер сгенерирует читаемый (без 0/O, 1/l/I).
   async setStudentPassword(studentId, password = '') {
+    // Пусто → простой пароль (v3.9.294): при входе ученик всё равно сменит.
+    if (!password) password = simplePassword();
     const response = await fetch(`${PB_BASE_URL}/api/students/set-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -416,6 +422,36 @@ export const studentsApi = {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     return data; // { username, password }
+  },
+
+  // Выдать ученику человекочитаемый логин и простой пароль (v3.9.294) — хук
+  // `issue-credentials`. Подходит и ученику «без аккаунта» (external): запись
+  // та же, отметки журнала остаются. Занятый логин сервер дополнит цифрой.
+  // → { username, password } — показать учителю ОДИН раз.
+  async issueStudentCredentials(studentId, { username = '', password = '' } = {}) {
+    const response = await fetch(`${PB_BASE_URL}/api/students/issue-credentials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ studentId, username, password: password || simplePassword() }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data; // { username, password } — аудит пишет сам хук
+  },
+
+  // Ученик сам меняет пароль (экран первого входа, v3.9.294). PocketBase
+  // требует старый пароль; после смены токен недействителен — входим заново.
+  async changeOwnStudentPassword(oldPassword, newPassword) {
+    const me = pb.authStore.model;
+    if (!me?.id) throw new Error('Нужен вход ученика');
+    await pb.collection('students').update(me.id, {
+      oldPassword,
+      password: newPassword,
+      passwordConfirm: newPassword,
+      must_change_password: false,
+    });
+    const auth = await pb.collection('students').authWithPassword(me.username, newPassword);
+    return auth.record;
   },
 
   // Удаление аккаунта ученика (только superadmin, только если нет ни одной

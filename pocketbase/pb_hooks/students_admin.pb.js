@@ -3,8 +3,9 @@
 /**
  * Модерация учеников: операции, которые нельзя сделать обычным update.
  *
- *   POST /api/students/set-password  { studentId, password? }
- *   POST /api/students/delete        { studentId, dryRun? }
+ *   POST /api/students/set-password       { studentId, password? }
+ *   POST /api/students/issue-credentials  { studentId, username?, password? }
+ *   POST /api/students/delete             { studentId, dryRun? }
  *
  * Почему хук, а не правила PocketBase:
  *  • пароль auth-записи меняется только суперюзером либо с `oldPassword`
@@ -70,8 +71,8 @@ routerAdd("POST", "/api/students/set-password", (c) => {
     const studentId = (body["studentId"] || "").toString();
     const requested = (body["password"] || "").toString();
     if (!studentId) return c.json(400, { error: "studentId обязателен" });
-    if (requested && requested.length < 8) {
-      return c.json(400, { error: "Пароль короче 8 символов" });
+    if (requested && requested.length < 6) {
+      return c.json(400, { error: "Пароль короче 6 символов" });
     }
 
     let student;
@@ -88,6 +89,8 @@ routerAdd("POST", "/api/students/set-password", (c) => {
 
     const password = requested || generatePassword();
     student.setPassword(password);
+    // Пароль выдал учитель — при входе ученик придумает свой (v3.9.294).
+    try { student.set("must_change_password", true); } catch (err) { /* поля ещё нет */ }
     $app.save(student);
 
     logAudit($app, teacherId, teacherName, studentId,
@@ -100,6 +103,111 @@ routerAdd("POST", "/api/students/set-password", (c) => {
     });
   } catch (err) {
     console.error("[students-admin] set-password failed: " + String(err));
+    return c.json(500, { error: String(err) });
+  }
+});
+
+/**
+ * Выдать ученику человекочитаемый логин и простой пароль (v3.9.294).
+ * Работает и с учеником «без аккаунта» (external): запись та же, поэтому
+ * отметки журнала, посещаемость и заметки остаются при нём.
+ *   username — желаемый логин; занят другим учеником → ivanov.p2, ivanov.p3…
+ *              (сервер видит всех учеников, клиент — только своих);
+ *   password — не короче 6, пусто → сгенерировать.
+ * Ставит external = false и must_change_password = true.
+ * → { ok, username, password }
+ */
+routerAdd("POST", "/api/students/issue-credentials", (c) => {
+  function generatePassword() {
+    const words = ["kit", "sad", "dub", "mak", "yak", "kran", "zima", "reka", "sneg", "tigr", "zubr", "mayak", "kedr", "mir", "raketa"];
+    const digits = "23456789";
+    let out = words[Math.floor(Math.random() * words.length)];
+    for (let i = 0; i < 3; i += 1) out += digits.charAt(Math.floor(Math.random() * digits.length));
+    return out;
+  }
+
+  try {
+    const info = c.requestInfo();
+    const auth = info.auth;
+    if (!auth) return c.json(401, { error: "Требуется авторизация учителя" });
+    const authCollection = auth.collection().name;
+    const isSuperuser = authCollection === "_superusers";
+    if (!isSuperuser && authCollection !== "teachers") {
+      return c.json(403, { error: "Выдать логин может только учитель" });
+    }
+    const role = isSuperuser ? "superadmin" : auth.getString("role");
+    if (role === "viewer") return c.json(403, { error: "Недостаточно прав" });
+    const isSuperadmin = isSuperuser || role === "superadmin";
+    const teacherId = auth.id;
+    const teacherName = isSuperuser ? "superuser" : (auth.getString("name") || auth.getString("username") || "?");
+
+    const body = info.body || {};
+    const studentId = (body["studentId"] || "").toString();
+    const wanted = (body["username"] || "").toString().trim().toLowerCase();
+    const requested = (body["password"] || "").toString();
+    if (!studentId) return c.json(400, { error: "studentId обязателен" });
+    if (wanted && !/^[a-z0-9_][a-z0-9_.-]{2,}$/.test(wanted)) {
+      return c.json(400, { error: "Логин: латиница, цифры, точка, дефис; от 3 символов" });
+    }
+    if (requested && requested.length < 6) {
+      return c.json(400, { error: "Пароль короче 6 символов" });
+    }
+
+    let student;
+    try {
+      student = $app.findRecordById("students", studentId);
+    } catch (err) {
+      return c.json(404, { error: "Ученик не найден" });
+    }
+    const owner = student.getString("owner");
+    if (!isSuperadmin && owner !== "" && owner !== teacherId) {
+      return c.json(403, { error: "Ученик принадлежит другому учителю" });
+    }
+
+    // Свободный логин: желаемый, иначе с цифрой. Свой текущий логин — не помеха.
+    const taken = (u) => {
+      try {
+        const r = $app.findFirstRecordByFilter("students", "username = {:u} && id != {:id}", { u: u, id: studentId });
+        return !!r;
+      } catch (err) {
+        return false; // не найдено
+      }
+    };
+    let username = student.getString("username");
+    if (wanted) {
+      username = "";
+      for (let i = 1; i < 100 && !username; i += 1) {
+        const candidate = i === 1 ? wanted : wanted + i;
+        if (!taken(candidate)) username = candidate;
+      }
+      if (!username) return c.json(409, { error: "Не нашлось свободного логина" });
+    }
+
+    const password = requested || generatePassword();
+    student.set("username", username);
+    student.setPassword(password);
+    student.set("external", false);
+    if (!owner && !isSuperuser) student.set("owner", teacherId);
+    try { student.set("must_change_password", true); } catch (err) { /* поля ещё нет */ }
+    $app.save(student);
+
+    try {
+      const collection = $app.findCollectionByNameOrId("audit_log");
+      const record = new Record(collection);
+      record.set("teacher_id", teacherId);
+      record.set("teacher_name", teacherName);
+      record.set("action", "update");
+      record.set("collection_name", "students");
+      record.set("record_id", studentId);
+      record.set("record_summary", ("выдан логин @" + username + ": " + student.getString("name")).slice(0, 500));
+      $app.save(record);
+    } catch (err) {
+      console.warn("[students-admin] audit log failed: " + String(err));
+    }
+
+    return c.json(200, { ok: true, username: username, password: password });
+  } catch (err) {
+    console.error("[students-admin] issue-credentials failed: " + String(err));
     return c.json(500, { error: String(err) });
   }
 });
