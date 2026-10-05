@@ -17,6 +17,13 @@ import LessonAccessBar from './LessonAccessBar';
 import DateTimeField from './DateTimeField';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
+import { useAuth } from '../../../contexts/AuthContext';
+import {
+  ITEM_MODES, itemMode, withMode, materialVisible, isNextDue, nextLessonFor, incomingFor,
+} from '../../../utils/homework';
+
+const dayLabel = (l) => (l?.date_plan ? dayjs(l.date_plan).format('D MMM, dd') : '');
+const itemTitle = (m) => m.title || m.text || 'Задание';
 
 /**
  * Полная форма урока (создание/правка) + посещаемость + материалы + заметка.
@@ -36,18 +43,26 @@ export default function LessonModal({
     [groups, watchedGroup, initial],
   );
   const isCourse = selectedGroup?.kind === 'course';
+  // Урок видят ученики: курс — всегда, класс — если учитель открыл ему
+  // расписание (teaching_groups.student_schedule, v3.9.291).
+  const studentFacing = isCourse || !!selectedGroup?.student_schedule;
+  const { teacher } = useAuth();
+  const watchedDate = Form.useWatch('date_plan', form);
+  const watchedStatus = Form.useWatch('status', form);
   const [fileMaterials, setFileMaterials] = useState([]);
   const [sessionItems, setSessionItems] = useState([]); // ДЗ/тесты: ссылки на выданные сессии
   const [textItems, setTextItems] = useState([]);        // текстовые задания/объявления
   const [geoItems, setGeoItems] = useState([]);          // работы раздела «Геометрия»
-  const [coursePublished, setCoursePublished] = useState(true);
+  const [visibleToStudents, setVisibleToStudents] = useState(true);
+  const [neighbours, setNeighbours] = useState([]); // уроки класса вокруг — для ДЗ «к след.»
   const [newText, setNewText] = useState('');
+  const [textMode, setTextMode] = useState('hw');
   // Пикер ДЗ-работы: работы с выданными сессиями.
   const [workSessions, setWorkSessions] = useState({}); // workId -> sessions[]
-  const [hw, setHw] = useState({ work: undefined, session: undefined, title: '', role: 'homework' });
+  const [hw, setHw] = useState({ work: undefined, session: undefined, title: '', mode: 'hw' });
   const [hwBusy, setHwBusy] = useState(false);
   const [manualMode, setManualMode] = useState(false);
-  const [newLink, setNewLink] = useState({ title: '', code: '', role: 'homework' });
+  const [newLink, setNewLink] = useState({ title: '', code: '', mode: 'hw' });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [noteFiles, setNoteFiles] = useState([]);
   const [mode, setMode] = useState('single');
@@ -84,27 +99,38 @@ export default function LessonModal({
     }
   }, [open, initial, form]);
 
-  // Флаг «показывать ученикам курса» — из существующей витрины (по умолчанию да).
+  // Флаг «показывать ученикам» живёт в самом уроке (до v3.9.291 — в витрине курса).
+  useEffect(() => {
+    if (!open) return;
+    setVisibleToStudents(!initial?.hidden_from_students);
+    setNewLink({ title: '', code: '', mode: 'hw' });
+    setNewText('');
+    setTextMode('hw');
+    setHw({ work: undefined, session: undefined, title: '', mode: 'hw' });
+    setManualMode(false);
+  }, [open, initial]);
+
+  // Уроки того же класса вокруг этого: куда уйдёт ДЗ «к следующему» и что
+  // задали к этому уроку раньше. Окно — от даты урока при открытии.
+  const groupId = selectedGroup?.id;
   useEffect(() => {
     let cancelled = false;
-    if (!open) return undefined;
-    setCoursePublished(true);
-    setNewLink({ title: '', code: '', role: 'homework' });
-    setNewText('');
-    setHw({ work: undefined, session: undefined, title: '', role: 'homework' });
-    setManualMode(false);
-    if (initial?.id) {
-      api.getLessonPublication(initial.id)
-        .then((pub) => { if (!cancelled && pub) setCoursePublished(pub.published !== false); })
-        .catch(() => { /* нет витрины — оставляем default */ });
-    }
+    if (!open || !groupId || !studentFacing) { setNeighbours([]); return undefined; }
+    const base = initial?.date_plan ? dayjs(initial.date_plan) : dayjs();
+    api.getLessons({
+      groupId,
+      from: base.subtract(60, 'day').toISOString(),
+      to: base.add(120, 'day').toISOString(),
+    })
+      .then((list) => { if (!cancelled) setNeighbours(list); })
+      .catch(() => { if (!cancelled) setNeighbours([]); });
     return () => { cancelled = true; };
-  }, [open, initial?.id]);
+  }, [open, groupId, studentFacing, initial?.date_plan]);
 
   // Сессии работ — для пикера ДЗ (только работы с выданной сессией можно дать ученику).
   useEffect(() => {
     let cancelled = false;
-    if (!open || !isCourse || !(works || []).length) { setWorkSessions({}); return undefined; }
+    if (!open || !studentFacing || !(works || []).length) { setWorkSessions({}); return undefined; }
     api.getSessionsByWorks(works.map((w) => w.id))
       .then((sess) => {
         if (cancelled) return;
@@ -114,7 +140,7 @@ export default function LessonModal({
       })
       .catch(() => { if (!cancelled) setWorkSessions({}); });
     return () => { cancelled = true; };
-  }, [open, isCourse, works]);
+  }, [open, studentFacing, works]);
 
   useEffect(() => {
     let cancelled = false;
@@ -175,6 +201,7 @@ export default function LessonModal({
       status: v.status || 'planned',
       time_slot: currentSlotCode(),
       conference_url: (v.conference_url || '').trim(),
+      hidden_from_students: !visibleToStudents,
       materials: [
         ...(v.materials || []).map((id) => ({ type: 'work', id, title: worksMap.get(id) || '' })),
         ...fileMaterials,
@@ -182,7 +209,7 @@ export default function LessonModal({
         ...textItems,
         ...geoItems,
       ],
-    }, { published: coursePublished });
+    }, { published: visibleToStudents });
   };
 
   // Извлечь код сессии из ссылки или взять как есть (15-символьный id).
@@ -196,14 +223,14 @@ export default function LessonModal({
     if (!id) return;
     setSessionItems((prev) => [
       ...prev,
-      { type: 'session', id, title: (newLink.title || '').trim() || 'Домашняя работа', role: newLink.role, visible: true },
+      withMode({ type: 'session', id, title: (newLink.title || '').trim() || 'Домашняя работа', visible: true }, newLink.mode),
     ]);
-    setNewLink({ title: '', code: '', role: 'homework' });
+    setNewLink({ title: '', code: '', mode: 'hw' });
   };
   const addTextItem = () => {
     const text = (newText || '').trim();
     if (!text) return;
-    setTextItems((prev) => [...prev, { type: 'text', text, role: 'homework', visible: true }]);
+    setTextItems((prev) => [...prev, withMode({ type: 'text', text, visible: true }, textMode)]);
     setNewText('');
   };
   // Выбор работы из списка. Если у работы уже есть сессия — берём её; иначе
@@ -226,9 +253,9 @@ export default function LessonModal({
       }
       setSessionItems((prev) => [
         ...prev,
-        { type: 'session', id: sessionId, title: (hw.title || '').trim() || worksMap.get(hw.work) || 'Работа', role: hw.role, visible: true },
+        withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || worksMap.get(hw.work) || 'Работа', visible: true }, hw.mode),
       ]);
-      setHw({ work: undefined, session: undefined, title: '', role: 'homework' });
+      setHw({ work: undefined, session: undefined, title: '', mode: 'hw' });
     } catch (e) {
       console.error('addHwFromWork', e?.message);
     } finally {
@@ -243,6 +270,19 @@ export default function LessonModal({
   };
   // Переключатели видимости/роли для файла из Библиотеки.
   const patchFile = (id, patch) => setFileMaterials((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  const setFileMode = (id, mode) => setFileMaterials((prev) => prev.map((m) => (m.id === id ? withMode(m, mode) : m)));
+
+  // ДЗ «к следующему уроку»: куда уйдёт и что пришло к этому уроку.
+  const owner = initial?.owner || teacher?.id || '';
+  const draft = watchedDate && groupId
+    ? { id: initial?.id, group: groupId, owner, date_plan: dayjs(watchedDate).toISOString(), status: watchedStatus }
+    : null;
+  const hasNextHw = [...fileMaterials, ...sessionItems, ...textItems].some(isNextDue);
+  const nextLesson = studentFacing && draft && hasNextHw ? nextLessonFor(draft, neighbours) : null;
+  const incoming = studentFacing && draft
+    // Скрытый от учеников урок своих ДЗ ученикам не показывает — и здесь их нет.
+    ? incomingFor(draft, neighbours, (l) => (l.hidden_from_students ? [] : (l.materials || []).filter((m) => materialVisible(m, isCourse))))
+    : [];
 
   const editingExisting = initial?.id;
 
@@ -256,7 +296,7 @@ export default function LessonModal({
       okText="Сохранить"
       cancelText="Отмена"
       okButtonProps={{ disabled: !canEdit }}
-      width={isCourse ? 720 : 560}
+      width={studentFacing ? 720 : 560}
       destroyOnHidden
       style={isMobile ? { top: 12 } : undefined}
       footer={(_, { OkBtn, CancelBtn }) => (
@@ -428,20 +468,20 @@ export default function LessonModal({
                   <DownloadOutlined /> {m.title}
                 </a>
                 <Space size={4}>
-                  {isCourse && canEdit && (
+                  {studentFacing && canEdit && (
                     <>
                       <Segmented
                         size="small"
-                        value={m.role === 'homework' ? 'homework' : 'class'}
-                        onChange={(v) => patchFile(m.id, { role: v })}
-                        options={[{ value: 'class', label: 'Классн.' }, { value: 'homework', label: 'ДЗ' }]}
+                        value={itemMode(m)}
+                        onChange={(v) => setFileMode(m.id, v)}
+                        options={ITEM_MODES}
                       />
-                      <Tooltip title={m.visible === false ? 'Скрыт от учеников' : 'Виден ученикам'}>
+                      <Tooltip title={materialVisible(m, isCourse) ? 'Виден ученикам' : 'Скрыт от учеников'}>
                         <Button
                           size="small"
                           type="text"
-                          icon={m.visible === false ? <EyeInvisibleOutlined /> : <EyeOutlined style={{ color: '#52c41a' }} />}
-                          onClick={() => patchFile(m.id, { visible: m.visible === false })}
+                          icon={materialVisible(m, isCourse) ? <EyeOutlined style={{ color: '#52c41a' }} /> : <EyeInvisibleOutlined />}
+                          onClick={() => patchFile(m.id, { visible: !materialVisible(m, isCourse) })}
                         />
                       </Tooltip>
                     </>
@@ -457,22 +497,49 @@ export default function LessonModal({
         )}
       </div>
 
-      {isCourse && (
+      {selectedGroup && !studentFacing && (
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '0 0 12px' }}>
+          <ReadOutlined /> Ученики этого класса не видят уроки и ДЗ. Включить — «Расписание и ДЗ
+          для учеников» в настройках класса (Мои классы → ✏️).
+        </Typography.Paragraph>
+      )}
+
+      {studentFacing && (
         <div style={{ margin: '4px 0 12px', padding: '10px 12px', borderRadius: 8, background: 'rgba(114,46,209,0.06)', border: '1px solid rgba(114,46,209,0.18)' }}>
           <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }} wrap>
             <Typography.Text strong style={{ fontSize: 13 }}>
-              <ReadOutlined /> Кабинет ученика курса
+              <ReadOutlined /> Для учеников {isCourse ? 'курса' : 'класса'}
             </Typography.Text>
             <Space size={6}>
               <Typography.Text style={{ fontSize: 12 }}>Показывать ученикам</Typography.Text>
-              <Switch size="small" checked={coursePublished} onChange={setCoursePublished} disabled={!canEdit} />
+              <Switch size="small" checked={visibleToStudents} onChange={setVisibleToStudents} disabled={!canEdit} />
             </Space>
           </Space>
           <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 10 }}>
-            Ученики курса увидят расписание, ссылку на конференцию и отмеченные материалы.
-            Файлы из Библиотеки помечайте <EyeOutlined style={{ color: '#52c41a' }} /> (виден) и «Классн./ДЗ».
-            Файл из заметки — кнопкой «Показать ученикам». ДЗ-тесты выбирайте из списка ваших работ.
+            Ученики увидят тему, время{isCourse ? ', ссылку на конференцию' : ''} и отмеченные материалы.
+            Файлы из Библиотеки помечайте <EyeOutlined style={{ color: '#52c41a' }} /> (виден)
+            {isCourse ? '' : ' — в классе файл по умолчанию скрыт'}. «ДЗ» — к этому уроку,
+            «ДЗ к след.» — ученики увидят его у следующего урока, даже если его ещё нет в календаре.
           </Typography.Paragraph>
+
+          {incoming.length > 0 && (
+            <div style={{ marginBottom: 10, padding: '6px 8px', borderRadius: 6, background: '#fff7e6' }}>
+              <Typography.Text strong style={{ fontSize: 12 }}>📌 К этому уроку задано</Typography.Text>
+              {incoming.map(({ item, from }, i) => (
+                <div key={i} style={{ fontSize: 13 }}>
+                  {itemTitle(item)}{' '}
+                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>— на уроке {dayLabel(from)}</Typography.Text>
+                </div>
+              ))}
+            </div>
+          )}
+          {hasNextHw && (
+            <Typography.Paragraph style={{ fontSize: 12, marginBottom: 10 }}>
+              {nextLesson
+                ? <>→ «ДЗ к след.» ученики увидят у урока <b>{dayLabel(nextLesson)}</b>{nextLesson.title ? ` («${nextLesson.title}»)` : ''}.</>
+                : <>→ Следующего урока в календаре пока нет — «ДЗ к след.» прикрепится к нему, когда урок появится.</>}
+            </Typography.Paragraph>
+          )}
 
           {/* ДЗ / тесты — ссылки на выданные сессии */}
           <Typography.Text strong style={{ fontSize: 12 }}>Задания-ссылки (ДЗ / тесты)</Typography.Text>
@@ -482,15 +549,16 @@ export default function LessonModal({
                 <Space key={`${it.id}-${idx}`} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
                   <span>
                     <LinkOutlined /> {it.title}{' '}
-                    <Chip tone={it.role === 'homework' ? 'amber' : 'blue'} dot={false}>
-                      {it.role === 'homework' ? 'ДЗ' : 'классн.'}
-                    </Chip>{' '}
                     <Typography.Text type="secondary" style={{ fontSize: 11 }}>/student/{it.id}</Typography.Text>
                   </span>
-                  {canEdit && (
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />}
-                      onClick={() => setSessionItems((prev) => prev.filter((_, i) => i !== idx))} />
-                  )}
+                  <Space size={4}>
+                    <Segmented size="small" value={itemMode(it)} options={ITEM_MODES} disabled={!canEdit}
+                      onChange={(v) => setSessionItems((prev) => prev.map((x, i) => (i === idx ? withMode(x, v) : x)))} />
+                    {canEdit && (
+                      <Button size="small" type="text" danger icon={<DeleteOutlined />}
+                        onClick={() => setSessionItems((prev) => prev.filter((_, i) => i !== idx))} />
+                    )}
+                  </Space>
                 </Space>
               ))}
             </Space>
@@ -509,10 +577,10 @@ export default function LessonModal({
                   options={(works || []).map((w) => ({ value: w.id, label: w.title }))}
                 />
                 <Select
-                  style={{ width: 110 }}
-                  value={hw.role}
-                  onChange={(v) => setHw((s) => ({ ...s, role: v }))}
-                  options={[{ value: 'homework', label: 'ДЗ' }, { value: 'class', label: 'Классн.' }]}
+                  style={{ width: 120 }}
+                  value={hw.mode}
+                  onChange={(v) => setHw((s) => ({ ...s, mode: v }))}
+                  options={ITEM_MODES}
                 />
                 <Button type="primary" icon={<PlusOutlined />} onClick={addHwFromWork} disabled={!hw.work} loading={hwBusy}>
                   Добавить
@@ -532,7 +600,7 @@ export default function LessonModal({
               )}
               {hw.work && !(workSessions[hw.work] || []).length && (
                 <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                  У этой работы ещё нет выдачи — при добавлении она будет автоматически выдана ученикам курса (откроется доступ).
+                  У этой работы ещё нет выдачи — при добавлении она будет автоматически выдана (откроется доступ по ссылке).
                 </Typography.Text>
               )}
               <Typography.Link style={{ fontSize: 11 }} onClick={() => setManualMode(true)}>
@@ -557,10 +625,10 @@ export default function LessonModal({
                   onPressEnter={addSessionItem}
                 />
                 <Select
-                  style={{ width: 90 }}
-                  value={newLink.role}
-                  onChange={(v) => setNewLink((s) => ({ ...s, role: v }))}
-                  options={[{ value: 'homework', label: 'ДЗ' }, { value: 'class', label: 'Классн.' }]}
+                  style={{ width: 120 }}
+                  value={newLink.mode}
+                  onChange={(v) => setNewLink((s) => ({ ...s, mode: v }))}
+                  options={ITEM_MODES}
                 />
                 <Button icon={<PlusOutlined />} onClick={addSessionItem} disabled={!newLink.code.trim()} />
               </Space.Compact>
@@ -578,10 +646,14 @@ export default function LessonModal({
                 {textItems.map((it, idx) => (
                   <Space key={idx} style={{ width: '100%', justifyContent: 'space-between' }} align="start">
                     <span style={{ fontSize: 13 }}>📝 {it.text}</span>
-                    {canEdit && (
-                      <Button size="small" type="text" danger icon={<DeleteOutlined />}
-                        onClick={() => setTextItems((prev) => prev.filter((_, i) => i !== idx))} />
-                    )}
+                    <Space size={4}>
+                      <Segmented size="small" value={itemMode(it)} options={ITEM_MODES} disabled={!canEdit}
+                        onChange={(v) => setTextItems((prev) => prev.map((x, i) => (i === idx ? withMode(x, v) : x)))} />
+                      {canEdit && (
+                        <Button size="small" type="text" danger icon={<DeleteOutlined />}
+                          onClick={() => setTextItems((prev) => prev.filter((_, i) => i !== idx))} />
+                      )}
+                    </Space>
                   </Space>
                 ))}
               </Space>
@@ -594,6 +666,7 @@ export default function LessonModal({
                   onChange={(e) => setNewText(e.target.value)}
                   onPressEnter={addTextItem}
                 />
+                <Select style={{ width: 120 }} value={textMode} onChange={setTextMode} options={ITEM_MODES} />
                 <Button icon={<PlusOutlined />} onClick={addTextItem} disabled={!newText.trim()} />
               </Space.Compact>
             )}
@@ -613,7 +686,7 @@ export default function LessonModal({
                   <DownloadOutlined /> {m.title}
                 </a>
                 <Space size={4}>
-                  {isCourse && canEdit && (
+                  {studentFacing && canEdit && (
                     <Button size="small" icon={<EyeOutlined style={{ color: '#52c41a' }} />} onClick={() => showNoteFileToStudents(m)}>
                       Показать ученикам
                     </Button>

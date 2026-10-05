@@ -119,7 +119,25 @@ export const coursesApi = {
     }
   },
 
+  // Ученик: уроки и ДЗ его классов и курсов — хук pb_hooks/lessons_feed.pb.js
+  // (v3.9.291). Классы — только с включённым «Расписанием для учеников».
+  // null — хук ещё не выложен или ученик не вошёл.
+  async getMyLessons({ from, to } = {}) {
+    try {
+      const query = {};
+      if (from) query.from = from;
+      if (to) query.to = to;
+      const res = await pb.send('/api/lessons/my', { method: 'GET', query, requestKey: null });
+      return { groups: res?.groups || [], lessons: res?.lessons || [] };
+    } catch (error) {
+      if ([401, 403, 404].includes(error?.status)) return null;
+      throw error;
+    }
+  },
+
   // ── Витрина уроков (lesson_publications) ─────────────────────────────────
+  // 🚨 С v3.9.291 ученик читает уроки через /api/lessons/my, витрина больше
+  // никем не читается и держится только на переходный период (BACKLOG).
   async getLessonPublication(lessonId) {
     try {
       return await pb.collection('lesson_publications').getFirstListItem(

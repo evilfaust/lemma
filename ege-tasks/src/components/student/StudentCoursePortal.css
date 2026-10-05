@@ -1,4 +1,4 @@
-/* Кабинет курса ученика — расписание, ближайшее занятие, материалы/ДЗ. */
+/* «Мои уроки» ученика — ДЗ, ближайший урок, расписание по дням, материалы. */
 
 .sc-portal {
   max-width: 680px;
@@ -16,7 +16,6 @@
   color: #1f1f1f;
 }
 
-.sc-course { margin-bottom: 28px; }
 
 .sc-course-head {
   display: flex;
@@ -27,7 +26,7 @@
   padding: 10px 14px;
   border-radius: 12px;
   background: linear-gradient(135deg, rgba(114, 46, 209, 0.12), rgba(114, 46, 209, 0.04));
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .sc-course-name { font-size: 17px; font-weight: 700; color: #4c1d95; }
@@ -152,6 +151,41 @@
 
 .sc-empty-note { color: #aaa; font-size: 13px; padding: 8px 2px; }
 
+/* ── Лента ДЗ, дни, класс урока (v3.9.291) ── */
+.sc-hw-feed {
+  margin: 4px 0 16px;
+  padding: 12px 12px 8px;
+  border-radius: 12px;
+  border: 1px solid #ffe7ba;
+  background: #fffbf2;
+}
+.sc-item-wrap { margin-bottom: 6px; }
+.sc-item-wrap .sc-item { margin-bottom: 2px; }
+.sc-item-meta { font-size: 12px; color: #999; padding: 0 8px; }
+.sc-block--due {
+  border-radius: 8px;
+  padding: 6px 8px 2px;
+  background: #fff7e6;
+}
+.sc-day { margin-bottom: 10px; }
+.sc-day-head {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin: 0 2px 6px;
+  text-transform: capitalize;
+}
+.sc-card-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.sc-group-chip {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: rgba(114, 46, 209, 0.08);
+  color: #531dab;
+}
+.sc-card--cancel .sc-card-title { text-decoration: line-through; color: #999; }
+.sc-cancel-note { font-size: 12px; font-weight: 600; color: #cf1322; }
+
 /* ── Прошедшие — тоггл ── */
 .sc-past-toggle {
   display: flex;
@@ -181,3 +215,7 @@
 .student-theme-dark .sc-date { background: rgba(146, 84, 222, 0.2); color: #d3adf7; }
 .student-theme-dark .sc-block--hw { border-top-color: #3a3145; }
 .student-theme-dark .sc-card-until { color: #b37feb; }
+.student-theme-dark .sc-hw-feed { background: #2a2418; border-color: #5c4a22; }
+.student-theme-dark .sc-block--due { background: #2e2717; }
+.student-theme-dark .sc-day-head { color: #bbb; }
+.student-theme-dark .sc-group-chip { background: rgba(146, 84, 222, 0.2); color: #d3adf7; }

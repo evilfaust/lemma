@@ -18,7 +18,7 @@ function StudentBottomNav({ active, go, onLogout }) {
   return (
     <nav className="student-bnav">
       <Item k="home" icon={<HomeOutlined />} label="Главная" onClick={() => go('home')} />
-      <Item k="courses" icon={<ReadOutlined />} label="Курсы" onClick={() => go('courses')} />
+      <Item k="courses" icon={<ReadOutlined />} label="Уроки" onClick={() => go('courses')} />
       <Item k="program" icon={<CalendarOutlined />} label="Задание" onClick={() => go('program')} />
       <Item k="progress" icon={<BarChartOutlined />} label="Прогресс" onClick={() => go('progress')} />
       <Item k="gallery" icon={<TrophyOutlined />} label="Достижения" onClick={() => go('gallery')} />
@@ -114,7 +114,7 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
     );
   }
 
-  // ---- Кабинет курса ----
+  // ---- Уроки и ДЗ (классы с расписанием + курсы) ----
   if (homeView === 'courses') {
     return (
       <div className={`student-app student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
@@ -250,7 +250,7 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
               onClick={() => setHomeView('courses')}
               style={{ marginBottom: 8 }}
             >
-              Мои курсы
+              Мои уроки и ДЗ
             </Button>
             <Button
               block

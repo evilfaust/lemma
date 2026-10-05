@@ -55,6 +55,7 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
             kind: 'class',
             conference_url: '',
             board_url: '',
+            student_schedule: false,
           },
       );
     }
@@ -94,6 +95,16 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
         >
           <GroupColorPicker autoKey={initial?.id || initial?.name || ''} />
         </Form.Item>
+        {kind !== 'course' && (
+          <Form.Item
+            name="student_schedule"
+            label="Расписание и ДЗ для учеников"
+            valuePropName="checked"
+            tooltip="Ученики класса увидят в кабинете («Уроки») темы и время уроков, отмеченные материалы и домашние задания. Заметка урока и скрытые файлы не показываются."
+          >
+            <Switch />
+          </Form.Item>
+        )}
         {kind === 'course' && (
           <>
             <Form.Item
@@ -263,6 +274,9 @@ export default function GroupManager() {
             <div className="ws-tile__name">
               {g.name}
               {g.kind === 'course' && <Tag color="purple" style={{ marginLeft: 6 }}>курс</Tag>}
+              {g.kind !== 'course' && g.student_schedule && (
+                <Tag color="gold" style={{ marginLeft: 6 }} title="Ученики видят расписание и ДЗ">ДЗ ученикам</Tag>
+              )}
               {/* Класс коллеги: я веду его вторым учителем */}
               {teacher?.id && g.owner && g.owner !== teacher.id && (
                 <Tag color="geekblue" style={{ marginLeft: 6 }}
