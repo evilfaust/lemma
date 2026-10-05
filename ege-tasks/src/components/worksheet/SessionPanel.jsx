@@ -18,7 +18,7 @@ import './SessionPanel.css';
 
 const { Text, Title } = Typography;
 
-const SessionPanel = ({ workId, mcTestId }) => {
+const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
   const { message } = App.useApp();
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,10 +43,11 @@ const SessionPanel = ({ workId, mcTestId }) => {
           const sessions = await api.getSessionsByMCTest(mcTestId);
           existing = sessions[0] || null;
           if (!existing) {
-            existing = await api.createMCTestSession(mcTestId, {
-              student_title: 'Тест с выбором ответа',
-            });
-            setStudentTitle('Тест с выбором ответа');
+            // Ученик видит название теста (у тренировки из генератора — то, что
+            // учитель вписал при сохранении), а не безликое «Тест с выбором»
+            const title = defaultTitle?.trim() || 'Тест с выбором ответа';
+            existing = await api.createMCTestSession(mcTestId, { student_title: title });
+            setStudentTitle(title);
           } else {
             setStudentTitle(existing.student_title || 'Тест с выбором ответа');
           }
@@ -72,7 +73,7 @@ const SessionPanel = ({ workId, mcTestId }) => {
       setLoading(false);
     };
     init();
-  }, [workId, mcTestId, message]);
+  }, [workId, mcTestId, defaultTitle, message]);
 
   const studentUrl = session ? buildStudentUrl(session.id) : '';
 

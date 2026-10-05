@@ -3,10 +3,11 @@ import {
   Modal, Tabs, Form, Input, Select, Radio, Button,
   Space, List, Tag, Popconfirm, message, Spin, Empty, Progress,
 } from 'antd';
-import { SaveOutlined, PrinterOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { SaveOutlined, PrinterOutlined, DeleteOutlined, ReloadOutlined, ShareAltOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { buildOptionsWithAI } from '../../utils/aiDistractorGenerator';
 import { drillVariants, uncheckableItems } from '../../utils/drillTest';
+import SessionPanel from '../worksheet/SessionPanel';
 
 const { Option } = Select;
 
@@ -147,7 +148,7 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, answerMod
         variants,
       });
       setProgress(100);
-      message.success('Тест сохранён!');
+      message.success('Тест сохранён — осталось выдать его ученикам');
       onSaved?.(record);
     } catch (e) {
       message.error('Ошибка сохранения: ' + (e?.message || e));
@@ -258,7 +259,7 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, answerMod
   );
 }
 
-function SavedTab({ generatorType, onPrint }) {
+function SavedTab({ generatorType, onPrint, onIssue }) {
   const [tests,      setTests]      = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [deletingId, setDeletingId] = useState(null);
@@ -317,6 +318,12 @@ function SavedTab({ generatorType, onPrint }) {
             <List.Item
               actions={[
                 <Button
+                  key="issue" size="small" type="primary" icon={<ShareAltOutlined />}
+                  onClick={() => onIssue(t)}
+                >
+                  Выдать
+                </Button>,
+                <Button
                   key="print" size="small" icon={<PrinterOutlined />}
                   onClick={() => onPrint(t)}
                 >
@@ -369,10 +376,21 @@ export default function TrigMCSaveModal({
   const answerMode = fillMode ? 'input' : 'choice';
   const [activeTab,  setActiveTab]  = useState('save');
   const [savedCount, setSavedCount] = useState(0);
+  // Тест, который сейчас выдаётся: ссылка, QR и результаты прямо в окне —
+  // раньше выдача жила только в разделе «Тесты с выбором», и найти её из
+  // генератора было нельзя
+  const [issueTest,  setIssueTest]  = useState(null);
 
-  const handleSaved = () => {
+  // Каждое открытие окна — с чистого листа: иначе после прошлой выдачи
+  // кнопка «Тест A/B/C/D» открывала бы старый тест
+  useEffect(() => {
+    if (open) { setIssueTest(null); setActiveTab('save'); }
+  }, [open]);
+
+  const handleSaved = (record) => {
     setSavedCount(c => c + 1);
     setActiveTab('list');
+    if (record) setIssueTest(record);
   };
 
   const tabs = [
@@ -405,6 +423,7 @@ export default function TrigMCSaveModal({
           key={`${generatorType}-${savedCount}`}
           generatorType={generatorType}
           onPrint={(t) => { onPrint?.(t); }}
+          onIssue={setIssueTest}
         />
       ),
     },
@@ -416,10 +435,26 @@ export default function TrigMCSaveModal({
       onCancel={onClose}
       title={`${answerMode === 'input' ? 'Тест «Вписать ответ»' : 'Тест с выбором'} — ${GENERATOR_LABELS[generatorType] ?? generatorType}`}
       footer={null}
-      width={520}
+      width={issueTest ? 860 : 520}
       destroyOnHidden={false}
     >
-      <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabs} size="small" />
+      {issueTest ? (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+            <Button size="small" icon={<ArrowLeftOutlined />} onClick={() => setIssueTest(null)}>
+              К тестам
+            </Button>
+            <span style={{ fontWeight: 600 }}>Выдача: {issueTest.title}</span>
+          </div>
+          <SessionPanel
+            key={issueTest.id}
+            mcTestId={issueTest.id}
+            defaultTitle={issueTest.title}
+          />
+        </div>
+      ) : (
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabs} size="small" />
+      )}
     </Modal>
   );
 }
