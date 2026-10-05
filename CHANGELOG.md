@@ -31,6 +31,10 @@
   `student/StudentPasswordChange.jsx`; хук — `pb_hooks/students_admin.pb.js`
   (`POST /api/students/issue-credentials`; у `set-password` минимум 6 символов
   и флаг смены). Тесты — `__tests__/studentLogins.test.jsx`.
+- **Деплой 05.10.2026:** бэкап `backup_2026-10-05_15-45-33` → миграция
+  `1788000000` + хук `students_admin.pb.js` → рестарт `pocketbase-ege`
+  (`issue-credentials` без входа → 401). Учительский `3.9.294-20261005124748`,
+  ученический `3.9.294-20261005124825` (ассеты проверены на 200).
 
 ## [3.9.293] - 2026-10-05
 
