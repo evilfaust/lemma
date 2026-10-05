@@ -10,6 +10,7 @@ import MathRenderer from '../MathRenderer';
 import MCOptionsEditor from '../mc-test/MCOptionsEditor';
 import SessionPanel from '../worksheet/SessionPanel';
 import { GENERATOR_LABELS } from './TrigMCSaveModal';
+import { answerModeOf } from '../../utils/drillTest';
 
 const { Option } = Select;
 
@@ -159,8 +160,10 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
       const updated = await api.updateMCTest(testId, {
         title:         values.title,
         class_number:  values.classNumber || null,
-        options_count: values.optionsCount,
-        shuffle_mode:  values.shuffleMode,
+        ...(answerModeOf(test) === 'input' ? {} : {
+          options_count: values.optionsCount,
+          shuffle_mode:  values.shuffleMode,
+        }),
         variants:      cleanVariants,
       });
       setTest(updated);
@@ -175,6 +178,8 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
 
   // === Рендер ===
 
+  const isInput = answerModeOf(test) === 'input';
+
   const collapseItems = variants.map((variant, vi) => ({
     key: String(vi),
     label: (
@@ -186,8 +191,9 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
     children: (
       <div>
         {(variant.tasks || []).map((task, ti) => {
+          // Тренировка (v3.9.296) задач в банке не имеет — условие в самом тесте
           const stmt = task._taskRecord?.statement_md
-            || (task.question ? `${task.question}` : '');
+            || (task.question ? `${task.instruction || ''}\n\n$$${task.question}$$` : '');
           return (
             <div
               key={ti}
@@ -205,13 +211,19 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
                   <MathRenderer text={stmt} />
                 </div>
               </div>
-              <MCOptionsEditor
-                options={task.options || []}
-                onUpdateOption={(oi, text) => updateOption(vi, ti, oi, text)}
-                onSetCorrect={(oi) => setCorrectOption(vi, ti, oi)}
-                onReorder={(from, to) => reorderOption(vi, ti, from, to)}
-                onRegenerate={() => regenerateOptions(vi, ti)}
-              />
+              {isInput ? (
+                <div style={{ fontSize: 13, color: '#555' }}>
+                  Ответ: <MathRenderer text={`$${task.answer || ''}$`} />
+                </div>
+              ) : (
+                <MCOptionsEditor
+                  options={task.options || []}
+                  onUpdateOption={(oi, text) => updateOption(vi, ti, oi, text)}
+                  onSetCorrect={(oi) => setCorrectOption(vi, ti, oi)}
+                  onReorder={(from, to) => reorderOption(vi, ti, from, to)}
+                  onRegenerate={() => regenerateOptions(vi, ti)}
+                />
+              )}
             </div>
           );
         })}
@@ -239,14 +251,14 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
                   ))}
                 </Select>
               </Form.Item>
-              <Form.Item name="optionsCount" label="Вариантов ответа" style={{ marginBottom: 0 }}>
+              <Form.Item name="optionsCount" label="Вариантов ответа" style={{ marginBottom: 0 }} hidden={isInput}>
                 <Radio.Group>
                   <Radio value={2}>2</Radio>
                   <Radio value={3}>3</Radio>
                   <Radio value={4}>4</Radio>
                 </Radio.Group>
               </Form.Item>
-              <Form.Item name="shuffleMode" label="Порядок опций" style={{ marginBottom: 0 }}>
+              <Form.Item name="shuffleMode" label="Порядок опций" style={{ marginBottom: 0 }} hidden={isInput}>
                 <Radio.Group>
                   <Radio value="fixed">Фиксированный</Radio>
                   <Radio value="per_student">Перемешать</Radio>
@@ -259,9 +271,11 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <span style={{ fontWeight: 600 }}>Задания по вариантам</span>
-            <Button size="small" icon={<ReloadOutlined />} onClick={regenerateAllOptions}>
-              Перегенерировать все ответы
-            </Button>
+            {!isInput && (
+              <Button size="small" icon={<ReloadOutlined />} onClick={regenerateAllOptions}>
+                Перегенерировать все ответы
+              </Button>
+            )}
           </div>
 
           <Collapse items={collapseItems} size="small" />

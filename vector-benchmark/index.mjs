@@ -225,7 +225,11 @@ async function* allTasks() {
   const perPage = 500;
   let page = 1, totalPages = 1;
   do {
+    // Задания тренировок генераторов (source='trig_generator', до v3.9.296 их
+    // создавал «Тест A/B/C/D») в индекс не берём — это не задачи банка. Раз их нет
+    // среди allIds, прунинг ниже сам снимает их старые векторы.
     const url = `${PB_URL}/api/collections/tasks/records?perPage=${perPage}&page=${page}`
+      + `&filter=${encodeURIComponent('source != "trig_generator"')}`
       + `&expand=topic&fields=id,statement_md,topic,answer,expand.topic.title`;
     const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
     if (!r.ok) throw new Error(`PocketBase ${r.status} на странице ${page}`);

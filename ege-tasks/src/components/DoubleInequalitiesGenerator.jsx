@@ -4,8 +4,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
-  ColumnWidthOutlined, FormOutlined,
-} from '@ant-design/icons';
+  ColumnWidthOutlined, } from '@ant-design/icons';
 import {
   useDoubleInequalities,
   CATEGORY_LABELS_DBL,
@@ -289,13 +288,6 @@ export default function DoubleInequalitiesGenerator() {
                       onClick={() => { setMcFillMode(false); setModalOpen(true); }}
                     >
                       Тест A/B/C/D
-                    </Button>
-                    <Button
-                      block
-                      icon={<FormOutlined />}
-                      onClick={() => { setMcFillMode(true); setModalOpen(true); }}
-                    >
-                      Вписать ответ
                     </Button>
                   </div>
                   <Button block onClick={reset}>Сбросить</Button>

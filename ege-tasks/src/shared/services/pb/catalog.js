@@ -177,6 +177,7 @@ export const catalogApi = {
     try {
       const records = await pb.collection('tasks').getFullList({
         fields: 'id,topic,subtopic,tags,difficulty,has_image,source,year',
+        filter: 'source != "trig_generator"',
         batch: 500,
       });
       return records;

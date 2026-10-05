@@ -1,6 +1,7 @@
 import { pb, _logAudit, withOwner, andOwner } from './client.js';
 import { getFullListByOr } from './chunked.js';
 import { shuffleArray } from '../../utils/shuffle';
+import { drillAnswerStats } from '../../../utils/drillTest';
 
 export const worksheetsApi = {
   async getQrWorksheets() {
@@ -598,6 +599,12 @@ export const worksheetsApi = {
         { extraFilter: 'status = "submitted"' },
       );
       if (!attempts.length) return { attempts, answerStats: {} };
+
+      // Тренировка из генератора (v3.9.296): ответы в attempts.drill_answers,
+      // в attempt_answers их нет — статистика по ключам заданий
+      if (attempts.some(a => Array.isArray(a.drill_answers))) {
+        return { attempts, answerStats: drillAnswerStats(attempts) };
+      }
 
       const answers = await getFullListByOr(
         'attempt_answers',

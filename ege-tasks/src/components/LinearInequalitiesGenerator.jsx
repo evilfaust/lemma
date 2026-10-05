@@ -4,8 +4,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
-  LineChartOutlined, FormOutlined,
-} from '@ant-design/icons';
+  LineChartOutlined, } from '@ant-design/icons';
 import {
   useLinearInequalities,
   CATEGORY_LABELS_INEQ,
@@ -289,13 +288,6 @@ export default function LinearInequalitiesGenerator() {
                       onClick={() => { setMcFillMode(false); setModalOpen(true); }}
                     >
                       Тест A/B/C/D
-                    </Button>
-                    <Button
-                      block
-                      icon={<FormOutlined />}
-                      onClick={() => { setMcFillMode(true); setModalOpen(true); }}
-                    >
-                      Вписать ответ
                     </Button>
                   </div>
                   <Button block onClick={reset}>Сбросить</Button>

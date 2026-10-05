@@ -4,8 +4,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
-  BlockOutlined, FormOutlined,
-} from '@ant-design/icons';
+  BlockOutlined, } from '@ant-design/icons';
 import {
   useQuadraticSystems,
   qsysInstruction,
@@ -291,13 +290,6 @@ export default function QuadraticSystemsGenerator() {
                       onClick={() => { setMcFillMode(false); setModalOpen(true); }}
                     >
                       Тест A/B/C/D
-                    </Button>
-                    <Button
-                      block
-                      icon={<FormOutlined />}
-                      onClick={() => { setMcFillMode(true); setModalOpen(true); }}
-                    >
-                      Вписать ответ
                     </Button>
                   </div>
                   <Button block onClick={reset}>Сбросить</Button>

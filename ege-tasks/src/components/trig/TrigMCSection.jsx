@@ -33,6 +33,7 @@ export function TrigMCSection({
           variants={printTest.variants}
           title={printTest.title}
           shuffleMode={printTest.shuffle_mode || 'fixed'}
+          answerMode={printTest.answer_mode}
         />
       )}
     </>

@@ -4,8 +4,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
-  MergeCellsOutlined, FormOutlined,
-} from '@ant-design/icons';
+  MergeCellsOutlined, } from '@ant-design/icons';
 import {
   useLinearSystems,
   linsysInstruction,
@@ -291,13 +290,6 @@ export default function LinearSystemsGenerator() {
                       onClick={() => { setMcFillMode(false); setModalOpen(true); }}
                     >
                       Тест A/B/C/D
-                    </Button>
-                    <Button
-                      block
-                      icon={<FormOutlined />}
-                      onClick={() => { setMcFillMode(true); setModalOpen(true); }}
-                    >
-                      Вписать ответ
                     </Button>
                   </div>
                   <Button block onClick={reset}>Сбросить</Button>

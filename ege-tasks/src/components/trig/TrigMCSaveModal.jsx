@@ -6,8 +6,7 @@ import {
 import { SaveOutlined, PrinterOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { buildOptionsWithAI } from '../../utils/aiDistractorGenerator';
-import { generateTrigTaskCodes } from '../../utils/taskCodeGenerator';
-import { statementLatexOf } from '../../utils/sheetMarkdown';
+import { drillVariants, uncheckableItems } from '../../utils/drillTest';
 
 const { Option } = Select;
 
@@ -20,6 +19,10 @@ export const GENERATOR_LABELS = {
   reduction_formulas:      'Формулы приведения',
   addition_formulas:       'Формулы сложения',
   oral_counting:           'Устный счёт',
+  oral_ege_base:           'Устный счёт: действия с десятичными',
+  oral_fractions:          'Устный счёт: дроби',
+  oral_powers_roots:       'Устный счёт: степени и корни',
+  oral_logarithms:         'Устный счёт: логарифмы',
   log_exp_equations:       'Показательные и логарифмические уравнения',
   linear_equations:        'Линейные уравнения',
   quadratic_equations:     'Квадратные уравнения',
@@ -53,17 +56,6 @@ const GENERATOR_INSTRUCTIONS = {
   quadratic_systems:       'Решите систему неравенств:',
 };
 
-// Соответствие generator_type → title темы (должно совпадать с migration 1772000023)
-const GENERATOR_TOPIC_TITLES = {
-  trig_expressions:        'Вычисление тригонометрических выражений',
-  trig_equations:          'Простейшие тригонометрические уравнения',
-  inverse_trig:            'Обратные тригонометрические функции',
-  double_angle:            'Формулы двойного аргумента',
-  trig_equations_advanced: 'Уравнения f(kx+b)=a',
-  reduction_formulas:      'Формулы приведения',
-  addition_formulas:       'Формулы сложения',
-};
-
 /**
  * Варианты ответа. Генератор, который сам знает типичные ошибки (производные:
  * u′v′ вместо правила произведения, забытая внутренняя производная), отдаёт их
@@ -89,81 +81,26 @@ async function optionsFor(task, generatorType, count) {
 }
 
 /**
- * Создаёт реальные записи в коллекции `tasks` для каждой задачи генератора,
- * возвращает варианты в формате {number, tasks: [{task_id, options}]}.
- * При ошибке откатывает уже созданные задачи.
+ * Снимок листа → варианты теста. Задачи в банк НЕ пишутся (v3.9.296): задание
+ * генератора живёт в самом тесте с ключом `v2-q7`, ответы ученика — в попытке.
+ * В режиме ввода вариантов ответа нет — ученик пишет число сам.
  */
-async function createTasksAndBuildVariants(tasksData, optionsCount, generatorType, onProgress) {
-  const instruction = GENERATOR_INSTRUCTIONS[generatorType] || 'Вычислите:';
-  const createdIds = [];
-
-  // Определяем тему: ищем среди тригонометрических тем по названию
-  let topicId = null;
-  try {
-    const targetTitle = GENERATOR_TOPIC_TITLES[generatorType];
-    if (targetTitle) {
-      const trigTopics = await api.getTrigTopics();
-      const match = trigTopics.find(t => t.title === targetTitle);
-      if (match) topicId = match.id;
-    }
-  } catch {
-    // Тема не критична — продолжаем без неё
-  }
-
-  // Предварительно генерируем коды для всех задач (один запрос к API)
-  const totalTaskCount = tasksData.reduce((s, v) => s + v.length, 0);
-  let codePool = [];
-  if (topicId) {
-    try {
-      codePool = await generateTrigTaskCodes(topicId, totalTaskCount);
-    } catch {
-      // Коды не критичны — продолжаем без них
+async function buildVariants(tasksData, optionsCount, generatorType, answerMode, onProgress) {
+  const variants = drillVariants(tasksData, GENERATOR_INSTRUCTIONS[generatorType] || 'Вычислите:');
+  if (answerMode === 'input') return variants;
+  const total = tasksData.reduce((s, v) => s + v.length, 0);
+  let done = 0;
+  for (let vi = 0; vi < variants.length; vi++) {
+    for (let ti = 0; ti < variants[vi].tasks.length; ti++) {
+      variants[vi].tasks[ti].options = await optionsFor(tasksData[vi][ti], generatorType, optionsCount);
+      done++;
+      onProgress?.(5 + Math.round((done / total) * 85));
     }
   }
-  let codeIndex = 0;
-
-  try {
-    const variants = [];
-    let done = 0;
-    const total = totalTaskCount;
-
-    for (let i = 0; i < tasksData.length; i++) {
-      const variantTasks = tasksData[i];
-      const tasks = [];
-
-      for (const task of variantTasks) {
-        const taskData = {
-          statement_md: `${task.instruction || instruction}\n\n$$${statementLatexOf(task)}$$`,
-          answer:  task.resultLatex,
-          source:  'trig_generator',
-        };
-        if (topicId) taskData.topic = topicId;
-        if (codePool[codeIndex]) taskData.code = codePool[codeIndex++];
-        const record = await api.createTask(taskData);
-        createdIds.push(record.id);
-        tasks.push({
-          task_id:  record.id,
-          question: statementLatexOf(task),
-          answer:   task.resultLatex,
-          options:  await optionsFor(task, generatorType, optionsCount),
-        });
-        done++;
-        // Прогресс 5–90 % — создание задач; 90–100 % — сохранение теста
-        onProgress?.(5 + Math.round((done / total) * 85));
-      }
-
-      variants.push({ number: i + 1, tasks });
-    }
-
-    return variants;
-  } catch (err) {
-    // Откатить уже созданные задачи
-    await Promise.allSettled(createdIds.map(id => api.deleteTask(id)));
-    throw err;
-  }
+  return variants;
 }
 
-function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }) {
+function SaveTab({ tasksData, generatorType, generatorTitle, settings, answerMode, onSaved }) {
   const [form] = Form.useForm();
   const [saving,   setSaving]   = useState(false);
   const [progress, setProgress] = useState(0);
@@ -172,19 +109,29 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
     form.setFieldValue('title', generatorTitle || '');
   }, [generatorTitle, form]);
 
+  const isInput = answerMode === 'input';
+  // Ответ-промежуток или «x ∈ (…)» по значению не сверить — такой лист
+  // вписывать нельзя, только выбирать из вариантов
+  const unchecked = isInput && tasksData ? uncheckableItems(tasksData) : [];
+
   const handleSave = async () => {
     const values = await form.validateFields();
     if (!tasksData?.length) {
       message.warning('Сначала сгенерируйте задания');
       return;
     }
+    if (unchecked.length) {
+      message.error('Есть задания, ответ на которые не проверить автоматически');
+      return;
+    }
     setSaving(true);
     setProgress(5);
     try {
-      const variants = await createTasksAndBuildVariants(
+      const variants = await buildVariants(
         tasksData,
         values.optionsCount,
         generatorType,
+        answerMode,
         (pct) => setProgress(pct),
       );
       setProgress(95);
@@ -194,8 +141,9 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
         source_type:        'generator',
         generator_type:     generatorType,
         generator_settings: settings || {},
-        options_count:      values.optionsCount,
-        shuffle_mode:       values.shuffleMode,
+        answer_mode:        answerMode,
+        options_count:      isInput ? 0 : values.optionsCount,
+        shuffle_mode:       isInput ? 'fixed' : values.shuffleMode,
         variants,
       });
       setProgress(100);
@@ -235,20 +183,42 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
         </Select>
       </Form.Item>
 
-      <Form.Item name="optionsCount" label="Количество вариантов ответа">
-        <Radio.Group>
-          <Radio value={2}>2</Radio>
-          <Radio value={3}>3</Radio>
-          <Radio value={4}>4</Radio>
-        </Radio.Group>
-      </Form.Item>
+      {!isInput && (
+        <>
+          <Form.Item name="optionsCount" label="Количество вариантов ответа">
+            <Radio.Group>
+              <Radio value={2}>2</Radio>
+              <Radio value={3}>3</Radio>
+              <Radio value={4}>4</Radio>
+            </Radio.Group>
+          </Form.Item>
 
-      <Form.Item name="shuffleMode" label="Порядок вариантов ответа">
-        <Radio.Group>
-          <Radio value="fixed">Фиксированный</Radio>
-          <Radio value="per_student">Перемешать у каждого</Radio>
-        </Radio.Group>
-      </Form.Item>
+          <Form.Item name="shuffleMode" label="Порядок вариантов ответа">
+            <Radio.Group>
+              <Radio value="fixed">Фиксированный</Radio>
+              <Radio value="per_student">Перемешать у каждого</Radio>
+            </Radio.Group>
+          </Form.Item>
+        </>
+      )}
+
+      {isInput && (
+        <div style={{ fontSize: 13, color: '#555', marginBottom: 12 }}>
+          Ученик вписывает ответ сам. Засчитывается любая запись того же числа:
+          0,5 = 1/2, 2 1/3 = 7/3, «нет корней».
+        </div>
+      )}
+
+      {unchecked.length > 0 && (
+        <div style={{
+          background: '#fff2f0', border: '1px solid #ffccc7', borderRadius: 6,
+          padding: '8px 12px', fontSize: 13, marginBottom: 8,
+        }}>
+          Ответ не проверить автоматически ({unchecked.length}):{' '}
+          {unchecked.slice(0, 3).map(u => `вар. ${u.variant}, №${u.position}`).join('; ')}
+          {unchecked.length > 3 ? '…' : ''}. Сохраните как тест с выбором ответа.
+        </div>
+      )}
 
       {tasksData ? (
         <div style={{
@@ -257,7 +227,7 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
         }}>
           Будет сохранено: <b>{variantsCount}</b> вар. × <b>{totalTasks}</b> задач
           <div style={{ color: '#888', fontSize: 12, marginTop: 2 }}>
-            Каждая задача сохраняется как отдельная запись — студент видит разбор ошибок
+            Задания хранятся внутри теста и в банк задач не попадают
           </div>
         </div>
       ) : (
@@ -280,7 +250,7 @@ function SaveTab({ tasksData, generatorType, generatorTitle, settings, onSaved }
         icon={<SaveOutlined />}
         onClick={handleSave}
         loading={saving}
-        disabled={!tasksData}
+        disabled={!tasksData || unchecked.length > 0}
       >
         {saving ? 'Сохранение...' : 'Сохранить тест'}
       </Button>
@@ -307,12 +277,12 @@ function SavedTab({ generatorType, onPrint }) {
   const handleDelete = async (id) => {
     setDeletingId(id);
     try {
+      // Старые тесты (до v3.9.296) создавали задачи в банке — их убираем вместе
+      // с тестом; у новых задач в банке нет
       const test = tests.find(t => t.id === id);
-      if (test?.variants) {
-        const taskIds = (test.variants || [])
-          .flatMap(v => (v.tasks || []).map(t => t.task_id).filter(Boolean));
-        await Promise.allSettled(taskIds.map(tid => api.deleteTask(tid)));
-      }
+      const taskIds = (test?.variants || [])
+        .flatMap(v => (v.tasks || []).map(t => t.task_id).filter(Boolean));
+      if (taskIds.length) await Promise.allSettled(taskIds.map(tid => api.deleteTask(tid)));
       await api.deleteMCTest(id);
       message.success('Тест удалён');
       setTests(prev => prev.filter(t => t.id !== id));
@@ -369,7 +339,9 @@ function SavedTab({ generatorType, onPrint }) {
                     {t.class_number && <Tag>{t.class_number} кл.</Tag>}
                     <Tag color="blue">{variantsCount} вар.</Tag>
                     <Tag color="cyan">{tasksPerVariant} зад./вар.</Tag>
-                    <Tag color="purple">{t.options_count} вар. ответа</Tag>
+                    {t.answer_mode === 'input'
+                      ? <Tag color="gold">вписать ответ</Tag>
+                      : <Tag color="purple">{t.options_count} вар. ответа</Tag>}
                     <span style={{ fontSize: 11, color: '#aaa' }}>
                       {new Date(t.created).toLocaleDateString('ru')}
                     </span>
@@ -391,8 +363,10 @@ export default function TrigMCSaveModal({
   generatorType,
   generatorTitle,
   settings,
+  fillMode,
   onPrint,
 }) {
+  const answerMode = fillMode ? 'input' : 'choice';
   const [activeTab,  setActiveTab]  = useState('save');
   const [savedCount, setSavedCount] = useState(0);
 
@@ -411,6 +385,7 @@ export default function TrigMCSaveModal({
           generatorType={generatorType}
           generatorTitle={generatorTitle}
           settings={settings}
+          answerMode={answerMode}
           onSaved={handleSaved}
         />
       ),
@@ -439,7 +414,7 @@ export default function TrigMCSaveModal({
     <Modal
       open={open}
       onCancel={onClose}
-      title={`Тест с выбором — ${GENERATOR_LABELS[generatorType] ?? generatorType}`}
+      title={`${answerMode === 'input' ? 'Тест «Вписать ответ»' : 'Тест с выбором'} — ${GENERATOR_LABELS[generatorType] ?? generatorType}`}
       footer={null}
       width={520}
       destroyOnHidden={false}

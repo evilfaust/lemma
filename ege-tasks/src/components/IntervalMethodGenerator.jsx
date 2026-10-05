@@ -4,8 +4,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
-  NodeIndexOutlined, FormOutlined,
-} from '@ant-design/icons';
+  NodeIndexOutlined, } from '@ant-design/icons';
 import {
   useIntervalMethod,
   intervalInstruction,
@@ -289,13 +288,6 @@ export default function IntervalMethodGenerator() {
                       onClick={() => { setMcFillMode(false); setModalOpen(true); }}
                     >
                       Тест A/B/C/D
-                    </Button>
-                    <Button
-                      block
-                      icon={<FormOutlined />}
-                      onClick={() => { setMcFillMode(true); setModalOpen(true); }}
-                    >
-                      Вписать ответ
                     </Button>
                   </div>
                   <Button block onClick={reset}>Сбросить</Button>

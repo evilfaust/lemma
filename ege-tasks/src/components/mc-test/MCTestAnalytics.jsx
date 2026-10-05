@@ -9,7 +9,8 @@ function TaskRow({ taskData, taskIndex, stats, shuffleMode }) {
   if (!stats) return null;
 
   const correctPct = stats.total > 0 ? Math.round(stats.correctCount / stats.total * 100) : 0;
-  const isFixed = shuffleMode === 'fixed';
+  // Без вариантов ответа («Вписать ответ», v3.9.296) — только верно/неверно
+  const isFixed = shuffleMode === 'fixed' && (taskData.options || []).length > 0;
 
   return (
     <div style={{
@@ -141,10 +142,10 @@ export default function MCTestAnalytics({ mcTestId, variants = [], shuffleMode =
             <div>
               {tasks.map((taskData, ti) => (
                 <TaskRow
-                  key={taskData.task_id || ti}
+                  key={taskData.task_id || taskData.key || ti}
                   taskData={taskData}
                   taskIndex={ti}
-                  stats={data.answerStats[taskData.task_id]}
+                  stats={data.answerStats[taskData.task_id || taskData.key]}
                   shuffleMode={shuffleMode}
                 />
               ))}

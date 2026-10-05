@@ -44,7 +44,7 @@ function TaskBlock({ task, taskIndex, shuffleMode, seedBase }) {
   );
 }
 
-function StudentPage({ variant, variantNumber, title, shuffleMode }) {
+function StudentPage({ variant, variantNumber, title, shuffleMode, isInput }) {
   const seedBase = `v${variantNumber}`;
   return (
     <div className="mct-page">
@@ -55,7 +55,9 @@ function StudentPage({ variant, variantNumber, title, shuffleMode }) {
         <span className="mct-field">Дата: <span className="mct-line mct-line--short" /></span>
       </div>
       <div className="mct-subtitle">{title}</div>
-      <div className="mct-instruction">Выберите один правильный ответ:</div>
+      <div className="mct-instruction">
+        {isInput ? 'Вычислите и запишите ответ в таблицу:' : 'Выберите один правильный ответ:'}
+      </div>
 
       <div className="mct-tasks">
         {(variant.tasks || []).map((task, ti) => (
@@ -90,7 +92,7 @@ function StudentPage({ variant, variantNumber, title, shuffleMode }) {
   );
 }
 
-function TeacherKeyPage({ variants, title, shuffleMode }) {
+function TeacherKeyPage({ variants, title, shuffleMode, isInput }) {
   return (
     <div className="mct-page mct-key-page">
       <div className="mct-key-header">{title} — Ответы (для учителя)</div>
@@ -108,7 +110,7 @@ function TeacherKeyPage({ variants, title, shuffleMode }) {
               return (
                 <div key={ti} className="mct-key-row">
                   <span className="mct-key-label">{ti + 1})</span>
-                  <span className="mct-key-letter">{correctLetter}</span>
+                  {!isInput && <span className="mct-key-letter">{correctLetter}</span>}
                   <span className="mct-key-ans">
                     <MathInline latex={correctText} />
                   </span>
@@ -126,9 +128,12 @@ export default function TrigMCPrintLayout({
   variants,
   title,
   shuffleMode = 'fixed',
+  answerMode = 'choice',
   showTeacherKey = true,
 }) {
   if (!variants || !variants.length) return null;
+  // Тест «Вписать ответ» (v3.9.296): вариантов ответа нет, в ключе — только ответ
+  const isInput = answerMode === 'input';
 
   return (
     <div className="trig-mc-print-root">
@@ -139,6 +144,7 @@ export default function TrigMCPrintLayout({
           variantNumber={variant.number}
           title={title}
           shuffleMode={shuffleMode}
+          isInput={isInput}
         />
       ))}
       {showTeacherKey && (
@@ -146,6 +152,7 @@ export default function TrigMCPrintLayout({
           variants={variants}
           title={title}
           shuffleMode={shuffleMode}
+          isInput={isInput}
         />
       )}
     </div>

@@ -20,26 +20,8 @@ import MCTestPrintLayout from './mc-test/MCTestPrintLayout';
 import MCTestAnalytics from './mc-test/MCTestAnalytics';
 import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 import TrigMCTestEditor from './trig/TrigMCTestEditor';
+import { GENERATOR_LABELS } from './trig/TrigMCSaveModal';
 import SessionPanel from './worksheet/SessionPanel';
-
-const GENERATOR_LABELS = {
-  trig_expressions:        'Вычисление выражений',
-  trig_equations:          'Простейшие уравнения',
-  inverse_trig:            'Обратные функции',
-  double_angle:            'Двойной аргумент',
-  trig_equations_advanced: 'Уравнения f(kx+b)=a',
-  reduction_formulas:      'Формулы приведения',
-  addition_formulas:       'Формулы сложения',
-  oral_counting:           'Устный счёт',
-  log_exp_equations:       'Показательные и логарифмические уравнения',
-  linear_equations:        'Линейные уравнения',
-  quadratic_equations:     'Квадратные уравнения',
-  quadratic_inequalities:  'Квадратные неравенства',
-  linear_inequalities:     'Линейные неравенства',
-  double_inequalities:     'Двойные неравенства',
-  interval_method:         'Метод интервалов',
-  derivatives:             'Вычисление производных',
-};
 
 function SourceBadge({ test }) {
   if (test.source_type === 'generator') {
@@ -117,6 +99,14 @@ const MCTestGenerator = ({ initialMcTestId = null } = {}) => {
       okType: 'danger',
       onOk: async () => {
         try {
+          // Тест генератора до v3.9.296 создавал задачи в банке — их убираем
+          // вместе с ним (у тестов из задачника задачи свои, их не трогаем)
+          const test = list.find(t => t.id === id);
+          if (test?.source_type === 'generator') {
+            const taskIds = (test.variants || [])
+              .flatMap(v => (v.tasks || []).map(t => t.task_id).filter(Boolean));
+            if (taskIds.length) await Promise.allSettled(taskIds.map(tid => api.deleteTask(tid)));
+          }
           await api.deleteMCTest(id);
           message.success('Тест удалён');
           setList(prev => prev.filter(t => t.id !== id));
@@ -195,10 +185,16 @@ const MCTestGenerator = ({ initialMcTestId = null } = {}) => {
                           {t.class_number && <Tag>{t.class_number} класс</Tag>}
                           <Tag color="geekblue">{variantsCount} вар.</Tag>
                           <Tag color="cyan">{tasksPerVariant} зад./вар.</Tag>
-                          <Tag color="purple">{t.options_count} отв.</Tag>
-                          <Tag color={t.shuffle_mode === 'fixed' ? 'orange' : 'green'}>
-                            {t.shuffle_mode === 'fixed' ? 'Фикс.' : 'Перемешать'}
-                          </Tag>
+                          {t.answer_mode === 'input' ? (
+                            <Tag color="gold">вписать ответ</Tag>
+                          ) : (
+                            <>
+                              <Tag color="purple">{t.options_count} отв.</Tag>
+                              <Tag color={t.shuffle_mode === 'fixed' ? 'orange' : 'green'}>
+                                {t.shuffle_mode === 'fixed' ? 'Фикс.' : 'Перемешать'}
+                              </Tag>
+                            </>
+                          )}
                           <span style={{ fontSize: 11, color: '#aaa' }}>
                             {new Date(t.created).toLocaleDateString('ru')}
                           </span>
@@ -277,6 +273,7 @@ const MCTestGenerator = ({ initialMcTestId = null } = {}) => {
             variants={trigPrintTest.variants}
             title={trigPrintTest.title}
             shuffleMode={trigPrintTest.shuffle_mode || 'fixed'}
+            answerMode={trigPrintTest.answer_mode}
           />
         )}
 

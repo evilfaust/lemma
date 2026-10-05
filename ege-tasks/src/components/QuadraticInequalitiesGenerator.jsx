@@ -4,8 +4,7 @@ import {
 } from 'antd';
 import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
-  BorderHorizontalOutlined, FormOutlined,
-} from '@ant-design/icons';
+  BorderHorizontalOutlined, } from '@ant-design/icons';
 import {
   useQuadraticInequalities,
   qineqInstruction,
@@ -290,13 +289,6 @@ export default function QuadraticInequalitiesGenerator() {
                       onClick={() => { setMcFillMode(false); setModalOpen(true); }}
                     >
                       Тест A/B/C/D
-                    </Button>
-                    <Button
-                      block
-                      icon={<FormOutlined />}
-                      onClick={() => { setMcFillMode(true); setModalOpen(true); }}
-                    >
-                      Вписать ответ
                     </Button>
                   </div>
                   <Button block onClick={reset}>Сбросить</Button>

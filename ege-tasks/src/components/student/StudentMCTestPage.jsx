@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Button, Typography, Modal, App, Radio } from 'antd';
+import { Button, Typography, Modal, App, Radio, Input } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds, getPreviouslyEarnedBadgeIds } from '../../utils/achievementEngine';
+import { gradeDrill } from '../../utils/drillTest';
 
 const { Title, Text } = Typography;
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -26,7 +27,11 @@ function wrapOptionText(text) {
 const StudentMCTestPage = ({ studentSession }) => {
   const { message } = App.useApp();
   const { attempt, setAttempt, variant, tasks, session } = studentSession;
-  const [answers, setAnswers] = useState({}); // { taskId: optionIndex }
+  const [answers, setAnswers] = useState({}); // { taskId: optionIndex | текст ответа }
+  // Тренировка из генератора (v3.9.296): ответы — в attempts.drill_answers;
+  // в режиме «Вписать ответ» вместо вариантов — поле ввода
+  const isDrill = !!variant?.drill;
+  const isInput = isDrill && variant?.answerMode === 'input';
   const [submitting, setSubmitting] = useState(false);
   const [startTime] = useState(Date.now());
 
@@ -45,11 +50,12 @@ const StudentMCTestPage = ({ studentSession }) => {
       const validIds = new Set(tasks.map(t => t.id));
       const restored = {};
       Object.entries(saved).forEach(([taskId, idx]) => {
-        if (validIds.has(taskId) && Number.isInteger(idx)) restored[taskId] = idx;
+        if (!validIds.has(taskId)) return;
+        if (Number.isInteger(idx) || (isInput && typeof idx === 'string')) restored[taskId] = idx;
       });
       setAnswers(restored);
     } catch { /* ignore */ }
-  }, [storageKey, tasks]);
+  }, [storageKey, tasks, isInput]);
 
   useEffect(() => {
     if (!storageKey || !tasks.length) return;
@@ -64,7 +70,8 @@ const StudentMCTestPage = ({ studentSession }) => {
     setAnswers(prev => ({ ...prev, [taskId]: optionIndex }));
   };
 
-  const answeredCount = Object.keys(answers).length;
+  const answeredCount = Object.values(answers)
+    .filter(v => (typeof v === 'string' ? v.trim() !== '' : v !== undefined)).length;
   const progressPercent = tasks.length > 0 ? (answeredCount / tasks.length) * 100 : 0;
   const testTitle = session?.student_title?.trim() || 'Тест';
 
@@ -86,19 +93,26 @@ const StudentMCTestPage = ({ studentSession }) => {
 
       let score = 0;
       const answerRecords = [];
-      for (const task of tasks) {
-        const optIdx = answers[task.id];
-        const opts = task.mc_options || [];
-        const chosen = (typeof optIdx === 'number') ? opts[optIdx] : null;
-        const isCorrect = !!chosen?.is_correct;
-        if (isCorrect) score++;
-        answerRecords.push({
-          attempt: attempt.id,
-          task: task.id,
-          answer_raw: typeof optIdx === 'number' ? String(optIdx) : '',
-          answer_normalized: typeof optIdx === 'number' ? optIdx : 0,
-          is_correct: isCorrect,
-        });
+      let drillAnswers = null;
+      if (isDrill) {
+        const graded = gradeDrill(tasks, answers, isInput ? 'input' : 'choice');
+        score = graded.score;
+        drillAnswers = graded.drill_answers;
+      } else {
+        for (const task of tasks) {
+          const optIdx = answers[task.id];
+          const opts = task.mc_options || [];
+          const chosen = (typeof optIdx === 'number') ? opts[optIdx] : null;
+          const isCorrect = !!chosen?.is_correct;
+          if (isCorrect) score++;
+          answerRecords.push({
+            attempt: attempt.id,
+            task: task.id,
+            answer_raw: typeof optIdx === 'number' ? String(optIdx) : '',
+            answer_normalized: typeof optIdx === 'number' ? optIdx : 0,
+            is_correct: isCorrect,
+          });
+        }
       }
 
       const percentage = tasks.length > 0 ? (score / tasks.length) * 100 : 0;
@@ -135,18 +149,21 @@ const StudentMCTestPage = ({ studentSession }) => {
         );
       }
 
-      const existingAnswers = await api.getAttemptAnswers(attempt.id);
-      const existingByTaskId = new Map(existingAnswers.map(a => [a.task, a]));
-      const toCreate = []; const toUpdate = [];
-      for (const r of answerRecords) {
-        const ex = existingByTaskId.get(r.task);
-        if (ex?.id) toUpdate.push({ id: ex.id, ...r });
-        else toCreate.push(r);
+      if (!isDrill) {
+        const existingAnswers = await api.getAttemptAnswers(attempt.id);
+        const existingByTaskId = new Map(existingAnswers.map(a => [a.task, a]));
+        const toCreate = []; const toUpdate = [];
+        for (const r of answerRecords) {
+          const ex = existingByTaskId.get(r.task);
+          if (ex?.id) toUpdate.push({ id: ex.id, ...r });
+          else toCreate.push(r);
+        }
+        if (toCreate.length) await api.batchCreateAttemptAnswers(toCreate);
+        if (toUpdate.length) await api.batchUpdateAttemptAnswers(toUpdate);
       }
-      if (toCreate.length) await api.batchCreateAttemptAnswers(toCreate);
-      if (toUpdate.length) await api.batchUpdateAttemptAnswers(toUpdate);
 
       const updated = await api.updateAttempt(attempt.id, {
+        ...(drillAnswers ? { drill_answers: drillAnswers } : {}),
         status: 'submitted',
         score,
         total: tasks.length,
@@ -206,7 +223,8 @@ const StudentMCTestPage = ({ studentSession }) => {
       </div>
 
       {tasks.map((task, idx) => {
-        const isFilled = answers[task.id] !== undefined;
+        const value = answers[task.id];
+        const isFilled = typeof value === 'string' ? value.trim() !== '' : value !== undefined;
         const opts = task.mc_options || [];
         return (
           <div
@@ -225,29 +243,40 @@ const StudentMCTestPage = ({ studentSession }) => {
                 />
               )}
             </div>
-            <Radio.Group
-              value={answers[task.id]}
-              onChange={(e) => updateAnswer(task.id, e.target.value)}
-              style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}
-            >
-              {opts.map((opt, oi) => (
-                <Radio
-                  key={oi}
-                  value={oi}
-                  style={{
-                    padding: 10,
-                    borderRadius: 10,
-                    border: '1px solid var(--ant-color-border, #d9d9d9)',
-                    background: answers[task.id] === oi ? 'var(--ant-color-primary-bg, #e6f4ff)' : 'transparent',
-                    margin: 0,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <strong style={{ marginRight: 8 }}>{LETTERS[oi]}.</strong>
-                  <MathRenderer text={wrapOptionText(opt.text || '')} />
-                </Radio>
-              ))}
-            </Radio.Group>
+            {isInput ? (
+              <Input
+                className="task-answer-input"
+                placeholder="Ответ: число, дробь 7/9 или 2 1/3"
+                inputMode="text"
+                type="text"
+                value={value || ''}
+                onChange={e => updateAnswer(task.id, e.target.value)}
+              />
+            ) : (
+              <Radio.Group
+                value={answers[task.id]}
+                onChange={(e) => updateAnswer(task.id, e.target.value)}
+                style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}
+              >
+                {opts.map((opt, oi) => (
+                  <Radio
+                    key={oi}
+                    value={oi}
+                    style={{
+                      padding: 10,
+                      borderRadius: 10,
+                      border: '1px solid var(--ant-color-border, #d9d9d9)',
+                      background: answers[task.id] === oi ? 'var(--ant-color-primary-bg, #e6f4ff)' : 'transparent',
+                      margin: 0,
+                      alignItems: 'flex-start',
+                    }}
+                  >
+                    <strong style={{ marginRight: 8 }}>{LETTERS[oi]}.</strong>
+                    <MathRenderer text={wrapOptionText(opt.text || '')} />
+                  </Radio>
+                ))}
+              </Radio.Group>
+            )}
           </div>
         );
       })}

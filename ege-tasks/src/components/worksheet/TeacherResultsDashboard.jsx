@@ -6,6 +6,7 @@ import { shuffleArray } from '../../utils/shuffle';
 import MathRenderer from '../MathRenderer';
 import ClassRemediationModal from './ClassRemediationModal';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
+import { drillAnswerRows, setDrillAnswerCorrect } from '../../utils/drillTest';
 
 const { Text } = Typography;
 const PB_URL = PB_BASE_URL;
@@ -173,6 +174,20 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
     } catch (err) {
       console.error('Error accepting answer:', err);
       message.error('Ошибка при зачёте ответа');
+    }
+  };
+
+  // Тренировка из генератора (v3.9.296): ответы лежат в самой попытке
+  const handleDrillToggle = async (attempt, key, correct) => {
+    try {
+      const patch = setDrillAnswerCorrect(attempt.drill_answers, key, correct);
+      await api.updateAttempt(attempt.id, patch);
+      setAttempts(prev => prev.map(a => (a.id === attempt.id ? { ...a, ...patch } : a)));
+      if (correct) message.success('Ответ засчитан');
+      else message.info('Зачёт отменён');
+    } catch (err) {
+      console.error('Error toggling drill answer:', err);
+      message.error('Не удалось сохранить');
     }
   };
 
@@ -527,7 +542,56 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
   ];
 
   // Expandable: ответы по задачам с кнопкой «Засчитать»
+  const renderDrillAnswers = (record) => {
+    const rows = drillAnswerRows(record, mcTestData);
+    if (!rows.length) return <Text type="secondary">Нет ответов</Text>;
+    const columns = [
+      {
+        title: '№', key: 'pos', width: 48,
+        render: (_, r) => <Tag style={{ minWidth: 28, textAlign: 'center', fontWeight: 600 }}>{r.position ?? '—'}</Tag>,
+      },
+      {
+        title: 'Задание', key: 'question',
+        render: (_, r) => (r.question ? <MathRenderer text={`$${r.question}$`} /> : '—'),
+      },
+      {
+        title: 'Ответ ученика', key: 'given', width: 160,
+        render: (_, r) => {
+          if (r.given == null || r.given === '') return <Text type="secondary">(пусто)</Text>;
+          return r.givenIsLatex ? <MathRenderer text={`$${r.given}$`} /> : String(r.given);
+        },
+      },
+      {
+        title: 'Правильный', key: 'answer', width: 120,
+        render: (_, r) => (r.answer ? <MathRenderer text={`$${r.answer}$`} /> : '—'),
+      },
+      {
+        title: 'Результат', key: 'is_correct', width: 130,
+        render: (_, r) => (r.is_correct ? (
+          <Space size={4}>
+            <CheckCircleOutlined style={{ color: '#52c41a' }} />
+            <Button type="text" size="small" danger style={{ fontSize: 12, padding: '0 4px' }}
+              onClick={() => handleDrillToggle(record, r.key, false)}>
+              Отменить
+            </Button>
+          </Space>
+        ) : (
+          <Space size={4}>
+            <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+            <Button type="text" size="small" icon={<CheckOutlined />}
+              style={{ color: '#52c41a', fontSize: 12, padding: '0 4px' }}
+              onClick={() => handleDrillToggle(record, r.key, true)}>
+              Засчитать
+            </Button>
+          </Space>
+        )),
+      },
+    ];
+    return <Table columns={columns} dataSource={rows} rowKey="id" pagination={false} size="small" />;
+  };
+
   const expandedRowRender = (record) => {
+    if (Array.isArray(record.drill_answers)) return renderDrillAnswers(record);
     const answers = expandedAnswers[record.id];
     if (!answers) return <Spin size="small" />;
 
@@ -731,7 +795,7 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
           expandable={{
             expandedRowRender,
             onExpand: (expanded, record) => {
-              if (expanded) loadAnswers(record.id);
+              if (expanded && !Array.isArray(record.drill_answers)) loadAnswers(record.id);
             },
           }}
           scroll={{ x: 600 }}

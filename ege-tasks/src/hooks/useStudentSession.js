@@ -2,19 +2,37 @@ import { useState, useEffect, useCallback } from 'react';
 import { api } from '../services/pocketbase';
 import { shuffleArray } from '../utils/shuffle';
 import { shuffleOptionsWithSeed, hashStringToSeed } from '../utils/distractorGenerator';
+import { isDrillTest, drillStudentTasks, answerModeOf } from '../utils/drillTest';
 
 // Загрузка задач варианта MC-теста: getTasksByIds + прикрепляем mc_options
 async function loadMCVariantTasks(mcTest, variantNumber, attemptId, deviceId, authStudentId) {
   const variantData = mcTest.variants.find(v => String(v.number) === String(variantNumber));
   if (!variantData) return { variant: null, tasks: [] };
 
-  const taskIds = variantData.tasks.map(t => t.task_id);
-  const taskRecords = await api.getTasksByIds(taskIds);
-  const recById = new Map(taskRecords.map(t => [t.id, t]));
-
   const seedBase = mcTest.shuffle_mode === 'per_student'
     ? `${attemptId || authStudentId || deviceId || 'anon'}`
     : (mcTest.id || 'fixed');
+
+  // Тренировка из генератора (v3.9.296): задания лежат в самом тесте, в банк не
+  // ходим. Ответы такой попытки пишутся в attempts.drill_answers
+  if (isDrillTest(mcTest)) {
+    return {
+      variant: {
+        id: `mc-${variantNumber}`,
+        number: variantNumber,
+        isMC: true,
+        drill: true,
+        answerMode: answerModeOf(mcTest),
+      },
+      tasks: drillStudentTasks(variantData, {
+        shuffleMode: mcTest.shuffle_mode, seedBase, variantNumber,
+      }),
+    };
+  }
+
+  const taskIds = variantData.tasks.map(t => t.task_id);
+  const taskRecords = await api.getTasksByIds(taskIds);
+  const recById = new Map(taskRecords.map(t => [t.id, t]));
 
   const tasks = variantData.tasks
     .map((t, ti) => {

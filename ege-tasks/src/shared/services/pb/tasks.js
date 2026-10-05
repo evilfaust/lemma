@@ -76,14 +76,9 @@ export const tasksApi = {
       filterArr.push(`year = ${Number(filters.year) || 0}`);
     }
 
-    // Фильтрация по контексту (exam_type темы).
-    // Для trig дополнительно включаем задачи с source='trig_generator' без темы (легаси).
+    // Фильтрация по контексту (exam_type темы)
     if (filters.exam_type) {
-      if (filters.exam_type === 'trig') {
-        filterArr.push(`(topic.exam_type = "trig" || source = "trig_generator")`);
-      } else {
-        filterArr.push(`topic.exam_type = "${escapeFilter(filters.exam_type)}"`);
-      }
+      filterArr.push(`topic.exam_type = "${escapeFilter(filters.exam_type)}"`);
     }
 
     return filterArr.length > 0 ? filterArr.join(' && ') : '';

@@ -35,8 +35,16 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     }
   };
 
+  // Тренировка из генератора (v3.9.296) хранит ответы в самой попытке
+  const drillAnswers = Array.isArray(attempt?.drill_answers) ? attempt.drill_answers : null;
+
   useEffect(() => {
     if (!attempt) return;
+    if (drillAnswers) {
+      setAttemptAnswers(drillAnswers.map(a => ({ is_correct: !!a.correct })));
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       setLoading(true);
       const answers = await api.getAttemptAnswers(attempt.id);
@@ -44,7 +52,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
       setLoading(false);
     };
     load();
-  }, [attempt?.id, attempt?.status]);
+  }, [attempt?.id, attempt?.status, drillAnswers]);
 
   const wrongAnswers = attemptAnswers.filter(a => !a.is_correct);
   const score = attempt?.score || 0;
