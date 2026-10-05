@@ -6,7 +6,11 @@ import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
   ExperimentOutlined, FormOutlined,
 } from '@ant-design/icons';
-import { useOralPowersRoots, CATEGORY_LABELS_PR } from '../hooks/useOralPowersRoots';
+import {
+  useOralPowersRoots, CATEGORY_LABELS_PR, CATEGORY_EXAM_PR, CATEGORY_GROUPS_PR,
+} from '../hooks/useOralPowersRoots';
+import { OralLevelPanel } from './trig/OralLevelPanel';
+import { EXAM_TAG_TITLES } from '../utils/oral/levels';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
 import { SheetOrderPanel } from './trig/SheetOrderPanel';
@@ -26,22 +30,9 @@ import {
   TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
-import { FSU_ROOT_KEYS } from '../utils/shortMultiplication';
 
-const CATEGORY_GROUPS = [
-  {
-    label: 'Корни',
-    keys: ['simpleSqrt', 'nthRoot', 'nestedRoot', 'rootOfPower', 'powerOfRoot', 'productOfRoots', 'rootOfFraction'],
-  },
-  {
-    label: 'Степени',
-    keys: ['fractionalPower', 'fractionPower', 'negPower', 'sameBaseProduct', 'sameBaseQuotient', 'powerOfPower', 'irrationalExp', 'decimalTimesRoot'],
-  },
-  {
-    label: 'Формулы сокращённого умножения',
-    keys: FSU_ROOT_KEYS,
-  },
-];
+const CATEGORY_GROUPS = CATEGORY_GROUPS_PR;
+const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
 
 export default function OralPowersRootsGenerator() {
   const {
@@ -102,6 +93,19 @@ export default function OralPowersRootsGenerator() {
         left={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
+            <OralLevelPanel
+
+              settings={settings}
+
+              onChange={updateSetting}
+
+              keys={ALL_KEYS}
+
+              examMap={CATEGORY_EXAM_PR}
+
+            />
+
+
             {CATEGORY_GROUPS.map(group => (
               <TrigSettingsSection
                 key={group.label}
@@ -121,6 +125,8 @@ export default function OralPowersRootsGenerator() {
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
+                  badges={CATEGORY_EXAM_PR}
+                  badgeTitles={EXAM_TAG_TITLES}
                 />
               </TrigSettingsSection>
             ))}

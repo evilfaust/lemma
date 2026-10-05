@@ -6,7 +6,11 @@ import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
   FieldNumberOutlined, FormOutlined,
 } from '@ant-design/icons';
-import { useOralEgeBase, CATEGORY_LABELS_EGE } from '../hooks/useOralEgeBase';
+import {
+  useOralEgeBase, CATEGORY_LABELS_EGE, CATEGORY_EXAM_EGE, CATEGORY_GROUPS_EGE,
+} from '../hooks/useOralEgeBase';
+import { OralLevelPanel } from './trig/OralLevelPanel';
+import { EXAM_TAG_TITLES } from '../utils/oral/levels';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
 import { SheetOrderPanel } from './trig/SheetOrderPanel';
@@ -26,34 +30,9 @@ import {
   TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
-import { FSU_DEC_KEYS } from '../utils/shortMultiplication';
 
-const CATEGORY_GROUPS = [
-  {
-    label: 'Сумма / разность · число',
-    keys: ['sumTimes', 'diffTimes'],
-  },
-  {
-    label: 'Произведение ± число',
-    keys: ['prodPlus', 'prodMinus'],
-  },
-  {
-    label: 'Порядок действий',
-    keys: ['addDivision', 'subDivision'],
-  },
-  {
-    label: 'Деление на сумму / разность',
-    keys: ['divBySum', 'divByDiff', 'diffDiv'],
-  },
-  {
-    label: 'Спецзадачи',
-    keys: ['trickFraction'],
-  },
-  {
-    label: 'Формулы сокращённого умножения',
-    keys: FSU_DEC_KEYS,
-  },
-];
+const CATEGORY_GROUPS = CATEGORY_GROUPS_EGE;
+const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
 
 export default function OralEgeBaseGenerator() {
   const {
@@ -114,6 +93,19 @@ export default function OralEgeBaseGenerator() {
         left={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
+            <OralLevelPanel
+
+              settings={settings}
+
+              onChange={updateSetting}
+
+              keys={ALL_KEYS}
+
+              examMap={CATEGORY_EXAM_EGE}
+
+            />
+
+
             {CATEGORY_GROUPS.map(group => (
               <TrigSettingsSection
                 key={group.label}
@@ -133,6 +125,8 @@ export default function OralEgeBaseGenerator() {
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
+                  badges={CATEGORY_EXAM_EGE}
+                  badgeTitles={EXAM_TAG_TITLES}
                 />
               </TrigSettingsSection>
             ))}

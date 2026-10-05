@@ -6,7 +6,11 @@ import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
   PercentageOutlined, FormOutlined,
 } from '@ant-design/icons';
-import { useOralFractions, CATEGORY_LABELS_FR } from '../hooks/useOralFractions';
+import {
+  useOralFractions, CATEGORY_LABELS_FR, CATEGORY_EXAM_FR, CATEGORY_GROUPS_FR,
+} from '../hooks/useOralFractions';
+import { OralLevelPanel } from './trig/OralLevelPanel';
+import { EXAM_TAG_TITLES } from '../utils/oral/levels';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
 import { SheetOrderPanel } from './trig/SheetOrderPanel';
@@ -26,26 +30,9 @@ import {
   TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
-import { FSU_MIX_KEYS } from '../utils/shortMultiplication';
 
-const CATEGORY_GROUPS = [
-  {
-    label: 'Скобка × число / десятичная',
-    keys: ['sumFracTimesInt', 'fracSumTimesDecimal', 'multiFracTimesInt'],
-  },
-  {
-    label: 'Деление',
-    keys: ['decimalDivFrac', 'bracketDivFrac', 'fracDivPlusMixed', 'oneOverDiff'],
-  },
-  {
-    label: 'Произведения и смеси',
-    keys: ['fracProdPlusInt', 'fracProdMinusFrac', 'fracPlusFracDivFrac', 'fracDecMix'],
-  },
-  {
-    label: 'Формулы сокращённого умножения',
-    keys: FSU_MIX_KEYS,
-  },
-];
+const CATEGORY_GROUPS = CATEGORY_GROUPS_FR;
+const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
 
 export default function OralFractionsGenerator() {
   const {
@@ -106,6 +93,19 @@ export default function OralFractionsGenerator() {
         left={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
+            <OralLevelPanel
+
+              settings={settings}
+
+              onChange={updateSetting}
+
+              keys={ALL_KEYS}
+
+              examMap={CATEGORY_EXAM_FR}
+
+            />
+
+
             {CATEGORY_GROUPS.map(group => (
               <TrigSettingsSection
                 key={group.label}
@@ -125,6 +125,8 @@ export default function OralFractionsGenerator() {
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
+                  badges={CATEGORY_EXAM_FR}
+                  badgeTitles={EXAM_TAG_TITLES}
                 />
               </TrigSettingsSection>
             ))}

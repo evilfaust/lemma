@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import {
   isFiniteDecimalAnswer, isIntegerAnswer, hasNegativeNumber, toImproperFraction,
 } from '../utils/oralAnswerFilter';
-import { generateByCategories } from '../utils/questionPlan';
+import { generateByCategories, byExpr } from '../utils/questionPlan';
 import {
   fsuGenerators, FSU_LABELS, FSU_KEYS, fsuDefaults,
 } from '../utils/shortMultiplication';
@@ -778,6 +778,7 @@ export function generateOralCountingVariants(settings) {
 
   return generateByCategories({
     categories: s.categories,
+    uniqueKey: byExpr,
     counts: s.categoryCounts,
     known: (k) => Boolean(GENERATORS[k]),
     questionsCount: s.questionsCount,

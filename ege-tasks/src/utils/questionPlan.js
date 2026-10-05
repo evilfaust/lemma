@@ -59,6 +59,12 @@ export function plannedTotal(categories, questionsCount, counts) {
  * подошли (некрасивый корень и т.п.) — тогда пробуем ещё. Если категория так и
  * не дала задания, позиция заполняется любой другой доступной, чтобы вариант
  * не оказался короче остальных.
+ *
+ * `uniqueKey(q)` — по какому признаку задания считаются одинаковыми (обычно
+ * `exprLatex`). С ним генератор сначала ищет задание, которого ещё нет на всём
+ * листе, затем — которого нет в этом варианте, и только когда категория
+ * исчерпана (квота больше, чем она умеет разных заданий), берёт повтор.
+ * Без ключа — прежнее поведение: первое подошедшее задание.
  */
 export function buildVariantsByPlan({
   plan,
@@ -66,29 +72,46 @@ export function buildVariantsByPlan({
   make,
   attempts = 80,
   fallbackCats = [],
+  uniqueKey = null,
 }) {
   if (!plan.length) return [];
 
-  const tryCat = (cat, limit) => {
+  const usedOnSheet = new Set();
+
+  const tryCat = (cat, limit, usedInVariant) => {
+    let notInVariant = null;   // повтор из соседнего варианта — терпимо
+    let any = null;            // повтор внутри варианта — крайний случай
     for (let i = 0; i < limit; i++) {
       const q = make(cat);
-      if (q) return q;
+      if (!q) continue;
+      const key = uniqueKey ? uniqueKey(q) : null;
+      if (key == null || !usedOnSheet.has(key)) return q;
+      if (!notInVariant && !usedInVariant.has(key)) notInVariant = q;
+      if (!any) any = q;
     }
-    return null;
+    return notInVariant || any;
   };
 
   return Array.from({ length: variantsCount }, () => {
     const questions = [];
+    const usedInVariant = new Set();
     for (const cat of plan) {
-      let q = tryCat(cat, attempts);
+      let q = tryCat(cat, attempts, usedInVariant);
       if (!q) {
         for (const alt of fallbackCats) {
           if (alt === cat) continue;
-          q = tryCat(alt, 20);
+          q = tryCat(alt, 20, usedInVariant);
           if (q) break;
         }
       }
-      if (q) questions.push(q);
+      if (q) {
+        questions.push(q);
+        const key = uniqueKey ? uniqueKey(q) : null;
+        if (key != null) {
+          usedOnSheet.add(key);
+          usedInVariant.add(key);
+        }
+      }
     }
     return questions;
   });
@@ -106,6 +129,7 @@ export function generateByCategories({
   variantsCount,
   make,
   attempts,
+  uniqueKey,       // признак одинаковых заданий — см. buildVariantsByPlan
 }) {
   const enabledCats = Object.entries(categories || {})
     .filter(([, v]) => v)
@@ -120,5 +144,9 @@ export function generateByCategories({
     make,
     attempts,
     fallbackCats: enabledCats,
+    uniqueKey,
   });
 }
+
+/** Ключ одинаковости для листов «формула → ответ»: само выражение. */
+export const byExpr = (q) => q?.exprLatex ?? null;

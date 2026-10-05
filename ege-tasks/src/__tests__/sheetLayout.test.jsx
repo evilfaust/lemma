@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { render, renderHook, act } from '@testing-library/react';
-import { categoryPlan, buildVariantsByPlan, generateByCategories, plannedTotal } from '../utils/questionPlan';
+import { categoryPlan, buildVariantsByPlan, generateByCategories, plannedTotal, byExpr } from '../utils/questionPlan';
 import { useSheetLayout } from '../hooks/useSheetLayout';
 import OralCountingPrintLayout, { variantsPerPage } from '../components/trig/OralCountingPrintLayout';
 import { generateLinearEquationVariants, DEFAULT_SETTINGS_LINEQ } from '../hooks/useLinearEquations';
@@ -84,6 +84,42 @@ describe('план заданий', () => {
       variantsCount: 2,
       make: () => ({}),
     })).toEqual([]);
+  });
+});
+
+describe('повторы заданий на листе', () => {
+  // Категория из небольшого набора: генератор тянет случайный элемент
+  const pool = (n) => {
+    const items = Array.from({ length: n }, (_, i) => ({ exprLatex: `e${i}` }));
+    return () => items[Math.floor(Math.random() * n)];
+  };
+  const keys = (variants) => variants.flat().map(byExpr);
+
+  it('без ключа поведение прежнее — повторы возможны', () => {
+    const variants = buildVariantsByPlan({ plan: ['a', 'a', 'a'], variantsCount: 20, make: pool(2) });
+    expect(new Set(keys(variants)).size).toBeLessThanOrEqual(2);
+  });
+
+  it('пока набор не исчерпан, на листе нет одинаковых заданий', () => {
+    const variants = buildVariantsByPlan({
+      plan: ['a', 'a', 'a'], variantsCount: 4, make: pool(12), uniqueKey: byExpr,
+    });
+    expect(new Set(keys(variants)).size).toBe(12);
+  });
+
+  it('набор исчерпан — повтор уходит в соседний вариант, а не внутрь варианта', () => {
+    const variants = buildVariantsByPlan({
+      plan: ['a', 'a', 'a'], variantsCount: 6, make: pool(4), uniqueKey: byExpr,
+    });
+    for (const v of variants) expect(new Set(v.map(byExpr)).size).toBe(3);
+  });
+
+  it('устный счёт по умолчанию: в варианте нет одинаковых примеров', () => {
+    for (let r = 0; r < 20; r++) {
+      for (const v of generateOralCountingVariants({ ...DEFAULT_SETTINGS, variantsCount: 4 })) {
+        expect(new Set(v.map(byExpr)).size).toBe(v.length);
+      }
+    }
   });
 });
 

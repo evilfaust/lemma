@@ -6,7 +6,11 @@ import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
   LineChartOutlined, FormOutlined,
 } from '@ant-design/icons';
-import { useOralLogarithms, CATEGORY_LABELS_LOG } from '../hooks/useOralLogarithms';
+import {
+  useOralLogarithms, CATEGORY_LABELS_LOG, CATEGORY_EXAM_LOG, CATEGORY_GROUPS_LOG,
+} from '../hooks/useOralLogarithms';
+import { OralLevelPanel } from './trig/OralLevelPanel';
+import { EXAM_TAG_TITLES } from '../utils/oral/levels';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
 import { SheetOrderPanel } from './trig/SheetOrderPanel';
@@ -23,27 +27,12 @@ import {
   TrigActions,
   TrigPreviewPane,
   TrigStatBadge,
+  TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
 
-const CATEGORY_GROUPS = [
-  {
-    label: 'Простые логарифмы',
-    keys: ['basicLog', 'logReciprocal', 'logOne', 'logOfRoot', 'lgPower'],
-  },
-  {
-    label: 'Тождества',
-    keys: ['basicIdentity', 'complexIdentity', 'logOfSameBasePower'],
-  },
-  {
-    label: 'Суммы и разности',
-    keys: ['logSum', 'logDiff', 'lgSumDiff'],
-  },
-  {
-    label: 'Сложные',
-    keys: ['changeBase', 'nestedLog', 'logRatio'],
-  },
-];
+const CATEGORY_GROUPS = CATEGORY_GROUPS_LOG;
+const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
 
 export default function OralLogarithmsGenerator() {
   const {
@@ -102,8 +91,25 @@ export default function OralLogarithmsGenerator() {
         left={
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
+            <OralLevelPanel
+              settings={settings}
+              onChange={updateSetting}
+              keys={ALL_KEYS}
+              examMap={CATEGORY_EXAM_LOG}
+            />
+
             {CATEGORY_GROUPS.map(group => (
-              <TrigSettingsSection key={group.label} label={group.label}>
+              <TrigSettingsSection
+                key={group.label}
+                label={
+                  <TrigBlockToggle
+                    label={group.label}
+                    keys={group.keys}
+                    categories={settings.categories}
+                    onToggleBlock={(keys, checked) => keys.forEach(k => updateCategory(k, checked))}
+                  />
+                }
+              >
                 <CategoryChecklist
                   keys={group.keys}
                   labels={CATEGORY_LABELS_LOG}
@@ -111,6 +117,8 @@ export default function OralLogarithmsGenerator() {
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
+                  badges={CATEGORY_EXAM_LOG}
+                  badgeTitles={EXAM_TAG_TITLES}
                 />
               </TrigSettingsSection>
             ))}

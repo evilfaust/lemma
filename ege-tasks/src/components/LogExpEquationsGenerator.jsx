@@ -6,7 +6,11 @@ import {
   PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
   FunctionOutlined, FormOutlined,
 } from '@ant-design/icons';
-import { useLogExpEquations, CATEGORY_LABELS_LOGEXP } from '../hooks/useLogExpEquations';
+import {
+  useLogExpEquations, CATEGORY_LABELS_LOGEXP, CATEGORY_EXAM_LOGEXP, CATEGORY_GROUPS_LOGEXP,
+} from '../hooks/useLogExpEquations';
+import { OralLevelPanel } from './trig/OralLevelPanel';
+import { EXAM_TAG_TITLES } from '../utils/oral/levels';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
 import { SheetOrderPanel } from './trig/SheetOrderPanel';
@@ -44,10 +48,8 @@ const CATEGORY_ORDER = [
 ];
 
 // Группировка категорий для UI
-const CATEGORY_GROUPS = [
-  { label: 'Показательные уравнения', keys: ['basicExp', 'fracBaseEqual', 'shiftedExp', 'negCoeffExp', 'productExp'] },
-  { label: 'Логарифмические уравнения', keys: ['simpleLog', 'logAsBase', 'logLinear', 'logSumConst', 'logDiffConst', 'constPlusLog', 'logFraction', 'logRhsSum'] },
-];
+const CATEGORY_GROUPS = CATEGORY_GROUPS_LOGEXP;
+const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
 
 
 export default function LogExpEquationsGenerator() {
@@ -108,6 +110,13 @@ export default function LogExpEquationsGenerator() {
           <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
 
             {/* Категории заданий */}
+            <OralLevelPanel
+              settings={settings}
+              onChange={updateSetting}
+              keys={ALL_KEYS}
+              examMap={CATEGORY_EXAM_LOGEXP}
+            />
+
             {CATEGORY_GROUPS.map(group => (
               <TrigSettingsSection key={group.label} label={group.label}>
                 <CategoryChecklist
@@ -117,6 +126,8 @@ export default function LogExpEquationsGenerator() {
                   counts={settings.categoryCounts || {}}
                   onToggle={updateCategory}
                   onCount={updateCount}
+                  badges={CATEGORY_EXAM_LOGEXP}
+                  badgeTitles={EXAM_TAG_TITLES}
                 />
               </TrigSettingsSection>
             ))}

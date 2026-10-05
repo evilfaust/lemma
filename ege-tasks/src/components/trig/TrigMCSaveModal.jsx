@@ -20,7 +20,7 @@ export const GENERATOR_LABELS = {
   reduction_formulas:      'Формулы приведения',
   addition_formulas:       'Формулы сложения',
   oral_counting:           'Устный счёт',
-  log_exp_equations:       'Степени и логарифмы',
+  log_exp_equations:       'Показательные и логарифмические уравнения',
   linear_equations:        'Линейные уравнения',
   quadratic_equations:     'Квадратные уравнения',
   quadratic_inequalities:  'Квадратные неравенства',

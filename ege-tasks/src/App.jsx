@@ -344,7 +344,7 @@ const ROUTE_META = [
   { re: /^\/app\/trig\/double-angle/,      menuKey: 'double-angle',     menuGroup: 'trig', title: 'Тригонометрия — Двойной аргумент' },
   { re: /^\/app\/trig\/cryptogram/,        menuKey: 'trig-cryptogram',  menuGroup: 'trig', title: 'Тригонометрия — Шифровки' },
   { re: /^\/app\/arith\/oral-counting/,   menuKey: 'oral-counting',    menuGroup: 'arith', title: 'Устный счёт — Арифметика' },
-  { re: /^\/app\/arith\/log-exp/,         menuKey: 'log-exp',          menuGroup: 'arith', title: 'Устный счёт — Степени и логарифмы' },
+  { re: /^\/app\/arith\/log-exp/,         menuKey: 'log-exp',          menuGroup: 'arith', title: 'Устный счёт — Показательные и логарифмические уравнения' },
   { re: /^\/app\/arith\/powers-roots/,    menuKey: 'powers-roots',     menuGroup: 'arith', title: 'Устный счёт — Степени и корни' },
   { re: /^\/app\/arith\/logarithms/,      menuKey: 'logarithms',       menuGroup: 'arith', title: 'Устный счёт — Логарифмы' },
   { re: /^\/app\/arith\/ege-base/,        menuKey: 'ege-base-oral',    menuGroup: 'arith', title: 'Устный счёт — Действия с десятичными' },
@@ -823,7 +823,7 @@ function AppLayout() {
       key: 'arith', icon: <CalculatorOutlined />, label: 'Устный счёт', section: 'arith',
       children: [
         { key: 'oral-counting', icon: <CalculatorOutlined />, label: 'Арифметика' },
-        { key: 'log-exp',       icon: <FunctionOutlined />,  label: 'Степени и логарифмы' },
+        { key: 'log-exp',       icon: <FunctionOutlined />,  label: 'Уравнения: показательные и логарифмические' },
         { key: 'powers-roots',  icon: <ExperimentOutlined />, label: 'Степени и корни' },
         { key: 'logarithms',    icon: <LineChartOutlined />,  label: 'Логарифмы' },
         { key: 'ege-base-oral', icon: <FieldNumberOutlined />, label: 'Действия с десятичными' },

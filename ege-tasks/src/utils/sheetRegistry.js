@@ -122,7 +122,7 @@ export const SHEET_GENERATORS = {
     generate: generateLogarithmsVariants,
   },
   log_exp_equations: {
-    label: 'Степени и логарифмы: уравнения',
+    label: 'Показательные и логарифмические уравнения',
     route: '/app/arith/log-exp',
     instruction: 'Решите уравнение:',
     categoryLabels: CATEGORY_LABELS_LOGEXP,

@@ -88,6 +88,7 @@ import {
 // иначе смешанная работа включала бы то, чего в самом разделе нет по умолчанию.
 const allTrue = (labels) => Object.fromEntries(Object.keys(labels).map(k => [k, true]));
 
+// `levels: true` — раздел понимает уровень (Разминка / Как на экзамене / Сложнее)
 export const ORAL_TYPES = [
   {
     type:         'oral_counting',
@@ -101,6 +102,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'ege_base',
+    levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Действия с десятичными',
     instruction:  'Вычислите:',
     equationMode: false,
@@ -111,6 +113,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'fractions',
+    levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Действия с обыкновенными дробями',
     instruction:  'Вычислите:',
     equationMode: false,
@@ -121,6 +124,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'powers_roots',
+    levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Степени и корни',
     instruction:  'Вычислите:',
     equationMode: false,
@@ -131,6 +135,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'logarithms',
+    levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Логарифмы',
     instruction:  'Вычислите:',
     equationMode: false,
@@ -141,7 +146,8 @@ export const ORAL_TYPES = [
   },
   {
     type:         'log_exp',
-    label:        'Степени и логарифмы (уравнения)',
+    levels:       true,   // переключатель уровня (utils/oral/levels)
+    label:        'Показательные и логарифмические уравнения',
     instruction:  'Решите уравнения:',
     equationMode: true,
     generator:    generateLogExpVariants,

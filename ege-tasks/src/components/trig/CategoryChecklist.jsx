@@ -9,8 +9,9 @@ import { Checkbox, InputNumber, Tooltip } from 'antd';
  * `utils/questionPlan.js`, типы при этом чередуются, а не идут группами.
  *
  * `badges` — необязательная карта «категория → короткая метка» (в «Функциях»
- * это «Б»/«П»: из какого экзамена задание), `badgeTitles` — расшифровка метки
- * в подсказке.
+ * это «Б»/«П»: из какого экзамена задание; в устном счёте — «О6», «Б16», «П8»,
+ * у одного типа их бывает несколько — тогда значение массив), `badgeTitles` —
+ * расшифровка метки в подсказке.
  */
 const BADGE_STYLE = {
   marginLeft: 5,
@@ -37,7 +38,8 @@ export function CategoryChecklist({
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {keys.map(cat => {
         const on = Boolean(categories[cat]);
-        const badge = badges?.[cat];
+        const raw = badges?.[cat];
+        const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
         return (
           <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Checkbox
@@ -46,11 +48,11 @@ export function CategoryChecklist({
               style={{ flex: 1, minWidth: 0 }}
             >
               <span style={{ fontSize: 12 }}>{labels[cat]}</span>
-              {badge && (
-                <Tooltip title={badgeTitles[badge] || badge}>
+              {list.map(badge => (
+                <Tooltip key={badge} title={badgeTitles[badge] || badge}>
                   <span style={BADGE_STYLE}>{badge}</span>
                 </Tooltip>
-              )}
+              ))}
             </Checkbox>
             <Tooltip title="Сколько заданий этого типа. Пусто — сколько получится">
               <InputNumber

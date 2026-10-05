@@ -10,6 +10,7 @@ import {
 import { SplitLayout, ConfigLabel } from '../ui';
 import OralMixedPrintLayout from './trig/OralMixedPrintLayout';
 import { ORAL_TYPES, getOralType } from '../hooks/oralMixedRegistry';
+import { ORAL_LEVELS, DEFAULT_LEVEL } from '../utils/oral/levels';
 import { SheetLayoutOptions, SHEET_DEFAULTS } from './trig/sheetOptions';
 import { useSheetTools } from '../hooks/useSheetTools';
 import { SheetStorageActions } from './trig/SheetStorageActions';
@@ -30,6 +31,7 @@ function makeSection(type) {
     questionsCount: 5,
     categories: { ...meta.defaultCategories },
     decimalOnly: false,
+    level: DEFAULT_LEVEL,
   };
 }
 
@@ -92,6 +94,15 @@ function SectionPanel({ section, onUpdate, onRemove, onDragStart, onDragOver, on
             <span style={{ fontSize: 11 }}>Только целые/дес.</span>
           </Checkbox>
         </div>
+
+        {meta.levels && (
+          <Segmented
+            size="small"
+            value={section.level ?? DEFAULT_LEVEL}
+            onChange={v => setField('level', v)}
+            options={ORAL_LEVELS.map(l => ({ value: l.value, label: <span style={{ fontSize: 11 }}>{l.label}</span> }))}
+          />
+        )}
 
         <details style={{ fontSize: 11 }}>
           <summary style={{ cursor: 'pointer', color: 'var(--ink-3)', fontSize: 11, userSelect: 'none' }}>
@@ -232,6 +243,7 @@ export default function OralMixedGenerator() {
         questionsCount: sec.questionsCount,
         categories: sec.categories,
         decimalOnly: sec.decimalOnly,
+        level: sec.level,
       });
       return { sec, meta, variants };
     }).filter(Boolean);
