@@ -64,6 +64,14 @@ const MCTestGenerator = ({ initialMcTestId = null } = {}) => {
     if (initialMcTestId) {
       (async () => {
         try {
+          // Тест из генератора — в свой редактор (задания в самом тесте, у
+          // «Вписать ответ» нет вариантов ответа). Редактор задачника ждёт
+          // task_id и options у каждого задания и падал на таком тесте.
+          const rec = await api.getMCTest(initialMcTestId);
+          if (rec.source_type === 'generator') {
+            setEditingTrigId(rec.id);
+            return;
+          }
           await mc.load(initialMcTestId);
           setActiveVariantKey(['0']);
           setMode('edit');

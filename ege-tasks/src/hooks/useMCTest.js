@@ -175,7 +175,7 @@ export function useMCTest() {
       const v = rec.variants || [];
       setVariants(v);
 
-      const allIds = v.flatMap(variant => variant.tasks.map(t => t.task_id));
+      const allIds = v.flatMap(variant => (variant.tasks || []).map(t => t.task_id)).filter(Boolean);
       const tasks = await api.getTasksByIds(allIds);
       const map = {};
       tasks.forEach(t => { map[t.id] = t; });
