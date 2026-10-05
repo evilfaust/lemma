@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Empty, Spin } from 'antd';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Empty, Segmented, Spin } from 'antd';
 import {
   DownloadOutlined, LinkOutlined, PlayCircleOutlined, VideoCameraOutlined,
   ClockCircleOutlined, ReadOutlined, RightOutlined, FundProjectionScreenOutlined,
@@ -9,6 +9,8 @@ import 'dayjs/locale/ru';
 import { api } from '../../shared/services/pocketbase';
 import { slotRangeFromCode } from '../workspace/lessonTime';
 import { homeworkFeed, isNextDue, resolveHomework } from '../../utils/homework';
+import { lessonsByDay, mergeRange, rangeToLoad } from '../../utils/studentWeek';
+import StudentWeekView from './StudentWeekView';
 import MathRenderer from '../MathRenderer';
 import './StudentCoursePortal.css';
 
@@ -17,10 +19,32 @@ import './StudentCoursePortal.css';
  * Уроки курсов и классов с включённым расписанием приходят из хука
  * /api/lessons/my уже без приватного. ДЗ «к следующему уроку» раскладывает по
  * урокам utils/homework.js — та же функция, что у учителя в модалке урока.
+ * Два вида (v3.9.292): «Неделя» (StudentWeekView, по умолчанию; выбор помнится
+ * в localStorage `student.lessons.view`) и «Списком». Неделя за пределами
+ * загруженного окна догружается (`rangeToLoad`) и сливается с уже полученным.
  */
 
 const AGENDA_DAYS = 14;  // столько дней вперёд показываем сразу
 const PAST_DAYS = 30;    // прошедшие — за месяц
+const DAY_MS = 24 * 3600 * 1000;
+const VIEW_KEY = 'student.lessons.view';
+
+function readView() {
+  try { return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'week'; } catch { return 'week'; }
+}
+function saveView(v) {
+  try { localStorage.setItem(VIEW_KEY, v); } catch { /* приватный режим — не помним */ }
+}
+
+// Слить догруженное: уроки по id (свежие поверх), классы — объединением.
+function mergeData(prev, next) {
+  if (!prev) return next;
+  const lessons = new Map(prev.lessons.map((l) => [l.id, l]));
+  for (const l of next.lessons) lessons.set(l.id, l);
+  const groups = new Map(prev.groups.map((g) => [g.id, g]));
+  for (const g of next.groups) groups.set(g.id, g);
+  return { groups: [...groups.values()], lessons: [...lessons.values()] };
+}
 
 // Точный отсчёт до начала занятия (учитывает конец пары → «идёт сейчас»).
 function untilLabel(pub, d) {
@@ -218,17 +242,52 @@ function HomeworkFeed({ feed, groupOf }) {
 
 export default function StudentCoursePortal({ student }) {
   const [data, setData] = useState(undefined); // undefined — грузим, null — хук недоступен
+  const [loaded, setLoaded] = useState(null);  // загруженное окно { from, to } в мс
+  const [extending, setExtending] = useState(false);
   const [showPast, setShowPast] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [view, setView] = useState(readView);
+  const [day, setDay] = useState(() => dayjs().startOf('day'));
 
   useEffect(() => {
     let cancelled = false;
     setData(undefined);
-    api.getMyLessons()
-      .then((res) => { if (!cancelled) setData(res); })
+    setLoaded(null);
+    const now = Date.now();
+    const range = { from: now - 60 * DAY_MS, to: now + 120 * DAY_MS };
+    api.getMyLessons({ from: new Date(range.from).toISOString(), to: new Date(range.to).toISOString() })
+      .then((res) => {
+        if (cancelled) return;
+        setData(res);
+        if (res) setLoaded(range);
+      })
       .catch(() => { if (!cancelled) setData(null); });
     return () => { cancelled = true; };
   }, [student.id]);
+
+  // Листают неделю за пределы загруженного — догружаем окрестность. Ответ
+  // сливается всегда (даже если ученик уже ушёл дальше): данные верные, а
+  // запрос в полёте (`pendingRef`) не даёт быстрому листанию плодить новые.
+  const pendingRef = useRef(null);
+  useEffect(() => {
+    if (!loaded || view !== 'week') return;
+    const range = rangeToLoad(day, loaded, pendingRef.current);
+    if (!range) return;
+    pendingRef.current = range;
+    setExtending(true);
+    api.getMyLessons({ from: new Date(range.from).toISOString(), to: new Date(range.to).toISOString() })
+      .then((res) => {
+        if (!res) return;
+        setData((prev) => mergeData(prev, res));
+        setLoaded((prev) => mergeRange(prev, range));
+      })
+      .catch(() => { /* неделя останется пустой — пусть ученик полистает ещё раз */ })
+      .finally(() => {
+        if (pendingRef.current === range) { pendingRef.current = null; setExtending(false); }
+      });
+  }, [day, loaded, view]);
+
+  const changeView = (v) => { setView(v); saveView(v); };
 
   const groups = data?.groups || [];
   const lessons = useMemo(
@@ -240,6 +299,7 @@ export default function StudentCoursePortal({ student }) {
   const groupOf = (l) => (groups.length > 1 ? groupsById.get(l.group) : null);
   const hw = useMemo(() => resolveHomework(lessons, (l) => l.items), [lessons]);
   const feed = useMemo(() => homeworkFeed(lessons), [lessons]);
+  const byDay = useMemo(() => lessonsByDay(lessons), [lessons]);
 
   if (data === undefined) return <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>;
 
@@ -301,6 +361,40 @@ export default function StudentCoursePortal({ student }) {
 
       <HomeworkFeed feed={feed} groupOf={groupOf} />
 
+      <Segmented
+        className="sc-view-switch"
+        block
+        value={view}
+        onChange={changeView}
+        options={[{ value: 'week', label: 'Неделя' }, { value: 'list', label: 'Списком' }]}
+      />
+
+      {view === 'week' && (
+        <StudentWeekView
+          day={day}
+          onDay={setDay}
+          lessonsMap={byDay}
+          hw={hw}
+          loading={extending}
+          renderLesson={(l) => (
+            <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} dimmed={dayjs(l.date_plan).isBefore(today)} />
+          )}
+        />
+      )}
+
+      {view === 'list' && (
+        <ListView
+          {...{ lessons, hw, hero, days, hidden, past, showPast, setShowPast, setShowAll, groupsById, groupOf }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Вид «списком»: ближайший урок, расписание на две недели, прошедшие.
+function ListView({ lessons, hw, hero, days, hidden, past, showPast, setShowPast, setShowAll, groupsById, groupOf }) {
+  return (
+    <>
       {hero && <NextLessonHero lesson={hero} hw={hw} group={groupsById.get(hero.group)} />}
       {!hero && !lessons.length && <div className="sc-empty-note">Уроков пока нет</div>}
 
@@ -330,6 +424,6 @@ export default function StudentCoursePortal({ student }) {
           {showPast && past.map((l) => <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} dimmed />)}
         </div>
       )}
-    </div>
+    </>
   );
 }

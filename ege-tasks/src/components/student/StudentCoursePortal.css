@@ -186,6 +186,57 @@
 .sc-card--cancel .sc-card-title { text-decoration: line-through; color: #999; }
 .sc-cancel-note { font-size: 12px; font-weight: 600; color: #cf1322; }
 
+/* ── Календарь «неделя» (v3.9.292) ── */
+.sc-view-switch { margin: 4px 0 14px; }
+.sw-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.sw-nav-label { flex: 1; text-align: center; font-weight: 600; font-size: 15px; color: #333; }
+.sw-today-btn { margin-left: 2px; }
+.sw-strip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.sw-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0 5px;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  color: #333;
+  min-width: 0;
+}
+.sw-day.is-weekend .sw-dow { color: #cf1322; }
+.sw-day.is-today { border-color: #722ed1; }
+.sw-day.is-selected { background: #722ed1; border-color: #722ed1; color: #fff; }
+.sw-day.is-selected .sw-dow { color: rgba(255, 255, 255, 0.85); }
+.sw-dow { font-size: 11px; text-transform: uppercase; color: #999; }
+.sw-num { font-size: 17px; font-weight: 700; line-height: 1.1; }
+.sw-dots { display: flex; gap: 3px; height: 6px; align-items: center; }
+.sw-dot { width: 5px; height: 5px; border-radius: 50%; background: #9254de; }
+.sw-dot--hw { background: #fa8c16; }
+.sw-dot--off { background: #d9d9d9; }
+.sw-day.is-selected .sw-dot { background: #fff; }
+.sw-day.is-selected .sw-dot--hw { background: #ffd591; }
+.sw-day-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin: 0 2px 8px;
+}
+.sw-day-title::first-letter { text-transform: uppercase; }
+.sw-loading { font-weight: 400; color: #aaa; }
+
 /* ── Прошедшие — тоггл ── */
 .sc-past-toggle {
   display: flex;
@@ -219,3 +270,8 @@
 .student-theme-dark .sc-block--due { background: #2e2717; }
 .student-theme-dark .sc-day-head { color: #bbb; }
 .student-theme-dark .sc-group-chip { background: rgba(146, 84, 222, 0.2); color: #d3adf7; }
+.student-theme-dark .sw-nav-label { color: #eee; }
+.student-theme-dark .sw-day { background: #1f1f24; border-color: #33333a; color: #ddd; }
+.student-theme-dark .sw-day.is-today { border-color: #9254de; }
+.student-theme-dark .sw-day.is-selected { background: #722ed1; border-color: #722ed1; color: #fff; }
+.student-theme-dark .sw-day-title { color: #bbb; }
