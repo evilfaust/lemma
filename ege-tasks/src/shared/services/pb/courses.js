@@ -4,29 +4,9 @@ import { escapeFilter } from '../../utils/escapeFilter';
 import { registerGroupColors } from '../../utils/groupColors';
 
 // Курсы (онлайн-интенсивы в малых группах) — надстройка над teaching_groups
-// (kind='course'), членство (course_members) и витрина уроков для учеников
-// (lesson_publications, проекция урока). См. корневой CLAUDE.md § Курсы.
-
-// Собрать student-facing items витрины из lessons.materials.
-// Показываем только элементы с visible !== false и типов material/session/text.
-// type='work' (работа для учительской петли план→результаты) ученику НЕ уходит —
-// для ДЗ-теста учитель добавляет ссылку на уже выданную сессию (type='session').
-export function buildPublicationItems(materials) {
-  const arr = Array.isArray(materials) ? materials : [];
-  const out = [];
-  for (const m of arr) {
-    if (!m || m.visible === false) continue;
-    const role = m.role === 'homework' ? 'homework' : 'class';
-    if (m.type === 'material') {
-      out.push({ kind: 'file', role, title: m.title || 'Материал', file_url: m.url || '' });
-    } else if (m.type === 'session') {
-      out.push({ kind: 'work', role, title: m.title || 'Работа', session_id: m.id || '' });
-    } else if (m.type === 'text') {
-      out.push({ kind: 'text', role, title: m.title || '', description: m.text || '' });
-    }
-  }
-  return out;
-}
+// (kind='course') и членство в них (course_members). Уроки и ДЗ ученик
+// читает хуком /api/lessons/my (getMyLessons) — и курсов, и классов.
+// Витрина уроков lesson_publications удалена в v3.9.293.
 
 export const coursesApi = {
   // ── Курсы (teaching_groups с kind='course') ──────────────────────────────
@@ -106,19 +86,6 @@ export const coursesApi = {
     }
   },
 
-  // Ученик: его активные курсы (для кабинета). Открытое правило чтения self.
-  async getMyCourseMemberships(studentId) {
-    try {
-      return await pb.collection('course_members').getFullList({
-        filter: `student = "${escapeFilter(studentId)}" && active != false`,
-        expand: 'course',
-      });
-    } catch (error) {
-      console.error('Error fetching my course memberships:', error);
-      return [];
-    }
-  },
-
   // Ученик: уроки и ДЗ его классов и курсов — хук pb_hooks/lessons_feed.pb.js
   // (v3.9.291). Классы — только с включённым «Расписанием для учеников».
   // null — хук ещё не выложен или ученик не вошёл.
@@ -133,100 +100,5 @@ export const coursesApi = {
       if ([401, 403, 404].includes(error?.status)) return null;
       throw error;
     }
-  },
-
-  // ── Витрина уроков (lesson_publications) ─────────────────────────────────
-  // 🚨 С v3.9.291 ученик читает уроки через /api/lessons/my, витрина больше
-  // никем не читается и держится только на переходный период (BACKLOG).
-  async getLessonPublication(lessonId) {
-    try {
-      return await pb.collection('lesson_publications').getFirstListItem(
-        `lesson = "${escapeFilter(lessonId)}"`,
-      );
-    } catch (error) {
-      if (error?.status === 404) return null;
-      console.error('Error fetching lesson publication:', error);
-      return null;
-    }
-  },
-
-  // Учитель: все витрины курса (для обзора «что видят ученики»).
-  async getPublicationsByGroup(groupId) {
-    try {
-      return await pb.collection('lesson_publications').getFullList({
-        filter: `group = "${escapeFilter(groupId)}"`,
-        sort: 'date_plan',
-      });
-    } catch (error) {
-      console.error('Error fetching publications by group:', error);
-      return [];
-    }
-  },
-
-  // Ученик: опубликованные занятия его курсов.
-  async getPublicationsForCourses(courseIds = []) {
-    const ids = (courseIds || []).filter(Boolean);
-    if (!ids.length) return [];
-    try {
-      return await getFullListByOr(
-        'lesson_publications',
-        'group',
-        ids,
-        { sort: 'date_plan' },
-        { extraFilter: 'published = true' },
-      );
-    } catch (error) {
-      console.error('Error fetching publications for courses:', error);
-      return [];
-    }
-  },
-
-  // Пересобрать витрину урока из самого урока. Вызывается после сохранения урока
-  // курса. Если группа урока — не курс, удаляет витрину (урок «разжаловали»).
-  // opts.published — показывать ли занятие ученикам (по умолчанию true).
-  async syncLessonPublication(lessonId, { published = true } = {}) {
-    if (!lessonId) return null;
-    let lesson;
-    try {
-      lesson = await pb.collection('lessons').getOne(lessonId, { expand: 'group' });
-    } catch (e) {
-      console.error('syncLessonPublication: lesson not found', lessonId, e?.message);
-      return null;
-    }
-    const group = lesson.expand?.group;
-    const existing = await this.getLessonPublication(lessonId);
-
-    // Урок не принадлежит курсу → витрина не нужна.
-    if (!group || group.kind !== 'course') {
-      if (existing) {
-        try { await pb.collection('lesson_publications').delete(existing.id); } catch { /* noop */ }
-      }
-      return null;
-    }
-
-    const payload = {
-      owner: pb.authStore.model?.id,
-      group: group.id,
-      lesson: lessonId,
-      title: lesson.title || '',
-      date_plan: lesson.date_plan || '',
-      time_slot: lesson.time_slot || '',
-      conference_url: lesson.conference_url || group.conference_url || '',
-      items: buildPublicationItems(lesson.materials),
-      published: !!published,
-    };
-
-    if (existing) {
-      return pb.collection('lesson_publications').update(existing.id, payload);
-    }
-    return pb.collection('lesson_publications').create(payload);
-  },
-
-  async deleteLessonPublication(lessonId) {
-    const existing = await this.getLessonPublication(lessonId);
-    if (existing) {
-      try { await pb.collection('lesson_publications').delete(existing.id); } catch { /* noop */ }
-    }
-    return true;
   },
 };

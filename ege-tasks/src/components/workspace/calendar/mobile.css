@@ -224,3 +224,11 @@
 .dark .mc-grid, .dark .mc-lesson, .dark .mc-item, .dark .mc-pill { background: #1d1d1d; border-color: #303030; }
 [data-theme='dark'] .mc-lesson__title, [data-theme='dark'] .mc-day__title, [data-theme='dark'] .mc-title,
 .dark .mc-lesson__title, .dark .mc-day__title, .dark .mc-title { color: rgba(255, 255, 255, 0.88); }
+
+/* ДЗ в карточке урока (v3.9.293) */
+.ls-hw--in { margin-bottom: 6px; padding: 6px 8px; border-radius: 8px; background: #fff7e6; }
+.ls-hw__head { font-size: 12px; font-weight: 600; margin-bottom: 2px; }
+.ls-hw__row { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; font-size: 14px; }
+.ls-hw__title { min-width: 0; overflow-wrap: anywhere; }
+.ls-hw__due { flex: none; font-size: 12px; color: #8c8c8c; white-space: nowrap; }
+[data-theme='dark'] .ls-hw--in, .dark .ls-hw--in { background: rgba(250, 140, 22, 0.12); }

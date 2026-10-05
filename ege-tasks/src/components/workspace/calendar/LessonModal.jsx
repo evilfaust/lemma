@@ -20,6 +20,7 @@ import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
   ITEM_MODES, itemMode, withMode, materialVisible, isNextDue, nextLessonFor, incomingFor,
+  studentFacing as groupFacesStudents,
 } from '../../../utils/homework';
 
 const dayLabel = (l) => (l?.date_plan ? dayjs(l.date_plan).format('D MMM, dd') : '');
@@ -43,9 +44,10 @@ export default function LessonModal({
     [groups, watchedGroup, initial],
   );
   const isCourse = selectedGroup?.kind === 'course';
-  // Урок видят ученики: курс — всегда, класс — если учитель открыл ему
-  // расписание (teaching_groups.student_schedule, v3.9.291).
-  const studentFacing = isCourse || !!selectedGroup?.student_schedule;
+  // Урок видят ученики: курс — пока не завершён, класс — если учитель открыл
+  // ему расписание (teaching_groups.student_schedule, v3.9.291).
+  const studentFacing = groupFacesStudents(selectedGroup);
+  const courseDone = isCourse && !!selectedGroup?.completed;
   const { teacher } = useAuth();
   const watchedDate = Form.useWatch('date_plan', form);
   const watchedStatus = Form.useWatch('status', form);
@@ -209,7 +211,7 @@ export default function LessonModal({
         ...textItems,
         ...geoItems,
       ],
-    }, { published: visibleToStudents });
+    });
   };
 
   // Извлечь код сессии из ссылки или взять как есть (15-символьный id).
@@ -497,7 +499,12 @@ export default function LessonModal({
         )}
       </div>
 
-      {selectedGroup && !studentFacing && (
+      {courseDone && (
+        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '0 0 12px' }}>
+          <ReadOutlined /> Курс завершён — ученики больше не видят его уроки и ДЗ.
+        </Typography.Paragraph>
+      )}
+      {selectedGroup && !studentFacing && !courseDone && (
         <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '0 0 12px' }}>
           <ReadOutlined /> Ученики этого класса не видят уроки и ДЗ. Включить — «Расписание и ДЗ
           для учеников» в настройках класса (Мои классы → ✏️).

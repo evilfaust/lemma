@@ -23,6 +23,17 @@ export function materialVisible(m, isCourse) {
   return m.visible !== false;
 }
 
+/**
+ * Видят ли ученики уроки этой группы: курс — пока не завершён (v3.9.293),
+ * класс — если учитель открыл расписание (`student_schedule`). То же правило
+ * в хуке lessons_feed.pb.js.
+ */
+export function studentFacing(group) {
+  if (!group) return false;
+  if (group.kind === 'course') return !group.completed;
+  return !!group.student_schedule;
+}
+
 export const isNextDue = (it) => !!it && it.role === 'homework' && it.due === 'next';
 
 // Роль и срок одним значением — так их выбирает учитель в модалке урока.

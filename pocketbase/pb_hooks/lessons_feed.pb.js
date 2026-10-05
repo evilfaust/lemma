@@ -11,7 +11,8 @@
  * Классы ученика — как в stereo_feed.pb.js: указатель students.teaching_group
  * + членства active / transferred (п. 14 CLAUDE.md) + курсы (course_members).
  * Из них берутся курсы и классы с включённым «Расписанием для учеников»
- * (teaching_groups.student_schedule), архивные — нет.
+ * (teaching_groups.student_schedule), архивные и завершённые курсы
+ * (teaching_groups.completed, v3.9.293) — нет.
  *
  * Урок отдаётся ПРОЕКЦИЕЙ (lessons_feed_lib.projectItems): ни заметки урока,
  * ни скрытых файлов, ни учительских работ. Скрытые уроки
@@ -67,6 +68,7 @@ routerAdd("GET", "/api/lessons/my", (c) => {
     try { g = $app.findRecordById("teaching_groups", id); } catch (err) { continue; }
     if (g.getBool("archived")) continue;
     const course = g.getString("kind") === "course";
+    if (course && g.getBool("completed")) continue; // курс завершён (v3.9.293)
     if (!course && !g.getBool("student_schedule")) continue;
     isCourse[id] = course;
     groups.push({

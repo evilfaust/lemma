@@ -23,6 +23,7 @@ import QuickAddFab from './calendar/QuickAddFab';
 import QuickCaptureSheet from './calendar/QuickCaptureSheet';
 import { saveLesson } from './calendar/lessonActions';
 import useIsMobile from '../../hooks/useIsMobile';
+import { materialVisible, resolveHomework, studentFacing } from '../../utils/homework';
 import useSwipe from '../../hooks/useSwipe';
 import './today/today.css';
 
@@ -54,6 +55,15 @@ function sessionTitle(s) {
 const lessonTopic = (l) => l.expand?.ktp_entry?.title || '';
 const matCount = (l) => (Array.isArray(l.materials) ? l.materials.length : 0);
 
+// Пункты урока, которые видят ученики (v3.9.293): то же правило, что у хука
+// /api/lessons/my. По ним считаются значки ДЗ в строке урока.
+const studentItems = (l) => {
+  const g = l.expand?.group;
+  if (!studentFacing(g) || l.hidden_from_students) return [];
+  return (l.materials || []).filter((m) => materialVisible(m, g.kind === 'course'));
+};
+const HW_DAYS_BACK = 45; // ДЗ «к след.» к урокам недели ищем на уроках за полтора месяца
+
 export default function TodayDashboard() {
   const navigate = useNavigate();
   const { message } = App.useApp();
@@ -64,6 +74,7 @@ export default function TodayDashboard() {
   const [weekStart, setWeekStart] = useState(() => dayjs().startOf('week'));
   const [selectedDate, setSelectedDate] = useState(() => dayjs());
   const [weekLessons, setWeekLessons] = useState([]);
+  const [hwLessons, setHwLessons] = useState([]); // неделя + полтора месяца до неё — для ДЗ
   const [thisWeekLessons, setThisWeekLessons] = useState([]);
   const [deadlines, setDeadlines] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -106,10 +117,13 @@ export default function TodayDashboard() {
     try {
       const from = ws.startOf('day').toISOString();
       const to = ws.add(6, 'day').endOf('day').toISOString();
-      const [l, se] = await Promise.all([
-        api.getLessons({ from, to }),
+      const [all, se] = await Promise.all([
+        // Один запрос и на неделю, и на ДЗ «к след.», заданное раньше неё.
+        api.getLessons({ from: ws.subtract(HW_DAYS_BACK, 'day').startOf('day').toISOString(), to }),
         api.getSchoolEvents({ from, to }).catch(() => []),
       ]);
+      const l = all.filter((x) => !dayjs(x.date_plan).isBefore(ws.startOf('day')));
+      setHwLessons(all);
       setWeekLessons(l);
       setSchoolEvents(se);
       if (ws.isSame(dayjs().startOf('week'), 'day')) setThisWeekLessons(l);
@@ -121,6 +135,8 @@ export default function TodayDashboard() {
   }, [message]);
 
   useEffect(() => { loadWeek(weekStart); }, [weekStart, loadWeek]);
+
+  const hw = useMemo(() => resolveHomework(hwLessons, studentItems), [hwLessons]);
 
   // Классы — для выбора в формах; работы (тяжелее) — только когда открыли форму урока.
   useEffect(() => { api.getTeachingGroups().then(setGroups).catch(() => {}); }, []);
@@ -280,10 +296,10 @@ export default function TodayDashboard() {
     setCreateDay(d.toDate());
   }, [ensureWorks]);
 
-  const handleSaveLesson = async (data, meta) => {
+  const handleSaveLesson = async (data) => {
     setSavingLesson(true);
     try {
-      await saveLesson(editing?.id, data, meta);
+      await saveLesson(editing?.id, data);
       setEditing(null);
       loadWeek(weekStart);
     } catch {
@@ -459,6 +475,15 @@ export default function TodayDashboard() {
                         </span>
                       )}
                       {mats > 0 && <span className="td-minichip">📎 {mats}</span>}
+                      {(hw.incoming.get(l.id) || []).length > 0 && (
+                        <span className="td-minichip td-minichip--hw"
+                          title={(hw.incoming.get(l.id) || []).map(({ item, from: src }) => `${item.title || item.text || 'Задание'} (задано ${dayjs(src.date_plan).format('D MMM')})`).join('\n')}>
+                          📌 ДЗ к уроку · {(hw.incoming.get(l.id) || []).length}
+                        </span>
+                      )}
+                      {studentItems(l).some((m) => m.role === 'homework') && (
+                        <span className="td-minichip" title="На этом уроке задано домашнее задание">🏠 задано</span>
+                      )}
                       {needPrep && <span className="td-minichip td-minichip--warn">материалы не готовы</span>}
                     </div>
                   </div>

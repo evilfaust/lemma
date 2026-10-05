@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { App, Button, Drawer, Input, Popconfirm } from 'antd';
 import {
-  CheckOutlined, ClockCircleOutlined, CloseOutlined, EditOutlined, FileTextOutlined,
+  CheckOutlined, ClockCircleOutlined, CloseOutlined, EditOutlined, FileTextOutlined, HomeOutlined,
   PaperClipOutlined, RightOutlined, StopOutlined, UndoOutlined, UserOutlined, VideoCameraOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -13,6 +13,8 @@ import { lessonStartEnd, slotLabel } from '../lessonTime';
 import { extractNoteText } from '../notesText';
 import { api } from '../../../shared/services/pocketbase';
 import useIsMobile from '../../../hooks/useIsMobile';
+import useLessonHomework from './useLessonHomework';
+import { isNextDue } from '../../../utils/homework';
 import './mobile.css';
 
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
@@ -78,6 +80,8 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
     const body = Array.isArray(note?.body) ? note.body : [];
     return body.map((b) => extractNoteText([b])).filter(Boolean);
   }, [note]);
+
+  const hw = useLessonHomework(l);
 
   if (!l) return null;
 
@@ -242,6 +246,33 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
                 {m.type === 'material' ? <FileTextOutlined /> : <PaperClipOutlined />}
                 <span className="ls-mat__title">{m.title || 'Работа'}</span>
                 <RightOutlined className="ls-mat__go" />
+              </div>
+            ))}
+          </section>
+        )}
+
+        {(hw.own.length > 0 || hw.incoming.length > 0) && (
+          <section className="ls-section">
+            <div className="ls-section__title"><HomeOutlined /> Домашнее задание</div>
+            {hw.incoming.length > 0 && (
+              <div className="ls-hw ls-hw--in">
+                <div className="ls-hw__head">📌 К этому уроку задано</div>
+                {hw.incoming.map(({ item, from }, i) => (
+                  <div key={`in${i}`} className="ls-hw__row">
+                    <span className="ls-hw__title">{item.title || item.text || 'Задание'}</span>
+                    <span className="ls-hw__due">на уроке {dayjs(from.date_plan).format('D MMM')}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {hw.own.map((m, i) => (
+              <div key={`own${i}`} className="ls-hw__row">
+                <span className="ls-hw__title">{m.title || m.text || 'Задание'}</span>
+                <span className="ls-hw__due">
+                  {!isNextDue(m) ? 'к этому уроку'
+                    : hw.next ? `к уроку ${dayjs(hw.next.date_plan).format('D MMM, dd')}`
+                      : hw.loading ? 'к следующему уроку' : 'к след. — урока ещё нет'}
+                </span>
               </div>
             ))}
           </section>

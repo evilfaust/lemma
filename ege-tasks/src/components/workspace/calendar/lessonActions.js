@@ -1,18 +1,14 @@
 import { api } from '../../../shared/services/pocketbase';
 
 /**
- * Сохранить урок из LessonModal: правка или создание + витрина для учеников
- * курса (no-op, если группа урока — не курс). Общий путь календаря и «Сегодня».
- * Возвращает id урока.
+ * Сохранить урок из LessonModal: правка или создание. Общий путь календаря и
+ * «Сегодня». Возвращает id урока. (До v3.9.293 здесь же пересобиралась витрина
+ * курса lesson_publications — ученик теперь читает сам урок через хук.)
  */
-export async function saveLesson(existingId, data, meta = {}) {
-  let id = existingId;
-  if (id) await api.updateLesson(id, data);
-  else id = (await api.createLesson(data)).id;
-  try {
-    await api.syncLessonPublication(id, { published: meta.published !== false });
-  } catch (e) {
-    console.error('syncLessonPublication', e?.message);
+export async function saveLesson(existingId, data) {
+  if (existingId) {
+    await api.updateLesson(existingId, data);
+    return existingId;
   }
-  return id;
+  return (await api.createLesson(data)).id;
 }

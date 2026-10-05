@@ -7,6 +7,9 @@ import { selectRosterMemberships, withPointerMembers } from '../../../utils/year
 
 // Учительское фло, фаза 1: API классов/групп (коллекция `teaching_groups`).
 // `owner` подставляется автоматически из токена залогиненного учителя.
+// Курс закончился — ученики его не видят, в пикеры он не идёт (v3.9.293).
+export const isCompletedCourse = (g) => !!g && g.kind === 'course' && !!g.completed;
+
 export const groupsApi = {
   // ── Классы/группы (teaching_groups) ───────────────────────────────────────
   // Год: по умолчанию отдаются группы ТЕКУЩЕГО учебного года (плюс группы без
@@ -18,7 +21,14 @@ export const groupsApi = {
   // 🚨 Если в текущем году групп нет вовсе (перевод ещё не делали), фильтр
   // снимается: пустой календарь и невозможность выбрать группу в уроке —
   // хуже, чем лишние строки в списке.
-  async getTeachingGroups({ includeArchived = false, year = '', allYears = false } = {}) {
+  //
+  // Завершённый курс (`completed`, v3.9.293) в пикерах тоже не нужен: он
+  // отдаётся только историческим экранам (allYears / includeArchived / year)
+  // или по `includeCompleted`. Его уроки в календаре видны и так — группу
+  // календарь берёт из expand урока.
+  async getTeachingGroups({
+    includeArchived = false, year = '', allYears = false, includeCompleted = false,
+  } = {}) {
     const load = async (wantedYear) => {
       const parts = [];
       if (!includeArchived) parts.push('archived != true');
@@ -39,7 +49,8 @@ export const groupsApi = {
       if (year) return await load(year);
       if (allYears) return await load('');
       const list = await load(currentAcademicYear());
-      return list.length ? list : await load('');
+      const all = list.length ? list : await load('');
+      return includeArchived || includeCompleted ? all : all.filter((g) => !isCompletedCourse(g));
     } catch (error) {
       console.error('Error fetching teaching groups:', error);
       throw error;

@@ -226,6 +226,7 @@
   color: var(--ink-3); background: var(--bg-sunken);
 }
 .td-minichip--warn { color: var(--c-amber); background: var(--c-amber-soft); font-weight: 600; }
+.td-minichip--hw { color: #ad4e00; background: #fff7e6; }
 
 .td-prep-btn {
   display: inline-flex; align-items: center; gap: 5px;

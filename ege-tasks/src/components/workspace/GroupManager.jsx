@@ -56,6 +56,7 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
             conference_url: '',
             board_url: '',
             student_schedule: false,
+            completed: false,
           },
       );
     }
@@ -101,6 +102,16 @@ function GroupModal({ open, initial, onSave, onCancel, saving }) {
             label="Расписание и ДЗ для учеников"
             valuePropName="checked"
             tooltip="Ученики класса увидят в кабинете («Уроки») темы и время уроков, отмеченные материалы и домашние задания. Заметка урока и скрытые файлы не показываются."
+          >
+            <Switch />
+          </Form.Item>
+        )}
+        {kind === 'course' && initial && (
+          <Form.Item
+            name="completed"
+            label="Курс завершён"
+            valuePropName="checked"
+            tooltip="Ученики перестанут видеть уроки и ДЗ курса в кабинете, а в выборе группы для нового урока курса не будет. Участники, журнал и прошедшие уроки в календаре остаются."
           >
             <Switch />
           </Form.Item>
@@ -265,7 +276,7 @@ export default function GroupManager() {
     return (
       <div
         key={g.id}
-        className={`ws-tile${g.archived ? ' ws-tile--muted' : ''}`}
+        className={`ws-tile${g.archived || (g.kind === 'course' && g.completed) ? ' ws-tile--muted' : ''}`}
         onClick={() => navigate(`/app/groups/${g.id}`)}
       >
         <div className="ws-tile__top">
@@ -274,6 +285,7 @@ export default function GroupManager() {
             <div className="ws-tile__name">
               {g.name}
               {g.kind === 'course' && <Tag color="purple" style={{ marginLeft: 6 }}>курс</Tag>}
+              {g.kind === 'course' && g.completed && <Tag style={{ marginLeft: 6 }}>завершён</Tag>}
               {g.kind !== 'course' && g.student_schedule && (
                 <Tag color="gold" style={{ marginLeft: 6 }} title="Ученики видят расписание и ДЗ">ДЗ ученикам</Tag>
               )}

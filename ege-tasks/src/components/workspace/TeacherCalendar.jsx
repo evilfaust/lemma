@@ -283,10 +283,10 @@ export default function TeacherCalendar() {
   };
 
   // ── LessonModal save/delete/note/material ──
-  const handleSave = async (data, meta = {}) => {
+  const handleSave = async (data) => {
     setSaving(true);
     try {
-      await saveLesson(editing?.id, data, meta);
+      await saveLesson(editing?.id, data);
       setModalOpen(false); setEditing(null); load();
     } catch {
       message.error('Не удалось сохранить урок');
@@ -295,17 +295,13 @@ export default function TeacherCalendar() {
     }
   };
 
-  // Серия занятий: создаём копии базового урока по расписанию + витрины для курса.
+  // Серия занятий: создаём копии базового урока по расписанию.
   const handleRepeat = async (payloads) => {
     setRepeating(true);
     try {
       for (const p of payloads) {
         // eslint-disable-next-line no-await-in-loop
-        const rec = await api.createLesson(p);
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          await api.syncLessonPublication(rec.id, { published: true });
-        } catch (e) { console.error('syncLessonPublication (series)', e?.message); }
+        await api.createLesson(p);
       }
       message.success(`Создано занятий: ${payloads.length}`);
       setRepeatBase(null);

@@ -15,14 +15,15 @@ import { SectionCard, EmptyState, Chip, groupHex } from '../ui';
 const { Text } = Typography;
 
 // Раздел курса в GroupDetail (только для teaching_groups.kind='course'):
-// участники курса (course_members, независимо от класса) + обзор витрины.
+// участники курса (course_members, независимо от класса) + сводка того, что
+// видят ученики (уроки курса, скрытые — `hidden_from_students`).
 export default function CourseMembersSection({ group, allStudents = [] }) {
   const { message } = App.useApp();
   const { canEdit } = useAuth();
   const navigate = useNavigate();
 
   const [members, setMembers] = useState([]);
-  const [pubs, setPubs] = useState([]);
+  const [lessons, setLessons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [picked, setPicked] = useState([]);
@@ -33,10 +34,10 @@ export default function CourseMembersSection({ group, allStudents = [] }) {
     try {
       const [m, p] = await Promise.all([
         api.getCourseMembers(group.id),
-        api.getPublicationsByGroup(group.id),
+        api.getLessons({ groupId: group.id }),
       ]);
       setMembers(m);
-      setPubs(p);
+      setLessons(p);
     } catch {
       message.error('Не удалось загрузить участников курса');
     } finally {
@@ -92,7 +93,7 @@ export default function CourseMembersSection({ group, allStudents = [] }) {
     }
   };
 
-  const publishedCount = pubs.filter((p) => p.published).length;
+  const visibleCount = lessons.filter((l) => !l.hidden_from_students).length;
 
   return (
     <>
@@ -125,11 +126,13 @@ export default function CourseMembersSection({ group, allStudents = [] }) {
                 ? <a href={group.board_url} target="_blank" rel="noreferrer">ссылка на онлайн-доску</a>
                 : <b>не задана</b>}
             </span>
-            <span>Опубликовано занятий: <b>{publishedCount}</b> из {pubs.length}</span>
+            <span>Занятий видно ученикам: <b>{visibleCount}</b> из {lessons.length}</span>
+            {group.completed && <span><Tag>курс завершён</Tag></span>}
           </div>
           <Text type="secondary" style={{ fontSize: 12, padding: '0 8px' }}>
-            Ученики курса видят расписание, ссылку на конференцию, материалы и ДЗ в своём
-            кабинете. Занятия и материалы задаются на уроках курса в календаре.
+            {group.completed
+              ? 'Курс завершён: ученики больше не видят его уроки и ДЗ. Вернуть — сняв «Курс завершён» в настройках группы.'
+              : 'Ученики курса видят расписание, ссылку на конференцию, материалы и ДЗ в своём кабинете (раздел «Уроки»). Занятия и материалы задаются на уроках курса в календаре.'}
           </Text>
         </SectionCard>
       </div>
