@@ -8,6 +8,7 @@ import { api } from '../../shared/services/pocketbase';
 import { buildOptionsWithAI } from '../../utils/aiDistractorGenerator';
 import { drillVariants, uncheckableItems } from '../../utils/drillTest';
 import SessionPanel from '../worksheet/SessionPanel';
+import WorkLessonLinks from '../worksheet/WorkLessonLinks';
 
 const { Option } = Select;
 
@@ -446,6 +447,7 @@ export default function TrigMCSaveModal({
             </Button>
             <span style={{ fontWeight: 600 }}>Выдача: {issueTest.title}</span>
           </div>
+          <WorkLessonLinks workId={issueTest.id} workTitle={issueTest.title} materialType="mc_test" />
           <SessionPanel
             key={issueTest.id}
             mcTestId={issueTest.id}

@@ -39,6 +39,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 import './TeacherCalendar.css';
 import './calendar/calendar.css';
+import { materialPath } from '../../utils/lessonMaterials';
 
 dayjs.extend(localeData);
 dayjs.extend(weekday);
@@ -332,8 +333,8 @@ export default function TeacherCalendar() {
     }
   };
 
-  // Работа урока: обычная — в редактор работ, геометрическая — в её редактор
-  const workPath = (id, type) => (type === 'geometry_work' ? `/app/geometry/works/${id}` : `/app/works/${id}/edit`);
+  // Работа урока: обычная — в редактор работ, геометрическая и тест — в свои
+  const workPath = (id, type) => materialPath(id, type);
 
   const handleOpenMaterial = (workId, type) => {
     setModalOpen(false);

@@ -3,15 +3,18 @@ import { App, Modal, Select, Typography } from 'antd';
 import { api } from '../../../shared/services/pocketbase';
 
 const { Text } = Typography;
+const TEST_PREFIX = 'mc:';
 
 /**
  * «Работа Lemma» в журнал: выбранная работа становится колонкой, выданной
  * всему классу, — она видна сразу, ещё до первой попытки, а не сдавшие к сроку
- * попадают в долги.
+ * попадают в долги. С v3.9.299 — и тест (из генератора или с выбором ответа):
+ * его колонка ведётся по выдаче, выбор уходит в `onPickTest(test)`.
  */
-export default function WorkColumnModal({ open, presentWorkIds = [], onCancel, onPick }) {
+export default function WorkColumnModal({ open, presentWorkIds = [], onCancel, onPick, onPickTest }) {
   const { message } = App.useApp();
   const [works, setWorks] = useState([]);
+  const [tests, setTests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [value, setValue] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -23,8 +26,11 @@ export default function WorkColumnModal({ open, presentWorkIds = [], onCancel, o
     (async () => {
       setLoading(true);
       try {
-        const list = await api.getWorks();
-        if (alive) setWorks(list);
+        const [list, testList] = await Promise.all([
+          api.getWorks(),
+          onPickTest ? api.getMCTestsLight() : Promise.resolve([]),
+        ]);
+        if (alive) { setWorks(list); setTests(testList); }
       } catch {
         message.error('Не удалось загрузить работы');
       } finally {
@@ -32,21 +38,39 @@ export default function WorkColumnModal({ open, presentWorkIds = [], onCancel, o
       }
     })();
     return () => { alive = false; };
-  }, [open, message]);
+  }, [open, message, onPickTest]);
 
   const present = useMemo(() => new Set(presentWorkIds), [presentWorkIds]);
-  const options = useMemo(() => works.map((w) => ({
-    value: w.id,
-    label: present.has(w.id) ? `${w.title} · уже в журнале` : w.title,
-    search: String(w.title || '').toLowerCase(),
-  })), [works, present]);
+  const options = useMemo(() => {
+    const workOpts = works.map((w) => ({
+      value: w.id,
+      label: present.has(w.id) ? `${w.title} · уже в журнале` : w.title,
+      search: String(w.title || '').toLowerCase(),
+    }));
+    if (!tests.length) return workOpts;
+    return [
+      { label: 'Работы', options: workOpts },
+      {
+        label: 'Тесты',
+        options: tests.map((t) => ({
+          value: `${TEST_PREFIX}${t.id}`,
+          label: t.title || 'Тест',
+          search: String(t.title || '').toLowerCase(),
+        })),
+      },
+    ];
+  }, [works, tests, present]);
 
   const submit = async () => {
-    const work = works.find((w) => w.id === value);
-    if (!work) return;
     setSaving(true);
     try {
-      await onPick(work);
+      if (String(value).startsWith(TEST_PREFIX)) {
+        const test = tests.find((t) => `${TEST_PREFIX}${t.id}` === value);
+        if (test) await onPickTest(test);
+      } else {
+        const work = works.find((w) => w.id === value);
+        if (work) await onPick(work);
+      }
     } finally {
       setSaving(false);
     }
@@ -55,7 +79,7 @@ export default function WorkColumnModal({ open, presentWorkIds = [], onCancel, o
   return (
     <Modal
       open={open}
-      title="Работа Lemma в журнал"
+      title={onPickTest ? 'Работа или тест Lemma в журнал' : 'Работа Lemma в журнал'}
       okText="Добавить колонку"
       cancelText="Отмена"
       okButtonProps={{ disabled: !value }}
@@ -72,12 +96,12 @@ export default function WorkColumnModal({ open, presentWorkIds = [], onCancel, o
         showSearch
         autoFocus
         style={{ width: '100%' }}
-        placeholder="Найдите работу по названию"
+        placeholder={onPickTest ? 'Найдите работу или тест по названию' : 'Найдите работу по названию'}
         loading={loading}
         value={value}
         onChange={setValue}
         options={options}
-        filterOption={(input, opt) => opt.search.includes(input.toLowerCase())}
+        filterOption={(input, opt) => (opt.search || '').includes(input.toLowerCase())}
         notFoundContent={loading ? 'Загрузка…' : 'Работ не найдено'}
       />
     </Modal>

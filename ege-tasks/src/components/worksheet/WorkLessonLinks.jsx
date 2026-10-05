@@ -3,7 +3,7 @@ import { Button, Tag, Space, Modal, Spin, Empty, Typography, Tooltip, App } from
 import { PaperClipOutlined, CloseOutlined, CalendarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { api } from '../../services/pocketbase';
-import { useAuth } from '../../contexts/AuthContext';
+import { useOptionalAuth } from '../../contexts/AuthContext';
 
 const { Text } = Typography;
 
@@ -21,11 +21,16 @@ function fmtLessonLabel(lesson) {
  * @param {string} workId
  * @param {string} workTitle
  * @param {string} [materialType='work'] — тип записи в lessons.materials;
- *   'geometry_work' — работа раздела «Геометрия» (GEOMETRY_TASKS_PLAN § 6)
+ *   'geometry_work' — работа раздела «Геометрия» (GEOMETRY_TASKS_PLAN § 6),
+ *   'mc_test' — тест (из генератора или с выбором ответа, v3.9.299)
  */
 export default function WorkLessonLinks({ workId, workTitle, materialType = 'work' }) {
   const { message } = App.useApp();
-  const { canEdit } = useAuth();
+  // Окно теста открывается и из генераторов, а они рендерятся и вне
+  // AuthProvider (тесты) — поэтому useOptionalAuth
+  const canEdit = !!useOptionalAuth()?.canEdit;
+  const isTest = materialType === 'mc_test';
+  const noun = isTest ? 'Тест' : 'Работа';
   const [linked, setLinked] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -70,11 +75,11 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
       await api.updateLesson(lesson.id, {
         materials: [...materials, { type: materialType, id: workId, title: workTitle || '' }],
       });
-      message.success(`Работа прикреплена к уроку ${fmtLessonLabel(lesson)}`);
+      message.success(`${noun} прикреплен${isTest ? '' : 'а'} к уроку ${fmtLessonLabel(lesson)}`);
       setPickerOpen(false);
       await loadLinked();
     } catch {
-      message.error('Не удалось прикрепить работу к уроку');
+      message.error(`Не удалось прикрепить ${isTest ? 'тест' : 'работу'} к уроку`);
     } finally {
       setBusyId(null);
     }
@@ -86,10 +91,10 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
       const materials = (Array.isArray(lesson.materials) ? lesson.materials : [])
         .filter(m => !(m.id === workId && (m.type || 'work') === materialType));
       await api.updateLesson(lesson.id, { materials });
-      message.success('Работа откреплена от урока');
+      message.success(`${noun} откреплен${isTest ? '' : 'а'} от урока`);
       await loadLinked();
     } catch {
-      message.error('Не удалось открепить работу');
+      message.error(`Не удалось открепить ${isTest ? 'тест' : 'работу'}`);
     } finally {
       setBusyId(null);
     }
@@ -104,7 +109,7 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
       </Text>
       {loading && <Spin size="small" />}
       {!loading && linked.length === 0 && (
-        <Text type="secondary" style={{ fontSize: 13 }}>не прикреплена</Text>
+        <Text type="secondary" style={{ fontSize: 13 }}>{isTest ? 'не прикреплён' : 'не прикреплена'}</Text>
       )}
       {!loading && linked.map(lesson => (
         <Tag
@@ -119,7 +124,7 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
         </Tag>
       ))}
       {canEdit && (
-        <Tooltip title="Прикрепить работу к уроку календаря">
+        <Tooltip title={`Прикрепить ${isTest ? 'тест' : 'работу'} к уроку календаря`}>
           <Button size="small" icon={<CalendarOutlined />} onClick={openPicker}>
             Прикрепить к уроку
           </Button>

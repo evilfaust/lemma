@@ -16,6 +16,7 @@ import useIsMobile from '../../../hooks/useIsMobile';
 import useLessonHomework from './useLessonHomework';
 import { isNextDue } from '../../../utils/homework';
 import './mobile.css';
+import { OPENABLE_TYPES, materialPath } from '../../../utils/lessonMaterials';
 
 const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
@@ -93,7 +94,7 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
   const foreign = !!(myTeacherId && l.owner && l.owner !== myTeacherId);
   const topic = l.expand?.ktp_entry?.title || '';
   const mats = (Array.isArray(l.materials) ? l.materials : [])
-    .filter((m) => m.type === 'work' || m.type === 'material' || m.type === 'geometry_work');
+    .filter((m) => m.type === 'material' || OPENABLE_TYPES.has(m.type));
   const slot = slotLabel(l.time_slot);
   const hex = lessonHex(l);
 
@@ -143,7 +144,7 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
   const openMaterial = (m) => {
     if (m.type === 'material') { if (m.url) window.open(m.url, '_blank', 'noopener'); return; }
     onClose?.();
-    navigate(m.type === 'geometry_work' ? `/app/geometry/works/${m.id}` : `/app/works/${m.id}/edit`);
+    navigate(materialPath(m.id, m.type));
   };
 
   return (

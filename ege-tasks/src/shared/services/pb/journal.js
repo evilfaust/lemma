@@ -156,16 +156,24 @@ export const journalApi = {
 
   // Сроки выдач работ, которые учитель завёл в журнал сам (по ним ещё может
   // не быть попыток). → Map<'w:<workId>', самый поздний срок>
-  async getJournalWorkDeadlines(workIds = []) {
+  async getJournalWorkDeadlines(workIds = [], sessionIds = []) {
     const map = new Map();
-    if (!workIds.length) return map;
-    const sessions = await getFullListByOr('work_sessions', 'work', workIds, {
-      fields: 'id,work,deadline',
-    });
-    for (const s of sessions) {
-      if (!s.deadline) continue;
-      const key = `w:${s.work}`;
-      if (!map.has(key) || s.deadline > map.get(key)) map.set(key, s.deadline);
+    if (workIds.length) {
+      const sessions = await getFullListByOr('work_sessions', 'work', workIds, {
+        fields: 'id,work,deadline',
+      });
+      for (const s of sessions) {
+        if (!s.deadline) continue;
+        const key = `w:${s.work}`;
+        if (!map.has(key) || s.deadline > map.get(key)) map.set(key, s.deadline);
+      }
+    }
+    // Тест без работы (v3.9.299) — колонка по выдаче, срок — её собственный
+    if (sessionIds.length) {
+      const sessions = await getFullListByOr('work_sessions', 'id', sessionIds, {
+        fields: 'id,deadline',
+      });
+      for (const s of sessions) if (s.deadline) map.set(`s:${s.id}`, s.deadline);
     }
     return map;
   },

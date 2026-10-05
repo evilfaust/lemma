@@ -190,11 +190,12 @@ export default function ClassJournal() {
       let onlineFailed = false;
       const withAccount = students.filter((s) => !s.external).map((s) => s.id);
       const assignedWorks = stored.filter((c) => c.source === 'work' && c.work).map((c) => c.work);
+      const assignedSessions = stored.filter((c) => c.source === 'session' && c.session).map((c) => c.session);
       const lessonIds = [...new Set(stored.map((c) => c.lesson).filter(Boolean))];
       const [attempts, deadlines, attendance] = await Promise.all([
         api.getJournalAttempts(withAccount, window)
           .catch(() => { onlineFailed = true; return []; }),
-        api.getJournalWorkDeadlines(assignedWorks).catch(() => new Map()),
+        api.getJournalWorkDeadlines(assignedWorks, assignedSessions).catch(() => new Map()),
         api.getJournalAttendance(lessonIds).catch(() => []),
       ]);
       if (seq !== loadSeq.current) return;
@@ -564,8 +565,10 @@ export default function ClassJournal() {
         const id = await ensureColumnId(col);
         const rec = await api.updateJournalColumn(id, values);
         replaceColumn(gid, rec);
-        if (values.assigned && col.workId) {
-          const dl = await api.getJournalWorkDeadlines([col.workId]).catch(() => new Map());
+        if (values.assigned && (col.workId || col.sessionId)) {
+          const dl = await api.getJournalWorkDeadlines(
+            col.workId ? [col.workId] : [], col.workId ? [] : [col.sessionId],
+          ).catch(() => new Map());
           patchData(gid, (d) => ({ ...d, deadlines: new Map([...(d.deadlines || []), ...dl]) }));
         }
         if (rec.lesson && rec.lesson !== col.lessonId) await loadLessonAttendance(gid, rec.lesson);
@@ -667,6 +670,41 @@ export default function ClassJournal() {
     } catch (e) {
       console.error('journal work column failed', e);
       message.error('Не удалось добавить работу');
+    }
+  };
+
+  // Тест (из генератора или с выбором ответа, v3.9.299): работы у него нет,
+  // колонка ведётся по выдаче. Нет выдачи — выдаём (как пикер ДЗ в уроке).
+  const addTestColumn = async (test) => {
+    const gid = data?.groupId;
+    try {
+      const sessions = await api.getSessionsByMCTest(test.id);
+      const session = sessions[0]
+        || await api.createMCTestSession(test.id, { student_title: test.title || 'Тест' });
+      const existing = dataRef.current?.columns.find((c) => c.session === session.id);
+      if (existing) {
+        replaceColumn(gid, await api.updateJournalColumn(existing.id, { assigned: true, hidden: false }));
+      } else {
+        const found = allColumns.find((c) => c.virtual && c.sessionId === session.id);
+        const rec = await api.createJournalColumn({
+          group: gid,
+          title: test.title || 'Тест',
+          date: toStoredDate(found?.day || dayjs().format('YYYY-MM-DD')),
+          source: 'session',
+          session: session.id,
+          assigned: true,
+          weight: 1,
+        });
+        patchData(gid, (d) => ({ ...d, columns: [...d.columns, rec] }));
+      }
+      const dl = await api.getJournalWorkDeadlines([], [session.id]).catch(() => new Map());
+      patchData(gid, (d) => ({ ...d, deadlines: new Map([...(d.deadlines || []), ...dl]) }));
+      setWorkModal(false);
+      setPeriod('all');
+      message.success(`«${test.title || 'Тест'}» — в журнале`);
+    } catch (e) {
+      console.error('journal test column failed', e);
+      message.error('Не удалось добавить тест');
     }
   };
 
@@ -1083,7 +1121,7 @@ export default function ClassJournal() {
               items: [
                 { key: 'manual', icon: <EditOutlined />, label: 'Ручная колонка — бумажная работа, опрос' },
                 { key: 'lesson', icon: <CalendarOutlined />, label: 'Из урока календаря — «н» из посещаемости' },
-                { key: 'work', icon: <MobileOutlined />, label: 'Работа Lemma — выдана всему классу' },
+                { key: 'work', icon: <MobileOutlined />, label: 'Работа или тест Lemma — выданы всему классу' },
                 ...(data.blocksMissing ? [] : [
                   { type: 'divider' },
                   { key: 'intensive', icon: <FireOutlined />, label: 'Интенсив — несколько дней по одной теме' },
@@ -1254,6 +1292,7 @@ export default function ClassJournal() {
         presentWorkIds={presentWorkIds}
         onCancel={() => setWorkModal(false)}
         onPick={addWorkColumn}
+        onPickTest={addTestColumn}
       />
       <JournalColumnEntry
         open={!!entryColumn}

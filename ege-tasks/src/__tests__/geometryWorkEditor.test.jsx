@@ -22,7 +22,10 @@ const mockApi = vi.hoisted(() => ({
 // Редактор задачи тянет апплет GeoGebra — в тестах не нужен
 vi.mock('../components/GeoGebraApplet', () => ({ default: () => <div data-testid="ggb" /> }));
 vi.mock('../shared/services/pocketbase', () => ({ api: mockApi, default: {} }));
-vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ canEdit: true, canDelete: true }) }));
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: () => ({ canEdit: true, canDelete: true }),
+  useOptionalAuth: () => ({ canEdit: true, canDelete: true }),
+}));
 
 // eslint-disable-next-line import/first
 import GeometryWorkEditor from '../components/geometry/works/GeometryWorkEditor';

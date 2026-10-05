@@ -9,6 +9,7 @@ import { buildOptions } from '../../utils/distractorGenerator';
 import MathRenderer from '../MathRenderer';
 import MCOptionsEditor from '../mc-test/MCOptionsEditor';
 import SessionPanel from '../worksheet/SessionPanel';
+import WorkLessonLinks from '../worksheet/WorkLessonLinks';
 import { GENERATOR_LABELS } from './TrigMCSaveModal';
 import { answerModeOf } from '../../utils/drillTest';
 
@@ -296,7 +297,12 @@ export default function TrigMCTestEditor({ testId, open, onClose, onSaved }) {
     {
       key: 'issue',
       label: 'Выдача',
-      children: testId ? <SessionPanel mcTestId={testId} /> : null,
+      children: testId ? (
+        <>
+          <WorkLessonLinks workId={testId} workTitle={test?.title} materialType="mc_test" />
+          <SessionPanel mcTestId={testId} defaultTitle={test?.title} />
+        </>
+      ) : null,
     },
   ];
 

@@ -485,6 +485,21 @@ export const worksheetsApi = {
     }
   },
 
+  // Лёгкий список тестов для выбора в уроке и журнале — без вариантов
+  // (снимок заданий весит десятки КБ на тест)
+  async getMCTestsLight() {
+    try {
+      return await pb.collection('mc_tests').getFullList({
+        sort: '-created',
+        filter: andOwner(),
+        fields: 'id,title,source_type,generator_type,answer_mode,created',
+      });
+    } catch (error) {
+      console.error('Error fetching mc_tests (light):', error);
+      return [];
+    }
+  },
+
   async getMCTest(id) {
     try {
       return await pb.collection('mc_tests').getOne(id);
@@ -552,6 +567,20 @@ export const worksheetsApi = {
     } catch (error) {
       console.error('Error creating mc_test session:', error);
       throw error;
+    }
+  },
+
+  // Выдачи нескольких тестов одним запросом (пикер ДЗ в уроке)
+  async getSessionsByMCTests(mcTestIds = []) {
+    if (!mcTestIds.length) return [];
+    try {
+      const records = await getFullListByOr('work_sessions', 'mc_test', mcTestIds, {
+        fields: 'id,mc_test,created,is_open,deadline',
+      });
+      return records.sort((a, b) => new Date(b.created) - new Date(a.created));
+    } catch (error) {
+      console.error('Error fetching sessions by mc_tests:', error);
+      return [];
     }
   },
 

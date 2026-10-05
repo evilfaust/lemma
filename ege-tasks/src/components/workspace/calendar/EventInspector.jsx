@@ -12,6 +12,7 @@ import { api } from '../../../shared/services/pocketbase';
 import { deadlineTitle } from './calendarUtils';
 import { KIND_LABELS, KIND_COLORS } from '../../../shared/services/pb/schoolEvents';
 import FilePreviewModal from '../FilePreviewModal';
+import { OPENABLE_TYPES } from '../../../utils/lessonMaterials';
 
 const TYPE_CHIP = {
   lesson: { tone: 'blue', label: 'Урок' },
@@ -52,7 +53,9 @@ export default function EventInspector({
         url: m.url,
         record: { title: m.title, original_name: m.url ? m.url.split('?')[0] : m.title },
       });
-    } else {
+    } else if (OPENABLE_TYPES.has(m.type || 'work')) {
+      // Ученические пункты (ссылка на выдачу, текст) своего редактора не
+      // имеют — раньше клик уводил в /app/works/<id выдачи>/edit
       onOpenWork(m.id, m.type);
     }
   };

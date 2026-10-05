@@ -22,6 +22,7 @@ import {
   ITEM_MODES, itemMode, withMode, materialVisible, isNextDue, nextLessonFor, incomingFor,
   studentFacing as groupFacesStudents,
 } from '../../../utils/homework';
+import { testOption, isTestOption, testIdOf } from '../../../utils/lessonMaterials';
 
 const dayLabel = (l) => (l?.date_plan ? dayjs(l.date_plan).format('D MMM, dd') : '');
 const itemTitle = (m) => m.title || m.text || 'Задание';
@@ -61,7 +62,22 @@ export default function LessonModal({
   const [textMode, setTextMode] = useState('hw');
   // Пикер ДЗ-работы: работы с выданными сессиями.
   const [workSessions, setWorkSessions] = useState({}); // workId -> sessions[]
-  const [hw, setHw] = useState({ work: undefined, session: undefined, title: '', mode: 'hw' });
+  // Тесты (из генераторов и с выбором ответа, v3.9.299) — наравне с работами:
+  // материал урока для учителя и задание-ссылка для учеников
+  const [mcTests, setMcTests] = useState([]);
+  const [testSessions, setTestSessions] = useState({}); // testId -> sessions[]
+  const [hw, setHw] = useState({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
+  const testsMap = useMemo(() => new Map(mcTests.map((t) => [t.id, t.title || 'Тест'])), [mcTests]);
+  // Название теста, пока список тестов ещё грузится, — из самого урока
+  const savedTitle = (id) => (initial?.materials || []).find((m) => m.type === 'mc_test' && m.id === id)?.title || '';
+  const workAndTestOptions = useMemo(() => {
+    const workOpts = (works || []).map((w) => ({ value: w.id, label: w.title }));
+    if (!mcTests.length) return workOpts;
+    return [
+      { label: 'Работы', options: workOpts },
+      { label: 'Тесты', options: mcTests.map((t) => ({ value: testOption(t.id), label: t.title || 'Тест' })) },
+    ];
+  }, [works, mcTests]);
   const [hwBusy, setHwBusy] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [newLink, setNewLink] = useState({ title: '', code: '', mode: 'hw' });
@@ -84,7 +100,10 @@ export default function LessonModal({
         date_plan: startDate,
         status: initial?.status || 'planned',
         conference_url: initial?.conference_url || '',
-        materials: all.filter((m) => m.type === 'work').map((m) => m.id),
+        materials: [
+          ...all.filter((m) => m.type === 'work').map((m) => m.id),
+          ...all.filter((m) => m.type === 'mc_test').map((m) => testOption(m.id)),
+        ],
       });
       setFileMaterials(all.filter((m) => m.type === 'material'));
       setSessionItems(all.filter((m) => m.type === 'session'));
@@ -108,9 +127,18 @@ export default function LessonModal({
     setNewLink({ title: '', code: '', mode: 'hw' });
     setNewText('');
     setTextMode('hw');
-    setHw({ work: undefined, session: undefined, title: '', mode: 'hw' });
+    setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
     setManualMode(false);
   }, [open, initial]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!open) return undefined;
+    api.getMCTestsLight()
+      .then((list) => { if (!cancelled) setMcTests(list); })
+      .catch(() => { if (!cancelled) setMcTests([]); });
+    return () => { cancelled = true; };
+  }, [open]);
 
   // Уроки того же класса вокруг этого: куда уйдёт ДЗ «к следующему» и что
   // задали к этому уроку раньше. Окно — от даты урока при открытии.
@@ -143,6 +171,21 @@ export default function LessonModal({
       .catch(() => { if (!cancelled) setWorkSessions({}); });
     return () => { cancelled = true; };
   }, [open, studentFacing, works]);
+
+  // Выдачи тестов — для пикера задания ученикам (как сессии работ выше)
+  useEffect(() => {
+    let cancelled = false;
+    if (!open || !studentFacing || !mcTests.length) { setTestSessions({}); return undefined; }
+    api.getSessionsByMCTests(mcTests.map((t) => t.id))
+      .then((sess) => {
+        if (cancelled) return;
+        const map = {};
+        sess.forEach((x) => { (map[x.mc_test] ||= []).push(x); });
+        setTestSessions(map);
+      })
+      .catch(() => { if (!cancelled) setTestSessions({}); });
+    return () => { cancelled = true; };
+  }, [open, studentFacing, mcTests]);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,7 +248,9 @@ export default function LessonModal({
       conference_url: (v.conference_url || '').trim(),
       hidden_from_students: !visibleToStudents,
       materials: [
-        ...(v.materials || []).map((id) => ({ type: 'work', id, title: worksMap.get(id) || '' })),
+        ...(v.materials || []).map((id) => (isTestOption(id)
+          ? { type: 'mc_test', id: testIdOf(id), title: testsMap.get(testIdOf(id)) || savedTitle(testIdOf(id)) }
+          : { type: 'work', id, title: worksMap.get(id) || '' })),
         ...fileMaterials,
         ...sessionItems,
         ...textItems,
@@ -237,27 +282,42 @@ export default function LessonModal({
   };
   // Выбор работы из списка. Если у работы уже есть сессия — берём её; иначе
   // сессия будет выдана при нажатии «Добавить».
-  const selectHwWork = (workId) => {
-    const sess = workSessions[workId] || [];
-    setHw((s) => ({ ...s, work: workId, session: sess[0]?.id, title: worksMap.get(workId) || '' }));
+  const selectHwWork = (value) => {
+    if (isTestOption(value)) {
+      const testId = testIdOf(value);
+      const sess = testSessions[testId] || [];
+      setHw((s) => ({ ...s, work: undefined, test: testId, session: sess[0]?.id, title: testsMap.get(testId) || '' }));
+      return;
+    }
+    const sess = workSessions[value] || [];
+    setHw((s) => ({ ...s, work: value, test: undefined, session: sess[0]?.id, title: worksMap.get(value) || '' }));
   };
+  const hwValue = hw.test ? testOption(hw.test) : hw.work;
+  const hwSessions = hw.test ? (testSessions[hw.test] || []) : (workSessions[hw.work] || []);
+  const hwSourceTitle = hw.test ? testsMap.get(hw.test) : worksMap.get(hw.work);
   const addHwFromWork = async () => {
-    if (!hw.work) return;
+    if (!hw.work && !hw.test) return;
     setHwBusy(true);
     try {
       let sessionId = hw.session;
-      // Нет выданной сессии → выдаём работу ученикам (открытая сессия).
+      // Нет выданной сессии → выдаём работу (тест) ученикам (открытая сессия).
       if (!sessionId) {
-        const title = (hw.title || '').trim() || worksMap.get(hw.work) || 'Домашняя работа';
-        const rec = await api.createSession({ work: hw.work, is_open: true, student_title: title });
-        sessionId = rec.id;
-        setWorkSessions((prev) => ({ ...prev, [hw.work]: [rec, ...(prev[hw.work] || [])] }));
+        const title = (hw.title || '').trim() || hwSourceTitle || 'Домашняя работа';
+        if (hw.test) {
+          const rec = await api.createMCTestSession(hw.test, { student_title: title });
+          sessionId = rec.id;
+          setTestSessions((prev) => ({ ...prev, [hw.test]: [rec, ...(prev[hw.test] || [])] }));
+        } else {
+          const rec = await api.createSession({ work: hw.work, is_open: true, student_title: title });
+          sessionId = rec.id;
+          setWorkSessions((prev) => ({ ...prev, [hw.work]: [rec, ...(prev[hw.work] || [])] }));
+        }
       }
       setSessionItems((prev) => [
         ...prev,
-        withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || worksMap.get(hw.work) || 'Работа', visible: true }, hw.mode),
+        withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || hwSourceTitle || 'Работа', visible: true }, hw.mode),
       ]);
-      setHw({ work: undefined, session: undefined, title: '', mode: 'hw' });
+      setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
     } catch (e) {
       console.error('addHwFromWork', e?.message);
     } finally {
@@ -389,13 +449,13 @@ export default function LessonModal({
           <DateTimeField
             onChange={(d) => { if (d) { const g = guessSlot(d.toDate()); setPair(g.pair); setPart(g.part); } }} />
         </Form.Item>
-        <Form.Item name="materials" label="Материалы урока (работы)">
+        <Form.Item name="materials" label="Материалы урока (работы и тесты)">
           <Select
             mode="multiple"
             allowClear
-            placeholder="Привязать работы к уроку"
+            placeholder="Привязать работы и тесты к уроку"
             optionFilterProp="label"
-            options={(works || []).map((w) => ({ value: w.id, label: w.title }))}
+            options={workAndTestOptions}
           />
         </Form.Item>
         {geoItems.length > 0 && (
@@ -576,12 +636,12 @@ export default function LessonModal({
                 <Select
                   showSearch
                   style={{ flex: 1 }}
-                  placeholder="Выберите работу…"
+                  placeholder="Выберите работу или тест…"
                   optionFilterProp="label"
-                  value={hw.work}
+                  value={hwValue}
                   onChange={selectHwWork}
                   notFoundContent="Нет работ"
-                  options={(works || []).map((w) => ({ value: w.id, label: w.title }))}
+                  options={workAndTestOptions}
                 />
                 <Select
                   style={{ width: 120 }}
@@ -589,25 +649,25 @@ export default function LessonModal({
                   onChange={(v) => setHw((s) => ({ ...s, mode: v }))}
                   options={ITEM_MODES}
                 />
-                <Button type="primary" icon={<PlusOutlined />} onClick={addHwFromWork} disabled={!hw.work} loading={hwBusy}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={addHwFromWork} disabled={!hw.work && !hw.test} loading={hwBusy}>
                   Добавить
                 </Button>
               </Space.Compact>
-              {hw.work && (workSessions[hw.work] || []).length > 1 && (
+              {hwValue && hwSessions.length > 1 && (
                 <Select
                   size="small"
                   style={{ width: '100%', marginTop: 6 }}
                   value={hw.session}
                   onChange={(v) => setHw((s) => ({ ...s, session: v }))}
-                  options={(workSessions[hw.work] || []).map((sess) => ({
+                  options={hwSessions.map((sess) => ({
                     value: sess.id,
                     label: `выдача от ${dayjs(sess.created).format('DD.MM.YYYY')}${sess.is_open ? ' · открыта' : ''}`,
                   }))}
                 />
               )}
-              {hw.work && !(workSessions[hw.work] || []).length && (
+              {hwValue && !hwSessions.length && (
                 <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                  У этой работы ещё нет выдачи — при добавлении она будет автоматически выдана (откроется доступ по ссылке).
+                  {hw.test ? 'У этого теста' : 'У этой работы'} ещё нет выдачи — при добавлении она будет автоматически выдана (откроется доступ по ссылке).
                 </Typography.Text>
               )}
               <Typography.Link style={{ fontSize: 11 }} onClick={() => setManualMode(true)}>
