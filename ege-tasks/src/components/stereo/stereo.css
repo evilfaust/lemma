@@ -614,3 +614,17 @@ button.stereo-help__cmd:hover { border-color: #2563eb; color: #1d4ed8; }
   color: #6b7280;
   font-size: 12px;
 }
+
+/* «Новый чертёж»: поля слева, превью тела справа */
+.stereo-body-form { display: flex; gap: 20px; align-items: flex-start; }
+.stereo-body-form-fields { flex: 1 1 auto; min-width: 0; }
+.stereo-body-form-preview {
+  flex: 0 0 240px; position: sticky; top: 0;
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0); border-radius: 8px; padding: 8px;
+}
+.stereo-body-form-svg svg { display: block; width: 100%; height: auto; }
+.stereo-body-form-title { margin-top: 6px; font-size: 12px; color: var(--ant-color-text-secondary, #888); text-align: center; }
+@media (max-width: 720px) {
+  .stereo-body-form { flex-direction: column-reverse; }
+  .stereo-body-form-preview { position: static; flex-basis: auto; width: 100%; max-width: 280px; align-self: center; }
+}

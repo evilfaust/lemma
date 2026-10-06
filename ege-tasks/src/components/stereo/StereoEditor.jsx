@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, App, Button, Checkbox, Form, Input, InputNumber, Modal, Select, Space, Tooltip,
+  Alert, App, Button, Checkbox, Form, Input, Modal, Space, Tooltip,
 } from 'antd';
 import {
   CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
@@ -19,7 +19,7 @@ import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
   evaluateScene, tryAppendOp, removeOpCascade,
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
-  normalizeBodySpec, BODY_KINDS, TOOLS, toolHint, toolClick, finishPending,
+  bodyFormValues, bodySpecFromForm, TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace, pickPoly, cameraFacing,
   renderStereo, stereoSvgString, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition,
@@ -29,6 +29,7 @@ import {
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
 import StereoMeasures from './StereoMeasures';
+import StereoBodyForm from './StereoBodyForm';
 import './stereo.css';
 
 const DRAFT_KEY = 'stereo.editor.v1';
@@ -143,7 +144,6 @@ export default function StereoEditor({
   const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
   const [savedSig, setSavedSig] = useState(() => draft?.savedSig || '');
   const [bodyForm] = Form.useForm();
-  const bodyKind = Form.useWatch('kind', bodyForm);
 
   const model = useMemo(() => evaluateScene(scene), [scene]);
   // Новое тело — прежние измерения ни к чему
@@ -525,7 +525,7 @@ export default function StereoEditor({
   const openBody = () => setBodyOpen(true);
   const applyBody = async () => {
     const values = await bodyForm.validateFields();
-    const body = normalizeBodySpec(values);
+    const body = bodySpecFromForm(values);
     const apply = () => {
       setScene({ body, ops: [] });
       setCurrentDoc(null);
@@ -950,48 +950,11 @@ export default function StereoEditor({
         onCancel={() => setBodyOpen(false)}
         okText="Создать"
         cancelText="Отмена"
+        width={760}
         destroyOnHidden
       >
-        <Form form={bodyForm} layout="vertical" initialValues={normalizeBodySpec(scene.body)}>
-          <Form.Item name="kind" label="Тело">
-            <Select options={Object.entries(BODY_KINDS).map(([value, v]) => ({ value, label: v.label }))} />
-          </Form.Item>
-          {(bodyKind === 'prism' || bodyKind === 'pyramid') && (
-            <Form.Item name="n" label="В основании">
-              <Select options={[
-                { value: 3, label: 'треугольник' },
-                { value: 4, label: 'квадрат' },
-                { value: 6, label: 'шестиугольник' },
-              ]}
-              />
-            </Form.Item>
-          )}
-          <Space wrap>
-            <Form.Item name="a" label={bodyKind === 'cube' ? 'Ребро' : bodyKind === 'box' ? 'Длина AB' : 'Ребро основания'}>
-              <InputNumber min={0.5} max={50} step={0.5} />
-            </Form.Item>
-            {bodyKind === 'box' && (
-              <>
-                <Form.Item name="b" label="Ширина AD"><InputNumber min={0.5} max={50} step={0.5} /></Form.Item>
-                <Form.Item name="c" label="Высота AA₁"><InputNumber min={0.5} max={50} step={0.5} /></Form.Item>
-              </>
-            )}
-            {(bodyKind === 'prism' || bodyKind === 'pyramid') && (
-              <Form.Item name="h" label="Высота"><InputNumber min={0.5} max={50} step={0.5} /></Form.Item>
-            )}
-            {(bodyKind === 'pyramid' || bodyKind === 'tetra') && (
-              <Form.Item name="apex" label="Вершина">
-                <Select style={{ width: 90 }} options={['S', 'D', 'M', 'P'].map((v) => ({ value: v, label: v }))} />
-              </Form.Item>
-            )}
-          </Space>
-          <Form.Item
-            name="cw"
-            valuePropName="checked"
-            extra="Если смотреть сверху: A — спереди слева, B — сзади слева, дальше по кругу. Так подписывают в части учебников (Атанасян). Без галочки — против часовой: B спереди справа."
-          >
-            <Checkbox>Буквы основания по часовой стрелке</Checkbox>
-          </Form.Item>
+        <Form form={bodyForm} layout="vertical" initialValues={bodyFormValues(scene.body)}>
+          <StereoBodyForm form={bodyForm} initialValues={bodyFormValues(scene.body)} />
         </Form>
       </Modal>
     </div>

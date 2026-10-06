@@ -19,7 +19,9 @@
 // Строки с «#» — комментарии. Ошибка строки не рушит чертёж: шаг пропускается,
 // ошибка возвращается с номером строки.
 
-import { normalizeBodySpec, DEFAULT_BODY } from './bodies';
+import {
+  normalizeBodySpec, DEFAULT_BODY, BASE_SHAPES, TILT_DIRS, DEFAULT_TILT_DIR, baseLetters,
+} from './bodies';
 import {
   evaluateScene, tryAppendOp, applyColorCommand, refOfLineColorKey,
 } from './scene';
@@ -38,35 +40,124 @@ const BODY_WORDS = {
   призма: 'prism', prism: 'prism',
   пирамида: 'pyramid', pyramid: 'pyramid',
   тетраэдр: 'tetra', tetra: 'tetra',
+  frustum: 'frustum',
 };
+
+// Слова-основания: «призма 4 4 5 трапеция», «пирамида 3 4 5 S прямоугольный».
+const BASE_WORDS = [
+  [/^произвольн/, 'free'],
+  [/^прямоугольн(ый|ое|ая|ом)$/, 'right'],
+  [/^прямоугольник/, 'rect'],
+  [/^равнобедр/, 'isosceles'],
+  [/^параллелограмм/, 'parallelogram'],
+  [/^ромб/, 'rhombus'],
+  [/^трапец/, 'trapezoid'],
+];
+const baseOfWord = (w) => BASE_WORDS.find(([re]) => re.test(w))?.[1] || null;
+const DIR_WORDS = { ...TILT_DIRS, вперед: 270 };
+// Полное число позиционных чисел: n a h (у усечённой ещё k).
+const POSITIONAL = { prism: 3, pyramid: 3, frustum: 4 };
+
+/** «(0 0) (4 0)» / «(0;0)» / «(0,0)» → [[0,0],[4,0]]; не точки — null. */
+function parsePoint(text) {
+  const t = String(text).trim();
+  let parts = t.split(/[;\s]+/).filter(Boolean);
+  if (parts.length === 1 && (t.match(/,/g) || []).length === 1) parts = t.split(',');
+  if (parts.length !== 2 || !parts.every(isNum)) return null;
+  return parts.map(num);
+}
 
 /** «призма 3 4 5» → { kind: 'prism', n: 3, a: 4, h: 5 }; не тело — null. */
 export function parseBodyLine(line) {
-  const words = String(line || '').trim().split(/\s+/);
-  const kind = BODY_WORDS[words[0]?.toLowerCase()];
+  // Координаты своего основания — в скобках, заменяем их на метки «@0».
+  const points = [];
+  const src = String(line || '').trim().replace(/\(([^()]*)\)/g, (_, inner) => ` @${points.push(inner) - 1} `);
+  const words = src.split(/\s+/).filter(Boolean);
+  let i = 0;
+  let tiltWord = false;
+  let freeWord = false;
+  let frustum = false;
+  // Прилагательные перед телом: правильная, прямая, наклонная, усечённая, произвольный.
+  while (i < words.length && !BODY_WORDS[words[i].toLowerCase()]) {
+    const w = words[i].toLowerCase();
+    if (/^наклонн/.test(w)) tiltWord = true;
+    else if (/^усеч[её]нн/.test(w)) frustum = true;
+    else if (/^произвольн/.test(w)) freeWord = true;
+    else if (!/^(правильн|прям(ая|ой|ое)$)/.test(w)) return null;
+    i += 1;
+    if (i > 3) return null;
+  }
+  let kind = BODY_WORDS[words[i]?.toLowerCase()];
   if (!kind) return null;
-  const rest = words.slice(1);
+  if (frustum) {
+    if (kind !== 'pyramid') return null;
+    kind = 'frustum';
+  }
+  const rest = words.slice(i + 1);
   const named = {};
   const nums = [];
   let apex = null;
-  for (const w of rest) {
+  let base = freeWord ? 'free' : null;
+  let poly = null;
+  let tilt = null;
+  let dir = null;
+  let over = null;
+  let shift = null;
+  for (let j = 0; j < rest.length; j++) {
+    const w = rest[j];
+    const lw = w.toLowerCase();
     const m = /^([a-z])=(-?\d+(?:[.,]\d+)?)$/i.exec(w);
     if (m) named[m[1].toLowerCase()] = num(m[2]);
     else if (isNum(w)) nums.push(num(w));
+    else if (lw === 'основание' || /^@\d+$/.test(w)) {
+      const pts = [];
+      let k = lw === 'основание' ? j + 1 : j;
+      while (/^@\d+$/.test(rest[k] || '')) { pts.push(parsePoint(points[Number(rest[k].slice(1))])); k += 1; }
+      if (pts.length && pts.every(Boolean)) poly = pts;
+      j = k - 1;
+    } else if (lw === 'наклон') {
+      if (isNum(rest[j + 1])) { tilt = num(rest[j + 1]); j += 1; }
+      else tilt = 60;
+      const d = rest[j + 1]?.toLowerCase();
+      if (d in DIR_WORDS) { dir = DIR_WORDS[d]; j += 1; }
+    } else if (/^напр/.test(lw) && isNum(rest[j + 1])) {
+      dir = num(rest[j + 1]); j += 1;
+    } else if (lw === 'над' && /^[A-Z]{1,2}$/.test(rest[j + 1] || '')) {
+      over = rest[j + 1]; j += 1;
+    } else if (lw === 'сдвиг' && isNum(rest[j + 1]) && isNum(rest[j + 2])) {
+      shift = [num(rest[j + 1]), num(rest[j + 2])]; j += 2;
+    } else if (baseOfWord(lw)) base = baseOfWord(lw);
     else if (/^[A-ZА-Я]$/.test(w)) apex = w.replace('С', 'S').replace('Д', 'D');
   }
+  if (tiltWord && tilt == null) tilt = 60;
   const spec = { kind };
   // «куб 4 по часовой» — буквы основания по часовой стрелке («против часовой» — как обычно).
   if (rest.some((w) => /^(часов\S*|cw)$/i.test(w)) && !rest.some((w) => /^против$/i.test(w))) spec.cw = true;
   if (kind === 'cube') spec.a = named.a ?? nums[0];
   if (kind === 'box') { spec.a = named.a ?? nums[0]; spec.b = named.b ?? nums[1]; spec.c = named.c ?? nums[2]; }
-  if (kind === 'prism' || kind === 'pyramid') {
-    spec.n = named.n ?? nums[0];
-    spec.a = named.a ?? nums[1];
-    spec.h = named.h ?? nums[2];
+  if (POSITIONAL[kind]) {
+    // У основания с заданным числом сторон (трапеция, прямоугольный…) n можно не писать.
+    const fixedN = base && BASE_SHAPES[base]?.ns.length === 1;
+    const p = fixedN && nums.length < POSITIONAL[kind] ? [null, ...nums] : nums;
+    spec.n = named.n ?? p[0];
+    spec.a = named.a ?? p[1];
+    spec.h = named.h ?? p[2];
+    if (kind === 'frustum') spec.k = named.k ?? p[3];
+    if (named.b) spec.b = named.b;
   }
-  if (kind === 'tetra') spec.a = named.a ?? nums[0];
+  if (kind === 'tetra') { spec.a = named.a ?? nums[0]; spec.h = named.h ?? nums[1]; }
   if (apex && (kind === 'pyramid' || kind === 'tetra')) spec.apex = apex;
+  if (base) spec.base = base;
+  if (poly) spec.poly = poly;
+  if (tilt != null) { spec.tilt = tilt; if (dir != null) spec.dir = dir; }
+  if (shift) spec.shift = shift;
+  if (over) {
+    // «над A» / «над AB» — по буквам основания по умолчанию (без имени вершины).
+    const n0 = normalizeBodySpec({ ...spec, over: undefined });
+    const letters = baseLetters(n0.kind === 'tetra' ? 3 : n0.n, n0.apex || null);
+    const idx = over.split('').map((l) => letters.indexOf(l));
+    if (idx.every((x) => x >= 0)) spec.over = idx;
+  }
   return normalizeBodySpec(spec);
 }
 
@@ -79,13 +170,43 @@ export function bodyLine(specIn) {
   return s.cw ? `${line} по часовой` : line;
 }
 
+function baseWord(s) {
+  if (s.base === 'poly') return `основание ${s.poly.map(([x, y]) => `(${fmt(x)} ${fmt(y)})`).join(' ')}`;
+  if (!s.base) return '';
+  const word = BASE_SHAPES[s.base]?.word || '';
+  const out = s.kind === 'tetra' && s.base === 'free' ? 'произвольный' : word;
+  return (s.base === 'rect' || s.base === 'parallelogram') && s.kind !== 'box' ? `${out} b=${fmt(s.b)}` : out;
+}
+
+function tiltWords(s) {
+  if (!s.tilt) return '';
+  const word = Object.entries(TILT_DIRS).find(([, v]) => v === s.dir)?.[0];
+  const d = s.dir === DEFAULT_TILT_DIR ? '' : word ? ` ${word}` : ` напр ${s.dir}`;
+  return `наклон ${fmt(s.tilt)}${d}`;
+}
+
+function apexWords(s) {
+  const out = [];
+  if (s.over) {
+    const letters = baseLetters(s.kind === 'tetra' ? 3 : s.n, s.apex || null);
+    out.push(`над ${s.over.map((i) => letters[i]).join('')}`);
+  }
+  if (s.shift) out.push(`сдвиг ${fmt(s.shift[0])} ${fmt(s.shift[1])}`);
+  return out.join(' ');
+}
+
+const join = (...parts) => parts.filter(Boolean).join(' ');
+
 function bodyShapeLine(s) {
   switch (s.kind) {
     case 'cube': return `куб ${fmt(s.a)}`;
-    case 'box': return `параллелепипед ${fmt(s.a)} ${fmt(s.b)} ${fmt(s.c)}`;
-    case 'prism': return `призма ${s.n} ${fmt(s.a)} ${fmt(s.h)}`;
-    case 'pyramid': return `пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`;
-    case 'tetra': return `тетраэдр ${fmt(s.a)} ${s.apex}`;
+    case 'box': return join(`параллелепипед ${fmt(s.a)} ${fmt(s.b)} ${fmt(s.c)}`, baseWord(s), tiltWords(s));
+    case 'prism': return join(`призма ${s.n} ${fmt(s.a)} ${fmt(s.h)}`, baseWord(s), tiltWords(s));
+    case 'pyramid': return join(`пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s));
+    case 'frustum': return join(`усечённая пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${fmt(s.k)}`, baseWord(s), apexWords(s));
+    case 'tetra': return s.h
+      ? join(`тетраэдр ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s))
+      : `тетраэдр ${fmt(s.a)} ${s.apex}`;
     default: return 'куб 4';
   }
 }

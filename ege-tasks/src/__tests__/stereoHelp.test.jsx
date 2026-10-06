@@ -35,7 +35,7 @@ describe('справка стереоредактора — сторож', () =>
 
   it('каждая строка блока ```stereo из справки читается без ошибок', () => {
     for (const { line } of DSL_HELP) {
-      const isBody = /^(куб|параллелепипед|призма|пирамида|тетраэдр)/.test(line);
+      const isBody = /^(куб|параллелепипед|призма|пирамида|тетраэдр|наклонн|усеч[её]нн|правильн|произвольн)/.test(line);
       const r = parseStereoBlock(isBody ? line : `куб 4\n${line}`);
       expect({ line, errors: r.errors }).toEqual({ line, errors: [] });
     }
