@@ -21,7 +21,7 @@ import GeometryTaskDrawer from '../GeometryTaskDrawer';
 import GeometryBasketBar from '../GeometryBasketBar';
 import GeometryParallelPicker from './GeometryParallelPicker';
 import GeometryWorkAnswers from './GeometryWorkAnswers';
-import GeometryTaskPreview from '../../GeometryTaskPreview';
+import GeometryCards from '../cards/GeometryCards';
 import GeometryWorksheetPrint from '../../GeometryWorksheetPrint';
 import GeometrySheetPrint from './GeometrySheetPrint';
 import SheetToJournalModal from '../../workspace/journal/SheetToJournalModal';
@@ -355,10 +355,10 @@ export default function GeometryWorkEditor() {
     return (
       <Space direction="vertical" size={12} style={{ width: '100%' }}>
         {variantPicker}
-        <GeometryTaskPreview
+        <GeometryCards
           sections={sections}
           layoutSnapshot={structure.layouts}
-          onLayoutsSave={canEdit ? saveLayouts : async () => {}}
+          onLayoutsSave={canEdit ? saveLayouts : null}
           initialHeader={title}
           onBack={() => setView('edit')}
         />

@@ -16,7 +16,8 @@ vi.mock('../components/GeoGebraApplet', () => ({ default: () => <div data-testid
 // eslint-disable-next-line import/first
 import GeometryTaskEditor from '../components/GeometryTaskEditor';
 // eslint-disable-next-line import/first
-import { GeometryPreviewCard, normalizeLayout } from '../components/GeometryTaskPreview';
+import GeometryCard from '../components/geometry/cards/GeometryCard';
+import { cardLayoutById, cardSizeMm } from '../utils/geometryCards';
 
 const { scene, camera } = parseStereoBlock('куб 4\nM на AA1 1:2');
 const STEREO_SVG = stereoDrawingSvg(scene, camera);
@@ -27,20 +28,17 @@ const mount = (task) => render(
 const openDrawingTab = () => fireEvent.click(screen.getByRole('tab', { name: /Чертёж/ }));
 
 describe('печать карточками: чертёж-текст', () => {
-  it('SVG-чертёж (стерео) рисуется в слое чертежа, а не пропадает', () => {
+  it('SVG-чертёж (стерео) рисуется на карточке, а не пропадает', () => {
     const { container } = render(
-      <div className="geometry-preview-grid is-print">
-        <GeometryPreviewCard
-          task={{ id: 't', code: 'SEC-1', statement_md: 'Постройте сечение', drawing_view: 'svg', drawing_svg: STEREO_SVG }}
-          index={0}
-          mode="print"
-          drawingMode="task"
-          layout={normalizeLayout(null, 'print')}
-        />
-      </div>,
+      <GeometryCard
+        task={{ id: 't', code: 'SEC-1', statement_md: 'Постройте сечение', drawing_view: 'svg', drawing_svg: STEREO_SVG }}
+        number={1}
+        size={cardSizeMm(cardLayoutById('a5-6'))}
+        textMm={3.1}
+      />,
     );
-    expect(container.querySelector('.geometry-preview-layer-image .geometry-preview-svg svg')).toBeTruthy();
-    expect(container.querySelector('.geometry-preview-layer-image img')).toBeNull();
+    expect(container.querySelector('.gc-drawing .gc-drawing-svg svg')).toBeTruthy();
+    expect(container.querySelector('.gc-drawing img')).toBeNull();
   });
 });
 

@@ -50,7 +50,6 @@ import { GEOMETRY_SECTIONS } from '../utils/geometrySection';
 import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
 import GeometryBankDuplicatesModal from './geometry/GeometryBankDuplicatesModal';
 import GeometrySemanticSearchModal from './geometry/GeometrySemanticSearchModal';
-import './GeometryTaskPreview.css';
 
 const { Text } = Typography;
 

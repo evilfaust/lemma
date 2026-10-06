@@ -19,7 +19,7 @@ import {
   SaveOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
-import { normalizeLayout, safeParseLayout } from './GeometryTaskPreview';
+import { resolveCardPlace } from '../utils/geometryCards';
 import { ggbXmlToSvg } from '../utils/ggbToSvg';
 import { stereoDrawingSvg, stereoSpecFromSvg } from '../utils/stereo/dsl';
 import { planimDrawingSvg, planimSpecFromSvg } from '../utils/planim/dsl';
@@ -129,11 +129,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel 
   });
   const [planimOpen, setPlanimOpen] = useState(false);
 
-  // ── Состояние макета ─────────────────────────────────────────────────────
-  const [layoutPrint, setLayoutPrint] = useState(() => {
-    const persisted = safeParseLayout(task?.preview_layout)?.print ?? null;
-    return normalizeLayout(persisted, 'print');
-  });
+  // ── Карточка: где стоять чертежу (auto — раскладку выбирает карточка) ─────
+  const [cardPlace, setCardPlace] = useState(() => resolveCardPlace(null, task?.preview_layout));
 
   // ── Тексты: предпросмотр и вставка (общий тулбар с редактором задач) ────────
   const [previewStatement, setPreviewStatement] = useState(task?.statement_md || '');
@@ -305,17 +302,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel 
     message.success('Чертёж стал чертежом задачи');
   }, [message]);
 
-  // ── Управление макетом ────────────────────────────────────────────────────
-  const handleEditorLayoutChange = useCallback((layerName, patch) => {
-    setLayoutPrint((prev) => normalizeLayout({
-      ...prev,
-      [layerName]: { ...prev[layerName], ...patch },
-    }, 'print'));
-    setDirty(true);
-  }, []);
-
-  const handleEditorLayoutReset = useCallback(() => {
-    setLayoutPrint(normalizeLayout(null, 'print'));
+  const handleCardPlaceChange = useCallback((place) => {
+    setCardPlace(place);
     setDirty(true);
   }, []);
 
@@ -400,10 +388,9 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel 
         drawing_svg: drawingSvg || '',
         source: values.source || '',
         year: values.year || null,
-        preview_layout: {
-          ...(safeParseLayout(task?.preview_layout) || {}),
-          print: layoutPrint,
-        },
+        // Старый свободный макет ({ print: { image, text } }) больше не читается —
+        // остаётся только выбор места чертежа на карточке.
+        preview_layout: { card: { place: cardPlace } },
       };
       if (drawingImageFile) payload.geogebra_image_base64 = drawingImageFile;
       else if (imageCleared && task?.geogebra_image_base64) payload.geogebra_image_base64 = null;
@@ -568,9 +555,8 @@ export default function GeometryTaskEditor({ task, onSaved, onCancel, backLabel 
         ggbImageBase64={ggbImageBase64}
         drawingSvg={drawingSvg}
         drawingView={drawingView}
-        layout={layoutPrint}
-        onLayoutChange={handleEditorLayoutChange}
-        onReset={handleEditorLayoutReset}
+        place={cardPlace}
+        onPlaceChange={handleCardPlaceChange}
       />,
     },
     {

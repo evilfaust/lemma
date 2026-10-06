@@ -1,0 +1,270 @@
+/* Карточки геометрии A5/A4 (GeometryCards). Язык печатного листа print-sheet:
+   только чёрная краска, иерархия — кеглем и толщиной линий, размеры в мм.
+   Размеры листа и ячеек приходят inline из utils/geometryCards.js — здесь
+   только оформление. */
+
+.gc-root {
+  --gc-ink: #000000;
+  color: var(--gc-ink);
+}
+
+.gc-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.gc-head-inputs {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.gc-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+
+.gc-font-sans { font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; }
+.gc-font-serif { font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif; }
+
+.gc-sheet {
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 6px 24px rgba(0, 0, 0, 0.06);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.gc-sheet-head {
+  box-sizing: border-box;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4mm;
+  padding: 1mm 0.5mm 1.6mm;
+  border-bottom: 0.35mm solid var(--gc-ink);
+  margin-bottom: -0.35mm; /* линия шапки совпадает с верхней линией сетки */
+}
+.gc-sheet-title { font-size: 4mm; font-weight: 650; line-height: 1.1; }
+.gc-sheet-sub { font-size: 3mm; line-height: 1.1; white-space: nowrap; }
+
+/* Сетка карточек: линии реза — волосяные чёрные. Внешняя рамка — у сетки,
+   внутренние — правой/нижней линией карточек. */
+.gc-grid-sheet {
+  display: grid;
+  border-top: 0.25mm solid var(--gc-ink);
+  border-left: 0.25mm solid var(--gc-ink);
+}
+
+.gc-card {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  border-right: 0.25mm solid var(--gc-ink);
+  border-bottom: 0.25mm solid var(--gc-ink);
+  background: #fff;
+}
+
+.gc-body {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 3mm; /* GAP_MM */
+  z-index: 1;
+}
+
+.gc-text-wrap {
+  flex: 0 0 auto;
+  line-height: 1.32;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.gc-text { display: flow-root; }
+.gc-text p { margin: 0 0 0.6em; }
+.gc-text p:last-child { margin-bottom: 0; }
+.gc-text .katex { font-size: 1.04em; } /* KATEX_EM */
+.gc-text .katex-display { margin: 0.4em 0; }
+
+/* Номер — квадрат с рамкой, текст обтекает его справа. */
+.gc-num {
+  float: left;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0.01em 0.5em 0 0;
+  border: 0.3mm solid var(--gc-ink);
+  font-family: 'Geist', 'Inter', system-ui, sans-serif;
+  font-weight: 650;
+  font-size: 0.95em;
+  line-height: 1;
+}
+
+.gc-answer {
+  margin-top: 0.5em;
+  padding-top: 0.35em;
+  border-top: 0.2mm solid var(--gc-ink);
+}
+.gc-answer-label { font-weight: 600; }
+.gc-answer p { display: inline; margin: 0; }
+
+.gc-drawing {
+  flex: 0 0 auto;
+  display: flex;
+  /* Чертёж — вплотную к условию, свободное место уходит вниз. */
+  align-items: flex-start;
+  justify-content: center;
+  min-width: 0;
+}
+
+.gc-drawing-planim { line-height: 0; }
+.gc-drawing-svg { line-height: 0; }
+.gc-drawing-svg svg {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  display: block;
+}
+.gc-drawing-img { display: block; object-fit: contain; }
+
+.gc-code {
+  position: absolute;
+  right: 2.5mm;
+  bottom: 1.1mm;
+  font-family: 'Geist Mono', ui-monospace, monospace;
+  font-size: 2mm;
+  line-height: 1;
+  z-index: 1;
+}
+
+/* Клетка 5 мм — в свободном месте карточки, волосяной чёрной линией (серая
+   на ч/б принтере пропадает). Размер блока — целые клетки, линий ровно под
+   него: лишние ломают масштаб печати. */
+.gc-grid { position: absolute; pointer-events: none; z-index: 0; }
+.gc-grid-h, .gc-grid-v { position: absolute; }
+.gc-grid-h { left: 0; right: 0; height: 0; border-top: 0.15pt solid var(--gc-ink); }
+.gc-grid-v { top: 0; bottom: 0; width: 0; border-left: 0.15pt solid var(--gc-ink); }
+
+/* Замер условия — вне потока и невидимо. */
+.gc-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+.gc-measure-item { position: absolute; top: 0; left: 0; }
+.gc-ruler { height: 1px; }
+
+/* Кнопки раскладки — на экране, при наведении. */
+.gc-controls {
+  position: absolute;
+  top: 1mm;
+  right: 1mm;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.gc-card:hover .gc-controls,
+.gc-controls:focus-within { opacity: 1; }
+.gc-auto-label { font-size: 11px; }
+
+/* Одна карточка во вкладке «Макет» редактора задачи — крупнее, чем на листе. */
+.gc-preview-one {
+  zoom: 1.8;
+  display: flex;
+  justify-content: center;
+}
+
+/* Кегль уменьшен, чтобы условие влезло, — подсказка учителю (только экран). */
+@media screen {
+  .gc-card--tight { box-shadow: inset 0 0 0 1.5px #faad14; }
+}
+
+@media print {
+  /* Жёсткая ширина документа по формату — иначе любой хвост интерфейса
+     правее листа включает shrink-to-fit (канон print-sheet). */
+  html:has(.gc-root--A5),
+  body:has(.gc-root--A5) { width: 148mm !important; max-width: 148mm !important; }
+  html:has(.gc-root--A4),
+  body:has(.gc-root--A4) { width: 210mm !important; max-width: 210mm !important; }
+  html:has(.gc-root),
+  body:has(.gc-root) {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.gc-root) .ant-tooltip,
+  body:has(.gc-root) .ant-popover,
+  body:has(.gc-root) .ant-dropdown,
+  body:has(.gc-root) .ant-select-dropdown,
+  body:has(.gc-root) .ant-modal-root,
+  body:has(.gc-root) .ant-modal-wrap,
+  body:has(.gc-root) .ant-modal-mask,
+  body:has(.gc-root) .ant-drawer,
+  body:has(.gc-root) .ant-message,
+  body:has(.gc-root) .ant-notification {
+    display: none !important;
+  }
+
+  body:has(.gc-root) {
+    visibility: hidden;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  body:has(.gc-root) .gc-root,
+  body:has(.gc-root) .gc-root * {
+    visibility: visible;
+  }
+
+  body:has(.gc-root) .gc-measure,
+  body:has(.gc-root) .gc-measure * {
+    visibility: hidden;
+  }
+
+  body:has(.gc-root) .no-print { display: none !important; }
+
+  body:has(.gc-root) .gc-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  body:has(.gc-root) #root,
+  body:has(.gc-root) .ant-app,
+  body:has(.gc-root) .ant-layout,
+  body:has(.gc-root) .ant-layout-content,
+  body:has(.gc-root) *:has(.gc-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  .gc-pages { gap: 0; display: block; }
+  .gc-sheet {
+    box-shadow: none;
+    break-after: page;
+    page-break-after: always;
+  }
+  .gc-sheet:last-child { break-after: auto; page-break-after: auto; }
+  .gc-card { break-inside: avoid; }
+}

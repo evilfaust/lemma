@@ -1,16 +1,23 @@
 import { useMemo, useState } from 'react';
-import { Alert, Button, Card, Space, Switch, Tag, Typography } from 'antd';
-import { UndoOutlined } from '@ant-design/icons';
-import { GeometryPreviewCard, normalizeLayout, PRINT_CELL_ASPECT_RATIO } from '../GeometryTaskPreview';
-import '../GeometryTaskPreview.css';
+import { Alert, Segmented, Select, Space, Switch, Tooltip, Typography } from 'antd';
+import GeometryCard, { PLACE_OPTIONS } from './cards/GeometryCard';
+import {
+  CARD_LAYOUTS, DEFAULT_CARD_LAYOUT, cardLayoutById, cardSizeMm, cardTextMm,
+} from '../../utils/geometryCards';
+import './cards/geometryCards.css';
 
 const { Text } = Typography;
 
+/**
+ * Вкладка «Макет»: как задача встанет на карточку A5/A4. Раскладку «текст ↔
+ * чертёж» карточка выбирает сама; здесь задаётся выбор по умолчанию для этой
+ * задачи (`preview_layout.card.place`). В работе его можно переопределить.
+ */
 export default function TabLayout({
-  task, previewStatement, ggbImageBase64, drawingSvg, drawingView, layout, onLayoutChange, onReset,
+  task, previewStatement, ggbImageBase64, drawingSvg, drawingView, place = 'auto', onPlaceChange,
 }) {
-  const [layoutEditMode, setLayoutEditMode] = useState(true);
-  const [showAnswers, setShowAnswers] = useState(false);
+  const [layoutId, setLayoutId] = useState(DEFAULT_CARD_LAYOUT);
+  const [showAnswer, setShowAnswer] = useState(false);
 
   const previewTask = useMemo(() => ({
     ...(task || {}),
@@ -20,63 +27,63 @@ export default function TabLayout({
     ...(drawingView ? { drawing_view: drawingView, drawing_svg: drawingSvg || '' } : {}),
   }), [task, previewStatement, ggbImageBase64, drawingSvg, drawingView]);
 
+  const layout = cardLayoutById(layoutId);
+  const size = cardSizeMm(layout, { header: false, code: true });
+
   return (
     <Space direction="vertical" size={16} style={{ width: '100%', padding: '16px 0' }}>
       <Alert
         type="info"
         showIcon
-        message="Расположение чертежа и условия для печатного листа A5. Перетаскивайте блоки мышью, тяните за угловые маркеры для изменения размера. Макет сохраняется вместе с задачей."
+        message="Карточка раскладывается сама: условие и чертёж не перекрываются, чертёж — как можно крупнее, буквы на нём — как в условии. Если автоматический выбор не нравится, укажите, где стоять чертежу."
       />
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-        <Space wrap>
-          <Space size={8}>
-            <Switch checked={layoutEditMode} onChange={setLayoutEditMode} />
-            <Text>Редактировать макет</Text>
-          </Space>
-          <Space size={8}>
-            <Switch checked={showAnswers} onChange={setShowAnswers} />
-            <Text>Показывать ответ</Text>
-          </Space>
-          <Tag>Карточка A5</Tag>
+      <Space wrap size={[16, 8]}>
+        <Space size={6}>
+          <Text>Чертёж</Text>
+          <Segmented
+            value={place}
+            onChange={onPlaceChange}
+            options={PLACE_OPTIONS.map((o) => ({
+              value: o.value,
+              label: <Tooltip title={o.title}>{o.icon || o.label}</Tooltip>,
+            }))}
+          />
         </Space>
-        <Button icon={<UndoOutlined />} onClick={onReset}>
-          Сбросить по умолчанию
-        </Button>
-      </div>
+        <Space size={6}>
+          <Text>Карточка</Text>
+          <Select
+            value={layoutId}
+            onChange={setLayoutId}
+            options={CARD_LAYOUTS.map((l) => ({ value: l.id, label: l.label }))}
+            style={{ width: 150 }}
+          />
+        </Space>
+        <Space size={6}>
+          <Switch size="small" checked={showAnswer} onChange={setShowAnswer} />
+          <Text>Ответ</Text>
+        </Space>
+      </Space>
 
-      <div style={{ maxWidth: 560, margin: '0 auto', width: '100%' }}>
+      <div className="gc-root gc-font-sans gc-preview-one">
         <div
-          className="geometry-preview-grid a5"
+          className="gc-grid-sheet"
           style={{
-            gridTemplateColumns: '1fr',
-            gridTemplateRows: '1fr',
-            aspectRatio: String(PRINT_CELL_ASPECT_RATIO),
-            border: '1.5px solid #c0c0c0',
-            background: '#fff',
+            gridTemplateColumns: `${size.cell.w}mm`,
+            gridTemplateRows: `${size.cell.h}mm`,
           }}
         >
-          <GeometryPreviewCard
+          <GeometryCard
             task={previewTask}
-            index={0}
-            showAnswers={showAnswers}
-            mode="student"
-            drawingMode="task"
-            editable={layoutEditMode}
-            layout={layout}
-            onLayoutChange={onLayoutChange}
+            number={1}
+            size={size}
+            textMm={cardTextMm(layout)}
+            place={place}
+            showAnswer={showAnswer}
+            showCode
           />
         </div>
       </div>
-
-      <Card
-        size="small"
-        styles={{ body: { padding: '10px 16px', color: '#888', fontSize: 12, lineHeight: 1.6 } }}
-      >
-        <strong>Как это работает:</strong> здесь задаётся расположение блоков на ячейке листа A5.
-        При формировании листа позиции берутся из этого макета автоматически — ничего не нужно
-        настраивать заново. При необходимости тонкую настройку можно сделать прямо на листе A5.
-      </Card>
     </Space>
   );
 }
