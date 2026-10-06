@@ -1,16 +1,16 @@
 import { useContext, useMemo } from 'react';
 import { planimSvgFromSpec, planimPrintSvgFromSpec } from '../../utils/planim/dsl';
-import { PlanimPrintContext } from './planimPrintContext';
+import { DrawingPrintContext } from './drawingPrintContext';
 
 // Планиметрический чертёж из блока ```planim (статичный SVG — для задачи,
 // теории, печати). Разметку строит общая planimSvgFromSpec — та же, что в
 // конвейере теории. Классы — как у стереочертежа (`stereo-figure`): печатные
 // листы масштабируют и прячут чертежи по ним.
 // inline — чертёж в строке / ячейке таблицы (`planim: …`).
-// На печатном листе (PlanimPrintContext) блочный чертёж строится под своё
+// На печатном листе (DrawingPrintContext) блочный чертёж строится под своё
 // место в миллиметрах — буквы на нём того же размера, что в условии.
 export default function PlanimSVG({ spec, maxWidth, style, inline = false }) {
-  const place = useContext(PlanimPrintContext);
+  const place = useContext(DrawingPrintContext);
   const print = !inline && place ? place : null;
   const { widthMm, heightMm, letterMm } = print || {};
   const html = useMemo(() => {
@@ -30,7 +30,7 @@ export default function PlanimSVG({ spec, maxWidth, style, inline = false }) {
     <span
       className={inline
         ? 'stereo-figure stereo-inline planim-figure-svg'
-        : `stereo-figure planim-figure-svg${print ? ' planim-print' : ''}`}
+        : `stereo-figure planim-figure-svg${print ? ' drawing-print' : ''}`}
       style={{ ...box, ...style }}
       // eslint-disable-next-line react/no-danger
       dangerouslySetInnerHTML={{ __html: html }}

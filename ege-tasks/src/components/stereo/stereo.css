@@ -14,7 +14,8 @@
 .stereo-canvas svg { display: block; }
 
 .stereo-label {
-  font-family: 'Times New Roman', Times, serif;
+  /* как буквы готового чертежа (LABEL_FONT в utils/stereo/render.js) */
+  font-family: KaTeX_Math, 'Times New Roman', Times, serif;
   font-style: italic;
   font-size: 17px;
   fill: #111827;

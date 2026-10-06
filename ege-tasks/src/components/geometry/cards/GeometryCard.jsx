@@ -5,6 +5,7 @@ import MathRenderer from '../../MathRenderer';
 import { api } from '../../../shared/services/pocketbase';
 import { sanitizeSvg } from '../../../utils/sanitizeSvg';
 import { parsePlanimBlock, planimSpecFromSvg, planimPrintFrame } from '../../../utils/planim/dsl';
+import { parseStereoBlock, stereoSpecFromSvg, stereoPrintFrame } from '../../../utils/stereo/dsl';
 import {
   chooseCardPlacement, fitByAspect, svgAspect, SIDE_SHARES, KATEX_EM, CELL_PAD_MM, GAP_MM,
 } from '../../../utils/geometryCards';
@@ -20,8 +21,8 @@ export const PLACE_OPTIONS = [
 const statementOf = (task) => (task?.statement_md || '').trim();
 
 /**
- * Чертёж задачи для карточки. Планиметрический (наш редактор) строится заново
- * под место — буквы как в условии; прочие SVG и картинки вписываются целиком.
+ * Чертёж задачи для карточки. Наши (планиметрия, стерео) строятся заново под
+ * место — буквы как в условии; прочие SVG и картинки вписываются целиком.
  * Картинка решения (`image_role = 'solution'`, банк МЦНМО) с условием не идёт.
  */
 export function cardDrawingOf(task) {
@@ -31,6 +32,11 @@ export function cardDrawingOf(task) {
     if (spec) {
       const { scene, color, grid } = parsePlanimBlock(spec);
       return { kind: 'planim', key: spec, scene, color, grid };
+    }
+    const stereo = stereoSpecFromSvg(task.drawing_svg);
+    if (stereo) {
+      const { scene, camera, color } = parseStereoBlock(stereo);
+      return { kind: 'stereo', key: stereo, scene, camera, color };
     }
     const html = sanitizeSvg(task.drawing_svg);
     return { kind: 'svg', key: task.drawing_svg, html, aspect: svgAspect(html) || 4 / 3 };
@@ -117,14 +123,19 @@ export default function GeometryCard({
 
   const fitDrawing = useMemo(() => {
     if (!drawing) return null;
-    if (drawing.kind === 'planim') {
+    if (drawing.kind === 'planim' || drawing.kind === 'stereo') {
+      const build = drawing.kind === 'planim'
+        ? (w, h) => planimPrintFrame(drawing.scene, {
+          widthMm: w, heightMm: h, letterMm, grid: drawing.grid, color: drawing.color,
+        })
+        : (w, h) => stereoPrintFrame(drawing.scene, drawing.camera, {
+          widthMm: w, heightMm: h, letterMm, color: drawing.color,
+        });
       const cache = new Map();
       return (w, h) => {
         const key = `${w.toFixed(1)}x${h.toFixed(1)}`;
         if (!cache.has(key)) {
-          const r = planimPrintFrame(drawing.scene, {
-            widthMm: w, heightMm: h, letterMm, grid: drawing.grid, color: drawing.color,
-          });
+          const r = build(w, h);
           cache.set(key, { w: r.widthMm, h: r.heightMm, svg: r.svg });
         }
         return cache.get(key);
@@ -168,9 +179,9 @@ export default function GeometryCard({
 
   let drawingNode = null;
   if (drawing && plan.box && fit) {
-    if (drawing.kind === 'planim') {
+    if (drawing.kind === 'planim' || drawing.kind === 'stereo') {
       // eslint-disable-next-line react/no-danger
-      drawingNode = <div className="gc-drawing-planim" dangerouslySetInnerHTML={{ __html: fit.svg }} />;
+      drawingNode = <div className="gc-drawing-built" dangerouslySetInnerHTML={{ __html: fit.svg }} />;
     } else if (drawing.kind === 'svg') {
       drawingNode = (
         <div

@@ -5,6 +5,7 @@ import {
   parsePlanimBlock, planimPrintFrame, planimPrintSvgFromSpec, planimDrawingSvg,
 } from '../utils/planim/dsl';
 import { figureBoxMm, psLetterMm } from '../utils/kimImageSize';
+import { parseStereoBlock, stereoPrintFrame, stereoDrawingSvg } from '../utils/stereo/dsl';
 import { geometrySheetTask } from '../utils/geometrySheet';
 import SheetTask from '../components/print-sheet/SheetTask';
 
@@ -121,7 +122,7 @@ describe('геометрия в листе: наш чертёж — блоком
 
   it('под условием: чертёж под полосу --ps-fig-w, буквы как в условии', () => {
     const { container } = renderTask({ figureSize: 'm', fontScale: 1 });
-    const fig = container.querySelector('.planim-print');
+    const fig = container.querySelector('.drawing-print');
     expect(fig).not.toBeNull();
     const svg = fig.innerHTML;
     // полоса условия = 182 − 10 (номер) → 48 %
@@ -133,8 +134,54 @@ describe('геометрия в листе: наш чертёж — блоком
     const { container } = renderTask({ figurePlacement: 'left', figureSize: 'l', fontScale: 1.2 });
     const aside = container.querySelector('.ps-task-aside');
     expect(aside.className).toMatch(/ps-task-aside--fit/);
-    const svg = aside.querySelector('.planim-print').innerHTML;
+    const svg = aside.querySelector('.drawing-print').innerHTML;
     expect(paper(svg).wMm).toBeLessThanOrEqual((172 * 0.5) + 0.5);
     expect(letterOnPaper(svg)).toBeCloseTo(psLetterMm(1.2), 2);
+  });
+});
+
+describe('stereoPrintFrame — стереочертёж под место на бумаге', () => {
+  const { scene, camera } = parseStereoBlock('куб 4\nM на AA1 1:2\nсечение MBD');
+
+  it.each([
+    [40, 35, 3.2],
+    [87, 35, 4.0],
+    [60, 85, 4.0],
+    [127, 55, 3.6],
+  ])('место %s×%s мм, буква %s мм', (widthMm, heightMm, letterMm) => {
+    const { svg } = stereoPrintFrame(scene, camera, { widthMm, heightMm, letterMm });
+    const p = paper(svg);
+    expect(p.wMm).toBeLessThanOrEqual(widthMm + 0.5);
+    expect(p.hMm).toBeLessThanOrEqual(heightMm + 0.5);
+    expect(letterOnPaper(svg)).toBeCloseTo(letterMm, 2);
+    // тело занимает место: хотя бы по одной стороне — почти целиком
+    expect(Math.max(p.wMm / widthMm, p.hMm / heightMm)).toBeGreaterThan(0.9);
+  });
+
+  it('больше место — больше тело, буквы те же', () => {
+    const small = stereoPrintFrame(scene, camera, { widthMm: 40, heightMm: 35, letterMm: 4 });
+    const big = stereoPrintFrame(scene, camera, { widthMm: 120, heightMm: 100, letterMm: 4 });
+    expect(big.widthMm).toBeGreaterThan(small.widthMm * 2);
+    expect(letterOnPaper(big.svg)).toBeCloseTo(letterOnPaper(small.svg), 1);
+  });
+
+  it('геометрия в листе: стереочертёж — блоком ```stereo', () => {
+    const t = geometrySheetTask({
+      id: 's1', statement_md: 'Постройте сечение.', drawing_view: 'svg', drawing_svg: stereoDrawingSvg(scene, camera),
+    }, () => 'file.png');
+    expect(t.figureUrl).toBe('');
+    expect(t.statement_md).toMatch(/```stereo\nкуб 4/);
+  });
+
+  it('лист задач: ```stereo строится под место, буквы как в условии', () => {
+    const task = geometrySheetTask({
+      id: 's2', statement_md: 'Постройте сечение.', drawing_view: 'svg', drawing_svg: stereoDrawingSvg(scene, camera),
+    }, () => '');
+    const { container } = render(
+      <SheetTask task={task} number={1} taskIndex={0} options={{ figureSize: 'm', fontScale: 1 }} contentWidthMm={182} />,
+      { wrapper: ({ children }) => <App>{children}</App> },
+    );
+    const svg = container.querySelector('.drawing-print').innerHTML;
+    expect(letterOnPaper(svg)).toBeCloseTo(psLetterMm(1), 2);
   });
 });

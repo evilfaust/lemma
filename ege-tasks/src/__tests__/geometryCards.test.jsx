@@ -126,7 +126,7 @@ describe('карточка и лист', () => {
 
   it('планиметрический чертёж — в мм, буквы KaTeX', () => {
     const { container } = render(<GeometryCard task={task} number={3} size={size} textMm={3.1} />);
-    const svg = container.querySelector('.gc-drawing-planim svg');
+    const svg = container.querySelector('.gc-drawing-built svg');
     expect(svg).toBeTruthy();
     expect(svg.getAttribute('width')).toMatch(/mm$/);
     expect(svg.outerHTML).toMatch(/KaTeX_Math/);

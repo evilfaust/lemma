@@ -88,7 +88,9 @@ export function cardGridLines(cell, step = 5) {
 export const CARD_PLACES = ['auto', 'top', 'left', 'right'];
 
 /** Доли ширины под колонку текста, которые пробуются в раскладке «сбоку». */
-export const SIDE_SHARES = [0.36, 0.44, 0.52, 0.6];
+export const SIDE_SHARES = [0.4, 0.48, 0.56, 0.64];
+/** Колонка текста уже этого не читается: слова рвутся, строки по слову. */
+export const MIN_TEXT_COL_MM = 28;
 
 const isPlace = (p) => CARD_PLACES.includes(p);
 
@@ -130,8 +132,9 @@ export function svgAspect(svg) {
 }
 
 const areaOf = (fit) => (fit ? fit.w * fit.h : 0);
-// «Сверху» выигрывает и при чуть меньшем чертеже (до 8 %).
-const TOP_BONUS = 1 / 0.92;
+// «Сверху» читается лучше колонки: сбоку чертёж должен выйти крупнее хотя бы
+// на 15 % по площади.
+const TOP_BONUS = 1 / 0.85;
 
 /**
  * Раскладка карточки.
@@ -172,14 +175,14 @@ export function chooseCardPlacement({ W, H, textHeight, fitDrawing, place = 'aut
       const tw = W * share;
       const th = textHeight(tw);
       const dw = W - tw - GAP_MM;
-      if (th > H + 0.3 || dw < MIN_DRAWING_MM) continue;
+      if (tw < MIN_TEXT_COL_MM || th > H + 0.3 || dw < MIN_DRAWING_MM) continue;
       const box = { w: dw, h: H };
       candidates.push({ place: side, textW: tw, textH: th, box, fit: fitDrawing(box.w, box.h) });
     }
   }
 
   if (candidates.length) {
-    // Чертёж крупнее — лучше; «сверху» при почти равной площади — привычнее
+    // Чертёж крупнее — лучше; «сверху» при близкой площади — привычнее
     // (текст читается первым, строки длиннее).
     const score = (c) => areaOf(c.fit) * (c.place === 'top' ? TOP_BONUS : 1);
     const best = candidates.reduce((a, c) => (score(c) > score(a) ? c : a));

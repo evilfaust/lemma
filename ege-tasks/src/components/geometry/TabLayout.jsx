@@ -65,7 +65,7 @@ export default function TabLayout({
         </Space>
       </Space>
 
-      <div className="gc-root gc-font-sans gc-preview-one">
+      <div className="gc-root gc-font-sans gc-preview-one" lang="ru">
         <div
           className="gc-grid-sheet"
           style={{

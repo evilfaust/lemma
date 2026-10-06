@@ -37,7 +37,11 @@ describe('печать карточками: чертёж-текст', () => {
         textMm={3.1}
       />,
     );
-    expect(container.querySelector('.gc-drawing .gc-drawing-svg svg')).toBeTruthy();
+    // наш стереочертёж строится под место карточки: размер в мм, буквы KaTeX
+    const svg = container.querySelector('.gc-drawing .gc-drawing-built svg');
+    expect(svg).toBeTruthy();
+    expect(svg.getAttribute('width')).toMatch(/mm$/);
+    expect(svg.outerHTML).toMatch(/KaTeX_Math/);
     expect(container.querySelector('.gc-drawing img')).toBeNull();
   });
 });

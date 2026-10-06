@@ -28,7 +28,9 @@ import {
 import { parseCommand, opToCommand, splitNames } from './commands';
 import { buildBody } from './bodies';
 import { DEFAULT_CAMERA, clampCamera } from './camera';
-import { renderStereo, stereoSvgString, contentBox, POINT_COLORS } from './render';
+import {
+  renderStereo, stereoSvgString, contentBox, POINT_COLORS, LABEL_SIZE,
+} from './render';
 import { stereoInlineFromSpec } from './inline';
 
 const num = (s) => Number(String(s).replace(',', '.'));
@@ -369,6 +371,64 @@ export function stereoSvgFromSpec(text, { maxWidth } = {}) {
   });
   if (!errors.length) return svg;
   const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const list = errors.slice(0, 3).map((e) => `строка ${e.line}: ${esc(e.message)}`).join('; ');
+  return `${svg}<span class="stereo-svg-errors" style="display:block;color:#b91c1c;font-size:12px">${list}</span>`;
+}
+
+/**
+ * Стереочертёж для печати — построенный под своё место на бумаге, а не
+ * ужатый картинкой (как planimPrintFrame). Буквы и линии у рендера постоянного
+ * размера в единицах кадра, кадр берётся в единицах «буква = letterMm»
+ * (k = 17 / letterMm на мм), а масштаб тела подбирается так, чтобы тело вместе
+ * с подписями влезло в место widthMm × heightMm. Ракурс — из чертежа.
+ *
+ * @returns {{ svg: string, widthMm: number, heightMm: number }}
+ */
+export function stereoPrintFrame(scene, camera, { widthMm, heightMm, letterMm, color = false }) {
+  const k = LABEL_SIZE / letterMm;
+  const W = widthMm * k;
+  const H = heightMm * k;
+  const model = evaluateScene(scene);
+  const cam = clampCamera(camera);
+  const radius = Math.max(model.radius || model.body.size / 2, 1e-6);
+  const zoom = cam.zoom || 1;
+  // Масштаб проектора = (min(сторона)/2 − 28) / radius · zoom: квадратная рамка
+  // нужной стороны даёт ровно нужный масштаб, лишнее срезает обрезка.
+  const PAD = 28;
+  const minScale = (41 * zoom) / radius;
+  const at = (scale) => {
+    const v = 2 * ((Math.max(scale, minScale) * radius) / zoom + PAD);
+    const frame = renderStereo(model, cam, { width: v, height: v });
+    return { frame, box: contentBox(frame), scale };
+  };
+  // Габарит ≈ поля (подписи, постоянные) + тело (растёт с масштабом): два
+  // замера дают обе части, третий — сам чертёж, дальше — уточнение.
+  const a = at(minScale * 1.2);
+  const b = at(minScale * 4);
+  let cur = b;
+  if (a.box && b.box) {
+    const dw = (b.box.w - a.box.w) / (b.scale - a.scale);
+    const dh = (b.box.h - a.box.h) / (b.scale - a.scale);
+    const ow = a.box.w - dw * a.scale;
+    const oh = a.box.h - dh * a.scale;
+    let s = Math.min((W - ow) / Math.max(dw, 1e-9), (H - oh) / Math.max(dh, 1e-9));
+    cur = at(Math.max(minScale, s));
+    for (let i = 0; i < 6 && cur.box && (cur.box.w > W + 0.5 || cur.box.h > H + 0.5); i++) {
+      s = cur.scale * Math.min(W / cur.box.w, H / cur.box.h) * 0.99;
+      if (s <= minScale) { cur = at(minScale); break; }
+      cur = at(s);
+    }
+  }
+  const svg = stereoSvgString(cur.frame, { background: false, mono: !color, crop: true, unitsPerMm: k });
+  return { svg, widthMm: cur.box ? cur.box.w / k : 0, heightMm: cur.box ? cur.box.h / k : 0 };
+}
+
+/** Блок → SVG для печати под место widthMm × heightMm с буквой letterMm. */
+export function stereoPrintSvgFromSpec(text, { widthMm, heightMm, letterMm }) {
+  const { scene, camera, color, errors } = parseStereoBlock(text);
+  const { svg } = stereoPrintFrame(scene, camera, { widthMm, heightMm, letterMm, color });
+  if (!errors.length) return svg;
+  const esc = (x) => String(x).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
   const list = errors.slice(0, 3).map((e) => `строка ${e.line}: ${esc(e.message)}`).join('; ');
   return `${svg}<span class="stereo-svg-errors" style="display:block;color:#b91c1c;font-size:12px">${list}</span>`;
 }

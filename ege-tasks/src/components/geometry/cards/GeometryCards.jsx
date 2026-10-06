@@ -104,7 +104,7 @@ export default function GeometryCards({
   const handlePrint = () => printPaged({ size: `${layout.page} portrait`, margin: '0' });
 
   return (
-    <div className={`gc-root gc-root--${layout.page}`}>
+    <div className={`gc-root gc-root--${layout.page}`} lang="ru">
       <div className="gc-toolbar no-print">
         <Space wrap size={[12, 8]}>
           {onBack && <Button icon={<ArrowLeftOutlined />} onClick={onBack}>К работе</Button>}

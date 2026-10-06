@@ -127,7 +127,7 @@
   min-width: 0;
 }
 
-.gc-drawing-planim { line-height: 0; }
+.gc-drawing-built { line-height: 0; }
 .gc-drawing-svg { line-height: 0; }
 .gc-drawing-svg svg {
   width: 100% !important;

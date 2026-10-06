@@ -8,7 +8,7 @@ import { filterTaskText } from '../../utils/filterTaskText';
 import {
   figureSizeVars, figureBoxMm, psLetterMm, KIM_IMAGE_SIZE_OPTIONS,
 } from '../../utils/kimImageSize';
-import { PlanimPrintContext } from '../shared/planimPrintContext';
+import { DrawingPrintContext } from '../shared/drawingPrintContext';
 import SolutionFill from './SolutionFill';
 import { BODY_W_MM, NUM_COL_MM, NUM_COL_WIDE_MM } from './geometry';
 import { isSidePlacement, splitSideFigure } from './sideFigure';
@@ -16,8 +16,9 @@ import { isSidePlacement, splitSideFigure } from './sideFigure';
 // Поле «Ответ» справа от условия (`.ps-answer-box` 26 мм + зазор `.ps-task-row` 4 мм).
 const ANSWER_BOX_MM = 26 + 4;
 
-// Чертёж сбоку — блок ```planim: он строится под своё место и сам знает ширину.
-const PLANIM_FENCE = /^\s*(`{3,}|~{3,})\s*planim\b/i;
+// Чертёж сбоку — блок ```planim / ```stereo: он строится под своё место и сам
+// знает ширину.
+const FIT_FENCE = /^\s*(`{3,}|~{3,})\s*(planim|stereo)\b/i;
 
 // Место чертежа у одной задачи — в том порядке, в каком он встанет на листе.
 const PLACEMENT_OPTIONS = [
@@ -99,30 +100,30 @@ export default function SheetTask({
   const letterMm = psLetterMm(options.fontScale);
   const belowPlace = { ...figureBoxMm(figSize, textWidthMm), letterMm };
   const sidePlace = { ...figureBoxMm(figSize, textWidthMm, { side: true }), letterMm };
-  const asidePlanim = aside?.kind === 'drawing' && PLANIM_FENCE.test(aside.md);
+  const asideFits = aside?.kind === 'drawing' && FIT_FENCE.test(aside.md);
 
   // Рисунок идёт в разметке ПЕРВЫМ: float обтекает только то, что после него.
   const statement = aside ? (
     <div className={`ps-task-text ps-task-text--side ps-task-text--side-${placement}`}>
-      <div className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}${asidePlanim ? ' ps-task-aside--fit' : ''}`}>
+      <div className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}${asideFits ? ' ps-task-aside--fit' : ''}`}>
         {aside.kind === 'external'
           ? <img src={imageUrl} alt="" />
           : (
-            <PlanimPrintContext.Provider value={sidePlace}>
+            <DrawingPrintContext.Provider value={sidePlace}>
               <MathRenderer text={aside.md} />
-            </PlanimPrintContext.Provider>
+            </DrawingPrintContext.Provider>
           )}
       </div>
-      <PlanimPrintContext.Provider value={belowPlace}>
+      <DrawingPrintContext.Provider value={belowPlace}>
         <MathRenderer text={side.text} />
-      </PlanimPrintContext.Provider>
+      </DrawingPrintContext.Provider>
       {code}
     </div>
   ) : (
     <div className="ps-task-text">
-      <PlanimPrintContext.Provider value={belowPlace}>
+      <DrawingPrintContext.Provider value={belowPlace}>
         <MathRenderer text={text} />
-      </PlanimPrintContext.Provider>
+      </DrawingPrintContext.Provider>
       {imageUrl && (
         <div className="ps-task-image">
           <img src={imageUrl} alt="" />

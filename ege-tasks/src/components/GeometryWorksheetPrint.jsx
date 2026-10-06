@@ -4,6 +4,7 @@ import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
 import { sanitizeSvg } from '../utils/sanitizeSvg';
 import { planimSpecFromSvg, planimPrintSvgFromSpec } from '../utils/planim/dsl';
+import { stereoSpecFromSvg, stereoPrintSvgFromSpec } from '../utils/stereo/dsl';
 import MathRenderer from './MathRenderer';
 import './GeometryWorksheetPrint.css';
 
@@ -22,18 +23,18 @@ const SHEET_PAD_MM = 5;
 const DRAWING_PAD_MM = 1;
 
 /**
- * Чертёж из нашего планиметрического редактора — заново, под место на листе:
- * буквы того же размера и шрифта, что формулы условия, при любом S/M/L/XL.
- * null — чертёж не наш (GeoGebra и т. п.), он печатается как есть.
+ * Чертёж из наших редакторов (планиметрия, стерео) — заново, под место на
+ * листе: буквы того же размера и шрифта, что формулы условия, при любом
+ * S/M/L/XL. null — чертёж не наш (GeoGebra и т. п.), он печатается как есть.
  */
-function planimDrawingHtml(svg, { widthMm, heightMm, letterMm }) {
-  const spec = planimSpecFromSvg(svg);
-  if (!spec) return null;
+function ownDrawingHtml(svg, place) {
   try {
-    return planimPrintSvgFromSpec(spec, { widthMm, heightMm, letterMm });
-  } catch {
-    return null;
-  }
+    const planim = planimSpecFromSvg(svg);
+    if (planim) return planimPrintSvgFromSpec(planim, place);
+    const stereo = stereoSpecFromSvg(svg);
+    if (stereo) return stereoPrintSvgFromSpec(stereo, place);
+  } catch { /* печатается как есть */ }
+  return null;
 }
 
 // Вычисляет число линий клетки по фактическому кол-ву задач на листе.
@@ -89,12 +90,12 @@ function WorksheetTask({ task, index, showDrawing, drawingSize, layoutKey, textS
   const bodyWidthMm = (isA4 ? 210 : 148) - 2 * SHEET_PAD_MM;
   const svgHtml = useMemo(() => {
     if (!hasSvg) return '';
-    const planim = planimDrawingHtml(task.drawing_svg, {
+    const own = ownDrawingHtml(task.drawing_svg, {
       widthMm: (bodyWidthMm * parseFloat(dcfg.w)) / 100 - 2 * DRAWING_PAD_MM,
       heightMm: parseFloat(maxH) - 2 * DRAWING_PAD_MM,
       letterMm: parseFloat(tcfg.statement) * KATEX_EM,
     });
-    return planim ?? sanitizeSvg(task.drawing_svg);
+    return own ?? sanitizeSvg(task.drawing_svg);
   }, [hasSvg, task.drawing_svg, bodyWidthMm, dcfg.w, maxH, tcfg.statement]);
 
   return (

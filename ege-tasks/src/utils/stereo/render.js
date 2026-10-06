@@ -60,6 +60,12 @@ const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8, mark
 const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
 
+// Буквы — шрифтом формул KaTeX, как $A$ в условии (Times — запасной: SVG в
+// <img> шрифтов страницы не видит). Размер постоянный в единицах кадра — его
+// высоту на бумаге задаёт масштаб кадра (stereoPrintFrame).
+export const LABEL_FONT = "KaTeX_Math, 'Times New Roman', Times, serif";
+export const LABEL_SIZE = 17;
+
 /**
  * Доли [0; 1] линии → куски с цветом отрезка (null — цвет самой линии).
  * Перекрытие: побеждает отрезок, покрашенный позже. Соседние куски одного
@@ -358,6 +364,8 @@ export function contentBox(frame, pad = 8) {
  * @param opts.mono       — только чёрная краска (печатный стек Lemma): линии
  *                          чёрные, заливки — светло-серые
  * @param opts.crop       — обрезать по содержимому (чертёж в задаче без пустых полей)
+ * @param opts.unitsPerMm — размер на бумаге: ширина и высота в мм (единиц
+ *   кадра на миллиметр); чертёж не растягивается по контейнеру
  */
 export function stereoSvgString(frame, opts = {}) {
   const { background = true, responsive = false, mono = false, crop = false } = opts;
@@ -369,9 +377,12 @@ export function stereoSvgString(frame, opts = {}) {
     if (b) vb = b;
   }
   const maxWidth = Math.round(opts.maxWidth || vb.w);
-  const size = responsive
-    ? `width="100%" style="max-width:${maxWidth}px;height:auto;display:block;margin:0 auto"`
-    : `width="${Math.round(vb.w)}" height="${Math.round(vb.h)}"`;
+  const k = opts.unitsPerMm;
+  const size = k
+    ? `width="${(vb.w / k).toFixed(2)}mm" height="${(vb.h / k).toFixed(2)}mm" style="width:${(vb.w / k).toFixed(2)}mm;max-width:100%;height:auto;display:block;margin:0 auto"`
+    : responsive
+      ? `width="100%" style="max-width:${maxWidth}px;height:auto;display:block;margin:0 auto"`
+      : `width="${Math.round(vb.w)}" height="${Math.round(vb.h)}"`;
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" class="stereo-svg" ${size} viewBox="${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}">`);
   if (background) parts.push(`<rect x="${vb.x.toFixed(1)}" y="${vb.y.toFixed(1)}" width="${vb.w.toFixed(1)}" height="${vb.h.toFixed(1)}" fill="#ffffff"/>`);
   for (const pg of frame.polys) {
@@ -394,7 +405,7 @@ export function stereoSvgString(frame, opts = {}) {
   }
   for (const l of frame.labels) {
     parts.push(
-      `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="'Times New Roman', Times, serif" font-style="italic" font-size="17"${l.color && mono ? ' font-weight="bold"' : ''} fill="${l.color && !mono ? l.color : STEREO_COLORS.label}">${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
+      `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="${LABEL_FONT}" font-style="italic" font-size="${LABEL_SIZE}"${l.color && mono ? ' font-weight="bold"' : ''} fill="${l.color && !mono ? l.color : STEREO_COLORS.label}">${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
     );
   }
   parts.push('</svg>');

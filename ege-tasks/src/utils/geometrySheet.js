@@ -1,5 +1,6 @@
 import { sanitizeSvg } from './sanitizeSvg';
 import { planimSpecFromSvg } from './planim/dsl';
+import { stereoSpecFromSvg } from './stereo/dsl';
 
 /**
  * Геометрическая задача → задача печатного листа (движок print-sheet, тот же,
@@ -77,33 +78,39 @@ export function geometryFigureUrl(task, imageUrlOf) {
 }
 
 /**
- * Исходник чертежа из нашего планиметрического редактора (SVG задачи несёт его
- * комментарием) — или null, если чертёж не наш или задача показывает не SVG.
+ * Исходник чертежа из наших редакторов (SVG задачи несёт его комментарием):
+ * { lang: 'planim' | 'stereo', spec } — или null, если чертёж не наш или
+ * задача показывает не SVG.
  */
-export function geometryPlanimSpec(task) {
+export function geometryDrawingSpec(task) {
   if (!task || task.drawing_view !== 'svg' || !task.drawing_svg) return null;
-  const spec = planimSpecFromSvg(task.drawing_svg);
-  return spec && spec.trim() ? spec : null;
+  const planim = planimSpecFromSvg(task.drawing_svg);
+  if (planim && planim.trim()) return { lang: 'planim', spec: planim };
+  const stereo = stereoSpecFromSvg(task.drawing_svg);
+  if (stereo && stereo.trim()) return { lang: 'stereo', spec: stereo };
+  return null;
 }
 
 /**
  * Задача листа из геометрической. `has_image` нужен движку: по нему лист
  * понимает, что у задачи есть чертёж (кнопки размера, перемер).
  *
- * Чертёж из нашего планиметрического редактора идёт в лист не картинкой, а
- * блоком ```planim в конце условия: лист строит его под место на бумаге, и
+ * Чертёж из наших редакторов (планиметрия, стерео) идёт в лист не картинкой,
+ * а блоком ```planim / ```stereo в конце условия: лист строит его под место на бумаге, и
  * буквы на чертеже выходят того же размера и шрифта (KaTeX), что в условии.
  * Картинкой (<img>) он уменьшался вместе с буквами, а шрифтов страницы SVG в
  * <img> не видит вовсе.
  */
 export function geometrySheetTask(task, imageUrlOf) {
   const statement = task.statement_md || '';
-  const spec = geometryPlanimSpec(task);
-  const figureUrl = spec ? '' : geometryFigureUrl(task, imageUrlOf);
+  const drawing = geometryDrawingSpec(task);
+  const figureUrl = drawing ? '' : geometryFigureUrl(task, imageUrlOf);
   return {
     id: task.id,
     code: task.code || '',
-    statement_md: spec ? `${statement.trimEnd()}\n\n\`\`\`planim\n${spec}\n\`\`\`\n` : statement,
+    statement_md: drawing
+      ? `${statement.trimEnd()}\n\n\`\`\`${drawing.lang}\n${drawing.spec}\n\`\`\`\n`
+      : statement,
     answer: task.answer == null ? '' : String(task.answer),
     has_image: !!figureUrl,
     figureUrl,
