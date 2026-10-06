@@ -22,6 +22,15 @@ export const PLANIM_COLORS = {
   gridAxis: '#cbd5e1',
 };
 
+// Шрифты подписей — те же, что у формул KaTeX в условии: буква A на чертеже
+// выглядит как $A$ в тексте. Times — запасной (SVG картинкой <img> шрифтов
+// страницы не видит).
+export const LABEL_FONT = "KaTeX_Math, 'Times New Roman', Times, serif";
+export const MARK_FONT = "KaTeX_Main, 'Times New Roman', Times, serif";
+
+/** Буква точки — 17 единиц кадра (её высоту на бумаге задаёт масштаб кадра). */
+export const LABEL_SIZE = 17;
+
 const WIDTH = { side: 1.8, segment: 1.7, line: 1.4, ray: 1.4, ext: 1.0, circle: 1.6 };
 const PAINTED = 1.35;
 export const DASH = '6 4';
@@ -194,7 +203,8 @@ const norm = (a) => {
  * @param model    — evaluateScene(...)
  * @param view     — { cx, cy, scale }
  * @param viewport — { width, height }
- * @param [opts]   — { grid: boolean } — клетчатый фон (единичные клетки)
+ * @param [opts]   — { grid: boolean } — клетчатый фон (единичные клетки);
+ *                   markSize — кегль подписей пометок (по умолчанию 15)
  */
 export function renderPlanim(model, view, viewport, opts = {}) {
   const { width, height } = viewport;
@@ -263,7 +273,8 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   const texts = [];
   const reserved = [];
   // opId — шаг, чья это подпись (её двигают и правят мышью, pickMarkText).
-  const pushText = (id, x, y, raw, step, opId = id, size = 15) => {
+  const markSize = opts.markSize || 15;
+  const pushText = (id, x, y, raw, step, opId = id, size = markSize) => {
     const text = formatMarkText(raw);
     const w = textWidth(text, size);
     texts.push({ id, opId, x, y, text, italic: isItalic(text), size, step, w, h: size + 2 });
@@ -325,7 +336,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
     });
     if (an.label) {
       const text = formatMarkText(an.label);
-      const rl = Math.min(64, Math.max(rMax + 11, 9 / Math.max(0.12, Math.sin(Math.abs(delta) / 2)))) + textWidth(text) * 0.18;
+      const rl = Math.min(64, Math.max(rMax + 11, 9 / Math.max(0.12, Math.sin(Math.abs(delta) / 2)))) + textWidth(text, markSize) * 0.18;
       const at = an.at ? P(add(an.V, an.at)) : { x: V.x + Math.cos(midA) * rl, y: V.y + Math.sin(midA) * rl };
       pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id);
     }
@@ -366,7 +377,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
     }
     const n0 = { x: -(b.y - a.y) / L, y: (b.x - a.x) / L };
     const text = formatMarkText(ms.text);
-    const w = textWidth(text);
+    const w = textWidth(text, markSize);
     const lim = Math.max(w, 17) / 2 + 1;
     let best = null;
     // Сначала середина; если там тесно — подпись съезжает вдоль отрезка.
@@ -549,6 +560,9 @@ export function contentBox(frame, pad = 8) {
  * @param opts.responsive — ширина 100 % с потолком maxWidth
  * @param opts.mono       — только чёрная краска (печатный стек Lemma)
  * @param opts.crop       — обрезать по содержимому
+ * @param opts.unitsPerMm — размер на бумаге: ширина и высота в мм (единиц
+ *   кадра на миллиметр); чертёж не растягивается по контейнеру, только
+ *   ужимается, если не влез
  */
 export function planimSvgString(frame, opts = {}) {
   const { background = true, responsive = false, mono = false, crop = false } = opts;
@@ -581,9 +595,12 @@ export function planimSvgString(frame, opts = {}) {
     for (let i = 0; i <= ny && ny < 400; i++) gridLines.ys.push(frame.project({ x: 0, y: gy0 + i * step }).y);
   }
   const maxWidth = Math.round(opts.maxWidth || vb.w);
-  const size = responsive
-    ? `width="100%" style="max-width:${maxWidth}px;height:auto;display:block;margin:0 auto"`
-    : `width="${Math.round(vb.w)}" height="${Math.round(vb.h)}"`;
+  const k = opts.unitsPerMm;
+  const size = k
+    ? `width="${(vb.w / k).toFixed(2)}mm" height="${(vb.h / k).toFixed(2)}mm" style="width:${(vb.w / k).toFixed(2)}mm;max-width:100%;height:auto;display:block;margin:0 auto"`
+    : responsive
+      ? `width="100%" style="max-width:${maxWidth}px;height:auto;display:block;margin:0 auto"`
+      : `width="${Math.round(vb.w)}" height="${Math.round(vb.h)}"`;
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" class="stereo-svg planim-svg" ${size} viewBox="${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}">`);
   if (background) parts.push(`<rect x="${vb.x.toFixed(1)}" y="${vb.y.toFixed(1)}" width="${vb.w.toFixed(1)}" height="${vb.h.toFixed(1)}" fill="#ffffff"/>`);
   if (gridLines) {
@@ -622,12 +639,12 @@ export function planimSvgString(frame, opts = {}) {
   for (const l of frame.labels) {
     if (l.ghost) continue;
     parts.push(
-      `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="'Times New Roman', Times, serif" font-style="italic" font-size="17"${l.color && mono ? ' font-weight="bold"' : ''} fill="${l.color && !mono ? l.color : PLANIM_COLORS.label}"${halo}>${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
+      `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="${LABEL_FONT}" font-style="italic" font-size="${LABEL_SIZE}"${l.color && mono ? ' font-weight="bold"' : ''} fill="${l.color && !mono ? l.color : PLANIM_COLORS.label}"${halo}>${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
     );
   }
   for (const t of frame.texts) {
     parts.push(
-      `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="middle" font-family="'Times New Roman', Times, serif"${t.italic ? ' font-style="italic"' : ''} font-size="${t.size}" fill="${PLANIM_COLORS.label}"${halo}>${esc(t.text)}</text>`,
+      `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="middle" font-family="${t.italic ? LABEL_FONT : MARK_FONT}"${t.italic ? ' font-style="italic"' : ''} font-size="${t.size}" fill="${PLANIM_COLORS.label}"${halo}>${esc(t.text)}</text>`,
     );
   }
   parts.push('</svg>');

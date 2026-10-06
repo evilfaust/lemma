@@ -19,7 +19,7 @@ import { evaluateScene, tryAppendOps, applyAction } from './scene';
 import { parseCommand, opToCommand } from './commands';
 import { circleRefText } from './refs';
 import {
-  renderPlanim, planimSvgString, contentBox, fitView, POINT_COLORS,
+  renderPlanim, planimSvgString, contentBox, fitView, POINT_COLORS, LABEL_SIZE,
 } from './render';
 import { planimInlineFromSpec } from './inline';
 
@@ -123,10 +123,70 @@ export function buildPlanimBlock(scene, { color = false, grid = false, size = nu
 }
 
 /** Кадр сцены, вписанный в рамку size (для статичной картинки). */
-export function planimFrame(scene, { size = DEFAULT_SIZE, grid = false } = {}) {
+export function planimFrame(scene, { size = DEFAULT_SIZE, grid = false, markSize } = {}) {
   const model = evaluateScene(scene);
   const view = fitView(model, size, { padding: Math.min(26, size.width * 0.1), maxScale: 400 });
-  return renderPlanim(model, view, size, { grid, gridStep: 1 });
+  return renderPlanim(model, view, size, { grid, gridStep: 1, markSize });
+}
+
+const errorsHtml = (errors) => {
+  if (!errors.length) return '';
+  const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const list = errors.slice(0, 3).map((e) => `строка ${e.line}: ${esc(e.message)}`).join('; ');
+  return `<span class="stereo-svg-errors" style="display:block;color:#b91c1c;font-size:12px">${list}</span>`;
+};
+
+/**
+ * Чертёж для печати — построенный под своё место на бумаге, а не ужатый
+ * картинкой. Буквы, дуги углов, штрихи и линии у движка постоянного размера в
+ * единицах кадра, поэтому кадр берётся в единицах «буква = letterMm»: место
+ * widthMm × heightMm → рамка (widthMm·k) × (heightMm·k), k = 17 / letterMm.
+ * Фигура вписывается в рамку, а буквы остаются ровно letterMm — как в
+ * условии, при любом размере S/M/L/XL.
+ *
+ * @returns {{ svg: string, widthMm: number, heightMm: number }}
+ */
+export function planimPrintFrame(scene, {
+  widthMm, heightMm, letterMm, grid = false, color = false,
+}) {
+  const k = LABEL_SIZE / letterMm;
+  const W = widthMm * k;
+  const H = heightMm * k;
+  const model = evaluateScene(scene);
+  const b = model.bbox || { x0: 0, y0: 0, x1: 1, y1: 1 };
+  const bw = Math.max(b.x1 - b.x0, 1e-6);
+  const bh = Math.max(b.y1 - b.y0, 1e-6);
+  const viewport = { width: W, height: H };
+  const at = (scale) => {
+    const frame = renderPlanim(model, { cx: (b.x0 + b.x1) / 2, cy: (b.y0 + b.y1) / 2, scale }, viewport, {
+      grid, gridStep: 1, markSize: LABEL_SIZE,
+    });
+    return { frame, box: contentBox(frame), scale };
+  };
+  // Чертёж = фигура (растёт с масштабом) + поля под буквы и пометки (их размер
+  // постоянный). Масштаб — такой, чтобы фигура заняла место за вычетом полей;
+  // поля чуть зависят от раскладки букв, поэтому несколько уточнений.
+  let cur = at(Math.max(0.5, Math.min(W / bw, H / bh) * 0.6));
+  let best = null;
+  for (let i = 0; i < 8 && cur.box; i++) {
+    const fits = cur.box.w <= W + 0.5 && cur.box.h <= H + 0.5;
+    if (fits && (!best || cur.scale > best.scale)) best = cur;
+    const ow = cur.box.w - cur.scale * bw;
+    const oh = cur.box.h - cur.scale * bh;
+    const next = Math.max(0.5, Math.min((W - ow) / bw, (H - oh) / bh));
+    if (Math.abs(next - cur.scale) < cur.scale * 0.002 && fits) break;
+    cur = at(fits ? next : Math.min(next, cur.scale * 0.97));
+  }
+  const { frame, box } = best || cur;
+  const svg = planimSvgString(frame, { background: false, mono: !color, crop: true, unitsPerMm: k });
+  return { svg, widthMm: box ? box.w / k : 0, heightMm: box ? box.h / k : 0 };
+}
+
+/** Блок → SVG для печати под место widthMm × heightMm с буквой letterMm. */
+export function planimPrintSvgFromSpec(text, { widthMm, heightMm, letterMm }) {
+  const { scene, color, grid, errors } = parsePlanimBlock(text);
+  const { svg } = planimPrintFrame(scene, { widthMm, heightMm, letterMm, grid, color });
+  return svg + errorsHtml(errors);
 }
 
 /** Блок → SVG-строка для текста задачи/теории (ошибки — подписью под чертежом). */
@@ -143,10 +203,7 @@ export function planimSvgFromSpec(text, { maxWidth } = {}) {
     background: false, responsive: true, mono: !color, crop: true,
     maxWidth: box ? Math.max(box.w, 40) : size.width,
   });
-  if (!errors.length) return svg;
-  const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
-  const list = errors.slice(0, 3).map((e) => `строка ${e.line}: ${esc(e.message)}`).join('; ');
-  return `${svg}<span class="stereo-svg-errors" style="display:block;color:#b91c1c;font-size:12px">${list}</span>`;
+  return svg + errorsHtml(errors);
 }
 
 // --- чертёж как чертёж геометрической задачи ------------------------------------

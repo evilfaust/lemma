@@ -68,3 +68,28 @@ export function figureSizeVars(size) {
     '--ps-fig-side-w': SIDE_CFG[size] || SIDE_CFG[DEFAULT_KIM_IMAGE_SIZE],
   };
 }
+
+// Высота буквы формулы на печатном листе print-sheet, мм: кегль условия
+// `.ps-task-text` (3.9mm × --ps-scale) × `.ps-root .katex` (1.04em). Буквы на
+// построенном под лист чертеже (planimPrintSvgFromSpec) — ровно такие.
+export const PS_TEXT_MM = 3.9;
+export const PS_KATEX_EM = 1.04;
+export const psLetterMm = (fontScale = 1) => PS_TEXT_MM * (Number(fontScale) || 1) * PS_KATEX_EM;
+
+/**
+ * Место чертежа на листе print-sheet в миллиметрах — то же, что задают CSS-
+ * переменные figureSizeVars: ширина — доля полосы условия (`--ps-fig-w`, сбоку —
+ * `--ps-fig-side-w`), высота — потолок `--ps-fig-h`.
+ *
+ * @param {string} size — s | m | l | xl
+ * @param {number} textWidthMm — ширина полосы условия
+ * @param {{ side?: boolean }} opts — чертёж сбоку от условия
+ */
+export function figureBoxMm(size, textWidthMm, { side = false } = {}) {
+  const c = CFG[size] || CFG[DEFAULT_KIM_IMAGE_SIZE];
+  const share = side ? (SIDE_CFG[size] || SIDE_CFG[DEFAULT_KIM_IMAGE_SIZE]) : c.maxWidth;
+  return {
+    widthMm: (textWidthMm * parseFloat(share)) / 100,
+    heightMm: parseFloat(c.maxHeight),
+  };
+}

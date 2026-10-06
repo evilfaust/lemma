@@ -12,6 +12,11 @@
 
 .planim-mark-text { font-size: 15px; }
 
+/* Буквы — шрифтами KaTeX, как на готовом чертеже (LABEL_FONT/MARK_FONT в
+   utils/planim/render.js): в редакторе видно то, что уйдёт в задачу и на печать. */
+.planim-canvas .stereo-label { font-family: KaTeX_Math, 'Times New Roman', Times, serif; }
+.planim-canvas .planim-mark-text { font-family: KaTeX_Main, 'Times New Roman', Times, serif; }
+
 /* Инструментов 24 — четыре в ряд, ряд = смысловая группа (точки, линии,
    построения, окружности, пометки, оформление). Панель шире, чем у стерео:
    «Перпендикуляр» и «Многоугольник» должны читаться целиком. */

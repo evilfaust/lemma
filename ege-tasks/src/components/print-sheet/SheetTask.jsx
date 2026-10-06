@@ -5,10 +5,19 @@ import {
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { filterTaskText } from '../../utils/filterTaskText';
-import { figureSizeVars, KIM_IMAGE_SIZE_OPTIONS } from '../../utils/kimImageSize';
+import {
+  figureSizeVars, figureBoxMm, psLetterMm, KIM_IMAGE_SIZE_OPTIONS,
+} from '../../utils/kimImageSize';
+import { PlanimPrintContext } from '../shared/planimPrintContext';
 import SolutionFill from './SolutionFill';
 import { BODY_W_MM, NUM_COL_MM, NUM_COL_WIDE_MM } from './geometry';
 import { isSidePlacement, splitSideFigure } from './sideFigure';
+
+// Поле «Ответ» справа от условия (`.ps-answer-box` 26 мм + зазор `.ps-task-row` 4 мм).
+const ANSWER_BOX_MM = 26 + 4;
+
+// Чертёж сбоку — блок ```planim: он строится под своё место и сам знает ширину.
+const PLANIM_FENCE = /^\s*(`{3,}|~{3,})\s*planim\b/i;
 
 // Место чертежа у одной задачи — в том порядке, в каком он встанет на листе.
 const PLACEMENT_OPTIONS = [
@@ -81,20 +90,39 @@ export default function SheetTask({
 
   const code = showTaskCode && task.code ? <div className="ps-task-code">{task.code}</div> : null;
 
+  // Место чертежа в мм — для планиметрических чертежей, которые строятся под
+  // лист (буквы как в условии), а не ужимаются картинкой. Ширина полосы
+  // условия — та же, от которой CSS считает --ps-fig-w / --ps-fig-side-w.
+  const showBox = answerStyle === 'box' && !showAnswersInline;
+  const textWidthMm = contentWidthMm - (numberLabel ? NUM_COL_WIDE_MM : NUM_COL_MM) - (showBox ? ANSWER_BOX_MM : 0);
+  const figSize = task.kimImageSize || options.figureSize || 'm';
+  const letterMm = psLetterMm(options.fontScale);
+  const belowPlace = { ...figureBoxMm(figSize, textWidthMm), letterMm };
+  const sidePlace = { ...figureBoxMm(figSize, textWidthMm, { side: true }), letterMm };
+  const asidePlanim = aside?.kind === 'drawing' && PLANIM_FENCE.test(aside.md);
+
   // Рисунок идёт в разметке ПЕРВЫМ: float обтекает только то, что после него.
   const statement = aside ? (
     <div className={`ps-task-text ps-task-text--side ps-task-text--side-${placement}`}>
-      <div className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}`}>
+      <div className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}${asidePlanim ? ' ps-task-aside--fit' : ''}`}>
         {aside.kind === 'external'
           ? <img src={imageUrl} alt="" />
-          : <MathRenderer text={aside.md} />}
+          : (
+            <PlanimPrintContext.Provider value={sidePlace}>
+              <MathRenderer text={aside.md} />
+            </PlanimPrintContext.Provider>
+          )}
       </div>
-      <MathRenderer text={side.text} />
+      <PlanimPrintContext.Provider value={belowPlace}>
+        <MathRenderer text={side.text} />
+      </PlanimPrintContext.Provider>
       {code}
     </div>
   ) : (
     <div className="ps-task-text">
-      <MathRenderer text={text} />
+      <PlanimPrintContext.Provider value={belowPlace}>
+        <MathRenderer text={text} />
+      </PlanimPrintContext.Provider>
       {imageUrl && (
         <div className="ps-task-image">
           <img src={imageUrl} alt="" />
@@ -104,8 +132,8 @@ export default function SheetTask({
     </div>
   );
 
-  // Готовый ответ под условием и пустое поле для ответа — взаимоисключающие.
-  const showBox = answerStyle === 'box' && !showAnswersInline;
+  // Готовый ответ под условием и пустое поле для ответа — взаимоисключающие
+  // (showBox — выше, от него зависит ширина полосы условия).
 
   const className = [
     'ps-task',

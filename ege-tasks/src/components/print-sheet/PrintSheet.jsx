@@ -197,7 +197,7 @@ function VariantPages({
       <div className="ps-measure" aria-hidden="true">
         {items.map(it => (
           <div key={it.__key} ref={(el) => { taskRefs.current[it.__key] = el; }}>
-            <SheetTask task={it} number={it.__no} taskIndex={it.__no - 1} options={options} />
+            <SheetTask task={it} number={it.__no} taskIndex={it.__no - 1} options={options} contentWidthMm={colWidthMm} />
           </div>
         ))}
       </div>
