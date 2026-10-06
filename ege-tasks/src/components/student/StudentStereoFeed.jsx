@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  RightOutlined, CodeSandboxOutlined, BorderOuterOutlined, FileTextOutlined,
+  RightOutlined, CodeSandboxOutlined, BorderOuterOutlined, FileTextOutlined, ReadOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 
@@ -16,6 +16,8 @@ const SHOW_SCENES = 4;
  * урока, поэтому кабинет переспрашивает раз в 20 с и при возврате на вкладку.
  * Ссылки — те же /b/<код> и /s/<id>, что учитель даёт на доске.
  * Работы по геометрии (v3.9.284) — открытые учителем, по /w/<id>: только условия.
+ * Задания учителя (v3.9.306) — обычные работы в режиме показа, по /r/<id>:
+ * только условия, без выдачи и ответов.
  */
 export default function StudentStereoFeed() {
   const [feed, setFeed] = useState(null);
@@ -43,7 +45,8 @@ export default function StudentStereoFeed() {
   }, [load]);
 
   const works = feed?.works || [];
-  if (!feed || (!feed.rooms.length && !feed.scenes.length && !works.length)) return null;
+  const shows = feed?.shows || [];
+  if (!feed || (!feed.rooms.length && !feed.scenes.length && !works.length && !shows.length)) return null;
 
   const scenes = showAll ? feed.scenes : feed.scenes.slice(0, SHOW_SCENES);
 
@@ -56,6 +59,23 @@ export default function StudentStereoFeed() {
           <span className="student-live-card__go">Смотреть <RightOutlined /></span>
         </a>
       ))}
+
+      {shows.length > 0 && (
+        <div className="student-drawings">
+          <div className="student-drawings__head">Задания от учителя</div>
+          <ul className="student-drawings__list">
+            {shows.map((w) => (
+              <li key={w.id}>
+                <a className="student-drawings__item" href={`/student/r/${w.id}`}>
+                  <ReadOutlined />
+                  <span className="student-drawings__title">{w.title}</span>
+                  <RightOutlined className="student-drawings__arrow" />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {works.length > 0 && (
         <div className="student-drawings">

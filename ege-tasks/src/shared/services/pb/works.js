@@ -112,6 +112,73 @@ export const worksApi = {
     return rec;
   },
 
+  // ============ ПОКАЗ УСЛОВИЙ УЧЕНИКАМ (v3.9.306) ============
+  // Работа без выдачи: student.oipav.ru/r/<id> — только условия, решение в
+  // тетради. Выдачи, попытки и результаты этот режим не трогает.
+
+  // Открыть/закрыть показ и выбрать классы (кабинет). Правка — только владелец.
+  async setWorkShowSharing(id, { open, groups }) {
+    const rec = await pb.collection('works').update(id, {
+      show_open: !!open,
+      show_groups: Array.isArray(groups) ? groups : [],
+    });
+    _logAudit('update', 'works', id, `${rec.title || id}: ${open ? 'условия открыты ученикам' : 'показ условий закрыт'}`);
+    return rec;
+  },
+
+  // Работа для ученика по ссылке (без входа). null — нет или показ закрыт:
+  // viewRule у works публичный (так ученик открывает выдачу), поэтому закрытую
+  // работу отсекает сама страница — та же UI-only защита, что у всей платформы.
+  async getShownWork(id) {
+    try {
+      const w = await pb.collection('works').getOne(id, {
+        fields: 'id,title,class,show_open,updated',
+        requestKey: null,
+      });
+      return w?.show_open ? w : null;
+    } catch (error) {
+      if ([403, 404].includes(error?.status)) return null;
+      throw error;
+    }
+  },
+
+  // Варианты работы для показа — без expand: задачи грузятся отдельно, без ответов.
+  async getShownWorkVariants(workId) {
+    return pb.collection('variants').getFullList({
+      filter: `work = "${escapeFilter(workId)}"`,
+      sort: 'number',
+      fields: 'id,number,tasks,order',
+      requestKey: null,
+    });
+  },
+
+  // Задачи для ученика: условие и картинка. Ответ, решение и пояснение НЕ
+  // запрашиваются — ученик решает сам (решение пользователя 12.07.2026).
+  async getShownTasks(ids) {
+    const uniq = [...new Set((ids || []).filter(Boolean))];
+    if (!uniq.length) return [];
+    return getFullListByOr('tasks', 'id', uniq, {
+      fields: 'id,collectionId,collectionName,statement_md,image,has_image',
+      requestKey: null,
+    });
+  },
+
+  // Картинки условий (task_images, роль condition): внешние ссылки «Решу» в
+  // условии подменяются на свои файлы (TaskStatementRenderer).
+  async getShownTaskImages(ids) {
+    const uniq = [...new Set((ids || []).filter(Boolean))];
+    if (!uniq.length) return [];
+    try {
+      const list = await getFullListByOr('task_images', 'task', uniq, {
+        fields: 'id,collectionId,collectionName,task,file,original_url,sdamgia_file_id,role',
+        requestKey: null,
+      });
+      return list.filter((r) => (r.role || 'condition') === 'condition');
+    } catch {
+      return []; // без своих файлов условие покажется с исходными ссылками
+    }
+  },
+
   // Передать работу другому учителю (владелец/superadmin — правила PB):
   // вместе с работой уходят все её выдачи, иначе новый владелец не увидит
   // результаты. Варианты/попытки привязаны к работе/выдаче — едут сами.

@@ -1,0 +1,9 @@
+.share-links { display: flex; flex-direction: column; gap: 6px; }
+.share-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.share-link__label { width: 170px; color: #374151; }
+.share-link__url { flex: 1; min-width: 0; overflow-wrap: anywhere; }

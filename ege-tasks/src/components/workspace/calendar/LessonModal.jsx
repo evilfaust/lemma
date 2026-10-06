@@ -67,7 +67,8 @@ export default function LessonModal({
   // материал урока для учителя и задание-ссылка для учеников
   const [mcTests, setMcTests] = useState([]);
   const [testSessions, setTestSessions] = useState({}); // testId -> sessions[]
-  const [hw, setHw] = useState({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
+  // show — работа «только условия» (v3.9.306): пункт work_view, ссылка /r/<id>, без выдачи
+  const [hw, setHw] = useState({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
   const testsMap = useMemo(() => new Map(mcTests.map((t) => [t.id, t.title || 'Тест'])), [mcTests]);
   // Название теста, пока список тестов ещё грузится, — из самого урока
   const savedTitle = (id) => (initial?.materials || []).find((m) => m.type === 'mc_test' && m.id === id)?.title || '';
@@ -109,7 +110,8 @@ export default function LessonModal({
       setFileMaterials(all.filter((m) => m.type === 'material'));
       // Стандартное название — по режиму: до v3.9.300 классная работа
       // сохранялась под названием «Домашняя работа».
-      setSessionItems(all.filter((m) => m.type === 'session').map((m) => withMode(m, itemMode(m))));
+      // Задания-ссылки: выдачи и работы «только условия» (work_view) — одним списком
+      setSessionItems(all.filter((m) => m.type === 'session' || m.type === 'work_view').map((m) => withMode(m, itemMode(m))));
       setTextItems(all.filter((m) => m.type === 'text'));
       setGeoItems(all.filter((m) => m.type === 'geometry_work'));
       const ts = initial?.time_slot || '';
@@ -130,7 +132,7 @@ export default function LessonModal({
     setNewLink({ title: '', code: '', mode: 'hw' });
     setNewText('');
     setTextMode('hw');
-    setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
+    setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
     setManualMode(false);
   }, [open, initial]);
 
@@ -269,8 +271,8 @@ export default function LessonModal({
     return m ? m[1] : s;
   };
   // Одна выдача в уроке — один пункт: дубль давал ученику две одинаковые кнопки «Решать».
-  const hasSession = (id) => {
-    if (!sessionItems.some((x) => x.id === id)) return false;
+  const hasSession = (id, type = 'session') => {
+    if (!sessionItems.some((x) => x.id === id && (x.type || 'session') === type)) return false;
     message.warning('Эта работа уже есть в уроке');
     return true;
   };
@@ -302,7 +304,7 @@ export default function LessonModal({
     if (isTestOption(value)) {
       const testId = testIdOf(value);
       const sess = testSessions[testId] || [];
-      setHw((s) => ({ ...s, work: undefined, test: testId, session: sess[0]?.id, title: testsMap.get(testId) || '' }));
+      setHw((s) => ({ ...s, work: undefined, test: testId, session: sess[0]?.id, title: testsMap.get(testId) || '', show: false }));
       return;
     }
     const sess = workSessions[value] || [];
@@ -311,8 +313,34 @@ export default function LessonModal({
   const hwValue = hw.test ? testOption(hw.test) : hw.work;
   const hwSessions = hw.test ? (testSessions[hw.test] || []) : (workSessions[hw.work] || []);
   const hwSourceTitle = hw.test ? testsMap.get(hw.test) : worksMap.get(hw.work);
+  // «Только условия»: в урок кладётся сама работа (work_view), выдача не
+  // создаётся; закрытой работе показ открывается (иначе ученик увидит
+  // «Работа недоступна»), классы показа не трогаются.
+  const addShowItem = async () => {
+    if (hasSession(hw.work, 'work_view')) return;
+    const title = (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode);
+    try {
+      const w = await api.getWork(hw.work);
+      if (w && !w.show_open) {
+        await api.setWorkShowSharing(hw.work, { open: true, groups: w.show_groups || [] });
+        message.info('Условия работы открыты ученикам по ссылке');
+      }
+    } catch (e) {
+      message.warning(`Не удалось открыть условия работы: ${e?.message || 'ошибка'}. Откройте их в «Моих работах» → «Показ условий».`);
+    }
+    setSessionItems((prev) => [
+      ...prev,
+      withMode({ type: 'work_view', id: hw.work, title, visible: true }, hw.mode),
+    ]);
+    setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
+  };
   const addHwFromWork = async () => {
     if (!hw.work && !hw.test) return;
+    if (hw.show && hw.work) {
+      setHwBusy(true);
+      try { await addShowItem(); } finally { setHwBusy(false); }
+      return;
+    }
     if (hw.session && hasSession(hw.session)) return;
     setHwBusy(true);
     try {
@@ -334,7 +362,7 @@ export default function LessonModal({
         ...prev,
         withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode), visible: true }, hw.mode),
       ]));
-      setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
+      setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
     } catch (e) {
       console.error('addHwFromWork', e?.message);
     } finally {
@@ -631,10 +659,18 @@ export default function LessonModal({
             <Space direction="vertical" size={2} style={{ width: '100%', margin: '4px 0' }}>
               {sessionItems.map((it, idx) => (
                 <Space key={`${it.id}-${idx}`} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                  <span>
-                    <LinkOutlined /> {it.title}{' '}
-                    <Typography.Text type="secondary" style={{ fontSize: 11 }}>/student/{it.id}</Typography.Text>
-                  </span>
+                  {it.type === 'work_view' ? (
+                    <span>
+                      <ReadOutlined /> {it.title}{' '}
+                      <Tag color="geekblue" style={{ margin: 0 }}>только условия</Tag>{' '}
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>/r/{it.id}</Typography.Text>
+                    </span>
+                  ) : (
+                    <span>
+                      <LinkOutlined /> {it.title}{' '}
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>/student/{it.id}</Typography.Text>
+                    </span>
+                  )}
                   <Space size={4}>
                     <Segmented size="small" value={itemMode(it)} options={ITEM_MODES} disabled={!canEdit}
                       onChange={(v) => setSessionItems((prev) => prev.map((x, i) => (i === idx ? withMode(x, v) : x)))} />
@@ -670,7 +706,25 @@ export default function LessonModal({
                   Добавить
                 </Button>
               </Space.Compact>
-              {hwValue && hwSessions.length > 1 && (
+              {hw.work && (
+                <Segmented
+                  size="small"
+                  style={{ marginTop: 6 }}
+                  value={hw.show ? 'show' : 'solve'}
+                  onChange={(v) => setHw((s) => ({ ...s, show: v === 'show' }))}
+                  options={[
+                    { value: 'solve', label: 'Решать (ответы проверяются)' },
+                    { value: 'show', label: 'Только условия' },
+                  ]}
+                />
+              )}
+              {hw.work && hw.show && (
+                <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                  Ученик увидит только условия — без поля ответа и без результатов, решает в тетради.
+                  Выдача не создаётся.
+                </Typography.Text>
+              )}
+              {hwValue && !hw.show && hwSessions.length > 1 && (
                 <Select
                   size="small"
                   style={{ width: '100%', marginTop: 6 }}
@@ -682,7 +736,7 @@ export default function LessonModal({
                   }))}
                 />
               )}
-              {hwValue && !hwSessions.length && (
+              {hwValue && !hw.show && !hwSessions.length && (
                 <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
                   {hw.test ? 'У этого теста' : 'У этой работы'} ещё нет выдачи — при добавлении она будет автоматически выдана (откроется доступ по ссылке).
                 </Typography.Text>

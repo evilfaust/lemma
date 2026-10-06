@@ -6,13 +6,14 @@ import {
   ClockCircleOutlined, SearchOutlined, SortAscendingOutlined, FormOutlined,
   PushpinOutlined, PushpinFilled, FolderOutlined, DownOutlined, CameraOutlined,
   ShareAltOutlined, CopyOutlined, UserOutlined, SwapOutlined, ImportOutlined,
-  ExperimentOutlined, TrophyOutlined,
+  ExperimentOutlined, TrophyOutlined, ReadOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import SessionPanel from './worksheet/SessionPanel';
+import WorkShowPanel from './worksheet/WorkShowPanel';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
 import ScanBlankModal from './worksheet/ScanBlankModal';
 import SendToMarathonModal from './worksheet/SendToMarathonModal';
@@ -684,6 +685,11 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                       {work.archived && (
                         <span className="wm-status-badge wm-status-badge--archived">Архив</span>
                       )}
+                      {work.show_open && (
+                        <Tooltip title="Ученики видят условия по ссылке (без выдачи и ответов)">
+                          <Tag color="geekblue" icon={<ReadOutlined />} style={{ marginLeft: 6 }}>Показ условий</Tag>
+                        </Tooltip>
+                      )}
                       {session?.is_open && (
                         <span className="wm-status-badge wm-status-badge--open">Приём открыт</span>
                       )}
@@ -862,6 +868,19 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                             <span><SendOutlined /> Выдача</span>
                           ),
                           children: <SessionPanel workId={work.id} />,
+                        },
+                        {
+                          key: 'show',
+                          label: (
+                            <span><ReadOutlined /> Показ условий</span>
+                          ),
+                          children: (
+                            <WorkShowPanel
+                              work={work}
+                              canEdit={canEdit}
+                              onChange={(patch) => setWorks(prev => prev.map(w => (w.id === work.id ? { ...w, ...patch } : w)))}
+                            />
+                          ),
                         },
                         {
                           key: 'results',

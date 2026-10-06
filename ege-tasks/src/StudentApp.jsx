@@ -57,12 +57,15 @@ import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import StudentStereoFeed from './components/student/StudentStereoFeed';
 import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
 import { workFromLocation } from './utils/geometryWorkLink';
+import { showFromLocation } from './utils/workShowLink';
 import { articleIdFromPath } from './utils/theoryLink';
 
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
 const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
 const StudentStereoManual = lazy(() => import('./components/stereo/StudentStereoManual'));
 const StudentGeometryWork = lazy(() => import('./components/geometry/student/StudentGeometryWork'));
+// Работа в режиме показа (только условия, без выдачи) — /r/<id>
+const StudentWorkShow = lazy(() => import('./components/student/StudentWorkShow'));
 // Статья теории по ссылке — отдельный чанк (markdown + KaTeX + стили темы).
 const StudentTheoryArticle = lazy(() => import('./components/theory/StudentTheoryArticle'));
 import 'katex/dist/katex.min.css';
@@ -287,6 +290,8 @@ function StudentApp() {
   const manualId = useMemo(() => manualIdFromPath(window.location.pathname), []);
   // Работа по геометрии: /w/{id} (или /student/w/{id}), вариант — ?v=N
   const geoWork = useMemo(() => workFromLocation(window.location.pathname, window.location.search), []);
+  // Работа в режиме показа: /r/{id} (или /student/r/{id}), вариант — ?v=N
+  const shownWork = useMemo(() => showFromLocation(window.location.pathname, window.location.search), []);
   // Статья теории по ссылке: /t/{id} (или /student/t/{id})
   const theoryArticleId = useMemo(() => articleIdFromPath(window.location.pathname), []);
 
@@ -311,10 +316,10 @@ function StudentApp() {
   // Извлекаем sessionId из URL: /student/{sessionId}
   // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
-    if (marathonLiveMatch || stereoCode || manualId || geoWork || theoryArticleId) return '';
+    if (marathonLiveMatch || stereoCode || manualId || geoWork || shownWork || theoryArticleId) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, [marathonLiveMatch, stereoCode, manualId, geoWork, theoryArticleId]);
+  }, [marathonLiveMatch, stereoCode, manualId, geoWork, shownWork, theoryArticleId]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -398,6 +403,14 @@ function StudentApp() {
     return (
       <Suspense fallback={null}>
         <StudentGeometryWork id={geoWork.id} variant={geoWork.variant} />
+      </Suspense>
+    );
+  }
+
+  if (shownWork) {
+    return (
+      <Suspense fallback={null}>
+        <StudentWorkShow id={shownWork.id} variant={shownWork.variant} />
       </Suspense>
     );
   }

@@ -1,45 +1,14 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert, App, Button, Modal, Popover, Space, Switch, Tooltip, Typography,
+  Alert, App, Modal, Space, Switch, Typography,
 } from 'antd';
-import { CopyOutlined, QrcodeOutlined } from '@ant-design/icons';
-import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../../shared/services/pocketbase';
 import StereoGroupsSelect from '../../stereo/StereoGroupsSelect';
+import LinkRow from '../../shared/ShareLinkRow';
 import { workLink } from '../../../utils/geometryWorkLink';
 import { variantLabel } from '../../../utils/geometryWork';
 
 const { Text } = Typography;
-
-function LinkRow({ label, link, disabled }) {
-  const { message } = App.useApp();
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(link.full);
-      message.success('Ссылка скопирована');
-    } catch {
-      message.info(link.full);
-    }
-  };
-  return (
-    <div className="gws-link">
-      <span className="gws-link__label">{label}</span>
-      <Text code className="gws-link__url" disabled={disabled}>{link.short}</Text>
-      <Space size={2}>
-        <Tooltip title="Скопировать ссылку">
-          <Button size="small" icon={<CopyOutlined />} onClick={copy} disabled={disabled} aria-label={`Скопировать: ${label}`} />
-        </Tooltip>
-        <Popover
-          trigger="click"
-          content={<QRCodeSVG value={link.full} size={180} marginSize={2} />}
-          title={label}
-        >
-          <Button size="small" icon={<QrcodeOutlined />} disabled={disabled} aria-label={`QR-код: ${label}`} />
-        </Popover>
-      </Space>
-    </div>
-  );
-}
 
 /**
  * «Ученикам»: открыть работу по ссылке без входа (только условия и чертежи)
@@ -98,7 +67,7 @@ export default function GeometryWorkShareModal({
           />
         </div>
 
-        <div className="gws-links">
+        <div className="share-links">
           <LinkRow label={variants > 1 ? 'Общая (выбор варианта)' : 'Ссылка'} link={workLink(workId)} disabled={closed} />
           {variants > 1 && Array.from({ length: variants }, (_, v) => (
             <LinkRow key={v} label={variantLabel(v)} link={workLink(workId, v)} disabled={closed} />

@@ -82,6 +82,16 @@ function ItemRow({ item, meta }) {
           : <span className="sc-item-muted">ссылка не задана</span>}
       </div>
     );
+  } else if (item.kind === 'show') {
+    // Работа в режиме показа (v3.9.306): только условия, решают в тетради
+    body = (
+      <div className="sc-item">
+        <span className="sc-item-title"><ReadOutlined /> {item.title || 'Задания'}</span>
+        {item.work_id
+          ? <Button size="small" className="sc-btn" href={`/student/r/${item.work_id}`}>Открыть</Button>
+          : <span className="sc-item-muted">ссылка не задана</span>}
+      </div>
+    );
   } else if (item.kind === 'file') {
     body = (
       <div className="sc-item">

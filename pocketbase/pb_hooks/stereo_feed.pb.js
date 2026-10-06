@@ -5,12 +5,16 @@
  *
  *   GET /api/stereo/my  →  { rooms: [{ code, title, updated }],
  *                            scenes: [{ id, title, note, kind, updated }],
- *                            works: [{ id, title, class, updated }] }
+ *                            works: [{ id, title, class, updated }],
+ *                            shows: [{ id, title, class, updated }] }
  *
  * rooms  — эфиры, которые идут СЕЙЧАС (live = true) и адресованы классам ученика;
  * scenes — открытые пособия (public = true), отмеченные классами ученика;
  * works  — открытые геометрические работы (geometry_works.public, v3.9.284),
  *          отмеченные классами ученика; открываются по /w/<id> (только условия).
+ * shows  — обычные работы в режиме показа условий (works.show_open, v3.9.306),
+ *          отмеченные классами ученика (works.show_groups); открываются по
+ *          /r/<id> — только условия, без выдачи и ответов.
  *
  * Почему хук, а не правила коллекций: классы ученика надо собрать из
  * group_memberships, а их ученик читать не может (там заметки учителя).
@@ -48,15 +52,16 @@ routerAdd("GET", "/api/stereo/my", (c) => {
   each("course_members", "student = {:s} && active != false", (r) => add(r.getString("course")));
 
   const ids = Object.keys(groups).slice(0, 60);
-  if (!ids.length) return c.json(200, { rooms: [], scenes: [], works: [] });
+  if (!ids.length) return c.json(200, { rooms: [], scenes: [], works: [], shows: [] });
 
   // Мульти-relation — только через .id: `groups ?= x` в PB 0.36 молча пуст.
   const params = {};
-  const any = ids.map((id, i) => { params["g" + i] = id; return "groups.id ?= {:g" + i + "}"; }).join(" || ");
+  ids.forEach((id, i) => { params["g" + i] = id; });
+  const anyOf = (field) => ids.map((id, i) => field + ".id ?= {:g" + i + "}").join(" || ");
 
-  const find = (collection, filter, sort, limit) => {
+  const find = (collection, filter, sort, limit, field) => {
     try {
-      return $app.findRecordsByFilter(collection, filter + " && (" + any + ")", sort, limit, 0, params);
+      return $app.findRecordsByFilter(collection, filter + " && (" + anyOf(field || "groups") + ")", sort, limit, 0, params);
     } catch (err) {
       console.warn("[stereo-feed] " + collection + ": " + String(err));
       return [];
@@ -86,5 +91,14 @@ routerAdd("GET", "/api/stereo/my", (c) => {
       updated: r.getString("updated"),
     });
   }
-  return c.json(200, { rooms: rooms, scenes: scenes, works: works });
+  const shows = [];
+  for (const r of find("works", "show_open = true", "-updated", 100, "show_groups")) {
+    shows.push({
+      id: r.id,
+      title: r.getString("title"),
+      class: r.getInt("class") || null,
+      updated: r.getString("updated"),
+    });
+  }
+  return c.json(200, { rooms: rooms, scenes: scenes, works: works, shows: shows });
 });

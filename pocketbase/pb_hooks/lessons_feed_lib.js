@@ -27,6 +27,8 @@ function dueOf(m) {
 
 // lessons.materials → пункты для ученика. Работы учительской петли (type
 // 'work'), геометрические работы и всё незнакомое ученику не уходят.
+// 'work_view' (v3.9.306) — работа в режиме показа условий: ученику ссылка
+// /r/<id> (только условия, без выдачи), id — сама работа.
 function projectItems(materials, isCourse) {
   const arr = Array.isArray(materials) ? materials : [];
   const out = [];
@@ -38,6 +40,8 @@ function projectItems(materials, isCourse) {
       out.push({ kind: 'file', role, due, title: m.title || 'Материал', file_url: m.url || '' });
     } else if (m.type === 'session') {
       out.push({ kind: 'work', role, due, title: m.title || 'Работа', session_id: m.id || '' });
+    } else if (m.type === 'work_view') {
+      out.push({ kind: 'show', role, due, title: m.title || 'Задания', work_id: m.id || '' });
     } else if (m.type === 'text') {
       out.push({ kind: 'text', role, due, title: m.title || '', description: m.text || '' });
     }
