@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tag, Tooltip, Typography,
+  App, Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tag, Tooltip, Typography,
 } from 'antd';
 import {
   FileTextOutlined, LinkOutlined, PaperClipOutlined, DeleteOutlined, DownloadOutlined,
@@ -19,7 +19,7 @@ import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
-  ITEM_MODES, itemMode, withMode, materialVisible, isNextDue, nextLessonFor, incomingFor,
+  ITEM_MODES, itemMode, withMode, defaultItemTitle, materialVisible, isNextDue, nextLessonFor, incomingFor,
   studentFacing as groupFacesStudents,
 } from '../../../utils/homework';
 import { testOption, isTestOption, testIdOf } from '../../../utils/lessonMaterials';
@@ -35,6 +35,7 @@ export default function LessonModal({
   open, initial, groups, works, onSave, onDelete, onCancel, onOpenNote, onOpenMaterial, onRepeat, saving, canEdit,
 }) {
   const [form] = Form.useForm();
+  const { message } = App.useApp();
   const isMobile = useIsMobile();
   const materialIds = Form.useWatch('materials', form) || [];
   const watchedGroup = Form.useWatch('group', form);
@@ -106,7 +107,9 @@ export default function LessonModal({
         ],
       });
       setFileMaterials(all.filter((m) => m.type === 'material'));
-      setSessionItems(all.filter((m) => m.type === 'session'));
+      // Стандартное название — по режиму: до v3.9.300 классная работа
+      // сохранялась под названием «Домашняя работа».
+      setSessionItems(all.filter((m) => m.type === 'session').map((m) => withMode(m, itemMode(m))));
       setTextItems(all.filter((m) => m.type === 'text'));
       setGeoItems(all.filter((m) => m.type === 'geometry_work'));
       const ts = initial?.time_slot || '';
@@ -265,13 +268,26 @@ export default function LessonModal({
     const m = s.match(/\/student\/([a-z0-9]{6,})/i);
     return m ? m[1] : s;
   };
-  const addSessionItem = () => {
+  // Одна выдача в уроке — один пункт: дубль давал ученику две одинаковые кнопки «Решать».
+  const hasSession = (id) => {
+    if (!sessionItems.some((x) => x.id === id)) return false;
+    message.warning('Эта работа уже есть в уроке');
+    return true;
+  };
+  // Без введённого названия — название выдачи, которое ученик видит в самой
+  // работе, иначе стандартное по режиму («Классная работа» / «Домашняя работа»).
+  const addSessionItem = async () => {
     const id = parseSessionCode(newLink.code);
-    if (!id) return;
-    setSessionItems((prev) => [
+    if (!id || hasSession(id)) return;
+    let title = (newLink.title || '').trim();
+    if (!title) {
+      const sess = await api.getSession(id);
+      title = (sess?.student_title || sess?.expand?.work?.title || '').trim();
+    }
+    setSessionItems((prev) => (prev.some((x) => x.id === id) ? prev : [
       ...prev,
-      withMode({ type: 'session', id, title: (newLink.title || '').trim() || 'Домашняя работа', visible: true }, newLink.mode),
-    ]);
+      withMode({ type: 'session', id, title: title || defaultItemTitle(newLink.mode), visible: true }, newLink.mode),
+    ]));
     setNewLink({ title: '', code: '', mode: 'hw' });
   };
   const addTextItem = () => {
@@ -297,12 +313,13 @@ export default function LessonModal({
   const hwSourceTitle = hw.test ? testsMap.get(hw.test) : worksMap.get(hw.work);
   const addHwFromWork = async () => {
     if (!hw.work && !hw.test) return;
+    if (hw.session && hasSession(hw.session)) return;
     setHwBusy(true);
     try {
       let sessionId = hw.session;
       // Нет выданной сессии → выдаём работу (тест) ученикам (открытая сессия).
       if (!sessionId) {
-        const title = (hw.title || '').trim() || hwSourceTitle || 'Домашняя работа';
+        const title = (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode);
         if (hw.test) {
           const rec = await api.createMCTestSession(hw.test, { student_title: title });
           sessionId = rec.id;
@@ -313,10 +330,10 @@ export default function LessonModal({
           setWorkSessions((prev) => ({ ...prev, [hw.work]: [rec, ...(prev[hw.work] || [])] }));
         }
       }
-      setSessionItems((prev) => [
+      setSessionItems((prev) => (prev.some((x) => x.id === sessionId) ? prev : [
         ...prev,
-        withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || hwSourceTitle || 'Работа', visible: true }, hw.mode),
-      ]);
+        withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode), visible: true }, hw.mode),
+      ]));
       setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw' });
     } catch (e) {
       console.error('addHwFromWork', e?.message);

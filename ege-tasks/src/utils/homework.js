@@ -48,10 +48,22 @@ export function itemMode(it) {
   return it.due === 'next' ? 'hw-next' : 'hw';
 }
 
+// Название пункта-ссылки, когда учитель его не ввёл, — по режиму. Раньше всегда
+// было «Домашняя работа», и классная работа выглядела у ученика домашней.
+const DEFAULT_TITLES = {
+  class: 'Классная работа',
+  hw: 'Домашняя работа',
+  'hw-next': 'ДЗ к следующему уроку',
+};
+export const defaultItemTitle = (mode) => DEFAULT_TITLES[mode] || DEFAULT_TITLES.hw;
+const isDefaultTitle = (title) => Object.values(DEFAULT_TITLES).includes((title || '').trim());
+
 // Новое значение режима → пункт. ДЗ-файл в классе сразу становится видимым:
-// задать ученикам невидимое домашнее задание незачем.
+// задать ученикам невидимое домашнее задание незачем. Стандартное название
+// меняется вместе с режимом, своё (введённое учителем) — остаётся.
 export function withMode(it, mode) {
   const next = { ...it, role: mode === 'class' ? 'class' : 'homework' };
+  if (isDefaultTitle(it.title)) next.title = defaultItemTitle(mode);
   if (mode === 'hw-next') next.due = 'next';
   else delete next.due;
   if (mode !== 'class' && it.type === 'material' && it.visible !== false) next.visible = true;

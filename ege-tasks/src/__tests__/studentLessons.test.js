@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 import dayjs from 'dayjs';
 import {
-  materialVisible, itemMode, withMode, nextLessonMap, resolveHomework,
+  materialVisible, itemMode, withMode, defaultItemTitle, nextLessonMap, resolveHomework,
   nextLessonFor, incomingFor, homeworkFeed,
 } from '../utils/homework';
 
@@ -70,6 +70,19 @@ describe('режим пункта: роль + срок', () => {
     expect(withMode({ type: 'material' }, 'hw').visible).toBe(true);
     expect(withMode({ type: 'material', visible: false }, 'hw-next').visible).toBe(false);
     expect(withMode({ type: 'material' }, 'class').visible).toBeUndefined();
+  });
+
+  it('стандартное название меняется вместе с режимом, своё — остаётся', () => {
+    const s = { type: 'session', id: 's1', title: 'Домашняя работа', role: 'homework' };
+    expect(withMode(s, 'class').title).toBe('Классная работа');
+    expect(withMode(s, 'hw-next').title).toBe('ДЗ к следующему уроку');
+    expect(withMode(withMode(s, 'class'), 'hw').title).toBe('Домашняя работа');
+    expect(withMode({ ...s, title: 'Контрольная №2' }, 'class').title).toBe('Контрольная №2');
+    // Старый пункт: роль «классная», название по умолчанию от ДЗ
+    const legacy = { type: 'session', id: 's2', title: 'Домашняя работа', role: 'class' };
+    expect(withMode(legacy, itemMode(legacy)).title).toBe('Классная работа');
+    expect(defaultItemTitle('class')).toBe('Классная работа');
+    expect(withMode({ type: 'text', text: 'x' }, 'hw')).not.toHaveProperty('title');
   });
 });
 
