@@ -13,6 +13,7 @@
  */
 
 import { parseYamlFrontmatter, parseTags } from './markdownTaskParser';
+import { buildDrawingsPromptSection, checkDrawingBlocks } from './workImportDrawings';
 
 // ── Словари ключей ───────────────────────────────────────────────────────────
 
@@ -241,6 +242,7 @@ function makeTask(number) {
     source: '',
     year: null,
     images: [],
+    drawings: [],
   };
 }
 
@@ -496,6 +498,18 @@ export function parseWorkMarkdown(text) {
       task.images.forEach((img) => { if (!placeholders.includes(img.key)) placeholders.push(img.key); });
 
       const where = `вариант ${variant.number}, задача ${task.number || tIdx + 1}`;
+
+      // Чертежи текстом (```planim / ```stereo): разбираем теми же парсерами,
+      // что рисуют их на сайте, — битая строка молча выпала бы из чертежа.
+      task.drawings = [];
+      for (const [field, label] of [['statement_md', ''], ['solution_md', ' в решении']]) {
+        const { kinds, problems } = checkDrawingBlocks(task[field]);
+        task.drawings.push(...kinds);
+        for (const p of problems) {
+          const at = p.line ? `строка ${p.line} «${p.command}»: ` : '';
+          warnings.push(`Чертёж ${p.kind}${label} (${where}): ${at}${p.message} — строка пропущена, поправьте текст или замените чертёж плейсхолдером`);
+        }
+      }
       if (!task.statement_md.trim()) errors.push(`Пустое условие (${where})`);
       if (!task.answer.trim()) warnings.push(`Нет ответа (${where})`);
       if (!task.topicName) warnings.push(`Не указана тема (${where})`);
@@ -664,8 +678,10 @@ export function buildWorkMarkdown({ work = {}, variants = [], topics = [], subto
  * @param {string} [params.examType] — сузить каталог до одного контекста
  * @param {number} [params.classNumber]
  * @param {number} [params.maxTopics=400]
+ * @param {boolean} [params.drawings=true] — учить модель переносить чертежи
+ *   блоками ```planim/```stereo (workImportDrawings.js); false — только плейсхолдеры
  */
-export function buildAiPrompt({ topics = [], examType = null, classNumber = null, maxTopics = 400 } = {}) {
+export function buildAiPrompt({ topics = [], examType = null, classNumber = null, maxTopics = 400, drawings = true } = {}) {
   const filtered = examType ? topics.filter((t) => t.exam_type === examType) : topics;
   const list = filtered.slice(0, maxTopics).map((t) => {
     const num = t.ege_number ? ` (№${t.ege_number})` : '';
@@ -711,12 +727,15 @@ export function buildAiPrompt({ topics = [], examType = null, classNumber = null
     '1. Метастроки («тема:», «ответ:», «сложность:», «теги:», «баллы:», «часть:») идут СРАЗУ под заголовком задачи и ДО условия. После условия их писать нельзя.',
     '2. Условие — это всё после метастрок до следующего заголовка. В нём можно писать абзацы, списки, таблицы.',
     '3. Формулы — в LaTeX внутри $…$ (KaTeX): дроби \\frac{a}{b}, корни \\sqrt{x}, степени x^{2}, индексы x_{0}. Десятичный разделитель — запятая: $0{,}5$.',
-    '4. Если на листке есть чертёж/график/рисунок — вставь в условие плейсхолдер вида ![](рис1), ![](рис2), нумеруя подряд по всей работе. Сам чертёж описывать словами не нужно.',
+    drawings
+      ? '4. Чертёж/график/рисунок с листка — блоком ```planim/```stereo или плейсхолдером ![](рис1), ![](рис2) (нумерация подряд по всей работе): когда что — в разделе «ЧЕРТЕЖИ». Словами чертёж не описывай.'
+      : '4. Если на листке есть чертёж/график/рисунок — вставь в условие плейсхолдер вида ![](рис1), ![](рис2), нумеруя подряд по всей работе. Сам чертёж описывать словами не нужно.',
     '5. Ничего не выдумывай: нет ответа на листке — не пиши строку «ответ:». Не решай задачи за автора.',
     '6. Сохраняй нумерацию и разбивку на варианты как на листке. Если вариант один — секцию «## Вариант» можно не писать.',
     '7. Если ответы напечатаны общим списком, вынеси их в конец варианта секцией «## Ответы» строками вида «1) 5».',
     '8. Тему бери ТОЛЬКО из списка ниже, копируя название точно. Не подходит ни одна — напиши свою короткую тему, её проверят вручную.',
     '',
+    ...(drawings ? [...buildDrawingsPromptSection(), ''] : []),
     '=== ТЕМЫ В БАЗЕ ===',
     '',
     ...(list.length ? list : ['(список тем не передан — пиши свои короткие названия тем)']),

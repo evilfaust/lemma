@@ -150,6 +150,11 @@ export default function ReviewStep({
                     {row.task.difficulty !== '1' && <Tag>сложность {row.task.difficulty}</Tag>}
                     {row.task.examPart === 2 && <Tag color="purple">часть 2</Tag>}
                     {row.task.images?.length > 0 && <Tag icon={<PictureOutlined />}>{row.task.images.length}</Tag>}
+                    {row.task.drawings?.length > 0 && (
+                      <Tag color="geekblue">
+                        чертёж текстом{row.task.drawings.length > 1 ? ` ×${row.task.drawings.length}` : ''}
+                      </Tag>
+                    )}
                   </Space>
                   <MathRenderer text={row.task.statement_md} />
                   {row.task.solution_md && (

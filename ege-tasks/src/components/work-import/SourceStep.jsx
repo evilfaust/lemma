@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, Button, Card, Input, Modal, Select, Space, Typography, Upload, App } from 'antd';
+import { Alert, Button, Card, Checkbox, Input, Modal, Select, Space, Typography, Upload, App } from 'antd';
 import { CopyOutlined, FileTextOutlined, InboxOutlined, PictureOutlined, RobotOutlined } from '@ant-design/icons';
 import { buildAiPrompt, EXAM_TYPES } from '../../utils/workImportFormat';
 
@@ -41,6 +41,18 @@ const EXAMPLE = `---
 
 Найдите значение производной в точке $x_0=3$.
 
+### 3
+тема: Планиметрия
+ответ: 7
+
+Основания трапеции $ABCD$ равны 10 и 4. Найдите среднюю линию трапеции.
+
+\`\`\`planim
+трапеция ABCD 10 4 4
+длина AD 10
+длина BC 4
+\`\`\`
+
 ## Вариант 2
 
 ### 1
@@ -67,10 +79,11 @@ export default function SourceStep({
 }) {
   const { message } = App.useApp();
   const [promptOpen, setPromptOpen] = useState(false);
+  const [textDrawings, setTextDrawings] = useState(true);
 
   const prompt = useMemo(
-    () => buildAiPrompt({ topics, examType: examTypeHint || null }),
-    [topics, examTypeHint],
+    () => buildAiPrompt({ topics, examType: examTypeHint || null, drawings: textDrawings }),
+    [topics, examTypeHint, textDrawings],
   );
 
   const copyPrompt = async () => {
@@ -109,6 +122,12 @@ export default function SourceStep({
               Листок от руки сначала переводится в текст любой ИИ — нажмите{' '}
               <Text strong>«Промпт для ИИ»</Text>, скопируйте промпт и отправьте его во внешнюю
               модель вместе с фото. В промпт уже вшит список ваших тем.
+            </Paragraph>
+            <Paragraph style={{ marginBottom: 0, marginTop: 8 }}>
+              Простые чертежи — треугольники, трапеции, окружности, клетчатую бумагу, куб,
+              призму, пирамиду — ИИ перерисует командами наших редакторов планиметрии и
+              стереометрии: файл прикладывать не нужно, чертёж потом правится в редакторе.
+              Графики и сложные рисунки остаются картинками.
             </Paragraph>
           </div>
         }
@@ -188,6 +207,13 @@ export default function SourceStep({
         <Paragraph type="secondary">
           Скопируйте текст, вставьте в ИИ вместе с фото листка и верните полученный markdown сюда.
         </Paragraph>
+        <Checkbox
+          checked={textDrawings}
+          onChange={(e) => setTextDrawings(e.target.checked)}
+          style={{ marginBottom: 12 }}
+        >
+          Чертежи текстом — планиметрия и стереометрия (иначе все чертежи — картинками)
+        </Checkbox>
         <TextArea value={prompt} readOnly autoSize={{ minRows: 14, maxRows: 22 }} style={{ fontSize: 12 }} />
       </Modal>
     </Space>
