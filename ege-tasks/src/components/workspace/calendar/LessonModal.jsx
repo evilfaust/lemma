@@ -22,7 +22,9 @@ import {
   ITEM_MODES, itemMode, withMode, defaultItemTitle, materialVisible, isNextDue, nextLessonFor, incomingFor,
   studentFacing as groupFacesStudents,
 } from '../../../utils/homework';
-import { testOption, isTestOption, testIdOf } from '../../../utils/lessonMaterials';
+import {
+  testOption, isTestOption, testIdOf, geoOption, isGeoOption, geoIdOf, parseStudentLink,
+} from '../../../utils/lessonMaterials';
 
 const dayLabel = (l) => (l?.date_plan ? dayjs(l.date_plan).format('D MMM, dd') : '');
 const itemTitle = (m) => m.title || m.text || 'Задание';
@@ -68,7 +70,11 @@ export default function LessonModal({
   const [mcTests, setMcTests] = useState([]);
   const [testSessions, setTestSessions] = useState({}); // testId -> sessions[]
   // show — работа «только условия» (v3.9.306): пункт work_view, ссылка /r/<id>, без выдачи
-  const [hw, setHw] = useState({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
+  // geo — работа по геометрии (v3.9.308): пункт geometry_view, ссылка /w/<id>
+  const EMPTY_HW = { work: undefined, test: undefined, geo: undefined, session: undefined, title: '', mode: 'hw', show: false };
+  const [hw, setHw] = useState(EMPTY_HW);
+  const [geoWorks, setGeoWorks] = useState([]);
+  const geoMap = useMemo(() => new Map(geoWorks.map((w) => [w.id, w.title || 'Работа по геометрии'])), [geoWorks]);
   const testsMap = useMemo(() => new Map(mcTests.map((t) => [t.id, t.title || 'Тест'])), [mcTests]);
   // Название теста, пока список тестов ещё грузится, — из самого урока
   const savedTitle = (id) => (initial?.materials || []).find((m) => m.type === 'mc_test' && m.id === id)?.title || '';
@@ -80,6 +86,13 @@ export default function LessonModal({
       { label: 'Тесты', options: mcTests.map((t) => ({ value: testOption(t.id), label: t.title || 'Тест' })) },
     ];
   }, [works, mcTests]);
+  // Пикер «Задания-ссылки»: ещё и работы по геометрии (только показ условий).
+  // В «Материалы урока» они не идут — там свой тип geometry_work.
+  const hwOptions = useMemo(() => {
+    if (!geoWorks.length) return workAndTestOptions;
+    const base = mcTests.length ? workAndTestOptions : [{ label: 'Работы', options: workAndTestOptions }];
+    return [...base, { label: 'Работы по геометрии', options: geoWorks.map((w) => ({ value: geoOption(w.id), label: w.title || 'Работа по геометрии' })) }];
+  }, [workAndTestOptions, geoWorks, mcTests.length]);
   const [hwBusy, setHwBusy] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [newLink, setNewLink] = useState({ title: '', code: '', mode: 'hw' });
@@ -110,8 +123,16 @@ export default function LessonModal({
       setFileMaterials(all.filter((m) => m.type === 'material'));
       // Стандартное название — по режиму: до v3.9.300 классная работа
       // сохранялась под названием «Домашняя работа».
-      // Задания-ссылки: выдачи и работы «только условия» (work_view) — одним списком
-      setSessionItems(all.filter((m) => m.type === 'session' || m.type === 'work_view').map((m) => withMode(m, itemMode(m))));
+      // Задания-ссылки: выдачи и работы «только условия» (work_view, geometry_view)
+      // одним списком. Ссылка /w/… или /r/…, сохранённая до v3.9.308 как выдача,
+      // становится показом — при сохранении урок исправится.
+      setSessionItems(all
+        .filter((m) => m.type === 'session' || m.type === 'work_view' || m.type === 'geometry_view')
+        .map((m) => {
+          const link = m.type === 'session' ? parseStudentLink(m.id) : null;
+          return link && link.type !== 'session' ? { ...m, type: link.type, id: link.id } : m;
+        })
+        .map((m) => withMode(m, itemMode(m))));
       setTextItems(all.filter((m) => m.type === 'text'));
       setGeoItems(all.filter((m) => m.type === 'geometry_work'));
       const ts = initial?.time_slot || '';
@@ -132,7 +153,7 @@ export default function LessonModal({
     setNewLink({ title: '', code: '', mode: 'hw' });
     setNewText('');
     setTextMode('hw');
-    setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
+    setHw(EMPTY_HW);
     setManualMode(false);
   }, [open, initial]);
 
@@ -144,6 +165,16 @@ export default function LessonModal({
       .catch(() => { if (!cancelled) setMcTests([]); });
     return () => { cancelled = true; };
   }, [open]);
+
+  // Работы по геометрии — для пикера заданий ученикам (только у групп, которые их видят)
+  useEffect(() => {
+    let cancelled = false;
+    if (!open || !studentFacing) return undefined;
+    api.getGeometryWorksLight()
+      .then((list) => { if (!cancelled) setGeoWorks(list || []); })
+      .catch(() => { if (!cancelled) setGeoWorks([]); });
+    return () => { cancelled = true; };
+  }, [open, studentFacing]);
 
   // Уроки того же класса вокруг этого: куда уйдёт ДЗ «к следующему» и что
   // задали к этому уроку раньше. Окно — от даты урока при открытии.
@@ -264,12 +295,6 @@ export default function LessonModal({
     });
   };
 
-  // Извлечь код сессии из ссылки или взять как есть (15-символьный id).
-  const parseSessionCode = (raw) => {
-    const s = (raw || '').trim();
-    const m = s.match(/\/student\/([a-z0-9]{6,})/i);
-    return m ? m[1] : s;
-  };
   // Одна выдача в уроке — один пункт: дубль давал ученику две одинаковые кнопки «Решать».
   const hasSession = (id, type = 'session') => {
     if (!sessionItems.some((x) => x.id === id && (x.type || 'session') === type)) return false;
@@ -279,8 +304,16 @@ export default function LessonModal({
   // Без введённого названия — название выдачи, которое ученик видит в самой
   // работе, иначе стандартное по режиму («Классная работа» / «Домашняя работа»).
   const addSessionItem = async () => {
-    const id = parseSessionCode(newLink.code);
-    if (!id || hasSession(id)) return;
+    const link = parseStudentLink(newLink.code);
+    if (!link) { message.warning('Не похоже на ссылку ученику или код выдачи'); return; }
+    // /r/<id> и /w/<id> — показ условий, а не выдача: без сессии
+    if (link.type !== 'session') {
+      const ok = await addViewItem({ type: link.type, id: link.id, title: (newLink.title || '').trim(), mode: newLink.mode });
+      if (ok) setNewLink({ title: '', code: '', mode: 'hw' });
+      return;
+    }
+    const { id } = link;
+    if (hasSession(id)) return;
     let title = (newLink.title || '').trim();
     if (!title) {
       const sess = await api.getSession(id);
@@ -301,42 +334,59 @@ export default function LessonModal({
   // Выбор работы из списка. Если у работы уже есть сессия — берём её; иначе
   // сессия будет выдана при нажатии «Добавить».
   const selectHwWork = (value) => {
+    if (isGeoOption(value)) {
+      const id = geoIdOf(value);
+      setHw((s) => ({ ...s, work: undefined, test: undefined, geo: id, session: undefined, title: geoMap.get(id) || '', show: true }));
+      return;
+    }
     if (isTestOption(value)) {
       const testId = testIdOf(value);
       const sess = testSessions[testId] || [];
-      setHw((s) => ({ ...s, work: undefined, test: testId, session: sess[0]?.id, title: testsMap.get(testId) || '', show: false }));
+      setHw((s) => ({ ...s, work: undefined, test: testId, geo: undefined, session: sess[0]?.id, title: testsMap.get(testId) || '', show: false }));
       return;
     }
     const sess = workSessions[value] || [];
-    setHw((s) => ({ ...s, work: value, test: undefined, session: sess[0]?.id, title: worksMap.get(value) || '' }));
+    setHw((s) => ({ ...s, work: value, test: undefined, geo: undefined, session: sess[0]?.id, title: worksMap.get(value) || '', show: s.geo ? false : s.show }));
   };
-  const hwValue = hw.test ? testOption(hw.test) : hw.work;
+  const hwValue = hw.geo ? geoOption(hw.geo) : hw.test ? testOption(hw.test) : hw.work;
   const hwSessions = hw.test ? (testSessions[hw.test] || []) : (workSessions[hw.work] || []);
-  const hwSourceTitle = hw.test ? testsMap.get(hw.test) : worksMap.get(hw.work);
-  // «Только условия»: в урок кладётся сама работа (work_view), выдача не
-  // создаётся; закрытой работе показ открывается (иначе ученик увидит
-  // «Работа недоступна»), классы показа не трогаются.
-  const addShowItem = async () => {
-    if (hasSession(hw.work, 'work_view')) return;
-    const title = (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode);
+  const hwSourceTitle = hw.geo ? geoMap.get(hw.geo) : hw.test ? testsMap.get(hw.test) : worksMap.get(hw.work);
+  // «Только условия»: в урок кладётся сама работа — обычная (work_view, /r/)
+  // или по геометрии (geometry_view, /w/), выдача не создаётся. Закрытой
+  // работе показ открывается (иначе ученик увидит «Работа недоступна»),
+  // классы показа не трогаются. → false, если пункт уже есть.
+  const addViewItem = async ({ type, id, title, mode }) => {
+    if (hasSession(id, type)) return false;
+    const geo = type === 'geometry_view';
+    let name = title;
     try {
-      const w = await api.getWork(hw.work);
-      if (w && !w.show_open) {
-        await api.setWorkShowSharing(hw.work, { open: true, groups: w.show_groups || [] });
+      const w = geo ? await api.getGeometryWork(id) : await api.getWork(id);
+      if (!name) name = (w?.title || '').trim();
+      if (w && geo && !w.public) {
+        await api.setGeometryWorkSharing(id, { public: true, groups: w.groups || [] });
+        message.info('Работа по геометрии открыта ученикам по ссылке');
+      } else if (w && !geo && !w.show_open) {
+        await api.setWorkShowSharing(id, { open: true, groups: w.show_groups || [] });
         message.info('Условия работы открыты ученикам по ссылке');
       }
     } catch (e) {
-      message.warning(`Не удалось открыть условия работы: ${e?.message || 'ошибка'}. Откройте их в «Моих работах» → «Показ условий».`);
+      message.warning(`Не удалось открыть работу ученикам: ${e?.message || 'ошибка'}. Откройте её вручную (${geo ? 'редактор работы → «Ученикам»' : '«Мои работы» → «Показ условий»'}).`);
     }
     setSessionItems((prev) => [
       ...prev,
-      withMode({ type: 'work_view', id: hw.work, title, visible: true }, hw.mode),
+      withMode({ type, id, title: name || (geo ? 'Работа по геометрии' : defaultItemTitle(mode)), visible: true }, mode),
     ]);
-    setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
+    return true;
+  };
+  const addShowItem = async () => {
+    const type = hw.geo ? 'geometry_view' : 'work_view';
+    const id = hw.geo || hw.work;
+    const title = (hw.title || '').trim() || hwSourceTitle || '';
+    if (await addViewItem({ type, id, title, mode: hw.mode })) setHw(EMPTY_HW);
   };
   const addHwFromWork = async () => {
-    if (!hw.work && !hw.test) return;
-    if (hw.show && hw.work) {
+    if (!hw.work && !hw.test && !hw.geo) return;
+    if (hw.geo || (hw.show && hw.work)) {
       setHwBusy(true);
       try { await addShowItem(); } finally { setHwBusy(false); }
       return;
@@ -362,7 +412,7 @@ export default function LessonModal({
         ...prev,
         withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode), visible: true }, hw.mode),
       ]));
-      setHw({ work: undefined, test: undefined, session: undefined, title: '', mode: 'hw', show: false });
+      setHw(EMPTY_HW);
     } catch (e) {
       console.error('addHwFromWork', e?.message);
     } finally {
@@ -659,11 +709,11 @@ export default function LessonModal({
             <Space direction="vertical" size={2} style={{ width: '100%', margin: '4px 0' }}>
               {sessionItems.map((it, idx) => (
                 <Space key={`${it.id}-${idx}`} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                  {it.type === 'work_view' ? (
+                  {it.type === 'work_view' || it.type === 'geometry_view' ? (
                     <span>
                       <ReadOutlined /> {it.title}{' '}
-                      <Tag color="geekblue" style={{ margin: 0 }}>только условия</Tag>{' '}
-                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>/r/{it.id}</Typography.Text>
+                      <Tag color="geekblue" style={{ margin: 0 }}>{it.type === 'geometry_view' ? 'геометрия · только условия' : 'только условия'}</Tag>{' '}
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>/{it.type === 'geometry_view' ? 'w' : 'r'}/{it.id}</Typography.Text>
                     </span>
                   ) : (
                     <span>
@@ -694,7 +744,7 @@ export default function LessonModal({
                   value={hwValue}
                   onChange={selectHwWork}
                   notFoundContent="Нет работ"
-                  options={workAndTestOptions}
+                  options={hwOptions}
                 />
                 <Select
                   style={{ width: 120 }}
@@ -702,7 +752,7 @@ export default function LessonModal({
                   onChange={(v) => setHw((s) => ({ ...s, mode: v }))}
                   options={ITEM_MODES}
                 />
-                <Button type="primary" icon={<PlusOutlined />} onClick={addHwFromWork} disabled={!hw.work && !hw.test} loading={hwBusy}>
+                <Button type="primary" icon={<PlusOutlined />} onClick={addHwFromWork} disabled={!hw.work && !hw.test && !hw.geo} loading={hwBusy}>
                   Добавить
                 </Button>
               </Space.Compact>
@@ -718,13 +768,19 @@ export default function LessonModal({
                   ]}
                 />
               )}
+              {hw.geo && (
+                <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
+                  Работа по геометрии: ученик увидит условия и чертежи (объёмные можно крутить) —
+                  без ответов, решает в тетради. Выдача не создаётся.
+                </Typography.Text>
+              )}
               {hw.work && hw.show && (
                 <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
                   Ученик увидит только условия — без поля ответа и без результатов, решает в тетради.
                   Выдача не создаётся.
                 </Typography.Text>
               )}
-              {hwValue && !hw.show && hwSessions.length > 1 && (
+              {hwValue && !hw.show && !hw.geo && hwSessions.length > 1 && (
                 <Select
                   size="small"
                   style={{ width: '100%', marginTop: 6 }}
@@ -736,13 +792,13 @@ export default function LessonModal({
                   }))}
                 />
               )}
-              {hwValue && !hw.show && !hwSessions.length && (
+              {hwValue && !hw.show && !hw.geo && !hwSessions.length && (
                 <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
                   {hw.test ? 'У этого теста' : 'У этой работы'} ещё нет выдачи — при добавлении она будет автоматически выдана (откроется доступ по ссылке).
                 </Typography.Text>
               )}
               <Typography.Link style={{ fontSize: 11 }} onClick={() => setManualMode(true)}>
-                или вставить код сессии вручную
+                или вставить ссылку вручную (выдача, /r/… или /w/…)
               </Typography.Link>
             </div>
           )}
@@ -757,7 +813,7 @@ export default function LessonModal({
                 />
                 <Input
                   style={{ width: '36%' }}
-                  placeholder="Код сессии или /student/..."
+                  placeholder="Ссылка ученику или код выдачи"
                   value={newLink.code}
                   onChange={(e) => setNewLink((s) => ({ ...s, code: e.target.value }))}
                   onPressEnter={addSessionItem}

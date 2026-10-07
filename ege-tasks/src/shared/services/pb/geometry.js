@@ -231,6 +231,16 @@ export const geometryApi = {
     });
   },
 
+  // Лёгкий список для пикеров (урок): без structure/print.
+  async getGeometryWorksLight() {
+    return pb.collection('geometry_works').getFullList({
+      sort: '-updated',
+      filter: andOwner(),
+      fields: 'id,title,class,public,groups',
+      requestKey: null,
+    });
+  },
+
   async getGeometryWork(id) {
     return pb.collection('geometry_works').getOne(id);
   },

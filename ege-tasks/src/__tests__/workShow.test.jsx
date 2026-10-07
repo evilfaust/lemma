@@ -42,7 +42,9 @@ import { _resetStereoGroups } from '../components/stereo/StereoGroupsSelect';
 // eslint-disable-next-line import/first
 import { worksApi } from '../shared/services/pb/works';
 // eslint-disable-next-line import/first
-import { OPENABLE_TYPES, materialPath } from '../utils/lessonMaterials';
+import {
+  OPENABLE_TYPES, materialPath, parseStudentLink, geoOption, isGeoOption, geoIdOf,
+} from '../utils/lessonMaterials';
 
 const require = createRequire(import.meta.url);
 const lessonsLib = require('../../../pocketbase/pb_hooks/lessons_feed_lib.js');
@@ -220,6 +222,50 @@ describe('кабинет ученика и уроки', () => {
   it('учителю work_view открывается в редакторе работы', () => {
     expect(OPENABLE_TYPES.has('work_view')).toBe(true);
     expect(materialPath(WID, 'work_view')).toBe(`/app/works/${WID}/edit`);
+  });
+});
+
+describe('урок: работы по геометрии и вставленные ссылки (v3.9.308)', () => {
+  const GID = 'hczrqwf3w4j5x4p';
+
+  it('ссылка ученику разбирается по виду', () => {
+    expect(parseStudentLink(`https://student.oipav.ru/w/${GID}`)).toEqual({ type: 'geometry_view', id: GID });
+    expect(parseStudentLink(`student.oipav.ru/w/${GID}?v=2`)).toEqual({ type: 'geometry_view', id: GID });
+    expect(parseStudentLink(`https://student.oipav.ru/r/${WID}`)).toEqual({ type: 'work_view', id: WID });
+    expect(parseStudentLink(`/student/r/${WID}`)).toEqual({ type: 'work_view', id: WID });
+    expect(parseStudentLink(`https://student.oipav.ru/student/${WID}`)).toEqual({ type: 'session', id: WID });
+    expect(parseStudentLink(WID)).toEqual({ type: 'session', id: WID });
+    expect(parseStudentLink('просто текст')).toBeNull();
+    expect(parseStudentLink('')).toBeNull();
+  });
+
+  it('значение пикера и адрес у учителя', () => {
+    expect(isGeoOption(geoOption(GID))).toBe(true);
+    expect(isGeoOption(WID)).toBe(false);
+    expect(geoIdOf(geoOption(GID))).toBe(GID);
+    expect(OPENABLE_TYPES.has('geometry_view')).toBe(true);
+    expect(materialPath(GID, 'geometry_view')).toBe(`/app/geometry/works/${GID}`);
+  });
+
+  it('ученику geometry_view — пункт show с пометкой geometry', () => {
+    const out = lessonsLib.projectItems([
+      { type: 'geometry_view', id: GID, title: 'Зачёт', role: 'class' },
+      { type: 'geometry_work', id: GID, title: 'Учительская' },
+    ], false);
+    expect(out).toEqual([{ kind: 'show', role: 'class', due: 'lesson', title: 'Зачёт', work_id: GID, geometry: true }]);
+  });
+
+  it('старый пункт: ссылка /w/ и /r/, сохранённая как выдача, читается как показ', () => {
+    const out = lessonsLib.projectItems([
+      { type: 'session', id: `https://student.oipav.ru/w/${GID}`, title: 'Классная работа', role: 'class', visible: true },
+      { type: 'session', id: `https://student.oipav.ru/r/${WID}?v=1`, title: 'ДЗ', role: 'homework' },
+      { type: 'session', id: 'abcdefghij12345', title: 'Тест' },
+    ], false);
+    expect(out).toEqual([
+      { kind: 'show', role: 'class', due: 'lesson', title: 'Классная работа', work_id: GID, geometry: true },
+      { kind: 'show', role: 'homework', due: 'lesson', title: 'ДЗ', work_id: WID },
+      { kind: 'work', role: 'class', due: 'lesson', title: 'Тест', session_id: 'abcdefghij12345' },
+    ]);
   });
 });
 

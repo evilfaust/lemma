@@ -83,12 +83,13 @@ function ItemRow({ item, meta }) {
       </div>
     );
   } else if (item.kind === 'show') {
-    // Работа в режиме показа (v3.9.306): только условия, решают в тетради
+    // Работа в режиме показа (v3.9.306): только условия, решают в тетради.
+    // geometry — работа по геометрии (/w/<id>, v3.9.308), иначе обычная (/r/<id>).
     body = (
       <div className="sc-item">
         <span className="sc-item-title"><ReadOutlined /> {item.title || 'Задания'}</span>
         {item.work_id
-          ? <Button size="small" className="sc-btn" href={`/student/r/${item.work_id}`}>Открыть</Button>
+          ? <Button size="small" className="sc-btn" href={`/student/${item.geometry ? 'w' : 'r'}/${item.work_id}`}>Открыть</Button>
           : <span className="sc-item-muted">ссылка не задана</span>}
       </div>
     );

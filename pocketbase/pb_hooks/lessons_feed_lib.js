@@ -29,10 +29,22 @@ function dueOf(m) {
 // 'work'), геометрические работы и всё незнакомое ученику не уходят.
 // 'work_view' (v3.9.306) — работа в режиме показа условий: ученику ссылка
 // /r/<id> (только условия, без выдачи), id — сама работа.
+// 'geometry_view' (v3.9.308) — то же для работы по геометрии: /w/<id>.
+// До v3.9.308 ссылку /w/<id> или /r/<id>, вставленную «кодом сессии вручную»,
+// урок хранил как выдачу (type 'session', id = вся ссылка) — ученик получал
+// «сессия не открыта». Такой пункт читаем как показ условий.
+function viewOfSessionLink(m) {
+  const hit = /\/([rw])\/([a-z0-9]{15})(?:[/?#]|$)/i.exec(String((m && m.id) || ''));
+  if (!hit) return null;
+  return { type: hit[1].toLowerCase() === 'w' ? 'geometry_view' : 'work_view', id: hit[2].toLowerCase() };
+}
+
 function projectItems(materials, isCourse) {
   const arr = Array.isArray(materials) ? materials : [];
   const out = [];
-  for (const m of arr) {
+  for (const raw of arr) {
+    const fix = raw && raw.type === 'session' ? viewOfSessionLink(raw) : null;
+    const m = fix ? Object.assign({}, raw, fix) : raw;
     if (!materialVisible(m, isCourse)) continue;
     const role = m.role === 'homework' ? 'homework' : 'class';
     const due = dueOf(m);
@@ -42,6 +54,8 @@ function projectItems(materials, isCourse) {
       out.push({ kind: 'work', role, due, title: m.title || 'Работа', session_id: m.id || '' });
     } else if (m.type === 'work_view') {
       out.push({ kind: 'show', role, due, title: m.title || 'Задания', work_id: m.id || '' });
+    } else if (m.type === 'geometry_view') {
+      out.push({ kind: 'show', role, due, title: m.title || 'Работа по геометрии', work_id: m.id || '', geometry: true });
     } else if (m.type === 'text') {
       out.push({ kind: 'text', role, due, title: m.title || '', description: m.text || '' });
     }
@@ -55,4 +69,4 @@ function pbDate(d) {
   return new Date(d).toISOString().replace('T', ' ');
 }
 
-module.exports = { materialVisible, dueOf, projectItems, pbDate };
+module.exports = { materialVisible, dueOf, projectItems, pbDate, viewOfSessionLink };

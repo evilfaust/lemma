@@ -5,7 +5,7 @@ import {
   incomingFor, isNextDue, materialVisible, nextLessonFor, studentFacing,
 } from '../../../utils/homework';
 
-const HW_TYPES = new Set(['material', 'session', 'text', 'work_view']);
+const HW_TYPES = new Set(['material', 'session', 'text', 'work_view', 'geometry_view']);
 
 /**
  * ДЗ сохранённого урока для карточки урока (v3.9.293): что задано на нём, к
