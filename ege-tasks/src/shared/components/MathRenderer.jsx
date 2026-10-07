@@ -67,10 +67,13 @@ function preprocessLatex(text) {
 
 // strict: 'ignore' — пропускать неизвестные символы без warnings в консоль.
 // trust: true — разрешает \textcolor и подобные команды (плейсхолдеры маршрут. листов).
+// `\gap{…}` — пропуск ТДФ (utils/tdfMarkup.js раскрывает его до рендера); если
+// текст пункта попал сюда без обработки, формула покажет содержимое, а не ошибку.
 const rehypeKatexOptions = {
   strict: 'ignore',
   trust: true,
   throwOnError: false,
+  macros: { '\\gap': '{#1}' },
 };
 
 /**

@@ -6,10 +6,11 @@ import {
 import {
   ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
   PrinterOutlined, HolderOutlined, UnorderedListOutlined, CopyOutlined,
-  KeyOutlined,
+  KeyOutlined, ProfileOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import TDFPrintView from './TDFPrintView';
+import TDFSheetFlow from './TDFSheetFlow';
 import { WorkspacePageHeader, EmptyState, Chip } from '../workspace/ui';
 import { tdfTypeShort, tdfTypeTone, tdfTypeLabel } from './tdfTypes';
 import './tdf.css';
@@ -171,6 +172,17 @@ export default function TDFVariantBuilder({ setId, onBack }) {
   if (printTarget) {
     const { variant, mode } = printTarget;
     const variantItems = (variant.item_ids || []).map(id => itemById[id]).filter(Boolean);
+    if (mode === 'sheet') {
+      return (
+        <TDFSheetFlow
+          tdfSet={tdfSet}
+          items={variantItems}
+          variantNumber={variant.number}
+          variantTitle={variant.title}
+          onBack={() => setPrintTarget(null)}
+        />
+      );
+    }
     return (
       <TDFPrintView
         tdfSet={tdfSet}
@@ -244,6 +256,11 @@ export default function TDFVariantBuilder({ setId, onBack }) {
                     <Button size="small" icon={<PrinterOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'blank' })}>
                       Бланк ученику
                     </Button>
+                    <Tooltip title="Лист потоком на A4: эталон, с пропусками или только заголовки с местом для записи">
+                      <Button size="small" icon={<ProfileOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'sheet' })}>
+                        Лист
+                      </Button>
+                    </Tooltip>
                     <Tooltip title="Тот же состав с формулировками и чертежами — по нему учитель проверяет ответы">
                       <Button size="small" icon={<KeyOutlined />} onClick={() => setPrintTarget({ variant: v, mode: 'key' })}>
                         Ключ

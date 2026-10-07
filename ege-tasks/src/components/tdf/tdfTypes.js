@@ -18,6 +18,12 @@ export const TDF_TYPES = [
   { value: 'criterion',        label: 'Признак',       short: 'Призн.', tone: 'blue'    },
   { value: 'corollary',        label: 'Следствие',     short: 'Следс.', tone: 'neutral' },
   { value: 'geometry_formula', label: 'Геом. формула', short: 'Геом.',  tone: 'violet'  },
+  // Алгебраические листы (v3.9.308): тождества, графики функций, таблицы
+  // значений и задания на соответствие — разметка в `utils/tdfMarkup.js`.
+  { value: 'identity',         label: 'Тождество',     short: 'Тожд.',  tone: 'teal'    },
+  { value: 'graph',            label: 'График',        short: 'Граф.',  tone: 'amber'   },
+  { value: 'table',            label: 'Таблица',       short: 'Табл.',  tone: 'neutral' },
+  { value: 'matching',         label: 'Соответствие',  short: 'Соотв.', tone: 'rose'    },
 ];
 
 /** Все значения типа — порядок тот же, что в TDF_TYPES (он же порядок легенды). */

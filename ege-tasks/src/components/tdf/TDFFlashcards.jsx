@@ -4,7 +4,7 @@ import {
   ArrowLeftOutlined, CheckOutlined, CloseOutlined, RedoOutlined, SettingOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
-import MathRenderer from '../../shared/components/MathRenderer';
+import TdfText from './TdfText';
 import { Chip, EmptyState } from '../workspace/ui';
 import { TDF_TYPES, TDF_TYPE_VALUES, tdfTypeLabel, tdfTypeTone } from './tdfTypes';
 import { shuffleArray } from '../../utils/shuffle';
@@ -40,6 +40,10 @@ const ASK_LABEL = {
   criterion: 'Сформулируйте признак',
   corollary: 'Сформулируйте следствие',
   geometry_formula: 'Запишите формулу',
+  identity: 'Запишите тождество',
+  graph: 'Постройте график',
+  table: 'Заполните таблицу',
+  matching: 'Установите соответствие',
 };
 
 /**
@@ -91,8 +95,8 @@ function FlashCard({ item, mode, isFlipped, onFlip }) {
             {question.kind === 'drawing' && (
               <img src={drawingUrl} alt="чертёж" className="tdf-flashcard-figure" />
             )}
-            {question.kind === 'notation' && <MathRenderer content={question.value} />}
-            {question.kind === 'md' && <MathRenderer content={question.value} />}
+            {question.kind === 'notation' && <TdfText md={question.value} seed={item.id} />}
+            {question.kind === 'md' && <TdfText md={question.value} seed={item.id} />}
             {question.kind === 'name' && <span className="tdf-flashcard-title">{question.value || '—'}</span>}
           </div>
 
@@ -108,14 +112,14 @@ function FlashCard({ item, mode, isFlipped, onFlip }) {
 
           <div className="tdf-flashcard-content">
             {item.formulation_md
-              ? <MathRenderer content={item.formulation_md} />
+              ? <TdfText md={item.formulation_md} seed={item.id} />
               : <Typography.Text type="secondary">Формулировка не заполнена</Typography.Text>}
           </div>
 
           {item.short_notation_md && (
             <div className="tdf-flashcard-notation">
               <div className="tdf-flashcard-label">Краткая запись</div>
-              <MathRenderer content={item.short_notation_md} />
+              <TdfText md={item.short_notation_md} seed={item.id} />
             </div>
           )}
 

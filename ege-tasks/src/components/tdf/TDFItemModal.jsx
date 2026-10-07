@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Modal, Form, Input, Select, Switch, Tabs, Button, Space, Upload, message,
-  Divider, Typography, Alert,
+  Divider, Typography, Alert, Segmented,
 } from 'antd';
 import {
   UploadOutlined, DeleteOutlined, ScissorOutlined,
@@ -11,8 +11,14 @@ import CropModal from '../shared/CropModal';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
 import GeoGebraApplet from '../GeoGebraApplet';
+import LatexField from '../shared/LatexField';
+import useFieldInserts from '../../hooks/useFieldInserts';
 import { dataUrlToFile } from '../../utils/cropImage';
+import { tdfHasGaps } from '../../utils/tdfMarkup';
 import { TDF_TYPE_OPTIONS } from './tdfTypes';
+import TdfText from './TdfText';
+import MathText from '../shared/MathText';
+import TDFMarkupToolbar from './TDFMarkupToolbar';
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -60,6 +66,19 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
   // Preview
   const [formulationPreview, setFormulationPreview] = useState('');
   const [notationPreview, setNotationPreview]       = useState('');
+
+  const [previewMode, setPreviewMode] = useState('etalon');
+  const formulationRef = useRef(null);
+  const notationRef = useRef(null);
+  // Вставки в поля пункта: разметка ТДФ + общие конструкторы (график,
+  // таблица, числовая прямая, планиметрия) — тот же хук, что у задач.
+  const inserts = useFieldInserts({
+    form,
+    fields: {
+      formulation_md: { ref: formulationRef, setPreview: setFormulationPreview },
+      short_notation_md: { ref: notationRef, setPreview: setNotationPreview },
+    },
+  });
 
   const [activeTab, setActiveTab] = useState('fields');
   const [drawingSubTab, setDrawingSubTab] = useState('prep');
@@ -458,13 +477,52 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
     </div>
   );
 
+  // ── Живой предпросмотр пункта (эталон / с пропусками) ─────────────────────
+  const showLivePreview = !isSectionHeader && !isGeoFormula;
+  const nameValue = Form.useWatch('name', form);
+  const hasGaps = tdfHasGaps(formulationPreview) || tdfHasGaps(notationPreview);
+  const livePreview = (
+    <div className="tdf-item-grid__preview">
+      <div className="tdf-item-preview__bar">
+        <Segmented
+          size="small"
+          value={previewMode}
+          onChange={setPreviewMode}
+          options={[{ value: 'etalon', label: 'Эталон' }, { value: 'gaps', label: 'С пропусками' }]}
+        />
+        <Text type="secondary" style={{ fontSize: 12 }}>как на «Листе»</Text>
+      </div>
+      <div className="tdf-item-preview__sheet">
+        {nameValue && <div className="tdf-item-preview__name"><MathText text={nameValue} /></div>}
+        {formulationPreview
+          ? <TdfText md={formulationPreview} mode={previewMode} seed={item?.id || ''} />
+          : <Text type="secondary">Формулировка появится здесь</Text>}
+        {notationPreview && (
+          <div style={{ marginTop: 8 }}>
+            <TdfText md={notationPreview} mode={previewMode} seed={item?.id || ''} />
+          </div>
+        )}
+      </div>
+      {previewMode === 'gaps' && !hasGaps && (formulationPreview || notationPreview) && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginTop: 8 }}
+          message="В пункте нет пропусков"
+          description="На «Листе с пропусками» он напечатается целиком или местом для записи — как выбрано в настройках листа. Выделите слово и нажмите «Пропуск [[ ]]»."
+        />
+      )}
+    </div>
+  );
+
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const tabItems = [
     {
       key: 'fields',
       label: 'Поля',
       children: (
-        <>
+        <div className={showLivePreview ? 'tdf-item-grid' : undefined}>
+        <div className="tdf-item-grid__form">
           <Form.Item name="is_section_header" valuePropName="checked" label="Тип строки">
             <Switch
               checked={isSectionHeader}
@@ -512,21 +570,37 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
                 </>
               ) : (
                 <>
-                  <Form.Item name="formulation_md" label="Формулировка">
-                    <TextArea rows={6}
+                  <TDFMarkupToolbar inserts={inserts} form={form} field="formulation_md" />
+                  <Form.Item
+                    name="formulation_md"
+                    label="Формулировка"
+                    extra="LaTeX: $x^2$. Пропуск для листа — [[слово]] (и внутри формулы). Блоки ```свойства, ```соответствие, ```plot пропуск — кнопками выше."
+                  >
+                    <LatexField
+                      ref={formulationRef}
+                      rows={8}
                       placeholder="Полная формулировка теоремы/определения. Поддерживается LaTeX: $x^2$"
-                      onChange={e => setFormulationPreview(e.target.value)} />
+                      onTextChange={setFormulationPreview}
+                      onCaret={inserts.onCaret('formulation_md')}
+                    />
                   </Form.Item>
+                  <TDFMarkupToolbar inserts={inserts} form={form} field="short_notation_md" />
                   <Form.Item name="short_notation_md" label="Краткая запись">
-                    <TextArea rows={2}
+                    <LatexField
+                      ref={notationRef}
+                      rows={3}
                       placeholder="Символьная запись. Например: $\angle 1 = \angle 2 \Rightarrow a \parallel b$"
-                      onChange={e => setNotationPreview(e.target.value)} />
+                      onTextChange={setNotationPreview}
+                      onCaret={inserts.onCaret('short_notation_md')}
+                    />
                   </Form.Item>
                 </>
               )}
             </>
           )}
-        </>
+        </div>
+        {showLivePreview && livePreview}
+        </div>
       ),
     },
     {
@@ -581,7 +655,7 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
               <tbody>
                 <tr>
                   <td style={{ border: '1px solid #d9d9d9', padding: '8px 10px', verticalAlign: 'top' }}>
-                    <MathRenderer content={formulationPreview} />
+                    <TdfText md={formulationPreview} seed={item?.id || ''} />
                   </td>
                   <td style={{ border: '1px solid #d9d9d9', padding: '8px 10px', verticalAlign: 'top', textAlign: 'center' }}>
                     {drawingDataUrl
@@ -589,7 +663,7 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
                       : <Text type="secondary">—</Text>}
                   </td>
                   <td style={{ border: '1px solid #d9d9d9', padding: '8px 10px', verticalAlign: 'top' }}>
-                    <MathRenderer content={notationPreview} />
+                    <TdfText md={notationPreview} seed={item?.id || ''} />
                   </td>
                 </tr>
               </tbody>
@@ -618,6 +692,7 @@ export default function TDFItemModal({ open, item, setId, onClose, onSaved, next
       <Form form={form} layout="vertical">
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} style={{ height: '100%' }} />
       </Form>
+      {inserts.modals}
     </Modal>
   );
 }

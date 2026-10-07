@@ -273,3 +273,45 @@
   .tdf-row__aside  { grid-area: aside; }
   .tdf-row__actions { grid-area: actions; }
 }
+
+/* ── Редактор пункта: поля слева, живой предпросмотр справа (v3.9.308) ──── */
+
+.tdf-item-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.9fr);
+  gap: 20px;
+  align-items: start;
+}
+.tdf-item-grid__form { min-width: 0; }
+.tdf-item-grid__preview {
+  position: sticky;
+  top: 0;
+  min-width: 0;
+}
+.tdf-item-preview__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+/* Кусок листа: белая бумага, чёрный текст, кегль печати */
+.tdf-item-preview__sheet {
+  background: #fff;
+  border: 1px solid var(--lemma-border, #D5D7DD);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.4;
+  color: #000;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
+.tdf-item-preview__name { font-weight: 600; margin-bottom: 6px; }
+.tdf-item-preview__sheet .mr-figure svg { max-width: 100%; height: auto; }
+.tdf-item-preview__sheet .katex-display,
+.tdf-item-preview__sheet .katex-display > .katex { text-align: left; }
+
+@media (max-width: 1100px) {
+  .tdf-item-grid { grid-template-columns: minmax(0, 1fr); }
+  .tdf-item-grid__preview { position: static; }
+}

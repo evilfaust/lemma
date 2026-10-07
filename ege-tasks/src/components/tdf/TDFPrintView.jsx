@@ -3,6 +3,7 @@ import { Button, Space } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
+import TdfText from './TdfText';
 import PrintFill from '../shared/PrintFill';
 import TDFSheetSettings from './TDFSheetSettings';
 import { tdfTypeShort } from './tdfTypes';
@@ -289,7 +290,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
                 <div className="tdfp-name">{item.name || '—'}</div>
                 <div className="tdfp-text">
                   {item.formulation_md
-                    ? <MathRenderer content={item.formulation_md} />
+                    ? <TdfText md={item.formulation_md} seed={item.id} />
                     : <span className="tdfp-empty">—</span>}
                 </div>
               </>
@@ -318,7 +319,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
               : (
                 <div className="tdfp-text">
                   {item.short_notation_md
-                    ? <MathRenderer content={item.short_notation_md} />
+                    ? <TdfText md={item.short_notation_md} seed={item.id} />
                     : <span className="tdfp-empty">—</span>}
                 </div>
               )}
@@ -381,7 +382,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
                     </div>
                   )}
                   {showFormula && item.short_notation_md ? (
-                    <div className="tdfp-text"><MathRenderer content={item.short_notation_md} /></div>
+                    <div className="tdfp-text"><TdfText md={item.short_notation_md} seed={item.id} /></div>
                   ) : (
                     formulas.map((f, idx) => (
                       <div key={idx} className="tdfp-strip__row">

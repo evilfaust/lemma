@@ -1,0 +1,245 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ТДФ — «Лист»: пункты потоком на A4 книжном (эталон / с пропусками /
+   только заголовки). Оформление — язык движка `print-sheet`: только чёрная
+   краска, миллиметры, иерархия кеглем и толщиной линий.
+
+   🚨 Поля и ширина продублированы в `utils/tdfFlowSheet.js` (+ PAD/PAGE из
+   `utils/tdfSheet.js`). Меняешь одно — меняй оба, иначе пагинация разъедется.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.tdfs-root {
+  --tdfs-ink: #000000;
+  --tdfs-pad-x: 8mm;
+  --tdfs-pad-top: 7mm;
+  --tdfs-pad-bot: 6mm;
+  --tdfs-indent: 9mm;      /* отступ текста пункта под номером */
+
+  color: var(--tdfs-ink);
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--tdfs-pt, 12pt);
+  line-height: 1.35;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  min-height: 100vh;
+  background: #E9EAEE;
+  padding-bottom: 24px;
+}
+.tdfs-root--serif .tdfs-page,
+.tdfs-root--serif .tdfs-measure {
+  font-family: 'Latin Modern Roman', 'CMU Serif', Georgia, 'Times New Roman', serif;
+}
+
+/* ── Экранная панель ──────────────────────────────────────────────────────── */
+
+.tdfs-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #D5D7DD;
+  padding: 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 14px;
+  font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+.tdfs-toolbar__row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.tdfs-toolbar__title { font-size: 15px; font-weight: 600; color: #0D1321; margin-right: auto; }
+.tdfs-toolbar__hint { font-size: 12px; color: #646A76; }
+
+/* ── Зона измерения ───────────────────────────────────────────────────────── */
+
+.tdfs-measure {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ── Лист ─────────────────────────────────────────────────────────────────── */
+
+.tdfs-pages {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 12px 0;
+  overflow-x: auto;
+}
+
+.tdfs-page {
+  width: 210mm;
+  min-height: 296mm;
+  padding: var(--tdfs-pad-top) var(--tdfs-pad-x) var(--tdfs-pad-bot);
+  box-sizing: border-box;
+  background: #fff;
+  box-shadow: 0 6px 28px rgba(17, 24, 39, 0.10);
+  display: flex;
+  flex-direction: column;
+}
+.tdfs-page__body { flex: 1 1 auto; }
+
+/* ── Шапка: «ФИ ____» слева, название справа (как у бумажных листков) ─────── */
+
+.tdfs-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8mm;
+  padding-bottom: 4mm;
+}
+.tdfs-head__fio {
+  display: flex;
+  align-items: flex-end;
+  gap: 2mm;
+  flex: 1 1 auto;
+  max-width: 105mm;
+  font-weight: 600;
+}
+.tdfs-head__line {
+  flex: 1 1 auto;
+  border-bottom: 0.35mm solid var(--tdfs-ink);
+  height: 4.5mm;
+}
+.tdfs-head__title {
+  font-weight: 700;
+  font-style: italic;
+  text-align: right;
+}
+.tdfs-head__variant { font-style: normal; font-weight: 600; }
+
+/* ── Пункт ────────────────────────────────────────────────────────────────── */
+
+/* padding, а не margin: высота блока в measure-зоне обязана включать отступ */
+.tdfs-item { padding-bottom: 3.5mm; }
+.tdfs-item__head {
+  display: flex;
+  gap: 2mm;
+  align-items: baseline;
+  font-weight: 600;
+}
+.tdfs-item__num {
+  flex: 0 0 auto;
+  min-width: calc(var(--tdfs-indent) - 2mm);
+}
+.tdfs-item__name { flex: 1 1 auto; }
+.tdfs-item__body {
+  padding-left: var(--tdfs-indent);
+  padding-top: 1.5mm;
+}
+
+.tdfs-item__content--fig { display: flex; gap: 4mm; align-items: flex-start; }
+.tdfs-item__text { flex: 1 1 auto; min-width: 0; }
+.tdfs-item__notation { margin-top: 1.5mm; }
+.tdfs-item__fig { flex: 0 0 auto; text-align: center; }
+.tdfs-item__fig img { max-width: 100%; max-height: 60mm; object-fit: contain; }
+
+/* Формулы — того же кегля, что и текст; блочные — с воздухом */
+.tdfs-item__text p { margin: 0 0 1.2mm !important; }
+.tdfs-item__text .katex-display { margin: 1.5mm 0; text-align: left; }
+/* Блочные формулы (свойства списком, системы) — от левого края, как в листке */
+.tdfs-item__text .katex-display > .katex { text-align: left; }
+.tdfs-item__text .katex { font-size: 1.12em; }
+.tdfs-item__text .mr-figure { margin: 1.5mm 0 !important; }
+.tdfs-item__text .mr-figure svg { max-width: 100%; height: auto; }
+.tdfs-item__text table { margin-bottom: 1.5mm !important; }
+/* Монохром: ячейки таблиц и шапки — чёрным, без серой заливки */
+.tdfs-item__text td,
+.tdfs-item__text th,
+.tdfs-item__text thead { border-color: var(--tdfs-ink) !important; background: transparent !important; }
+
+/* Место для записи («только заголовки»): разлиновка — общий PrintFill */
+.tdfs-space {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+}
+
+.tdfs-section {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.9em;
+  padding: 1.5mm 0 2.5mm;
+  border-bottom: 0.25mm solid var(--tdfs-ink);
+  margin-bottom: 2.5mm;
+}
+
+.tdfs-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 8pt;
+  border-top: 0.2pt solid var(--tdfs-ink);
+  padding-top: 1.2mm;
+  margin-top: 2mm;
+  height: 5mm;
+  box-sizing: border-box;
+}
+
+/* ── Печать ───────────────────────────────────────────────────────────────── */
+
+@media print {
+  @page { margin: 0; }
+  @page :left { margin: 0; }
+  @page :right { margin: 0; }
+
+  /* 🚨 Элемент правее листа включает shrink-to-fit — лист печатается в ~60 %. */
+  html:has(.tdfs-root),
+  body:has(.tdfs-root) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    background: #fff !important;
+  }
+
+  /* Без звёздочки — иначе visibility: visible на листе не перебить. */
+  body:has(.tdfs-root) { visibility: hidden; }
+  body:has(.tdfs-root) .tdfs-root { visibility: visible; }
+
+  body:has(.tdfs-root) .ant-tooltip,
+  body:has(.tdfs-root) .ant-popover,
+  body:has(.tdfs-root) .ant-dropdown,
+  body:has(.tdfs-root) .ant-select-dropdown,
+  body:has(.tdfs-root) .ant-modal-root,
+  body:has(.tdfs-root) .no-print { display: none !important; }
+
+  body:has(.tdfs-root) #root,
+  body:has(.tdfs-root) .ant-app,
+  body:has(.tdfs-root) .ant-layout,
+  body:has(.tdfs-root) .ant-layout-content,
+  body:has(.tdfs-root) *:has(.tdfs-root):not(.no-print) {
+    position: static !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    transform: none !important;
+  }
+
+  body:has(.tdfs-root) .tdfs-root {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    padding: 0;
+    margin: 0;
+    background: #fff;
+    min-height: 0;
+  }
+
+  .tdfs-pages { padding: 0; gap: 0; overflow: visible; }
+
+  .tdfs-page {
+    box-shadow: none;
+    width: 100%;
+    break-after: page;
+    page-break-after: always;
+  }
+  .tdfs-page:last-child { break-after: auto; page-break-after: auto; }
+  .tdfs-item { break-inside: avoid; }
+}

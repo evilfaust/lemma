@@ -6,15 +6,16 @@ import {
   ArrowLeftOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
   PrinterOutlined, HolderOutlined, LineOutlined, DownOutlined,
   PlusCircleOutlined, ImportOutlined, FileTextOutlined, CreditCardOutlined,
-  TableOutlined,
+  TableOutlined, ProfileOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import TDFItemModal from './TDFItemModal';
 import TDFPrintView from './TDFPrintView';
 import TDFCardsPrint from './TDFCardsPrint';
 import TDFRosterPrint from './TDFRosterPrint';
+import TDFSheetFlow from './TDFSheetFlow';
 import TDFCopyItemsModal from './TDFCopyItemsModal';
-import MathRenderer from '../../shared/components/MathRenderer';
+import TdfText from './TdfText';
 import { WorkspacePageHeader, EmptyState, Chip } from '../workspace/ui';
 import { tdfStats, tdfComposition, tdfTypeShort, tdfTypeTone, tdfTypeLabel } from './tdfTypes';
 import './tdf.css';
@@ -54,7 +55,7 @@ export default function TDFEditor({ setId, onBack }) {
   const [copyModalOpen, setCopyModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [insertAfterIndex, setInsertAfterIndex] = useState(null);
-  const [printMode, setPrintMode] = useState(null); // null | 'etalon' | 'cards' | 'roster'
+  const [printMode, setPrintMode] = useState(null); // null | 'sheet' | 'etalon' | 'cards' | 'roster'
   const [dragIdx, setDragIdx] = useState(null);
   const [dragOverIdx, setDragOverIdx] = useState(null);
 
@@ -178,10 +179,16 @@ export default function TDFEditor({ setId, onBack }) {
     return <TDFRosterPrint tdfSet={tdfSet} items={items} onBack={() => setPrintMode(null)} />;
   }
 
-  // Три печатные формы одного набора: конспект (учителю и на стенд), карточки
+  if (printMode === 'sheet') {
+    return <TDFSheetFlow tdfSet={tdfSet} items={items} onBack={() => setPrintMode(null)} />;
+  }
+
+  // Печатные формы одного набора: лист потоком (эталон / с пропусками / только
+  // заголовки — v3.9.308), конспект-таблица (учителю и на стенд), карточки
   // (раздать ученикам) и ведомость (отмечать ответы на уроке).
   const printMenu = {
     items: [
+      { key: 'sheet', label: 'Лист — эталон / с пропусками / заголовки', icon: <ProfileOutlined /> },
       { key: 'etalon', label: 'Конспект — таблица A4', icon: <FileTextOutlined /> },
       { key: 'cards', label: 'Карточки — раздать ученикам', icon: <CreditCardOutlined /> },
       { key: 'roster', label: 'Ведомость опроса — «ученик × пункт»', icon: <TableOutlined /> },
@@ -307,7 +314,7 @@ export default function TDFEditor({ setId, onBack }) {
 
                 <div className="tdf-row__center">
                   {item.formulation_md
-                    ? <div className="tdf-row__body"><MathRenderer content={item.formulation_md} /></div>
+                    ? <div className="tdf-row__body"><TdfText md={item.formulation_md} seed={item.id} /></div>
                     : <span className="tdf-row__missing">формулировки нет</span>}
                 </div>
 
@@ -316,7 +323,7 @@ export default function TDFEditor({ setId, onBack }) {
                     ? <img src={api.getTdfItemDrawingUrl(item)} alt="чертёж" className="tdf-row__thumb" />
                     : <span className="tdf-row__missing">без чертежа</span>}
                   {item.short_notation_md
-                    ? <div className="tdf-row__notation"><MathRenderer content={item.short_notation_md} /></div>
+                    ? <div className="tdf-row__notation"><TdfText md={item.short_notation_md} seed={item.id} /></div>
                     : <span className="tdf-row__missing">без краткой записи</span>}
                 </div>
 

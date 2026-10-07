@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Button, Segmented, Space, Switch, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
-import MathRenderer from '../../shared/components/MathRenderer';
+import TdfText from './TdfText';
 import { printPaged } from '../../utils/printPage';
 import { tdfTypeLabel } from './tdfTypes';
 import {
@@ -75,7 +75,7 @@ export default function TDFCardsPrint({ tdfSet, items, onBack }) {
 
         <div className="tdfc-body" style={{ height: `${content.hMm}mm`, fontSize: `${settings.textSize}pt` }}>
           <div className="tdfc-question">
-            {question ? <MathRenderer content={question} /> : (item.name || '—')}
+            {question ? <TdfText md={question} seed={item.id} /> : (item.name || '—')}
           </div>
 
           {figureUrl && (
@@ -88,10 +88,10 @@ export default function TDFCardsPrint({ tdfSet, items, onBack }) {
             <div className="tdfc-answer">
               <div className="tdfc-answer__label">Ответ</div>
               {item.formulation_md
-                ? <MathRenderer content={item.formulation_md} />
-                : <span>{item.short_notation_md ? <MathRenderer content={item.short_notation_md} /> : '—'}</span>}
+                ? <TdfText md={item.formulation_md} seed={item.id} />
+                : <span>{item.short_notation_md ? <TdfText md={item.short_notation_md} seed={item.id} /> : '—'}</span>}
               {item.formulation_md && item.short_notation_md && (
-                <div className="tdfc-answer__short"><MathRenderer content={item.short_notation_md} /></div>
+                <div className="tdfc-answer__short"><TdfText md={item.short_notation_md} seed={item.id} /></div>
               )}
             </div>
           )}
