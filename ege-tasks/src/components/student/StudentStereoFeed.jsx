@@ -19,9 +19,9 @@ const SHOW_SCENES = 4;
  * Задания учителя (v3.9.306) — обычные работы в режиме показа, по /r/<id>:
  * только условия, без выдачи и ответов.
  */
-export default function StudentStereoFeed() {
+/** Лента кабинета с опросом: null — ещё не пришла или хука нет. */
+export function useStereoFeed() {
   const [feed, setFeed] = useState(null);
-  const [showAll, setShowAll] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -44,22 +44,35 @@ export default function StudentStereoFeed() {
     };
   }, [load]);
 
-  const works = feed?.works || [];
-  const shows = feed?.shows || [];
-  if (!feed || (!feed.rooms.length && !feed.scenes.length && !works.length && !shows.length)) return null;
+  return feed;
+}
 
-  const scenes = showAll ? feed.scenes : feed.scenes.slice(0, SHOW_SCENES);
+/** Идущие эфиры — карточками «в эфире». */
+export function LiveRoomCards({ rooms }) {
+  if (!rooms?.length) return null;
+  return rooms.map((r) => (
+    <a key={r.code} className="student-live-card" href={`/student/b/${encodeURIComponent(r.code)}`}>
+      <span className="student-live-card__dot">в эфире</span>
+      <span className="student-live-card__title">{r.title || r.code}</span>
+      <span className="student-live-card__go">Смотреть <RightOutlined /></span>
+    </a>
+  ));
+}
+
+export const hasTeacherMaterials = (feed) => !!feed
+  && (feed.scenes?.length > 0 || feed.works?.length > 0 || feed.shows?.length > 0);
+
+/** Задания, работы по геометрии и чертежи от учителя. */
+export function TeacherMaterials({ feed }) {
+  const [showAll, setShowAll] = useState(false);
+  if (!hasTeacherMaterials(feed)) return null;
+  const works = feed.works || [];
+  const shows = feed.shows || [];
+  const allScenes = feed.scenes || [];
+  const scenes = showAll ? allScenes : allScenes.slice(0, SHOW_SCENES);
 
   return (
-    <div className="student-stereo-feed">
-      {feed.rooms.map((r) => (
-        <a key={r.code} className="student-live-card" href={`/student/b/${encodeURIComponent(r.code)}`}>
-          <span className="student-live-card__dot">в эфире</span>
-          <span className="student-live-card__title">{r.title || r.code}</span>
-          <span className="student-live-card__go">Смотреть <RightOutlined /></span>
-        </a>
-      ))}
-
+    <>
       {shows.length > 0 && (
         <div className="student-drawings">
           <div className="student-drawings__head">Задания от учителя</div>
@@ -94,7 +107,7 @@ export default function StudentStereoFeed() {
         </div>
       )}
 
-      {feed.scenes.length > 0 && (
+      {allScenes.length > 0 && (
         <div className="student-drawings">
           <div className="student-drawings__head">Чертежи от учителя</div>
           <ul className="student-drawings__list">
@@ -108,13 +121,25 @@ export default function StudentStereoFeed() {
               </li>
             ))}
           </ul>
-          {feed.scenes.length > SHOW_SCENES && (
+          {allScenes.length > SHOW_SCENES && (
             <button type="button" className="student-drawings__more" onClick={() => setShowAll((v) => !v)}>
-              {showAll ? 'Свернуть' : `Показать все (${feed.scenes.length})`}
+              {showAll ? 'Свернуть' : `Показать все (${allScenes.length})`}
             </button>
           )}
         </div>
       )}
+    </>
+  );
+}
+
+/** Эфир + материалы одним блоком (на главной они разнесены по разделам). */
+export default function StudentStereoFeed() {
+  const feed = useStereoFeed();
+  if (!feed || (!feed.rooms.length && !hasTeacherMaterials(feed))) return null;
+  return (
+    <div className="student-stereo-feed">
+      <LiveRoomCards rooms={feed.rooms} />
+      <TeacherMaterials feed={feed} />
     </div>
   );
 }

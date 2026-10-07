@@ -190,6 +190,23 @@ export const studentsApi = {
     }
   },
 
+  // Главная ученика (v3.9.316): последние попытки с названием выдачи —
+  // недорешённые тесты, «сдано» у ДЗ и последние результаты. Без ачивок и тем.
+  async getRecentStudentAttempts(studentId, limit = 40) {
+    try {
+      const res = await pb.collection('attempts').getList(1, limit, {
+        filter: `student = "${escapeFilter(studentId)}"`,
+        expand: 'session,session.work,session.mc_test',
+        sort: '-created',
+        requestKey: null,
+      });
+      return res.items;
+    } catch (error) {
+      console.error('Error fetching recent student attempts:', error);
+      return [];
+    }
+  },
+
   async getAttemptsByDeviceAll(deviceId) {
     try {
       return await pb.collection('attempts').getFullList({

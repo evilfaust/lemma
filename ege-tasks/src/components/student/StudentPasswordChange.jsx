@@ -11,7 +11,7 @@ const { Title, Text } = Typography;
  * до следующего входа (флаг в sessionStorage, его держит StudentApp).
  * PocketBase меняет пароль только со старым — его ученик берёт с карточки.
  */
-export default function StudentPasswordChange({ student, onDone, onLater }) {
+export default function StudentPasswordChange({ student, onDone, onLater, voluntary = false }) {
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const [busy, setBusy] = useState(false);
@@ -24,7 +24,8 @@ export default function StudentPasswordChange({ student, onDone, onLater }) {
       onDone(rec);
     } catch (e) {
       const oldWrong = e?.data?.data?.oldPassword || e?.status === 400;
-      message.error(oldWrong ? 'Пароль с карточки не подходит — проверь буквы и цифры' : 'Не удалось сменить пароль, попробуй ещё раз');
+      const which = voluntary ? 'Нынешний пароль' : 'Пароль с карточки';
+      message.error(oldWrong ? `${which} не подходит — проверь буквы и цифры` : 'Не удалось сменить пароль, попробуй ещё раз');
     } finally {
       setBusy(false);
     }
@@ -34,10 +35,12 @@ export default function StudentPasswordChange({ student, onDone, onLater }) {
     <div className="student-auth">
       <div className="student-auth-header">
         <div className="student-auth-icon"><SafetyOutlined /></div>
-        <Title level={3} className="student-auth-title">Придумай свой пароль</Title>
+        <Title level={3} className="student-auth-title">{voluntary ? 'Сменить пароль' : 'Придумай свой пароль'}</Title>
         <Text className="student-auth-subtitle">
-          {student?.name ? `${student.name}, пароль` : 'Пароль'} с карточки знает учитель.
-          Замени его на свой — его будешь знать только ты.
+          {voluntary
+            ? 'Введи нынешний пароль и придумай новый.'
+            : <>{student?.name ? `${student.name}, пароль` : 'Пароль'} с карточки знает учитель.
+              Замени его на свой — его будешь знать только ты.</>}
         </Text>
       </div>
       <Card className="student-auth-card">
@@ -45,8 +48,8 @@ export default function StudentPasswordChange({ student, onDone, onLater }) {
           Твой логин: <Text code>{student?.username}</Text> — он не меняется.
         </Text>
         <Form form={form} layout="vertical" onFinish={submit} requiredMark={false}>
-          <Form.Item name="oldPassword" label="Пароль с карточки"
-            rules={[{ required: true, message: 'Введи пароль с карточки' }]}>
+          <Form.Item name="oldPassword" label={voluntary ? 'Нынешний пароль' : 'Пароль с карточки'}
+            rules={[{ required: true, message: voluntary ? 'Введи нынешний пароль' : 'Введи пароль с карточки' }]}>
             <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
           </Form.Item>
           <Form.Item name="password" label="Новый пароль"
@@ -71,7 +74,7 @@ export default function StudentPasswordChange({ student, onDone, onLater }) {
             Сохранить пароль
           </Button>
           <Button type="link" block style={{ marginTop: 8 }} onClick={onLater}>
-            Позже
+            {voluntary ? 'Отмена' : 'Позже'}
           </Button>
         </Form>
       </Card>

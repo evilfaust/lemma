@@ -1,15 +1,16 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { ConfigProvider, Button, notification, theme } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined, LogoutOutlined, QrcodeOutlined, LinkOutlined, BarChartOutlined, CalendarOutlined, HomeOutlined, SunOutlined, MoonOutlined, LoginOutlined, UserAddOutlined, UserOutlined, ReadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, TrophyOutlined, LinkOutlined, BarChartOutlined, CalendarOutlined, HomeOutlined, SunOutlined, MoonOutlined, LoginOutlined, ReadOutlined } from '@ant-design/icons';
 
 // Нижнее меню кабинета ученика (показывается залогиненному на всех экранах, кроме теста).
 // go(key) — навигация: в кабинете меняет homeView, на странице сессии ведёт на /student/.
-function StudentBottomNav({ active, go, onLogout }) {
-  const Item = ({ k, icon, label, onClick }) => (
+// «Выйти» — в меню профиля на главной (v3.9.316), каникулярное — только пока есть программа.
+function StudentBottomNav({ active, go, hasSummer }) {
+  const Item = ({ k, icon, label }) => (
     <button
       type="button"
       className={`student-bnav-item${active === k ? ' is-active' : ''}`}
-      onClick={onClick}
+      onClick={() => go(k)}
     >
       {icon}
       <span>{label}</span>
@@ -17,14 +18,28 @@ function StudentBottomNav({ active, go, onLogout }) {
   );
   return (
     <nav className="student-bnav">
-      <Item k="home" icon={<HomeOutlined />} label="Главная" onClick={() => go('home')} />
-      <Item k="courses" icon={<ReadOutlined />} label="Уроки" onClick={() => go('courses')} />
-      <Item k="program" icon={<CalendarOutlined />} label="Задание" onClick={() => go('program')} />
-      <Item k="progress" icon={<BarChartOutlined />} label="Прогресс" onClick={() => go('progress')} />
-      <Item k="gallery" icon={<TrophyOutlined />} label="Достижения" onClick={() => go('gallery')} />
-      <Item k="logout" icon={<LogoutOutlined />} label="Выйти" onClick={onLogout} />
+      <Item k="home" icon={<HomeOutlined />} label="Главная" />
+      <Item k="courses" icon={<ReadOutlined />} label="Уроки" />
+      {hasSummer && <Item k="program" icon={<CalendarOutlined />} label="Каникулы" />}
+      <Item k="progress" icon={<BarChartOutlined />} label="Прогресс" />
+      <Item k="gallery" icon={<TrophyOutlined />} label="Достижения" />
     </nav>
   );
+}
+
+// Каникулярное задание видно, пока у ученика есть программа этого лета — и
+// только в сезон (июнь–сентябрь), а не круглый год.
+function useHasSummerProgram(student) {
+  const [has, setHas] = useState(false);
+  useEffect(() => {
+    if (!student?.id || !summerSeason()) { setHas(false); return undefined; }
+    let cancelled = false;
+    api.getStudyProgramForStudent(student.id, { season: 'summer', year: new Date().getFullYear() })
+      .then((prog) => { if (!cancelled) setHas(!!prog); })
+      .catch(() => { if (!cancelled) setHas(false); });
+    return () => { cancelled = true; };
+  }, [student?.id]);
+  return has;
 }
 
 // Кнопка смены темы в правом верхнем углу (на всех экранах ученика).
@@ -54,7 +69,8 @@ import StudentCoursePortal from './components/student/StudentCoursePortal';
 import { api } from './services/pocketbase';
 import { useVersionSync } from './shared/version/useVersionSync';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
-import StudentStereoFeed from './components/student/StudentStereoFeed';
+import StudentHome from './components/student/StudentHome';
+import { summerSeason } from './utils/studentHome';
 import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
 import { workFromLocation } from './utils/geometryWorkLink';
 import { showFromLocation } from './utils/workShowLink';
@@ -71,7 +87,7 @@ const StudentTheoryArticle = lazy(() => import('./components/theory/StudentTheor
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
-function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAuthSuccess, onLogout }) {
+function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAuthSuccess, onLogout, hasSummer }) {
   const [sessionCode, setSessionCode] = useState('');
   const [homeView, setHomeView] = useState(() => {
     const v = new URLSearchParams(window.location.search).get('v');
@@ -92,111 +108,147 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
     setHomeView(null);
   };
 
-  const go = (k) => setHomeView(k === 'home' ? null : k);
-  const navBar = <StudentBottomNav active={homeView || 'home'} go={go} onLogout={onLogout} />;
+  const go = (k) => {
+    setHomeView(k === 'home' ? null : k);
+    window.scrollTo(0, 0);
+  };
+  const navBar = <StudentBottomNav active={homeView || 'home'} go={go} hasSummer={hasSummer || homeView === 'program'} />;
   const themeCorner = <ThemeCornerBtn isDark={isDark} onToggle={onToggleTheme} />;
+  const backBar = (
+    <div className="student-top-bar">
+      <div className="student-top-bar-left">
+        <button
+          className="student-theme-toggle student-top-bar-back"
+          onClick={() => setHomeView(null)}
+          title="Назад"
+        >
+          <ArrowLeftOutlined />
+          <span className="student-top-bar-back-label">Назад</span>
+        </button>
+      </div>
+      <div className="student-top-bar-right">{themeCorner}</div>
+    </div>
+  );
 
   // ---- Страница авторизации ----
   if (homeView === 'login' || homeView === 'register') {
     return (
       <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
-        <div className="student-top-bar">
-          <div className="student-top-bar-left">
-            <button
-              className="student-theme-toggle student-top-bar-back"
-              onClick={() => setHomeView(null)}
-              title="Назад"
-            >
-              <ArrowLeftOutlined />
-              <span className="student-top-bar-back-label">Назад</span>
-            </button>
-          </div>
-          <div className="student-top-bar-right">{themeCorner}</div>
-        </div>
+        {backBar}
         <StudentAuthPage onAuthSuccess={handleAuthSuccess} initialTab={homeView} />
       </div>
     );
   }
 
-  // ---- Уроки и ДЗ (классы с расписанием + курсы) ----
-  if (homeView === 'courses') {
+  // ---- Смена пароля (меню профиля) ----
+  if (homeView === 'password' && student) {
+    return (
+      <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
+        {backBar}
+        <StudentPasswordChange
+          student={student}
+          voluntary
+          onDone={(rec) => { onAuthSuccess(rec); setHomeView(null); }}
+          onLater={() => setHomeView(null)}
+        />
+      </div>
+    );
+  }
+
+  // ---- Разделы кабинета ----
+  const SECTIONS = {
+    courses: () => <StudentCoursePortal student={student} />,
+    program: () => <StudentSummerProgram student={student} />,
+    progress: () => <StudentProgressPage studentSession={homeStudentSession} />,
+    gallery: () => <AchievementGallery studentSession={homeStudentSession} />,
+  };
+  if (student && SECTIONS[homeView]) {
     return (
       <div className={`student-app student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
         {themeCorner}
-        <StudentCoursePortal student={student} />
+        {SECTIONS[homeView]()}
         {navBar}
       </div>
     );
   }
 
-  // ---- Каникулярное задание ----
-  if (homeView === 'program') {
+  const legal = (
+    <div className="student-home-legal">
+      Lemma &copy; 2026 Oleg Pavlyuchenko ·{' '}
+      <a href="https://github.com/evilfaust/lemma" target="_blank" rel="noreferrer">
+        AGPL-3.0, исходный код
+      </a>
+    </div>
+  );
+
+  // ---- Главная вошедшего: лента «что делать» (v3.9.316) ----
+  if (student) {
     return (
-      <div className={`student-app student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
-        {themeCorner}
-        <StudentSummerProgram student={student} />
+      <div className={`student-home student-home--cabinet student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
+        <StudentHome
+          student={student}
+          isDark={isDark}
+          onToggleTheme={onToggleTheme}
+          onLogout={onLogout}
+          onChangePassword={() => go('password')}
+          go={go}
+          hasSummer={hasSummer}
+        />
+        {legal}
         {navBar}
       </div>
     );
   }
 
-  // ---- Страница прогресса ----
-  if (homeView === 'progress') {
-    return (
-      <div className={`student-app student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
-        {themeCorner}
-        <StudentProgressPage studentSession={homeStudentSession} />
-        {navBar}
-      </div>
-    );
-  }
-
-  // ---- Страница достижений ----
-  if (homeView === 'gallery') {
-    return (
-      <div className={`student-app student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
-        {themeCorner}
-        <AchievementGallery studentSession={homeStudentSession} />
-        {navBar}
-      </div>
-    );
-  }
-
-  // ---- Главная карточка / личный кабинет ----
+  // ---- Гость: сначала вход, тест по коду — ниже ----
   return (
-    <div className={`student-home${student ? ' student-has-bnav' : ''}${isDark ? ' student-theme-dark' : ''}`}>
+    <div className={`student-home${isDark ? ' student-theme-dark' : ''}`}>
       {themeCorner}
       <div className="student-home-card">
-
-        {/* Логотип Леммы */}
         <div className="student-home-logo">
           <img src="/lemma-logo-new.png" alt="Лемма" />
         </div>
-
-        <div className="student-home-icon">
-          <QrcodeOutlined />
-        </div>
-        <h1 className="student-home-title">Тесты по математике</h1>
-        <p className="student-home-subtitle">
-          Отсканируйте QR-код с доски или введите код сессии, который дал учитель.
+        <h1 className="student-home-title">Кабинет ученика</h1>
+        <p className="student-home-guest-lead">
+          Уроки, домашние задания и результаты тестов — в одном месте.
         </p>
 
+        {authChecked && (
+          <>
+            <Button
+              type="primary"
+              className="student-home-guest-login"
+              icon={<LoginOutlined />}
+              onClick={() => setHomeView('login')}
+            >
+              Войти
+            </Button>
+            <button type="button" className="student-home-guest-register" onClick={() => setHomeView('register')}>
+              Нет логина? <b>Зарегистрироваться</b>
+            </button>
+          </>
+        )}
+
+        <div className="student-home-section-divider student-home-guest-code">
+          <span>или</span>
+        </div>
+        <div className="student-home-guest-code-label">Есть код теста от учителя?</div>
         <div className="student-home-input-wrap">
           <input
             type="text"
             value={sessionCode}
             onChange={(e) => setSessionCode(e.target.value)}
-            placeholder="Например: fyiezxczetf40ul"
+            placeholder="Код с доски"
             className="student-home-input"
             autoCapitalize="off"
             autoCorrect="off"
             autoComplete="off"
+            aria-label="Код теста"
             onKeyDown={(e) => {
               if (e.key === 'Enter') openSession();
             }}
           />
           <Button
-            type="primary"
             className="student-home-btn"
             icon={<LinkOutlined />}
             onClick={openSession}
@@ -205,75 +257,11 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
             Открыть тест
           </Button>
         </div>
-
         <div className="student-home-hint">
-          На телефоне удобнее заходить по QR-коду.
+          На телефоне удобнее навести камеру на QR-код с доски.
         </div>
-
-        {/* Личный кабинет — не авторизован */}
-        {authChecked && !student && (
-          <div className="student-home-account-section">
-            <div className="student-home-section-divider">
-              <span>личный кабинет</span>
-            </div>
-            <div className="student-home-auth-btns">
-              <Button
-                className="student-home-auth-btn"
-                icon={<LoginOutlined />}
-                onClick={() => setHomeView('login')}
-              >
-                Войти
-              </Button>
-              <Button
-                className="student-home-auth-btn"
-                icon={<UserAddOutlined />}
-                onClick={() => setHomeView('register')}
-              >
-                Регистрация
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Личный кабинет — авторизован */}
-        {student && (
-          <div className="student-home-account-section">
-            <div className="student-home-section-divider">
-              <span>личный кабинет</span>
-            </div>
-            <div className="student-home-user-greeting">
-              <UserOutlined />
-              <span>{student.name}</span>
-            </div>
-            {/* Эфир учителя (пока идёт) и пособия-чертежи для классов ученика */}
-            <StudentStereoFeed />
-            <Button
-              block
-              className="student-home-nav-btn"
-              icon={<ReadOutlined />}
-              onClick={() => setHomeView('courses')}
-              style={{ marginBottom: 8 }}
-            >
-              Мои уроки и ДЗ
-            </Button>
-            <Button
-              block
-              className="student-home-nav-btn"
-              icon={<CalendarOutlined />}
-              onClick={() => setHomeView('program')}
-            >
-              Открыть каникулярное задание
-            </Button>
-          </div>
-        )}
       </div>
-      <div className="student-home-legal">
-        Lemma &copy; 2026 Oleg Pavlyuchenko ·{' '}
-        <a href="https://github.com/evilfaust/lemma" target="_blank" rel="noreferrer">
-          AGPL-3.0, исходный код
-        </a>
-      </div>
-      {student && navBar}
+      {legal}
     </div>
   );
 }
@@ -366,6 +354,7 @@ function StudentApp() {
     setPwLater(true);
   };
   const canOpenAchievements = !!attempt;
+  const hasSummer = useHasSummerProgram(student);
 
   const handleAuthSuccess = (authStudent) => {
     setStudent(authStudent);
@@ -460,6 +449,7 @@ function StudentApp() {
           authChecked={authChecked}
           onAuthSuccess={handleAuthSuccess}
           onLogout={handleLogout}
+          hasSummer={hasSummer}
         />
       </ConfigProvider>
     );
@@ -468,7 +458,10 @@ function StudentApp() {
   const showSessionNav = !!student && !['test', 'auth'].includes(currentView);
   const sessionNavActive = currentView === 'progress' ? 'progress' : currentView === 'gallery' ? 'gallery' : null;
   const goCabinet = (k) => {
-    const map = { home: '/student/', program: '/student/?v=program', progress: '/student/?v=progress', gallery: '/student/?v=gallery' };
+    const map = {
+      home: '/student/', courses: '/student/?v=courses', program: '/student/?v=program',
+      progress: '/student/?v=progress', gallery: '/student/?v=gallery',
+    };
     window.location.href = map[k] || '/student/';
   };
 
@@ -545,7 +538,7 @@ function StudentApp() {
         )}
 
         {showSessionNav && (
-          <StudentBottomNav active={sessionNavActive} go={goCabinet} onLogout={handleLogout} />
+          <StudentBottomNav active={sessionNavActive} go={goCabinet} hasSummer={hasSummer} />
         )}
       </div>
     </ConfigProvider>

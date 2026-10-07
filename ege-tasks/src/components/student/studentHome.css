@@ -1,0 +1,396 @@
+/* Главная ученика (v3.9.316): лента «что делать». Классы sh-*.
+   Цвета — переменные на .sh, тёмная тема переопределяет их ниже. */
+
+.student-home.student-home--cabinet {
+  justify-content: flex-start;
+  padding: 0 16px 88px;
+}
+
+.sh {
+  --sh-ink: #1a1a2e;
+  --sh-ink-2: #5d6275;
+  --sh-ink-3: #8b90a3;
+  --sh-card: rgba(255, 255, 255, 0.92);
+  --sh-line: #e8eaf2;
+  --sh-accent: #4361ee;
+  --sh-accent-soft: rgba(67, 97, 238, 0.1);
+  --sh-good: #2f9e44;
+  --sh-mid: #e8a317;
+  --sh-low: #e03131;
+  --sh-shadow: 0 6px 20px rgba(24, 32, 79, 0.07);
+
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+  color: var(--sh-ink);
+  animation: studentFadeInUp 0.35s ease-out;
+}
+
+.student-theme-dark .sh {
+  --sh-ink: #eceef5;
+  --sh-ink-2: #a9aec0;
+  --sh-ink-3: #7c8196;
+  --sh-card: rgba(28, 28, 44, 0.92);
+  --sh-line: rgba(255, 255, 255, 0.08);
+  --sh-accent: #7b8cff;
+  --sh-accent-soft: rgba(123, 140, 255, 0.14);
+  --sh-good: #69db7c;
+  --sh-mid: #f6c453;
+  --sh-low: #ff8787;
+  --sh-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+}
+
+/* ── Шапка ── */
+.sh-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 0 6px;
+}
+.sh-head-text { min-width: 0; }
+.sh-hello {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.sh-date {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--sh-ink-2);
+}
+.sh-date::first-letter { text-transform: uppercase; }
+.sh-class {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--sh-accent-soft);
+  color: var(--sh-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.sh-head-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sh-avatar {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #4361ee, #7b2ff7);
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.3);
+}
+.sh-menu-who { font-weight: 600; line-height: 1.3; }
+.sh-menu-who small { font-weight: 400; opacity: 0.6; }
+
+/* ── Секции ── */
+.sh-section { margin-top: 20px; }
+.sh-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sh-section-title {
+  margin: 0;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--sh-ink-3);
+}
+.sh-more {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--sh-accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sh-more .anticon { font-size: 10px; }
+
+.sh-card {
+  background: var(--sh-card);
+  border: 1px solid var(--sh-line);
+  border-radius: 16px;
+  box-shadow: var(--sh-shadow);
+}
+.sh-btn { border-radius: 10px !important; font-weight: 600 !important; }
+.sh-empty {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed var(--sh-line);
+  color: var(--sh-ink-2);
+  font-size: 14px;
+}
+
+/* ── Сейчас ── */
+.sh-now { display: grid; gap: 8px; }
+.sh-now-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--sh-card);
+  border: 1px solid var(--sh-line);
+  border-left: 4px solid var(--sh-mid);
+  box-shadow: var(--sh-shadow);
+  color: var(--sh-ink) !important;
+  text-decoration: none !important;
+}
+.sh-now-card--lesson { border-left-color: var(--sh-good); }
+.sh-now-badge {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--sh-good);
+}
+.sh-now-badge--test { color: var(--sh-mid); }
+.sh-now-main { flex: 1; min-width: 0; }
+.sh-now-title {
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-now-sub { font-size: 12.5px; color: var(--sh-ink-2); margin-top: 1px; }
+.sh-now-go {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sh-accent);
+}
+.sh-now .student-live-card { margin: 0; }
+
+/* ── Списки (ДЗ, результаты) ── */
+.sh-list { padding: 4px 0; overflow: hidden; }
+.sh-list > * + * { border-top: 1px solid var(--sh-line); }
+
+.sh-todo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+}
+.sh-todo-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  color: var(--sh-accent);
+  background: var(--sh-accent-soft);
+}
+.sh-todo-main { flex: 1; min-width: 0; }
+.sh-todo-title {
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.sh-todo-text { font-size: 14px; line-height: 1.45; }
+.sh-todo-text p { margin: 0; }
+.sh-todo-due { font-size: 12.5px; color: var(--sh-ink-2); margin-top: 2px; }
+.sh-todo.is-done .sh-todo-icon { color: var(--sh-good); background: transparent; font-size: 20px; }
+.sh-todo.is-done .sh-todo-title,
+.sh-todo.is-done .sh-todo-text { color: var(--sh-ink-3); font-weight: 500; }
+.sh-todo.is-done .sh-todo-due { color: var(--sh-good); }
+
+.sh-list-more {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 10px 14px;
+  text-align: left;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--sh-accent);
+}
+
+/* ── Ближайший урок / каникулярное ── */
+.sh-lesson {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--sh-ink);
+  font: inherit;
+}
+.sh-lesson-date {
+  flex-shrink: 0;
+  width: 48px;
+  padding: 6px 0;
+  border-radius: 12px;
+  background: var(--sh-accent-soft);
+  color: var(--sh-accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+}
+.sh-lesson-day { font-size: 20px; font-weight: 700; }
+.sh-lesson-mon { font-size: 11.5px; font-weight: 600; text-transform: lowercase; }
+.sh-lesson-main { flex: 1; min-width: 0; }
+.sh-lesson-title { font-size: 15.5px; font-weight: 600; overflow-wrap: anywhere; }
+.sh-lesson-sub { font-size: 13px; color: var(--sh-ink-2); margin-top: 2px; }
+.sh-lesson-until { font-size: 12.5px; font-weight: 600; color: var(--sh-accent); margin-top: 3px; }
+.sh-lesson-arrow { color: var(--sh-ink-3); font-size: 12px; flex-shrink: 0; }
+.sh-summer-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: #d97706;
+  background: rgba(245, 158, 11, 0.14);
+}
+
+/* ── От учителя: блоки StudentStereoFeed в общих карточках ── */
+.sh-materials { display: grid; gap: 8px; }
+.sh-materials .student-drawings {
+  background: var(--sh-card);
+  border-color: var(--sh-line);
+  box-shadow: var(--sh-shadow);
+}
+
+/* ── Результаты ── */
+.sh-result {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 14px;
+  color: var(--sh-ink) !important;
+  text-decoration: none !important;
+}
+.sh-result-main { flex: 1; min-width: 0; }
+.sh-result-title {
+  font-size: 14.5px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sh-result-bar {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--sh-line);
+  overflow: hidden;
+}
+.sh-result-bar span { display: block; height: 100%; border-radius: 999px; }
+.sh-result-bar .is-good { background: var(--sh-good); }
+.sh-result-bar .is-mid { background: var(--sh-mid); }
+.sh-result-bar .is-low { background: var(--sh-low); }
+.sh-result-score {
+  flex-shrink: 0;
+  text-align: right;
+  font-size: 13px;
+  color: var(--sh-ink-2);
+  line-height: 1.25;
+}
+.sh-result-score b { font-size: 17px; color: var(--sh-ink); }
+.sh-result-score span { display: block; font-size: 11.5px; color: var(--sh-ink-3); }
+
+/* ── Пусто ── */
+.sh-welcome {
+  margin-top: 20px;
+  padding: 22px 18px;
+  text-align: center;
+}
+.sh-welcome-icon { font-size: 30px; color: var(--sh-accent); }
+.sh-welcome-title { margin-top: 8px; font-size: 17px; font-weight: 700; }
+.sh-welcome-text { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--sh-ink-2); }
+
+/* ── Код теста ── */
+.sh-code {
+  margin-top: 24px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px dashed var(--sh-line);
+}
+.sh-code-label { font-size: 13.5px; font-weight: 600; color: var(--sh-ink-2); margin-bottom: 8px; }
+.sh-code-row { display: flex; gap: 8px; }
+.sh-code-input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--sh-line);
+  background: var(--sh-card);
+  color: var(--sh-ink);
+  font-size: 16px; /* меньше 16 — iOS приближает страницу при фокусе */
+}
+.sh-code-input:focus {
+  outline: none;
+  border-color: var(--sh-accent);
+  box-shadow: 0 0 0 3px var(--sh-accent-soft);
+}
+.sh-code-row .sh-btn { height: 40px; }
+
+/* ── Гость: вход сначала, код ниже ── */
+.student-home-guest-lead {
+  margin: 0 0 18px;
+  text-align: center;
+  color: #6f7487;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.student-theme-dark .student-home-guest-lead { color: #aaa; }
+.student-home-guest-login {
+  width: 100%;
+  min-height: 48px !important;
+  border-radius: 14px !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+}
+.student-home-guest-register {
+  display: block;
+  margin: 10px auto 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 14px;
+  color: #6f7487;
+}
+.student-home-guest-register b { color: #4361ee; font-weight: 600; }
+.student-theme-dark .student-home-guest-register { color: #999; }
+.student-theme-dark .student-home-guest-register b { color: #7b8cff; }
+.student-home-guest-code { margin-top: 20px; }
+.student-home-guest-code-label {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4a4f63;
+}
+.student-theme-dark .student-home-guest-code-label { color: #ccc; }
