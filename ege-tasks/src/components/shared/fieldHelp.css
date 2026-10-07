@@ -19,7 +19,7 @@
   word-break: break-word;
 }
 .field-help__preview { min-width: 0; font-size: 14px; }
-.field-help__preview svg { max-width: 100%; height: auto; }
+.field-help__preview svg:not(.katex svg) { max-width: 100%; height: auto; }
 .field-help__tips { margin: 0; }
 .field-help__tips > div { padding: 8px 0; border-top: 1px solid #f1f5f9; }
 .field-help__tips dt { font-weight: 600; font-size: 13px; }

@@ -111,9 +111,10 @@ table.md-table--gallery th,
 table.md-table--gallery td {
   vertical-align: middle !important;
 }
-/* чертёж шире колонки ужимается, а не ломает раскладку */
+/* чертёж шире колонки ужимается, а не ломает раскладку. Радикал KaTeX —
+   тоже svg, его не трогаем: иначе корень в ячейке схлопывается в ноль. */
 table.md-table--gallery img,
-table.md-table--gallery svg {
+table.md-table--gallery svg:not(.katex svg) {
   max-width: 100%;
   height: auto;
 }
@@ -138,7 +139,7 @@ table.md-table--equalcols {
   table-layout: fixed !important;
 }
 table.md-table--equalcols img,
-table.md-table--equalcols svg {
+table.md-table--equalcols svg:not(.katex svg) {
   width: 100% !important;
   max-width: 100% !important;
   height: auto !important;
