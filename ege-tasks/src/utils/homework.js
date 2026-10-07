@@ -154,18 +154,18 @@ export function incomingFor(lesson, neighbours, itemsOf) {
 /**
  * Лента «Домашнее задание» ученика: что сделать и к какому уроку.
  * → [{ item, from, due: урок | null }] по сроку; без даты — в конце.
- * ДЗ к самому уроку берутся с уроков последней недели (по сегодня), ДЗ к
- * следующему — с целью сегодня или позже, либо ещё без цели.
+ * ДЗ к самому уроку берутся с уроков последней недели и со всех будущих
+ * (v3.9.318: учитель задаёт ДЗ заранее — ученик видит его сразу, а не в день
+ * урока), ДЗ к следующему — с целью сегодня или позже, либо ещё без цели.
  */
 export function homeworkFeed(lessons, now = dayjs()) {
   const list = lessons || [];
   const today = dayjs(now).startOf('day');
   const weekAgo = today.subtract(7, 'day');
-  const endOfToday = today.endOf('day');
   const out = [];
   for (const l of list) {
     const d = dayjs(l.date_plan);
-    if (d.isBefore(weekAgo) || d.isAfter(endOfToday) || l.status === 'cancelled') continue;
+    if (d.isBefore(weekAgo) || l.status === 'cancelled' || l.hidden_from_students) continue;
     for (const item of l.items || []) {
       if (item.role === 'homework' && !isNextDue(item)) out.push({ item, from: l, due: l });
     }

@@ -133,6 +133,18 @@ describe('Сделать', () => {
     expect(rows[1]).toMatchObject({ done: true, dueLabel: 'задано вчера' });
   });
 
+  it('ДЗ к будущему уроку видно сразу — со сроком «к уроку»', () => {
+    const list = [
+      lesson('l1', '2026-10-08T00:00:00', {
+        items: [{ role: 'homework', kind: 'show', work_id: 'w1', geometry: true, title: 'ДЗ Геометрия 10.1' }],
+      }),
+    ];
+    const rows = todoList(list, [], NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ title: 'ДЗ Геометрия 10.1', dueLabel: 'к уроку завтра', done: false });
+    expect(rows[0].link.href).toBe('/student/w/w1');
+  });
+
   it('каникулярное — только в сезон', () => {
     expect(summerSeason(dayjs('2026-07-01'))).toBe(true);
     expect(summerSeason(dayjs('2026-09-20'))).toBe(true);
@@ -216,6 +228,6 @@ describe('экран главной', () => {
     mockApi.getRecentStudentAttempts.mockResolvedValue([]);
     mockApi.getMyStereoFeed.mockResolvedValue(null);
     await renderHome();
-    expect(screen.getByText(/Домашних заданий нет/)).toBeTruthy();
+    expect(screen.getByText('Домашних заданий нет.')).toBeTruthy();
   });
 });

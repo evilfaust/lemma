@@ -242,7 +242,9 @@ function HomeworkFeed({ feed, groupOf }) {
       {feed.map(({ item, from, due }, i) => {
         let when;
         if (!due) when = 'к следующему уроку — дата уточняется';
-        else if (due.id === from.id) when = `задано на уроке ${shortDate(from)}`;
+        else if (due.id === from.id && !dayjs(from.date_plan).isAfter(dayjs())) {
+          when = `задано на уроке ${shortDate(from)}`;
+        }
         else when = `к уроку ${shortDate(due)}`;
         const g = groupOf(from);
         return <ItemRow key={i} item={item} meta={g ? `${when} · ${g.name}` : when} />;

@@ -149,7 +149,7 @@ describe('модалка урока: несохранённое состояни
 
 describe('лента ДЗ ученика', () => {
   const now = dayjs('2026-10-05T12:00:00');
-  it('сроки по порядку, без даты — в конце, старое и будущее «к этому уроку» — нет', () => {
+  it('сроки по порядку, без даты — в конце, старое — нет, будущее «к этому уроку» — сразу', () => {
     const lessons = [
       L('old', '2026-09-20T07:15:00Z', { items: [{ kind: 'text', role: 'homework', description: 'старое' }] }),
       L('mon', '2026-10-05T07:15:00Z', { items: [{ kind: 'text', role: 'homework', description: 'сегодня' }, hwNext('к среде')] }),
@@ -157,9 +157,10 @@ describe('лента ДЗ ученика', () => {
       L('fri', '2026-10-09T07:15:00Z', { items: [{ kind: 'text', role: 'homework', description: 'заранее' }, hwNext('без даты')] }),
     ];
     const feed = homeworkFeed(lessons, now);
-    expect(feed.map((f) => f.item.description)).toEqual(['сегодня', 'к среде', 'к пятнице', 'без даты']);
+    expect(feed.map((f) => f.item.description)).toEqual(['сегодня', 'к среде', 'заранее', 'к пятнице', 'без даты']);
     expect(feed[1].due.id).toBe('wed');
     expect(feed[2].due.id).toBe('fri');
-    expect(feed[3].due).toBeNull();
+    expect(feed[3].due.id).toBe('fri');
+    expect(feed[4].due).toBeNull();
   });
 });

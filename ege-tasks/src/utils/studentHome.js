@@ -174,7 +174,10 @@ export function todoList(lessons, attempts, now = dayjs()) {
   const rows = homeworkFeed(lessons, t).map(({ item, from, due }, i) => {
     let dueLabel;
     if (!due) dueLabel = 'к следующему уроку';
-    else if (due.id === from.id) dueLabel = `задано ${relDayLabel(from.date_plan, t)}`;
+    // ДЗ к самому уроку: урок впереди — это срок, урок начался — когда задано.
+    else if (due.id === from.id && !dayjs(from.date_plan).isAfter(t)) {
+      dueLabel = `задано ${relDayLabel(from.date_plan, t)}`;
+    }
     else dueLabel = `к уроку ${relDayLabel(due.date_plan, t)}`;
     const done = item.kind === 'work' && !!item.session_id && submitted.has(item.session_id);
     return {

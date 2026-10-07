@@ -256,7 +256,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
           extra={<MoreLink onClick={() => go('courses')}>Уроки и ДЗ</MoreLink>}
         >
           {todos.length === 0
-            ? <div className="sh-empty">Домашних заданий нет — можно выдохнуть.</div>
+            ? <div className="sh-empty">Домашних заданий нет.</div>
             : (
               <div className="sh-card sh-list">
                 {shownTodos.map((row) => <TodoRow key={row.key} row={row} />)}
