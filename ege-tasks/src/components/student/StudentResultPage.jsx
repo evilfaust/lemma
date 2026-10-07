@@ -5,6 +5,7 @@ import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import AchievementBadge from './AchievementBadge';
+import { drillResultAnswers, drillGivenOption } from '../../utils/drillTest';
 
 const { Title, Text } = Typography;
 
@@ -35,13 +36,15 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     }
   };
 
-  // Тренировка из генератора (v3.9.296) хранит ответы в самой попытке
+  // Тренировка из генератора (v3.9.296) хранит ответы в самой попытке; ключ
+  // задания в них — тот же `id`, что у задания ученика (`v1-q3`)
   const drillAnswers = Array.isArray(attempt?.drill_answers) ? attempt.drill_answers : null;
+  const isDrill = !!drillAnswers;
 
   useEffect(() => {
     if (!attempt) return;
     if (drillAnswers) {
-      setAttemptAnswers(drillAnswers.map(a => ({ is_correct: !!a.correct })));
+      setAttemptAnswers(drillResultAnswers(drillAnswers));
       setLoading(false);
       return;
     }
@@ -296,9 +299,12 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
             const taskNumber = taskIndex >= 0 ? taskIndex + 1 : i + 1;
             const mcOptions = task.mc_options;
             const selectedIndex = mcOptions ? parseInt(answer.answer_raw, 10) : NaN;
-            const mcOptionText = mcOptions && !isNaN(selectedIndex) && mcOptions[selectedIndex]
-              ? mcOptions[selectedIndex].text
-              : null;
+            // У тренировки в ответе — исходный номер варианта (`orig`), а
+            // вписанный текст вариантом не является
+            const selectedOption = isDrill
+              ? drillGivenOption(task, answer.given)
+              : (mcOptions && !isNaN(selectedIndex) ? mcOptions[selectedIndex] : null);
+            const mcOptionText = selectedOption ? selectedOption.text : null;
             const displayAnswer = mcOptionText ?? (answer.answer_raw || '(пусто)');
             const isMcAnswer = mcOptionText !== null;
             return (

@@ -118,6 +118,27 @@ export function gradeDrill(tasks, answers, mode) {
   return { score, drill_answers };
 }
 
+/**
+ * Ответы тренировки строками вида attempt_answers — для экрана результата
+ * ученика: `task` = ключ задания (он же `id` задания у ученика), `given` —
+ * исходный индекс варианта (`orig`) или вписанный текст.
+ */
+export function drillResultAnswers(drillAnswers) {
+  return (drillAnswers || []).map(a => ({
+    id: a.key,
+    task: a.key,
+    is_correct: !!a.correct,
+    given: a.given ?? null,
+    answer_raw: a.given == null ? '' : String(a.given),
+  }));
+}
+
+/** Выбранный учеником вариант ответа тренировки: варианты могли быть перемешаны. */
+export function drillGivenOption(task, given) {
+  if (!Number.isInteger(given)) return null;
+  return (task?.mc_options || []).find(o => (o.orig ?? null) === given) || null;
+}
+
 /** Зачесть / снять зачёт ответу тренировки → новые drill_answers и балл. */
 export function setDrillAnswerCorrect(drillAnswers, key, correct) {
   const next = (drillAnswers || []).map(a => (a.key === key ? { ...a, correct, manual: true } : a));
