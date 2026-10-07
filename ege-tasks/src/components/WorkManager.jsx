@@ -4,7 +4,7 @@ import {
   DeleteOutlined, SendOutlined, ReloadOutlined, EyeOutlined, EditOutlined,
   RightOutlined, InboxOutlined, SolutionOutlined, TeamOutlined,
   ClockCircleOutlined, SearchOutlined, SortAscendingOutlined, FormOutlined,
-  PushpinOutlined, PushpinFilled, FolderOutlined, DownOutlined, CameraOutlined,
+  PushpinOutlined, PushpinFilled, FolderOutlined, DownOutlined, FileDoneOutlined,
   ShareAltOutlined, CopyOutlined, UserOutlined, SwapOutlined, ImportOutlined,
   ExperimentOutlined, TrophyOutlined, ReadOutlined,
 } from '@ant-design/icons';
@@ -817,12 +817,12 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                         />
                       </Tooltip>
                     )}
-                    {canEdit && aiEnabled && (
-                      <Tooltip title="Проверить бумажные бланки (фото)">
+                    {canEdit && (
+                      <Tooltip title="Внести результаты бумажной работы (вручную или по фото бланков)">
                         <Button
                           type="text"
                           size="small"
-                          icon={<CameraOutlined />}
+                          icon={<FileDoneOutlined />}
                           onClick={e => { e.stopPropagation(); setScanWork(work); }}
                         />
                       </Tooltip>
@@ -1203,6 +1203,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
         work={scanWork}
         onClose={() => setScanWork(null)}
         onRecorded={loadWorks}
+        scanEnabled={aiEnabled}
       />
       <Modal
         open={!!transferWork}
