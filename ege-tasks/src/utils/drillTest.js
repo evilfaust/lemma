@@ -139,6 +139,26 @@ export function drillGivenOption(task, given) {
   return (task?.mc_options || []).find(o => (o.orig ?? null) === given) || null;
 }
 
+/**
+ * Ответы тренировки для «Прогресса» ученика (v3.9.319): строка = задание
+ * (условие из снимка теста) + ответ ученика. Выбранный вариант — текстом
+ * формулы (`givenLatex`). Верный ответ сюда не кладётся: разбор ведёт учитель.
+ */
+export function drillAttemptRows(attempt, mcTest) {
+  const vnum = attempt?.mc_variant ?? attempt?.variant;
+  const variant = (mcTest?.variants || []).find(v => String(v.number) === String(vnum));
+  const tasks = new Map(drillStudentTasks(variant, { variantNumber: vnum }).map(t => [t.key, t]));
+  return drillResultAnswers(attempt?.drill_answers).map((a) => {
+    const task = tasks.get(a.task);
+    const opt = task ? drillGivenOption(task, a.given) : null;
+    return {
+      ...a,
+      expand: { task: task ? { id: task.id, statement_md: task.statement_md } : null },
+      givenLatex: opt ? opt.text : null,
+    };
+  });
+}
+
 /** Зачесть / снять зачёт ответу тренировки → новые drill_answers и балл. */
 export function setDrillAnswerCorrect(drillAnswers, key, correct) {
   const next = (drillAnswers || []).map(a => (a.key === key ? { ...a, correct, manual: true } : a));

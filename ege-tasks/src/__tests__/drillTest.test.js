@@ -11,6 +11,7 @@ import {
 import {
   INPUT_GENERATORS, drillVariants, isDrillTest, uncheckableItems, drillStudentTasks,
   gradeDrill, setDrillAnswerCorrect, drillAnswerRows, drillAnswerStats,
+  drillAttemptRows,
 } from '../utils/drillTest';
 import { generateOralCountingVariants, DEFAULT_SETTINGS } from '../hooks/useOralCounting';
 import { generateEgeBaseVariants } from '../hooks/useOralEgeBase';
@@ -201,5 +202,39 @@ describe('тест-тренировка', () => {
     const stats = drillAnswerStats([attempt, { drill_answers: [{ key: 'v2-q1', given: 0, correct: true }] }]);
     expect(stats['v2-q1']).toEqual({ choices: { 1: 1, 0: 1 }, correctCount: 1, total: 2 });
     expect(stats['v2-q2'].correctCount).toBe(1);
+  });
+});
+
+describe('«Прогресс» ученика: ответы тренировки', () => {
+  const mcTest = {
+    variants: [{
+      number: 2,
+      tasks: [
+        { key: 'v2-q1', question: '3^2', instruction: 'Вычислите', answer: '9', options: [{ text: '9', is_correct: true }, { text: '6' }] },
+        { key: 'v2-q2', question: '\\log_2 8', answer: '3', options: [] },
+      ],
+    }],
+  };
+
+  it('условие из снимка, ответ ученика; выбранный вариант — формулой, верного ответа нет', () => {
+    const rows = drillAttemptRows({
+      mc_variant: 2,
+      drill_answers: [
+        { key: 'v2-q1', given: 1, correct: false },
+        { key: 'v2-q2', given: '4', correct: false },
+      ],
+    }, mcTest);
+    expect(rows).toHaveLength(2);
+    expect(rows[0].expand.task.statement_md).toContain('3^2');
+    expect(rows[0].givenLatex).toBe('6');
+    expect(rows[1].givenLatex).toBeNull();
+    expect(rows[1].answer_raw).toBe('4');
+    expect(JSON.stringify(rows)).not.toMatch(/"answer"|is_correct":true/);
+  });
+
+  it('тест не пришёл — строки всё равно есть, без условия', () => {
+    const rows = drillAttemptRows({ variant: 2, drill_answers: [{ key: 'v2-q1', given: '9', correct: true }] }, null);
+    expect(rows[0]).toMatchObject({ is_correct: true, answer_raw: '9' });
+    expect(rows[0].expand.task).toBeNull();
   });
 });

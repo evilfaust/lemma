@@ -4,6 +4,7 @@ import { LoadingOutlined, RightOutlined, DownOutlined, ArrowLeftOutlined, CheckO
 import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import MathRenderer from '../MathRenderer';
+import { drillAttemptRows } from '../../utils/drillTest';
 
 const PB_URL = PB_BASE_URL;
 
@@ -215,7 +216,10 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
                   <div className="sp-answer-responses">
                     <span className={`sp-answer-user-answer sp-answer-user-answer--${answer.is_correct ? 'correct' : 'wrong'}`}>
                       {answer.is_correct ? <CheckOutlined /> : <CloseOutlined />}
-                      {' '}Ваш ответ: <strong>{answer.answer_raw || '—'}</strong>
+                      {' '}Ваш ответ:{' '}
+                      {answer.givenLatex
+                        ? <MathRenderer text={`$${answer.givenLatex}$`} inline />
+                        : <strong>{answer.answer_raw || '—'}</strong>}
                     </span>
                   </div>
                 </div>
@@ -283,6 +287,13 @@ function StudentProgressPage({ studentSession }) {
     setSelectedAttemptId(attempt.id);
     setAttemptAnswers([]);
     setAnswersLoading(true);
+    // Тренировка из генератора (v3.9.296): ответы лежат в самой попытке
+    // (drill_answers), задания — в снимке теста, attempt_answers пуст.
+    if (Array.isArray(attempt.drill_answers)) {
+      setAttemptAnswers(drillAttemptRows(attempt, attempt.expand?.session?.expand?.mc_test));
+      setAnswersLoading(false);
+      return;
+    }
     try {
       // Параллельно: ответы + вариант (задачи из варианта доступны студентам)
       const [answers, variantData] = await Promise.all([
