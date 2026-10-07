@@ -40,9 +40,16 @@ describe('пропуски в тексте', () => {
     expectKatexOk(out);
   });
 
+  it('короткий смешанный пропуск — одна сплошная линия', () => {
+    const out = applyTextGaps('[[$x = \\sqrt[n]{a}$, 1 корень]]', 'gaps');
+    expect(out.split('\u200B')).toHaveLength(1);
+    expect(out).toContain('\\phantom{x = \\sqrt[n]{a}\\ \\text{,}\\ \\text{1}\\ \\text{корень}}');
+    expectKatexOk(out);
+  });
+
   it('формула внутри текстового пропуска остаётся формулой', () => {
     const out = applyTextGaps('Это [[число $b \\ge 0$]]', 'gaps');
-    expect(out).toContain('\\phantom{b \\ge 0}');
+    expect(out).toContain('\\phantom{\\text{число}\\ b \\ge 0}');
     expectKatexOk(out);
   });
 

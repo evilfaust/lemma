@@ -51,6 +51,9 @@ const PLOT_FRAME_CMDS = new Set([
 
 const LETTERS = 'АБВГДЕЖЗИКЛМНОП';
 
+/** Пропуск короче — сплошной линией, длиннее — по словам с переносом. */
+const SHORT_GAP_CHARS = 40;
+
 /* ── Пропуски ─────────────────────────────────────────────────────────────── */
 
 /** Индекс закрывающей фигурной скобки для открывающей в `s[open]`. */
@@ -133,6 +136,11 @@ function textGap(content, mode) {
   if (mode !== TDF_VIEW_GAPS) return content;
   const pieces = gapPieces(content);
   if (!pieces.length) return '$\\underline{\\hspace{3em}}$';
+  // Короткий пропуск — одна сплошная линия: куски с просветами между ними
+  // (формула + «, 1 корень» в ячейке таблицы) читаются как несколько полей.
+  if (content.length <= SHORT_GAP_CHARS) {
+    return `$\\underline{\\hspace{0.8em}\\phantom{${pieces.join('\\ ')}}\\hspace{0.8em}}$`;
+  }
   return pieces.map((p, idx) => {
     const left = idx === 0 ? '\\hspace{0.8em}' : '';
     const right = idx === pieces.length - 1 ? '\\hspace{0.8em}' : '\\hspace{0.3em}';
