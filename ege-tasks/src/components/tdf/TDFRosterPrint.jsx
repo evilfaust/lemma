@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button, InputNumber, Segmented, Select, Space, Switch, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
+import MathText from '../shared/MathText';
 import { api } from '../../services/pocketbase';
 import { printPaged } from '../../utils/printPage';
 import {
@@ -160,7 +161,7 @@ export default function TDFRosterPrint({ tdfSet, items, onBack }) {
             {cols.map(c => (
               <li key={c} className="tdfr-legend__item">
                 <span className="tdfr-legend__num">{c + 1}</span>
-                <span className="tdfr-legend__text">{legendLabel(realItems[c])}</span>
+                <span className="tdfr-legend__text"><MathText text={legendLabel(realItems[c])} /></span>
               </li>
             ))}
           </ol>

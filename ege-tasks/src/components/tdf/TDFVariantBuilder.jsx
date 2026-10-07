@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import TDFPrintView from './TDFPrintView';
+import MathText from '../shared/MathText';
 import TDFSheetFlow from './TDFSheetFlow';
 import { WorkspacePageHeader, EmptyState, Chip } from '../workspace/ui';
 import { tdfTypeShort, tdfTypeTone, tdfTypeLabel } from './tdfTypes';
@@ -218,7 +219,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
             Ни в один вариант не вошли <b>{uncovered.length}</b> {plural(uncovered.length, ITEMS)}:
           </span>
           <span style={{ color: 'var(--ink-3)' }}>
-            {uncovered.slice(0, 6).map(i => i.name || '—').join(' · ')}
+            <MathText text={uncovered.slice(0, 6).map(i => i.name || '—').join(' · ')} />
             {uncovered.length > 6 && ` и ещё ${uncovered.length - 6}`}
           </span>
         </div>
@@ -247,7 +248,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
                     <div className="tdf-item__meta">
                       <span><b>{varItems.length}</b> {plural(varItems.length, ITEMS)}</span>
                       <span className="tdf-item__sep">·</span>
-                      <span>{varItems.slice(0, 3).map(i => i.name || '—').join(' · ')}
+                      <span><MathText text={varItems.slice(0, 3).map(i => i.name || '—').join(' · ')} />
                         {varItems.length > 3 && ` и ещё ${varItems.length - 3}`}</span>
                     </div>
                   </div>
@@ -290,7 +291,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
                               {tdfTypeShort(item.type)}
                             </Chip>
                           )}
-                          {item.name || '—'}
+                          <MathText text={item.name || '—'} />
                         </li>
                       ))}
                     </ol>
@@ -364,7 +365,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
                         {tdfTypeShort(item.type)}
                       </Chip>
                     )}
-                    <span style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}>{item.name || '—'}</span>
+                    <span style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}><MathText text={item.name || '—'} /></span>
                     {used > 0 && (
                       <Tooltip title={`Уже входит в ${used} вариант(ов)`}>
                         <span style={{ fontSize: 11, color: 'var(--ink-4)', fontVariantNumeric: 'tabular-nums' }}>
@@ -412,7 +413,7 @@ export default function TDFVariantBuilder({ setId, onBack }) {
                           {tdfTypeShort(it.type)}
                         </Chip>
                       )}
-                      <span style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}>{it.name || '—'}</span>
+                      <span style={{ fontSize: 12.5, flex: 1, minWidth: 0 }}><MathText text={it.name || '—'} /></span>
                       <Button size="small" type="text" icon={<DeleteOutlined />} onClick={() => toggleItem(id)} />
                     </div>
                   );

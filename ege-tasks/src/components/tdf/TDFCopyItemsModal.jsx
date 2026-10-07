@@ -3,6 +3,7 @@ import { Alert, Button, Checkbox, Modal, Select, Space, Spin, Typography, messag
 import { api } from '../../services/pocketbase';
 import { Chip } from '../workspace/ui';
 import { tdfTypeShort, tdfTypeTone, tdfTypeLabel } from './tdfTypes';
+import MathText from '../shared/MathText';
 
 const { Text } = Typography;
 
@@ -180,7 +181,7 @@ export default function TDFCopyItemsModal({ open, targetSetId, targetTitle, onCl
                         {tdfTypeShort(item.type)}
                       </Chip>
                     )}
-                    <span style={{ fontSize: 13, flex: 1, minWidth: 0 }}>{item.name || '— без названия'}</span>
+                    <span style={{ fontSize: 13, flex: 1, minWidth: 0 }}><MathText text={item.name || '— без названия'} /></span>
                     {item.drawing_image && <span style={{ fontSize: 12, color: 'var(--ink-4)' }}>чертёж</span>}
                   </div>
                 );

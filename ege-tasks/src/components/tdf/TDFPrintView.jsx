@@ -4,6 +4,7 @@ import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
 import TdfText from './TdfText';
+import MathText from '../shared/MathText';
 import PrintFill from '../shared/PrintFill';
 import TDFSheetSettings from './TDFSheetSettings';
 import { tdfTypeShort } from './tdfTypes';
@@ -283,11 +284,11 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
                   heightMm={fieldMm || 12}
                   widthMm={Math.max(0, columnWidthMm(sheet, 'formulation') - 4)}
                 />
-                <div className="tdfp-name">{item.name || '—'}</div>
+                <div className="tdfp-name"><MathText text={item.name || '—'} /></div>
               </div>
             ) : (
               <>
-                <div className="tdfp-name">{item.name || '—'}</div>
+                <div className="tdfp-name"><MathText text={item.name || '—'} /></div>
                 <div className="tdfp-text">
                   {item.formulation_md
                     ? <TdfText md={item.formulation_md} seed={item.id} />
@@ -375,7 +376,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
                     : <div className="tdfp-strip__fig--empty" />}
                 </div>
                 <div className="tdfp-strip__formulas">
-                  {item.name && <div className="tdfp-strip__name">{item.name}</div>}
+                  {item.name && <div className="tdfp-strip__name"><MathText text={item.name} /></div>}
                   {formulas.length > 1 && (
                     <div className="tdfp-strip__hint">
                       Запишите {formulas.length} {pluralRu(formulas.length, FORMULA_WORDS)}:

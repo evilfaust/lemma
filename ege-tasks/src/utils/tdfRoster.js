@@ -161,5 +161,10 @@ export function planRoster(rowCount, itemCount, settings) {
 /** Короткая подпись пункта для расшифровки под таблицей. */
 export function legendLabel(item, maxLen = 60) {
   const name = (item?.name || '').trim() || '—';
-  return name.length > maxLen ? `${name.slice(0, maxLen - 1)}…` : name;
+  if (name.length <= maxLen) return name;
+  // Не резать формулу пополам: обрезка внутри $…$ — до её начала.
+  let cut = name.slice(0, maxLen - 1);
+  const dollars = (cut.match(/(?<!\\)\$/g) || []).length;
+  if (dollars % 2) cut = cut.slice(0, cut.lastIndexOf('$')).trimEnd();
+  return `${cut}…`;
 }

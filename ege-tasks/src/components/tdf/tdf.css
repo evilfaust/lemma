@@ -315,3 +315,5 @@
   .tdf-item-grid { grid-template-columns: minmax(0, 1fr); }
   .tdf-item-grid__preview { position: static; }
 }
+.tdf-row__body .katex-display,
+.tdf-row__body .katex-display > .katex { text-align: left; }

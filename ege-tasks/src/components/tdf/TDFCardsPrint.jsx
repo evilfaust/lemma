@@ -3,6 +3,7 @@ import { Button, Segmented, Space, Switch, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import TdfText from './TdfText';
+import MathText from '../shared/MathText';
 import { printPaged } from '../../utils/printPage';
 import { tdfTypeLabel } from './tdfTypes';
 import {
@@ -75,7 +76,7 @@ export default function TDFCardsPrint({ tdfSet, items, onBack }) {
 
         <div className="tdfc-body" style={{ height: `${content.hMm}mm`, fontSize: `${settings.textSize}pt` }}>
           <div className="tdfc-question">
-            {question ? <TdfText md={question} seed={item.id} /> : (item.name || '—')}
+            {question ? <TdfText md={question} seed={item.id} /> : <MathText text={item.name || '—'} />}
           </div>
 
           {figureUrl && (

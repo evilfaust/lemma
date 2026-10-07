@@ -10,6 +10,7 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import TDFItemModal from './TDFItemModal';
+import MathText from '../shared/MathText';
 import TDFPrintView from './TDFPrintView';
 import TDFCardsPrint from './TDFCardsPrint';
 import TDFRosterPrint from './TDFRosterPrint';
@@ -309,7 +310,7 @@ export default function TDFEditor({ setId, onBack }) {
                       {tdfTypeLabel(item.type)}
                     </Chip>
                   )}
-                  <div className="tdf-row__name">{item.name || '— без названия'}</div>
+                  <div className="tdf-row__name"><MathText text={item.name || '— без названия'} /></div>
                 </div>
 
                 <div className="tdf-row__center">

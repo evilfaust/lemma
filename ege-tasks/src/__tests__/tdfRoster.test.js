@@ -89,6 +89,13 @@ describe('planRoster', () => {
 });
 
 describe('legendLabel', () => {
+  it('не режет формулу пополам', () => {
+    const name = `${'а'.repeat(50)} функций $y = \\sqrt{x}$ и $y = \\sqrt[3]{x}$`;
+    const label = legendLabel({ name });
+    expect(label.endsWith('…')).toBe(true);
+    expect((label.match(/\$/g) || []).length % 2).toBe(0);
+  });
+
   it('режет длинное название и ставит многоточие', () => {
     expect(legendLabel({ name: 'а'.repeat(80) }).length).toBe(60);
     expect(legendLabel({ name: 'а'.repeat(80) }).endsWith('…')).toBe(true);

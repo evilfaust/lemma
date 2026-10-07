@@ -394,3 +394,7 @@
   .tdfp-table { break-inside: auto; }
   .tdfp-row { break-inside: avoid; }
 }
+
+/* Блочные формулы (```свойства, системы) — от левого края, как в листке (v3.9.308) */
+.tdfp-text .katex-display,
+.tdfp-text .katex-display > .katex { text-align: left; }

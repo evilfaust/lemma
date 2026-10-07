@@ -5,6 +5,7 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import TdfText from './TdfText';
+import MathText from '../shared/MathText';
 import { Chip, EmptyState } from '../workspace/ui';
 import { TDF_TYPES, TDF_TYPE_VALUES, tdfTypeLabel, tdfTypeTone } from './tdfTypes';
 import { shuffleArray } from '../../utils/shuffle';
@@ -97,7 +98,7 @@ function FlashCard({ item, mode, isFlipped, onFlip }) {
             )}
             {question.kind === 'notation' && <TdfText md={question.value} seed={item.id} />}
             {question.kind === 'md' && <TdfText md={question.value} seed={item.id} />}
-            {question.kind === 'name' && <span className="tdf-flashcard-title">{question.value || '—'}</span>}
+            {question.kind === 'name' && <span className="tdf-flashcard-title"><MathText text={question.value || '—'} /></span>}
           </div>
 
           <div className="tdf-flashcard-hint">нажмите, чтобы проверить себя</div>
@@ -107,7 +108,7 @@ function FlashCard({ item, mode, isFlipped, onFlip }) {
         <div className="tdf-flashcard-back">
           <div className="tdf-flashcard-head">
             <Chip tone={tdfTypeTone(item.type)}>{tdfTypeLabel(item.type)}</Chip>
-            {item.name && <span className="tdf-flashcard-title">{item.name}</span>}
+            {item.name && <span className="tdf-flashcard-title"><MathText text={item.name} /></span>}
           </div>
 
           <div className="tdf-flashcard-content">
@@ -267,7 +268,7 @@ function ResultsScreen({ deck, results, onRestart, onRestartUnknown, onBack }) {
         <div className="tdf-flashcards-unknown">
           <div className="tdf-flashcards-label">Осталось повторить</div>
           <ul>
-            {unknown.slice(0, 8).map(i => <li key={i.id}>{i.name || '—'}</li>)}
+            {unknown.slice(0, 8).map(i => <li key={i.id}><MathText text={i.name || '—'} /></li>)}
             {unknown.length > 8 && <li>…и ещё {unknown.length - 8}</li>}
           </ul>
         </div>
