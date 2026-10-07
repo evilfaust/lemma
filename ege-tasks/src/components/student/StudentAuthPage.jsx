@@ -8,7 +8,8 @@ const { Title, Text } = Typography;
 /**
  * Страница авторизации и регистрации для студентов
  */
-const StudentAuthPage = ({ onAuthSuccess, sessionTitle, initialTab = 'login' }) => {
+// cabinet — вход с главной кабинета (v3.9.317), а не перед тестом по ссылке.
+const StudentAuthPage = ({ onAuthSuccess, sessionTitle, initialTab = 'login', cabinet = false }) => {
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -59,10 +60,12 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle, initialTab = 'login' }) 
           <BookOutlined />
         </div>
         <Title level={3} className="student-auth-title">
-          {sessionTitle || 'Тест'}
+          {sessionTitle || (cabinet ? 'Кабинет ученика' : 'Тест')}
         </Title>
         <Text className="student-auth-subtitle">
-          Войдите или зарегистрируйтесь для продолжения
+          {cabinet
+            ? 'Логин и пароль даёт учитель'
+            : 'Войдите или зарегистрируйтесь для продолжения'}
         </Text>
       </div>
 

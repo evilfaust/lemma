@@ -135,7 +135,7 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
     return (
       <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
         {backBar}
-        <StudentAuthPage onAuthSuccess={handleAuthSuccess} initialTab={homeView} />
+        <StudentAuthPage onAuthSuccess={handleAuthSuccess} initialTab={homeView} cabinet />
       </div>
     );
   }
