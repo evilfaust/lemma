@@ -236,7 +236,7 @@ export const geometryApi = {
     return pb.collection('geometry_works').getFullList({
       sort: '-updated',
       filter: andOwner(),
-      fields: 'id,title,class,public,groups',
+      fields: 'id,title,class,public,groups,updated',
       requestKey: null,
     });
   },

@@ -118,6 +118,21 @@ export const programsApi = {
     }
   },
 
+  // Работы, созданные каникулярными программами (по одной на ученика и тему):
+  // в выборе работы для урока они уходят в свой раздел. По названию их не
+  // узнать («Каникулы · …», «Лето · …») — признак берётся из пунктов программ.
+  async getProgramWorkIds() {
+    try {
+      const items = await pb.collection('study_program_items').getFullList({
+        fields: 'params', batch: 500, requestKey: null,
+      });
+      return new Set(items.map((it) => it.params?.workId).filter(Boolean));
+    } catch (error) {
+      console.error('Error fetching program work ids:', error);
+      return new Set();
+    }
+  },
+
   async createProgramItem(data) {
     return pb.collection('study_program_items').create(data);
   },

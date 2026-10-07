@@ -15,6 +15,7 @@ import { PAIRS, guessSlot, slotRangeFromCode, lessonStart } from '../lessonTime'
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
 import DateTimeField from './DateTimeField';
+import LessonWorkPickerModal from './LessonWorkPickerModal';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -25,6 +26,7 @@ import {
 import {
   testOption, isTestOption, testIdOf, geoOption, isGeoOption, geoIdOf, parseStudentLink,
 } from '../../../utils/lessonMaterials';
+import { buildPickerItems } from '../../../utils/lessonWorkPicker';
 
 const dayLabel = (l) => (l?.date_plan ? dayjs(l.date_plan).format('D MMM, dd') : '');
 const itemTitle = (m) => m.title || m.text || 'Задание';
@@ -86,13 +88,16 @@ export default function LessonModal({
       { label: 'Тесты', options: mcTests.map((t) => ({ value: testOption(t.id), label: t.title || 'Тест' })) },
     ];
   }, [works, mcTests]);
-  // Пикер «Задания-ссылки»: ещё и работы по геометрии (только показ условий).
-  // В «Материалы урока» они не идут — там свой тип geometry_work.
-  const hwOptions = useMemo(() => {
-    if (!geoWorks.length) return workAndTestOptions;
-    const base = mcTests.length ? workAndTestOptions : [{ label: 'Работы', options: workAndTestOptions }];
-    return [...base, { label: 'Работы по геометрии', options: geoWorks.map((w) => ({ value: geoOption(w.id), label: w.title || 'Работа по геометрии' })) }];
-  }, [workAndTestOptions, geoWorks, mcTests.length]);
+  // Окно выбора работы (v3.9.320) вместо длинного селекта: 'hw' — задание
+  // ученикам (с работами по геометрии — только показ условий), 'materials' —
+  // материал урока (геометрии там нет: у неё свой тип geometry_work). Работы каникулярных программ
+  // (по одной на ученика) уходят в свой раздел — их id из самих программ.
+  const [picker, setPicker] = useState(null);
+  const [programWorkIds, setProgramWorkIds] = useState(() => new Set());
+  const pickerItems = useMemo(() => buildPickerItems({
+    works, tests: mcTests, geoWorks: picker === 'hw' ? geoWorks : [],
+    workSessions, testSessions, programWorkIds,
+  }), [works, mcTests, geoWorks, picker, workSessions, testSessions, programWorkIds]);
   const [hwBusy, setHwBusy] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [newLink, setNewLink] = useState({ title: '', code: '', mode: 'hw' });
@@ -156,6 +161,15 @@ export default function LessonModal({
     setHw(EMPTY_HW);
     setManualMode(false);
   }, [open, initial]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!open) return undefined;
+    api.getProgramWorkIds()
+      .then((ids) => { if (!cancelled) setProgramWorkIds(ids); })
+      .catch(() => { /* без признака окно просто покажет их среди прочих */ });
+    return () => { cancelled = true; };
+  }, [open]);
 
   useEffect(() => {
     let cancelled = false;
@@ -553,6 +567,11 @@ export default function LessonModal({
             options={workAndTestOptions}
           />
         </Form.Item>
+        {canEdit && (
+          <Button type="link" size="small" style={{ margin: '-18px 0 12px', padding: 0 }} onClick={() => setPicker('materials')}>
+            Выбрать из списка: папки, недавние, поиск…
+          </Button>
+        )}
         {geoItems.length > 0 && (
           <Form.Item label="Работы по геометрии" tooltip="Прикрепляются из редактора геометрической работы">
             <Space wrap size={4}>
@@ -736,16 +755,14 @@ export default function LessonModal({
           {canEdit && !manualMode && (
             <div style={{ marginTop: 6 }}>
               <Space.Compact style={{ width: '100%' }}>
-                <Select
-                  showSearch
-                  style={{ flex: 1 }}
-                  placeholder="Выберите работу или тест…"
-                  optionFilterProp="label"
-                  value={hwValue}
-                  onChange={selectHwWork}
-                  notFoundContent="Нет работ"
-                  options={hwOptions}
-                />
+                <Button
+                  className={`lwp-trigger${hwValue ? '' : ' lwp-trigger--empty'}`}
+                  icon={<FileTextOutlined />}
+                  title={hwSourceTitle || undefined}
+                  onClick={() => setPicker('hw')}
+                >
+                  {hwValue ? (hwSourceTitle || 'Работа') : 'Выберите работу или тест…'}
+                </Button>
                 <Select
                   style={{ width: 120 }}
                   value={hw.mode}
@@ -927,6 +944,21 @@ export default function LessonModal({
           </Typography.Text>
         )}
       </div>
+
+      <LessonWorkPickerModal
+        open={!!picker}
+        onClose={() => setPicker(null)}
+        items={pickerItems}
+        grade={selectedGroup?.grade || ''}
+        value={picker === 'hw' ? hwValue : undefined}
+        title={picker === 'hw' ? 'Задание ученикам: выбор работы' : 'Материал урока: выбор работы'}
+        onPick={(v) => {
+          if (picker === 'hw') { selectHwWork(v); return; }
+          const cur = form.getFieldValue('materials') || [];
+          if (cur.includes(v)) { message.info('Эта работа уже в материалах урока'); return; }
+          form.setFieldsValue({ materials: [...cur, v] });
+        }}
+      />
     </Modal>
   );
 }
