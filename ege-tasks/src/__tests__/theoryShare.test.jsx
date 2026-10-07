@@ -176,7 +176,7 @@ describe('окно «Статья по ссылке»', () => {
 describe.each([
   ['stereo', 8],
   ['stereo-gen', 5],
-  ['work-show', 0], // v3.9.306, пока без скриншотов
+  ['work-show', 4],
 ])('статья-инструкция public/help/%s', (topic, minImages) => {
   const dir = resolve(__dirname, `../../public/help/${topic}`);
   const md = readFileSync(resolve(dir, 'article.md'), 'utf8');

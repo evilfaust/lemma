@@ -99,10 +99,46 @@
   flex: 1;
   min-width: 0;
   line-height: 1.5;
-  overflow-wrap: anywhere;
+  /* break-word, а не anywhere: anywhere разрешает рвать слово где угодно,
+     и колонки таблицы подпунктов на телефоне сжимались до «вычислит / ь» */
+  overflow-wrap: break-word;
 }
 .sgw-task__body img,
 .sgw-task__body svg { max-width: 100%; height: auto; }
+/* Таблица подпунктов (1) 2) 3)…) шире телефона — прокручивается вбок,
+   а формула в ячейке не переносится по знаку «·». */
+.sgw-task__body table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.sgw-task__body td .katex,
+.sgw-task__body th .katex { white-space: nowrap; }
+
+/* На телефоне таблица-раскладка (без рамок: подпункты 1) 2) 3)…, галерея
+   рисунков) идёт потоком: клетки по порядку, сколько влезет в строку.
+   Таблица с данными (с рамками) не трогается — она прокручивается вбок. */
+@media (max-width: 640px) {
+  .sgw-task__body table.md-table--plain,
+  .sgw-task__body table.md-table--gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+    overflow: visible;
+    width: auto !important;
+  }
+  .sgw-task__body table.md-table--plain :is(thead, tbody, tr),
+  .sgw-task__body table.md-table--gallery :is(thead, tbody, tr) { display: contents; }
+  .sgw-task__body table.md-table--plain :is(th, td),
+  .sgw-task__body table.md-table--gallery :is(th, td) {
+    display: block;
+    padding: 0 !important;
+    text-align: left !important;
+  }
+  .sgw-task__body table.md-table--plain :is(th, td):empty,
+  .sgw-task__body table.md-table--gallery :is(th, td):empty { display: none; }
+}
 
 .sgw-figure {
   margin-top: 10px;
