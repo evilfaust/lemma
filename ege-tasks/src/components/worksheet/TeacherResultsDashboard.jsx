@@ -757,9 +757,13 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-        <Text strong>Попытки учеников ({attempts.length})</Text>
-        <Space size={6}>
+      {/* На узком экране кнопки уходят под заголовок, а не сжимают его в столбик */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        flexWrap: 'wrap', gap: 8, marginBottom: 12,
+      }}>
+        <Text strong style={{ whiteSpace: 'nowrap' }}>Попытки учеников ({attempts.length})</Text>
+        <Space size={6} wrap>
           {attempts.length > 0 && !mcTestData && (
             <Button size="small" onClick={() => setClassRemOpen(true)}>
               🩹 Работа над ошибками класса
