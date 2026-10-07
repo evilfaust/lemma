@@ -5,7 +5,7 @@ import {
 } from '@ant-design/icons';
 import {
   shortDay, headerSpans, formatAvg, formatNumber, GRADE_TONE, columnWeight, editText,
-  startsBlockSection, ROLE_LABELS,
+  startsBlockSection, ROLE_LABELS, viewBadge,
 } from '../../../utils/classJournal';
 import { groupHex } from '../ui';
 
@@ -26,7 +26,7 @@ const NAME_W = 190;
 const COL_W = 84;
 const SUM_W = 56;
 
-function scaleLabel(col) {
+function baseScaleLabel(col) {
   if (col.online) return 'онлайн';
   switch (col.scale) {
     case 'points': return col.max_score ? `из ${formatNumber(col.max_score)}` : 'баллы';
@@ -35,6 +35,12 @@ function scaleLabel(col) {
     case 'percent': return '%';
     default: return '';
   }
+}
+
+// Свой вид колонки (v3.9.312) — «из 20 → оценка».
+function scaleLabel(col) {
+  const badge = viewBadge(col);
+  return badge ? `${baseScaleLabel(col)} → ${badge}` : baseScaleLabel(col);
 }
 
 function columnTip(col, block) {

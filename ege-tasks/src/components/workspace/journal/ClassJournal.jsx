@@ -84,7 +84,7 @@ export default function ClassJournal() {
   const [groupId, setGroupId] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [mode, setMode] = useState(() => (readLS(LS_MODE) === 'grade' ? 'grade' : 'raw'));
+  const [mode, setMode] = useState(() => (['grade', 'percent'].includes(readLS(LS_MODE)) ? readLS(LS_MODE) : 'raw'));
   const [period, setPeriod] = useState('all');
   const [showHidden, setShowHidden] = useState(false);
   const [pending, setPending] = useState(0);
@@ -277,7 +277,7 @@ export default function ClassJournal() {
     if (!block) return null;
     const cols = allColumns.filter((c) => c.blockId === block.id && !c.hidden);
     const g = buildGrid(data?.students || [], cols, marksIndex, online.cells, {
-      mode: 'raw', attendance: attendanceIndex, blocks,
+      mode: 'raw', views: false, attendance: attendanceIndex, blocks,
     });
     return { block, cols, rows: g.rows, totalIndex: cols.findIndex((c) => c.role === 'total') };
   }, [feedbackBlockId, blocksById, allColumns, data?.students, marksIndex, online, attendanceIndex, blocks]);
@@ -1086,7 +1086,8 @@ export default function ClassJournal() {
       <Segmented
         value={mode}
         onChange={(v) => { setMode(v); writeLS(LS_MODE, v); }}
-        options={[{ value: 'raw', label: 'Баллы' }, { value: 'grade', label: 'Оценки' }]}
+        options={[{ value: 'raw', label: 'Баллы' }, { value: 'percent', label: '%' }, { value: 'grade', label: 'Оценки' }]}
+        title="Как показывать клетки. Колонка со своим видом (в её настройках) показывается им"
       />
       {hiddenCount > 0 && (
         <Checkbox checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)}>

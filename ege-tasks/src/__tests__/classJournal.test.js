@@ -7,7 +7,7 @@ import {
   planPaste, suggestNextTitle, monthSpans, columnMonths, inPeriod, journalTable, toCsv, toTsv,
   formatAvg, indexAttendance, lessonDay, sheetColumnPreset, findSheetColumn,
   WAIT, SKIP, headerSpans, rangeLabel, intensiveDays, intensiveSummary, finalShareOf,
-  startsBlockSection, formatGrade,
+  startsBlockSection, formatGrade, columnViews, columnView, viewBadge,
 } from '../utils/classJournal';
 
 const pts = (max = 20, extra = {}) => ({ scale: 'points', max_score: max, ...extra });
@@ -679,5 +679,76 @@ describe('интенсив: подсказки «за день» и «итог»
     const totIdx = all.findIndex((c) => c.id === 'tot') + 1;
     expect(table[1][totIdx]).toBe('');
     expect(table[2][totIdx]).toBe('');
+  });
+});
+
+// ─── Вид колонки (v3.9.312) ─────────────────────────────────────────────────
+
+describe('вид клеток колонки', () => {
+  const online = { source: 'work', online: true, scale: 'percent', thresholds: null };
+  const attempt = (score, total) => ({
+    best: { score, total, status: 'submitted', submitted_at: '2026-10-05 10:00:00Z' },
+    bestSession: {},
+  });
+
+  it('какие виды доступны', () => {
+    expect(columnViews(pts(20))).toEqual(['points', 'percent', 'grade']);
+    expect(columnViews(pts(0))).toEqual([]); // без максимума процент не посчитать
+    expect(columnViews({ scale: 'percent' })).toEqual(['percent', 'grade']);
+    expect(columnViews({ scale: 'grade' })).toEqual([]);
+    expect(columnViews({ scale: 'pass' })).toEqual([]);
+    expect(columnViews(online)).toEqual(['percent', 'grade', 'points']);
+  });
+
+  it('свой вид колонки главнее общего переключателя', () => {
+    expect(columnView(pts(20), 'raw')).toBe('points');
+    expect(columnView(pts(20), 'percent')).toBe('percent');
+    expect(columnView(pts(20), 'grade')).toBe('grade');
+    expect(columnView(pts(20, { view: 'percent' }), 'grade')).toBe('percent');
+    expect(columnView(pts(20, { view: 'grade' }), 'raw')).toBe('grade');
+    // Вид, которого у колонки нет, игнорируется
+    expect(columnView({ scale: 'percent', view: 'points' }, 'raw')).toBe('percent');
+    expect(columnView({ scale: 'grade' }, 'percent')).toBeNull();
+    expect(viewBadge(pts(20, { view: 'grade' }))).toBe('оценка');
+    expect(viewBadge(pts(20))).toBe('');
+  });
+
+  it('баллы из 20: баллы / проценты / оценка', () => {
+    const mark = { value: '17' };
+    expect(resolveCell(pts(20), mark, null).text).toBe('17');
+    expect(resolveCell(pts(20, { view: 'percent' }), mark, null).text).toBe('85%');
+    expect(resolveCell(pts(20, { view: 'grade' }), mark, null).text).toBe('5');
+    expect(resolveCell(pts(20), mark, null, { mode: 'percent' }).text).toBe('85%');
+    // Оценка и тон считаются при любом виде — средний не меняется
+    const c = resolveCell(pts(20, { view: 'percent' }), { value: '9' }, null);
+    expect(c).toMatchObject({ text: '45%', grade: 3, tone: 'amber' });
+    // Процент округляется до целого
+    expect(resolveCell(pts(30, { view: 'percent' }), { value: '7' }, null).text).toBe('23%');
+  });
+
+  it('оценка 2–5 и зачёт видом не меняются', () => {
+    expect(resolveCell({ scale: 'grade' }, { value: '4+' }, null, { mode: 'percent' }).text).toBe('4+');
+    expect(resolveCell({ scale: 'pass' }, { value: '1' }, null, { mode: 'grade' }).text).toBe('зач');
+    expect(resolveCell(pts(20, { view: 'grade' }), { value: 'н' }, null).text).toBe('н');
+  });
+
+  it('онлайн-работа: проценты / оценка / число верных', () => {
+    const agg = attempt(7, 10);
+    expect(resolveCell(online, null, agg).text).toBe('70%');
+    expect(resolveCell({ ...online, view: 'grade' }, null, agg).text).toBe('4');
+    expect(resolveCell({ ...online, view: 'points' }, null, agg).text).toBe('7');
+    expect(resolveCell(online, null, agg, { mode: 'grade' }).text).toBe('4');
+    // Правка поверх попытки хранится процентом — в баллы по числу заданий
+    expect(resolveCell({ ...online, view: 'points' }, { value: '90' }, agg).text).toBe('9');
+  });
+
+  it('views: false — показ как ввели (данные для отзывов ИИ)', () => {
+    expect(resolveCell(pts(20, { view: 'percent' }), { value: '17' }, null, { views: false }).text).toBe('17');
+    expect(resolveCell(pts(20, { view: 'percent' }), { value: '17' }, null, { views: false, mode: 'grade' }).text).toBe('5');
+  });
+
+  it('mergeColumns переносит вид из БД', () => {
+    const cols = mergeColumns([{ id: 'c1', title: 'К/р', scale: 'points', max_score: 20, view: 'grade', date: '2026-10-05' }]);
+    expect(cols[0].view).toBe('grade');
   });
 });

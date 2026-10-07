@@ -84,6 +84,41 @@ export function columnScale(col) {
 }
 
 /**
+ * Вид клеток колонки (v3.9.312): вводится в шкале колонки, а показывать можно
+ * иначе — баллы из 20 процентами или оценкой по порогам.
+ */
+export const VIEW_LABELS = { points: 'Баллы', percent: 'Проценты', grade: 'Оценка' };
+const VIEW_SHORT = { points: 'баллы', percent: '%', grade: 'оценка' };
+
+/** Какие виды доступны колонке. Пустой список — вид не выбирается. */
+export function columnViews(col) {
+  if (isOnlineSource(col?.source) || col?.online) return ['percent', 'grade', 'points'];
+  const scale = columnScale(col);
+  if (scale === 'points') {
+    return (Number(col?.max_score ?? col?.max) || 0) > 0 ? ['points', 'percent', 'grade'] : [];
+  }
+  if (scale === 'percent') return ['percent', 'grade'];
+  return [];
+}
+
+/**
+ * Каким видом показать колонку: её собственный выбор, иначе общий
+ * переключатель журнала (mode: raw | percent | grade), иначе — как вводили.
+ */
+export function columnView(col, mode = 'raw') {
+  const views = columnViews(col);
+  if (!views.length) return null;
+  if (col?.view && views.includes(col.view)) return col.view;
+  if (mode === 'grade' || mode === 'percent') return mode;
+  return views[0];
+}
+
+/** Подпись вида в шапке колонки — только у колонки со своим выбором. */
+export function viewBadge(col) {
+  return col?.view && columnViews(col).includes(col.view) ? VIEW_SHORT[col.view] : '';
+}
+
+/**
  * Вес колонки в среднем. 0 — не учитывается. Пустой вес читается как 1:
  * числовое поле PocketBase хранит «не задано» нулём.
  */
@@ -454,7 +489,7 @@ export function onlineStatus(col, agg, { now = new Date(), assigned = false } = 
     if (a.submitted_at) parts.push(`сдано ${fmt(a.submitted_at)}`);
     if (late) parts.push('после срока');
     if (a.source === 'scan') parts.push('бумажный бланк');
-    return { kind, pct, tip: parts.join(' · ') };
+    return { kind, pct, score: a.score ?? 0, total: a.total || 0, tip: parts.join(' · ') };
   }
   if (agg?.started) return { kind: 'in_progress', pct: null, tip: 'Начал, но не сдал' };
   const deadline = assigned ? col?.deadline : col?.classDeadline;
@@ -497,6 +532,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       scale: isOnline ? 'percent' : columnScale(rec),
       max_score: Number(rec.max_score) || 0,
       thresholds: rec.thresholds || null,
+      view: rec.view || '',
       weight: rec.weight,
       no_avg: !!rec.no_avg,
       hidden: !!rec.hidden,
@@ -535,6 +571,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       scale: 'percent',
       max_score: 0,
       thresholds: null,
+      view: '',
       weight: 1,
       no_avg: false,
       hidden: false,
@@ -873,8 +910,12 @@ export function indexMarks(marks = []) {
  * → { kind: empty|manual|online|override|absent («н» из посещаемости), stored, absent, value, grade, text,
  *     tone, textTone, status, comment, tip, editable }
  */
-export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false, attendance } = {}) {
+export function resolveCell(col, mark, agg, {
+  mode = 'raw', now, former = false, attendance, views = true,
+} = {}) {
   const comment = mark?.comment || '';
+  // Вид колонки (v3.9.312). views: false — показ «как ввели» (данные для ИИ).
+  const view = views ? columnView(col, mode) : (mode === 'grade' ? 'grade' : null);
   const stored = mark?.value || '';
   // Выбывшему работы класса уже не выдаются — «долгом» его не считаем.
   const status = col.online
@@ -918,8 +959,12 @@ export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false,
     if (absent) text = ABSENT;
     else if (mod) text = formatGrade(value, mod);
     else if (columnScale(col) === 'pass') text = value >= 1 ? 'зач' : 'н/з';
-    else if (mode === 'grade' && grade != null) text = String(grade);
-    else if (columnScale(col) === 'percent') text = `${formatNumber(value)}%`;
+    else if ((view === 'grade' || (!views && mode === 'grade')) && grade != null) text = String(grade);
+    else if (view === 'percent') text = `${formatNumber(Math.round(percentOf(col, value)))}%`;
+    else if (view === 'points' && col.online && status?.total) {
+      // Правка поверх попытки хранится процентом — в баллы по числу заданий.
+      text = formatNumber((value * status.total) / 100);
+    } else if (columnScale(col) === 'percent') text = `${formatNumber(value)}%`;
     else text = formatNumber(value);
 
     const tone = grade != null ? GRADE_TONE[grade] : null;
@@ -944,7 +989,8 @@ export function resolveCell(col, mark, agg, { mode = 'raw', now, former = false,
     let text = '';
     let textTone = null;
     if (submitted) {
-      if (mode === 'grade' && grade != null) text = String(grade);
+      if (view === 'grade' && grade != null) text = String(grade);
+      else if (view === 'points' && status.total) text = formatNumber(status.score);
       else if (status.pct != null) text = `${status.pct}%`;
       else text = status.kind === 'failed' ? 'н/з' : 'сдал';
     } else if (status.kind === 'in_progress') {
@@ -1021,6 +1067,7 @@ export function summarizeColumn(cells) {
  */
 export function buildGrid(students, columns, marksIndex, onlineCells, {
   mode = 'raw', now = new Date(), attendance = new Map(), blocks = [], blockColumns = null,
+  views = true,
 } = {}) {
   const cellOf = (col, student) => resolveCell(
     col,
@@ -1028,6 +1075,7 @@ export function buildGrid(students, columns, marksIndex, onlineCells, {
     col.online ? onlineCells.get(`${student.id}|${col.key}`) : undefined,
     {
       mode,
+      views,
       now,
       former: !!student.former,
       attendance: col.lessonId ? attendance.get(`${col.lessonId}|${student.id}`) : undefined,

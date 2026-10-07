@@ -6,7 +6,8 @@ import {
 import { DeleteOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import {
-  CATEGORY_SUGGESTIONS, DEFAULT_THRESHOLDS, SCALE_LABELS, WEIGHT_OPTIONS,
+  CATEGORY_SUGGESTIONS, DEFAULT_THRESHOLDS, SCALE_LABELS, VIEW_LABELS, WEIGHT_OPTIONS,
+  columnViews,
   normalizeThresholds, thresholdPoints, toStoredDate, formatNumber, lessonDay, shortDay,
   dayOf, rangeLabel,
 } from '../../../utils/classJournal';
@@ -151,6 +152,7 @@ export default function JournalColumnModal({
       hidden: !!src.hidden,
       assigned: !!src.assigned,
       note: src.note || '',
+      view: (column ? column.view : src.view) || '',
     });
   // lessons не в зависимостях: список может догрузиться, а форму, в которой
   // учитель уже что-то поменял, заново заполнять нельзя.
@@ -224,6 +226,12 @@ export default function JournalColumnModal({
   const noAvg = Form.useWatch('no_avg', form);
 
   const usesThresholds = online || scale === 'points' || scale === 'percent';
+  // Чем показывать клетки (v3.9.312): вводятся значения в шкале колонки.
+  const views = useMemo(
+    () => columnViews(online ? { source: 'work' } : { scale, max_score: max }),
+    [online, scale, max],
+  );
+  const view = Form.useWatch('view', form);
   const hint = useMemo(() => {
     if (scale !== 'points' || online) return null;
     const p = thresholdPoints(max, { 5: t5, 4: t4, 3: t3 });
@@ -252,6 +260,8 @@ export default function JournalColumnModal({
     if (online || v.scale === 'points' || v.scale === 'percent') {
       data.thresholds = { 5: v.t5, 4: v.t4, 3: v.t3 };
     }
+    // Пусто — как общий переключатель журнала.
+    if (views.includes(v.view) || !isNew) data.view = views.includes(v.view) ? v.view : '';
     if (!isNew) data.hidden = !!v.hidden;
     if (online) data.assigned = !!v.assigned;
     // Пустая строка снимает привязку к уроку у существующей колонки.
@@ -428,6 +438,24 @@ export default function JournalColumnModal({
                 <InputNumber min={0} max={100} addonBefore="«3» от" addonAfter="%" style={{ width: 150 }} />
               </Form.Item>
             </Space>
+          </Form.Item>
+        )}
+
+        {views.length > 1 && (
+          <Form.Item
+            name="view"
+            label="Показывать в журнале"
+            extra={view
+              ? `Клетки этой колонки всегда в виде «${VIEW_LABELS[view].toLowerCase()}». ${online ? 'Правка' : 'Ввод'} — по-прежнему ${online ? 'в процентах' : SCALE_LABELS[scale].toLowerCase()}, меняется только показ.`
+              : 'Как общий переключатель журнала над таблицей.'}
+          >
+            <Segmented
+              block
+              options={[
+                { value: '', label: 'Как в журнале' },
+                ...views.map((v) => ({ value: v, label: VIEW_LABELS[v] })),
+              ]}
+            />
           </Form.Item>
         )}
 
