@@ -253,6 +253,19 @@
   display: block;
 }
 
+/* Чертёж ```planim / ```stereo, вынесенный из условия (KimTaskContent):
+   стоит в разметке ПЕРВЫМ, текст его обтекает. Ширину в мм несёт сам SVG —
+   он построен под место S/M/L/XL, float ужимается по нему. */
+.kim-book-task-drawing {
+  float: right;
+  margin: 0 0 1.5mm 3mm;
+  max-width: 100%;
+}
+
+.kim-book-task-drawing .mr-figure {
+  margin: 0 !important;
+}
+
 /* Image floated right for tasks with text + image */
 .kim-book-task-content-with-image {
   position: relative;

@@ -76,6 +76,14 @@ export const PS_TEXT_MM = 3.9;
 export const PS_KATEX_EM = 1.04;
 export const psLetterMm = (fontScale = 1) => PS_TEXT_MM * (Number(fontScale) || 1) * PS_KATEX_EM;
 
+// То же для КИМ-буклета (A5): кегль условия `.kim-book-task-content` 12.5px ×
+// `.kim-book-task-content .katex` 0.97em (EgeVariantGenerator.css). Полоса
+// условия — контентная зона A5 (138.5 мм, .kim-measure-page) минус колонка
+// номера 7.5 мм и зазор 2.5 мм (.kim-book-task).
+const PX_MM = 25.4 / 96;
+export const KIM_LETTER_MM = 12.5 * PX_MM * 0.97;
+export const KIM_TEXT_WIDTH_MM = 138.5 - 7.5 - 2.5;
+
 /**
  * Место чертежа на листе print-sheet в миллиметрах — то же, что задают CSS-
  * переменные figureSizeVars: ширина — доля полосы условия (`--ps-fig-w`, сбоку —

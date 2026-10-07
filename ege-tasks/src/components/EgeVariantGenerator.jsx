@@ -27,8 +27,7 @@ import {
 } from '../hooks';
 import { poolStatsDetailed } from '../utils/successStats';
 import SuccessRateCell from './worksheet/SuccessRateCell';
-import MathRenderer from './MathRenderer';
-import { kimImageBoxStyle, kimImageImgStyle } from '../utils/kimImageSize';
+import KimTaskContent from './worksheet/KimTaskContent';
 import { printKimAnswers } from '../utils/printKimAnswers';
 import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
@@ -40,7 +39,6 @@ import SessionPanel from './worksheet/SessionPanel';
 import TaskSelectModal from './TaskSelectModal';
 import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
-import { api } from '../services/pocketbase';
 import './TaskWorksheet.css';
 import './EgeVariantGenerator.css';
 
@@ -155,29 +153,19 @@ const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta }) => (
     )}
 
     <div className="kim-book-tasks">
-      {tasks.map((task) => {
-        const taskImageUrl = api.getTaskImageUrl(task);
-        return (
-          <div key={task.id} className="kim-book-task">
-            <div className="kim-book-task-number">{task.kimNumber}</div>
-            <div className="kim-book-task-main">
-              <div className="kim-book-task-content">
-                <MathRenderer text={task.statement_md} />
-                {task.has_image && taskImageUrl && (
-                  <div className="kim-book-task-image" style={kimImageBoxStyle(task.kimImageSize)}>
-                    <img src={taskImageUrl} alt="" style={kimImageImgStyle(task.kimImageSize)} />
-                  </div>
-                )}
-              </div>
-              <div className="kim-book-answer">
-                <span>Ответ:</span>
-                <span className="kim-book-answer-line" />
-                <span className="kim-book-answer-dot">.</span>
-              </div>
+      {tasks.map((task) => (
+        <div key={task.id} className="kim-book-task">
+          <div className="kim-book-task-number">{task.kimNumber}</div>
+          <div className="kim-book-task-main">
+            <KimTaskContent task={task} />
+            <div className="kim-book-answer">
+              <span>Ответ:</span>
+              <span className="kim-book-answer-line" />
+              <span className="kim-book-answer-dot">.</span>
             </div>
           </div>
-        );
-      })}
+        </div>
+      ))}
     </div>
 
     <div className="kim-page-footer">{kimMeta.brand}</div>
@@ -227,33 +215,23 @@ const KimVariantPrint = ({ variant, kimMeta }) => {
       <div className="kim-measure-root">
         <div className="kim-measure-page">
           <div className="kim-measure-tasks">
-            {tasks.map((task, index) => {
-              const taskImageUrl = api.getTaskImageUrl(task);
-              return (
-                <div
-                  key={task.id}
-                  ref={(el) => { taskRefs.current[index] = el; }}
-                  className="kim-book-task"
-                >
-                  <div className="kim-book-task-number">{index + 1}</div>
-                  <div className="kim-book-task-main">
-                    <div className="kim-book-task-content">
-                      <MathRenderer text={task.statement_md} />
-                      {task.has_image && taskImageUrl && (
-                        <div className="kim-book-task-image" style={kimImageBoxStyle(task.kimImageSize)}>
-                          <img src={taskImageUrl} alt="" style={kimImageImgStyle(task.kimImageSize)} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="kim-book-answer">
-                      <span>Ответ:</span>
-                      <span className="kim-book-answer-line" />
-                      <span className="kim-book-answer-dot">.</span>
-                    </div>
+            {tasks.map((task, index) => (
+              <div
+                key={task.id}
+                ref={(el) => { taskRefs.current[index] = el; }}
+                className="kim-book-task"
+              >
+                <div className="kim-book-task-number">{index + 1}</div>
+                <div className="kim-book-task-main">
+                  <KimTaskContent task={task} />
+                  <div className="kim-book-answer">
+                    <span>Ответ:</span>
+                    <span className="kim-book-answer-line" />
+                    <span className="kim-book-answer-dot">.</span>
                   </div>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         </div>
       </div>

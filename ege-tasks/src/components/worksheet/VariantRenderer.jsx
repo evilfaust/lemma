@@ -10,6 +10,8 @@ import {
   kimImageBoxStyle,
   kimImageImgStyle,
 } from '../../utils/kimImageSize';
+import { DrawingPrintContext } from '../shared/drawingPrintContext';
+import { hasBuiltDrawing, kimDrawingPlace } from './KimTaskContent';
 
 /**
  * Компонент рендеринга одного варианта (компактный и обычный режимы).
@@ -157,6 +159,10 @@ const VariantRenderer = ({
           const isDragging = dragDropHandlers?.isDragging(variantIndex, taskIndex);
           const isDragOver = dragDropHandlers?.isDragOver(variantIndex, taskIndex);
           const taskImageUrl = api.getTaskImageUrl(task);
+          // В режиме КИМ чертёж редактора (```planim / ```stereo) показывается
+          // в размере, который уйдёт в печать буклета (KimTaskContent).
+          const kimDrawing = !!onSetImageSize && hasBuiltDrawing(task);
+          const statement = <MathRenderer text={applyTextFilter(task.statement_md)} />;
 
           return (
             <div
@@ -175,7 +181,7 @@ const VariantRenderer = ({
                 <span className="task-number">{taskIndex + 1}.</span>
                 <span className="task-code">{task.code}</span>
                 <div className="no-print" style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  {onSetImageSize && task.has_image && taskImageUrl && (
+                  {onSetImageSize && ((task.has_image && taskImageUrl) || kimDrawing) && (
                     <Tooltip title="Размер чертежа в печати (КИМ)">
                       <Segmented
                         size="small"
@@ -206,7 +212,11 @@ const VariantRenderer = ({
               </div>
 
               <div className="task-content">
-                <MathRenderer text={applyTextFilter(task.statement_md)} />
+                {kimDrawing ? (
+                  <DrawingPrintContext.Provider value={kimDrawingPlace(task.kimImageSize)}>
+                    {statement}
+                  </DrawingPrintContext.Provider>
+                ) : statement}
 
                 {task.has_image && taskImageUrl && (
                   <div

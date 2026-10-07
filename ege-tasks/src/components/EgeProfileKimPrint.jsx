@@ -1,8 +1,7 @@
 import React, { useState, useRef, useMemo, useLayoutEffect } from 'react';
 import { Typography } from 'antd';
 import MathRenderer from './MathRenderer';
-import { api } from '../services/pocketbase';
-import { kimImageBoxStyle, kimImageImgStyle } from '../utils/kimImageSize';
+import KimTaskContent from './worksheet/KimTaskContent';
 
 const { Text } = Typography;
 
@@ -86,31 +85,21 @@ const KimProfileCoverPage = ({ variant, kimMeta }) => (
   </div>
 );
 
-const KimProfileTask = ({ task, withAnswer }) => {
-  const taskImageUrl = api.getTaskImageUrl(task);
-  return (
-    <div className={`kim-book-task${withAnswer ? '' : ' kim-book-task--part2'}`}>
-      <div className="kim-book-task-number">{task.kimNumber}</div>
-      <div className="kim-book-task-main">
-        <div className="kim-book-task-content">
-          <MathRenderer text={task.statement_md} />
-          {task.has_image && taskImageUrl && (
-            <div className="kim-book-task-image" style={kimImageBoxStyle(task.kimImageSize)}>
-              <img src={taskImageUrl} alt="" style={kimImageImgStyle(task.kimImageSize)} />
-            </div>
-          )}
+const KimProfileTask = ({ task, withAnswer }) => (
+  <div className={`kim-book-task${withAnswer ? '' : ' kim-book-task--part2'}`}>
+    <div className="kim-book-task-number">{task.kimNumber}</div>
+    <div className="kim-book-task-main">
+      <KimTaskContent task={task} />
+      {withAnswer && (
+        <div className="kim-book-answer">
+          <span>Ответ:</span>
+          <span className="kim-book-answer-line" />
+          <span className="kim-book-answer-dot">.</span>
         </div>
-        {withAnswer && (
-          <div className="kim-book-answer">
-            <span>Ответ:</span>
-            <span className="kim-book-answer-line" />
-            <span className="kim-book-answer-dot">.</span>
-          </div>
-        )}
-      </div>
+      )}
     </div>
-  );
-};
+  </div>
+);
 
 const KimProfileTaskPage = ({ variant, pageNumber, tasks, kimMeta, part, isPartStart }) => (
   <div className="kim-page kim-page-task">
