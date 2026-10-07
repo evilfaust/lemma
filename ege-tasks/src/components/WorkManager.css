@@ -181,6 +181,48 @@
   opacity: 1;
 }
 
+/* Сенсорный экран (планшет): наведения нет — иначе кнопки невидимы */
+@media (hover: none) {
+  .wm-work-card-actions { opacity: 1; }
+}
+
+/* ---- Телефон: заголовок во всю ширину, ниже — попытки и действия ---- */
+@media (max-width: 767.98px) {
+  .wm-work-card-header {
+    flex-wrap: wrap;
+    padding: 12px;
+    gap: 8px 10px;
+    align-items: flex-start;
+  }
+
+  .wm-work-card-main {
+    flex: 1 1 calc(100% - 40px);
+  }
+
+  .wm-work-card-title {
+    font-size: 15px;
+  }
+
+  .wm-work-card-stats {
+    margin-left: 34px;
+    min-height: 32px;
+  }
+
+  .wm-work-card-actions--mobile {
+    opacity: 1;
+    margin-left: auto;
+    gap: 4px;
+  }
+
+  .wm-work-card-body .ant-tabs-nav {
+    padding: 0 8px;
+  }
+
+  .wm-work-card-body .ant-tabs-content-holder {
+    padding: 12px 10px;
+  }
+}
+
 /* ---- Expanded Body ---- */
 .wm-work-card-body {
   border-top: 1px solid var(--rule-soft);

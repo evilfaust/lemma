@@ -1,0 +1,314 @@
+/* ============================================
+   Результаты бумажной работы (ScanBlankModal)
+   Телефон (v3.9.313): окно во весь экран, крупные цели касания,
+   «Записать» закреплена внизу (футер модалки), список ответов скроллится.
+   ============================================ */
+
+/* ---- Общее (и компьютер) ---- */
+.sbm-alt {
+  border: 1px dashed var(--c-amber, #D97706);
+  background: var(--c-amber-soft, #FEF3C7);
+  color: var(--c-amber, #D97706);
+  border-radius: 6px;
+  padding: 1px 8px;
+  font: 600 13px/1.5 var(--font-mono, monospace);
+  cursor: pointer;
+}
+
+.sbm-photo {
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--rule, #e5e7eb);
+}
+
+/* ---- Окно во весь экран ---- */
+.sbm-root--mobile .ant-modal {
+  top: 0;
+  margin: 0;
+  padding: 0;
+  max-width: 100vw;
+  width: 100vw !important;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.sbm-root--mobile .ant-modal-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0;
+  padding: 12px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+}
+
+.sbm-root--mobile .ant-modal-header {
+  margin-bottom: 10px;
+  padding-right: 32px;
+}
+
+.sbm-root--mobile .ant-modal-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -14px;
+  padding: 0 14px 12px;
+}
+
+.sbm-root--mobile .ant-modal-footer {
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule, #e5e7eb);
+  text-align: left;
+}
+
+.sbm-title {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sbm-m {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sbm-hint {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ---- Класс · дата · выдача (сворачивается в строку) ---- */
+.sbm-setup {
+  border: 1px solid var(--rule, #e5e7eb);
+  border-radius: 12px;
+  background: var(--bg-sunken, #F3F4F6);
+}
+
+.sbm-setup-sum {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px;
+  font-size: 14px;
+  color: var(--ink, #111);
+  cursor: pointer;
+}
+
+.sbm-setup-sum:focus-visible {
+  outline: 2px solid var(--accent, #5b5bd6);
+  border-radius: 12px;
+}
+
+.sbm-setup-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sbm-setup-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 12px 12px;
+}
+
+.sbm-setup-fields .ant-select,
+.sbm-setup-fields .ant-picker {
+  width: 100%;
+}
+
+/* ---- Прогресс класса и «записано» ---- */
+.sbm-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--ink-3, #666);
+  white-space: nowrap;
+}
+
+.sbm-progress .ant-progress {
+  flex: 1;
+  margin: 0;
+}
+
+.sbm-saved {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--c-teal-soft, #D1FAE5);
+  color: var(--c-teal, #0D9488);
+  font-size: 14px;
+}
+
+/* ---- Ученик и вариант ---- */
+.sbm-who {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sbm-who .ant-select {
+  width: 100%;
+}
+
+/* ---- Съёмка ---- */
+.sbm-capture {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sbm-capture .sbm-capture-main.ant-btn {
+  height: 64px;
+  font-size: 17px;
+  border-radius: 14px;
+}
+
+.sbm-reading {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.sbm-reading-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.sbm-photo-strip {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.sbm-photo-strip-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* ---- Ответы списком ---- */
+.sbm-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sbm-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 44px;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 4px 8px 8px;
+  border-radius: 10px;
+  background: var(--bg-raised, #fff);
+  border: 1px solid var(--rule-soft, #EEF0F3);
+}
+
+.sbm-row--warn {
+  border-color: var(--c-amber, #D97706);
+  background: var(--c-amber-soft, #FEF3C7);
+}
+
+.sbm-row-n {
+  font: 600 15px/40px var(--font-mono, monospace);
+  text-align: center;
+  color: var(--ink-3, #666);
+}
+
+.sbm-row-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 16px — меньше iOS увеличивает страницу при фокусе на поле */
+.sbm-row .sbm-row-input.ant-input {
+  font-size: 16px;
+  font-family: var(--font-mono, monospace);
+}
+
+.sbm-row-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-3, #666);
+}
+
+.sbm-row-sub .ant-tag {
+  margin: 0;
+}
+
+.sbm-row-key,
+.sbm-row-key > *,
+.sbm-row-key p {
+  display: inline;
+  margin: 0;
+}
+
+.sbm-row-mark {
+  all: unset;
+  box-sizing: border-box;
+  width: 44px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+
+.sbm-row-mark:active {
+  background: var(--bg-hover, #F7F8FA);
+}
+
+.sbm-cancel.ant-btn {
+  align-self: center;
+}
+
+/* ---- Закреплённый низ: балл + «Записать» ---- */
+.sbm-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sbm-foot-score {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ink-3, #666);
+}
+
+.sbm-foot-big {
+  font: 700 22px/1 var(--font-mono, monospace);
+  color: var(--ink, #111);
+}
+
+.sbm-foot-who {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sbm-foot .ant-btn {
+  min-width: 132px;
+  height: 46px;
+  border-radius: 12px;
+}

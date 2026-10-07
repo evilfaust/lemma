@@ -1,17 +1,18 @@
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react';
-import { Button, Tag, Empty, Spin, Modal, Typography, Tabs, Input, Select, Progress, Tooltip, AutoComplete, App } from 'antd';
+import { Button, Tag, Empty, Spin, Modal, Typography, Tabs, Input, Select, Progress, Tooltip, AutoComplete, App, Dropdown } from 'antd';
 import {
   DeleteOutlined, SendOutlined, ReloadOutlined, EyeOutlined, EditOutlined,
   RightOutlined, InboxOutlined, SolutionOutlined, TeamOutlined,
   ClockCircleOutlined, SearchOutlined, SortAscendingOutlined, FormOutlined,
   PushpinOutlined, PushpinFilled, FolderOutlined, DownOutlined, FileDoneOutlined,
   ShareAltOutlined, CopyOutlined, UserOutlined, SwapOutlined, ImportOutlined,
-  ExperimentOutlined, TrophyOutlined, ReadOutlined,
+  ExperimentOutlined, TrophyOutlined, ReadOutlined, CameraOutlined, MoreOutlined,
 } from '@ant-design/icons';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import useIsMobile from '../hooks/useIsMobile';
 import SessionPanel from './worksheet/SessionPanel';
 import WorkShowPanel from './worksheet/WorkShowPanel';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
@@ -31,6 +32,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
   const { topics } = useReferenceData();
   const { canEdit, canDelete, aiEnabled, teacher, isSuperAdmin } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const [activeTab, setActiveTab] = useState('works');
   const [mcTests, setMcTests] = useState([]);
@@ -561,9 +563,38 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
     );
   };
 
+  // Телефон: действия карточки — одним меню «⋯» (иконки по наведению мыши на
+  // сенсорном экране не видны, а одиннадцать в ряд не помещаются).
+  const mobileMenuItems = (work) => [
+    canEdit && onEditWork && { key: 'edit', icon: <EditOutlined />, label: 'Редактировать' },
+    canEdit && { key: 'pin', icon: <PushpinOutlined />, label: work.is_pinned ? 'Открепить' : 'Закрепить наверху' },
+    canEdit && { key: 'folder', icon: <FolderOutlined />, label: work.folder ? `Папка: ${work.folder}` : 'В папку' },
+    { key: 'parallel', icon: <span>🧬</span>, label: 'Параллельный вариант' },
+    canEdit && { key: 'marathon', icon: <TrophyOutlined />, label: 'В марафон' },
+    canShareWork(work) && { key: 'share', icon: <ShareAltOutlined />, label: work.visibility === 'shared' ? 'Сделать личной' : 'Поделиться с коллегами' },
+    canShareWork(work) && { key: 'transfer', icon: <SwapOutlined />, label: 'Передать учителю' },
+    canEdit && { key: 'archive', icon: <InboxOutlined />, label: work.archived ? 'Вернуть из архива' : 'В архив' },
+    canDelete && { type: 'divider' },
+    canDelete && { key: 'delete', icon: <DeleteOutlined />, label: 'Удалить', danger: true },
+  ].filter(Boolean);
+
+  const handleMobileMenu = (work, { key, domEvent }) => {
+    const e = domEvent;
+    if (key === 'edit') handleEditWork(e, work.id);
+    else if (key === 'pin') handlePinToggle(e, work);
+    else if (key === 'folder') openFolderModal(e, work);
+    else if (key === 'parallel') openParallel(e, work);
+    else if (key === 'marathon') { e.stopPropagation(); setMarathonWork(work); }
+    else if (key === 'share') handleShareToggle(e, work);
+    else if (key === 'transfer') openTransfer(e, work);
+    else if (key === 'archive') handleArchiveToggle(e, work);
+    else if (key === 'delete') handleDelete(e, work.id, work.title);
+  };
+
   const worksContent = (
     <>
-      {/* Hero Metrics */}
+      {/* Hero Metrics — на телефоне не показываем: сначала сами работы */}
+      {!isMobile && (
       <StatRow cols={4}>
         <Stat label="Всего работ"  value={heroStats.totalWorks}  sub="сохранено" />
         <Stat label="Активных"     value={heroStats.activeWorks} sub="не в архиве" />
@@ -575,11 +606,12 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
           accent={heroStats.avgScore >= 80 ? 'good' : heroStats.avgScore >= 60 ? 'warn' : heroStats.avgScore !== null ? 'bad' : undefined}
         />
       </StatRow>
+      )}
 
       {/* Filters */}
       <FilterRow>
         <Input
-          style={{ flex: 1, maxWidth: 320 }}
+          style={isMobile ? { flex: '1 1 100%' } : { flex: 1, maxWidth: 320 }}
           placeholder="Поиск по названию..."
           prefix={<SearchOutlined style={{ color: 'var(--ink-4)' }} />}
           allowClear
@@ -587,32 +619,38 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
           onChange={e => setSearchText(e.target.value)}
           onPressEnter={loadWorks}
         />
-        <Select style={{ minWidth: 140 }} value={statusFilter} onChange={setStatusFilter}>
+        <Select
+          style={isMobile ? { flex: '1 1 40%', minWidth: 0 } : { minWidth: 140 }}
+          value={statusFilter}
+          onChange={setStatusFilter}
+        >
           <Option value="all">Все</Option>
           <Option value="active">Активные</Option>
           <Option value="archived">Архив</Option>
           <Option value="with_attempts">С попытками</Option>
         </Select>
-        <Select
-          allowClear
-          placeholder="Тема"
-          value={topicFilter}
-          onChange={v => setTopicFilter(v || null)}
-          showSearch
-          optionFilterProp="children"
-          style={{ minWidth: 180 }}
-        >
-          {topics.map(t => (
-            <Option key={t.id} value={t.id}>{t.ege_number ? `№${t.ege_number} — ` : ''}{t.title}</Option>
-          ))}
-        </Select>
+        {!isMobile && (
+          <Select
+            allowClear
+            placeholder="Тема"
+            value={topicFilter}
+            onChange={v => setTopicFilter(v || null)}
+            showSearch
+            optionFilterProp="children"
+            style={{ minWidth: 180 }}
+          >
+            {topics.map(t => (
+              <Option key={t.id} value={t.id}>{t.ege_number ? `№${t.ege_number} — ` : ''}{t.title}</Option>
+            ))}
+          </Select>
+        )}
         {folderOptions.length > 0 && (
           <Select
             allowClear
             placeholder="Папка"
             value={folderFilter}
             onChange={v => setFolderFilter(v || null)}
-            style={{ minWidth: 160 }}
+            style={isMobile ? { flex: '1 1 40%', minWidth: 0 } : { minWidth: 160 }}
             suffixIcon={<FolderOutlined />}
           >
             <Option value="__none__">Без папки</Option>
@@ -624,7 +662,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
         <Select
           value={sortBy}
           onChange={setSortBy}
-          style={{ minWidth: 180, marginLeft: 'auto' }}
+          style={isMobile ? { flex: '1 1 40%', minWidth: 0 } : { minWidth: 180, marginLeft: 'auto' }}
           suffixIcon={<SortAscendingOutlined />}
         >
           <Option value="date_desc">Сначала новые</Option>
@@ -635,7 +673,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
         <span style={{ fontSize: 12, color: 'var(--ink-3)', whiteSpace: 'nowrap' }}>
           {filteredWorks.length} из {works.length}
         </span>
-        {canEdit && (
+        {canEdit && !isMobile && (
           <Tooltip title="Загрузить готовую работу текстом: задачи разойдутся по темам">
             <Button icon={<ImportOutlined />} onClick={() => navigate('/app/works/import')}>
               Импорт работы
@@ -739,6 +777,25 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                   </div>
 
                   {/* Actions */}
+                  {isMobile ? (
+                    <div className="wm-work-card-actions wm-work-card-actions--mobile" onClick={e => e.stopPropagation()}>
+                      {canEdit && (
+                        <Button
+                          icon={aiEnabled ? <CameraOutlined /> : <FileDoneOutlined />}
+                          onClick={() => setScanWork(work)}
+                        >
+                          Внести результаты
+                        </Button>
+                      )}
+                      <Dropdown
+                        trigger={['click']}
+                        placement="bottomRight"
+                        menu={{ items: mobileMenuItems(work), onClick: info => handleMobileMenu(work, info) }}
+                      >
+                        <Button type="text" icon={<MoreOutlined />} aria-label="Действия с работой" />
+                      </Dropdown>
+                    </div>
+                  ) : (
                   <div className="wm-work-card-actions" onClick={e => e.stopPropagation()}>
                     {canEdit && (
                       <Tooltip title={work.is_pinned ? 'Открепить' : 'Закрепить наверху'}>
@@ -849,6 +906,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                       </Tooltip>
                     )}
                   </div>
+                  )}
                 </div>
 
                 {/* Expanded Body */}
