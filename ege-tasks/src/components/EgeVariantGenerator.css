@@ -498,6 +498,55 @@
     border-radius: 2px;
     border: 1px solid #e0e0e0;
   }
+
+  /* «Как в печати» (KimViewSwitch): буклет на экране — те же страницы, что
+     уйдут в печать, разворотами. Страница обрезается по листу, как в печати
+     (там overflow: hidden), — переполнение видно сразу, а не на бумаге. */
+  .kim-booklet.kim-booklet--preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: #eef0f3;
+    border-radius: 8px;
+  }
+  .kim-booklet--preview .kim-page {
+    height: 210mm;
+    min-height: 0;
+    overflow: hidden;
+    flex: none;
+  }
+
+  /* Панель задачи (KimTaskTools) — по наведению, поверх текста: высоту
+     задачи не меняет, пагинация та же, что в печати. */
+  .kim-booklet--preview .kim-book-task {
+    position: relative;
+  }
+  .kim-booklet--preview .kim-book-task:hover {
+    outline: 1px dashed #91caff;
+    outline-offset: 1mm;
+  }
+  .kim-booklet--preview .kim-book-task:hover > .kim-task-tools {
+    display: flex;
+  }
+}
+
+.kim-task-tools {
+  display: none;
+  position: absolute;
+  /* над задачей, чтобы не закрывать чертёж; нахлёст 2 мм — мышь доходит до
+     панели, не теряя наведения на задачу */
+  bottom: calc(100% - 2mm);
+  right: 0;
+  z-index: 5;
+  gap: 4px;
+  align-items: center;
+  padding: 3px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* ─── Print ─── */

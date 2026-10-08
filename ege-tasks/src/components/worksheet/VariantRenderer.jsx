@@ -1,27 +1,15 @@
-import { Button, Tooltip, Segmented } from 'antd';
-import {
-  EditOutlined, SwapOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
-} from '@ant-design/icons';
+import { Button, Tooltip } from 'antd';
+import { EditOutlined, SwapOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { filterTaskText } from '../../utils/filterTaskText';
 import { api } from '../../services/pocketbase';
 import { buildCryptogramForVariant } from '../../utils/cryptogram';
 import {
-  KIM_IMAGE_SIZE_OPTIONS,
-  DEFAULT_KIM_IMAGE_SIZE,
   kimImageBoxStyle,
   kimImageImgStyle,
 } from '../../utils/kimImageSize';
-import KimTaskContent, {
-  KimAnswer, hasKimFigure, kimFigureLayout, kimSizeIsNatural,
-} from './KimTaskContent';
-
-// Место чертежа задачи в КИМ — в том порядке, в каком он встанет на листе.
-const KIM_PLACEMENT_OPTIONS = [
-  { value: 'left', icon: <PicLeftOutlined />, title: 'Чертёж слева, текст обтекает' },
-  { value: 'below', icon: <PicCenterOutlined />, title: 'Чертёж на своём месте в условии' },
-  { value: 'right', icon: <PicRightOutlined />, title: 'Чертёж справа, текст обтекает' },
-];
+import KimTaskContent, { KimAnswer } from './KimTaskContent';
+import { KimSizeSwitch, KimPlacementSwitch } from './KimTaskTools';
 
 /**
  * Компонент рендеринга одного варианта (компактный и обычный режимы).
@@ -177,9 +165,6 @@ const VariantRenderer = ({
           // Режим КИМ: задача на экране — та же разметка, что уйдёт в буклет
           // (размер и место чертежа, бланк «А Б В Г» в строке ответа).
           const kim = !!onSetImageSize;
-          const kimLayout = kim
-            ? kimFigureLayout(task, { answerTable: true, imageUrl: task.has_image ? taskImageUrl : null })
-            : null;
 
           return (
             <div
@@ -198,30 +183,14 @@ const VariantRenderer = ({
                 <span className="task-number">{taskIndex + 1}.</span>
                 <span className="task-code">{task.code}</span>
                 <div className="no-print" style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  {kim && hasKimFigure(task) && (
-                    <Tooltip
-                      title={kimSizeIsNatural(task) && !task.kimImageSize
-                        ? 'Размер чертежа в печати (КИМ). Не выбран — как задан в условии'
-                        : 'Размер чертежа в печати (КИМ)'}
-                    >
-                      <Segmented
-                        size="small"
-                        options={KIM_IMAGE_SIZE_OPTIONS}
-                        // null — ни одна кнопка не нажата: график «как в условии»
-                        value={task.kimImageSize || (kimSizeIsNatural(task) ? null : DEFAULT_KIM_IMAGE_SIZE)}
-                        onChange={(val) => onSetImageSize(variantIndex, taskIndex, val)}
-                      />
-                    </Tooltip>
+                  {kim && (
+                    <KimSizeSwitch task={task} onChange={(val) => onSetImageSize(variantIndex, taskIndex, val)} />
                   )}
-                  {kim && onSetFigurePlacement && kimLayout.placement && (
-                    <Tooltip title="Где чертёж в печати (КИМ): слева или справа с обтеканием текстом, либо на своём месте в условии">
-                      <Segmented
-                        size="small"
-                        options={KIM_PLACEMENT_OPTIONS}
-                        value={kimLayout.placement}
-                        onChange={(val) => onSetFigurePlacement(variantIndex, taskIndex, val)}
-                      />
-                    </Tooltip>
+                  {kim && onSetFigurePlacement && (
+                    <KimPlacementSwitch
+                      task={task}
+                      onChange={(val) => onSetFigurePlacement(variantIndex, taskIndex, val)}
+                    />
                   )}
                   <Tooltip title="Редактировать задачу">
                     <Button

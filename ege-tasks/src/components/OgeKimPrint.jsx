@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo, useLayoutEffect } from 'react';
 import { Typography } from 'antd';
 import MathRenderer from './MathRenderer';
 import KimTaskContent, { KimAnswer } from './worksheet/KimTaskContent';
+import KimTaskTools from './worksheet/KimTaskTools';
 
 const { Text } = Typography;
 
@@ -84,8 +85,9 @@ const KimOgeCoverPage = ({ variant, kimMeta }) => (
   </div>
 );
 
-const KimOgeTask = ({ task, withAnswer }) => (
+const KimOgeTask = ({ task, withAnswer, editing = null }) => (
   <div className={`kim-book-task${withAnswer ? '' : ' kim-book-task--part2'}`}>
+    {editing && <KimTaskTools task={task} editing={editing} />}
     <div className="kim-book-task-number">{task.kimNumber}</div>
     <div className="kim-book-task-main">
       <KimTaskContent task={task} answerTable={withAnswer} />
@@ -94,7 +96,7 @@ const KimOgeTask = ({ task, withAnswer }) => (
   </div>
 );
 
-const KimOgeTaskPage = ({ variant, pageNumber, tasks, kimMeta, part, isPartStart }) => (
+const KimOgeTaskPage = ({ variant, pageNumber, tasks, kimMeta, part, isPartStart, editing }) => (
   <div className="kim-page kim-page-task">
     <div className="kim-page-header">
       <span>Математика. ОГЭ. {kimMeta.classNum} класс. Вариант {kimMeta.variantNumberOverride || variant.number}</span>
@@ -123,7 +125,7 @@ const KimOgeTaskPage = ({ variant, pageNumber, tasks, kimMeta, part, isPartStart
 
     <div className="kim-book-tasks">
       {tasks.map((task) => (
-        <KimOgeTask key={task.id} task={task} withAnswer={part === 1} />
+        <KimOgeTask key={task.id} task={task} withAnswer={part === 1} editing={editing} />
       ))}
     </div>
 
@@ -137,7 +139,7 @@ const KimOgeTaskPage = ({ variant, pageNumber, tasks, kimMeta, part, isPartStart
  * высот всех задач, затем раздельная пагинация части 1 (1–19) и части 2 (20–25).
  * Часть 2 всегда стартует с новой страницы.
  */
-const KimOgeVariantPrint = ({ variant, kimMeta }) => {
+const KimOgeVariantPrint = ({ variant, kimMeta, preview = false, editing = null }) => {
   const allTasks = useMemo(
     () => (variant.tasks || []).map((t, i) => ({ ...t, kimNumber: i + 1 })),
     [variant.tasks]
@@ -179,9 +181,36 @@ const KimOgeVariantPrint = ({ variant, kimMeta }) => {
     setState({ taskKey, pages });
   });
 
+  // ── Фаза 2: плоский список A5-страниц ──
+  // На экране буклет виден только в режиме «Как в печати» (preview); там же
+  // у задач панель правки (KimTaskTools, в печать не идёт).
+  const pages = state.pages || [];
+  const booklet = pages.length > 0 && (
+    <div className={`kim-booklet${preview ? ' kim-booklet--preview' : ''}`}>
+      <KimOgeCoverPage variant={variant} kimMeta={kimMeta} />
+      {pages.map((page, index) => (
+        <KimOgeTaskPage
+          key={index}
+          variant={variant}
+          pageNumber={index + 2}
+          tasks={page.tasks}
+          kimMeta={kimMeta}
+          part={page.part}
+          isPartStart={page.isPartStart}
+          editing={preview ? editing : null}
+        />
+      ))}
+    </div>
+  );
+
   // ── Фаза 1: скрытый рендер для измерения ──
+  // Прежние страницы остаются на месте, пока идёт перемер: иначе на экране
+  // («Как в печати») страница на кадр становилась короче и прокрутка
+  // прыгала вверх после каждой правки.
   if (needsMeasure) {
     return (
+      <>
+      {booklet}
       <div className="kim-measure-root">
         <div className="kim-measure-page">
           <div className="kim-measure-tasks">
@@ -196,29 +225,11 @@ const KimOgeVariantPrint = ({ variant, kimMeta }) => {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
-  // ── Фаза 2: плоский список A5-страниц ──
-  const pages = state.pages || [];
-  if (pages.length === 0) return null;
-
-  return (
-    <div className="kim-booklet">
-      <KimOgeCoverPage variant={variant} kimMeta={kimMeta} />
-      {pages.map((page, index) => (
-        <KimOgeTaskPage
-          key={index}
-          variant={variant}
-          pageNumber={index + 2}
-          tasks={page.tasks}
-          kimMeta={kimMeta}
-          part={page.part}
-          isPartStart={page.isPartStart}
-        />
-      ))}
-    </div>
-  );
+  return booklet || null;
 };
 
 /**

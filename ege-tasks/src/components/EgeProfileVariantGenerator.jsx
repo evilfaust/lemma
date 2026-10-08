@@ -26,6 +26,7 @@ import {
 import { poolStatsDetailed } from '../utils/successStats';
 import SuccessRateCell from './worksheet/SuccessRateCell';
 import VariantRenderer from './worksheet/VariantRenderer';
+import KimViewSwitch, { useKimView } from './worksheet/KimViewSwitch';
 import ActionButtons from './worksheet/ActionButtons';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
 import SaveWorkModal from './worksheet/SaveWorkModal';
@@ -78,6 +79,7 @@ const EgeProfileVariantGenerator = () => {
   const [showSolutionSpace, setShowSolutionSpace] = useState(true);
   const [compactMode] = useState(false);
   const [kimStyle, setKimStyle] = useState(false);
+  const [kimView, setKimView] = useKimView();
   const [kimVariantNumber, setKimVariantNumber] = useState('');
   const [kimClass, setKimClass] = useState('11');
   const [kimDate, setKimDate] = useState(null); // null = сегодня, dayjs-объект когда задана
@@ -718,6 +720,11 @@ const EgeProfileVariantGenerator = () => {
                     {variant.tasks.length} заданий
                   </Text>
                   {kimStyle && <Tag color="geekblue" icon={<FileTextOutlined />}>КИМ</Tag>}
+                  {kimStyle && (
+                    <span style={{ marginLeft: 'auto' }}>
+                      <KimViewSwitch value={kimView} onChange={setKimView} />
+                    </span>
+                  )}
                 </div>
 
                 {/* Обычный вид (экран + обычная печать) */}
@@ -742,6 +749,7 @@ const EgeProfileVariantGenerator = () => {
                 {/* КИМ-стиль: экран — редактируемый вид, печать — официальный КИМ */}
                 {kimStyle && (
                   <>
+                    {kimView !== 'print' && (
                     <div className="no-print">
                       <VariantRenderer
                         variant={variant}
@@ -761,7 +769,19 @@ const EgeProfileVariantGenerator = () => {
                         onSetFigurePlacement={handleSetFigurePlacement}
                       />
                     </div>
-                    <KimProfileVariantPrint variant={variant} kimMeta={kimMeta} />
+                    )}
+                    <KimProfileVariantPrint
+                      variant={variant}
+                      kimMeta={kimMeta}
+                      preview={kimView === 'print'}
+                      editing={{
+                        variantIndex: vi,
+                        onSetImageSize: handleSetImageSize,
+                        onSetFigurePlacement: handleSetFigurePlacement,
+                        onEditTask: taskEditing.handleEditTask,
+                        onReplaceTask: taskEditing.handleReplaceTask,
+                      }}
+                    />
                   </>
                 )}
 

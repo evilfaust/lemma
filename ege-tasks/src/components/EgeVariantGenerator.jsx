@@ -28,6 +28,8 @@ import {
 import { poolStatsDetailed } from '../utils/successStats';
 import SuccessRateCell from './worksheet/SuccessRateCell';
 import KimTaskContent, { KimAnswer } from './worksheet/KimTaskContent';
+import KimTaskTools from './worksheet/KimTaskTools';
+import KimViewSwitch, { useKimView } from './worksheet/KimViewSwitch';
 import { printKimAnswers } from '../utils/printKimAnswers';
 import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
@@ -137,7 +139,7 @@ const KimCoverPage = ({ variant, kimMeta }) => (
   </div>
 );
 
-const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta }) => (
+const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta, editing }) => (
   <div className="kim-page kim-page-task">
     <div className="kim-page-header">
       <span>Математика. {kimMeta.classNum} класс. Вариант {kimMeta.variantNumberOverride || variant.number}</span>
@@ -155,6 +157,7 @@ const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta }) => (
     <div className="kim-book-tasks">
       {tasks.map((task) => (
         <div key={task.id} className="kim-book-task">
+          {editing && <KimTaskTools task={task} editing={editing} />}
           <div className="kim-book-task-number">{task.kimNumber}</div>
           <div className="kim-book-task-main">
             <KimTaskContent task={task} answerTable />
@@ -180,7 +183,7 @@ const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta }) => (
  * Для печати: браузер сам разбивает по @page { size: A5; }.
  * Чтобы получить два листа на одном A4 — выбрать "2 страницы на листе" в диалоге печати.
  */
-const KimVariantPrint = ({ variant, kimMeta }) => {
+const KimVariantPrint = ({ variant, kimMeta, preview = false, editing = null }) => {
   const tasks = variant.tasks || [];
   const [state, setState] = useState({ taskKey: null, pages: null });
   const taskRefs = useRef([]);
@@ -205,9 +208,34 @@ const KimVariantPrint = ({ variant, kimMeta }) => {
     setState({ taskKey, pages: paginateKimByHeight(tasks, heights) });
   });
 
+  // ── Фаза 2: плоский список A5-страниц ──
+  // На экране буклет виден только в режиме «Как в печати» (preview); там же
+  // у задач панель правки (KimTaskTools, в печать не идёт).
+  const taskPages = state.pages || [];
+  const booklet = taskPages.length > 0 && (
+    <div className={`kim-booklet${preview ? ' kim-booklet--preview' : ''}`}>
+      <KimCoverPage variant={variant} kimMeta={kimMeta} />
+      {taskPages.map((pageTasks, index) => (
+        <KimTaskPage
+          key={index}
+          variant={variant}
+          pageNumber={index + 2}
+          tasks={pageTasks}
+          kimMeta={kimMeta}
+          editing={preview ? editing : null}
+        />
+      ))}
+    </div>
+  );
+
   // ── Фаза 1: скрытый рендер для измерения ──
+  // Прежние страницы остаются на месте, пока идёт перемер: иначе на экране
+  // («Как в печати») страница на кадр становилась короче и прокрутка
+  // прыгала вверх после каждой правки.
   if (needsMeasure) {
     return (
+      <>
+      {booklet}
       <div className="kim-measure-root">
         <div className="kim-measure-page">
           <div className="kim-measure-tasks">
@@ -227,27 +255,11 @@ const KimVariantPrint = ({ variant, kimMeta }) => {
           </div>
         </div>
       </div>
+      </>
     );
   }
 
-  // ── Фаза 2: плоский список A5-страниц ──
-  const taskPages = state.pages || [];
-  if (taskPages.length === 0) return null;
-
-  return (
-    <div className="kim-booklet">
-      <KimCoverPage variant={variant} kimMeta={kimMeta} />
-      {taskPages.map((pageTasks, index) => (
-        <KimTaskPage
-          key={index}
-          variant={variant}
-          pageNumber={index + 2}
-          tasks={pageTasks}
-          kimMeta={kimMeta}
-        />
-      ))}
-    </div>
-  );
+  return booklet || null;
 };
 
 /**
@@ -272,6 +284,7 @@ const EgeVariantGenerator = () => {
   const [showSolutionSpace, setShowSolutionSpace] = useState(true);
   const [compactMode] = useState(false);
   const [kimStyle, setKimStyle] = useState(false);
+  const [kimView, setKimView] = useKimView();
   const [kimVariantNumber, setKimVariantNumber] = useState('');
   const [kimClass, setKimClass] = useState('11');
   const [kimDate, setKimDate] = useState(null); // null = сегодня, dayjs-объект когда задана
@@ -931,6 +944,11 @@ const EgeVariantGenerator = () => {
                     {variant.tasks.length} заданий
                   </Text>
                   {kimStyle && <Tag color="geekblue" icon={<FileTextOutlined />}>КИМ</Tag>}
+                  {kimStyle && (
+                    <span style={{ marginLeft: 'auto' }}>
+                      <KimViewSwitch value={kimView} onChange={setKimView} />
+                    </span>
+                  )}
                 </div>
 
                 {/* Обычный вид (экран + обычная печать) */}
@@ -956,6 +974,7 @@ const EgeVariantGenerator = () => {
                 {kimStyle && (
                   <>
                     {/* Экранный вид для редактирования */}
+                    {kimView !== 'print' && (
                     <div className="no-print">
                       <VariantRenderer
                         variant={variant}
@@ -975,9 +994,21 @@ const EgeVariantGenerator = () => {
                         onSetFigurePlacement={handleSetFigurePlacement}
                       />
                     </div>
+                    )}
                     {/* Печатный КИМ-вид — вне print-only, чтобы measure-фаза (offsetHeight)
-                        работала корректно. На экране скрывается через .kim-booklet в CSS. */}
-                    <KimVariantPrint variant={variant} kimMeta={kimMeta} />
+                        работала корректно. На экране виден только «Как в печати». */}
+                    <KimVariantPrint
+                      variant={variant}
+                      kimMeta={kimMeta}
+                      preview={kimView === 'print'}
+                      editing={{
+                        variantIndex: vi,
+                        onSetImageSize: handleSetImageSize,
+                        onSetFigurePlacement: handleSetFigurePlacement,
+                        onEditTask: taskEditing.handleEditTask,
+                        onReplaceTask: taskEditing.handleReplaceTask,
+                      }}
+                    />
                   </>
                 )}
 

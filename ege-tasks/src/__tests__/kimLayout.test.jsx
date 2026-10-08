@@ -189,3 +189,47 @@ describe('CSS буклета', () => {
     expect(parseTableDirective('{без линий, по центру}')).toEqual(['plain', 'center']);
   });
 });
+
+describe('«Как в печати» — буклет на экране', async () => {
+  const { KimProfileVariantPrint } = await import('../components/EgeProfileKimPrint');
+  const { fireEvent } = await import('@testing-library/react');
+  const kimMeta = { classNum: 11, brand: '© Лемма' };
+  const variant = {
+    number: 1,
+    tasks: [
+      { id: 'p1', statement_md: GRAPH_TASK },
+      { id: 'p2', statement_md: 'Найдите $x$.' },
+    ],
+  };
+
+  it('без preview буклет без панелей правки', () => {
+    const { container } = render(<KimProfileVariantPrint variant={variant} kimMeta={kimMeta} />);
+    expect(container.querySelector('.kim-booklet')).not.toBeNull();
+    expect(container.querySelector('.kim-booklet--preview')).toBeNull();
+    expect(container.querySelector('.kim-task-tools')).toBeNull();
+  });
+
+  it('preview: у каждой задачи панель, правка уходит с позицией задачи', () => {
+    const calls = [];
+    const editing = {
+      variantIndex: 3,
+      onSetImageSize: (...a) => calls.push(['size', ...a]),
+      onSetFigurePlacement: (...a) => calls.push(['place', ...a]),
+      onEditTask: () => {},
+      onReplaceTask: () => {},
+    };
+    const { container } = render(
+      <KimProfileVariantPrint variant={variant} kimMeta={kimMeta} preview editing={editing} />,
+    );
+    expect(container.querySelector('.kim-booklet.kim-booklet--preview')).not.toBeNull();
+    const tools = container.querySelectorAll('.kim-task-tools');
+    expect(tools).toHaveLength(2);
+    // у задачи с графиком — размер и место, у текстовой — только правка/замена
+    expect(tools[0].querySelectorAll('.ant-segmented')).toHaveLength(2);
+    expect(tools[1].querySelectorAll('.ant-segmented')).toHaveLength(0);
+    const right = [...tools[0].querySelectorAll('.ant-segmented-item')]
+      .find((el) => el.querySelector('.anticon-pic-right'));
+    fireEvent.click(right);
+    expect(calls).toContainEqual(['place', 3, 0, 'right']);
+  });
+});
