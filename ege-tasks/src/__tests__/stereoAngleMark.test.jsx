@@ -232,3 +232,28 @@ describe('редактор', () => {
     expect(screen.getByText(/Нет точки Q/)).toBeTruthy();
   });
 });
+
+describe('знак прямого угла и дуги на печати', () => {
+  // Прямая призма с прямоугольным треугольником в основании, основание видно
+  // почти с ребра — как в задаче на объём призмы.
+  const spec = 'призма 3 4 6 прямоугольный\nугол ACB\nугол A1C1B1\nвид 35 15';
+
+  it('уголок постоянного размера: на мелком чертеже не сжимается в точку', async () => {
+    const { stereoPrintFrame, RIGHT_MARK_PX } = await import('../utils/stereo');
+    const { scene, camera } = parseStereoBlock(spec);
+    const sizeOf = (frame) => {
+      const marks = frame.strokes.filter((s) => s.kind === 'mark');
+      return Math.max(...marks.map((s) => Math.hypot(s.x2 - s.x1, s.y2 - s.y1)));
+    };
+    const small = renderStereo(evaluateScene(scene), camera, { width: 360, height: 360 });
+    const big = renderStereo(evaluateScene(scene), camera, { width: 720, height: 720 });
+    // Длинная сторона уголка — около RIGHT_MARK_PX..2,4·RIGHT_MARK_PX независимо от размера тела
+    expect(sizeOf(small)).toBeGreaterThan(RIGHT_MARK_PX * 0.9);
+    expect(Math.abs(sizeOf(big) - sizeOf(small))).toBeLessThan(2);
+    // и сплошной, хотя вершина C — за телом
+    const { svg } = stereoPrintFrame(scene, camera, { widthMm: 40, heightMm: 40, letterMm: 4 });
+    const markLines = svg.match(/<line [^>]*stroke-width="1\.(?:25|00)"[^>]*>/g) || [];
+    expect(markLines.length).toBeGreaterThanOrEqual(4);
+    expect(markLines.some((l) => l.includes('dasharray'))).toBe(false);
+  });
+});

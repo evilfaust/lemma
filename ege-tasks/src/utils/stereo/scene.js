@@ -700,11 +700,13 @@ export function evaluateScene(scene, opts = {}) {
   // (нет такой — знака нет: он появится, когда учитель её проведёт). Сторона
   // смотрит туда, где прямая нарисована дальше.
   const marks = [];
-  // Дуги углов: радиус — доля тела, но не длиннее сторон угла.
-  const angleArcs = arcs.map((ar) => ({
-    ...ar,
-    r: Math.min(0.09 * body.size, 0.35 * len(ar.u), 0.35 * len(ar.v)),
-  }));
+  // Дуги углов: радиус — доля тела, но не длиннее сторон угла. На чертеже
+  // размер дуги постоянный в пикселях (как у букв, render.js), cap — потолок
+  // по сторонам угла.
+  const angleArcs = arcs.map((ar) => {
+    const cap = Math.min(0.35 * len(ar.u), 0.35 * len(ar.v));
+    return { ...ar, r: Math.min(0.09 * body.size, cap), cap };
+  });
   for (const ra of rightAngles) {
     const through = (o) => distToLine(ra.at, o.p, o.u) <= eps * 10;
     let w = ra.along || null;
@@ -725,10 +727,13 @@ export function evaluateScene(scene, opts = {}) {
       }
     }
     const reach = Math.max(plus, minus);
-    const m = Math.min(0.045 * body.size, 0.4 * len(ra.v), reach > eps ? 0.4 * reach : Infinity);
+    // cap — потолок по сторонам; на чертеже уголок постоянного размера в
+    // пикселях (render.js), иначе на печати мелкого чертежа он пропадал.
+    const cap = Math.min(0.4 * len(ra.v), reach > eps ? 0.4 * reach : Infinity);
+    const m = Math.min(0.045 * body.size, cap);
     marks.push({
       id: `${ra.id}:ra`, at: ra.at, a: mul(norm(ra.v), m), b: mul(w, plus >= minus ? m : -m),
-      step: ra.step, color: ra.color,
+      cap, step: ra.step, color: ra.color,
     });
   }
 

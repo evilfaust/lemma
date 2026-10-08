@@ -56,7 +56,12 @@ export const STEREO_COLORS = {
   label: '#111827',
 };
 
-const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8, mark: 1 };
+const WIDTH = { edge: 1.9, segment: 1.7, line: 1.5, ext: 1.3, section: 1.8, mark: 1.25 };
+// Знак прямого угла и дуга угла — постоянного размера в единицах кадра, как
+// буквы (LABEL_SIZE = 17): чертёж на печати строится под место с буквой
+// заданной высоты, и доля от тела там превращалась в точку.
+export const RIGHT_MARK_PX = 12;
+export const ARC_PX = 20;
 const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
 
@@ -226,22 +231,42 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   }
 
   // Знаки прямого угла — два коротких штриха у основания перпендикуляра.
-  // Кликом не выбираются (в hitLines не идут).
+  // Кликом не выбираются (в hitLines не идут). Пометки (знак и дуги) всегда
+  // сплошные, даже за телом: пунктир на штрихе в пару миллиметров — пустота.
+  // Размер пометки в плоскости (d1, d2), чтобы на экране она занимала
+  // площадь px × px: плоскость, видная почти с ребра (основание призмы при
+  // малом наклоне), сплющивает квадратик в полоску — тогда он растёт, но
+  // длинная сторона на экране не больше 2·px.
+  const markLength = (at, d1, d2, px) => {
+    const o = P(at);
+    const p1 = P(addVec(at, d1));
+    const p2 = P(addVec(at, d2));
+    const ax = p1.x - o.x; const ay = p1.y - o.y;
+    const bx = p2.x - o.x; const by = p2.y - o.y;
+    const area = Math.abs(ax * by - ay * bx);
+    const longest = Math.max(Math.hypot(ax, ay), Math.hypot(bx, by), 1e-9);
+    const byArea = area > 1e-9 ? px / Math.sqrt(area) : Infinity;
+    return Math.min(byArea, (2.4 * px) / longest);
+  };
   for (const mk of model.marks || []) {
     const color = pointColorHex(mk.color) || mk.color || STEREO_COLORS.construct;
-    const onPerp = addVec(mk.at, mk.a);
-    const corner = addVec(onPerp, mk.b);
+    const m = Math.min(mk.cap ?? Infinity, markLength(mk.at, norm(mk.a), norm(mk.b), RIGHT_MARK_PX));
+    const a = mul(norm(mk.a), m);
+    const b = mul(norm(mk.b), m);
+    const onPerp = addVec(mk.at, a);
+    const corner = addVec(onPerp, b);
     pushSplit(mk.id, 'mark', onPerp, corner, color, WIDTH.mark, mk.step);
-    pushSplit(mk.id, 'mark', corner, addVec(mk.at, mk.b), color, WIDTH.mark, mk.step);
+    pushSplit(mk.id, 'mark', corner, addVec(mk.at, b), color, WIDTH.mark, mk.step);
   }
 
   // Дуги углов — ломаной из коротких штрихов (видимость — по каждому).
   // Несколько дуг (равные углы) — внутрь; подпись (α) — за дугой по
   // биссектрисе, на постоянном расстоянии в пикселях.
   const angleTexts = [];
-  for (const ar of model.arcs || []) {
-    const e1 = norm(ar.u);
-    const e2 = norm(sub(ar.v, mul(e1, dot(ar.v, e1))));
+  for (const arc of model.arcs || []) {
+    const e1 = norm(arc.u);
+    const e2 = norm(sub(arc.v, mul(e1, dot(arc.v, e1))));
+    const ar = { ...arc, r: Math.min(arc.cap ?? Infinity, markLength(arc.at, e1, e2, ARC_PX)) };
     const theta = Math.acos(Math.max(-1, Math.min(1, dot(e1, norm(ar.v)))));
     const color = pointColorHex(ar.color) || ar.color || STEREO_COLORS.construct;
     const N = 14;
@@ -420,8 +445,8 @@ export function stereoSvgString(frame, opts = {}) {
     parts.push(`<polygon points="${pg.points}" fill="${esc(fill)}" fill-opacity="${op}" stroke="none"/>`);
   }
   const line = (s) => {
-    const w = (s.hidden ? s.width * 0.8 : s.width) * (mono && s.kind !== 'edge' && s.kind !== 'section' ? 0.85 : 1);
-    return `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${s.hidden ? ` stroke-dasharray="${DASH}"` : ''}/>`;
+    const w = (s.hidden ? s.width * 0.8 : s.width) * (mono && s.kind !== 'edge' && s.kind !== 'section' && s.kind !== 'mark' ? 0.85 : 1);
+    return `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${s.hidden && s.kind !== 'mark' ? ` stroke-dasharray="${DASH}"` : ''}/>`;
   };
   for (const s of frame.strokes) if (s.hidden) parts.push(line(s));
   for (const s of frame.strokes) if (!s.hidden) parts.push(line(s));

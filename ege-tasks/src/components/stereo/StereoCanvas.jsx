@@ -192,7 +192,7 @@ export default function StereoCanvas({
         x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
         stroke={hl ? STEREO_COLORS.newPoint : s.color}
         strokeWidth={(s.hidden ? s.width * 0.8 : s.width) + (hl ? 1.4 : 0)}
-        strokeDasharray={s.hidden ? DASH : undefined}
+        strokeDasharray={s.hidden && s.kind !== 'mark' ? DASH : undefined}
         strokeLinecap="round"
         className={cls || undefined}
       />
