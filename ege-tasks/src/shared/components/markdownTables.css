@@ -145,6 +145,14 @@ table.md-table--equalcols svg:not(.katex svg) {
   height: auto !important;
 }
 
+/* ── {по центру} — таблица посередине строки ────────────────────────────────
+   Класс удвоен (.md-table.md-table--center): печатные вёрстки (КИМ и др.)
+   прибивают таблицу к левому краю своим `margin: … 0 !important`. */
+table.md-table.md-table--center {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
 @media print {
   table.md-table--answers th,
   table.md-table--answers td {

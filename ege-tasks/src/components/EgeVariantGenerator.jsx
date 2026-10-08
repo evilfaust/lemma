@@ -27,7 +27,7 @@ import {
 } from '../hooks';
 import { poolStatsDetailed } from '../utils/successStats';
 import SuccessRateCell from './worksheet/SuccessRateCell';
-import KimTaskContent from './worksheet/KimTaskContent';
+import KimTaskContent, { KimAnswer } from './worksheet/KimTaskContent';
 import { printKimAnswers } from '../utils/printKimAnswers';
 import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
@@ -157,12 +157,8 @@ const KimTaskPage = ({ variant, pageNumber, tasks, kimMeta }) => (
         <div key={task.id} className="kim-book-task">
           <div className="kim-book-task-number">{task.kimNumber}</div>
           <div className="kim-book-task-main">
-            <KimTaskContent task={task} />
-            <div className="kim-book-answer">
-              <span>Ответ:</span>
-              <span className="kim-book-answer-line" />
-              <span className="kim-book-answer-dot">.</span>
-            </div>
+            <KimTaskContent task={task} answerTable />
+            <KimAnswer task={task} />
           </div>
         </div>
       ))}
@@ -193,7 +189,7 @@ const KimVariantPrint = ({ variant, kimMeta }) => {
   // задачи через редактор (id не меняется) не триггерит перерасчёт пагинации
   // и КИМ печатает устаревший текст из закэшированных страниц.
   const taskKey = tasks
-    .map((t) => `${t.id}|${t.statement_md || ''}|${t.image || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || 'm'}`)
+    .map((t) => `${t.id}|${t.statement_md || ''}|${t.image || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || ''}|${t.figurePlacement || ''}`)
     .join('§');
   const needsMeasure = state.taskKey !== taskKey;
 
@@ -223,12 +219,8 @@ const KimVariantPrint = ({ variant, kimMeta }) => {
               >
                 <div className="kim-book-task-number">{index + 1}</div>
                 <div className="kim-book-task-main">
-                  <KimTaskContent task={task} />
-                  <div className="kim-book-answer">
-                    <span>Ответ:</span>
-                    <span className="kim-book-answer-line" />
-                    <span className="kim-book-answer-dot">.</span>
-                  </div>
+                  <KimTaskContent task={task} answerTable />
+                  <KimAnswer task={task} />
                 </div>
               </div>
             ))}
@@ -445,6 +437,19 @@ const EgeVariantGenerator = () => {
         ...variant,
         tasks: variant.tasks.map((task, ti) => (
           ti !== tIdx ? task : { ...task, kimImageSize: size }
+        )),
+      }
+    )));
+  };
+
+  // Место чертежа в КИМ-печати (слева / под условием / справа) → task.figurePlacement;
+  // сохраняется в работе рядом с размером (variants.order.figurePlacement).
+  const handleSetFigurePlacement = (vIdx, tIdx, placement) => {
+    setVariants(prev => prev.map((variant, vi) => (
+      vi !== vIdx ? variant : {
+        ...variant,
+        tasks: variant.tasks.map((task, ti) => (
+          ti !== tIdx ? task : { ...task, figurePlacement: placement }
         )),
       }
     )));
@@ -967,6 +972,7 @@ const EgeVariantGenerator = () => {
                         onEditTask={taskEditing.handleEditTask}
                         onReplaceTask={taskEditing.handleReplaceTask}
                         onSetImageSize={handleSetImageSize}
+                        onSetFigurePlacement={handleSetFigurePlacement}
                       />
                     </div>
                     {/* Печатный КИМ-вид — вне print-only, чтобы measure-фаза (offsetHeight)

@@ -1,5 +1,7 @@
 import { Button, Tooltip, Segmented } from 'antd';
-import { EditOutlined, SwapOutlined } from '@ant-design/icons';
+import {
+  EditOutlined, SwapOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
+} from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { filterTaskText } from '../../utils/filterTaskText';
 import { api } from '../../services/pocketbase';
@@ -10,8 +12,16 @@ import {
   kimImageBoxStyle,
   kimImageImgStyle,
 } from '../../utils/kimImageSize';
-import { DrawingPrintContext } from '../shared/drawingPrintContext';
-import { hasBuiltDrawing, kimDrawingPlace } from './KimTaskContent';
+import KimTaskContent, {
+  KimAnswer, hasKimFigure, kimFigureLayout, kimSizeIsNatural,
+} from './KimTaskContent';
+
+// Место чертежа задачи в КИМ — в том порядке, в каком он встанет на листе.
+const KIM_PLACEMENT_OPTIONS = [
+  { value: 'left', icon: <PicLeftOutlined />, title: 'Чертёж слева, текст обтекает' },
+  { value: 'below', icon: <PicCenterOutlined />, title: 'Чертёж на своём месте в условии' },
+  { value: 'right', icon: <PicRightOutlined />, title: 'Чертёж справа, текст обтекает' },
+];
 
 /**
  * Компонент рендеринга одного варианта (компактный и обычный режимы).
@@ -29,6 +39,10 @@ import { hasBuiltDrawing, kimDrawingPlace } from './KimTaskContent';
  * @param {Object} dragDropHandlers - обработчики drag & drop из useTaskDragDrop
  * @param {Function} onEditTask - (task) => void
  * @param {Function} onReplaceTask - (variantIndex, taskIndex, task) => void
+ * @param {Function} onSetImageSize - (variantIndex, taskIndex, size) => void — режим КИМ:
+ *   задача показывается так, как уйдёт в буклет (KimTaskContent), с
+ *   переключателями размера и места чертежа
+ * @param {Function} onSetFigurePlacement - (variantIndex, taskIndex, 'left'|'below'|'right') => void
  * @param {boolean} cryptogramEnabled - включена ли шифровка
  * @param {string} cryptogramPhrase - слово/фраза для шифровки
  */
@@ -47,6 +61,7 @@ const VariantRenderer = ({
   onEditTask,
   onReplaceTask,
   onSetImageSize,
+  onSetFigurePlacement,
   cryptogramEnabled = false,
   cryptogramPhrase = '',
 }) => {
@@ -159,10 +174,12 @@ const VariantRenderer = ({
           const isDragging = dragDropHandlers?.isDragging(variantIndex, taskIndex);
           const isDragOver = dragDropHandlers?.isDragOver(variantIndex, taskIndex);
           const taskImageUrl = api.getTaskImageUrl(task);
-          // В режиме КИМ чертёж редактора (```planim / ```stereo) показывается
-          // в размере, который уйдёт в печать буклета (KimTaskContent).
-          const kimDrawing = !!onSetImageSize && hasBuiltDrawing(task);
-          const statement = <MathRenderer text={applyTextFilter(task.statement_md)} />;
+          // Режим КИМ: задача на экране — та же разметка, что уйдёт в буклет
+          // (размер и место чертежа, бланк «А Б В Г» в строке ответа).
+          const kim = !!onSetImageSize;
+          const kimLayout = kim
+            ? kimFigureLayout(task, { answerTable: true, imageUrl: task.has_image ? taskImageUrl : null })
+            : null;
 
           return (
             <div
@@ -181,13 +198,28 @@ const VariantRenderer = ({
                 <span className="task-number">{taskIndex + 1}.</span>
                 <span className="task-code">{task.code}</span>
                 <div className="no-print" style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  {onSetImageSize && ((task.has_image && taskImageUrl) || kimDrawing) && (
-                    <Tooltip title="Размер чертежа в печати (КИМ)">
+                  {kim && hasKimFigure(task) && (
+                    <Tooltip
+                      title={kimSizeIsNatural(task) && !task.kimImageSize
+                        ? 'Размер чертежа в печати (КИМ). Не выбран — как задан в условии'
+                        : 'Размер чертежа в печати (КИМ)'}
+                    >
                       <Segmented
                         size="small"
                         options={KIM_IMAGE_SIZE_OPTIONS}
-                        value={task.kimImageSize || DEFAULT_KIM_IMAGE_SIZE}
+                        // null — ни одна кнопка не нажата: график «как в условии»
+                        value={task.kimImageSize || (kimSizeIsNatural(task) ? null : DEFAULT_KIM_IMAGE_SIZE)}
                         onChange={(val) => onSetImageSize(variantIndex, taskIndex, val)}
+                      />
+                    </Tooltip>
+                  )}
+                  {kim && onSetFigurePlacement && kimLayout.placement && (
+                    <Tooltip title="Где чертёж в печати (КИМ): слева или справа с обтеканием текстом, либо на своём месте в условии">
+                      <Segmented
+                        size="small"
+                        options={KIM_PLACEMENT_OPTIONS}
+                        value={kimLayout.placement}
+                        onChange={(val) => onSetFigurePlacement(variantIndex, taskIndex, val)}
                       />
                     </Tooltip>
                   )}
@@ -211,12 +243,14 @@ const VariantRenderer = ({
                 <div className="answer-box"></div>
               </div>
 
+              {kim ? (
+                <div className="kim-screen-task">
+                  <KimTaskContent task={task} answerTable />
+                  <KimAnswer task={task} />
+                </div>
+              ) : (
               <div className="task-content">
-                {kimDrawing ? (
-                  <DrawingPrintContext.Provider value={kimDrawingPlace(task.kimImageSize)}>
-                    {statement}
-                  </DrawingPrintContext.Provider>
-                ) : statement}
+                <MathRenderer text={applyTextFilter(task.statement_md)} />
 
                 {task.has_image && taskImageUrl && (
                   <div
@@ -231,6 +265,7 @@ const VariantRenderer = ({
                   </div>
                 )}
               </div>
+              )}
 
               {showAnswersInline && task.answer && (
                 <div className="task-answer">

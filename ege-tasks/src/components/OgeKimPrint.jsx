@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useLayoutEffect } from 'react';
 import { Typography } from 'antd';
 import MathRenderer from './MathRenderer';
-import KimTaskContent from './worksheet/KimTaskContent';
+import KimTaskContent, { KimAnswer } from './worksheet/KimTaskContent';
 
 const { Text } = Typography;
 
@@ -88,14 +88,8 @@ const KimOgeTask = ({ task, withAnswer }) => (
   <div className={`kim-book-task${withAnswer ? '' : ' kim-book-task--part2'}`}>
     <div className="kim-book-task-number">{task.kimNumber}</div>
     <div className="kim-book-task-main">
-      <KimTaskContent task={task} />
-      {withAnswer && (
-        <div className="kim-book-answer">
-          <span>Ответ:</span>
-          <span className="kim-book-answer-line" />
-          <span className="kim-book-answer-dot">.</span>
-        </div>
-      )}
+      <KimTaskContent task={task} answerTable={withAnswer} />
+      {withAnswer && <KimAnswer task={task} />}
     </div>
   </div>
 );
@@ -158,7 +152,7 @@ const KimOgeVariantPrint = ({ variant, kimMeta }) => {
   // задачи через редактор (id не меняется) не триггерит перерасчёт пагинации
   // и КИМ печатает устаревший текст. solution_md важен для части 2.
   const taskKey = allTasks
-    .map((t) => `${t.id}|${t.statement_md || ''}|${t.solution_md || ''}|${t.image || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || 'm'}`)
+    .map((t) => `${t.id}|${t.statement_md || ''}|${t.solution_md || ''}|${t.image || ''}|${t.has_image ? 1 : 0}|${t.kimImageSize || ''}|${t.figurePlacement || ''}`)
     .join('§');
   const needsMeasure = state.taskKey !== taskKey;
 

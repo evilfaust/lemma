@@ -232,6 +232,51 @@
   background: transparent !important;
 }
 
+/* Задание на соответствие ({без линий} или автоподбор «А) … | 1) …»): левый
+   столбец — по левому краю, как в бланке ФИПИ. Центр из общего правила выше
+   ставил строки «А) крейсерская скорость…» / «Б) скорость…» лесенкой.
+   Выравнивание автора (`| :---: |` → инлайн-стиль ячейки) по-прежнему главнее. */
+.kim-book-task-content table.md-table--plain th,
+.kim-book-task-content table.md-table--plain td {
+  text-align: left;
+}
+.kim-book-task-content table.md-table--plain th {
+  text-align: center;
+}
+
+/* Строка с чертежом (неравенство ↔ числовая прямая, интервал ↔ график):
+   по верхнему краю «А) log₂x ⩾ 1» уезжал вверх от «1) ──●──», подписанного
+   посередине прямой. Выравниваем по середине всю строку — только где есть
+   рисунок, текстовые соответствия остаются по первой строке. */
+.kim-book-task-content tr:has(.numline, .coordplot, .stereo-inline, img) > td,
+.kim-book-task-content tr:has(.numline, .coordplot, .stereo-inline, img) > th {
+  vertical-align: middle;
+}
+
+/* ─── Размер графиков в КИМ (S/M/L/XL, KimTaskContent → kimFigureVars) ───
+   ```plot / ```chart / ```numline — SVG со своей шириной из DSL. Пока размер
+   не выбран, график печатается как задан в условии; выбран — занимает долю
+   полосы (`--kim-fig-w`), в ячейке таблицы — долю ячейки. Правило по svg —
+   только внутри .coordplot/.numline: общее схлопнуло бы радикал KaTeX. */
+.kim-book-task-content--sized .mr-figure .coordplot,
+.kim-book-task-content--sized .mr-figure .numline {
+  display: inline-block;
+  width: var(--kim-fig-w);
+  max-width: 100%;
+}
+.kim-book-task-content--sized td .numline,
+.kim-book-task-content--sized th .numline,
+.kim-book-task-content--sized td .coordplot,
+.kim-book-task-content--sized th .coordplot {
+  width: var(--kim-fig-cell-w);
+  max-width: 100%;
+}
+.kim-book-task-content--sized .coordplot > svg,
+.kim-book-task-content--sized .numline > svg {
+  width: 100%;
+  height: auto;
+}
+
 .kim-book-task-content .katex {
   font-size: 0.97em;
 }
@@ -253,17 +298,74 @@
   display: block;
 }
 
-/* Чертёж ```planim / ```stereo, вынесенный из условия (KimTaskContent):
-   стоит в разметке ПЕРВЫМ, текст его обтекает. Ширину в мм несёт сам SVG —
-   он построен под место S/M/L/XL, float ужимается по нему. */
-.kim-book-task-drawing {
+/* ─── Рисунок сбоку, текст обтекает (KimTaskContent, task.figurePlacement) ───
+   Рисунок стоит в разметке ПЕРВЫМ: float обтекает только то, что после него.
+   Условие — flow-root, высота задачи = max(текст, рисунок): measure-фаза
+   меряет ровно то, что напечатается. */
+.kim-book-task-content--side {
+  display: flow-root;
+}
+
+.kim-book-task-aside {
   float: right;
   margin: 0 0 1.5mm 3mm;
+  max-width: var(--kim-fig-side-w);
+}
+.kim-book-task-content--side-left .kim-book-task-aside {
+  float: left;
+  margin: 0 3mm 1.5mm 0;
+}
+
+.kim-book-task-aside .mr-figure {
+  margin: 0 !important;
+}
+
+/* График/прямая (SVG) своей ширины в мм не знает — колонке она задана явно,
+   SVG тянется по ней. */
+.kim-book-task-aside--drawing {
+  width: var(--kim-fig-side-w);
+}
+/* Специфичность выше правила размера «в тексте» (--sized .mr-figure …). */
+.kim-book-task-content .kim-book-task-aside--drawing .mr-figure .coordplot,
+.kim-book-task-content .kim-book-task-aside--drawing .mr-figure .numline {
+  display: block !important;
+  width: 100%;
+}
+.kim-book-task-content .kim-book-task-aside--drawing .coordplot > svg,
+.kim-book-task-content .kim-book-task-aside--drawing .numline > svg {
+  width: 100%;
+  height: auto;
+}
+
+/* Чертёж ```planim / ```stereo построен под своё место (S/M/L/XL в мм) —
+   колонка ужимается по нему, растягивать нельзя (выросли бы буквы). */
+.kim-book-task-aside--fit {
+  width: auto;
   max-width: 100%;
 }
 
-.kim-book-task-drawing .mr-figure {
-  margin: 0 !important;
+/* Картинка сбоку: колонка ужимается по картинке, высота — потолок размера. */
+.kim-book-task-aside img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--kim-fig-h);
+  object-fit: contain;
+}
+.kim-book-task-content--side-right .kim-book-task-aside img { margin-left: auto; }
+
+/* Таблица рядом с рисунком ужимается в узкую полосу (соответствие из
+   длинных строк превращалось в столбик) — она встаёт под рисунком во всю
+   ширину, обтекает рисунок только текст. */
+.kim-book-task-content--side table {
+  clear: both;
+}
+
+/* Маркеры списка рядом с левым рисунком легли бы на него. */
+.kim-book-task-content--side-left ol,
+.kim-book-task-content--side-left ul {
+  display: flow-root;
+  margin-left: 0;
+  padding-left: 5mm;
 }
 
 /* Image floated right for tasks with text + image */
@@ -305,7 +407,13 @@
   font-size: 12.5px;
 }
 
-/* ─── Answer table (matching tasks: А Б В Г) ─── */
+/* ─── Answer table (matching tasks: А Б В Г) ───
+   Таблица-бланк из условия встаёт в строку «Ответ:» (KimAnswer) — одно место
+   для ответа вместо таблицы 10 мм и черты под ней. */
+
+.kim-book-answer.kim-answer-table {
+  align-items: center;
+}
 
 .kim-answer-table {
   margin-top: 1.5mm;
@@ -326,8 +434,8 @@
 .kim-answer-table th,
 .kim-answer-table td {
   border: 1.2px solid #333;
-  width: 7mm;
-  height: 6.5mm;
+  width: 8mm;
+  height: 5mm;
   text-align: center;
   font-size: 12px;
   font-weight: 700;
@@ -337,6 +445,16 @@
 .kim-answer-table td {
   height: 7mm;
   font-weight: 400;
+}
+
+/* ─── Экранный вид задачи в режиме КИМ (VariantRenderer) ───
+   Та же разметка, что в буклете, в ширину полосы условия A5 — видно, где
+   встанет чертёж и как обтечёт текст. Чуть крупнее печати, чтобы читалось. */
+.kim-screen-task {
+  max-width: 128.5mm;
+  font-family: 'Times New Roman', Times, serif;
+  color: #111;
+  zoom: 1.25;
 }
 
 /* ─── Measure (off-screen) ─── */

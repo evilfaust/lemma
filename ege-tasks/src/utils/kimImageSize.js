@@ -69,6 +69,19 @@ export function figureSizeVars(size) {
   };
 }
 
+// Та же шкала для КИМ-буклета (worksheet/KimTaskContent): графики, диаграммы и
+// числовые прямые (```plot / ```chart / ```numline, `numline:` в ячейках) —
+// это SVG, их размер задаётся переменными на `.kim-book-task-content`.
+export function kimFigureVars(size) {
+  const c = CFG[size] || CFG[DEFAULT_KIM_IMAGE_SIZE];
+  return {
+    '--kim-fig-w': c.maxWidth,
+    '--kim-fig-h': c.maxHeight,
+    '--kim-fig-cell-w': CELL_CFG[size] || CELL_CFG[DEFAULT_KIM_IMAGE_SIZE],
+    '--kim-fig-side-w': SIDE_CFG[size] || SIDE_CFG[DEFAULT_KIM_IMAGE_SIZE],
+  };
+}
+
 // Высота буквы формулы на печатном листе print-sheet, мм: кегль условия
 // `.ps-task-text` (3.9mm × --ps-scale) × `.ps-root .katex` (1.04em). Буквы на
 // построенном под лист чертеже (planimPrintSvgFromSpec) — ровно такие.

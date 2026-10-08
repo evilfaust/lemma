@@ -322,6 +322,19 @@ const OgeVariantGenerator = () => {
     )));
   };
 
+  // Место чертежа в КИМ-печати (слева / под условием / справа) → task.figurePlacement;
+  // сохраняется в работе рядом с размером (variants.order.figurePlacement).
+  const handleSetFigurePlacement = (vIdx, tIdx, placement) => {
+    setVariants(prev => prev.map((variant, vi) => (
+      vi !== vIdx ? variant : {
+        ...variant,
+        tasks: variant.tasks.map((task, ti) => (
+          ti !== tIdx ? task : { ...task, figurePlacement: placement }
+        )),
+      }
+    )));
+  };
+
   // Печать КИМ-варианта с правильными полями A4
   const handleKimPrint = () => {
     const styleId = 'kim-print-page-style';
@@ -903,6 +916,7 @@ const OgeVariantGenerator = () => {
                         onEditTask={taskEditing.handleEditTask}
                         onReplaceTask={taskEditing.handleReplaceTask}
                         onSetImageSize={handleSetImageSize}
+                        onSetFigurePlacement={handleSetFigurePlacement}
                       />
                     </div>
                     <KimOgeVariantPrint variant={variant} kimMeta={kimMeta} />
