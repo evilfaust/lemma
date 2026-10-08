@@ -150,3 +150,17 @@ export function findNumlineAtCursor(text, pos) {
   if (!found) return null;
   return { start: found.start, end: found.end, spec: found.spec, format: found.format };
 }
+
+// График по таблице значений (utils/chartSpec.js): блок ```chart и `chart: …`.
+const CHART_FENCE_OPEN = /^\s{0,3}```(chart)\s*$/i;
+const CHART_INLINE_RE = /`(chart)\s*:([^`\n]*)`/gi;
+
+/**
+ * Найти график по таблице значений, внутри которого стоит курсор.
+ * @returns {{start:number,end:number,spec:string,format:'block'|'inline'}|null}
+ */
+export function findChartAtCursor(text, pos) {
+  const found = findSnippetAtCursor(text, pos, CHART_FENCE_OPEN, CHART_INLINE_RE);
+  if (!found) return null;
+  return { start: found.start, end: found.end, spec: found.spec, format: found.format };
+}

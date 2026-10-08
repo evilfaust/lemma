@@ -2,10 +2,12 @@ import { lazy, Suspense, useCallback, useRef, useState } from 'react';
 import { App, Segmented, Select, Typography } from 'antd';
 import NumberLineModal from '../components/shared/NumberLineModal';
 import PlotModal from '../components/shared/PlotModal';
+import ChartModal from '../components/shared/ChartModal';
 import GridPaperModal from '../components/shared/GridPaperModal';
 import { TABLE_SNIPPETS } from '../utils/markdownTables';
 import {
   findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor, findNumlineAtCursor,
+  findChartAtCursor,
 } from '../utils/plotSnippet';
 import { specToNumlineState } from '../utils/numberLine';
 import { insertAtCaret } from '../utils/caretInsert';
@@ -71,6 +73,7 @@ export default function useFieldInserts({ form, fields = {} }) {
   fieldsRef.current = fields;
   const [numlineTarget, setNumlineTarget] = useState(null);
   const [plotTarget, setPlotTarget] = useState(null);
+  const [chartTarget, setChartTarget] = useState(null);
   const [gridTarget, setGridTarget] = useState(null);
   const [stereoTarget, setStereoTarget] = useState(null);
   const [planimTarget, setPlanimTarget] = useState(null);
@@ -152,6 +155,13 @@ export default function useFieldInserts({ form, fields = {} }) {
     setPlotTarget(found
       ? { field, kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
       : { field, kind });
+  }, [findAt]);
+
+  const openChart = useCallback((field) => {
+    const found = findAt(field, findChartAtCursor);
+    setChartTarget(found
+      ? { field, spec: found.spec, format: found.format, range: [found.start, found.end] }
+      : { field });
   }, [findAt]);
 
   const openGrid = useCallback((field) => {
@@ -312,6 +322,13 @@ export default function useFieldInserts({ form, fields = {} }) {
         onInsert={(snippet) => { applyTarget(plotTarget, snippet); setPlotTarget(null); }}
         defaultFormat={plotTarget?.format || 'block'}
       />
+      <ChartModal
+        open={!!chartTarget}
+        initialSpec={chartTarget?.spec || null}
+        defaultFormat={chartTarget?.format || 'block'}
+        onCancel={() => setChartTarget(null)}
+        onInsert={(snippet) => { applyTarget(chartTarget, snippet); setChartTarget(null); }}
+      />
       {imageTarget && (
         <Suspense fallback={null}>
           <MaterialPickerModal
@@ -408,7 +425,7 @@ export default function useFieldInserts({ form, fields = {} }) {
 
   return {
     onCaret, fieldCaret, insertSnippet, replaceRange,
-    openNumline, openPlot, openGrid, openStereo, openPlanim, openImage, onImageFiles, tableMenu, fixRootsIn,
+    openNumline, openPlot, openChart, openGrid, openStereo, openPlanim, openImage, onImageFiles, tableMenu, fixRootsIn,
     modals,
   };
 }

@@ -12,7 +12,7 @@ const fence = (lang, lines) => `\`\`\`${lang}\n${lines.join('\n')}\n\`\`\``;
 /**
  * Разделы справки.
  * item: { md, what, kind? } — md вставляется и рисуется; kind — чей парсер
- * проверяет пример в тесте (numline | plot | grid | planim | stereo).
+ * проверяет пример в тесте (numline | plot | chart | grid | planim | stereo).
  */
 export const FIELD_HELP = [
   {
@@ -61,6 +61,17 @@ export const FIELD_HELP = [
       { kind: 'plot', md: fence('plot', ['x -5 5', 'y -3 4', 'spline f (-4 -2) (-2 3) (1 -1) (4 2) hide', "deriv f color blue"]), what: 'график производной f′ заданной кривой (hide — саму f не рисовать)' },
       { kind: 'plot', md: fence('vectors', ['x -1 5', 'y -1 5', 'vec a 1 1 4 2', 'vec b 1 1 2 4']), what: 'векторы: имя, начало, конец' },
       { kind: 'plot', md: '| График | Формула |\n| --- | --- |\n| `plot: x -3 3; y -3 3; f -x+1` | $y = -x + 1$ |', what: 'в строку — в ячейку таблицы' },
+    ],
+  },
+  {
+    key: 'chart',
+    title: 'График по таблице значений',
+    lead: 'Кнопка «Диаграмма» — график «из жизни» по точкам или столбики: у каждой оси свой масштаб, подписи шкалы «4,0», подписи осей словами (как в задачах базы №3 «Решу ЕГЭ»). Данные можно вставить из Excel / Google Таблиц. Руками: блок ```chart или одной строкой `chart: …`.',
+    items: [
+      { kind: 'chart', md: fence('chart', ['x 8 24 step 1', 'y 0 4,5 step 0,5 decimals 1', 'xtitle Число месяца', 'ytitle Количество осадков, мм', 'values 4 1,5 0,25 1,5 4 0 3 1,5 1,75 0,5 1 0 0,5 0,8 0 0 0,5']), what: 'values — значения подряд с начала оси x с её шагом; decimals 1 — подписи «4,0», «0,5»' },
+      { kind: 'chart', md: fence('chart', ['x 0 24 step 3', 'y -6 6 step 2', 'yunit °C', 'xunit ч', 'line (0; -4) (3; -6) (6; -2) (9; 2) (12; 6) (15; 4) (18; 0) (21; -2) (24; -4) smooth color blue']), what: 'line — точки (x; y); smooth — плавная кривая, nodots — без точек, dash — пунктир' },
+      { kind: 'chart', md: fence('chart', ['y 0 80 step 10 label 20', 'ytitle Осадки, мм', 'bar 30 25 35 40 50 70', 'labels янв фев мар апр май июн']), what: 'столбики: bar — значения, labels — подписи (с пробелами — через «|»); label 20 — подписывать каждые 20' },
+      { kind: 'chart', md: '| День | График |\n| --- | --- |\n| пн–пт | `chart: x 1 5 step 1; y 0 10 step 2; values 3 5 4 8 6` |', what: 'в строку — в ячейку таблицы (команды через «;»)' },
     ],
   },
   {

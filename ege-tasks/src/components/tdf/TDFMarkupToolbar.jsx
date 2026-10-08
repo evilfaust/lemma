@@ -113,7 +113,7 @@ export default function TDFMarkupToolbar({ inserts, form, field }) {
         </Button>
       </Tooltip>
       <MarkupHelp onInsert={(md) => inserts.insertSnippet(field, md)} />
-      <FieldInsertToolbar tools={inserts} field={field} items={['table', 'plot', 'numline', 'planim', 'help']} />
+      <FieldInsertToolbar tools={inserts} field={field} items={['table', 'plot', 'chart', 'numline', 'planim', 'help']} />
     </div>
   );
 }

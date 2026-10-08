@@ -37,8 +37,8 @@ export const hasFigure = (task) => {
   const md = task.statement_md || '';
   return !!task.has_image
     || /!\[/.test(md)
-    || /```\s*(numline|plot|vectors|stereo|planim)\b/i.test(md)
-    || /`\s*(numline|plot|vectors|stereo|planim)\s*:/i.test(md);
+    || /```\s*(numline|plot|vectors|chart|stereo|planim)\b/i.test(md)
+    || /`\s*(numline|plot|vectors|chart|stereo|planim)\s*:/i.test(md);
 };
 
 /**

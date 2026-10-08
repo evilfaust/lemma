@@ -97,6 +97,8 @@ const PALETTE = {
 };
 
 export const PLOT_COLORS = Object.keys(PALETTE).filter((c) => c !== 'black');
+/** Цвета палитры по имени — ими же красит блок ```chart (utils/chartSpec.js). */
+export const PLOT_PALETTE = PALETTE;
 
 const r2 = (n) => Math.round(n * 100) / 100;
 const colorOf = (name) => PALETTE[String(name || '').toLowerCase()] || PALETTE.ink;

@@ -4,6 +4,7 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import NumberLineSVG from '../../components/shared/NumberLineSVG';
 import CoordPlotSVG from '../../components/shared/CoordPlotSVG';
+import ChartBlockSVG from '../../components/shared/ChartBlockSVG';
 import GridPaperSVG from '../../components/shared/GridPaperSVG';
 import StereoSVG from '../../components/shared/StereoSVG';
 import PlanimSVG from '../../components/shared/PlanimSVG';
@@ -16,15 +17,16 @@ import './markdownTables.css';
 import './imageSize.css';
 
 // Из <pre>-узла react-markdown достаёт fenced-блок чертежа (```numline /
-// ```plot / ```vectors / ```grid) и его содержимое. Возвращает { kind, spec }
+// ```plot / ```vectors / ```chart / ```grid) и его содержимое. Возвращает { kind, spec }
 // либо null, если это обычный блок кода.
 // `\b` не годится: у кириллического алиаса ```клетка границы слова нет.
-const DRAWING_LANG = /language-(numline|plot|vectors|grid|cells|клетка|stereo|planim)(?![a-z0-9-])/i;
+const DRAWING_LANG = /language-(numline|plot|vectors|chart|grid|cells|клетка|stereo|planim)(?![a-z0-9-])/i;
 
 function drawingKind(lang) {
   const l = lang.toLowerCase();
   if (l === 'numline') return 'numline';
   if (l === 'plot' || l === 'vectors') return 'plot';
+  if (l === 'chart') return 'chart';
   if (l === 'stereo') return 'stereo';
   if (l === 'planim') return 'planim';
   return 'grid';
@@ -112,6 +114,7 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
           // быть НЕ должно — оно схлопывает радикал KaTeX.
           <span className="mr-figure" style={{ display: 'block', textAlign: 'center', margin: '8px 0' }}>
             {drawing.kind === 'plot' && <CoordPlotSVG spec={drawing.spec} />}
+            {drawing.kind === 'chart' && <ChartBlockSVG spec={drawing.spec} />}
             {drawing.kind === 'numline' && <NumberLineSVG spec={drawing.spec} />}
             {drawing.kind === 'stereo' && <StereoSVG spec={drawing.spec} />}
             {drawing.kind === 'planim' && <PlanimSVG spec={drawing.spec} />}
@@ -131,6 +134,10 @@ const MathRenderer = ({ text, content, inline = true, answerBoxes = false }) => 
       }
       if (!className && /^(plot|vectors):/i.test(str)) {
         return <CoordPlotSVG spec={str.replace(/^(plot|vectors):\s*/i, '')} width={200} maxHeight={200} />;
+      }
+      // `chart: x 1 5 step 1; values 2 4 3` — график по таблице значений в ячейке.
+      if (!className && /^chart:/i.test(str)) {
+        return <ChartBlockSVG spec={str.replace(/^chart:\s*/i, '')} inline />;
       }
       // `stereo: куб 4; M на AA1 1:2` — стереочертёж в ячейке таблицы.
       if (!className && /^stereo:/i.test(str)) {

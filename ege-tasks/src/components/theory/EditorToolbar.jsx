@@ -6,7 +6,7 @@ import {
   CodeOutlined, PictureOutlined, LinkOutlined,
   MinusOutlined, FunctionOutlined, ContainerOutlined, DownOutlined,
   InboxOutlined, ScissorOutlined, ReloadOutlined, BorderHorizontalOutlined,
-  DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined,
+  DashOutlined, LineChartOutlined, RiseOutlined, BorderOuterOutlined, BarChartOutlined,
   PaperClipOutlined, FolderOpenOutlined, CodeSandboxOutlined, RadiusSettingOutlined
 } from '@ant-design/icons';
 import TableInsertPopover from './TableInsertPopover';
@@ -16,10 +16,12 @@ import FormulaPalette from './FormulaPalette';
 import CropModal from '../shared/CropModal';
 import NumberLineModal from '../shared/NumberLineModal';
 import PlotModal from '../shared/PlotModal';
+import ChartModal from '../shared/ChartModal';
 import GridPaperModal from '../shared/GridPaperModal';
 import MaterialPickerModal from '../workspace/MaterialPickerModal';
 import {
   findPlotAtCursor, findGridAtCursor, findStereoAtCursor, findPlanimAtCursor, findNumlineAtCursor,
+  findChartAtCursor,
 } from '../../utils/plotSnippet';
 import { specToNumlineState } from '../../utils/numberLine';
 import { materialsApi } from '../../shared/services/pb/filesClient';
@@ -112,6 +114,16 @@ export default function EditorToolbar({ editorRef }) {
     setPlot(found
       ? { kind: found.kind, spec: found.spec, format: found.format, range: [found.start, found.end] }
       : { kind });
+  }, [editorRef]);
+
+  // График по таблице значений: курсор внутри ```chart / `chart: …` — правка его.
+  const [chart, setChart] = useState(null);
+  const openChart = useCallback(() => {
+    const view = editorRef.current?.view;
+    const found = view
+      ? findChartAtCursor(view.state.doc.toString(), view.state.selection.main.head)
+      : null;
+    setChart(found ? { spec: found.spec, format: found.format, range: [found.start, found.end] } : {});
   }, [editorRef]);
 
   // Стереочертёж: курсор внутри ```stereo / `stereo: …` — правка его, иначе новый.
@@ -379,6 +391,10 @@ export default function EditorToolbar({ editorRef }) {
           <Button size="small" type="text" className="tf-btn" icon={<LineChartOutlined />}
             onClick={() => openPlot('function')} />
         </Tooltip>
+        <Tooltip title="График или диаграмма по таблице значений (осадки по дням, столбики по месяцам). Курсор внутри готового графика — откроется его правка">
+          <Button size="small" type="text" className="tf-btn" icon={<BarChartOutlined />}
+            aria-label="График по таблице значений" onClick={openChart} />
+        </Tooltip>
         <Tooltip title="Векторы на клетчатой плоскости. Курсор внутри готового чертежа — откроется его правка">
           <Button size="small" type="text" className="tf-btn" icon={<RiseOutlined />}
             onClick={() => openPlot('vectors')} />
@@ -610,6 +626,20 @@ export default function EditorToolbar({ editorRef }) {
             insertIntoEditor(editorRef.current, { text: snippet });
           }
           setPlot(null);
+        }}
+      />
+
+      {/* Modal: график по таблице значений (блок ```chart) */}
+      <ChartModal
+        open={!!chart}
+        initialSpec={chart?.spec || null}
+        defaultFormat={chart?.format || 'block'}
+        onCancel={() => setChart(null)}
+        onInsert={(snippet) => {
+          if (!chart?.range || !replaceInEditor(editorRef.current, chart.range, snippet)) {
+            insertIntoEditor(editorRef.current, { text: snippet });
+          }
+          setChart(null);
         }}
       />
 

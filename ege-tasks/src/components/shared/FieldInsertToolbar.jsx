@@ -1,12 +1,12 @@
 import { Button, Dropdown, Tooltip } from 'antd';
 import {
-  BorderOuterOutlined, ClearOutlined, CodeSandboxOutlined, DashOutlined,
+  BarChartOutlined, BorderOuterOutlined, ClearOutlined, CodeSandboxOutlined, DashOutlined,
   LineChartOutlined, PictureOutlined, RadiusSettingOutlined, RiseOutlined, TableOutlined,
 } from '@ant-design/icons';
 import TableModifiersHelp from './TableModifiersHelp';
 import FieldHelp from './FieldHelp';
 
-const ALL = ['roots', 'table', 'image', 'numline', 'plot', 'vectors', 'grid', 'planim', 'stereo', 'help'];
+const ALL = ['roots', 'table', 'image', 'numline', 'plot', 'chart', 'vectors', 'grid', 'planim', 'stereo', 'help'];
 const btn = { fontWeight: 400 };
 
 /**
@@ -60,6 +60,13 @@ export default function FieldInsertToolbar({
         <Tooltip title="Конструктор графика функции. Курсор внутри готового чертежа — откроется его правка">
           <Button size="small" icon={<LineChartOutlined />} onClick={() => tools.openPlot(field, 'function')} style={btn}>
             График
+          </Button>
+        </Tooltip>
+      )}
+      {has('chart') && tools.openChart && (
+        <Tooltip title="График или диаграмма по таблице значений: осадки по дням, температура по часам, столбики по месяцам. У каждой оси свой масштаб и подпись. Курсор внутри готового графика — откроется его правка">
+          <Button size="small" icon={<BarChartOutlined />} onClick={() => tools.openChart(field)} style={btn}>
+            Диаграмма
           </Button>
         </Tooltip>
       )}

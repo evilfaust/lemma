@@ -36,7 +36,7 @@ const { Text } = Typography;
 
 // Условие в ячейке: без картинок и блоков-чертежей (чертёж — миниатюра слева)
 const cellStatement = (md) => String(md || '')
-  .replace(/```(?:stereo|planim|plot|numline)[\s\S]*?```/g, '')
+  .replace(/```(?:stereo|planim|plot|chart|numline)[\s\S]*?```/g, '')
   .replace(/!\[[^\]]*\]\([^)]*\)(?:[ \t]*\{(?:s|m|l|xl)\})?/gi, '')
   .trim();
 

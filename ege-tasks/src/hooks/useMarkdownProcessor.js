@@ -9,6 +9,7 @@ import rehypeStringify from 'rehype-stringify'
 import DOMPurify from 'dompurify'
 import { numberLineSvgFromSpec } from '../utils/numberLine'
 import { coordPlotSvgFromSpec } from '../utils/coordPlot'
+import { chartSvgFromSpec } from '../utils/chartSpec'
 import { stereoSvgFromSpec, isStillStereoSpec } from '../utils/stereo/dsl'
 import { stereoSpecFromInline, STEREO_INLINE_WIDTH } from '../utils/stereo/inline'
 import { planimSvgFromSpec } from '../utils/planim/dsl'
@@ -278,6 +279,25 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
     (_, body) => {
       const spec = decodeEntities(body)
       return `<span class="coordplot-inline" style="display:inline-block;vertical-align:middle">${coordPlotSvgFromSpec(spec, { width: 200, maxHeight: 200 })}</span>`
+    },
+  )
+
+  // График по таблице значений: fenced-блок ```chart (осадки по дням,
+  // столбики по месяцам) — общая сборка chartSvgFromSpec (utils/chartSpec.js).
+  result = result.replace(
+    /<pre><code class="language-chart">([\s\S]*?)<\/code><\/pre>/g,
+    (_, body) => {
+      const spec = decodeEntities(body)
+      return `<div class="coordplot-block chartplot-block" style="text-align:center;margin:10px 0">${chartSvgFromSpec(spec)}</div>`
+    },
+  )
+
+  // Inline-форма для ячеек таблиц: <code>chart: …</code>.
+  result = result.replace(
+    /<code>chart:\s*([\s\S]*?)<\/code>/gi,
+    (_, body) => {
+      const spec = decodeEntities(body)
+      return `<span class="coordplot-inline chartplot-inline" style="display:inline-block;vertical-align:middle">${chartSvgFromSpec(spec, { inline: true })}</span>`
     },
   )
 

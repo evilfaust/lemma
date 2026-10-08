@@ -21,7 +21,7 @@ export const isSidePlacement = (placement) => placement === 'left' || placement 
 
 // Языки fenced-блоков, которые MathRenderer рисует чертежом. ```grid /
 // ```клетка сюда не входят: поле в клетку — место для решения, а не рисунок.
-const DRAWING_LANGS = new Set(['numline', 'plot', 'vectors', 'stereo', 'planim']);
+const DRAWING_LANGS = new Set(['numline', 'plot', 'vectors', 'chart', 'stereo', 'planim']);
 
 // Открытие fenced-блока: до 3 пробелов отступа, ``` или ~~~, первое слово —
 // язык. Для обратных кавычек остаток строки не должен содержать «`» — иначе
@@ -38,7 +38,7 @@ const SIZE_TOKEN_TAIL = /[ \t]*\{(?:s|m|l|xl)\}$/i;
 const IMAGE_TOKEN = /!\[/g;
 const HTML_IMAGE = /<img\b/gi;
 // Inline-форма чертежа для ячеек таблиц: `numline: …` / `plot: …` / `stereo: …`.
-const INLINE_DRAWING = /`\s*(?:numline|plot|vectors|stereo|planim)\s*:/gi;
+const INLINE_DRAWING = /`\s*(?:numline|plot|vectors|chart|stereo|planim)\s*:/gi;
 
 const count = (line, re) => (line.match(re) || []).length;
 

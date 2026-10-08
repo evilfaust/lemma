@@ -5,6 +5,7 @@ import MathRenderer from '../shared/components/MathRenderer';
 import FieldHelp from '../components/shared/FieldHelp';
 import { FIELD_HELP, FIELD_TIPS } from '../utils/fieldHelp';
 import { parseCoordPlot } from '../utils/coordPlot';
+import { parseChartSpec } from '../utils/chartSpec';
 import { parseNumberLine } from '../utils/numberLine';
 import { parseGridPaper } from '../utils/gridPaper';
 import { parseStereoBlock } from '../utils/stereo/dsl';
@@ -13,7 +14,7 @@ import { parsePlanimBlock } from '../utils/planim/dsl';
 import { planimSpecFromInline } from '../utils/planim/inline';
 
 // Все спецификации чертежа в примере: блоки ```lang и строки `lang: …`.
-const LANG = { plot: ['plot', 'vectors'], numline: ['numline'], grid: ['grid'], stereo: ['stereo'], planim: ['planim'] };
+const LANG = { plot: ['plot', 'vectors'], chart: ['chart'], numline: ['numline'], grid: ['grid'], stereo: ['stereo'], planim: ['planim'] };
 function specsOf(md, kind) {
   const langs = LANG[kind];
   const out = [];
@@ -30,6 +31,11 @@ const CHECK = {
     const m = parseCoordPlot(s);
     expect(m.errors).toEqual([]);
     expect(m.curves.length + m.vectors.length + m.points.length).toBeGreaterThan(0);
+  },
+  chart: (s) => {
+    const { doc, errors } = parseChartSpec(s);
+    expect(errors).toEqual([]);
+    expect(doc.series.length + doc.bars.length).toBeGreaterThan(0);
   },
   numline: (s) => {
     const m = parseNumberLine(s);
@@ -48,7 +54,7 @@ describe('справка по полю — сторож', () => {
   const drawings = FIELD_HELP.flatMap((sec) => sec.items).filter((it) => it.kind);
 
   it('разделы на месте, в каждом есть примеры', () => {
-    expect(FIELD_HELP.map((s) => s.key)).toEqual(['text', 'table', 'numline', 'plot', 'grid', 'planim', 'stereo']);
+    expect(FIELD_HELP.map((s) => s.key)).toEqual(['text', 'table', 'numline', 'plot', 'chart', 'grid', 'planim', 'stereo']);
     FIELD_HELP.forEach((s) => expect(s.items.length).toBeGreaterThan(0));
     expect(FIELD_TIPS.length).toBeGreaterThan(0);
   });

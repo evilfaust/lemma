@@ -39,3 +39,22 @@
   background: #1f1f1f;
   border-color: #303030;
 }
+
+/* Конструктор графика по таблице (ChartModal) — те же две колонки. */
+.chart-modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed #eee;
+}
+.chart-modal-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+/* Превью графика по таблице — крупнее натуральных 340 px, чтобы читались подписи. */
+.plot-modal-preview .chartplot { width: 460px; max-width: 100%; }
+.plot-modal-preview .chartplot > svg { width: 100%; height: auto; }
