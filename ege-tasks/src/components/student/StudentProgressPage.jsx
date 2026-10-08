@@ -5,6 +5,7 @@ import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import MathRenderer from '../MathRenderer';
 import { drillAttemptRows } from '../../utils/drillTest';
+import { visibleResultAttempts } from '../../utils/resultsVisibility';
 
 const PB_URL = PB_BASE_URL;
 
@@ -271,6 +272,9 @@ function StudentProgressPage({ studentSession }) {
 
         // Только завершённые попытки
         allAtts = allAtts.filter(a => a.status === 'submitted' || a.status === 'corrected');
+        // Результаты, закрытые учителем (v3.9.321), в прогресс не идут — ни в
+        // историю, ни в средние: баллы откроются вместе с выдачей.
+        allAtts = visibleResultAttempts(allAtts);
         allAtts.sort((a, b) => new Date(b.created) - new Date(a.created));
 
         setAllAttempts(allAtts);

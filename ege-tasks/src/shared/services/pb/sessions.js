@@ -94,6 +94,34 @@ export const sessionsApi = {
     }
   },
 
+  // Выдачи по списку id — с работой/тестом (название для выгрузки) и
+  // флагом results_hidden (v3.9.321).
+  async getSessionsByIds(ids = []) {
+    try {
+      return await getFullListByOr('work_sessions', 'id', [...new Set(ids.filter(Boolean))], {
+        expand: 'work,mc_test',
+      });
+    } catch (error) {
+      console.error('Error fetching sessions by ids:', error);
+      return [];
+    }
+  },
+
+  // Закрыть/открыть результаты выдач ученикам (v3.9.321). Без миграции
+  // 1788500000 PocketBase молча пропускает неизвестное поле — это ловим по
+  // ответу и сообщаем учителю, а не делаем вид, что результаты скрыты.
+  async setSessionsResultsHidden(ids = [], hidden) {
+    const updated = await Promise.all(
+      [...new Set(ids.filter(Boolean))].map((id) => pb.collection('work_sessions').update(id, { results_hidden: !!hidden })),
+    );
+    if (updated.some((s) => !Object.prototype.hasOwnProperty.call(s, 'results_hidden'))) {
+      const err = new Error('Поле results_hidden ещё не создано в базе (нужна миграция 1788500000)');
+      err.code = 'NO_FIELD';
+      throw err;
+    }
+    return updated;
+  },
+
   // ============ ПОПЫТКИ УЧЕНИКОВ (ATTEMPTS) ============
 
   async createAttempt(data) {
@@ -190,9 +218,9 @@ export const sessionsApi = {
 
   // fields по умолчанию — минимум для агрегатов; вызывающий может запросить больше
   // (например статус и время сдачи для прогресса кампании).
-  async getAttemptsBySessions(sessionIds = [], { fields = 'id,session,score,total' } = {}) {
+  async getAttemptsBySessions(sessionIds = [], { fields = 'id,session,score,total', expand } = {}) {
     try {
-      return await getFullListByOr('attempts', 'session', sessionIds, { fields });
+      return await getFullListByOr('attempts', 'session', sessionIds, expand ? { fields, expand } : { fields });
     } catch (error) {
       console.error('Error fetching attempts by sessions:', error);
       return [];

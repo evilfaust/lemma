@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover, Select } from 'antd';
-import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined, EyeOutlined, TrophyOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover, Select, Switch, Tooltip, Alert } from 'antd';
+import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined, EyeOutlined, TrophyOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { shuffleArray } from '../../utils/shuffle';
 import MathRenderer from '../MathRenderer';
 import ClassRemediationModal from './ClassRemediationModal';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { drillAnswerRows, setDrillAnswerCorrect } from '../../utils/drillTest';
+import { hiddenState } from '../../utils/resultsVisibility';
+import { useOptionalAuth } from '../../contexts/AuthContext';
+import ResultsExportModal from './ResultsExportModal';
 
 const { Text } = Typography;
 const PB_URL = PB_BASE_URL;
@@ -35,6 +38,11 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
   const [manualUnlockedAchievementIds, setManualUnlockedAchievementIds] = useState([]);
   const [mcTestData, setMcTestData] = useState(null); // данные MC-теста для отображения текста опций
   const [classRemOpen, setClassRemOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [sessionRecords, setSessionRecords] = useState([]); // выдачи: флаг results_hidden, название работы
+  const [visibilitySaving, setVisibilitySaving] = useState(false);
+  const auth = useOptionalAuth();
+  const canEdit = auth ? auth.canEdit : true;
 
   const sessionIds = useMemo(
     () => (Array.isArray(sessionId) ? sessionId.filter(Boolean) : sessionId ? [sessionId] : []),
@@ -116,6 +124,37 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
     loadMCTest();
     return () => { cancelled = true; };
   }, [primarySessionId]);
+
+  // Выдачи целиком — переключатель «результаты ученикам» и название для выгрузки
+  const sessionKey = sessionIds.join(',');
+  useEffect(() => {
+    if (!sessionKey) return undefined;
+    let cancelled = false;
+    api.getSessionsByIds(sessionKey.split(',')).then((list) => {
+      if (!cancelled) setSessionRecords(list || []);
+    });
+    return () => { cancelled = true; };
+  }, [sessionKey]);
+
+  const resultsHidden = hiddenState(sessionRecords);
+
+  // Результаты по умолчанию видны ученику сразу; закрыть можно вручную (v3.9.321)
+  const handleResultsVisibility = async (visible) => {
+    setVisibilitySaving(true);
+    try {
+      const updated = await api.setSessionsResultsHidden(sessionIds, !visible);
+      const byId = new Map(updated.map((s) => [s.id, s]));
+      setSessionRecords((prev) => prev.map((s) => (byId.has(s.id) ? { ...s, results_hidden: byId.get(s.id).results_hidden } : s)));
+      if (visible) message.success('Результаты открыты — ученики видят баллы и ответы');
+      else message.info('Результаты скрыты — ученики видят только «работа сдана»');
+    } catch (err) {
+      console.error('Error toggling results visibility:', err);
+      message.error(err?.code === 'NO_FIELD'
+        ? 'Скрытие результатов ещё не включено на сервере (нужна миграция базы)'
+        : 'Не удалось изменить видимость результатов');
+    }
+    setVisibilitySaving(false);
+  };
 
   const loadAchievements = useCallback(async () => {
     setAchievementsLoading(true);
@@ -764,6 +803,30 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
       }}>
         <Text strong style={{ whiteSpace: 'nowrap' }}>Попытки учеников ({attempts.length})</Text>
         <Space size={6} wrap>
+          {canEdit && sessionRecords.length > 0 && (
+            <Tooltip title="По умолчанию ученик видит результат сразу после сдачи. Выключите, чтобы показать его позже — например, после проверки всего класса.">
+              <Space size={6} className="trd-visibility">
+                <Text type="secondary" style={{ fontSize: 13 }}>Результаты ученикам</Text>
+                <Switch
+                  size="small"
+                  checked={resultsHidden === 'none'}
+                  loading={visibilitySaving}
+                  onChange={handleResultsVisibility}
+                  checkedChildren="видны"
+                  unCheckedChildren="скрыты"
+                  aria-label="Результаты ученикам"
+                />
+              </Space>
+            </Tooltip>
+          )}
+          <Button
+            size="small"
+            icon={<FileExcelOutlined />}
+            disabled={!attempts.some((a) => a.status === 'submitted' || a.status === 'corrected')}
+            onClick={() => setExportOpen(true)}
+          >
+            Excel
+          </Button>
           {attempts.length > 0 && !mcTestData && (
             <Button size="small" onClick={() => setClassRemOpen(true)}>
               🩹 Работа над ошибками класса
@@ -779,6 +842,31 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
           </Button>
         </Space>
       </div>
+
+      {resultsHidden !== 'none' && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 12 }}
+          message={resultsHidden === 'all'
+            ? 'Результаты скрыты от учеников: они видят, что работа сдана, но не баллы и не ответы.'
+            : 'Результаты скрыты в части выдач этой работы.'}
+          action={canEdit ? (
+            <Button size="small" loading={visibilitySaving} onClick={() => handleResultsVisibility(true)}>
+              Открыть результаты
+            </Button>
+          ) : null}
+        />
+      )}
+
+      <ResultsExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        attempts={attempts}
+        mcTest={mcTestData}
+        sessions={sessionRecords}
+        sessionLabels={multiSession ? sessionLabels : null}
+      />
 
       <ClassRemediationModal
         open={classRemOpen}

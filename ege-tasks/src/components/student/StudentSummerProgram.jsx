@@ -8,6 +8,7 @@ import { api } from '../../shared/services/pocketbase';
 import { summerWeeks } from '../../shared/utils/summerWeeks';
 import { sessionFacts } from '../workspace/summer/campaignProgress';
 import MathRenderer from '../MathRenderer';
+import { attemptResultsHidden } from '../../utils/resultsVisibility';
 
 const BLOCK_LABEL = { algebra: 'Алгебра', geometry: 'Геометрия', custom: 'Работа', oral: 'Устный счёт', extra: 'Тригонометрия' };
 
@@ -62,7 +63,8 @@ export default function StudentSummerProgram({ student }) {
     let cancelled = false;
     setFactLoading(true);
     api.getAttemptsBySessions(sessionKey.split(','), {
-      fields: 'id,session,status,score,total,submitted_at,created,student',
+      fields: 'id,session,status,score,total,submitted_at,created,student,expand.session.results_hidden',
+      expand: 'session',
     })
       .then((atts) => { if (!cancelled) setAttempts(atts || []); })
       .catch(() => { if (!cancelled) setAttempts([]); })
@@ -71,11 +73,19 @@ export default function StudentSummerProgram({ student }) {
   }, [sessionKey]);
 
   // Персональные выдачи: сессия принадлежит только этому ученику.
-  const factBySession = useMemo(() => sessionFacts(attempts), [attempts]);
+  // Выдачи, результаты которых учитель закрыл (v3.9.321): «сделано» без балла.
+  const hiddenSessions = useMemo(
+    () => new Set(attempts.filter(attemptResultsHidden).map((a) => a.session)),
+    [attempts],
+  );
+  const factBySession = useMemo(
+    () => hideScores(sessionFacts(attempts), hiddenSessions),
+    [attempts, hiddenSessions],
+  );
   // Общее задание класса: сессия одна на всех, поэтому берём только свои попытки.
   const blockFacts = useMemo(
-    () => sessionFacts(attempts.filter((a) => a.student === student.id)),
-    [attempts, student.id],
+    () => hideScores(sessionFacts(attempts.filter((a) => a.student === student.id)), hiddenSessions),
+    [attempts, student.id, hiddenSessions],
   );
 
   // Календарные недели + распределение. Счётные навыки (week==null) показываем
@@ -227,6 +237,13 @@ export default function StudentSummerProgram({ student }) {
       )}
     </div>
   );
+}
+
+function hideScores(facts, hidden) {
+  if (!hidden.size) return facts;
+  const out = new Map();
+  for (const [sid, f] of facts) out.set(sid, hidden.has(sid) ? { ...f, score: null, total: null } : f);
+  return out;
 }
 
 // Метка «сделано / начато / ещё не начато» у работы. Балл ученик и так видит

@@ -320,6 +320,7 @@
 }
 .sh-result-score b { font-size: 17px; color: var(--sh-ink); }
 .sh-result-score span { display: block; font-size: 11.5px; color: var(--sh-ink-3); }
+.sh-result-note { margin-top: 3px; font-size: 12.5px; color: var(--sh-ink-3); }
 
 /* ── Пусто ── */
 .sh-welcome {

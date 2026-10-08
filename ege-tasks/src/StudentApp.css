@@ -1255,6 +1255,15 @@
   animation: studentBounceIn 0.6s ease-out;
 }
 
+/* Результаты закрыты учителем (v3.9.321) */
+.student-result-hidden .student-result-hidden-icon {
+  display: block;
+  font-size: 40px;
+  color: #52c41a;
+  margin-bottom: 10px;
+}
+
+
 .student-result-score-value {
   font-size: 56px;
   font-weight: 900;

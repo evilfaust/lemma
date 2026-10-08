@@ -6,6 +6,7 @@ import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import AchievementBadge from './AchievementBadge';
 import { drillResultAnswers, drillGivenOption } from '../../utils/drillTest';
+import { sessionResultsHidden, HIDDEN_RESULTS_NOTE } from '../../utils/resultsVisibility';
 
 const { Title, Text } = Typography;
 
@@ -119,6 +120,25 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     return (
       <div style={{ textAlign: 'center', padding: 60 }}>
         <Spin size="large" />
+      </div>
+    );
+  }
+
+  // Учитель закрыл результаты выдачи (v3.9.321): ни балла, ни разбора ответов.
+  if (sessionResultsHidden(session)) {
+    return (
+      <div className="student-result">
+        <div className="student-result-header">
+          <Title level={4} className="student-result-title">Работа сдана</Title>
+          <Text className="student-result-test-title">{testTitle}</Text>
+          <Text className="student-result-meta">{attempt?.student_name}</Text>
+        </div>
+        <div className="student-result-score-card student-result-hidden">
+          <CheckCircleOutlined className="student-result-hidden-icon" />
+          <div className="student-result-score-label">
+            Ответы приняты. {HIDDEN_RESULTS_NOTE}
+          </div>
+        </div>
       </div>
     );
   }

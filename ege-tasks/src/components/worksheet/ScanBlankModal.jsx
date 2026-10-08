@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Modal, Upload, Select, Input, Button, Table, Tag, Alert, Space, Spin,
-  Typography, App, DatePicker, Tooltip, Image, Segmented, Progress,
+  Typography, App, DatePicker, Tooltip, Image, Segmented, Progress, Checkbox,
 } from 'antd';
 import {
   CameraOutlined, CheckCircleFilled, CloseCircleFilled, MinusCircleOutlined,
@@ -15,6 +15,7 @@ import { compressImage } from '../../utils/imageProcessing';
 import { toStoredDate } from '../../utils/classJournal';
 import { mergeScanReads } from '../../utils/scanBlank';
 import useIsMobile from '../../hooks/useIsMobile';
+import { sessionResultsHidden } from '../../utils/resultsVisibility';
 import MathRenderer from '../MathRenderer';
 import './scanBlank.css';
 
@@ -101,6 +102,8 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
   const [studentName, setStudentName] = useState('');
   const [done, setDone] = useState(() => new Set()); // ученики, уже внесённые в выбранную выдачу
   const [setupOpen, setSetupOpen] = useState(true); // телефон: класс/дата/выдача развёрнуты
+  const [hideNew, setHideNew] = useState(false);   // новая выдача создастся с закрытыми результатами
+  const [hideSaving, setHideSaving] = useState(false);
 
   const [photo, setPhoto] = useState(null);       // dataURL сжатого фото
   const [manual, setManual] = useState(false);    // ответы вписываются руками, без фото
@@ -372,6 +375,7 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
           is_open: false,
           achievements_enabled: false,
           student_title: `${work.title || 'Работа'} (бумага, ${day.format('DD.MM')})`,
+          ...(hideNew ? { results_hidden: true } : {}),
         });
         sid = created.id;
         setSessions(prev => [created, ...prev]);
@@ -439,6 +443,38 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
     }
     setSaving(false);
   };
+
+  // ── Видимость результатов ученикам (v3.9.321) ──────────────────────────
+  // По умолчанию ученик видит балл сразу после записи. Закрыть — до ввода
+  // (новая выдача создастся закрытой) или в любой момент у существующей.
+  const currentSession = sessions.find(s => s.id === sessionId) || null;
+  const resultsHidden = sessionId === NEW_SESSION ? hideNew : sessionResultsHidden(currentSession);
+
+  const toggleHidden = async (hidden) => {
+    if (sessionId === NEW_SESSION) { setHideNew(hidden); return; }
+    setHideSaving(true);
+    try {
+      const [updated] = await api.setSessionsResultsHidden([sessionId], hidden);
+      setSessions(prev => prev.map(s => (s.id === sessionId ? { ...s, results_hidden: updated.results_hidden } : s)));
+      message.success(hidden ? 'Результаты скрыты от учеников' : 'Результаты открыты ученикам');
+    } catch (err) {
+      message.error(err?.code === 'NO_FIELD'
+        ? 'Скрытие результатов ещё не включено на сервере (нужна миграция базы)'
+        : 'Не удалось изменить видимость результатов');
+    }
+    setHideSaving(false);
+  };
+
+  const hideCheckbox = (
+    <Checkbox
+      checked={resultsHidden}
+      disabled={hideSaving}
+      onChange={e => toggleHidden(e.target.checked)}
+      className="sbm-hide"
+    >
+      Не показывать результаты ученикам (открою позже)
+    </Checkbox>
+  );
 
   // ── Общие куски разметки ───────────────────────────────────────────────
 
@@ -538,6 +574,7 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
           <TeamOutlined />
           <span className="sbm-setup-text">
             {group ? group.name : 'Класс не выбран'} · {day.format('D MMM')} · {sessionLabel}
+            {resultsHidden ? ' · результаты скрыты' : ''}
           </span>
           {setupOpen ? <UpOutlined /> : <DownOutlined />}
         </button>
@@ -573,6 +610,7 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
                 { value: NEW_SESSION, label: '➕ Новая выдача (бумага)' },
               ]}
             />
+            {hideCheckbox}
             {groupId && (
               <Text type="secondary" className="sbm-hint">
                 Работа сама встанет в журнал класса колонкой на дату проведения.
@@ -849,6 +887,7 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
             { value: NEW_SESSION, label: '➕ Новая выдача (бумага)' },
           ]}
         />
+        {hideCheckbox}
       </Space>
       {groupId && (
         <Text type="secondary" style={{ fontSize: 12 }}>

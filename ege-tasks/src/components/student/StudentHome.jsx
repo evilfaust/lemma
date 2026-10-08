@@ -80,6 +80,19 @@ function TodoRow({ row }) {
 }
 
 function ResultRow({ r }) {
+  if (r.hidden) {
+    return (
+      <a className="sh-result sh-result--hidden" href={`/student/${r.sessionId}`}>
+        <div className="sh-result-main">
+          <div className="sh-result-title">{r.title}</div>
+          <div className="sh-result-note">Сдано · результат появится позже</div>
+        </div>
+        <div className="sh-result-score">
+          <span>{relDayLabel(r.date)}</span>
+        </div>
+      </a>
+    );
+  }
   const tone = r.pct >= 85 ? 'good' : r.pct >= 50 ? 'mid' : 'low';
   return (
     <a className="sh-result" href={`/student/${r.sessionId}`}>

@@ -22,6 +22,7 @@ const mockApi = vi.hoisted(() => ({
   getJournalColumns: vi.fn(),
   createJournalColumn: vi.fn(),
   scanBlank: vi.fn(),
+  setSessionsResultsHidden: vi.fn(),
 }));
 vi.mock('../shared/services/pocketbase', () => ({ api: mockApi, default: {} }));
 vi.mock('../components/MathRenderer', () => ({ default: ({ text }) => <span>{text}</span> }));
@@ -181,5 +182,32 @@ describe('ScanBlankModal — ручной ввод', () => {
     fireEvent.click(screen.getByText('Записать результат'));
     await waitFor(() => expect(mockApi.getJournalColumns).toHaveBeenCalledWith('g10'));
     expect(mockApi.createJournalColumn).not.toHaveBeenCalled();
+  });
+
+  it('«Не показывать результаты»: новая выдача создаётся закрытой (v3.9.321)', async () => {
+    setup();
+    await screen.findByText('Ввести ответы вручную');
+    await waitFor(() => expect(mockApi.getStudentsByGroup).toHaveBeenCalled());
+    fireEvent.click(screen.getByText(/Не показывать результаты ученикам/));
+    expect(mockApi.setSessionsResultsHidden).not.toHaveBeenCalled();
+    await pickStudent('Анна Белова');
+    fireEvent.click(screen.getByText('Ввести ответы вручную'));
+    fireEvent.change(answerInputs()[0], { target: { value: '0,5' } });
+    fireEvent.click(screen.getByText('Записать результат'));
+    await waitFor(() => expect(mockApi.createSession).toHaveBeenCalledWith(
+      expect.objectContaining({ work: 'w1', results_hidden: true }),
+    ));
+  });
+
+  it('по умолчанию результаты публикуются; у существующей выдачи галочка пишет сразу', async () => {
+    mockApi.getSessionsByWork.mockResolvedValue([{ id: 'old', created: '2026-10-06 10:00:00Z' }]);
+    mockApi.setSessionsResultsHidden.mockResolvedValue([{ id: 'old', results_hidden: true }]);
+    setup();
+    await screen.findByText('Ввести ответы вручную');
+    const box = screen.getByText(/Не показывать результаты ученикам/).closest('label').querySelector('input');
+    expect(box.checked).toBe(false);
+    fireEvent.click(box);
+    await waitFor(() => expect(mockApi.setSessionsResultsHidden).toHaveBeenCalledWith(['old'], true));
+    await waitFor(() => expect(box.checked).toBe(true));
   });
 });

@@ -2,6 +2,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import { homeworkFeed } from './homework';
 import { slotRangeFromCode } from '../components/workspace/lessonTime';
+import { attemptResultsHidden } from './resultsVisibility';
 
 /**
  * Главная ученика (v3.9.316) — лента «что делать»: чистая логика без сети.
@@ -117,7 +118,9 @@ export function unfinishedAttempts(attempts, now = dayjs()) {
 
 /**
  * Последние результаты: сданные попытки с баллом, последняя на выдачу.
- * → [{ sessionId, title, score, total, pct, date }]
+ * → [{ sessionId, title, score, total, pct, date, hidden? }]
+ * Учитель закрыл результаты выдачи (v3.9.321) → `hidden: true`, без баллов:
+ * ученик видит, что работа сдана, а результат появится позже.
  */
 export function recentResults(attempts, limit = 3) {
   const seen = new Set();
@@ -128,6 +131,14 @@ export function recentResults(attempts, limit = 3) {
   for (const a of list) {
     if (seen.has(a.session)) continue;
     seen.add(a.session);
+    if (attemptResultsHidden(a)) {
+      out.push({
+        sessionId: a.session, title: attemptTitle(a), hidden: true,
+        score: null, total: null, pct: null, date: attemptDate(a),
+      });
+      if (out.length >= limit) break;
+      continue;
+    }
     const score = Number(a.score) || 0;
     const total = Number(a.total);
     out.push({

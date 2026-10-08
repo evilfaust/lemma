@@ -1,6 +1,7 @@
 import { pb, _logAudit } from './client.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { getFullListByOr } from './chunked.js';
 
 export const answersApi = {
   // ============ ОТВЕТЫ НА ЗАДАЧИ (ATTEMPT ANSWERS) ============
@@ -46,6 +47,19 @@ export const answersApi = {
     } catch (error) {
       console.error('Error batch fetching attempt answers:', error);
       return [];
+    }
+  },
+
+  // Ответы для выгрузки результатов в Excel (v3.9.321): только то, что идёт
+  // в таблицу, без expand задач — на класс это сотни строк.
+  async getAttemptAnswersForExport(attemptIds) {
+    try {
+      return await getFullListByOr('attempt_answers', 'attempt', attemptIds || [], {
+        fields: 'id,attempt,task,answer_raw,is_correct',
+      });
+    } catch (error) {
+      console.error('Error fetching attempt answers for export:', error);
+      throw error;
     }
   },
 
