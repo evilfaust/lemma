@@ -16,7 +16,9 @@ import {
   RESHU_EXAMS,
   extractReshuIds,
   extractVariantUrls,
+  detectReshuExam,
   reshuProblemUrl,
+  reshuExamOrder,
   topicForReshuType,
   pickBankTask,
   mainTopicOf,
@@ -49,6 +51,9 @@ const newKey = () => `r${++rowSeq}`;
  * - `status: 'bank'`    — задача уже в Лемме (`bankTask`), берётся как есть;
  * - `status: 'reshu'`   — будет добавлена с Решу (`problem`) в тему `topicId`;
  * - `status: 'missing'` — не нашлась ни в банке, ни на Решу (в работу не идёт).
+ * `exam` — экзамен задачи: у банковой — экзамен её темы, у задачи с Решу — сайт,
+ * на котором она нашлась (работа может смешивать базу и профиль).
+ * `keyAnswer` — ответ из вставленной таблицы «Ключ» Решу, если она была.
  */
 export function useReshuWorkImport({ topics = [] } = {}) {
   const [rows, setRows] = useState([]);
@@ -56,7 +61,7 @@ export function useReshuWorkImport({ topics = [] } = {}) {
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0, label: '' });
   const [result, setResult] = useState(null);
-  const [notes, setNotes] = useState({ duplicates: [] });
+  const [notes, setNotes] = useState({ duplicates: [], closedVariants: [] });
 
   /**
    * @param {string} text — номера / ссылки / скопированная страница Решу
@@ -71,15 +76,22 @@ export function useReshuWorkImport({ topics = [] } = {}) {
       const { items: parsedItems, duplicates } = extractReshuIds(text);
       const items = [...parsedItems];
       const prefetched = new Map(); // id → задача с Решу, уже разобранная
+      const variantExam = new Map(); // id → экзамен варианта, из которого задача пришла
+      const closedVariants = [];
 
       // Ссылка на целый вариант: задачи и их порядок отдаёт сервер
       const variantUrls = extractVariantUrls(text);
       for (let i = 0; i < variantUrls.length; i++) {
         setProgress({ current: i, total: variantUrls.length, label: 'Читаю вариант с Решу' });
         const problems = await fetchSdamgiaProblems(variantUrls[i]);
+        // Вариант учителя Решу открывается только после входа — гостю (и нашему
+        // серверу) страница приходит без задач
+        if (problems.length === 0) closedVariants.push(variantUrls[i]);
+        const exam = detectReshuExam(variantUrls[i]) || examType;
         for (const p of problems) {
           if (!p.id) continue;
           prefetched.set(String(p.id), p);
+          variantExam.set(String(p.id), exam);
           if (!items.some((it) => it.id === String(p.id))) {
             items.push({ id: String(p.id), typeLabel: p.type_label || null });
           }
@@ -87,8 +99,8 @@ export function useReshuWorkImport({ topics = [] } = {}) {
       }
       if (items.length === 0) {
         setRows([]);
-        setNotes({ duplicates });
-        return { total: 0, bank: 0, reshu: 0, missing: 0 };
+        setNotes({ duplicates, closedVariants });
+        return { total: 0, bank: 0, reshu: 0, missing: 0, closed: closedVariants.length };
       }
 
       // 1. Банк Лемма
@@ -101,7 +113,8 @@ export function useReshuWorkImport({ topics = [] } = {}) {
         bankById.set(t.sdamgia_id, list);
       });
 
-      // 2. Чего нет в банке — разбираем с Решу
+      // 2. Чего нет в банке — разбираем с Решу: сперва на сайте выбранного
+      // экзамена, не нашлась — на остальных (база и профиль в одной работе)
       const missingIdx = items
         .map((it, i) => (bankById.has(it.id) ? -1 : i))
         .filter((i) => i >= 0);
@@ -109,41 +122,58 @@ export function useReshuWorkImport({ topics = [] } = {}) {
       let done = 0;
       await mapLimit(missingIdx, FETCH_CONCURRENCY, async (i) => {
         const { id } = items[i];
-        try {
-          const problem = prefetched.get(id)
-            || (await fetchSdamgiaProblems(reshuProblemUrl(id, examType)))
-              .find((p) => String(p.id) === id);
-          fetched.set(id, problem ? { problem } : { error: 'нет такой задачи на Решу' });
-        } catch (e) {
-          fetched.set(id, { error: e.message });
+        if (prefetched.has(id)) {
+          fetched.set(id, { problem: prefetched.get(id), exam: variantExam.get(id) || examType });
+        } else {
+          let lastError = null;
+          for (const exam of reshuExamOrder(examType)) {
+            try {
+              const problem = (await fetchSdamgiaProblems(reshuProblemUrl(id, exam)))
+                .find((p) => String(p.id) === id);
+              if (problem) {
+                fetched.set(id, { problem, exam });
+                break;
+              }
+            } catch (e) {
+              lastError = e;
+            }
+          }
+          if (!fetched.has(id)) {
+            fetched.set(id, { error: lastError?.message || 'нет такой задачи на Решу' });
+          }
         }
         done += 1;
         setProgress({ current: done, total: missingIdx.length, label: 'Загружаю недостающие с Решу' });
       });
 
       const nextRows = items.map((it) => {
+        const base = { key: newKey(), sdamgiaId: it.id, keyAnswer: it.keyAnswer || null };
         const bankTask = pickBankTask(bankById.get(it.id) || [], examType, topicsById);
         if (bankTask) {
-          return { key: newKey(), sdamgiaId: it.id, typeLabel: it.typeLabel, status: 'bank', bankTask, topicId: bankTask.topic };
+          const exam = topicsById.get(bankTask.topic)?.exam_type || examType;
+          return { ...base, typeLabel: it.typeLabel, status: 'bank', bankTask, topicId: bankTask.topic, exam };
         }
-        const { problem, error } = fetched.get(it.id) || {};
+        const { problem, exam, error } = fetched.get(it.id) || {};
         if (!problem) {
-          return { key: newKey(), sdamgiaId: it.id, typeLabel: it.typeLabel, status: 'missing', error: error || 'не найдена' };
+          return { ...base, typeLabel: it.typeLabel, status: 'missing', error: error || 'не найдена', exam: examType };
         }
-        const typeLabel = problem.type_label || it.typeLabel;
-        const topic = topicForReshuType(topics, examType, typeLabel);
+        // «Тип N» из вставленного списка — номер по выбранному экзамену; у задачи
+        // с другого сайта верить можно только типу, который отдал сам сайт
+        const typeLabel = problem.type_label || (exam === examType ? it.typeLabel : null);
+        const topic = topicForReshuType(topics, exam, typeLabel);
         return {
-          key: newKey(), sdamgiaId: it.id, typeLabel, status: 'reshu', problem, topicId: topic?.id || null,
+          ...base, typeLabel, status: 'reshu', problem, topicId: topic?.id || null, exam,
         };
       });
 
       setRows(nextRows);
-      setNotes({ duplicates });
+      setNotes({ duplicates, closedVariants });
       return {
         total: nextRows.length,
         bank: nextRows.filter((r) => r.status === 'bank').length,
         reshu: nextRows.filter((r) => r.status === 'reshu').length,
         missing: nextRows.filter((r) => r.status === 'missing').length,
+        closed: closedVariants.length,
       };
     } finally {
       setResolving(false);
@@ -177,7 +207,8 @@ export function useReshuWorkImport({ topics = [] } = {}) {
     const warnings = [];
     const stats = { created: 0, reused: 0, failed: 0 };
     const taskIds = new Map();
-    const exam = RESHU_EXAMS[examType] || RESHU_EXAMS.ege_profile;
+    const examOf = (row) => RESHU_EXAMS[row.exam] ? row.exam : examType;
+    const examsUsed = [...new Set(active.map(examOf))];
 
     try {
       // Коды задач: по одному запросу на тему, дальше счётчик крутится локально
@@ -216,10 +247,10 @@ export function useReshuWorkImport({ topics = [] } = {}) {
             problem: row.problem,
             topicId: row.topicId,
             code,
-            sourceType: exam.sourceType,
+            sourceType: RESHU_EXAMS[examOf(row)].sourceType,
             examPart: state.topic?.exam_part || 1,
             taskNumber: state.topic?.ege_number || '',
-            fallbackUrl: reshuProblemUrl(row.sdamgiaId, examType),
+            fallbackUrl: reshuProblemUrl(row.sdamgiaId, examOf(row)),
           });
           taskIds.set(row.key, created.id);
           stats.created += 1;
@@ -240,11 +271,12 @@ export function useReshuWorkImport({ topics = [] } = {}) {
         class: workMeta.classNumber ?? undefined,
         topic: mainTopicOf(ordered.map((r) => r.topicId)),
         time_limit: workMeta.timeLimit ?? undefined,
-        source: `Решу ${exam.label}`,
+        source: `Решу ${examsUsed.map((e) => RESHU_EXAMS[e].label).join(' + ')}`,
         import_meta: {
           imported_at: new Date().toISOString(),
           format: 'reshu-ids',
           exam_type: examType,
+          exam_types: examsUsed,
           sdamgia_ids: ordered.map((r) => r.sdamgiaId),
           tasks_created: stats.created,
           tasks_reused: stats.reused,
@@ -270,7 +302,7 @@ export function useReshuWorkImport({ topics = [] } = {}) {
   const reset = useCallback(() => {
     setRows([]);
     setResult(null);
-    setNotes({ duplicates: [] });
+    setNotes({ duplicates: [], closedVariants: [] });
     setProgress({ current: 0, total: 0, label: '' });
   }, []);
 

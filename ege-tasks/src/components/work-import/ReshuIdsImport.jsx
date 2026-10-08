@@ -12,7 +12,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/pocketbase';
 import { useReshuWorkImport } from '../../hooks/useReshuWorkImport';
 import {
-  RESHU_EXAMS, detectReshuExam, extractReshuIds, extractVariantUrls, formatReshuList, reshuProblemUrl,
+  RESHU_EXAMS, detectReshuExam, extractReshuIds, extractVariantUrls, formatReshuList, keyAnswerIssue,
+  reshuProblemUrl,
 } from '../../utils/reshuTaskList';
 import { compressImage } from '../../utils/imageProcessing';
 import MathRenderer from '../MathRenderer';
@@ -21,6 +22,13 @@ const { TextArea } = Input;
 const { Text } = Typography;
 
 const EXAM_OPTIONS = Object.entries(RESHU_EXAMS).map(([value, { label }]) => ({ value, label }));
+
+const topicLabel = (t) => (t ? `${t.ege_number ? `№${t.ege_number} — ` : ''}${t.title}${t.archived ? ' (архив)' : ''}` : '—');
+
+const KEY_ISSUE_TEXT = {
+  empty: 'в банке у задачи нет ответа',
+  differs: 'ответ в банке другой',
+};
 
 const STATUS_TAG = {
   bank: <Tag color="green">в банке</Tag>,
@@ -64,12 +72,20 @@ export default function ReshuIdsImport() {
     [text],
   );
 
-  const examTopics = useMemo(() => topics
-    .filter((t) => t.exam_type === examType)
-    .sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || (a.ege_number || 0) - (b.ege_number || 0)), [topics, examType]);
+  // Темы по экзамену строки: задача с сайта базы встаёт в тему базы, даже если
+  // сверху выбран профиль
+  const topicOptionsByExam = useMemo(() => {
+    const out = {};
+    Object.keys(RESHU_EXAMS).forEach((exam) => {
+      out[exam] = topics
+        .filter((t) => t.exam_type === exam)
+        .sort((a, b) => (a.archived ? 1 : 0) - (b.archived ? 1 : 0) || (a.ege_number || 0) - (b.ege_number || 0))
+        .map((t) => ({ value: t.id, label: topicLabel(t) }));
+    });
+    return out;
+  }, [topics]);
 
   const topicById = useMemo(() => new Map(topics.map((t) => [t.id, t])), [topics]);
-  const topicLabel = (t) => (t ? `${t.ege_number ? `№${t.ege_number} — ` : ''}${t.title}${t.archived ? ' (архив)' : ''}` : '—');
 
   const handleTextChange = (value) => {
     setText(value);
@@ -117,7 +133,9 @@ export default function ReshuIdsImport() {
     try {
       const s = await resolve(text, examType);
       if (s.total === 0) {
-        message.warning('Номеров задач в тексте не найдено');
+        message.warning(s.closed
+          ? 'Вариант на Решу закрыт для гостей — вставьте номера из «Ключа» (см. подсказку ниже)'
+          : 'Номеров задач в тексте не найдено');
         return;
       }
       const parts = [`в банке: ${s.bank}`];
@@ -151,6 +169,13 @@ export default function ReshuIdsImport() {
   // Номер в работе: ненайденные задачи в неё не попадут и номер не занимают
   const positionByKey = new Map(activeRows.map((r, i) => [r.key, i + 1]));
   const noTopic = rows.filter((r) => r.status === 'reshu' && !r.topicId).length;
+  const rowExam = (r) => (RESHU_EXAMS[r.exam] ? r.exam : examType);
+  const mixedExams = new Set(activeRows.map(rowExam)).size > 1;
+  const keyIssues = rows
+    .filter((r) => r.status === 'bank')
+    .map((r) => ({ row: r, issue: keyAnswerIssue(r.bankTask.answer, r.keyAnswer) }))
+    .filter((x) => x.issue);
+  const hasKey = rows.some((r) => r.keyAnswer);
 
   if (result) {
     return (
@@ -181,8 +206,9 @@ export default function ReshuIdsImport() {
       title: '№ на Решу', key: 'id', width: 120,
       render: (_, r) => (
         <Space direction="vertical" size={0}>
-          <a href={reshuProblemUrl(r.sdamgiaId, examType)} target="_blank" rel="noreferrer">{r.sdamgiaId}</a>
+          <a href={reshuProblemUrl(r.sdamgiaId, rowExam(r))} target="_blank" rel="noreferrer">{r.sdamgiaId}</a>
           {r.typeLabel && <Text type="secondary" style={{ fontSize: 12 }}>тип {r.typeLabel}</Text>}
+          {rowExam(r) !== examType && <Tag style={{ marginTop: 2 }}>{RESHU_EXAMS[rowExam(r)].label}</Tag>}
         </Space>
       ),
     },
@@ -210,11 +236,30 @@ export default function ReshuIdsImport() {
             onChange={(topicId) => updateRow(r.key, { topicId })}
             showSearch
             optionFilterProp="label"
-            options={examTopics.map((t) => ({ value: t.id, label: topicLabel(t) }))}
+            options={topicOptionsByExam[rowExam(r)] || []}
           />
         );
       },
     },
+    ...(hasKey ? [{
+      title: 'Ответ', key: 'answer', width: 120,
+      render: (_, r) => {
+        const answer = r.status === 'bank' ? r.bankTask.answer : r.problem?.answer;
+        const issue = r.status === 'bank' ? keyAnswerIssue(answer, r.keyAnswer) : null;
+        return (
+          <Space direction="vertical" size={0}>
+            <Text>{answer || '—'}</Text>
+            {r.keyAnswer && (
+              <Tooltip title={issue ? KEY_ISSUE_TEXT[issue] : 'совпадает с ключом Решу'}>
+                <Text type={issue ? 'danger' : 'secondary'} style={{ fontSize: 12 }}>
+                  ключ: {r.keyAnswer}{issue ? ' ⚠' : ' ✓'}
+                </Text>
+              </Tooltip>
+            )}
+          </Space>
+        );
+      },
+    }] : []),
     {
       title: 'Условие', key: 'statement',
       render: (_, r) => {
@@ -252,8 +297,10 @@ export default function ReshuIdsImport() {
             Вставьте номера задач, ссылки <Text code>problem?id=…</Text>, ссылку на вариант
             (<Text code>test?id=…</Text>) или скопированную страницу варианта — порядок сохранится.
             Скриншот списка можно вставить прямо в поле (Ctrl+V) или загрузить кнопкой.
+            Подойдёт и таблица «Ключ» со страницы варианта — тогда ответы сверятся с банком.
             Задачи берутся из банка Лемма по номеру Решу; каких нет — добавятся в банк
-            в тему по номеру задания.
+            в тему по номеру задания. Базу и профиль можно смешивать: задачу, которой нет
+            на сайте выбранного экзамена, ищем на соседнем.
           </div>
         )}
       />
@@ -295,6 +342,20 @@ export default function ReshuIdsImport() {
           {resolving && progress.total > 0 && (
             <Progress percent={Math.round((progress.current / progress.total) * 100)} format={() => progress.label} />
           )}
+          {!resolving && notes.closedVariants.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              message="Вариант на Решу закрыт для гостей"
+              description={(
+                <div>
+                  Решу показывает этот вариант только после входа, поэтому прочитать его по ссылке
+                  не получится. Откройте вариант у себя на Решу, нажмите «Ключ» и скопируйте таблицу
+                  сюда (или вставьте её скриншот) — номера и ответы прочитаются из неё.
+                </div>
+              )}
+            />
+          )}
         </Space>
       </Card>
 
@@ -312,6 +373,22 @@ export default function ReshuIdsImport() {
             </Space>
           )}
         >
+          {mixedExams && (
+            <Alert
+              style={{ marginBottom: 12 }}
+              type="info"
+              showIcon
+              message="В работе задачи разных экзаменов — у каждой своя тема, экзамен отмечен рядом с номером"
+            />
+          )}
+          {keyIssues.length > 0 && (
+            <Alert
+              style={{ marginBottom: 12 }}
+              type="warning"
+              showIcon
+              message={`Ответ ключа Решу не совпал с банком: ${keyIssues.map(({ row, issue }) => `№ ${row.sdamgiaId} (${row.bankTask.code}: ${KEY_ISSUE_TEXT[issue]})`).join('; ')}`}
+            />
+          )}
           {notes.duplicates.length > 0 && (
             <Alert
               style={{ marginBottom: 12 }}

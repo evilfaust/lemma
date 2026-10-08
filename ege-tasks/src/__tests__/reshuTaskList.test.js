@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   extractReshuIds,
   extractVariantUrls,
+  reshuExamOrder,
+  keyAnswerIssue,
   detectReshuExam,
   reshuProblemUrl,
   formatReshuList,
@@ -132,5 +134,46 @@ describe('темы и выбор задачи', () => {
     expect(moveItem([1, 2, 3], 0, 1)).toEqual([2, 1, 3]);
     expect(moveItem([1, 2, 3], 0, -1)).toEqual([1, 2, 3]);
     expect(moveItem([1, 2, 3], 2, -1)).toEqual([1, 3, 2]);
+  });
+});
+
+describe('таблица «Ключ» варианта Решу', () => {
+  it('копия таблицы с табами: номер задачи — второй столбец, ответ — третий', () => {
+    const text = `№ п/п\t№ задания\tОтвет
+1\t27239\t0,5
+2\t27611\t6
+5\t320186\t0,33
+6\t77369\t-6
+11\t26580\t1250
+12\t508895\t-10`;
+    const { items } = extractReshuIds(text);
+    expect(items.map((i) => i.id)).toEqual(['27239', '27611', '320186', '77369', '26580', '508895']);
+    // ответ «1250» — не номер задачи
+    expect(items.find((i) => i.id === '26580').keyAnswer).toBe('1250');
+    expect(items[0]).toEqual({ id: '27239', typeLabel: null, keyAnswer: '0,5' });
+  });
+
+  it('ключ без ответов и с пробелами вместо табов', () => {
+    expect(extractReshuIds('1  27239\n2  27611').items).toEqual([
+      { id: '27239', typeLabel: null },
+      { id: '27611', typeLabel: null },
+    ]);
+  });
+
+  it('keyAnswerIssue: совпадение с точностью до записи, пусто, расхождение', () => {
+    expect(keyAnswerIssue('0,5', '0.5')).toBe(null);
+    expect(keyAnswerIssue('−6', '-6')).toBe(null);
+    expect(keyAnswerIssue('2|-2', '-2')).toBe(null);
+    expect(keyAnswerIssue('', '6')).toBe('empty');
+    expect(keyAnswerIssue('7', '6')).toBe('differs');
+    expect(keyAnswerIssue('7', undefined)).toBe(null);
+  });
+});
+
+describe('reshuExamOrder', () => {
+  it('сначала выбранный экзамен, потом остальные', () => {
+    expect(reshuExamOrder('ege_profile')).toEqual(['ege_profile', 'ege_base', 'oge']);
+    expect(reshuExamOrder('ege_base')).toEqual(['ege_base', 'ege_profile', 'oge']);
+    expect(reshuExamOrder('что-то')[0]).toBe('ege_profile');
   });
 });

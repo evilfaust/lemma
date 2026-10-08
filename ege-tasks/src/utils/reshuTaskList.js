@@ -20,6 +20,16 @@ const HOST_TO_EXAM = [
   [/(?:math-)?ege\.sdamgia\.ru/i, 'ege_profile'],
 ];
 
+/**
+ * Порядок, в котором ищем задачу на Решу: сначала выбранный экзамен, потом
+ * остальные. Каждый сайт отдаёт только свои задачи (512722 есть лишь на базе,
+ * 508895 — лишь на профиле), а учитель может собрать работу из обоих.
+ */
+export function reshuExamOrder(examType = 'ege_profile') {
+  const first = RESHU_EXAMS[examType] ? examType : 'ege_profile';
+  return [first, ...Object.keys(RESHU_EXAMS).filter((k) => k !== first)];
+}
+
 /** Ссылка на одну задачу Решу нужного экзамена. */
 export function reshuProblemUrl(id, examType = 'ege_profile') {
   const exam = RESHU_EXAMS[examType] || RESHU_EXAMS.ege_profile;
@@ -51,6 +61,19 @@ const NUMBERED_RE = new RegExp(`(?:Тип\\s+([^\\s№]+)\\s*)?№\\s*${ID}(?!\\
 const LINK_RE = new RegExp(`problem\\?id=${ID}(?!\\d)`, 'g');
 // голое число в списке «27455, 27456» / по строкам
 const BARE_RE = new RegExp(`(?<![\\d.,])${ID}(?![\\d.,]\\d|\\d)`, 'g');
+// строка таблицы «Ключ» Решу: «№ п/п · № задания · ответ» (копируется с табами)
+const KEY_ROW_RE = /^\s*\d{1,3}[.)]?[\t ]+(\d{3,7})(?:[\t ]+(\S(?:.*\S)?))?\s*$/;
+
+/**
+ * Скопированная таблица «Ключ»: номер задачи — второй столбец, ответ — третий.
+ * Читаем её по строкам, иначе ответ «1250» приняли бы за номер задачи.
+ */
+function keyTableRows(src) {
+  const rows = src.split(/\r?\n/)
+    .map((line) => line.match(KEY_ROW_RE))
+    .filter(Boolean);
+  return rows.length >= 2 ? rows : null;
+}
 
 /**
  * Номера задач из произвольного текста — по порядку появления, без повторов.
@@ -59,7 +82,10 @@ const BARE_RE = new RegExp(`(?<![\\d.,])${ID}(?![\\d.,]\\d|\\d)`, 'g');
  * скопированной странице Решу полно посторонних чисел (годы, ответы, баллы).
  * Иначе считаем, что это просто список номеров.
  *
- * @returns {{ items: Array<{id: string, typeLabel: string|null}>, duplicates: string[] }}
+ * Таблица «Ключ» (порядковый номер, номер задачи, ответ) читается по
+ * столбцам: ответ ключа приходит в `keyAnswer` — его сверяют с банком.
+ *
+ * @returns {{ items: Array<{id: string, typeLabel: string|null, keyAnswer?: string}>, duplicates: string[] }}
  */
 export function extractReshuIds(text) {
   const src = String(text || '').replace(/\u00A0/g, ' ');
@@ -71,9 +97,14 @@ export function extractReshuIds(text) {
     .map((m) => ({ index: m.index, id: m[2], typeLabel: m[1] || null }));
   const links = [...src.matchAll(LINK_RE)].map((m) => ({ index: m.index, id: m[1], typeLabel: null }));
 
+  const keyRows = numbered.length || links.length ? null : keyTableRows(src);
   if (numbered.length || links.length) {
     found.push(...numbered, ...links);
     found.sort((a, b) => a.index - b.index);
+  } else if (keyRows) {
+    keyRows.forEach((m, index) => found.push({
+      index, id: m[1], typeLabel: null, ...(m[2] ? { keyAnswer: m[2] } : {}),
+    }));
   } else {
     // Ссылки на варианты (`test?id=`) — не номера задач
     const cleaned = src.replace(/https?:\/\/\S+/g, ' ');
@@ -90,7 +121,8 @@ export function extractReshuIds(text) {
       if (!duplicates.includes(item.id)) duplicates.push(item.id);
       continue;
     }
-    seen.set(item.id, { id: item.id, typeLabel: item.typeLabel });
+    const { index, ...rest } = item;
+    seen.set(item.id, rest);
   }
   return { items: [...seen.values()], duplicates };
 }
@@ -137,6 +169,26 @@ export function pickBankTask(candidates = [], examType, topicsById = new Map()) 
     return (topic.exam_type === examType ? 2 : 0) + (topic.archived ? 0 : 1);
   };
   return [...candidates].sort((a, b) => score(b) - score(a))[0];
+}
+
+const normAnswer = (a) => String(a ?? '')
+  .replace(/[\u2212\u2013]/g, '-')
+  .replace(/\./g, ',')
+  .replace(/\s+/g, '')
+  .replace(/^\$+|\$+$/g, '')
+  .toLowerCase();
+
+/**
+ * Ответ из «Ключа» Решу против ответа задачи в банке:
+ * `null` — сверять нечего, `'empty'` — в банке ответа нет, `'differs'` — расходятся.
+ * Альтернативы банка через «|» засчитываются (как в проверке ответов ученика).
+ */
+export function keyAnswerIssue(bankAnswer, keyAnswer) {
+  const key = normAnswer(keyAnswer);
+  if (!key) return null;
+  const bank = normAnswer(bankAnswer);
+  if (!bank) return 'empty';
+  return bank.split('|').includes(key) ? null : 'differs';
 }
 
 /** Самая частая тема среди строк — она пишется в `works.topic`. */
