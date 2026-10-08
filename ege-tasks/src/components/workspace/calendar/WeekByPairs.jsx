@@ -67,17 +67,24 @@ export default function WeekByPairs({ date, events }) {
   });
   placed.sort((a, b) => a.from - b.from || a.to - b.to);
   // Пересекающиеся уроки одного дня делят колонку на дорожки (два урока в одну
-  // пару стоят рядом, а не друг на друге).
-  const laneCount = {};
+  // пару стоят рядом, а не друг на друге). Дорожки считаются по ГРУППЕ
+  // пересекающихся уроков, а не по всему дню: два урока на 4-й паре не сужают
+  // одинокие уроки 2-й и 3-й пары того же дня.
   days.forEach((_, di) => {
-    const ends = []; // ends[lane] = последняя занятая строка этой дорожки
+    let group = [];
+    let ends = []; // ends[lane] = последняя занятая строка этой дорожки
+    let groupTo = -1;
+    const close = () => { group.forEach((x) => { x.lanes = Math.max(1, ends.length); }); };
     placed.filter((x) => x.di === di).forEach((x) => {
+      if (x.from > groupTo) { close(); group = []; ends = []; }
       let lane = ends.findIndex((last) => last < x.from);
       if (lane < 0) { lane = ends.length; }
       ends[lane] = x.to;
       x.lane = lane;
+      group.push(x);
+      groupTo = Math.max(groupTo, x.to);
     });
-    laneCount[di] = Math.max(1, ends.length);
+    close();
   });
 
   const today = dayjs();
@@ -157,7 +164,7 @@ export default function WeekByPairs({ date, events }) {
             />
           );
         }))}
-        {placed.map(({ e, di, from, to, lane }) => {
+        {placed.map(({ e, di, from, to, lane, lanes }) => {
           const r = e.resource;
           const hex = lessonHex(r.raw);
           const muted = r.status === 'done' || r.status === 'cancelled';
@@ -174,9 +181,9 @@ export default function WeekByPairs({ date, events }) {
                 gridRow: `${from + 1} / ${to + 2}`,
                 background: muted ? '#F6F7F9' : hex.soft,
                 borderColor: muted ? '#E5E7EB' : hex.base,
-                ...(laneCount[di] > 1 ? {
-                  width: `calc(${100 / laneCount[di]}% - 8px)`,
-                  marginLeft: `calc(${(lane * 100) / laneCount[di]}% + 4px)`,
+                ...(lanes > 1 ? {
+                  width: `calc(${100 / lanes}% - 8px)`,
+                  marginLeft: `calc(${(lane * 100) / lanes}% + 4px)`,
                 } : null),
               }}
               onClick={() => onSelectEvent(e)} role="button" tabIndex={0}>

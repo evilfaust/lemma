@@ -101,6 +101,34 @@ describe('WeekByPairs', () => {
     expect(blocks[1].style.marginLeft).toContain('50%');
   });
 
+  it('два урока в одну пару не сужают уроки других пар того же дня', () => {
+    const { container } = renderWeek([
+      lesson({ id: 'a', time_slot: '2', title: 'Вторая пара' }),
+      lesson({ id: 'b', time_slot: '3', title: 'Третья пара' }),
+      lesson({ id: 'c', time_slot: '4', title: 'Четвёртая А' }),
+      lesson({ id: 'd', time_slot: '4', title: 'Четвёртая Б' }),
+    ]);
+    const byTitle = (t) => [...container.querySelectorAll('.cw-lesson')]
+      .find((b) => b.textContent.includes(t));
+    expect(byTitle('Вторая пара').style.width).toBe('');
+    expect(byTitle('Третья пара').style.width).toBe('');
+    expect(byTitle('Четвёртая А').style.width).toContain('50%');
+    expect(byTitle('Четвёртая Б').style.marginLeft).toContain('50%');
+  });
+
+  it('интенсив и урок внутри него делят колонку, соседняя пара — во всю ширину', () => {
+    const { container } = renderWeek([
+      lesson({ id: 'a', time_slot: '1-2', title: 'Интенсив' }),
+      lesson({ id: 'b', time_slot: '2', title: 'Внутри' }),
+      lesson({ id: 'c', time_slot: '4', title: 'Отдельно' }),
+    ]);
+    const byTitle = (t) => [...container.querySelectorAll('.cw-lesson')]
+      .find((b) => b.textContent.includes(t));
+    expect(byTitle('Интенсив').style.width).toContain('50%');
+    expect(byTitle('Внутри').style.marginLeft).toContain('50%');
+    expect(byTitle('Отдельно').style.width).toBe('');
+  });
+
   it('старый урок без time_slot встаёт по времени старта', () => {
     const { container } = renderWeek([lesson({ time_slot: '', date_plan: `${MONDAY} 14:05:00` })]);
     expect(blockRows(container.querySelector('.cw-lesson'))).toBe('4 / 5');
