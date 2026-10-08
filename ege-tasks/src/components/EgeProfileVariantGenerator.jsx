@@ -27,6 +27,7 @@ import { poolStatsDetailed } from '../utils/successStats';
 import SuccessRateCell from './worksheet/SuccessRateCell';
 import VariantRenderer from './worksheet/VariantRenderer';
 import KimViewSwitch, { useKimView } from './worksheet/KimViewSwitch';
+import KimAnswersSheet from './worksheet/KimAnswersSheet';
 import ActionButtons from './worksheet/ActionButtons';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
 import SaveWorkModal from './worksheet/SaveWorkModal';
@@ -792,11 +793,16 @@ const EgeProfileVariantGenerator = () => {
             {/* Лист ответов и решений — только для обычного стиля */}
             {!kimStyle && <ProfileAnswersPage variants={variants} />}
 
-            {/* Лист ответов учителю в режиме КИМ — скрыт, печатается кнопкой */}
+            {/* Лист ответов учителю в режиме КИМ — печатается кнопкой, на экране виден «Как в печати» */}
             {kimStyle && (
-              <div className="kim-answers-sheet">
-                <ProfileAnswersPage variants={variants} title={currentWork?.title} />
-              </div>
+              <KimAnswersSheet
+                variants={variants}
+                kimMeta={kimMeta}
+                title={currentWork?.title}
+                examLabel="ЕГЭ, профильный уровень"
+                part1Last={PART1_LAST}
+                preview={kimView === 'print'}
+              />
             )}
           </div>
 

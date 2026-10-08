@@ -30,6 +30,7 @@ import SuccessRateCell from './worksheet/SuccessRateCell';
 import KimTaskContent, { KimAnswer } from './worksheet/KimTaskContent';
 import KimTaskTools from './worksheet/KimTaskTools';
 import KimViewSwitch, { useKimView } from './worksheet/KimViewSwitch';
+import KimAnswersSheet from './worksheet/KimAnswersSheet';
 import { printKimAnswers } from '../utils/printKimAnswers';
 import VariantRenderer from './worksheet/VariantRenderer';
 import AnswersPage from './worksheet/AnswersPage';
@@ -1019,11 +1020,16 @@ const EgeVariantGenerator = () => {
             {/* Страница ответов — только для обычного стиля */}
             {!kimStyle && <AnswersPage variants={variants} variantLabel="Вариант" />}
 
-            {/* Лист ответов учителю в режиме КИМ — скрыт, печатается кнопкой */}
+            {/* Лист ответов учителю в режиме КИМ — печатается кнопкой, на экране виден «Как в печати» */}
             {kimStyle && (
-              <div className="kim-answers-sheet">
-                <AnswersPage variants={variants} variantLabel="Вариант" title={currentWork?.title} />
-              </div>
+              <KimAnswersSheet
+                variants={variants}
+                kimMeta={kimMeta}
+                title={currentWork?.title}
+                examLabel="ЕГЭ, базовый уровень"
+                part1Last={null}
+                preview={kimView === 'print'}
+              />
             )}
           </div>
 

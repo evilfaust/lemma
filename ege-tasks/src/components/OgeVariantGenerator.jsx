@@ -28,6 +28,7 @@ import { poolStatsDetailed } from '../utils/successStats';
 import SuccessRateCell from './worksheet/SuccessRateCell';
 import VariantRenderer from './worksheet/VariantRenderer';
 import KimViewSwitch, { useKimView } from './worksheet/KimViewSwitch';
+import KimAnswersSheet from './worksheet/KimAnswersSheet';
 import ActionButtons from './worksheet/ActionButtons';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
 import SaveWorkModal from './worksheet/SaveWorkModal';
@@ -950,11 +951,16 @@ const OgeVariantGenerator = () => {
             {/* Лист ответов и решений — только для обычного стиля */}
             {!kimStyle && <OgeAnswersPage variants={variants} />}
 
-            {/* Лист ответов учителю в режиме КИМ — скрыт, печатается кнопкой */}
+            {/* Лист ответов учителю в режиме КИМ — печатается кнопкой, на экране виден «Как в печати» */}
             {kimStyle && (
-              <div className="kim-answers-sheet">
-                <OgeAnswersPage variants={variants} title={currentWork?.title} />
-              </div>
+              <KimAnswersSheet
+                variants={variants}
+                kimMeta={kimMeta}
+                title={currentWork?.title}
+                examLabel="ОГЭ"
+                part1Last={PART1_LAST}
+                preview={kimView === 'print'}
+              />
             )}
           </div>
 

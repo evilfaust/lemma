@@ -1,0 +1,162 @@
+/* Лист ответов учителю к КИМ-буклету (KimAnswersSheet).
+   Язык буклета: Times, номер в квадрате, только чёрная краска; иерархия —
+   кеглем и толщиной линеек (0.5 / 0.35 / 0.25 мм). Поля листа даёт @page
+   из printKimAnswers (A4, 12 мм); на экране («Как в печати») их рисует
+   padding превью. Виден лист только при печати листа ответов
+   (body.printing-kim-answers, EgeVariantGenerator.css) или в превью. */
+
+.kas {
+  color: #000;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.kas-variant + .kas-variant {
+  break-before: page;
+  page-break-before: always;
+}
+
+/* ── Шапка ── */
+.kas-head {
+  border-bottom: 0.5mm solid #000;
+  padding-bottom: 2mm;
+  margin-bottom: 4mm;
+}
+.kas-over {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.kas-title {
+  font-size: 19px;
+  font-weight: 700;
+  margin-top: 1mm;
+}
+.kas-meta {
+  display: flex;
+  gap: 4mm;
+  align-items: baseline;
+  margin-top: 1mm;
+  font-size: 13px;
+}
+.kas-variant-no {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.kas-part {
+  font-weight: 700;
+  font-size: 13px;
+  margin: 4mm 0 1.5mm;
+}
+
+/* ── Ответы одним столбцом ── */
+.kas-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+.kas-col-num { width: 14mm; }
+.kas-col-code { width: 26mm; }
+
+.kas-table th {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0 2mm 1mm 0;
+  border-bottom: 0.35mm solid #000;
+}
+.kas-table th.kas-th-code { text-align: right; padding-right: 0; }
+
+.kas-table td {
+  padding: 1.6mm 2mm 1.6mm 0;
+  border-bottom: 0.25mm solid #000;
+  vertical-align: middle;
+  break-inside: avoid;
+}
+/* каждая пятая строка — линия потолще: глаз не теряет строку */
+.kas-table tr.kas-row--group td {
+  border-bottom-width: 0.5mm;
+}
+
+.kas-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 6.5mm;
+  height: 6.5mm;
+  padding: 0 1mm;
+  box-sizing: border-box;
+  border: 0.35mm solid #000;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.kas-answer {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+.kas-answer p { margin: 0; }
+.kas-answer .katex { font-size: 1em; }
+
+.kas-code {
+  font-size: 10.5px;
+  text-align: right;
+  white-space: nowrap;
+}
+.kas-table td.kas-code { padding-right: 0; }
+
+.kas-empty {
+  font-size: 12px;
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* ── Часть 2: решения ── */
+.kas-solution {
+  padding: 2.5mm 0;
+  border-bottom: 0.25mm solid #000;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.kas-solution-head {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  margin-bottom: 1.5mm;
+}
+.kas-solution-head .kas-code { margin-left: auto; }
+.kas-score {
+  font-weight: 700;
+}
+.kas-solution-body p { margin: 0 0 1mm; }
+.kas-solution-answer { margin-top: 1mm; }
+.kas-solution-answer p { display: inline; }
+
+/* ── «Как в печати»: лист A4 на экране ── */
+@media screen {
+  .kim-answers-sheet.kim-answers-sheet--preview {
+    display: block;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: #eef0f3;
+    border-radius: 8px;
+  }
+  .kim-answers-sheet--preview .kas-variant {
+    width: 210mm;
+    min-height: 297mm;
+    box-sizing: border-box;
+    padding: 12mm;
+    margin: 0 auto 16px;
+    background: #fff;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
+  }
+  .kim-answers-sheet--preview .kas-variant:last-child { margin-bottom: 0; }
+}

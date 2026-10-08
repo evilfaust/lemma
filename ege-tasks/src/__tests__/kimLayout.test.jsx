@@ -233,3 +233,43 @@ describe('«Как в печати» — буклет на экране', async 
     expect(calls).toContainEqual(['place', 3, 0, 'right']);
   });
 });
+
+describe('Лист ответов учителю (КИМ)', async () => {
+  const { default: KimAnswersSheet } = await import('../components/worksheet/KimAnswersSheet');
+  const variants = [
+    { number: 1, tasks: [
+      { id: 'a1', code: '1-001', answer: '6' },
+      { id: 'a2', code: '2-248', answer: '2143' },
+      { id: 'a3', code: '14-002', answer: '$\\frac{\\pi}{3}$', solution_md: 'Решение.', max_score: 2 },
+    ] },
+    { number: 2, tasks: [{ id: 'b1', code: '1-002', answer: '' }] },
+  ];
+
+  it('ответы одним столбцом: № в квадрате, ответ, код; пятая строка отбита', () => {
+    const many = { number: 1, tasks: Array.from({ length: 6 }, (_, i) => ({ id: `t${i}`, code: `${i}`, answer: `${i}` })) };
+    const { container } = render(<KimAnswersSheet variants={[many]} kimMeta={{ classNum: 11 }} title="Пробник" />);
+    const rows = container.querySelectorAll('.kas-table tbody tr');
+    expect(rows).toHaveLength(6);
+    expect(rows[0].querySelectorAll('td')).toHaveLength(3);
+    expect(rows[4].classList.contains('kas-row--group')).toBe(true);
+    expect(container.querySelector('.kas-title').textContent).toBe('Пробник');
+  });
+
+  it('часть 2 — решения с баллами; номер варианта как в буклете; пустой ответ подписан', () => {
+    const { container } = render(
+      <KimAnswersSheet variants={variants} kimMeta={{ variantNumberOverride: '305' }} part1Last={2} />,
+    );
+    const [v1, v2] = container.querySelectorAll('.kas-variant');
+    expect(v1.querySelectorAll('.kas-table tbody tr')).toHaveLength(2);
+    expect(v1.querySelector('.kas-solution .kas-score').textContent).toBe('2 б.');
+    expect(v1.querySelector('.kas-variant-no').textContent).toBe('Вариант 305');
+    expect(v2.querySelector('.kas-empty').textContent).toBe('ответ не задан');
+  });
+
+  it('на экране — только в режиме «Как в печати»', () => {
+    const { container, rerender } = render(<KimAnswersSheet variants={variants} />);
+    expect(container.querySelector('.kim-answers-sheet--preview')).toBeNull();
+    rerender(<KimAnswersSheet variants={variants} preview />);
+    expect(container.querySelector('.kim-answers-sheet.kim-answers-sheet--preview')).not.toBeNull();
+  });
+});

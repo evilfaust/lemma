@@ -623,8 +623,9 @@
      A4-поля инжектируются в printKimAnswers). Тогда буклет ученика прячем. */
   body.printing-kim-answers .kim-booklet { display: none !important; }
   body.printing-kim-answers .kim-answers-sheet { display: block !important; }
-  /* лист ответов — единственный контент: без ведущего разрыва страницы */
-  body.printing-kim-answers .kim-answers-sheet .answers-page { page-break-before: avoid; }
+  /* лист ответов — единственный контент: разрывы между буклетами вариантов
+     (.page-break) без буклетов давали бы пустые листы перед ним */
+  body.printing-kim-answers .page-break { display: none !important; }
 }
 
 /* Лист ответов учителю скрыт на экране и при обычной печати КИМ-буклета —
