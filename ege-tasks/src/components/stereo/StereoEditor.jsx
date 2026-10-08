@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, App, Button, Checkbox, Form, Input, Modal, Space, Tooltip,
+  Alert, App, Button, Checkbox, Form, Input, Modal, Segmented, Space, Tooltip,
 } from 'antd';
 import {
   CodeSandboxOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined,
@@ -25,6 +25,7 @@ import {
   draggableOp, lineOfOp, dragPosition, setOpPosition,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, setPolyColors, applyColorCommand, renamePoint,
+  setPointsHidden,
   opToCommand, editStepCommand, measureKey, measurePoints,
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
@@ -34,15 +35,24 @@ import './stereo.css';
 
 const DRAFT_KEY = 'stereo.editor.v1';
 
+/**
+ * Сцена из черновика, библиотеки или карточки задачи: у каждого шага — id
+ * (на нём держатся удаление, подписи и эфир), оформление (цвета, скрытые
+ * точки) сохраняется, показ по шагам (upTo) — нет.
+ */
+function withOpIds(src) {
+  const { upTo, ...rest } = src;
+  const ops = src.ops.filter((o) => o && typeof o === 'object').map((o) => (o.id ? o : { ...o, id: newOpId() }));
+  return { ...rest, ops };
+}
+
 function loadDraft() {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return null;
     const d = JSON.parse(raw);
     if (!d?.scene?.body || !Array.isArray(d.scene.ops)) return null;
-    // У каждого шага должен быть id: на нём держатся удаление, подписи и эфир.
-    const ops = d.scene.ops.filter((o) => o && typeof o === 'object').map((o) => (o.id ? o : { ...o, id: newOpId() }));
-    const scene = { body: d.scene.body, ops };
+    const scene = withOpIds(d.scene);
     evaluateScene(scene); // битый черновик не должен ронять страницу
     return { ...d, scene };
   } catch {
@@ -132,6 +142,9 @@ export default function StereoEditor({
   const [textOpen, setTextOpen] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [paintColor, setPaintColor] = useState('red');
+  // Оформление отметки угла, поставленной инструментом «Угол»: подпись и дуги.
+  const [angleLabel, setAngleLabel] = useState('');
+  const [angleArcs, setAngleArcs] = useState(1);
   const [renameTarget, setRenameTarget] = useState(null);
   // Измерения — только учителю: не шаги, в сцену и эфир не попадают.
   const [measures, setMeasures] = useState([]);
@@ -186,7 +199,7 @@ export default function StereoEditor({
     const req = takeStereoOpenRequest();
     if (!req) return;
     const apply = () => {
-      const sc = { body: req.scene.body, ops: req.scene.ops.map((o) => (o.id ? o : { ...o, id: newOpId() })) };
+      const sc = withOpIds(req.scene);
       setScene(sc);
       setCamera(req.camera ? { ...DEFAULT_CAMERA, ...req.camera } : DEFAULT_CAMERA);
       setCurrentDoc(null);
@@ -315,7 +328,16 @@ export default function StereoEditor({
     const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey, model), model);
     if (r.error) showNotice('error', r.error);
     setPending(r.pending);
-    if (r.op) commit(r.op);
+    if (r.op?.type === 'angleMark') {
+      const op = { ...r.op };
+      if (angleLabel.trim()) op.label = angleLabel.trim().slice(0, 12);
+      if (angleArcs > 1) op.arcs = angleArcs;
+      commit(op);
+    } else if (r.op) commit(r.op);
+    if (r.hide) {
+      const sc = sceneRef.current;
+      setScene(setPointsHidden(sc, [r.hide.name], !(sc.hidden || []).includes(r.hide.name)));
+    }
     if (r.attention) attention(r.attention);
     if (r.rename) setRenameTarget(r.rename.name);
     if (r.erase) deleteStep(r.erase.opId);
@@ -342,7 +364,7 @@ export default function StereoEditor({
         setScene(setPointColors(sc, [r.paint.name], cur === paintColor ? '' : paintColor));
       }
     }
-  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure]);
+  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure, angleLabel, angleArcs]);
 
   // --- пошаговый показ ----------------------------------------------------------
   const stepsTotal = scene.ops.length;
@@ -456,6 +478,14 @@ export default function StereoEditor({
       const res = applyColorCommand(scene, r);
       if (res.error) { setCmdError(res.error); return; }
       setScene(res.scene);
+      setCmd('');
+      return;
+    }
+    if (r.action === 'hide') {
+      const names = r.names === 'all' ? [...(scene.hidden || [])] : r.names;
+      const missing = names.filter((n) => !model.points[n]);
+      if (missing.length) { setCmdError(`Нет точки ${missing.join(', ')}`); return; }
+      setScene(setPointsHidden(scene, names, r.hidden));
       setCmd('');
       return;
     }
@@ -633,6 +663,7 @@ export default function StereoEditor({
             highlight={highlight}
             flashStep={flashStep}
             pulse={pulse}
+            showHidden
             cursor={dragging ? 'grabbing' : hoverMovable ? 'move' : tool === 'rotate' ? 'grab' : 'crosshair'}
             getDragTarget={getDragTarget}
             onDrag={handleDrag}
@@ -717,6 +748,39 @@ export default function StereoEditor({
               >
                 Снять все
               </Button>
+            </div>
+          )}
+
+          {tool === 'angle' && (
+            <div className="stereo-angle-style" aria-label="Оформление угла">
+              <span>Подпись:</span>
+              {['', 'α', 'β', 'γ', 'φ'].map((l) => (
+                <Button
+                  key={l || 'none'}
+                  size="small"
+                  type={angleLabel === l ? 'primary' : 'default'}
+                  onClick={() => setAngleLabel(l)}
+                  style={{ fontFamily: l ? "'Times New Roman', serif" : undefined, fontStyle: l ? 'italic' : undefined }}
+                >
+                  {l || 'нет'}
+                </Button>
+              ))}
+              <Input
+                size="small"
+                value={['', 'α', 'β', 'γ', 'φ'].includes(angleLabel) ? '' : angleLabel}
+                placeholder="своя"
+                maxLength={12}
+                onChange={(e) => setAngleLabel(e.target.value)}
+                style={{ width: 64 }}
+                aria-label="Своя подпись угла"
+              />
+              <span>Дуги:</span>
+              <Segmented
+                size="small"
+                value={angleArcs}
+                onChange={setAngleArcs}
+                options={[1, 2, 3].map((n) => ({ value: n, label: '◠'.repeat(n) }))}
+              />
             </div>
           )}
 
@@ -910,7 +974,7 @@ export default function StereoEditor({
         onSaved={onSaved}
         onOpen={(rec) => {
           const sc = rec.scene?.body && Array.isArray(rec.scene.ops)
-            ? { body: rec.scene.body, ops: rec.scene.ops.map((o) => (o.id ? o : { ...o, id: newOpId() })) }
+            ? withOpIds(rec.scene)
             : { body: DEFAULT_BODY, ops: [] };
           setScene(sc);
           setCamera(rec.camera ? { ...DEFAULT_CAMERA, ...rec.camera } : DEFAULT_CAMERA);

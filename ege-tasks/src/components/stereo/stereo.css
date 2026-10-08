@@ -629,3 +629,16 @@ button.stereo-help__cmd:hover { border-color: #2563eb; color: #1d4ed8; }
   .stereo-body-form { flex-direction: column-reverse; }
   .stereo-body-form-preview { position: static; flex-basis: auto; width: 100%; max-width: 280px; align-self: center; }
 }
+
+/* Оформление отметки угла (инструмент «Угол»): подпись и число дуг. */
+.stereo-angle-style {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--lemma-border, #e5e7eb);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--lemma-text-2, #6b7280);
+}

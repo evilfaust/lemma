@@ -446,7 +446,8 @@ describe('угол между прямой и плоскостью', () => {
     expect(err('угол A1B1 (ABC)')).toMatch(/параллельна плоскости \(ABC\) — угол между ними 0°/);
     expect(err('угол AC (ABC)')).toMatch(/лежит в плоскости/);
     expect(err('угол AA1 (ABC)')).toMatch(/перпендикулярна плоскости \(ABC\) — угол 90°/);
-    expect(parseCommand('угол AB CD', evaluateScene(sc)).error).toMatch(/угол SA \(ABC\)/);
+    // «угол AB CD» теперь — отметка угла между прямыми (angleMark), а не ошибка
+    expect(parseCommand('угол AB CD', evaluateScene(sc)).op).toMatchObject({ type: 'angleMark', l1: ['A', 'B'], l2: ['C', 'D'] });
   });
 
   it('записи команды: словами, плоскость первой, ссылка на перпендикулярную плоскость', () => {
@@ -483,9 +484,9 @@ describe('угол между прямой и плоскостью', () => {
   it('инструмент: прямая → грань; дуга рисуется штрихами и не ловится кликом', () => {
     const m0 = evaluateScene({ body: pyramid, ops: [] });
     expect(TOOLS.find((t) => t.key === 'angle').hot).toBe('E');
-    expect(acceptedKinds('angle', [])).toEqual(['line']);
+    expect(acceptedKinds('angle', [])).toEqual(['point', 'line']);
     let r = toolClick('angle', [], { line: { id: 'edge:A-S', ref: ['A', 'S'] } }, m0);
-    expect(acceptedKinds('angle', r.pending)).toEqual(['poly', 'face']);
+    expect(acceptedKinds('angle', r.pending)).toEqual(['line', 'poly', 'face']);
     r = toolClick('angle', r.pending, { face: { id: 'f', verts: ['A', 'B', 'C', 'D'] } }, m0);
     expect(r.op).toMatchObject({ type: 'angle', ref: ['A', 'S'], plane: ['A', 'B', 'C', 'D'], foot: 'H' });
 

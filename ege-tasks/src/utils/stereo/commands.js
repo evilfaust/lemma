@@ -19,6 +19,9 @@
 //   плоскость AB ⊥ (SCD) плоскость через AB перпендикулярно (SCD);
 //                        дальше на неё ссылаются «(M⊥BD1)», «(AB⊥SCD)»
 //   угол SA (ABC)       угол между прямой и плоскостью: проекция, дуга
+//   угол ABC α          отметить ∠ABC (вершина B): дуга, подпись, «2 дуги»
+//   угол AB CD          отметить угол между пересекающимися прямыми
+//   скрыть M / показать M  спрятать точку с чертежа (построения остаются)
 //   сечение MND         сечение плоскостью по трём точкам
 //   грань ABCD          подсветить грань / «плоскость AA1C1C»
 //   заливка KLMN        закрасить многоугольник
@@ -40,7 +43,7 @@ const CYR_TO_LAT = {
 // Латинские служебные слова; всё остальное латиницей — имена точек.
 const LATIN_WORDS = new Set([
   'seg', 'segment', 'line', 'par', 'perp', 'angle', 'section', 'plane', 'face', 'fill', 'rename',
-  'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x', 'measure',
+  'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x', 'measure', 'hide', 'show', 'all',
   'color', 'red', 'blue', 'green', 'orange', 'violet', 'purple', 'black',
   'cyan', 'pink', 'yellow', 'brown', 'gray', 'grey',
 ]);
@@ -262,6 +265,54 @@ export function parsePosition(raw) {
   return null;
 }
 
+// Подпись угла словом → буква: «альфа», «alpha», «\\alpha» → α.
+const GREEK = {
+  альфа: 'α', alpha: 'α', бета: 'β', beta: 'β', гамма: 'γ', gamma: 'γ', дельта: 'δ', delta: 'δ',
+  фи: 'φ', phi: 'φ', varphi: 'φ', тета: 'θ', theta: 'θ', пси: 'ψ', psi: 'ψ', омега: 'ω', omega: 'ω',
+  эпсилон: 'ε', epsilon: 'ε', varepsilon: 'ε',
+};
+
+/** Подпись угла: греческое слово → буква, остальное — как написано. */
+export function angleLabelText(raw) {
+  return String(raw || '').trim().split(/\s+/)
+    .map((w) => GREEK[w.replace(/^\\/, '').toLowerCase()] || w).join(' ');
+}
+
+/**
+ * «угол ABC α», «∠ABC 2 дуги», «угол между AB и CD φ» — отметка угла
+ * (шаг angleMark). Разбирается по исходному тексту: подпись («alpha»,
+ * «x») нормализация превратила бы в имена точек. null — это не отметка
+ * (например, угол между прямой и плоскостью «угол SA (ABC)»).
+ */
+function parseAngleMark(text, model) {
+  const m = /^\s*(?:угол|∠|angle)\s*(.*)$/i.exec(String(text || ''));
+  if (!m) return null;
+  let rest = ` ${m[1]} `;
+  let arcs = 1;
+  const am = /\s([1-3])\s*(?:дуг[а-яё]*|arcs?)(?=\s)/i.exec(rest);
+  if (am) { arcs = Number(am[1]); rest = rest.replace(am[0], ' '); }
+  const words = rest.trim().split(/\s+/).filter((w) => w && !/^(между|прям[а-яё]*|и|and|between)$/i.test(w));
+  const refs = [];
+  const label = [];
+  for (const w of words) {
+    const isWord = GREEK[w.replace(/^\\/, '').toLowerCase()] || /^\\/.test(w);
+    const t = normalizeCommand(w);
+    if (!isWord && /^[A-Za-zА-Яа-яЁё0-9₀-₉()|⊥]+$/.test(w) && (splitNames(t) || /^\(.*\)$/.test(t))) refs.push(t);
+    else label.push(w);
+  }
+  let op = null;
+  if (refs.length === 1 && !/[()]/.test(refs[0]) && splitNames(refs[0])?.length === 3) {
+    op = { id: newOpId(), type: 'angleMark', pts: splitNames(refs[0]) };
+  } else if (refs.length === 2 && refKind(refs[0]) === 'line' && refKind(refs[1]) === 'line') {
+    const what = 'Угол между прямыми: «угол AB CD»';
+    op = { id: newOpId(), type: 'angleMark', l1: parseLineRef(refs[0], model, what), l2: parseLineRef(refs[1], model, what) };
+  }
+  if (!op) return null;
+  if (label.length) op.label = angleLabelText(label.join(' '));
+  if (arcs > 1) op.arcs = arcs;
+  return op;
+}
+
 const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч[а-яё]*(?:\\s+с)?)';
 
 /**
@@ -287,6 +338,16 @@ export function parseCommand(text, model) {
     // только учитель (utils/stereo/measure.js).
     let m = /^(?:измерить|измерь|measure)\s+(.+)$/i.exec(src);
     if (m) return { action: 'measure', measure: parseMeasure(m[1], model) };
+
+    // «скрыть M, N», «показать M», «показать все» — оформление, не шаг.
+    m = /^(скрыть|спрятать|hide|показать|show)\s+(?:точк[а-яё]*\s+)?(.+)$/i.exec(src);
+    if (m) {
+      const hidden = /^(скрыть|спрятать|hide)$/i.test(m[1]);
+      if (!hidden && /^(вс[её]|all)$/i.test(m[2].trim())) return { action: 'hide', names: 'all', hidden: false };
+      const groups = m[2].split(/[\s,;]+/).filter(Boolean).map(splitNames);
+      if (!groups.length || groups.some((g) => !g)) throw new Error('Скрыть точки: «скрыть M» или «скрыть M, N»; вернуть — «показать M»');
+      return { action: 'hide', names: groups.flat(), hidden };
+    }
 
     m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
@@ -350,13 +411,17 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'parallel', through: m[1], ref: n } };
     }
 
+    // «угол ABC α», «угол AB CD» — отметка угла (по исходному тексту).
+    const mark = parseAngleMark(text, model);
+    if (mark) return { op: mark };
+
     // «угол SA (ABC)», «угол между SA и ABC» — угол между прямой и плоскостью.
     // Имена новых точек можно задать: «… основание O след X».
     m = /^(?:угол|angle)\s+(?:между\s+)?(?:прям[а-яё]*\s+)?(\S+)\s+(?:и\s+)?(?:плоскост[а-яё]*\s+)?(\S+)((?:\s+(?:основание|след)\s+[A-Z][0-9]*)*)$/i.exec(src);
     if (m) {
       let [, a, b] = m;
       if (isPlaneTok(a) && !isPlaneTok(b)) [a, b] = [b, a];
-      if (!isPlaneTok(b)) throw new Error('Угол между прямой и плоскостью: «угол SA (ABC)»');
+      if (!isPlaneTok(b)) throw new Error('Угол: «угол ABC» (вершина посередине), «угол AB CD» (между прямыми) или «угол SA (ABC)» (прямая и плоскость)');
       const ref = parseLineRef(a, model, 'Угол между прямой и плоскостью: «угол SA (ABC)»');
       const plane = parsePlaneRef(b, model);
       const op = makeAngleOp(model, ref, plane, newOpId());
@@ -534,6 +599,11 @@ export function describeOp(op, opsById = {}) {
       return `Прямая через ${P(op.from)} ⊥ ${to}${op.within ? ` в ${planeName(op.within, opsById)}` : ''}`;
     }
     case 'angle': return `Угол между ${refName(op.ref, opsById)} и ${planeName(op.plane, opsById)}`;
+    case 'angleMark': {
+      const tail = `${op.label ? ` = ${op.label}` : ''}${op.arcs > 1 ? ` (${op.arcs} дуги)` : ''}`;
+      if (Array.isArray(op.pts)) return `Угол ∠${names(op.pts)}${tail}`;
+      return `Угол между ${refName(op.l1, opsById)} и ${refName(op.l2, opsById)}${tail}`;
+    }
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'Плоскость' : 'Сечение';
       return op.from
@@ -579,6 +649,11 @@ export function opToCommand(op, opsById = {}) {
       const pl = planeTokText(op.plane, opsById);
       if (!r(op.ref) || !pl) return '';
       return `угол ${r(op.ref)} ${pl}${op.foot ? ` основание ${op.foot}` : ''}${op.at ? ` след ${op.at}` : ''}`;
+    }
+    case 'angleMark': {
+      const tail = `${op.label ? ` ${op.label}` : ''}${op.arcs > 1 ? ` ${op.arcs} дуги` : ''}`;
+      if (Array.isArray(op.pts)) return `угол ${n(op.pts)}${tail}`;
+      return r(op.l1) && r(op.l2) ? `угол ${r(op.l1)} ${r(op.l2)}${tail}` : '';
     }
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'плоскость' : 'сечение';

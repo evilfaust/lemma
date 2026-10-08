@@ -146,7 +146,9 @@ function placeLabels(dots, strokes, center) {
     }
     placed.push({ x: best.cx, y: best.cy, w: box.w, h: box.h });
     const lb = splitLabel(d.name);
-    out.push({ name: d.name, x: best.cx, y: best.cy, base: lb.base, sub: lb.sub, step: d.step, color: d.color || null });
+    out.push({
+      name: d.name, x: best.cx, y: best.cy, base: lb.base, sub: lb.sub, step: d.step, color: d.color || null, ghost: !!d.ghost,
+    });
   }
   return out;
 }
@@ -155,7 +157,8 @@ function placeLabels(dots, strokes, center) {
  * @param model   — evaluateScene(...)
  * @param camera  — { yaw, pitch, zoom }
  * @param viewport — { width, height }
- * @param [opts]  — { lastStep } — объекты этого шага подсвечиваются
+ * @param [opts]  — { lastStep } — объекты этого шага подсвечиваются;
+ *   showHidden — скрытые точки показать бледными (редактор учителя)
  */
 export function renderStereo(model, camera, viewport, opts = {}) {
   const { width, height } = viewport;
@@ -233,15 +236,35 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   }
 
   // Дуги углов — ломаной из коротких штрихов (видимость — по каждому).
+  // Несколько дуг (равные углы) — внутрь; подпись (α) — за дугой по
+  // биссектрисе, на постоянном расстоянии в пикселях.
+  const angleTexts = [];
   for (const ar of model.arcs || []) {
     const e1 = norm(ar.u);
     const e2 = norm(sub(ar.v, mul(e1, dot(ar.v, e1))));
     const theta = Math.acos(Math.max(-1, Math.min(1, dot(e1, norm(ar.v)))));
     const color = pointColorHex(ar.color) || ar.color || STEREO_COLORS.construct;
-    const at = (t) => addVec(ar.at, addVec(mul(e1, ar.r * Math.cos(t)), mul(e2, ar.r * Math.sin(t))));
     const N = 14;
-    for (let k = 0; k < N; k++) {
-      pushSplit(ar.id, 'mark', at((theta * k) / N), at((theta * (k + 1)) / N), color, WIDTH.mark, ar.step);
+    const count = ar.right ? 0 : Math.min(3, Math.max(1, ar.count || 1));
+    for (let c = 0; c < count; c++) {
+      const r = ar.r * (1 - 0.22 * c);
+      const at = (t) => addVec(ar.at, addVec(mul(e1, r * Math.cos(t)), mul(e2, r * Math.sin(t))));
+      for (let k = 0; k < N; k++) {
+        pushSplit(`${ar.id}${c || ''}`, 'mark', at((theta * k) / N), at((theta * (k + 1)) / N), color, WIDTH.mark, ar.step);
+      }
+    }
+    if (ar.label) {
+      const bis = norm(addVec(e1, norm(ar.v)));
+      const v0 = P(ar.at);
+      const v1 = P(addVec(ar.at, mul(bis, ar.right ? ar.r * 0.7 : ar.r)));
+      const dx = v1.x - v0.x;
+      const dy = v1.y - v0.y;
+      const dl = Math.hypot(dx, dy) || 1;
+      const gap = 11;
+      angleTexts.push({
+        id: `${ar.id}:t`, x: v1.x + (dx / dl) * gap, y: v1.y + (dy / dl) * gap,
+        text: ar.label, step: ar.step, color: pointColorHex(ar.color) || ar.color || null,
+      });
     }
   }
 
@@ -250,11 +273,12 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   for (const name of model.pointOrder) {
     const pt = model.points[name];
     if (pt.alias) continue;
+    if (pt.concealed && !opts.showHidden) continue;
     const s = P(pt.pos);
     dots.push({
       name, x: s.x, y: s.y, vertex: pt.kind === 'vertex', step: pt.step,
       hidden: isPointHidden(body, pt.pos, toViewer),
-      color: pointColorHex(pt.color),
+      color: pointColorHex(pt.color), ghost: !!pt.concealed,
     });
   }
   const c2 = P(model.center);
@@ -270,7 +294,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
 
   return {
     width, height, scale: pr.scale, project: pr.project, unproject: pr.unproject,
-    polys, strokes, dots, labels,
+    polys, strokes, dots, labels, angleTexts,
     hits: { lines: hitLines, faces, points: dots },
     lastStep: opts.lastStep ?? null,
   };
@@ -353,6 +377,11 @@ export function contentBox(frame, pad = 8) {
     add(l.x - w / 2 - 2, l.y - 11);
     add(l.x + w / 2 + 2, l.y + 10);
   }
+  for (const t of frame.angleTexts || []) {
+    const w = 9 * String(t.text).length;
+    add(t.x - w / 2 - 2, t.y - 11);
+    add(t.x + w / 2 + 2, t.y + 10);
+  }
   if (!Number.isFinite(x0)) return null;
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
@@ -397,13 +426,20 @@ export function stereoSvgString(frame, opts = {}) {
   for (const s of frame.strokes) if (s.hidden) parts.push(line(s));
   for (const s of frame.strokes) if (!s.hidden) parts.push(line(s));
   for (const d of frame.dots) {
+    if (d.ghost) continue;
     // Выделенная точка: цветом, а в ч/б — крупнее, с белым ободком.
     const r = d.color ? (mono ? 4.4 : 4) : d.vertex ? 2.4 : 3.2;
     const fill = d.color && !mono ? d.color : STEREO_COLORS.point;
     const ring = d.color ? ' stroke="#ffffff" stroke-width="1.2"' : '';
     parts.push(`<circle cx="${d.x.toFixed(2)}" cy="${d.y.toFixed(2)}" r="${r}" fill="${fill}"${ring}/>`);
   }
+  for (const t of frame.angleTexts || []) {
+    parts.push(
+      `<text x="${t.x.toFixed(2)}" y="${(t.y + 5).toFixed(2)}" text-anchor="middle" font-family="${LABEL_FONT}" font-style="italic" font-size="${LABEL_SIZE - 1}" fill="${t.color && !mono ? t.color : STEREO_COLORS.label}">${esc(t.text)}</text>`,
+    );
+  }
   for (const l of frame.labels) {
+    if (l.ghost) continue;
     parts.push(
       `<text x="${l.x.toFixed(2)}" y="${(l.y + 5).toFixed(2)}" text-anchor="middle" font-family="${LABEL_FONT}" font-style="italic" font-size="${LABEL_SIZE}"${l.color && mono ? ' font-weight="bold"' : ''} fill="${l.color && !mono ? l.color : STEREO_COLORS.label}">${esc(l.base)}${l.sub ? `<tspan dy="4" font-size="11">${esc(l.sub)}</tspan>` : ''}</text>`,
     );

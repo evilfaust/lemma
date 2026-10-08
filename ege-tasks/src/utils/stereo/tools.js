@@ -34,6 +34,7 @@ export const TOOLS = [
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'O' },
   { key: 'measure', label: 'Измерить', glyph: '⟷', hot: 'U' },
   { key: 'rename', label: 'Имя', glyph: 'Aa', hot: 'R' },
+  { key: 'hide', label: 'Скрыть', glyph: '◌', hot: 'K' },
   { key: 'erase', label: 'Удалить', glyph: '⌫', hot: 'D' },
   { key: 'attention', label: 'Внимание', glyph: '!', hot: 'W' },
 ];
@@ -103,9 +104,14 @@ export function toolHint(tool, pending = []) {
         ? `Перпендикуляр из ${names[0]}… — кликните по прямой или по грани / сечению (Shift — задняя грань)`
         : 'Выберите точку, из которой проводим перпендикуляр, затем прямую или плоскость';
     case 'angle':
+      if (names.length) {
+        return names.length === 1
+          ? `∠${names[0]}… — теперь вершину угла, затем точку второй стороны`
+          : `∠${names.join('')}… — точку второй стороны`;
+      }
       return pending.length
-        ? 'Теперь плоскость — грань или сечение (Shift — задняя грань): построим проекцию и отметим угол'
-        : 'Угол между прямой и плоскостью: выберите прямую, затем плоскость';
+        ? 'Теперь вторую прямую (отметим угол между ними) или плоскость — грань / сечение (построим проекцию; Shift — задняя грань)'
+        : 'Три точки — ∠ABC (вершина вторая); две прямые — угол между ними; прямая и грань — угол с плоскостью';
     case 'perpPlane': {
       const line = pending.find((p) => p.kind === 'line');
       if (line) return 'Плоскость пройдёт через эту прямую — выберите плоскость (грань или сечение), которой она перпендикулярна';
@@ -132,6 +138,7 @@ export function toolHint(tool, pending = []) {
     case 'view': return 'Кликните по грани или сечению — чертёж повернётся перпендикулярно этой плоскости (Esc — отмена)';
     case 'color': return 'Клик по точке, отрезку или внутри сечения — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
+    case 'hide': return 'Кликните по точке — она пропадёт с чертежа (у учеников и в печати), построения через неё останутся. Здесь она видна бледной; повторный клик вернёт';
     case 'erase': return 'Кликните по точке, прямой или сечению — уберётся шаг, который их построил (вместе с зависящими от него). Ctrl+Z вернёт';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
@@ -156,7 +163,9 @@ export function acceptedKinds(tool, pending = []) {
     case 'perp':
       if (pending.length > 1) return ['poly', 'face']; // точка на прямой — нужна плоскость
       return pending.length ? ['line', 'poly', 'face'] : ['point'];
-    case 'angle': return pending.length ? ['poly', 'face'] : ['line'];
+    case 'angle':
+      if (!pending.length) return ['point', 'line'];
+      return pending[0].kind === 'point' ? ['point'] : ['line', 'poly', 'face'];
     case 'perpPlane':
       if (!pending.length) return ['point', 'line'];
       return pending[0].kind === 'point' ? ['line'] : ['poly', 'face'];
@@ -168,6 +177,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'color': return ['point', 'line', 'poly', 'face'];
     case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
+    case 'hide': return ['point'];
     case 'erase': return ['point', 'line', 'poly'];
     default: return [];
   }
@@ -189,7 +199,7 @@ export function chooseHit(tool, pending, hit) {
 /**
  * Клик инструмента.
  * @param hit — { point?: name, line?: { id, ref, t, ratio?, pos?, p?, u? }, face?: { id, verts }, poly?: { id }, shift? }
- * @returns {{ pending, op?, error?, attention?, paint?, rename?, view?, erase?, measure? }}
+ * @returns {{ pending, op?, error?, attention?, paint?, rename?, hide?, view?, erase?, measure? }}
  */
 export function toolClick(tool, pending, hit, model) {
   const target = chooseHit(tool, pending, hit);
@@ -279,7 +289,16 @@ export function toolClick(tool, pending, hit, model) {
       return { pending: [], op };
     }
     case 'angle': {
+      // Три точки — ∠ABC; прямая и прямая — угол между ними; прямая и
+      // плоскость — угол с проекцией.
       if (!pending.length) return { pending: [target] };
+      if (pending[0].kind === 'point') {
+        if (pts.length < 3) return { pending: [...pending, target] };
+        return { pending: [], op: { id: newOpId(), type: 'angleMark', pts: pts.slice(0, 3) } };
+      }
+      if (target.kind === 'line') {
+        return { pending: [], op: { id: newOpId(), type: 'angleMark', l1: pending[0].ref, l2: target.ref } };
+      }
       const plane = planeOfTarget(model, target);
       if (!plane) return { pending };
       return { pending: [], op: makeAngleOp(model, pending[0].ref, plane, newOpId()) };
@@ -310,6 +329,9 @@ export function toolClick(tool, pending, hit, model) {
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
     case 'rename':
       return { pending: [], rename: { name: target.name } };
+    case 'hide':
+      // Не операция журнала: скрытие — оформление, решает редактор.
+      return { pending: [], hide: { name: target.name } };
     case 'measure': {
       // Не операция журнала: измерение видит только учитель.
       if (!pending.length) return { pending: [target] };

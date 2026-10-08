@@ -23,7 +23,7 @@ import {
   normalizeBodySpec, DEFAULT_BODY, BASE_SHAPES, TILT_DIRS, DEFAULT_TILT_DIR, baseLetters,
 } from './bodies';
 import {
-  evaluateScene, tryAppendOp, applyColorCommand, refOfLineColorKey,
+  evaluateScene, tryAppendOp, applyColorCommand, refOfLineColorKey, setPointsHidden,
 } from './scene';
 import { parseCommand, opToCommand, splitNames } from './commands';
 import { buildBody } from './bodies';
@@ -286,6 +286,14 @@ export function parseStereoBlock(text) {
       else scene = res.scene;
       return;
     }
+    if (r.action === 'hide') {
+      const names = r.names === 'all' ? [...(scene.hidden || [])] : r.names;
+      const model = evaluateScene(scene);
+      const missing = names.filter((n) => !model.points[n]);
+      if (missing.length) errors.push({ line: lineNo, message: `Нет точки ${missing.join(', ')}` });
+      else scene = setPointsHidden(scene, names, r.hidden);
+      return;
+    }
     if (!r.op) { errors.push({ line: lineNo, message: 'Эта команда в блоке не работает' }); return; }
     const op = note ? { ...r.op, note } : r.op;
     const res = tryAppendOp(scene, op);
@@ -354,6 +362,8 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
   for (const [key, polys] of Object.entries(polysByColor)) {
     out.push(`цвет ${polys.length > 1 ? 'сечений' : 'сечения'} ${polys.join(', ')} ${wordOf(key)}`);
   }
+  // Скрытые точки — одной строкой: «скрыть M, N».
+  if (scene?.hidden?.length) out.push(`скрыть ${scene.hidden.join(', ')}`);
   const c = clampCamera(camera);
   out.push(`вид ${fmt(c.yaw)} ${fmt(c.pitch)}${Math.abs(c.zoom - 1) > 0.01 ? ` ${fmt(c.zoom)}` : ''}`);
   if (color) out.push('цвет');

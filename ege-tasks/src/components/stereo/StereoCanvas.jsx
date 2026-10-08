@@ -22,6 +22,8 @@ const PITCH_PER_PX = 0.35;
  * @param onDrag    — ({ phase: 'start'|'move'|'end', x, y, frame, target })
  * @param wheelZoom — 'always' (редактор, эфир) или 'modifier' — масштаб только
  *   с Ctrl/⌘, а простое колёсико листает страницу (блок в статье теории)
+ * @param showHidden — скрытые точки (scene.hidden) видны бледными: редактор
+ *   учителя; у учеников и в печати их нет
  */
 export default function StereoCanvas({
   model,
@@ -37,6 +39,7 @@ export default function StereoCanvas({
   pulse = null,
   cursor = 'grab',
   wheelZoom = 'always',
+  showHidden = false,
   className = '',
   style,
   ariaLabel = 'Стереометрический чертёж',
@@ -63,8 +66,8 @@ export default function StereoCanvas({
 
   const frame = useMemo(() => {
     if (!model || size.width < 40 || size.height < 40) return null;
-    return renderStereo(model, camera, size);
-  }, [model, camera, size]);
+    return renderStereo(model, camera, size, { showHidden });
+  }, [model, camera, size, showHidden]);
   const frameRef = useRef(frame);
   frameRef.current = frame;
 
@@ -251,6 +254,7 @@ export default function StereoCanvas({
                   fill={hl ? STEREO_COLORS.newPoint : d.color || STEREO_COLORS.point}
                   stroke={d.color ? '#ffffff' : undefined}
                   strokeWidth={d.color ? 1.2 : undefined}
+                  opacity={d.ghost ? 0.3 : undefined}
                   className={[isFlash(d.step) ? 'stereo-flash-dot' : '', pl ? 'stereo-pulse-dot' : ''].filter(Boolean).join(' ') || undefined}
                 />
               );
@@ -263,9 +267,22 @@ export default function StereoCanvas({
                 textAnchor="middle"
                 className="stereo-label"
                 style={l.color ? { fill: l.color, fontWeight: 600 } : undefined}
+                opacity={l.ghost ? 0.35 : undefined}
               >
                 {l.base}
                 {l.sub && <tspan dy="4" fontSize="11">{l.sub}</tspan>}
+              </text>
+            ))}
+            {(frame.angleTexts || []).map((t) => (
+              <text
+                key={t.id}
+                x={t.x}
+                y={t.y + 5}
+                textAnchor="middle"
+                className={`stereo-label${isFlash(t.step) ? ' stereo-flash' : ''}`}
+                style={t.color ? { fill: t.color } : undefined}
+              >
+                {t.text}
               </text>
             ))}
           </>

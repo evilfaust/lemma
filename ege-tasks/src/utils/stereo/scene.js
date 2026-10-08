@@ -27,7 +27,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'section', 'plane', 'fill',
+  'angle', 'angleMark', 'section', 'plane', 'fill',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -177,7 +177,7 @@ export function evaluateScene(scene, opts = {}) {
   const polys = [];
   const steps = [];
   const rightAngles = []; // заготовки знаков прямого угла — доводятся после журнала
-  const arcs = []; // дуги углов: { id, at, u, v, step, color }
+  const arcs = []; // дуги углов: { id, at, u, v, step, color, count?, label?, right? }
   const lineDefs = {};
   const planeDefs = {}; // плоскости-шаги («перпендикулярная плоскость»): id → { n, d }
   const opsById = {};
@@ -338,6 +338,24 @@ export function evaluateScene(scene, opts = {}) {
     return d;
   };
 
+  // Сторона угла на прямой L из точки X: туда, где прямая нарисована дальше.
+  // plus/minus — докуда нарисовано в каждую сторону (прямая — далеко).
+  const armOf = (L, X) => {
+    const w = norm(L.u);
+    let plus = 0;
+    let minus = 0;
+    for (const o of lines) {
+      if (!sameLine(o.p, o.u, X, w, eps * 10)) continue;
+      if (o.kind === 'line') { plus = Math.max(plus, 0.45 * body.size); minus = Math.max(minus, 0.45 * body.size); continue; }
+      for (const end of [o.a, o.b]) {
+        const t = paramOnLine(end, X, w);
+        plus = Math.max(plus, t);
+        minus = Math.max(minus, -t);
+      }
+    }
+    return { w, plus, minus };
+  };
+
   // --- журнал -------------------------------------------------------------
 
   ops.forEach((op, stepIdx) => {
@@ -474,6 +492,90 @@ export function evaluateScene(scene, opts = {}) {
           created.value = `≈ ${String(Math.round(deg * 100) / 100).replace('.', ',')}°`;
           created.angle = [src, xName, hName];
           created.note = `∠(${ln}, ${pn}) = ∠${[src, xName, hName].map(prettyName).join('')} ${created.value}`;
+          break;
+        }
+        case 'angleMark': {
+          // Отметка угла: ∠ABC по трём точкам (вершина — средняя; стороны
+          // дорисовываются) или угол между двумя пересекающимися прямыми
+          // (вершина — их общая точка, угол — не больше 90°). Дуга (1–3 дуги
+          // — равные углы), подпись (α), при 90° — знак прямого угла.
+          // Величина — только учителю (created.value).
+          const count = Math.min(3, Math.max(1, Math.round(Number(op.arcs) || 1)));
+          const label = op.label ? String(op.label).slice(0, 12) : '';
+          let X;
+          let u;
+          let v;
+          let title;
+          let deg;
+          if (Array.isArray(op.pts)) {
+            if (op.pts.length !== 3) fail('Угол — три точки, вершина посередине: «угол ABC»');
+            const [A, B, C] = op.pts.map(pointPos);
+            u = sub(A, B);
+            v = sub(C, B);
+            title = `∠${op.pts.map(prettyName).join('')}`;
+            if (len(u) <= eps * 10 || len(v) <= eps * 10) fail(`У угла ${title} вершина совпадает с точкой стороны`);
+            if (len(cross(u, v)) <= 1e-7 * len(u) * len(v)) {
+              fail(`Точки ${op.pts.map(prettyName).join(', ')} лежат на одной прямой — угла нет`);
+            }
+            X = B;
+            segmentOnce(`${opId}:s1`, [op.pts[1], op.pts[0]], B, A, stepIdx, created, op.color);
+            segmentOnce(`${opId}:s2`, [op.pts[1], op.pts[2]], B, C, stepIdx, created, op.color);
+            deg = (Math.acos(Math.max(-1, Math.min(1, dot(norm(u), norm(v))))) * 180) / Math.PI;
+          } else {
+            const L1 = resolveLine(op.l1);
+            const L2 = resolveLine(op.l2);
+            const n1 = refName(op.l1, opsById);
+            const n2 = refName(op.l2, opsById);
+            const r = intersectLines(L1, L2, body.size);
+            if (r.kind === 'skew') {
+              fail(`Прямые ${n1} и ${n2} скрещиваются — угол между ними отмечают после переноса: проведите через точку одной прямую, параллельную другой («Параллельная»), и отметьте угол между пересекающимися`);
+            }
+            if (r.kind === 'parallel') fail(`Прямые ${n1} и ${n2} параллельны — угол между ними 0°`);
+            if (r.kind === 'same') fail(`Прямые ${n1} и ${n2} совпадают`);
+            X = r.point;
+            ensureCoverage(L1, op.l1, r.t1, stepIdx, created, op.color);
+            ensureCoverage(L2, op.l2, r.t2, stepIdx, created, op.color);
+            const a1 = armOf(L1, X);
+            const a2 = armOf(L2, X);
+            let s1 = a1.plus >= a1.minus ? 1 : -1;
+            let s2 = a2.plus >= a2.minus ? 1 : -1;
+            let r1 = Math.max(a1.plus, a1.minus);
+            let r2 = Math.max(a2.plus, a2.minus);
+            // Угол между прямыми — не тупой: тупой поворачиваем той стороной,
+            // что нарисована длиннее с другой стороны (нигде — дорисуем).
+            if (dot(mul(a1.w, s1), mul(a2.w, s2)) < 0) {
+              const alt1 = s1 > 0 ? a1.minus : a1.plus;
+              const alt2 = s2 > 0 ? a2.minus : a2.plus;
+              const flipFirst = alt1 > alt2;
+              let alt = flipFirst ? alt1 : alt2;
+              if (flipFirst) s1 = -s1; else s2 = -s2;
+              if (alt <= eps * 10) {
+                alt = 0.3 * body.size;
+                const L = flipFirst ? L1 : L2;
+                const dir = mul(flipFirst ? a1.w : a2.w, flipFirst ? s1 : s2);
+                const id = `${opId}:ext`;
+                lines.push({
+                  id, kind: 'ext', ref: flipFirst ? op.l1 : op.l2, a: X, b: add(X, mul(dir, alt)),
+                  p: L.p, u: L.u, step: stepIdx, color: op.color,
+                });
+                created.lines.push(id);
+              }
+              if (flipFirst) r1 = alt; else r2 = alt;
+            }
+            u = mul(a1.w, s1 * Math.max(r1, eps));
+            v = mul(a2.w, s2 * Math.max(r2, eps));
+            title = `∠(${n1}, ${n2})`;
+            deg = (Math.acos(Math.min(1, Math.abs(dot(a1.w, a2.w)))) * 180) / Math.PI;
+          }
+          const right = Math.abs(deg - 90) < 1e-6;
+          if (right) rightAngles.push({ id: opId, at: X, v: u, along: v, step: stepIdx, color: op.color });
+          if (!right || label) {
+            arcs.push({
+              id: `${opId}:arc`, at: X, u, v, step: stepIdx, color: op.color, count, label, right,
+            });
+          }
+          created.value = `≈ ${String(Math.round(deg * 100) / 100).replace('.', ',')}°`;
+          created.note = `${title}${label ? ` = ${label}` : ''} ${created.value}`;
           break;
         }
         case 'intersect': {
@@ -647,6 +749,13 @@ export function evaluateScene(scene, opts = {}) {
   let radius = 0;
   for (const P of all) radius = Math.max(radius, dist(P, viewCenter));
 
+  // Скрытые точки — оформление: scene.hidden = ['M']. Точка остаётся в
+  // построениях, но на чертеже (у учеников, в печати) её нет; в редакторе
+  // она видна бледной (renderStereo, showHidden).
+  for (const name of Array.isArray(scene?.hidden) ? scene.hidden : []) {
+    if (points[name]) points[name].concealed = true;
+  }
+
   // Цвета точек — оформление, не шаг: scene.colors = { M: 'red' }.
   const colors = scene?.colors && typeof scene.colors === 'object' ? scene.colors : {};
   for (const [name, color] of Object.entries(colors)) {
@@ -722,6 +831,7 @@ export function opPointNames(op) {
     case 'perp': fromRef(op.ref); fromPlane(op.plane); fromPlane(op.within); out.push(op.from); break;
     case 'perpPlane': fromRef(op.ref); fromRef(op.line); fromPlane(op.plane); if (op.from) out.push(op.from); break;
     case 'angle': fromRef(op.ref); fromPlane(op.plane); break;
+    case 'angleMark': fromRef(op.l1); fromRef(op.l2); out.push(...(op.pts || [])); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
@@ -754,6 +864,10 @@ export function removeOpCascade(scene, opId) {
   }
   const next = { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) };
   if (scene?.colors) next.colors = withoutKeys(scene.colors, deadNames);
+  if (scene?.hidden) {
+    next.hidden = scene.hidden.filter((n) => !deadNames.has(n));
+    if (!next.hidden.length) delete next.hidden;
+  }
   for (const field of ['lineColors', 'segmentColors']) {
     if (!scene?.[field]) continue;
     next[field] = Object.fromEntries(Object.entries(scene[field]).filter(([k]) => {
@@ -796,6 +910,7 @@ export function renamePointInScene(scene, from, to) {
   if (scene?.colors) {
     next.colors = Object.fromEntries(Object.entries(scene.colors).map(([k, v]) => [swap(k), v]));
   }
+  if (scene?.hidden) next.hidden = scene.hidden.map(swap);
   for (const field of ['lineColors', 'segmentColors']) {
     if (!scene?.[field]) continue;
     next[field] = Object.fromEntries(Object.entries(scene[field]).map(([k, v]) => {
@@ -841,6 +956,20 @@ export function setPointColors(scene, names, color) {
   }
   const next = { ...scene, colors };
   if (!Object.keys(colors).length) delete next.colors;
+  return next;
+}
+
+/**
+ * Скрыть точки (hidden = true) или показать снова. Оформление, не шаг:
+ * точка остаётся в построениях. Пустой список из сцены убирается.
+ */
+export function setPointsHidden(scene, names, hidden = true) {
+  const set = new Set(scene?.hidden || []);
+  for (const n of names) {
+    if (hidden) set.add(n); else set.delete(n);
+  }
+  const next = { ...scene, hidden: [...set] };
+  if (!next.hidden.length) delete next.hidden;
   return next;
 }
 
