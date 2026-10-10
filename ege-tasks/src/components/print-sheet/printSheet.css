@@ -517,6 +517,26 @@
    (вынос из условия — sideFigure.js). */
 .ps-task-text--side { display: flow-root; }
 
+/* Место для решения обтекает чертёж сбоку (SheetTask → useSideGap): зона —
+   обычный блок в потоке, начинается под текстом и уходит под рисунок, без
+   своего контекста форматирования (overflow:hidden превратил бы её в узкую
+   колонку рядом с float). Угол под рисунком линии обходят САМИ
+   (SolutionFill/NotchFrame) — без белых подложек: фон при печати браузер
+   может и не напечатать. Рамка зоны — ломаная «Г» из отрезков, свой border
+   прозрачный (высота та же). */
+.ps-task-text--wrapfill .ps-solution--wrap {
+  overflow: visible;
+  clip-path: inset(0);
+  border-color: transparent;
+  background: transparent;   /* белая зона закрыла бы рисунок над собой */
+}
+.ps-frame-seg {
+  position: absolute;
+  border: 0 solid var(--ps-rule-2);   /* толщину стороны задаёт NotchFrame */
+  pointer-events: none;
+}
+.ps-root--noframe .ps-frame-seg { display: none; }
+
 .ps-task-aside {
   max-width: var(--ps-fig-side-w);
   margin-bottom: 1.5mm;

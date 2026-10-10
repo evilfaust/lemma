@@ -263,3 +263,92 @@ describe('Лист задач — чертёж сбоку', () => {
     expect(css).toMatch(/\.ps-root--nofig \.ps-task-aside/);
   });
 });
+
+// ── Место для решения обтекает высокий чертёж сбоку ───────────────────────
+import { afterEach, vi } from 'vitest';
+import SheetTask from '../components/print-sheet/SheetTask';
+import { MM } from '../components/print-sheet/geometry';
+
+describe('SheetTask — клетка в пустом углу рядом с чертежом сбоку', () => {
+  const sideTask = {
+    id: 'w1',
+    statement_md: 'Найдите площадь треугольника.\n\n```plot\nx -3 3\ny -3 3\nf x\n```',
+  };
+  const opts = { figurePlacement: 'right', showFigures: true, answerStyle: 'none', solutionFill: 'grid' };
+  // jsdom не раскладывает — даём текст 10 мм и рисунок 40 мм (+1.5 мм отступа).
+  const fakeLayout = () => {
+    const h = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function () {
+      if (this.classList.contains('ps-task-aside')) return 40 * MM;
+      if (this.classList.contains('ps-task-side-text')) return 10 * MM;
+      return 0;
+    });
+    const t = vi.spyOn(HTMLElement.prototype, 'offsetTop', 'get').mockReturnValue(0);
+    const cs = window.getComputedStyle;
+    const g = vi.spyOn(window, 'getComputedStyle').mockImplementation((el) => (
+      el.classList?.contains('ps-task-aside') ? { marginBottom: `${1.5 * MM}px` } : cs(el)
+    ));
+    return [h, t, g];
+  };
+  let spies = [];
+  afterEach(() => { spies.forEach((s) => s.mockRestore()); spies = []; });
+
+  it('зона решения начинается под текстом и вырастает на пустой угол', () => {
+    spies = fakeLayout();
+    const { container } = render(<SheetTask task={sideTask} number={1} taskIndex={0} options={opts} solutionMm={30} />, { wrapper });
+    const zone = container.querySelector('.ps-solution');
+    expect(zone.classList.contains('ps-solution--wrap')).toBe(true);
+    expect(zone.closest('.ps-task-text--side')).not.toBeNull();
+    // 30 мм зоны + (40 + 1.5 − 10) мм угла: низ задачи не сдвинулся.
+    expect(zone.style.height).toBe('61.5mm');
+    expect(container.querySelectorAll('.ps-solution')).toHaveLength(1);
+  });
+
+  it('без угла (текст выше рисунка) и с полем ответа справа — как раньше', () => {
+    spies = fakeLayout();
+    spies[0].mockImplementation(function () {
+      if (this.classList.contains('ps-task-aside')) return 8 * MM;
+      if (this.classList.contains('ps-task-side-text')) return 20 * MM;
+      return 0;
+    });
+    const a = render(<SheetTask task={sideTask} number={1} taskIndex={0} options={opts} solutionMm={30} />, { wrapper });
+    const zone = a.container.querySelector('.ps-solution');
+    expect(zone.classList.contains('ps-solution--wrap')).toBe(false);
+    expect(zone.style.height).toBe('30mm');
+
+    const b = render(<SheetTask task={sideTask} number={1} taskIndex={0} options={{ ...opts, answerStyle: 'box' }} solutionMm={30} />, { wrapper });
+    expect(b.container.querySelector('.ps-solution--wrap')).toBeNull();
+  });
+
+  it('угол под рисунком: линии клетки его обходят, рамка — ломаная «Г»', () => {
+    spies = fakeLayout();
+    const ow = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function () {
+      return this.classList.contains('ps-task-aside') ? 50 * MM : 0;
+    });
+    spies.push(ow);
+    const { container } = render(
+      <SheetTask task={sideTask} number={1} taskIndex={0} options={{ ...opts, solutionFrame: true }} solutionMm={30} />,
+      { wrapper },
+    );
+    // Угол: ширина рисунка + 2 мм, высота — от верха зоны до низа рисунка.
+    const notchW = '52mm';
+    const notchH = 31.5 - 2.6;
+    const hLines = [...container.querySelectorAll('.ps-fill-h')];
+    const inNotch = hLines.filter((l) => parseFloat(l.style.top) < notchH);
+    const below = hLines.filter((l) => parseFloat(l.style.top) >= notchH);
+    expect(inNotch.length).toBeGreaterThan(0);
+    inNotch.forEach((l) => expect(l.style.right).toBe(notchW));
+    below.forEach((l) => expect(l.style.right).toBe(''));
+    // Вертикали под рисунком начинаются от низа угла.
+    const vUnder = [...container.querySelectorAll('.ps-fill-v')].filter((l) => l.style.top);
+    expect(vUnder.length).toBeGreaterThan(0);
+    vUnder.forEach((l) => expect(parseFloat(l.style.top)).toBeCloseTo(notchH, 1));
+    expect(container.querySelectorAll('.ps-frame-seg')).toHaveLength(6);
+  });
+
+  it('CSS: зона под рисунком без overflow:hidden и без белых подложек', () => {
+    const css = readFileSync(resolve(__dirname, '../components/print-sheet/printSheet.css'), 'utf8');
+    expect(css).toMatch(/\.ps-solution--wrap \{[^}]*overflow: visible;[^}]*clip-path: inset\(0\)/);
+    expect(css).not.toMatch(/\.ps-task-text--wrapfill \.ps-task-aside \{[^}]*background/);
+    expect(css).toMatch(/\.ps-root--noframe \.ps-frame-seg \{ display: none; \}/);
+  });
+});

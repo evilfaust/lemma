@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Button, Tooltip, Segmented } from 'antd';
 import {
   EditOutlined, SwapOutlined, HolderOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
@@ -9,8 +10,8 @@ import {
   figureSizeVars, figureBoxMm, psLetterMm, KIM_IMAGE_SIZE_OPTIONS,
 } from '../../utils/kimImageSize';
 import { DrawingPrintContext } from '../shared/drawingPrintContext';
-import SolutionFill from './SolutionFill';
-import { BODY_W_MM, NUM_COL_MM, NUM_COL_WIDE_MM } from './geometry';
+import SolutionFill, { NotchFrame } from './SolutionFill';
+import { BODY_W_MM, MM, NUM_COL_MM, NUM_COL_WIDE_MM, SOLUTION_GAP_MM } from './geometry';
 import { isSidePlacement, splitSideFigure } from './sideFigure';
 
 // Поле «Ответ» справа от условия (`.ps-answer-box` 26 мм + зазор `.ps-task-row` 4 мм).
@@ -19,6 +20,45 @@ const ANSWER_BOX_MM = 26 + 4;
 // Чертёж сбоку — блок ```planim / ```stereo: он строится под своё место и сам
 // знает ширину.
 const FIT_FENCE = /^\s*(`{3,}|~{3,})\s*(planim|stereo)\b/i;
+
+// Пустой угол под коротким условием рядом с высоким чертежом сбоку: когда
+// место для решения, начатое под текстом, заходит рядом с рисунком хотя бы на
+// столько миллиметров, оно обтекает рисунок. Меньше — как раньше, под рисунком.
+const WRAP_MIN_MM = 4;
+// Зазор между клеткой и рисунком по горизонтали, мм.
+const NOTCH_CLEAR_MM = 2;
+
+const floorMm = (mm) => Math.floor(mm * 10 + 1e-6) / 10;
+
+/**
+ * Пустой угол под текстом рядом с чертежом сбоку: { gapMm, asideMm } —
+ * от низа текста до низа рисунка (с его отступом) и ширина рисунка, мм.
+ * Меряется по живому DOM; положение решения на это не влияет (оно ниже
+ * текста), поэтому петли нет.
+ */
+function useSideGap(active, asideRef, textRef) {
+  const [gap, setGap] = useState({ gapMm: 0, asideMm: 0 });
+  useLayoutEffect(() => {
+    if (!active) { setGap((g) => (g.gapMm ? { gapMm: 0, asideMm: 0 } : g)); return undefined; }
+    const measure = () => {
+      const aside = asideRef.current;
+      const text = textRef.current;
+      if (!aside || !text) return;
+      const mb = parseFloat(getComputedStyle(aside).marginBottom) || 0;
+      const gapPx = (aside.offsetTop + aside.offsetHeight + mb) - (text.offsetTop + text.offsetHeight);
+      const next = { gapMm: floorMm(gapPx / MM), asideMm: Math.ceil((aside.offsetWidth / MM) * 10) / 10 };
+      setGap((g) => (g.gapMm === next.gapMm && g.asideMm === next.asideMm ? g : next));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    // Шрифты KaTeX и картинки догружаются позже первого замера.
+    const ro = new ResizeObserver(measure);
+    if (asideRef.current) ro.observe(asideRef.current);
+    if (textRef.current) ro.observe(textRef.current);
+    return () => ro.disconnect();
+  }, [active, asideRef, textRef]);
+  return gap;
+}
 
 // Место чертежа у одной задачи — в том порядке, в каком он встанет на листе.
 const PLACEMENT_OPTIONS = [
@@ -102,10 +142,47 @@ export default function SheetTask({
   const sidePlace = { ...figureBoxMm(figSize, textWidthMm, { side: true }), letterMm };
   const asideFits = aside?.kind === 'drawing' && FIT_FENCE.test(aside.md);
 
+  // Место для решения обтекает чертёж сбоку: начинается сразу под текстом и
+  // идёт под рисунком (рисунок закрывает его белым фоном), а высота зоны
+  // растёт ровно на пустой угол — низ задачи остаётся там же, где его
+  // посчитала пагинация. С полем ответа справа и с ответом в тексте — как
+  // раньше: там между условием и решением своя вёрстка.
+  const asideRef = useRef(null);
+  const sideTextRef = useRef(null);
+  const wrapActive = !!aside && solutionMm > 0 && !showBox && !showAnswersInline;
+  const sideGap = useSideGap(wrapActive, asideRef, sideTextRef);
+  // Зона начинается на SOLUTION_GAP_MM ниже текста, поэтому рядом с рисунком
+  // у неё остаётся угол высотой gap − зазор.
+  const notchH = wrapActive ? floorMm(sideGap.gapMm - SOLUTION_GAP_MM) : 0;
+  const wrapMm = notchH >= WRAP_MIN_MM ? sideGap.gapMm : 0;
+
+  const solutionWidthMm = contentWidthMm - (numberLabel ? NUM_COL_WIDE_MM : NUM_COL_MM);
+  const notch = wrapMm ? {
+    side: placement === 'left' ? 'left' : 'right',
+    w: Math.min(solutionWidthMm, sideGap.asideMm + NOTCH_CLEAR_MM),
+    h: notchH,
+  } : null;
+  const solutionZone = (heightMm) => (
+    <div
+      className={notch ? 'ps-solution ps-solution--wrap' : 'ps-solution'}
+      style={{ height: `${heightMm}mm` }}
+    >
+      <span
+        className="ps-solution-label"
+        // У рисунка слева угол занят — подпись встаёт сразу за ним.
+        style={notch?.side === 'left' ? { left: `${notch.w + 2}mm` } : undefined}
+      >
+        Решение
+      </span>
+      <SolutionFill fill={solutionFill} heightMm={heightMm} widthMm={solutionWidthMm} notch={notch} />
+      {notch && <NotchFrame notch={notch} />}
+    </div>
+  );
+
   // Рисунок идёт в разметке ПЕРВЫМ: float обтекает только то, что после него.
   const statement = aside ? (
-    <div className={`ps-task-text ps-task-text--side ps-task-text--side-${placement}`}>
-      <div className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}${asideFits ? ' ps-task-aside--fit' : ''}`}>
+    <div className={`ps-task-text ps-task-text--side ps-task-text--side-${placement}${notch ? ' ps-task-text--wrapfill' : ''}`}>
+      <div ref={asideRef} className={`ps-task-aside ps-task-aside--${aside.kind === 'drawing' ? 'drawing' : 'image'}${asideFits ? ' ps-task-aside--fit' : ''}`}>
         {aside.kind === 'external'
           ? <img src={imageUrl} alt="" />
           : (
@@ -114,10 +191,13 @@ export default function SheetTask({
             </DrawingPrintContext.Provider>
           )}
       </div>
-      <DrawingPrintContext.Provider value={belowPlace}>
-        <MathRenderer text={side.text} />
-      </DrawingPrintContext.Provider>
-      {code}
+      <div ref={sideTextRef} className="ps-task-side-text">
+        <DrawingPrintContext.Provider value={belowPlace}>
+          <MathRenderer text={side.text} />
+        </DrawingPrintContext.Provider>
+        {code}
+      </div>
+      {notch && solutionZone(solutionMm + wrapMm)}
     </div>
   ) : (
     <div className="ps-task-text">
@@ -177,16 +257,7 @@ export default function SheetTask({
           </div>
         )}
 
-        {solutionMm > 0 && (
-          <div className="ps-solution" style={{ height: `${solutionMm}mm` }}>
-            <span className="ps-solution-label">Решение</span>
-            <SolutionFill
-              fill={solutionFill}
-              heightMm={solutionMm}
-              widthMm={contentWidthMm - (numberLabel ? NUM_COL_WIDE_MM : NUM_COL_MM)}
-            />
-          </div>
-        )}
+        {solutionMm > 0 && !notch && solutionZone(solutionMm)}
 
         {answerStyle === 'line' && !showAnswersInline && (
           <div className="ps-answer">
