@@ -159,6 +159,16 @@ describe('collectOnline', () => {
     expect([...columns.keys()]).toEqual(['s:m1']);
     expect(columns.get('s:m1').title).toBe('Тест A/B/C/D');
   });
+  it('тест без работы помнит свой тест — «Открыть работу» в меню колонки', () => {
+    const mc = { id: 's1', work: '', mc_test: 'mc1', created: '2026-09-10 09:00:00.000Z', expand: {} };
+    const online = collectOnline([attempt('st1', mc)]).columns;
+    expect(online.get('s:s1').mcTestId).toBe('mc1');
+    expect(collectOnline([attempt('st1', session('w'))]).columns.get('w:w1').mcTestId).toBe('');
+    const [virtual] = mergeColumns([], online);
+    expect(virtual.mcTestId).toBe('mc1');
+    const [stored] = mergeColumns([{ id: 'c1', source: 'session', session: 's1', title: 'Устный счёт' }], online);
+    expect(stored.mcTestId).toBe('mc1');
+  });
   it('срок «для класса» — только по выдаче, которую открыли хотя бы двое', () => {
     const personal = session('p1', { deadline: '2026-09-01 00:00:00.000Z' });
     const own = collectOnline([attempt('st1', personal)]).columns.get('w:w1');

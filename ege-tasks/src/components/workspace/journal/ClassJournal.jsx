@@ -938,12 +938,28 @@ export default function ClassJournal() {
     }
   };
 
+  // Тест без работы (из генератора или A/B/C/D) открывается по выдаче. У
+  // колонки, по которой ещё нет попыток, теста в клетках нет — спрашиваем выдачу.
+  const openTest = async (col) => {
+    try {
+      const testId = col.mcTestId || (await api.getSession(col.sessionId))?.mc_test;
+      if (!testId) {
+        message.warning('У этой выдачи нет теста, который можно открыть');
+        return;
+      }
+      navigate(`/app/worksheets/mc-test/${testId}`);
+    } catch {
+      message.error('Не удалось открыть тест');
+    }
+  };
+
   const onMenu = (key, col) => {
     switch (key) {
       case 'entry': setEntryKey(col.key); break;
       case 'edit': setColModal({ column: col }); break;
       case 'fill': setFill({ column: col, text: '', error: '' }); break;
       case 'open-work': navigate(`/app/works/${col.workId}/edit`); break;
+      case 'open-test': openTest(col); break;
       case 'open-sheet': openSheet(col.ref); break;
       case 'open-geometry-work': navigate(`/app/geometry/works/${col.ref.id}`); break;
       case 'hide': setHidden(col, true); break;
@@ -964,6 +980,7 @@ export default function ClassJournal() {
     if (manage) items.push({ key: 'edit', icon: <SettingOutlined />, label: 'Настроить колонку' });
     if (writable && !col.online) items.push({ key: 'fill', icon: <FormatPainterOutlined />, label: 'Заполнить пустые…' });
     if (col.workId) items.push({ key: 'open-work', icon: <ExportOutlined />, label: 'Открыть работу' });
+    else if (col.sessionId) items.push({ key: 'open-test', icon: <ExportOutlined />, label: 'Открыть работу' });
     if (col.ref?.type === 'sheet') items.push({ key: 'open-sheet', icon: <ExportOutlined />, label: 'Открыть лист' });
     if (col.ref?.type === 'geometry_work') items.push({ key: 'open-geometry-work', icon: <ExportOutlined />, label: 'Открыть работу' });
     if (manage) {

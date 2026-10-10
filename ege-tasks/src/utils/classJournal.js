@@ -419,6 +419,8 @@ export function collectOnline(attempts = []) {
         source: sess.work ? 'work' : 'session',
         workId: sess.work || '',
         sessionId: sess.work ? '' : sess.id,
+        // Тест без работы (генератор, A/B/C/D): открывается в редакторе тестов.
+        mcTestId: sess.work ? '' : (sess.mc_test || ''),
         title: sessionTitle(sess),
         sessions: new Map(),
       };
@@ -503,7 +505,7 @@ export function onlineStatus(col, agg, { now = new Date(), assigned = false } = 
  * Колонки из БД + найденные онлайн-работы → единый список по дате.
  * Колонка: { key, id, virtual, source, online, title, day, scale, max_score,
  *   thresholds, weight, no_avg, hidden, category, note, owner, workId,
- *   sessionId, deadline, classDeadline, assigned, created, record }
+ *   sessionId, mcTestId, deadline, classDeadline, assigned, created, record }
  * sessionDeadlines — Map<key, срок> выдач работ, которые учитель завёл в журнал
  * сам: по такой работе ещё может не быть ни одной попытки, а срок уже идёт.
  * blocks — интенсивы класса (`journal_blocks`): их колонки идут подряд, от
@@ -541,6 +543,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       owner: rec.owner || '',
       workId: rec.work || info?.workId || '',
       sessionId: rec.session || info?.sessionId || '',
+      mcTestId: info?.mcTestId || '',
       lessonId: rec.lesson || '',
       // Материал без своей связи: { type: 'sheet', id, generator, title } —
       // лист генератора, из которого завели колонку (v3.9.240).
@@ -580,6 +583,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       owner: '',
       workId: info.workId,
       sessionId: info.sessionId,
+      mcTestId: info.mcTestId || '',
       lessonId: '',
       ref: null,
       blockId: '',
