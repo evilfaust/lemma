@@ -226,3 +226,81 @@ describe('обратная связь по зачёту', () => {
     expect(user2.content).toMatch(/^Данные ученика по интенсиву:/);
   });
 });
+
+// ── Оценка с точкой — дозачёт (v3.9.335) ───────────────────────────────────
+import {
+  decodeValue, editText, parseCellInput, resolveCell, retakeHistoryComment, isRetake,
+} from '../utils/classJournal';
+import { cleanFeedback } from '../../../pocketbase/feedback-prompt.mjs';
+
+describe('оценка с точкой — дозачёт', () => {
+  const gradeCol = { scale: 'grade', title: 'Итог' };
+
+  it('ввод: «.4-», «. 4 −», «.3», «.5+» — в шкале оценки; в баллах точка не оценка', () => {
+    expect(parseCellInput('.4-', gradeCol)).toEqual({ ok: true, stored: '.4-' });
+    expect(parseCellInput('. 4 −', gradeCol)).toEqual({ ok: true, stored: '.4-' });
+    expect(parseCellInput('.3', gradeCol)).toEqual({ ok: true, stored: '.3' });
+    expect(parseCellInput('.5+', gradeCol)).toEqual({ ok: true, stored: '.5+' });
+    expect(parseCellInput('.6', gradeCol).ok).toBe(false);
+    expect(parseCellInput('.4', { scale: 'points', max_score: 10 }).ok).toBe(false);
+  });
+
+  it('хранение и показ: цифра в средний, «.4−» на экране, правка — как ввели', () => {
+    expect(decodeValue('.4-')).toMatchObject({ value: 4, mod: '-', retake: true });
+    expect(isRetake('.3')).toBe(true);
+    expect(isRetake('4-')).toBe(false);
+    expect(editText(gradeCol, '.4-')).toBe('.4-');
+    const cell = resolveCell(gradeCol, { value: '.4-' }, undefined, {});
+    expect(cell).toMatchObject({ text: '.4−', grade: 4, retake: true, tone: 'blue' });
+    expect(cell.tip).toMatch(/^Дозачёт/);
+  });
+
+  it('в средний — цифрой, в «Долги» — да', () => {
+    const cols = [{ id: 'a', scale: 'grade' }, { id: 'b', scale: 'grade' }];
+    const cells = [resolveCell(cols[0], { value: '.4-' }, undefined, {}), resolveCell(cols[1], { value: '5' }, undefined, {})];
+    const sum = summarizeRow(cols, cells);
+    expect(sum.avg).toBe(4.5);
+    expect(sum.retakes).toBe(1);
+    expect(sum.debts).toBe(1);
+  });
+
+  it('сдал дозачёт — прежняя оценка с точкой уходит в комментарий', () => {
+    expect(retakeHistoryComment('.4-', '5', 'Дозачёт по практике')).toBe('до дозачёта: .4−\nДозачёт по практике');
+    expect(retakeHistoryComment('.3', '4', '')).toBe('до дозачёта: .3');
+    // Повторная правка не дублирует строку; правка с точкой на точку — без истории.
+    expect(retakeHistoryComment('.3', '4', 'до дозачёта: .3')).toBe('до дозачёта: .3');
+    expect(retakeHistoryComment('.3', '.4', 'x')).toBe('x');
+    expect(retakeHistoryComment('4', '5', 'x')).toBe('x');
+    expect(retakeHistoryComment('.4', '', 'x')).toBe('x');
+  });
+
+  it('точка в части зачёта — итог подсказывается с точкой', () => {
+    const m = [
+      { col: 'p1', student: 's1', value: '9' }, { col: 'p2', student: 's1', value: '7' },
+      { col: 'p3', student: 's1', value: '5' }, { col: 'p4', student: 's1', value: '.4' },
+    ];
+    const g = buildGrid(students, columns, indexMarks(m), new Map(), { blocks: [block] });
+    const cell = g.rows[0].cells[totalAt];
+    expect(cell.text).toBe('≈.4,4'); // (5 + 4 + 5 + 4·2) / 5
+    expect(cell.tip).toMatch(/Билет \(устно\): \.4, вес ×2/);
+    expect(cell.tip).toMatch(/Дозачёт: «Билет» — итог с точкой/);
+  });
+
+  it('отзыв: итог или часть с точкой → «дозачёт: да», без точки — «нет» и фраза вырезается', () => {
+    const m = [...marks, { col: 'tot', student: 's1', value: '.4-' }];
+    const g = buildGrid(students, columns, indexMarks(m), new Map(), { blocks: [block] });
+    const x = buildExamFeedbackData(columns, g.rows, 's1');
+    expect(x.дозачёт).toBe('да');
+    expect(x.пересдача).toBe('нет');
+    const m2 = [...marks.filter((k) => !(k.col === 'p3' && k.student === 's1')), { col: 'p3', student: 's1', value: '5' }];
+    const m3 = m2.map((k) => (k.col === 'p4' && k.student === 's1' ? { ...k, value: '.4' } : k));
+    const g3 = buildGrid(students, columns, indexMarks(m3), new Map(), { blocks: [block] });
+    const y = buildExamFeedbackData(columns, g3.rows, 's1');
+    expect(y.дозачёт).toBe('да');
+    expect(y.дозачёт_по).toEqual(['«Билет» (устно)']);
+    const z = buildExamFeedbackData(columns, grid.rows, 's1');
+    expect(z.дозачёт).toBe('нет');
+    expect(cleanFeedback('{ИМЯ}, молодец. Ждём тебя на дозачёте.', z)).toBe('{ИМЯ}, молодец.');
+    expect(cleanFeedback('{ИМЯ}, молодец. Ждём тебя на дозачёте.', x)).toMatch(/дозачёте/);
+  });
+});

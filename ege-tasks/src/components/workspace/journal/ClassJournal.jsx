@@ -20,7 +20,7 @@ import {
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
   ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
-  isExamBlock, blockKindLabel,
+  isExamBlock, blockKindLabel, retakeHistoryComment,
 } from '../../../utils/classJournal';
 import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
@@ -428,7 +428,9 @@ export default function ClassJournal() {
     if (!parsed.ok) return parsed.error;
     const cell = row.cells[c];
     if ((cell.stored || '') === parsed.stored) return null;
-    writeCells([{ col, student: row.student, value: parsed.stored, comment: cell.comment || '' }]);
+    // Сдал дозачёт — оценка с точкой уходит в комментарий.
+    const comment = retakeHistoryComment(cell.stored, parsed.stored, cell.comment || '');
+    writeCells([{ col, student: row.student, value: parsed.stored, comment }]);
     return null;
   }, [columns, grid, canEdit, writeCells]);
 
@@ -453,7 +455,10 @@ export default function ClassJournal() {
       }
       const cell = row.cells[c];
       if ((cell.stored || '') === parsed.stored) continue;
-      items.push({ col, student: row.student, value: parsed.stored, comment: cell.comment || '' });
+      items.push({
+        col, student: row.student, value: parsed.stored,
+        comment: retakeHistoryComment(cell.stored, parsed.stored, cell.comment || ''),
+      });
     }
     writeCells(items);
 
@@ -1117,7 +1122,10 @@ export default function ClassJournal() {
     const cell = row?.cells[entryIndex];
     const note = String(comment || '').trim();
     if ((cell?.stored || '') === parsed.stored && (cell?.comment || '') === note) return null;
-    writeCells([{ col: entryColumn, student, value: parsed.stored, comment: note }]);
+    writeCells([{
+      col: entryColumn, student, value: parsed.stored,
+      comment: retakeHistoryComment(cell?.stored || '', parsed.stored, note),
+    }]);
     return null;
   }, [entryColumn, entryIndex, grid, writeCells]);
 
@@ -1367,6 +1375,7 @@ export default function ClassJournal() {
           <span><i className="cj-legend-flag cj-legend-flag--comment" /> комментарий</span>
           <span><CalendarOutlined /> колонка урока: «н» — из посещаемости</span>
           <span><b className="cj-x-wait">w</b> — вейтинг, ждём пересдачи · «—» — не писал, не в счёт</span>
+          <span><b className="cj-legend-retake">.4</b> — дозачёт: сдаст — оценка повысится</span>
           {blocks.length > 0 && (
             <span>
               <i className="cj-x-hint">≈4,2</i> — подсказка {blocks.some(isExamBlock)

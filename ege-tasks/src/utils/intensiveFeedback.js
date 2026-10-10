@@ -6,7 +6,7 @@
 // («Ксюша») подставляем здесь (`fillName`). В данных — пол, оценки, проценты,
 // названия работ и их описания из заметки колонки.
 
-import { blockKind, columnScale, isExamBlock } from './classJournal';
+import { blockKind, columnScale, isExamBlock, isRetake } from './classJournal';
 
 export const NAME_TOKEN = '{ИМЯ}';
 
@@ -87,9 +87,9 @@ function dayNameGen(i, n) {
   return ORDINAL_GEN[i] || `${i + 1}-го`;
 }
 
-/** Итог требует пересдачи: вейтинг или неудовлетворительно. */
+/** Итог требует пересдачи: вейтинг или неудовлетворительно (в т. ч. «.2»). */
 export function needsRetake(totalStored) {
-  const s = String(totalStored || '').trim();
+  const s = String(totalStored || '').trim().replace(/^\./, '');
   return s === 'w' || /^[12]/.test(s);
 }
 const pct = (x) => `${Math.round(x)}%`;
@@ -237,6 +237,8 @@ export function buildFeedbackData(columns, rows, studentId, { gender = 'm', rati
     ...(finalInfo ? { зачёт: clean(finalInfo) } : {}),
     итог: total || 'не выставлен',
     пересдача: needsRetake(totalStored) ? 'да' : 'нет',
+    // Оценка с точкой (v3.9.335): ждём на дозачёте, сдаст — повысится.
+    дозачёт: isRetake(totalStored) && !needsRetake(totalStored) ? 'да' : 'нет',
     рейтинг: rating && RATING_WORDS[rating] ? `${RATING_WORDS[rating]} рейтинг` : 'нет',
     сильные_стороны: strengths,
     слабые_места: weaknesses,
@@ -354,6 +356,7 @@ export function buildExamFeedbackData(columns, rows, studentId, {
   const waiting = parts.filter((p) => p._cell?.wait || p._cell?.absent);
   if (waiting.length) weaknesses.push(`не сдавал${f ? 'а' : ''}: ${waiting.map(label).join(', ')}`);
 
+  const retakeParts = parts.filter((p) => p._cell?.retake).map(label);
   const clean = (o) => Object.fromEntries(Object.entries(o).filter(([k, v]) => !k.startsWith('_') && v !== undefined));
   return {
     мероприятие: kind === 'exam' ? 'экзамен' : 'зачёт',
@@ -362,6 +365,9 @@ export function buildExamFeedbackData(columns, rows, studentId, {
     части: parts.map(clean),
     итог: total || 'не выставлен',
     пересдача: needsRetake(totalStored) ? 'да' : 'нет',
+    // Точка у итога или у части — ждём на дозачёте (v3.9.335).
+    дозачёт: !needsRetake(totalStored) && (isRetake(totalStored) || parts.some((p) => p._cell?.retake)) ? 'да' : 'нет',
+    ...(retakeParts.length ? { дозачёт_по: retakeParts } : {}),
     рейтинг: rating && RATING_WORDS[rating] ? `${RATING_WORDS[rating]} рейтинг` : 'нет',
     сильные_стороны: strengths,
     слабые_места: weaknesses,

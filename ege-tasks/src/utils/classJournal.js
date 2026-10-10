@@ -23,6 +23,8 @@
 //                  средний не входит)
 //   «—»         — не писал по уважительной причине (забрали на олимпиаду):
 //                  не долг и не в среднем
+//   «.4-», «.3» — оценка с точкой (v3.9.335): у ученика дозачёт, сдаст —
+//                  оценка повысится. В средний идёт цифрой, в «Долги» — да
 // Интенсив (v3.9.241) — блок колонок `journal_blocks`: у колонки есть `block`
 // и роль `role` (work — работа дня, day — оценка за день, final — зачётная
 // работа, total — итог). Подсказки «за день» и «итог» считает
@@ -303,14 +305,18 @@ const SKIP_ALIASES = new Set(['—', '–', '-', '−', 'осв', 'не писа
 const SKIP_WORDS = new Set(['осв', 'не писал', 'нп']);
 // «4+», «4 -», «4−», «4=» → цифра и модификатор.
 const MOD_GRADE = /^([1-5])\s*([+\-−–=])$/;
+// Оценка с точкой — дозачёт (v3.9.335): «.4», «.4-», «.4 −».
+const RETAKE_GRADE = /^\.\s*([1-5])\s*([+\-−–=])?$/;
+export const RETAKE_MARK = '.';
 const MOD_CANON = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=' };
 const MOD_SHOW = { '+': '+', '-': '−', '=': '=' };
 const PASS_YES = new Set(['+', 'з', 'зач', 'зачет', 'зачёт', 'да', '1', '✓', 'v']);
 const PASS_NO = new Set(['-', '−', '–', '—', 'нз', 'н/з', 'незач', 'незачет', 'незачёт', 'нет', '0', '✗', 'x', 'х']);
 
 /**
- * Хранимый текст → { value: число|null, absent, wait?, skip?, mod? }.
+ * Хранимый текст → { value: число|null, absent, wait?, skip?, mod?, retake? }.
  * У оценки с плюсом/минусом value — сама цифра, mod — «+», «-» или «=».
+ * retake — оценка с точкой: дозачёт.
  */
 export function decodeValue(stored) {
   const s = String(stored ?? '').trim();
@@ -318,6 +324,8 @@ export function decodeValue(stored) {
   if (s === ABSENT) return { value: null, absent: true };
   if (s === WAIT) return { value: null, absent: false, wait: true };
   if (s === SKIP) return { value: null, absent: false, skip: true };
+  const r = s.match(/^\.([1-5])([+\-=])?$/);
+  if (r) return { value: Number(r[1]), absent: false, mod: r[2] || '', retake: true };
   const g = s.match(/^([1-5])([+\-=])$/);
   if (g) return { value: Number(g[1]), absent: false, mod: g[2] };
   const n = Number(s);
@@ -361,7 +369,9 @@ export function parseCellInput(raw, col) {
     if (n != null && Number.isInteger(n) && n >= 1 && n <= 5) return { ok: true, stored: String(n) };
     const g = s.match(MOD_GRADE);
     if (g) return { ok: true, stored: `${g[1]}${MOD_CANON[g[2]]}` };
-    return { ok: false, error: `Оценка — от 1 до 5, можно с «+», «−», «=»${tail}` };
+    const r = s.match(RETAKE_GRADE);
+    if (r) return { ok: true, stored: `${RETAKE_MARK}${r[1]}${r[2] ? MOD_CANON[r[2]] : ''}` };
+    return { ok: false, error: `Оценка — от 1 до 5, можно с «+», «−», «=», с точкой «.4» — дозачёт${tail}` };
   }
 
   if (scale === 'percent') {
@@ -387,10 +397,11 @@ export function parseCellInput(raw, col) {
 
 /** Текст для редактора, когда учитель правит уже стоящую отметку. */
 export function editText(col, stored) {
-  const { value, absent, wait, skip, mod } = decodeValue(stored);
+  const { value, absent, wait, skip, mod, retake } = decodeValue(stored);
   if (absent) return ABSENT;
   if (wait) return WAIT;
   if (skip) return SKIP;
+  if (retake) return `${RETAKE_MARK}${value}${mod || ''}`;
   if (mod) return `${value}${mod}`;
   if (value == null) return '';
   if (columnScale(col) === 'pass') return value >= 1 ? 'з' : 'нз';
@@ -402,10 +413,29 @@ export function formatNumber(n) {
   return canon(n).replace('.', ',');
 }
 
-/** Оценка для экрана: «4», «4+», «4−», «4=». */
-export function formatGrade(value, mod) {
+/** Оценка для экрана: «4», «4+», «4−», «4=»; с точкой — «.4−» (дозачёт). */
+export function formatGrade(value, mod, retake = false) {
   if (value == null) return '';
-  return `${value}${mod ? MOD_SHOW[mod] || '' : ''}`;
+  return `${retake ? RETAKE_MARK : ''}${value}${mod ? MOD_SHOW[mod] || '' : ''}`;
+}
+
+/** Хранимая отметка — оценка с точкой (дозачёт). */
+export function isRetake(stored) {
+  return !!decodeValue(stored).retake;
+}
+
+/**
+ * Комментарий клетки после правки: ученик сдал дозачёт — прежняя оценка с
+ * точкой уходит в комментарий («до дозачёта: .4−»), чтобы история не
+ * терялась. Другие правки комментарий не трогают.
+ */
+export function retakeHistoryComment(oldStored, newStored, comment = '') {
+  const old = decodeValue(oldStored);
+  if (!old.retake || !newStored || isRetake(newStored)) return comment || '';
+  const line = `до дозачёта: ${formatGrade(old.value, old.mod, true)}`;
+  const c = String(comment || '').trim();
+  if (c.includes(line)) return c;
+  return c ? `${line}\n${c}` : line;
 }
 
 export function formatAvg(x) {
@@ -930,7 +960,10 @@ export function examSummary(block, entries = []) {
       sum += w * grade;
       wsum += w;
     }
-    parts.push({ col, title: col.title, format: col.format || '', grade, pass: passed, state, weight: w });
+    parts.push({
+      col, title: col.title, format: col.format || '', grade, pass: passed, state, weight: w,
+      retake: !!cell?.retake, gradeText: cell?.retake || cell?.mod ? cell.text : null,
+    });
   }
   const pending = parts.some((p) => p.state === 'wait' || p.state === 'absent');
   const failed = parts.filter((p) => p.state === 'fail');
@@ -938,6 +971,7 @@ export function examSummary(block, entries = []) {
   return {
     parts,
     value: wsum ? sum / wsum : null,
+    retake: parts.some((p) => p.retake),
     pending,
     failed,
     missing,
@@ -959,7 +993,7 @@ function examTip(summary, block) {
   for (const p of summary.parts) {
     const fmt = p.format ? ` (${PART_FORMAT_LABELS[p.format].toLowerCase()})` : '';
     let res;
-    if (p.grade != null) res = String(p.grade);
+    if (p.grade != null) res = p.gradeText || String(p.grade);
     else if (p.state === 'fail') res = 'незачёт';
     else res = PART_STATE_TEXT[p.state] || '';
     const w = p.grade != null && p.weight !== 1 ? `, вес ×${formatNumber(p.weight)}` : '';
@@ -967,6 +1001,8 @@ function examTip(summary, block) {
   }
   if (summary.value != null) lines.push(`Средняя по частям: ${formatAvg(summary.value)}`);
   if (summary.failed.length) lines.push(`Не сдано: ${summary.failed.map((p) => `«${p.title}»`).join(', ')}`);
+  const retakes = summary.parts.filter((p) => p.retake);
+  if (retakes.length) lines.push(`Дозачёт: ${retakes.map((p) => `«${p.title}»`).join(', ')} — итог с точкой`);
   return lines.join('\n');
 }
 
@@ -1081,7 +1117,7 @@ export function resolveCell(col, mark, agg, {
   }
 
   if (stored) {
-    const { value, absent, wait, skip, mod } = decodeValue(stored);
+    const { value, absent, wait, skip, mod, retake } = decodeValue(stored);
     if (wait || skip) {
       return {
         kind: col.online ? 'override' : 'manual',
@@ -1096,7 +1132,7 @@ export function resolveCell(col, mark, agg, {
     const grade = absent ? null : gradeOfValue(col, value);
     let text = '';
     if (absent) text = ABSENT;
-    else if (mod) text = formatGrade(value, mod);
+    else if (retake || mod) text = formatGrade(value, mod, retake);
     else if (columnScale(col) === 'pass') text = value >= 1 ? 'зач' : 'н/з';
     else if ((view === 'grade' || (!views && mode === 'grade')) && grade != null) text = String(grade);
     else if (view === 'percent') text = `${formatNumber(Math.round(percentOf(col, value)))}%`;
@@ -1112,12 +1148,13 @@ export function resolveCell(col, mark, agg, {
     else if (columnScale(col) === 'pass') textTone = value >= 1 ? 'teal' : 'rose';
 
     const tip = [
+      retake ? 'Дозачёт: сдаст — оценка повысится' : null,
       col.online ? `Исправлено вручную. Из попыток: ${status?.tip || '—'}` : null,
       comment || null,
     ].filter(Boolean).join('\n');
     return {
       kind: col.online ? 'override' : 'manual',
-      stored, absent, value, grade, mod: mod || '', text, tone, textTone, status, comment, tip,
+      stored, absent, value, grade, mod: mod || '', retake: !!retake, text, tone, textTone, status, comment, tip,
     };
   }
 
@@ -1168,11 +1205,13 @@ export function summarizeRow(columns, cells) {
   let absences = 0;
   let overdue = 0;
   let waits = 0;
+  let retakes = 0;
   columns.forEach((col, i) => {
     const cell = cells[i];
     if (!cell || col.hidden) return;
     if (cell.absent) absences += 1;
     if (cell.wait) waits += 1;
+    if (cell.retake) retakes += 1;
     if (cell.kind === 'online' && cell.status?.kind === 'overdue') overdue += 1;
     const w = col.blockId && col.role !== 'total' ? 0 : columnWeight(col);
     if (cell.grade != null && w > 0) {
@@ -1180,7 +1219,9 @@ export function summarizeRow(columns, cells) {
       wsum += w;
     }
   });
-  return { avg: wsum ? sum / wsum : null, absences, overdue, waits, debts: absences + overdue + waits };
+  return {
+    avg: wsum ? sum / wsum : null, absences, overdue, waits, retakes, debts: absences + overdue + waits + retakes,
+  };
 }
 
 /** Сводка колонки: сколько клеток заполнено и средняя оценка класса. */
@@ -1291,7 +1332,7 @@ function applyExamHints(columns, cells, blockId, block, entries) {
     else if (columnScale(col) === 'pass') {
       if (summary.failed.length) text = 'н/з?';
       else if (summary.complete) text = 'зач?';
-    } else if (summary.value != null) text = `≈${formatAvg(summary.value)}`;
+    } else if (summary.value != null) text = `≈${summary.retake ? RETAKE_MARK : ''}${formatAvg(summary.value)}`;
     if (!text) return;
     cells[i] = {
       ...cells[i], kind: 'hint', text, textTone: 'hint',

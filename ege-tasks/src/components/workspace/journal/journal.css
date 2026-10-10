@@ -229,6 +229,11 @@
 .cj-x-blue  { color: var(--c-blue); }
 /* Вейтинг «w» и подсказки интенсива «≈4,2» (v3.9.241) */
 .cj-x-wait { color: #b45309; font-weight: 700; }
+/* Оценка с точкой — дозачёт (v3.9.335): точечное подчёркивание. */
+.cj-cell.cj-retake, .cj-legend-retake {
+  text-decoration: underline dotted 1.5px;
+  text-underline-offset: 3px;
+}
 .cj-x-hint { color: var(--ink-4); font-style: italic; }
 .cj-cell.is-sel { box-shadow: inset 0 0 0 2px var(--accent); }
 .cj-cell.is-err { box-shadow: inset 0 0 0 2px var(--c-rose); }

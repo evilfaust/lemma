@@ -78,6 +78,7 @@ function cellClass(cell, selected, error, extra) {
   if (extra) cls.push(extra);
   if (cell.tone) cls.push(`cj-t-${cell.tone}`);
   if (cell.textTone) cls.push(`cj-x-${cell.textTone}`);
+  if (cell.retake) cls.push('cj-retake');
   if (selected) cls.push(error ? 'is-err' : 'is-sel');
   return cls.join(' ');
 }
@@ -131,7 +132,12 @@ const Row = memo(function Row({
       <td
         className="cj-sum"
         title={summary.debts
-          ? [`не писал: ${summary.absences}`, summary.waits ? `вейтинг: ${summary.waits}` : null, `не сдал онлайн в срок: ${summary.overdue}`].filter(Boolean).join(', ')
+          ? [
+            `не писал: ${summary.absences}`,
+            summary.waits ? `вейтинг: ${summary.waits}` : null,
+            summary.retakes ? `дозачёт: ${summary.retakes}` : null,
+            `не сдал онлайн в срок: ${summary.overdue}`,
+          ].filter(Boolean).join(', ')
           : undefined}
       >
         {summary.debts ? <span className="cj-debt">{summary.debts}</span> : <span className="cj-none">—</span>}
@@ -424,7 +430,7 @@ export default function JournalGrid({
                 );
               })}
               <th className="cj-sumh cj-sum--avg" rowSpan={2} title="Средняя оценка: взвешенная по весам колонок, зачёт и «н» не входят">Ср.</th>
-              <th className="cj-sumh" rowSpan={2} title="Долги: «н» (не писал) и онлайн-работы, не сданные в срок">Долги</th>
+              <th className="cj-sumh" rowSpan={2} title="Долги: «н» (не писал), «w» (вейтинг), оценки с точкой (дозачёт) и онлайн-работы, не сданные в срок">Долги</th>
             </tr>
             <tr className="cj-cols">
               {columns.map((col, c) => {
