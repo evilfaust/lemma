@@ -30,7 +30,7 @@
 // Числовое поле PocketBase не отличает «пусто» от нуля, а 0 баллов — законная
 // отметка, поэтому текст.
 
-import { parseAcademicYear } from './academicYear';
+import { collectAcademicYears, parseAcademicYear } from './academicYear';
 
 export const ABSENT = 'н';
 export const WAIT = 'w';
@@ -1205,4 +1205,37 @@ export function toCsv(table, sep = ';') {
     return /[";\n\r]/.test(s) || s.includes(sep) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return table.map((r) => r.map(esc).join(sep)).join('\r\n');
+}
+
+// ─── Учебный год в выборе класса ────────────────────────────────────────────
+
+/** «Все годы» в фильтре классов журнала. */
+export const ALL_YEARS = '';
+
+/** Год класса для фильтра; класс без года считается классом текущего года. */
+export function journalGroupYear(group, currentYear) {
+  return String(group?.year || '').trim() || currentYear;
+}
+
+/** Годы для фильтра — новые сверху; текущий есть всегда, даже без классов. */
+export function journalYears(groups = [], currentYear) {
+  return collectAcademicYears([currentYear, ...groups.map((g) => journalGroupYear(g, currentYear))]);
+}
+
+/** Классы выбранного года (ALL_YEARS — все). */
+export function groupsOfYear(groups = [], year, currentYear) {
+  if (year === ALL_YEARS) return groups;
+  return groups.filter((g) => journalGroupYear(g, currentYear) === year);
+}
+
+/**
+ * Класс, который открыть после смены года: текущий остаётся, если он в этом
+ * году есть, иначе — первый действующий класс года, иначе первый архивный.
+ */
+export function pickGroupForYear(groups = [], year, currentYear, groupId) {
+  const list = groupsOfYear(groups, year, currentYear);
+  return list.find((g) => g.id === groupId)
+    || list.find((g) => !g.archived)
+    || list[0]
+    || null;
 }

@@ -50,6 +50,7 @@ import LessonJournalBlock from '../components/workspace/calendar/LessonJournalBl
 import SheetToJournalModal from '../components/workspace/journal/SheetToJournalModal';
 // eslint-disable-next-line import/first
 import { buildGrid, indexMarks } from '../utils/classJournal';
+import { currentAcademicYear, prevAcademicYear } from '../utils/academicYear';
 
 // ── Сетка сама по себе ──────────────────────────────────────────────────────
 
@@ -436,6 +437,48 @@ describe('ClassJournal — колонка по листу генератора',
     fireEvent.click(container.querySelector('.cj-colh__btn'));
     fireEvent.click(await screen.findByText('Открыть лист'));
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe('/app/arith/oral-counting?sheet=S1'), { timeout: 5000 });
+  });
+});
+
+describe('ClassJournal — учебный год', () => {
+  const cur = currentAcademicYear();
+  const prev = prevAcademicYear(cur);
+  const pickOption = async (select, text) => {
+    fireEvent.mouseDown(select.querySelector('.ant-select-selector'));
+    const opt = await screen.findByText(text, { selector: '.ant-select-item-option-content' });
+    await act(async () => { fireEvent.click(opt); });
+  };
+
+  it('по умолчанию классы текущего года, прошлогодний — после выбора его года', async () => {
+    apiMock.getTeachingGroups.mockResolvedValue([
+      { id: 'g1', name: '11 БАЗА', year: cur },
+      { id: 'g0', name: '10 БАЗА', year: prev },
+    ]);
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    const [yearSel, classSel] = container.querySelectorAll('.cj-toolbar .ant-select');
+    expect(yearSel.textContent).toBe(`${cur} (текущий)`);
+    expect(classSel.textContent).toBe('11 БАЗА');
+    fireEvent.mouseDown(classSel.querySelector('.ant-select-selector'));
+    expect(screen.queryByText('10 БАЗА', { selector: '.ant-select-item-option-content' })).toBeNull();
+
+    await pickOption(yearSel, prev);
+    await waitFor(() => expect(apiMock.getStudentsByGroup).toHaveBeenCalledWith('g0'));
+    expect(classSel.textContent).toBe('10 БАЗА');
+    expect(localStorage.getItem('journal.groupId')).toBe('g0');
+  });
+
+  it('открытый в прошлый раз прошлогодний класс открывается со своим годом', async () => {
+    apiMock.getTeachingGroups.mockResolvedValue([
+      { id: 'g1', name: '11 БАЗА', year: cur },
+      { id: 'g0', name: '10 БАЗА', year: prev },
+    ]);
+    localStorage.setItem('journal.groupId', 'g0');
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    const [yearSel, classSel] = container.querySelectorAll('.cj-toolbar .ant-select');
+    expect(yearSel.textContent).toBe(prev);
+    expect(classSel.textContent).toBe('10 БАЗА');
   });
 });
 

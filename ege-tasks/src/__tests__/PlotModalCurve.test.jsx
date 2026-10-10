@@ -153,6 +153,17 @@ describe('PlotModal — кривая по точкам', () => {
     expect(insert(onInsert)).toContain('tangent 1 f');
   });
 
+  it('разметка: касательная отрезком — поля «видно от / до»', () => {
+    const onInsert = open();
+    const el = overlay();
+    fireEvent.pointerDown(screen.getByTestId('curve-node-2'), at(1, -2));
+    fireEvent.pointerUp(el, at(1, -2));
+    fireEvent.click(screen.getByText('Касательная'));
+    fireEvent.change(screen.getByLabelText('касательная видна от'), { target: { value: '-1' } });
+    fireEvent.change(screen.getByLabelText('касательная видна до'), { target: { value: '3' } });
+    expect(insert(onInsert)).toContain('tangent 1 f from -1 to 3');
+  });
+
   it('разметка: цветной участок кривой от выбранной точки', () => {
     const onInsert = open();
     const el = overlay();

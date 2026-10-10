@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
   ABSENT, parseCellInput, decodeValue, editText, gradeFromPercent, normalizeThresholds,
   thresholdPoints, columnWeight, columnScale, dayOf, toStoredDate, shortDay, monthKey,
   monthLabel, localDay, yearWindow, collectOnline, onlineStatus, mergeColumns, resolveCell,
@@ -760,5 +761,30 @@ describe('вид клеток колонки', () => {
   it('mergeColumns переносит вид из БД', () => {
     const cols = mergeColumns([{ id: 'c1', title: 'К/р', scale: 'points', max_score: 20, view: 'grade', date: '2026-10-05' }]);
     expect(cols[0].view).toBe('grade');
+  });
+});
+
+describe('учебный год в выборе класса', () => {
+  const CUR = '2026/2027';
+  const groups = [
+    { id: 'a', name: '11 БАЗА', year: CUR },
+    { id: 'b', name: '10 кл', year: '2025/2026', archived: true },
+    { id: 'c', name: '10 кл', year: '2025/2026' },
+    { id: 'd', name: 'Кружок' }, // без года — класс текущего года
+  ];
+  it('годы — новые сверху, текущий есть даже без классов', () => {
+    expect(journalYears(groups, CUR)).toEqual([CUR, '2025/2026']);
+    expect(journalYears([], CUR)).toEqual([CUR]);
+    expect(journalGroupYear({ year: ' ' }, CUR)).toBe(CUR);
+  });
+  it('классы года; «Все годы» — все', () => {
+    expect(groupsOfYear(groups, CUR, CUR).map((g) => g.id)).toEqual(['a', 'd']);
+    expect(groupsOfYear(groups, '2025/2026', CUR).map((g) => g.id)).toEqual(['b', 'c']);
+    expect(groupsOfYear(groups, ALL_YEARS, CUR)).toHaveLength(4);
+  });
+  it('смена года: открытый класс остаётся, иначе первый действующий', () => {
+    expect(pickGroupForYear(groups, ALL_YEARS, CUR, 'b').id).toBe('b');
+    expect(pickGroupForYear(groups, '2025/2026', CUR, 'a').id).toBe('c');
+    expect(pickGroupForYear(groups, '2024/2025', CUR, 'a')).toBe(null);
   });
 });

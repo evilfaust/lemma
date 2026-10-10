@@ -133,6 +133,19 @@ describe('DSL: spline / deriv / prim', () => {
     expect(t.fn(4)).toBeCloseTo(0, 12);
   });
 
+  it('tangent без границ — прямая на всё окно, с from/to — отрезок', () => {
+    const base = 'spline f (-2 -2) (1 3) (3 1 slope -1) (5 -1) (7 3.5)';
+    // Касательная — прямая: в окне она не обрывается на концах кривой
+    // (так нарисованы уже сохранённые задачи и лист «Производная и график»).
+    const full = parseCoordPlot(`${base}\ntangent 3 f`).curves[1];
+    expect(full.from).toBeUndefined();
+    expect(full.to).toBeUndefined();
+    const part = parseCoordPlot(`${base}\ntangent 3 f from 2 to 4`).curves[1];
+    expect([part.from, part.to]).toEqual([2, 4]);
+    const edge = parseCoordPlot(`${base}\ntangent 3 f from 1`).curves[1];
+    expect([edge.from, edge.to]).toEqual([1, undefined]);
+  });
+
   it('ошибки: неизвестная кривая, битые точки, точка касания вне кривой', () => {
     const m = parseCoordPlot('deriv g\nspline h (1 2)\nspline f (0 0) (1 1)\ntangent 9 f');
     expect(m.errors).toContain('Не найдена кривая «g'.concat("'»"));

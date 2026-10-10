@@ -162,7 +162,7 @@ export function describeCurve(curve) {
 
 // Граница видимой части графика: пусто = «до конца кривой». Значения хранятся
 // строками ('' = не задано), поэтому число приходится разворачивать в обе стороны.
-function RangeEdge({ label, value, onChange }) {
+function RangeEdge({ label, value, onChange, aria = `видно ${label}` }) {
   return (
     <>
       <span style={muted}>{label}</span>
@@ -172,7 +172,7 @@ function RangeEdge({ label, value, onChange }) {
         step={0.5}
         {...numFormat}
         placeholder="—"
-        aria-label={`видно ${label}`}
+        aria-label={aria}
         value={value === '' || value == null ? null : Number(value)}
         onChange={(v) => onChange(v ?? '')}
       />
@@ -300,6 +300,14 @@ function AnnotationRow({
           <InputNumber {...numProps} value={item.x} onChange={(x) => patch({ x })} />
           <span style={muted}>к графику</span>
           <Select size="small" style={{ width: 64 }} value={item.ref} onChange={(ref) => patch({ ref })} options={refs} />
+          {item.type === 'tangent' && (
+            <Tooltip title="Касательная — прямая на всё окно. Чтобы нарисовать отрезок, задайте границы по x; можно одну">
+              <Space size={4}>
+                <RangeEdge label="видно от" aria="касательная видна от" value={item.from} onChange={(from) => patch({ from })} />
+                <RangeEdge label="до" aria="касательная видна до" value={item.to} onChange={(to) => patch({ to })} />
+              </Space>
+            </Tooltip>
+          )}
         </>
       )}
       <Select

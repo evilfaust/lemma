@@ -19,6 +19,7 @@ import {
   journalStudents, sheetColumnPreset, findRefColumn, geometryWorkColumnPreset,
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
+  ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
 } from '../../../utils/classJournal';
 import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
@@ -82,6 +83,9 @@ export default function ClassJournal() {
   const [groups, setGroups] = useState([]);
   const [groupsLoading, setGroupsLoading] = useState(true);
   const [groupId, setGroupId] = useState(null);
+  // Учебный год в выборе класса: по умолчанию текущий, прошлые — по выбору
+  // учителя. Открытый класс задаёт год сам (прошлогодний — свой год).
+  const [year, setYear] = useState(currentYear);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState(() => (['grade', 'percent'].includes(readLS(LS_MODE)) ? readLS(LS_MODE) : 'raw'));
@@ -139,6 +143,7 @@ export default function ClassJournal() {
           || sorted[0];
         if (asked) writeLS(LS_GROUP, asked.id);
         setGroupId(pick?.id || null);
+        setYear(pick ? journalGroupYear(pick, currentYear) : currentYear);
       } catch {
         message.error('Не удалось загрузить классы');
       } finally {
@@ -1056,10 +1061,28 @@ export default function ClassJournal() {
   };
 
   // ── Разметка ──────────────────────────────────────────────────────────────
-  const groupOptions = groups.map((g) => ({
+  const yearGroups = groupsOfYear(groups, year, currentYear);
+  const groupOptions = yearGroups.map((g) => ({
     value: g.id,
-    label: g.year && g.year !== currentYear ? `${g.name} · ${g.year}` : g.name,
+    label: year === ALL_YEARS && g.year && g.year !== currentYear ? `${g.name} · ${g.year}` : g.name,
   }));
+  const yearOptions = [
+    ...journalYears(groups, currentYear).map((y) => ({
+      value: y, label: y === currentYear ? `${y} (текущий)` : y,
+    })),
+    { value: ALL_YEARS, label: 'Все годы' },
+  ];
+  const selectGroup = (id) => {
+    setGroupId(id);
+    if (id) writeLS(LS_GROUP, id);
+    setPeriod('all');
+    setEntryKey(null);
+  };
+  const changeYear = (y) => {
+    setYear(y);
+    const next = pickGroupForYear(groups, y, currentYear, groupId);
+    if ((next?.id || null) !== groupId) selectGroup(next?.id || null);
+  };
   const categories = useMemo(
     () => [...new Set((data?.columns || []).map((c) => c.category).filter(Boolean))],
     [data?.columns],
@@ -1079,19 +1102,23 @@ export default function ClassJournal() {
   const toolbar = (
     <div className="cj-toolbar">
       <Select
+        style={{ minWidth: 150 }}
+        value={year}
+        onChange={changeYear}
+        options={yearOptions}
+        aria-label="Учебный год"
+        title="Учебный год: классы прошлых лет — по выбору"
+      />
+      <Select
         style={{ minWidth: 200 }}
         loading={groupsLoading}
         value={groupId}
-        placeholder="Класс"
+        placeholder={groupsLoading || yearGroups.length ? 'Класс' : 'Нет классов за этот год'}
         showSearch
         optionFilterProp="label"
         options={groupOptions}
-        onChange={(id) => {
-          setGroupId(id);
-          writeLS(LS_GROUP, id);
-          setPeriod('all');
-          setEntryKey(null);
-        }}
+        onChange={selectGroup}
+        aria-label="Класс"
       />
       <Select
         style={{ minWidth: 130 }}
@@ -1169,6 +1196,15 @@ export default function ClassJournal() {
         description="Журнал ведётся по классу — сначала создайте класс и добавьте учеников"
         cta="К классам"
         onCta={() => navigate('/app/groups')}
+      />
+    );
+  } else if (!groupId) {
+    body = (
+      <EmptyState
+        title="За этот учебный год классов нет"
+        description="Выберите другой год — журналы прошлых лет сохраняются"
+        cta="Показать все годы"
+        onCta={() => changeYear(ALL_YEARS)}
       />
     );
   } else if (!journalReady) {
