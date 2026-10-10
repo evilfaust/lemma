@@ -27,6 +27,8 @@ const DEFAULT_OPTIONS = {
   figureSize: 'm',          // общий размер чертежей: s | m | l | xl
   showFigures: true,
   figurePlacement: 'below', // below | right | left — чертёж сбоку, текст обтекает
+  italic: false,            // условия курсивом (формулы KaTeX не трогает)
+  solutionFrame: true,      // рамка зоны решения; false — чистое место
 };
 
 /* ── Страницы одного варианта ───────────────────────────────────────────────*/
@@ -67,7 +69,7 @@ function VariantPages({
     options.answerStyle, options.solutionSpace, options.solutionFill,
     options.tasksPerPage, options.hideTaskPrefixes, options.showTaskCode,
     options.showAnswersInline, options.fontScale, options.fontFamily, options.showFooter,
-    options.figureSize, options.showFigures, options.figurePlacement,
+    options.italic, options.figureSize, options.showFigures, options.figurePlacement,
     meta.instruction, meta.notes, meta.notesTitle, meta.title, meta.subtitle,
     meta.eyebrow, meta.classLabel, meta.dateLabel, meta.duration,
     meta.showStudentFields, meta.showClassField,
@@ -190,7 +192,11 @@ function VariantPages({
       {/* Фаза измерения — вне экрана. Шапка меряется шириной листа, задачи —
           шириной колонки, «голыми» (без зоны решения и без кнопок правки). */}
       <div className="ps-measure ps-measure--head" aria-hidden="true">
-        <div ref={headRef}>{header}</div>
+        {/* flow-root: нижний отступ шапки (4 мм до задач) иначе «проваливается»
+            за обёртку и в offsetHeight не попадает — первая страница
+            считалась на 4 мм длиннее настоящей, и в режиме «N на лист»
+            колонтитул уезжал на отдельный лист. */}
+        <div ref={headRef} style={{ display: 'flow-root' }}>{header}</div>
         {tail && <div ref={tailRef}>{tail}</div>}
       </div>
 
@@ -322,6 +328,8 @@ export default function PrintSheet({
   const rootClass = [
     'ps-root',
     opts.fontFamily === 'serif' ? 'ps-root--serif' : '',
+    opts.italic ? 'ps-root--italic' : '',
+    opts.solutionFrame === false ? 'ps-root--noframe' : '',
     opts.showFigures === false ? 'ps-root--nofig' : '',
     isHalfSheet(pageFormat) ? 'ps-root--half' : '',
   ].filter(Boolean).join(' ');

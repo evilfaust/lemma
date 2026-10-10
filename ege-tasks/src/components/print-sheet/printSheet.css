@@ -403,6 +403,7 @@
   line-height: 1.45;
   color: var(--ps-ink);
 }
+.ps-root--italic .ps-task-text { font-style: italic; }
 .ps-task-text p { margin: 0 0 1.4mm; }
 .ps-task-text p:last-child { margin-bottom: 0; }
 .ps-task-text ol,
@@ -620,6 +621,10 @@
   overflow: hidden;
   background: #fff;
 }
+/* Чистое место для решения (печать работы из редактора): рамка становится
+   прозрачной, а не исчезает — высота зоны та же, пагинация не сдвигается. */
+.ps-root--noframe .ps-solution { border-color: transparent; }
+.ps-root--noframe .ps-solution-label { display: none; }
 .ps-solution-label {
   position: absolute;
   top: 1mm;

@@ -10,7 +10,10 @@
 export const PAGE_W_MM = 210;
 export const PAGE_H_MM = 297;
 
-export const HEAD_MM   = 9;   // «живой» колонтитул (стр. 2+): 5mm + 4mm отступа
+// «Живой» колонтитул (стр. 2+): строка 9 мм + 4 мм отступа до задач — ровно как
+// `.ps-runhead` в printSheet.css. Было 9 «вместе с отступом»: страницы со 2-й
+// считались на 4 мм длиннее, и «N на лист» переполнял лист на ~1 мм.
+export const HEAD_MM   = 13;
 export const FOOT_MM   = 8;   // подвал на каждой странице
 const SAFETY_MM  = 3;         // запас на округления печати
 
@@ -216,25 +219,38 @@ export function paginateFixedCount(items, heights, perPage, firstCapPx, restCapP
   if (!items.length) return [];
   const n = Math.max(1, Math.floor(perPage));
   const pages = [];
+  const hOf = (it) => heights.get(it.__key) || 0;
 
-  for (let i = 0; i < items.length; i += n) {
-    const chunk = items.slice(i, i + n);
+  let i = 0;
+  while (i < items.length) {
     const cap = pages.length === 0 ? firstCapPx : restCapPx;
-    const isLast = i + n >= items.length;
+    // Условия, которым N на листе физически тесно (крупные чертежи), не
+    // растягивают лист за край: на этот лист идёт столько, сколько влезает
+    // без места для решения (но хотя бы одно), остальное — на следующий.
+    let k = Math.min(n, items.length - i);
+    const bare = (cnt) => items.slice(i, i + cnt).reduce((s, it) => s + hOf(it), 0)
+      + gapPx * (cnt - 1)
+      + (i + cnt >= items.length && tailPx ? tailPx + gapPx : 0);
+    while (k > 1 && bare(k) > cap) k -= 1;
+    const chunk = items.slice(i, i + k);
+    const isLast = i + k >= items.length;
     // Считаем страницу по n слотам, даже если задач на ней меньше: иначе две
     // задачи на хвосте растянулись бы на пол-листа каждая, и блоки на разных
-    // листах вышли бы разного размера.
-    const used = chunk.reduce((sum, it) => sum + (heights.get(it.__key) || 0), 0)
-      + gapPx * (n - 1)
+    // листах вышли бы разного размера. Урезанный лист (k < n не в хвосте)
+    // делит остаток на свои k задач.
+    const slots = k < n && !isLast ? k : n;
+    const used = chunk.reduce((sum, it) => sum + hOf(it), 0)
+      + gapPx * (slots - 1)
       + (isLast && tailPx ? tailPx + gapPx : 0);   // хвост (шифровка) на последнем листе
-    const leftMm = (cap - used) / MM - SOLUTION_GAP_MM * n;
-    const perTask = leftMm / n;
+    const leftMm = (cap - used) / MM - SOLUTION_GAP_MM * slots;
+    const perTask = leftMm / slots;
     pages.push({
       items: chunk,
       // Округление вниз до 0.1 мм (+эпсилон против 82.39999) — зона решения
       // не должна оказаться выше остатка страницы.
       solutionMm: perTask >= MIN_SOLUTION_MM ? Math.floor(perTask * 10 + 1e-6) / 10 : 0,
     });
+    i += k;
   }
   return pages;
 }

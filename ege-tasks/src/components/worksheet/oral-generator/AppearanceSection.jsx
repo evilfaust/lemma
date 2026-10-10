@@ -97,6 +97,12 @@ export default function AppearanceSection({
   setFontScale,
   fontFamily,
   setFontFamily,
+  // Необязательные: курсив условий и рамка места для решения — их передаёт
+  // только печать работы из редактора (там они были и раньше).
+  italic,
+  setItalic,
+  solutionFrame,
+  setSolutionFrame,
   showFooter,
   setShowFooter,
   showTaskCode,
@@ -168,6 +174,16 @@ export default function AppearanceSection({
         <Field label="Шрифт">
           <Segmented size="small" value={fontFamily} onChange={setFontFamily} options={FONT_FAMILY_OPTIONS} />
         </Field>
+        {setItalic && (
+          <Field label="Начертание">
+            <Segmented
+              size="small"
+              value={italic ? 'italic' : 'normal'}
+              onChange={(v) => setItalic(v === 'italic')}
+              options={[{ value: 'normal', label: 'Прямое' }, { value: 'italic', label: 'Курсив' }]}
+            />
+          </Field>
+        )}
         <SwitchField
           label="Номер варианта"
           hint="Надпись «Вариант N» в шапке, колонтитуле и ключе. Сама включается, когда вариантов несколько."
@@ -218,6 +234,14 @@ export default function AppearanceSection({
           <Field label="Разлиновка">
             <Segmented size="small" value={solutionFill} onChange={setSolutionFill} options={SOLUTION_FILL_OPTIONS} />
           </Field>
+        )}
+        {solutionSpace !== 'none' && setSolutionFrame && (
+          <SwitchField
+            label="Рамка решения"
+            hint="Рамка и подпись «Решение» вокруг места для решения. Без неё — просто чистое место под задачей."
+            checked={solutionFrame !== false}
+            onChange={setSolutionFrame}
+          />
         )}
       </Space>
 

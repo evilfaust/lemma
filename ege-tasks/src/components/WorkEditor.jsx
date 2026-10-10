@@ -338,6 +338,66 @@ const WorkEditor = ({
     );
   }
 
+  // Окна правки и замены задачи — общие для редактора и печатного листа
+  // (с листа задачу тоже можно поправить или заменить).
+  const taskModals = (
+    <>
+        <TaskReplaceModal
+          visible={taskEditing.replaceModalVisible}
+          taskToReplace={taskEditing.taskToReplace}
+          onConfirm={taskEditing.handleConfirmReplace}
+          onCancel={taskEditing.handleCancelReplace}
+          topics={topics}
+          subtopics={subtopics}
+          tags={tags}
+          currentVariantTasks={
+            taskEditing.taskToReplace
+              ? variants[taskEditing.taskToReplace.variantIndex]?.tasks || []
+              : []
+          }
+        />
+
+        <TaskEditModal
+          visible={taskEditing.editModalVisible}
+          task={taskEditing.taskToEdit}
+          onClose={taskEditing.handleCancelEdit}
+          onSave={taskEditing.handleSaveEdit}
+          onDelete={taskEditing.handleDeleteEdit}
+          allTags={tags}
+          allSources={sources}
+          allYears={years}
+          allSubtopics={subtopics}
+          allTopics={topics}
+        />
+    </>
+  );
+
+  // Печать — лист Генератора (print-sheet) отдельной страницей: печатный канон
+  // движка (лист position:absolute, сброс предков) не уживается с оверлеем
+  // поверх редактора, а окна правки задачи с оверлеем спорили за z-index.
+  if (printOpen) {
+    return (
+      <>
+        <WorkPrintPreview
+          work={work}
+          variants={variants}
+          onClose={() => setPrintOpen(false)}
+          onOpenWorksheet={() => {
+            setPrintOpen(false);
+            setWorksheetPrintOpen(true);
+          }}
+          onEditTask={taskEditing.handleEditTask}
+          onReplaceTask={taskEditing.handleReplaceTask}
+          onSetTaskOption={(vi, ti, key, value) => setVariants((prev) => prev.map((v, i) => (i !== vi ? v : {
+            ...v,
+            tasks: v.tasks.map((t, j) => (j !== ti ? t : { ...t, [key]: value })),
+          })))}
+        />
+        {taskModals}
+      </>
+    );
+  }
+
   // Режим печати рабочего листа в клетку — отдельная страница (паттерн как в
   // Генераторе): контент редактора убран из дерева, иначе он ломает абсолютное
   // позиционирование .wgp-root при печати → пустые листы.
@@ -704,33 +764,7 @@ const WorkEditor = ({
         ]}
       />
 
-      <TaskReplaceModal
-        visible={taskEditing.replaceModalVisible}
-        taskToReplace={taskEditing.taskToReplace}
-        onConfirm={taskEditing.handleConfirmReplace}
-        onCancel={taskEditing.handleCancelReplace}
-        topics={topics}
-        subtopics={subtopics}
-        tags={tags}
-        currentVariantTasks={
-          taskEditing.taskToReplace
-            ? variants[taskEditing.taskToReplace.variantIndex]?.tasks || []
-            : []
-        }
-      />
-
-      <TaskEditModal
-        visible={taskEditing.editModalVisible}
-        task={taskEditing.taskToEdit}
-        onClose={taskEditing.handleCancelEdit}
-        onSave={taskEditing.handleSaveEdit}
-        onDelete={taskEditing.handleDeleteEdit}
-        allTags={tags}
-        allSources={sources}
-        allYears={years}
-        allSubtopics={subtopics}
-        allTopics={topics}
-      />
+      {taskModals}
 
       <TaskSelectModal
         visible={addModalVisible}
@@ -744,18 +778,6 @@ const WorkEditor = ({
         tags={tags}
         excludeIds={(activeVariant?.tasks || []).map(t => t.id)}
       />
-
-      {printOpen && (
-        <WorkPrintPreview
-          work={work}
-          variants={variants}
-          onClose={() => setPrintOpen(false)}
-          onOpenWorksheet={() => {
-            setPrintOpen(false);
-            setWorksheetPrintOpen(true);
-          }}
-        />
-      )}
 
       <SendToMarathonModal
         open={marathonOpen}

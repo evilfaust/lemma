@@ -5,6 +5,7 @@ import { ArrowLeftOutlined } from '@ant-design/icons';
 import WorkEditor from './WorkEditor';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import { variantOrder, withOrderExtras } from '../utils/variantOrder';
 
 /**
  * Страница редактора работы: грузит работу по workId и рендерит WorkEditor
@@ -76,8 +77,10 @@ const WorkEditorPage = ({ initialWorkId = null }) => {
         }
 
         if (Array.isArray(variant.order) && variant.order.length > 0) {
-          const positionById = new Map(variant.order.map(o => [o.taskId, o.position]));
-          tasks.sort((a, b) => (positionById.get(a.id) ?? 999) - (positionById.get(b.id) ?? 999));
+          const entryById = new Map(variant.order.map(o => [o.taskId, o]));
+          tasks = tasks
+            .map(t => withOrderExtras(t, entryById.get(t.id)))
+            .sort((a, b) => (entryById.get(a.id)?.position ?? 999) - (entryById.get(b.id)?.position ?? 999));
         }
 
         return {
@@ -135,7 +138,7 @@ const WorkEditorPage = ({ initialWorkId = null }) => {
             work: currentWork.id,
             number: variant.number,
             tasks: variant.tasks.map(t => t.id),
-            order: variant.tasks.map((t, idx) => ({ taskId: t.id, position: idx })),
+            order: variantOrder(variant.tasks),
           };
           const existing = existingByNumber.get(variant.number);
           return existing
@@ -170,7 +173,7 @@ const WorkEditorPage = ({ initialWorkId = null }) => {
         work: newWork.id,
         number: variant.number,
         tasks: variant.tasks.map(t => t.id),
-        order: variant.tasks.map((t, idx) => ({ taskId: t.id, position: idx })),
+        order: variantOrder(variant.tasks),
       })));
 
       message.success('Работа сохранена как новая');

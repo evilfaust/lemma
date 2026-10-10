@@ -11,7 +11,7 @@ import {
   paginateFixedCount, paginateIntoColumns, MM, SOLUTION_GAP_MM, SOLUTION_SPACE_MM,
   TASK_GAP_PX, MARGIN_PRESETS, HALF_MARGIN_PRESETS, columnWidthMm, bodyWidthMm,
   bodyFirstMm, bodyRestMm, isHalfSheet, marginsOf, minFirstCapMm, pageClassName,
-  pageHeightMm, pagesPerSheet, PAGE_H_MM,
+  pageHeightMm, pagesPerSheet, PAGE_H_MM, HEAD_MM,
 } from '../components/print-sheet/geometry';
 
 const wrapper = ({ children }) => <App>{children}</App>;
@@ -69,6 +69,28 @@ describe('paginateFixedCount — режим «N заданий на лист»',
       [{ __key: 'k1' }, { __key: 'k2' }], zero, 1, capPx, capPx, TASK_GAP_PX, 50 * MM
     );
     expect(pages[1].solutionMm).toBeLessThan(pages[0].solutionMm);
+  });
+
+  it('N задач, которым тесно на листе, не растягивают лист — лишняя уходит дальше', () => {
+    const big = [1, 2, 3, 4, 5].map((k) => ({ __key: `b${k}` }));
+    const heights = new Map(big.map((it) => [it.__key, 70 * MM]));
+    // На 250 мм помещаются 3 задачи по 70 мм (с зазорами), но не 4.
+    const pages = paginateFixedCount(big, heights, 4, 250 * MM, 250 * MM, 4 * MM);
+    expect(pages.map((p) => p.items.length)).toEqual([3, 2]);
+    // Урезанный лист делит остаток на свои 3 задачи, а не на 4 слота.
+    const left = 250 - 3 * 70 - 2 * 4 - 3 * SOLUTION_GAP_MM;
+    expect(pages[0].solutionMm).toBeCloseTo(Math.floor((left / 3) * 10) / 10, 1);
+    // Одна задача выше листа всё равно встаёт — пусть и без места для решения.
+    const [only] = paginateFixedCount([{ __key: 'x' }], new Map([['x', 400 * MM]]), 3, 250 * MM, 250 * MM);
+    expect(only.items).toHaveLength(1);
+    expect(only.solutionMm).toBe(0);
+  });
+
+  it('колонтитул стр. 2+ в расчёте — строка 9 мм + отступ 4 мм, как в CSS', () => {
+    const css = readFileSync(resolve(__dirname, '../components/print-sheet/printSheet.css'), 'utf8');
+    const rule = css.match(/\.ps-runhead \{([^}]*)\}/)[1];
+    const mm = (prop) => Number(rule.match(new RegExp(`${prop}:\\s*([\\d.]+)mm`))[1]);
+    expect(HEAD_MM).toBeCloseTo(mm('height') + mm('margin-bottom'), 6);
   });
 });
 
@@ -569,7 +591,7 @@ describe('Формат «2 варианта на листе A4» — геоме�
     // подвал отключён — задачам достаётся ещё 8 мм, как и на целом листе
     expect(bodyFirstMm(false, 'narrow', 'half') - bodyFirstMm(true, 'narrow', 'half')).toBe(8);
     expect(bodyRestMm(true, 'narrow', 'half'))
-      .toBe(bodyFirstMm(true, 'narrow', 'half') - 9);
+      .toBe(bodyFirstMm(true, 'narrow', 'half') - HEAD_MM);
   });
 
   it('ширина листа от формата не зависит — половина режется поперёк', () => {

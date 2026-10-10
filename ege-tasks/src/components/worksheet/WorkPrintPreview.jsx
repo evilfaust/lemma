@@ -1,410 +1,306 @@
-import { useMemo, useRef, useState } from 'react';
-import { Button, Card, Input, Segmented, Select, Space, Switch, Tooltip, Typography } from 'antd';
-import { ArrowLeftOutlined, PrinterOutlined, FilePdfOutlined, TableOutlined } from '@ant-design/icons';
-import MathRenderer from '../MathRenderer';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Space, Tooltip, Typography } from 'antd';
+import { ArrowLeftOutlined, PrinterOutlined, TableOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
-import { filterTaskText } from '../../utils/filterTaskText';
-import { useWorksheetActions } from '../../hooks';
-import './WorkPrintPreview.css';
+import { printPaged } from '../../utils/printPage';
+import { rewriteImageUrls } from '../TaskStatementRenderer';
+import PrintSheet from '../print-sheet/PrintSheet';
+import AppearanceSection from './oral-generator/AppearanceSection';
 
 const { Text } = Typography;
 
-// Размер текста условия S/M/L (mm).
-const TEXT_SIZE_CFG = {
-  s: { statement: '3.2mm', badge: '3.2mm' },
-  m: { statement: '3.8mm', badge: '3.8mm' },
-  l: { statement: '4.5mm', badge: '4.5mm' },
+// Оформление учитель выбирает один раз — живёт в браузере. Тексты шапки
+// (заголовок, подзаголовок, класс) — свои у каждой работы и сюда не пишутся.
+const LS_KEY = 'workPrint.v2';
+const PER_WORK_META = ['title', 'subtitle', 'classLabel'];
+
+// Умолчания хранят лицо прежнего режима печати работы: компактная шапка с
+// ФИО и датой, «N задач на лист» (остаток высоты листа делится между задачами
+// под решение), чистое место без рамки и клетки, без строки «Ответ», ключ
+// ответов учителю последней страницей.
+export const WORK_PRINT_DEFAULTS = {
+  headerMode: 'compact',
+  columns: 1,
+  margins: 'narrow',
+  pageFormat: 'a4',
+  figureSize: 'm',
+  showFigures: true,
+  figurePlacement: 'below',
+  fontScale: 1,
+  fontFamily: 'sans',
+  italic: false,
+  answerStyle: 'none',
+  solutionSpace: 'fit',
+  solutionFill: 'blank',
+  solutionFrame: false,
+  tasksPerPage: 4,
+  showFooter: true,
+  showTaskCode: false,
+  hideTaskPrefixes: false,
+  showStudentInfo: true,
+  showAnswersInline: false,
+  showAnswersPage: true,
+  variantLabel: 'Вариант',
+  showVariantLabel: null, // null — авто: «Вариант N» при нескольких вариантах
+  meta: {
+    eyebrow: '',
+    duration: null,
+    dateLabel: '',
+    instruction: '',
+    notesTitle: 'Дополнительная информация',
+    notes: '',
+    footerNote: '',
+    showClassField: true,
+    showTasksCount: true,
+  },
 };
 
-// Размер чертежа: ширина — % от блока, высота — доля от высоты блока задачи.
-const DRAWING_SIZE_CFG = {
-  s:  { w: '26%', hRatio: 0.30 },
-  m:  { w: '42%', hRatio: 0.50 },
-  l:  { w: '56%', hRatio: 0.72 },
-  xl: { w: '70%', hRatio: 0.95 },
-};
-
-// Кол-во задач на лист — 1..12, A4 portrait.
-const LAYOUT_OPTIONS = Array.from({ length: 12 }, (_, i) => ({
-  value: i + 1,
-  label: `${i + 1} / лист`,
-}));
-
-// Высота рабочей зоны A4 ≈ для оценки высоты чертежа.
-const A4_CONTENT_MM = 265;
-
-function calcDrawingMaxHeight(tasksOnSheet, drawingSize) {
-  const cfg = DRAWING_SIZE_CFG[drawingSize] ?? DRAWING_SIZE_CFG.m;
-  const perTask = A4_CONTENT_MM / Math.max(tasksOnSheet, 1);
-  const h = Math.max(8, Math.round(perTask * cfg.hRatio));
-  return `${h}mm`;
+function loadSettings() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (!raw || typeof raw !== 'object') return WORK_PRINT_DEFAULTS;
+    return {
+      ...WORK_PRINT_DEFAULTS, ...raw, meta: { ...WORK_PRINT_DEFAULTS.meta, ...(raw.meta || {}) },
+    };
+  } catch {
+    return WORK_PRINT_DEFAULTS;
+  }
 }
 
-// ── Одна задача ───────────────────────────────────────────────────────────────
-
-function WorkTask({ task, number, showDrawing, drawingSize, textSize, boxed, italic, sheetTasksCount, hideTaskPrefixes }) {
-  const imageUrl = task.has_image ? api.getTaskImageUrl(task) : '';
-  const dcfg = DRAWING_SIZE_CFG[drawingSize] ?? DRAWING_SIZE_CFG.m;
-  const maxH = calcDrawingMaxHeight(sheetTasksCount, drawingSize);
-  const tcfg = TEXT_SIZE_CFG[textSize] ?? TEXT_SIZE_CFG.m;
-
-  const raw = task.statement_md || '';
-  const text = hideTaskPrefixes ? filterTaskText(raw) : raw;
-
-  return (
-    <div className="wcp-task">
-      <div className="wcp-task-header">
-        <span className="wcp-task-badge" style={{ fontSize: tcfg.badge }}>№{number}</span>
-        <div
-          className="wcp-task-statement"
-          style={{ fontSize: tcfg.statement, fontStyle: italic ? 'italic' : 'normal' }}
-        >
-          {text ? (
-            <MathRenderer text={text} />
-          ) : (
-            <Text type="secondary" style={{ fontSize: tcfg.statement }}>Условие не задано</Text>
-          )}
-        </div>
-      </div>
-
-      <div className={`wcp-task-body${boxed ? ' wcp-task-body--boxed' : ''}`}>
-        {showDrawing && imageUrl && (
-          <div className="wcp-task-drawing" style={{ maxWidth: dcfg.w, maxHeight: maxH }}>
-            <img src={imageUrl} alt={`Чертёж ${task.code || ''}`} style={{ maxHeight: maxH }} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
+function saveSettings(cfg) {
+  try {
+    const meta = { ...cfg.meta };
+    PER_WORK_META.forEach((k) => delete meta[k]);
+    localStorage.setItem(LS_KEY, JSON.stringify({ ...cfg, meta }));
+  } catch { /* приватное окно — оформление просто не запомнится */ }
 }
 
-// ── Один лист ─────────────────────────────────────────────────────────────────
+// Картинка «Решу» вшита в условие внешней ссылкой, а sdamgia за DDoS-guard
+// браузеру её не отдаёт — подменяем на свои файлы task_images (как в составе
+// работы). Запрашиваем только для задач, где такая ссылка есть.
+const EXTERNAL_IMAGE = /!\[[^\]]*\]\(\s*https?:/i;
 
-function WorkSheet({
-  sheetTasks,
-  startNumber,
-  title,
-  variantHeading,
-  showFields,
-  showDrawing,
-  drawingSize,
-  textSize,
-  boxed,
-  italic,
-  isFirstSheet,
-  tasksPerSheet,
-  hideTaskPrefixes,
-}) {
-  const sheetClass = ['wcp-sheet', tasksPerSheet >= 4 ? 'wcp-sheet--compact' : ''].filter(Boolean).join(' ');
+function useLocalStatementImages(variants) {
+  const ids = useMemo(() => {
+    const set = new Set();
+    variants.forEach((v) => (v.tasks || []).forEach((t) => {
+      if (t?.id && EXTERNAL_IMAGE.test(t.statement_md || '')) set.add(t.id);
+    }));
+    return [...set].sort();
+  }, [variants]);
+  const key = ids.join(',');
+  const [byTask, setByTask] = useState(() => new Map());
 
-  return (
-    <div className={sheetClass}>
-      {isFirstSheet ? (
-        <div className="wcp-sheet-header">
-          <span className="wcp-sheet-title">{title}</span>
-          {variantHeading && <span className="wcp-sheet-variant">{variantHeading}</span>}
-        </div>
-      ) : (
-        (title || variantHeading) && (
-          <div className="wcp-sheet-header wcp-sheet-header--compact">
-            <span className="wcp-sheet-title">{title}</span>
-            {variantHeading && <span className="wcp-sheet-variant">{variantHeading}</span>}
-          </div>
-        )
-      )}
+  useEffect(() => {
+    if (!ids.length) return undefined;
+    let alive = true;
+    api.getShownTaskImages(ids).then((list) => {
+      if (!alive) return;
+      const map = new Map();
+      list.forEach((r) => map.set(r.task, [...(map.get(r.task) || []), r]));
+      setByTask(map);
+    }).catch(() => {});
+    return () => { alive = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
 
-      {isFirstSheet && showFields && (
-        <div className="wcp-fields">
-          {['Фамилия Имя', 'Дата'].map((label) => (
-            <div key={label} className="wcp-field">
-              <span className="wcp-field-label">{label}</span>
-              <div className="wcp-field-line" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      {sheetTasks.map((task, i) => (
-        <div key={task.id || `${startNumber}-${i}`} className="wcp-task-wrap">
-          {i > 0 && <div className="wcp-divider" />}
-          <WorkTask
-            task={task}
-            number={startNumber + i}
-            showDrawing={showDrawing}
-            drawingSize={drawingSize}
-            textSize={textSize}
-            boxed={boxed}
-            italic={italic}
-            sheetTasksCount={sheetTasks.length}
-            hideTaskPrefixes={hideTaskPrefixes}
-          />
-        </div>
-      ))}
-    </div>
-  );
+  return byTask;
 }
-
-// ── Лист ответов учителя ──────────────────────────────────────────────────────
-
-function TeacherKeyPage({ variants, title, showVariantHeading }) {
-  return (
-    <div className="wcp-key-page">
-      <div className="wcp-key-title">Ответы (для учителя){title ? ` — ${title}` : ''}</div>
-      {variants.map((variant, vi) => (
-        <div key={variant.number || vi} className="wcp-key-variant-block">
-          {showVariantHeading && variants.length > 1 && (
-            <div className="wcp-key-variant">Вариант {variant.number || vi + 1}</div>
-          )}
-          <ol className="wcp-key-list">
-            {(variant.tasks || []).map((task, i) => (
-              <li key={task.id || i} className="wcp-key-item">
-                <span className="wcp-key-num">{i + 1}.</span>
-                <span className="wcp-key-answer">
-                  {task.answer ? <MathRenderer text={task.answer} /> : <span className="wcp-key-no-answer">—</span>}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── Основной компонент ────────────────────────────────────────────────────────
 
 /**
- * Полноэкранный предпросмотр печати сохранённой работы (из WorkEditor).
- * Стилистика — как у «Рабочего листа» (чистые A4-листы, засечка серифом),
- * но без клетки: компоновка по числу задач на листе, поле для решения,
- * тумблер слова «Вариант», всё чёрным (без синего — лучше при печати).
+ * Печать сохранённой работы из редактора — лист Генератора (движок
+ * print-sheet) с той же панелью «Оформление»: пагинация по реальной высоте,
+ * чертежи ```planim / ```stereo строятся под место на бумаге, ```plot,
+ * ```numline, ```chart, поле в клетку, галереи — как в Генераторе.
  *
- * Scoped print: body:has(.wpv-overlay) — печатается только .wpv-print-root.
+ * Своё у этого режима: «N задач на лист» с чистым местом для решения по
+ * умолчанию, рамка решения и курсив — по выбору, переход в «Рабочий лист»
+ * (клетка), правка и замена задачи прямо с листа. Размер и место чертежа,
+ * выбранные на листе у отдельной задачи, уходят в работу (`variants.order`)
+ * и сохраняются вместе с ней.
  *
- * @param {object} work - работа (нужен title)
- * @param {Array} variants - [{ number, tasks }]
- * @param {function} onClose
- * @param {function} [onOpenWorksheet] - переход в режим «Рабочий лист» (клетка)
+ * @param {object} work — работа (нужен title)
+ * @param {Array} variants — [{ number, tasks }]
+ * @param {Function} onClose
+ * @param {Function} [onOpenWorksheet] — «Рабочий лист» в клетку
+ * @param {Function} [onEditTask] — (task) => void
+ * @param {Function} [onReplaceTask] — (variantIndex, taskIndex, task) => void
+ * @param {Function} [onSetTaskOption] — (variantIndex, taskIndex, key, value) => void
  */
-export default function WorkPrintPreview({ work, variants = [], onClose, onOpenWorksheet }) {
-  const printRef = useRef(null);
-  const { handleExportPDF, exporting } = useWorksheetActions();
+export default function WorkPrintPreview({
+  work, variants = [], onClose, onOpenWorksheet, onEditTask, onReplaceTask, onSetTaskOption,
+}) {
+  const workTitle = work?.title || 'Контрольная работа';
+  const [cfg, setCfg] = useState(() => {
+    const saved = loadSettings();
+    return { ...saved, meta: { ...saved.meta, title: workTitle, subtitle: '', classLabel: '' } };
+  });
 
-  const title = work?.title || 'Контрольная работа';
+  const patch = (p) => setCfg((prev) => {
+    const next = { ...prev, ...(typeof p === 'function' ? p(prev) : p) };
+    saveSettings(next);
+    return next;
+  });
+  const setter = (key) => (value) => patch({ [key]: value });
+  const patchMeta = (p) => patch((prev) => ({ meta: { ...prev.meta, ...p } }));
 
-  const [topicTitle, setTopicTitle] = useState(title);
-  const [tasksPerSheet, setTasksPerSheet] = useState(4);
-  const [textSize, setTextSize] = useState('m');
-  const [italicText, setItalicText] = useState(false);
-  const [showVariantLabel, setShowVariantLabel] = useState(true);
-  const [showFields, setShowFields] = useState(true);
-  const [showDrawing, setShowDrawing] = useState(true);
-  const [drawingSize, setDrawingSize] = useState('m');
-  const [boxedSolveArea, setBoxedSolveArea] = useState(false);
-  const [showTeacherKey, setShowTeacherKey] = useState(true);
-  const [hideTaskPrefixes, setHideTaskPrefixes] = useState(false);
+  // Те же связки, что в Генераторе: «N на лист» живёт только в одной колонке,
+  // а половина листа — только с компактной шапкой.
+  const setColumns = (value) => patch({
+    columns: value,
+    ...(value > 1 && cfg.solutionSpace === 'fit' ? { solutionSpace: 'none' } : {}),
+  });
+  const setPageFormat = (value) => patch({
+    pageFormat: value,
+    ...(value === 'half' && cfg.headerMode === 'full' ? { headerMode: 'compact' } : {}),
+  });
 
-  // Разбиваем каждый вариант на листы по tasksPerSheet задач.
-  const sheets = useMemo(() => {
-    const result = [];
-    variants.forEach((variant, vi) => {
-      const tasks = variant.tasks || [];
-      const variantHeading = showVariantLabel ? `Вариант ${variant.number || vi + 1}` : '';
-      for (let i = 0; i < tasks.length; i += tasksPerSheet) {
-        result.push({
-          key: `${vi}-${i}`,
-          sheetTasks: tasks.slice(i, i + tasksPerSheet),
-          startNumber: i + 1,
-          variantHeading,
-          isFirstSheet: i === 0,
-        });
-      }
-    });
-    return result;
-  }, [variants, tasksPerSheet, showVariantLabel]);
+  const imagesByTask = useLocalStatementImages(variants);
+  const sheetVariants = useMemo(() => variants.map((v, vi) => ({
+    number: v.number || vi + 1,
+    tasks: (v.tasks || []).map((t) => {
+      const images = imagesByTask.get(t.id);
+      return images ? { ...t, statement_md: rewriteImageUrls(t.statement_md, images) } : t;
+    }),
+  })), [variants, imagesByTask]);
 
-  const handlePrint = () => {
-    const style = document.createElement('style');
-    style.id = 'wcp-page-style';
-    style.textContent = '@page { size: A4 portrait; margin: 0; }';
-    document.head.appendChild(style);
-    window.print();
-    setTimeout(() => style.remove(), 1500);
-  };
-
-  const totalTasks = variants.reduce((sum, v) => sum + (v.tasks?.length || 0), 0);
+  const tasksCount = Math.max(0, ...variants.map((v) => v.tasks?.length || 0));
+  const empty = !variants.some((v) => v.tasks?.length);
 
   return (
-    <div className="wpv-overlay">
-      <Card
-        size="small"
-        className="wpv-toolbar no-print"
-        styles={{ body: { padding: '10px 14px' } }}
-      >
-        <Space wrap align="center" style={{ width: '100%' }}>
-          <Button icon={<ArrowLeftOutlined />} onClick={onClose}>
-            Назад к редактору
-          </Button>
-
-          {onOpenWorksheet && (
-            <Tooltip title="Печать рабочего листа в клетку — поля для решения от руки">
-              <Button icon={<TableOutlined />} onClick={onOpenWorksheet}>
-                Рабочий лист
-              </Button>
-            </Tooltip>
-          )}
-
-          <Space size={6}>
-            <Text style={{ fontSize: 13 }}>Заголовок:</Text>
-            <Input
-              value={topicTitle}
-              onChange={(e) => setTopicTitle(e.target.value)}
-              placeholder="Название работы"
-              style={{ width: 200 }}
-              size="small"
-            />
+    <div className="work-print">
+      <div className="no-print">
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 12 }}>
+          <Space wrap>
+            <Button icon={<ArrowLeftOutlined />} onClick={onClose}>Назад к редактору</Button>
+            {onOpenWorksheet && (
+              <Tooltip title="Печать рабочего листа в клетку — поля для решения от руки">
+                <Button icon={<TableOutlined />} onClick={onOpenWorksheet}>Рабочий лист</Button>
+              </Tooltip>
+            )}
+            <Text type="secondary">
+              {variants.length > 1 ? `Вариантов: ${variants.length} · ` : ''}задач в варианте: {tasksCount}
+            </Text>
           </Space>
-
-          <Space size={6}>
-            <Text style={{ fontSize: 13 }}>Задач на листе:</Text>
-            <Select
-              size="small"
-              value={tasksPerSheet}
-              onChange={setTasksPerSheet}
-              options={LAYOUT_OPTIONS}
-              style={{ width: 100 }}
-            />
-          </Space>
-
-          <Space size={6}>
-            <Text style={{ fontSize: 13 }}>Текст:</Text>
-            <Segmented
-              size="small"
-              value={textSize}
-              onChange={setTextSize}
-              options={[
-                { label: 'S', value: 's' },
-                { label: 'M', value: 'm' },
-                { label: 'L', value: 'l' },
-              ]}
-            />
-          </Space>
-
-          <Space size={6}>
-            <Text style={{ fontSize: 13 }}>Начертание:</Text>
-            <Segmented
-              size="small"
-              value={italicText ? 'italic' : 'normal'}
-              onChange={(v) => setItalicText(v === 'italic')}
-              options={[
-                { label: 'Прямой', value: 'normal' },
-                { label: 'Курсив', value: 'italic' },
-              ]}
-            />
-          </Space>
-
-          <Space size={6}>
-            <Switch size="small" checked={showVariantLabel} onChange={setShowVariantLabel} />
-            <Text style={{ fontSize: 13 }}>Слово «Вариант»</Text>
-          </Space>
-
-          <Space size={6}>
-            <Switch size="small" checked={showFields} onChange={setShowFields} />
-            <Text style={{ fontSize: 13 }}>ФИО / Дата</Text>
-          </Space>
-
-          <Space size={6}>
-            <Switch size="small" checked={showDrawing} onChange={setShowDrawing} />
-            <Text style={{ fontSize: 13 }}>Чертежи</Text>
-          </Space>
-          {showDrawing && (
-            <Space size={6}>
-              <Text style={{ fontSize: 13 }}>Размер:</Text>
-              <Segmented
-                size="small"
-                value={drawingSize}
-                onChange={setDrawingSize}
-                options={[
-                  { label: 'S', value: 's' },
-                  { label: 'M', value: 'm' },
-                  { label: 'L', value: 'l' },
-                  { label: 'XL', value: 'xl' },
-                ]}
-              />
-            </Space>
-          )}
-
-          <Tooltip title="Рамка вокруг места для решения">
-            <Space size={6}>
-              <Switch size="small" checked={boxedSolveArea} onChange={setBoxedSolveArea} />
-              <Text style={{ fontSize: 13 }}>Рамка решения</Text>
-            </Space>
-          </Tooltip>
-
-          <Space size={6}>
-            <Switch size="small" checked={showTeacherKey} onChange={setShowTeacherKey} />
-            <Text style={{ fontSize: 13 }}>Ответы (учитель)</Text>
-          </Space>
-
-          <Tooltip title="Скрывать типовые фразы («Вычислите», «Найдите»…)">
-            <Space size={6}>
-              <Switch size="small" checked={hideTaskPrefixes} onChange={setHideTaskPrefixes} />
-              <Text style={{ fontSize: 13 }}>Без префиксов</Text>
-            </Space>
-          </Tooltip>
-
-          <Space style={{ marginLeft: 'auto' }}>
-            <Button type="primary" icon={<PrinterOutlined />} onClick={handlePrint}>
+          <Space wrap>
+            <Text type="secondary" style={{ fontSize: 12 }}>PDF — через «Печать» → «Сохранить как PDF»</Text>
+            <Button
+              type="primary"
+              icon={<PrinterOutlined />}
+              disabled={empty}
+              // Поля задаёт сам лист (padding .ps-page), поэтому @page нулевой.
+              onClick={() => printPaged({ size: 'A4 portrait', margin: '0' })}
+            >
               Печать
             </Button>
-            <Button
-              icon={<FilePdfOutlined />}
-              loading={exporting}
-              onClick={() => handleExportPDF(printRef, topicTitle || title)}
-            >
-              PDF
-            </Button>
           </Space>
-        </Space>
-      </Card>
-
-      <div className="wpv-stage">
-        <div ref={printRef} className="wpv-print-root">
-          {totalTasks === 0 ? (
-            <div className="wcp-sheet">
-              <Text type="secondary">В работе нет задач для печати.</Text>
-            </div>
-          ) : (
-            <>
-              {sheets.map((sheet) => (
-                <WorkSheet
-                  key={sheet.key}
-                  sheetTasks={sheet.sheetTasks}
-                  startNumber={sheet.startNumber}
-                  title={topicTitle}
-                  variantHeading={sheet.variantHeading}
-                  showFields={showFields}
-                  showDrawing={showDrawing}
-                  drawingSize={drawingSize}
-                  textSize={textSize}
-                  boxed={boxedSolveArea}
-                  italic={italicText}
-                  isFirstSheet={sheet.isFirstSheet}
-                  tasksPerSheet={tasksPerSheet}
-                  hideTaskPrefixes={hideTaskPrefixes}
-                />
-              ))}
-              {showTeacherKey && (
-                <TeacherKeyPage
-                  variants={variants}
-                  title={topicTitle}
-                  showVariantHeading={showVariantLabel}
-                />
-              )}
-            </>
-          )}
         </div>
+
+        <AppearanceSection
+          outputMode="sheet"
+          defaultOpen
+          allowCryptogram={false}
+          columns={cfg.columns}
+          setColumns={setColumns}
+          margins={cfg.margins}
+          setMargins={setter('margins')}
+          pageFormat={cfg.pageFormat}
+          setPageFormat={setPageFormat}
+          figureSize={cfg.figureSize}
+          setFigureSize={setter('figureSize')}
+          showFigures={cfg.showFigures}
+          setShowFigures={setter('showFigures')}
+          figurePlacement={cfg.figurePlacement}
+          setFigurePlacement={setter('figurePlacement')}
+          headerMode={cfg.headerMode}
+          setHeaderMode={setter('headerMode')}
+          sheetMeta={cfg.meta}
+          patchSheetMeta={patchMeta}
+          answerStyle={cfg.answerStyle}
+          setAnswerStyle={setter('answerStyle')}
+          solutionSpace={cfg.solutionSpace}
+          setSolutionSpace={setter('solutionSpace')}
+          solutionFill={cfg.solutionFill}
+          setSolutionFill={setter('solutionFill')}
+          solutionFrame={cfg.solutionFrame}
+          setSolutionFrame={setter('solutionFrame')}
+          tasksPerPage={cfg.tasksPerPage}
+          setTasksPerPage={setter('tasksPerPage')}
+          fontScale={cfg.fontScale}
+          setFontScale={setter('fontScale')}
+          fontFamily={cfg.fontFamily}
+          setFontFamily={setter('fontFamily')}
+          italic={cfg.italic}
+          setItalic={setter('italic')}
+          showFooter={cfg.showFooter}
+          setShowFooter={setter('showFooter')}
+          showTaskCode={cfg.showTaskCode}
+          setShowTaskCode={setter('showTaskCode')}
+          hideTaskPrefixes={cfg.hideTaskPrefixes}
+          setHideTaskPrefixes={setter('hideTaskPrefixes')}
+          showStudentInfo={cfg.showStudentInfo}
+          setShowStudentInfo={setter('showStudentInfo')}
+          showAnswersInline={cfg.showAnswersInline}
+          setShowAnswersInline={setter('showAnswersInline')}
+          showAnswersPage={cfg.showAnswersPage}
+          setShowAnswersPage={setter('showAnswersPage')}
+          variantLabel={cfg.variantLabel}
+          setVariantLabel={setter('variantLabel')}
+          showVariantLabel={cfg.showVariantLabel}
+          setShowVariantLabel={setter('showVariantLabel')}
+          variantsCount={variants.length}
+          tasksCount={tasksCount}
+        />
       </div>
+
+      {empty ? (
+        <Text type="secondary">В работе нет задач для печати.</Text>
+      ) : (
+        <PrintSheet
+          variants={sheetVariants}
+          variantLabel={cfg.variantLabel || 'Вариант'}
+          headerMode={cfg.headerMode}
+          layout="workbook"
+          columns={cfg.columns}
+          margins={cfg.margins}
+          pageFormat={cfg.pageFormat}
+          showAnswersPage={cfg.showAnswersPage}
+          meta={{
+            ...cfg.meta,
+            title: cfg.meta.title || workTitle,
+            showStudentFields: cfg.showStudentInfo,
+            showVariant: cfg.showVariantLabel,
+          }}
+          options={{
+            answerStyle: cfg.answerStyle,
+            solutionSpace: cfg.solutionSpace,
+            solutionFill: cfg.solutionFill,
+            solutionFrame: cfg.solutionFrame,
+            tasksPerPage: cfg.tasksPerPage,
+            hideTaskPrefixes: cfg.hideTaskPrefixes,
+            showTaskCode: cfg.showTaskCode,
+            showAnswersInline: cfg.showAnswersInline,
+            fontScale: cfg.fontScale,
+            fontFamily: cfg.fontFamily,
+            italic: cfg.italic,
+            showFooter: cfg.showFooter,
+            figureSize: cfg.figureSize,
+            showFigures: cfg.showFigures,
+            figurePlacement: cfg.figurePlacement,
+          }}
+          editing={{
+            // Правят исходную задачу работы, а не копию с подменёнными картинками.
+            onEditTask: onEditTask
+              ? (t) => { const full = variants.flatMap((v) => v.tasks || []).find((x) => x.id === t.id); if (full) onEditTask(full); }
+              : undefined,
+            onReplaceTask: onReplaceTask
+              ? (vi, ti) => { const full = variants[vi]?.tasks?.[ti]; if (full) onReplaceTask(vi, ti, full); }
+              : undefined,
+            onSetFigureSize: onSetTaskOption ? (vi, ti, v) => onSetTaskOption(vi, ti, 'kimImageSize', v) : undefined,
+            onSetFigurePlacement: onSetTaskOption ? (vi, ti, v) => onSetTaskOption(vi, ti, 'figurePlacement', v) : undefined,
+          }}
+        />
+      )}
     </div>
   );
 }

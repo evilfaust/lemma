@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { App } from 'antd';
 import html2pdf from 'html2pdf.js';
 import { api } from '../services/pocketbase';
+import { variantOrder, withOrderExtras } from '../utils/variantOrder';
 
 /**
  * Хук для действий с листами работ (сохранение, печать, экспорт)
@@ -97,12 +98,7 @@ export const useWorksheetActions = () => {
 
       for (const variant of variants) {
         const taskIds = variant.tasks.map(t => t.id);
-        const order = variant.tasks.map((t, idx) => ({
-          taskId: t.id,
-          position: idx,
-          ...(t.kimImageSize ? { imageSize: t.kimImageSize } : {}),
-          ...(t.figurePlacement ? { figurePlacement: t.figurePlacement } : {}),
-        }));
+        const order = variantOrder(variant.tasks);
 
         await api.createVariant({
           work: work.id,
@@ -141,12 +137,7 @@ export const useWorksheetActions = () => {
 
       for (const variant of variants) {
         const taskIds = variant.tasks.map(t => t.id);
-        const order = variant.tasks.map((t, idx) => ({
-          taskId: t.id,
-          position: idx,
-          ...(t.kimImageSize ? { imageSize: t.kimImageSize } : {}),
-          ...(t.figurePlacement ? { figurePlacement: t.figurePlacement } : {}),
-        }));
+        const order = variantOrder(variant.tasks);
         const payload = {
           work: workId,
           number: variant.number,
@@ -212,12 +203,7 @@ export const useWorksheetActions = () => {
           if (task) {
             // Восстанавливаем сохранённый размер картинки в КИМ (см. order.imageSize)
             // и место чертежа на листе Генератора (order.figurePlacement).
-            const saved = order.find(o => o.taskId === task.id);
-            const extra = {
-              ...(saved?.imageSize ? { kimImageSize: saved.imageSize } : {}),
-              ...(saved?.figurePlacement ? { figurePlacement: saved.figurePlacement } : {}),
-            };
-            tasks.push(Object.keys(extra).length ? { ...task, ...extra } : task);
+            tasks.push(withOrderExtras(task, order.find(o => o.taskId === task.id)));
           }
         }
 
