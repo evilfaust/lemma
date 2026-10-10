@@ -9,7 +9,7 @@ import {
   CATEGORY_SUGGESTIONS, DEFAULT_THRESHOLDS, SCALE_LABELS, VIEW_LABELS, WEIGHT_OPTIONS,
   columnViews,
   normalizeThresholds, thresholdPoints, toStoredDate, formatNumber, lessonDay, shortDay,
-  dayOf, rangeLabel,
+  dayOf, rangeLabel, isExamBlock, blockKindLabel, blockKindGen, PART_FORMAT_LABELS,
 } from '../../../utils/classJournal';
 import { slotLabel } from '../lessonTime';
 
@@ -48,9 +48,23 @@ const ROLE_HINT = {
 // Название по роли — для новых колонок «за день», зачёта и итога.
 const ROLE_TITLES = { day: 'За день', final: 'Зачёт', total: 'Итог' };
 
-// Интенсив, в даты которого попадает день.
+// Зачёт / экзамен (v3.9.334): части и итог.
+const EXAM_ROLE_OPTIONS = [
+  { value: 'work', label: 'Часть' },
+  { value: 'total', label: 'Итог' },
+];
+const examRoleHint = (block, role) => (role === 'total'
+  ? `Итог ${blockKindGen(block)} — ставите вы; пустая клетка покажет подсказку по частям. В средний за год идёт этой колонкой.`
+  : `Часть ${blockKindGen(block)}: её оценка входит в подсказку итога (с весом колонки).`);
+const FORMAT_OPTIONS = [
+  { value: 'written', label: PART_FORMAT_LABELS.written },
+  { value: 'oral', label: PART_FORMAT_LABELS.oral },
+];
+
+// Интенсив, в даты которого попадает день. Зачёт по дате не подставляется:
+// в день зачёта бывают и обычные колонки (д/з, опрос).
 function blockOnDay(blocks, day) {
-  return blocks.find((b) => {
+  return blocks.filter((b) => !isExamBlock(b)).find((b) => {
     const a = dayOf(b.date_from);
     const z = dayOf(b.date_to) || a;
     return a && day >= a && day <= z;
@@ -153,6 +167,7 @@ export default function JournalColumnModal({
       assigned: !!src.assigned,
       note: src.note || '',
       view: (column ? column.view : src.view) || '',
+      format: (column ? column.format : src.format) || 'written',
     });
   // lessons не в зависимостях: список может догрузиться, а форму, в которой
   // учитель уже что-то поменял, заново заполнять нельзя.
@@ -211,10 +226,14 @@ export default function JournalColumnModal({
 
   const blockOptions = useMemo(() => blocks.map((b) => ({
     value: b.id,
-    label: [b.title, rangeLabel(b.date_from, b.date_to)].filter(Boolean).join(' · '),
+    label: [isExamBlock(b) ? blockKindLabel(b) : null, b.title, rangeLabel(b.date_from, b.date_to)]
+      .filter(Boolean).join(' · '),
   })), [blocks]);
   const selectedBlock = Form.useWatch('block', form);
   const selectedRole = Form.useWatch('role', form);
+  const blockRec = useMemo(() => blocks.find((b) => b.id === selectedBlock) || null, [blocks, selectedBlock]);
+  const examBlock = isExamBlock(blockRec);
+  const hasExams = blocks.some(isExamBlock);
 
   const selectedLesson = Form.useWatch('lesson', form);
 
@@ -269,7 +288,12 @@ export default function JournalColumnModal({
     if (blocksEnabled && (v.block || !isNew)) {
       data.block = v.block || '';
       data.role = v.block ? (v.role || 'work') : '';
+      // Роль из интенсива («за день», «зачётная работа») у зачёта — часть.
+      if (examBlock && !['work', 'total'].includes(data.role)) data.role = 'work';
     }
+    // Письменно / устно — только у части зачёта; ушла из зачёта — снимаем.
+    if (examBlock && data.role === 'work') data.format = v.format || 'written';
+    else if (!isNew && column?.format) data.format = '';
     await onSave(data);
   };
 
@@ -282,7 +306,11 @@ export default function JournalColumnModal({
     <Modal
       open={open}
       title={isNew
-        ? (presetBlock ? `Новая колонка · интенсив «${presetBlock.title}»` : 'Новая колонка')
+        ? (presetBlock
+          ? (isExamBlock(presetBlock)
+            ? `Новая часть · ${blockKindLabel(presetBlock).toLowerCase()} «${presetBlock.title}»`
+            : `Новая колонка · интенсив «${presetBlock.title}»`)
+          : 'Новая колонка')
         : online ? 'Онлайн-работа в журнале' : 'Колонка журнала'}
       onCancel={onCancel}
       destroyOnHidden
@@ -344,20 +372,33 @@ export default function JournalColumnModal({
           <Space.Compact block style={{ gap: 12, display: 'flex', flexWrap: 'wrap' }}>
             <Form.Item
               name="block"
-              label="Интенсив"
+              label={hasExams ? 'Интенсив или зачёт' : 'Интенсив'}
               style={{ flex: '1 1 200px' }}
-              extra={selectedBlock ? ROLE_HINT[selectedRole || 'work'] : 'Необязательно. Колонка войдёт в интенсив и его итог.'}
+              extra={selectedBlock
+                ? (examBlock ? examRoleHint(blockRec, selectedRole) : ROLE_HINT[selectedRole || 'work'])
+                : `Необязательно. Колонка войдёт в ${hasExams ? 'интенсив или зачёт' : 'интенсив'} и его итог.`}
             >
               <Select
                 allowClear
-                placeholder="Не в интенсиве"
+                placeholder={hasExams ? 'Не в интенсиве и не в зачёте' : 'Не в интенсиве'}
                 options={blockOptions}
-                onChange={() => { blockAuto.current = false; }}
+                onChange={(id) => {
+                  blockAuto.current = false;
+                  // У зачёта нет «за день» и «зачётной работы» — это часть.
+                  const b = blocks.find((x) => x.id === id);
+                  const role = form.getFieldValue('role');
+                  if (isExamBlock(b) && !['work', 'total'].includes(role)) form.setFieldsValue({ role: 'work' });
+                }}
               />
             </Form.Item>
             {selectedBlock && (
               <Form.Item name="role" label="Что это" style={{ flex: '0 0 auto' }}>
-                <Segmented options={ROLE_OPTIONS} onChange={onRoleChange} />
+                <Segmented options={examBlock ? EXAM_ROLE_OPTIONS : ROLE_OPTIONS} onChange={onRoleChange} />
+              </Form.Item>
+            )}
+            {selectedBlock && examBlock && selectedRole !== 'total' && (
+              <Form.Item name="format" label="Как сдают" style={{ flex: '0 0 auto' }}>
+                <Segmented options={FORMAT_OPTIONS} />
               </Form.Item>
             )}
           </Space.Compact>

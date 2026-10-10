@@ -605,3 +605,111 @@ describe('ClassJournal — интенсив', () => {
     expect(created.at(-1)).toMatchObject({ title: 'Итог', scale: 'grade' });
   });
 });
+
+// ── Зачёт / экзамен (v3.9.334) ──────────────────────────────────────────────
+
+describe('ClassJournal — зачёт', () => {
+  const d9 = '2026-10-09 12:00:00.000Z';
+  const credit = { id: 'Z1', group: 'g1', owner: 't1', kind: 'credit', title: 'Параллелограмм', date_from: d9, date_to: d9 };
+  const inZ = (extra) => ({ group: 'g1', owner: 't1', source: 'manual', block: 'Z1', date: d9, category: 'Зачёт', ...extra });
+
+  beforeEach(() => {
+    apiMock.getJournalBlocks.mockResolvedValue([credit]);
+    apiMock.getJournalAttempts.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([
+      inZ({ id: 'p1', title: 'Устный счёт', role: 'work', format: 'written', scale: 'points', max_score: 10, created: '1' }),
+      inZ({ id: 'p2', title: 'Билет', role: 'work', format: 'oral', scale: 'grade', created: '2' }),
+      inZ({ id: 'tot', title: 'Итог', role: 'total', scale: 'grade', created: '3' }),
+    ]);
+    // 9 из 10 → «5», билет «4» → итог ≈ 4,5.
+    apiMock.getJournalMarks.mockResolvedValue([
+      { id: 'm1', col: 'p1', student: 's1', value: '9', comment: '' },
+      { id: 'm2', col: 'p2', student: 's1', value: '4', comment: '' },
+    ]);
+  });
+
+  it('шапка «Зачёт · тема · дата», устная часть подписана, итог — подсказкой по частям', async () => {
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    expect(screen.getByText('Зачёт · Параллелограмм · 09.10')).toBeInTheDocument();
+    const titles = [...container.querySelectorAll('.cj-colh__title')].map((el) => el.textContent);
+    expect(titles).toEqual(['Устный счёт', 'Билет', 'Итог']);
+    const metas = [...container.querySelectorAll('.cj-colh__meta')].map((el) => el.textContent);
+    expect(metas[1]).toMatch(/устно/);
+    expect(metas[0]).not.toMatch(/устно/);
+    expect(container.querySelector('td[data-r="0"][data-c="2"]').textContent).toBe('≈4,5');
+
+    fireEvent.click(screen.getByText('Зачёт · Параллелограмм · 09.10'));
+    expect(await screen.findByText('Добавить часть')).toBeInTheDocument();
+    expect(screen.getByText('Свернуть до итога')).toBeInTheDocument();
+    expect(screen.getByText('Настроить зачёт')).toBeInTheDocument();
+  });
+
+  it('«Добавить часть»: новая колонка уходит в зачёт частью, письменно/устно сохраняется', async () => {
+    renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(screen.getByText('Зачёт · Параллелограмм · 09.10'));
+    fireEvent.click(await screen.findByText('Добавить часть'));
+    await screen.findByText('Новая часть · зачёт «Параллелограмм»');
+    fireEvent.change(screen.getByPlaceholderText('Устный счёт 4'), { target: { value: 'Доказательство признака' } });
+    fireEvent.click(screen.getByText('Устно'));
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить' }));
+    await waitFor(() => expect(apiMock.createJournalColumn).toHaveBeenCalled());
+    expect(apiMock.createJournalColumn.mock.calls[0][0]).toMatchObject({
+      group: 'g1', block: 'Z1', role: 'work', format: 'oral', title: 'Доказательство признака', category: 'Зачёт',
+    });
+  });
+
+  it('новый зачёт: части из заготовок + итог, на дату зачёта', async () => {
+    apiMock.getJournalBlocks.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([]);
+    apiMock.getJournalMarks.mockResolvedValue([]);
+    apiMock.createJournalBlock.mockImplementation(async (data) => ({ id: 'Z2', owner: 't1', ...data }));
+    apiMock.createJournalColumn.mockImplementation(async (data) => ({ id: `c${Math.random()}`, ...data }));
+    renderScreen();
+    await screen.findByText('Журнал пока пуст');
+    fireEvent.click(screen.getByRole('button', { name: 'Какую колонку добавить' }));
+    fireEvent.click(await screen.findByText('Зачёт — части письменно и устно, итог'));
+    fireEvent.change(await screen.findByPlaceholderText('Параллелограмм'), { target: { value: 'Параллелограмм' } });
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /Устный счёт/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /Задачи/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /Билет/ }));
+    expect(within(dialog).getAllByTestId('exam-part')).toHaveLength(3);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Создать' }));
+
+    await waitFor(() => expect(apiMock.createJournalBlock).toHaveBeenCalled());
+    expect(apiMock.createJournalBlock.mock.calls[0][0]).toMatchObject({ kind: 'credit', title: 'Параллелограмм', group: 'g1' });
+    const { date_from: from, date_to: to } = apiMock.createJournalBlock.mock.calls[0][0];
+    expect(from).toBe(to);
+    await waitFor(() => expect(screen.getByText(/Зачёт «Параллелограмм» заведён — частей: 3/)).toBeInTheDocument());
+    const created = apiMock.createJournalColumn.mock.calls.map(([c]) => c);
+    expect(created.map((c) => [c.title, c.role, c.format, c.scale])).toEqual([
+      ['Устный счёт', 'work', 'written', 'points'],
+      ['Задачи', 'work', 'written', 'points'],
+      ['Билет', 'work', 'oral', 'grade'],
+      ['Итог', 'total', undefined, 'grade'],
+    ]);
+    expect(created.every((c) => c.block === 'Z2' && c.date === from && c.category === 'Зачёт')).toBe(true);
+    expect(created[1].max_score).toBe(5);
+    // Сетка: шапка нового зачёта.
+    expect(await screen.findByText(/^Зачёт · Параллелограмм · /)).toBeInTheDocument();
+  });
+
+  it('часть без названия не даёт создать зачёт', async () => {
+    apiMock.getJournalBlocks.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([]);
+    apiMock.getJournalMarks.mockResolvedValue([]);
+    renderScreen();
+    await screen.findByText('Журнал пока пуст');
+    fireEvent.click(screen.getByRole('button', { name: 'Какую колонку добавить' }));
+    fireEvent.click(await screen.findByText('Экзамен — части письменно и устно, итог'));
+    await screen.findByText('Новый экзамен');
+    fireEvent.change(screen.getByPlaceholderText('Параллелограмм'), { target: { value: 'Алгебра 8' } });
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: /Своя часть/ }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Создать' }));
+    expect(await within(dialog).findByText('Назовите часть')).toBeInTheDocument();
+    expect(apiMock.createJournalBlock).not.toHaveBeenCalled();
+  });
+});

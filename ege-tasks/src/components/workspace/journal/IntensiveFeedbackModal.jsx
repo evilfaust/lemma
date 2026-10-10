@@ -7,8 +7,9 @@ import {
 } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import {
-  DEFAULT_EXAMPLES, RATINGS, addressOf, buildFeedbackData, fillName, genderOf,
+  DEFAULT_EXAMPLES, RATINGS, addressOf, buildBlockFeedbackData, fillName, genderOf,
 } from '../../../utils/intensiveFeedback';
+import { blockKindGen, blockKindLabel, isExamBlock } from '../../../utils/classJournal';
 
 const { Text } = Typography;
 
@@ -25,7 +26,7 @@ async function runLimited(tasks, limit = 3) {
 }
 
 /**
- * «Обратная связь» по интенсиву (v3.9.243): черновики отзывов в стиле кафедры
+ * «Обратная связь» по интенсиву (v3.9.243) и зачёту/экзамену (v3.9.334): черновики отзывов в стиле кафедры
  * пишет LLM, учитель правит и сохраняет их комментарием к клетке «Итог».
  * 🚨 В модель не уходят ни фамилия, ни имя — только оценки, проценты и
  * описания работ из заметок колонок (`buildFeedbackData`); обращение
@@ -77,6 +78,7 @@ export default function IntensiveFeedbackModal({
 
   const patch = (id, p) => setState((s) => ({ ...s, [id]: { ...s[id], ...p } }));
 
+  const exam = isExamBlock(block);
   const undescribed = useMemo(
     () => columns.filter((c) => c.role !== 'total' && c.role !== 'day'
       && !String(c.note || '').trim()).length,
@@ -89,7 +91,7 @@ export default function IntensiveFeedbackModal({
     if (!st) return;
     patch(id, { busy: true, error: '' });
     try {
-      const data = buildFeedbackData(columns, rows, id, {
+      const data = buildBlockFeedbackData(block, columns, rows, id, {
         gender: st.gender, rating: st.rating, title: block?.title || '',
       });
       const { text } = await api.generateIntensiveFeedback({ data, examples });
@@ -145,7 +147,7 @@ export default function IntensiveFeedbackModal({
       width={1100}
       style={{ maxWidth: '96vw', top: 24 }}
       destroyOnHidden
-      title={`Обратная связь · интенсив «${block?.title || ''}»`}
+      title={`Обратная связь · ${blockKindLabel(block).toLowerCase()} «${block?.title || ''}»`}
       footer={(
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <Text type="secondary" style={{ fontSize: 12.5 }}>
@@ -170,8 +172,17 @@ export default function IntensiveFeedbackModal({
         type="info"
         showIcon
         style={{ marginBottom: 12 }}
-        message="Черновик пишет ИИ по оценкам интенсива — прочитайте и поправьте перед сохранением"
-        description={(
+        message={`Черновик пишет ИИ по оценкам ${blockKindGen(block)} — прочитайте и поправьте перед сохранением`}
+        description={exam ? (
+          <>
+            В модель уходят только результаты частей (письменно или устно), средние по группе и
+            описания частей — без фамилий и имён; обращение подставляется здесь. Отзыв всегда
+            начинается с хорошего. Части модель называет по описанию из заметки колонки или по
+            понятному названию — сокращения вроде «У/с» она не видит
+            {undescribed > 0 && <b> — сейчас без описания частей: {undescribed}</b>}.
+            Сохраняется комментарием к клетке «Итог».
+          </>
+        ) : (
           <>
             В модель уходят только оценки, проценты и описания работ — без фамилий и имён;
             обращение подставляется здесь. Отзыв всегда начинается с хорошего. Темы модель
@@ -185,7 +196,7 @@ export default function IntensiveFeedbackModal({
         <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="ИИ-функции выключены для вашей учётной записи — черновики недоступны" />
       )}
       {totalIndex < 0 && (
-        <Alert type="warning" showIcon style={{ marginBottom: 12 }} message="У интенсива нет колонки «Итог» — сохранить отзывы некуда. Добавьте её из меню интенсива." />
+        <Alert type="warning" showIcon style={{ marginBottom: 12 }} message={`У ${blockKindGen(block)} нет колонки «Итог» — сохранить отзывы некуда. Добавьте её из меню над колонками.`} />
       )}
 
       <Space wrap style={{ marginBottom: 12 }}>

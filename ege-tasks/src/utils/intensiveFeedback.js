@@ -6,7 +6,7 @@
 // («Ксюша») подставляем здесь (`fillName`). В данных — пол, оценки, проценты,
 // названия работ и их описания из заметки колонки.
 
-import { columnScale } from './classJournal';
+import { blockKind, columnScale, isExamBlock } from './classJournal';
 
 export const NAME_TOKEN = '{ИМЯ}';
 
@@ -241,6 +241,138 @@ export function buildFeedbackData(columns, rows, studentId, { gender = 'm', rati
     сильные_стороны: strengths,
     слабые_места: weaknesses,
   };
+}
+
+// ─── Зачёт / экзамен (v3.9.334) ─────────────────────────────────────────────
+
+// Название части годится модели, только если это слова, а не обозначение
+// учителя («Ф-ч», «У/с», «Экв.»): сокращения модель расшифровывает наугад.
+function readableTitle(title) {
+  const t = String(title || '').trim();
+  if (!t || /[./\\]/.test(t)) return '';
+  const letters = t.replace(/[^а-яёa-z]/gi, '');
+  if (letters.length < 5) return '';
+  if (letters === letters.toUpperCase()) return '';
+  return t;
+}
+
+/** Чем часть названа для модели: описание из заметки, иначе понятное название. */
+function partTopic(col) {
+  return describe(col) || readableTitle(col.title) || undefined;
+}
+
+/** Результат части: оценка/зачёт словами, баллы — процентом. */
+function partResult(col, cell) {
+  if (columnScale(col) === 'pass' && cell?.value != null && !cell.wait && !cell.skip && !cell.absent) {
+    return cell.value >= 1 ? 'зачёт' : 'незачёт';
+  }
+  return resultText(col, cell);
+}
+
+/**
+ * Данные одного ученика по зачёту/экзамену для LLM — без имени.
+ * columns — колонки блока (части + итог), rows — строки сетки по ним для
+ * всего класса, studentId — чей черновик.
+ * options: { gender, rating, title, kind: 'credit'|'exam' }
+ */
+export function buildExamFeedbackData(columns, rows, studentId, {
+  gender = 'm', rating = '', title = '', kind = 'credit',
+} = {}) {
+  const row = rows.find((r) => r.student.id === studentId);
+  if (!row) return null;
+  const current = rows.filter((r) => !r.student.former);
+  const f = gender === 'f';
+  const groupAvg = (c) => mean(current.map((r) => pctOf(columns[c], r.cells[c])).filter((x) => x != null));
+
+  let total = null;
+  let totalStored = '';
+  const parts = [];
+  columns.forEach((col, c) => {
+    const cell = row.cells[c];
+    if (col.role === 'total') {
+      if (cell?.stored) { total = cell.text; totalStored = cell.stored; }
+      return;
+    }
+    const my = pctOf(col, cell);
+    const avg = groupAvg(c);
+    const scores = current.map((r) => pctOf(col, r.cells[c])).filter((x) => x != null).sort((a, b) => b - a);
+    const place = my != null && scores.length > 1 ? scores.findIndex((x) => x <= my + 1e-9) + 1 : null;
+    const pass = columnScale(col) === 'pass' && cell?.value != null && !cell.wait && !cell.skip && !cell.absent
+      ? cell.value >= 1 : null;
+    parts.push({
+      _col: col, _cell: cell, _my: my, _avg: avg, _place: place, _pass: pass, _grade: cell?.grade ?? null,
+      часть: parts.length + 1,
+      ...(col.format ? { как_сдавали: col.format === 'oral' ? 'устно' : 'письменно' } : {}),
+      что_проверяла: partTopic(col) || 'не описано',
+      результат: partResult(col, cell),
+      ...(avg != null ? { среднее_по_группе: pct(avg) } : {}),
+    });
+  });
+
+  // Как назвать часть в «сильных/слабых сторонах»: тема или «вторая часть».
+  const ORD = ['первая', 'вторая', 'третья', 'четвёртая', 'пятая', 'шестая', 'седьмая', 'восьмая'];
+  const label = (p) => {
+    const topic = partTopic(p._col);
+    const how = p.как_сдавали ? ` (${p.как_сдавали})` : '';
+    return topic ? `«${topic}»${how}` : `${ORD[p.часть - 1] || `${p.часть}-я`} часть${how}`;
+  };
+
+  const strengths = [];
+  const weaknesses = [];
+  const scored = parts.filter((p) => p._my != null);
+  const perfect = scored.filter((p) => p._my >= 99.5);
+  const strong = scored.filter((p) => p._my < 99.5 && (p._my >= 85 || (p._avg != null && p._my >= p._avg + 15)));
+  const best = scored.filter((p) => p._place === 1);
+  if (best.length) strengths.push(`лучший результат в группе: ${best.slice(0, 3).map(label).join(', ')}`);
+  if (perfect.length) strengths.push(`без ошибок: ${perfect.slice(0, 4).map(label).join(', ')}`);
+  if (strong.length) strengths.push(`хорошо: ${strong.slice(0, 4).map(label).join(', ')}`);
+  const gradedTop = parts.filter((p) => p._my == null && p._grade != null && p._grade >= 4);
+  if (gradedTop.length) strengths.push(`${gradedTop.map((p) => `${label(p)} — ${p._grade === 5 ? 'отлично' : 'хорошо'}`).join(', ')}`);
+  const passed = parts.filter((p) => p._pass === true);
+  if (passed.length) strengths.push(`сдан${passed.length > 1 ? 'ы' : 'а'}: ${passed.map(label).join(', ')}`);
+  const oral = parts.filter((p) => p._col.format === 'oral' && p._grade != null);
+  const written = parts.filter((p) => p._col.format === 'written' && p._grade != null);
+  const avgGrade = (xs) => mean(xs.map((p) => p._grade));
+  if (oral.length && written.length) {
+    const o = avgGrade(oral);
+    const w = avgGrade(written);
+    if (o >= w + 1) strengths.push('устная часть получилась заметно сильнее письменной');
+    else if (w >= o + 1) strengths.push('письменная часть получилась заметно сильнее устной');
+  }
+  if (!strengths.length) {
+    const top = [...parts].filter((p) => p._my != null || p._grade != null)
+      .sort((a, b) => (b._my ?? b._grade * 20) - (a._my ?? a._grade * 20))[0];
+    if (top) strengths.push(`лучше всего получилась ${label(top)}`);
+    else if (parts.some((p) => p._cell?.stored)) strengths.push(`приш${f ? 'ла' : 'ёл'} на ${kind === 'exam' ? 'экзамен' : 'зачёт'}`);
+  }
+
+  const weak = parts.filter((p) => (p._my != null && (p._my <= 50 || (p._avg != null && p._my <= p._avg - 20)))
+    || (p._my == null && p._grade != null && p._grade <= 3));
+  if (weak.length) weaknesses.push(`слабо: ${weak.slice(0, 4).map(label).join(', ')}`);
+  const failed = parts.filter((p) => p._pass === false);
+  if (failed.length) weaknesses.push(`не сдан${failed.length > 1 ? 'ы' : 'а'}: ${failed.map(label).join(', ')}`);
+  const waiting = parts.filter((p) => p._cell?.wait || p._cell?.absent);
+  if (waiting.length) weaknesses.push(`не сдавал${f ? 'а' : ''}: ${waiting.map(label).join(', ')}`);
+
+  const clean = (o) => Object.fromEntries(Object.entries(o).filter(([k, v]) => !k.startsWith('_') && v !== undefined));
+  return {
+    мероприятие: kind === 'exam' ? 'экзамен' : 'зачёт',
+    пол: f ? 'ученица' : 'ученик',
+    ...(title ? { тема: title } : {}),
+    части: parts.map(clean),
+    итог: total || 'не выставлен',
+    пересдача: needsRetake(totalStored) ? 'да' : 'нет',
+    рейтинг: rating && RATING_WORDS[rating] ? `${RATING_WORDS[rating]} рейтинг` : 'нет',
+    сильные_стороны: strengths,
+    слабые_места: weaknesses,
+  };
+}
+
+/** Данные для отзыва по любому блоку: интенсив или зачёт/экзамен. */
+export function buildBlockFeedbackData(block, columns, rows, studentId, options = {}) {
+  return isExamBlock(block)
+    ? buildExamFeedbackData(columns, rows, studentId, { ...options, kind: blockKind(block) })
+    : buildFeedbackData(columns, rows, studentId, options);
 }
 
 /** Колонки интенсива по порядку и есть ли у него итог (куда сохранять). */

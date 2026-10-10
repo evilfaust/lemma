@@ -5,7 +5,7 @@ import {
 } from '@ant-design/icons';
 import {
   shortDay, headerSpans, formatAvg, formatNumber, GRADE_TONE, columnWeight, editText,
-  startsBlockSection, ROLE_LABELS, viewBadge,
+  startsBlockSection, viewBadge, roleLabel, isExamBlock, PART_FORMAT_LABELS,
 } from '../../../utils/classJournal';
 import { groupHex } from '../ui';
 
@@ -43,12 +43,17 @@ function scaleLabel(col) {
   return badge ? `${baseScaleLabel(col)} → ${badge}` : baseScaleLabel(col);
 }
 
+function blockKindLabelLower(block) {
+  return isExamBlock(block) ? (block.kind === 'exam' ? 'экзамен' : 'зачёт') : 'интенсив';
+}
+
 function columnTip(col, block) {
   return [
     col.title,
     col.day ? `дата ${shortDay(col.day)}` : null,
-    block ? `интенсив «${block.title}» · ${(ROLE_LABELS[col.role] || '').toLowerCase()}` : null,
-    block && col.role !== 'total' ? 'в средний за год интенсив идёт итогом' : null,
+    block ? `${blockKindLabelLower(block)} «${block.title}» · ${roleLabel(block, col.role).toLowerCase()}` : null,
+    block && col.format ? PART_FORMAT_LABELS[col.format].toLowerCase() : null,
+    block && col.role !== 'total' ? `в средний за год ${blockKindLabelLower(block)} идёт итогом` : null,
     col.category || null,
     col.lessonLabel ? `урок: ${col.lessonLabel} — «н» из посещаемости` : null,
     col.ref?.type === 'sheet' ? `лист генератора: «${col.ref.title || ''}»` : null,
@@ -432,6 +437,7 @@ export default function JournalGrid({
                     <span className="cj-colh__title">{col.title}</span>
                     <span className="cj-colh__meta">
                       {col.online ? <MobileOutlined /> : <EditOutlined />}
+                      {col.blockId && col.format === 'oral' && <span>устно ·</span>}
                       {scaleLabel(col)}
                       {col.lessonId && <CalendarOutlined aria-label="колонка урока" />}
                       {w === 0 && <span>· вне ср.</span>}

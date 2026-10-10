@@ -27,6 +27,10 @@
 // и роль `role` (work — работа дня, day — оценка за день, final — зачётная
 // работа, total — итог). Подсказки «за день» и «итог» считает
 // `intensiveSummary`; ставит оценки всё равно учитель.
+// Зачёт / экзамен (v3.9.334) — тот же блок колонок с `kind` credit|exam:
+// контрольное мероприятие одного дня, части (role work) письменные и устные
+// (`journal_columns.format`), итог (total). Подсказку итога считает
+// `examSummary`.
 // Числовое поле PocketBase не отличает «пусто» от нуля, а 0 баллов — законная
 // отметка, поэтому текст.
 
@@ -46,6 +50,56 @@ export const ROLE_LABELS = {
 };
 /** Доля зачётной работы в расчёте итога по умолчанию, %: дни делят остаток. */
 export const DEFAULT_FINAL_SHARE = 40;
+
+// ─── Виды блока: интенсив, зачёт, экзамен (v3.9.334) ────────────────────────
+
+export const BLOCK_KINDS = ['intensive', 'credit', 'exam'];
+export const BLOCK_KIND_LABELS = { intensive: 'Интенсив', credit: 'Зачёт', exam: 'Экзамен' };
+// Родительный падеж: «итог зачёта», «часть экзамена».
+const BLOCK_KIND_GEN = { intensive: 'интенсива', credit: 'зачёта', exam: 'экзамена' };
+
+/** Вид блока; пусто и неизвестное — интенсив (так заведены все блоки до v3.9.334). */
+export function blockKind(block) {
+  return block?.kind === 'credit' || block?.kind === 'exam' ? block.kind : 'intensive';
+}
+
+/** Зачёт или экзамен — контрольное мероприятие одного дня с частями. */
+export function isExamBlock(block) {
+  return blockKind(block) !== 'intensive';
+}
+
+export function blockKindLabel(block) {
+  return BLOCK_KIND_LABELS[blockKind(block)];
+}
+
+export function blockKindGen(block) {
+  return BLOCK_KIND_GEN[blockKind(block)];
+}
+
+/** Роли колонок зачёта/экзамена: части и итог. */
+export const EXAM_ROLES = ['work', 'total'];
+
+/** Подпись роли колонки с учётом вида блока: «Часть зачёта», «Итог экзамена». */
+export function roleLabel(block, role) {
+  if (!isExamBlock(block)) return ROLE_LABELS[role] || '';
+  return role === 'total' ? `Итог ${blockKindGen(block)}` : `Часть ${blockKindGen(block)}`;
+}
+
+/** Часть зачёта: письменная или устная (`journal_columns.format`). */
+export const PART_FORMATS = ['written', 'oral'];
+export const PART_FORMAT_LABELS = { written: 'Письменно', oral: 'Устно' };
+
+/**
+ * Заготовки частей зачёта — кнопки в окне создания. Сюжеты у каждого зачёта
+ * свои, это только быстрый старт: название и шкала правятся тут же.
+ */
+export const EXAM_PART_PRESETS = [
+  { key: 'oral_count', title: 'Устный счёт', format: 'written', scale: 'points', max_score: 10 },
+  { key: 'written', title: 'Письменная работа', format: 'written', scale: 'points', max_score: 10 },
+  { key: 'tasks', title: 'Задачи', format: 'written', scale: 'points', max_score: 5 },
+  { key: 'ticket', title: 'Билет', format: 'oral', scale: 'grade' },
+  { key: 'theory', title: 'Теория: определения', format: 'oral', scale: 'pass' },
+];
 
 export const SCALES = ['points', 'grade', 'pass', 'percent'];
 
@@ -551,6 +605,8 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       // Интенсив (v3.9.241): колонка без роли внутри интенсива — работа дня.
       blockId: rec.block || '',
       role: rec.block ? (ROLES.includes(rec.role) ? rec.role : 'work') : '',
+      // Часть зачёта: письменно / устно (v3.9.334).
+      format: PART_FORMATS.includes(rec.format) ? rec.format : '',
       deadline: info?.deadline || sessionDeadlines.get(key) || '',
       classDeadline: info?.classDeadline || '',
       // Работа выдана классу целиком (учитель сам завёл колонку) — срок
@@ -588,6 +644,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       ref: null,
       blockId: '',
       role: '',
+      format: '',
       deadline: info.deadline,
       classDeadline: info.classDeadline,
       assigned: false,
@@ -701,7 +758,7 @@ export function headerSpans(columns = [], blocksById = new Map()) {
     if (last && last.key === k) { last.span += 1; continue; }
     if (block) {
       const dates = rangeLabel(block.date_from, block.date_to);
-      spans.push({ key: k, span: 1, blockId: block.id, label: `Интенсив · ${block.title}${dates ? ` · ${dates}` : ''}` });
+      spans.push({ key: k, span: 1, blockId: block.id, label: `${blockKindLabel(block)} · ${block.title}${dates ? ` · ${dates}` : ''}` });
     } else {
       const m = monthKey(c.day);
       spans.push({ key: k, span: 1, label: m ? monthLabel(m) : 'Без даты' });
@@ -832,6 +889,84 @@ function intensiveTip(summary, block) {
   if (summary.final?.grade != null && summary.daysAvg != null) {
     lines.push(`Дни ${100 - summary.share} % + зачёт ${summary.share} % = ${formatAvg(summary.value)}`);
   }
+  return lines.join('\n');
+}
+
+/**
+ * Картина ученика по зачёту/экзамену — подсказка для итога (v3.9.334).
+ * entries — [{ col, cell }] колонок блока. Часть: оценка (баллы и проценты —
+ * по порогам колонки), зачёт/незачёт, «w»/«н» — не сдал, ждём (pending),
+ * «—» — не писал по уважительной, не в счёт.
+ * value — средняя оценок частей с весами колонок (зачётные части без оценки
+ * в среднее не входят). failed — части с «2» или незачётом.
+ * → { parts: [{ col, title, format, grade, pass, state }], value, pending,
+ *     failed, missing, complete }
+ *   state: done | fail | pass | wait | absent | skip | empty
+ */
+export function examSummary(block, entries = []) {
+  const parts = [];
+  let sum = 0;
+  let wsum = 0;
+  for (const { col, cell } of entries) {
+    if (col.role === 'total') continue;
+    const pass = columnScale(col) === 'pass';
+    let state = 'empty';
+    let grade = null;
+    let passed = null;
+    if (cell?.wait) state = 'wait';
+    else if (cell?.absent) state = 'absent';
+    else if (cell?.skip) state = 'skip';
+    else if (pass) {
+      if (cell?.value != null) {
+        passed = cell.value >= 1;
+        state = passed ? 'pass' : 'fail';
+      }
+    } else if (cell?.grade != null) {
+      grade = cell.grade;
+      state = grade <= 2 ? 'fail' : 'done';
+    }
+    const w = columnWeight(col);
+    if (grade != null && w > 0) {
+      sum += w * grade;
+      wsum += w;
+    }
+    parts.push({ col, title: col.title, format: col.format || '', grade, pass: passed, state, weight: w });
+  }
+  const pending = parts.some((p) => p.state === 'wait' || p.state === 'absent');
+  const failed = parts.filter((p) => p.state === 'fail');
+  const missing = parts.filter((p) => p.state === 'empty');
+  return {
+    parts,
+    value: wsum ? sum / wsum : null,
+    pending,
+    failed,
+    missing,
+    complete: parts.length > 0 && !missing.length,
+  };
+}
+
+const PART_STATE_TEXT = {
+  wait: 'w — ждём пересдачи',
+  absent: 'н — не был',
+  skip: 'не писал — не в счёт',
+  empty: 'нет отметки',
+  pass: 'зачёт',
+};
+
+function examTip(summary, block) {
+  const what = blockKind(block) === 'exam' ? 'экзамену' : 'зачёту';
+  const lines = [`Расчёт по ${what} «${block?.title || ''}» — подсказка, итог ставит учитель.`];
+  for (const p of summary.parts) {
+    const fmt = p.format ? ` (${PART_FORMAT_LABELS[p.format].toLowerCase()})` : '';
+    let res;
+    if (p.grade != null) res = String(p.grade);
+    else if (p.state === 'fail') res = 'незачёт';
+    else res = PART_STATE_TEXT[p.state] || '';
+    const w = p.grade != null && p.weight !== 1 ? `, вес ×${formatNumber(p.weight)}` : '';
+    lines.push(`${p.title}${fmt}: ${res}${w}`);
+  }
+  if (summary.value != null) lines.push(`Средняя по частям: ${formatAvg(summary.value)}`);
+  if (summary.failed.length) lines.push(`Не сдано: ${summary.failed.map((p) => `«${p.title}»`).join(', ')}`);
   return lines.join('\n');
 }
 
@@ -1112,6 +1247,10 @@ function applyIntensiveHints(columns, cells, inBlocks, blocksById, cellFor) {
   }
   for (const [blockId, entries] of groups) {
     const block = blocksById.get(blockId);
+    if (isExamBlock(block)) {
+      applyExamHints(columns, cells, blockId, block, entries);
+      continue;
+    }
     const summary = intensiveSummary(block, entries);
     columns.forEach((col, i) => {
       if (col.blockId !== blockId || cells[i].kind !== 'empty') return;
@@ -1137,6 +1276,29 @@ function applyIntensiveHints(columns, cells, inBlocks, blocksById, cellFor) {
       }
     });
   }
+}
+
+// Итог зачёта в пустой клетке: «≈4,3» по частям (у оценки), «зач?»/«н/з?»
+// (у шкалы зачёта), «w?» — часть не сдана: вейтинг или не был.
+function applyExamHints(columns, cells, blockId, block, entries) {
+  const summary = examSummary(block, entries);
+  if (!summary.parts.length) return;
+  const tip = examTip(summary, block);
+  columns.forEach((col, i) => {
+    if (col.blockId !== blockId || col.role !== 'total' || cells[i].kind !== 'empty') return;
+    let text = '';
+    if (summary.pending) text = `${WAIT}?`;
+    else if (columnScale(col) === 'pass') {
+      if (summary.failed.length) text = 'н/з?';
+      else if (summary.complete) text = 'зач?';
+    } else if (summary.value != null) text = `≈${formatAvg(summary.value)}`;
+    if (!text) return;
+    cells[i] = {
+      ...cells[i], kind: 'hint', text, textTone: 'hint',
+      tip: summary.pending ? `${tip}\nЕсть несданные части — итог после пересдачи` : tip,
+      pending: summary.pending,
+    };
+  });
 }
 
 /** Ученики журнала: состав класса + выбывшие, у кого в журнале остались отметки. */

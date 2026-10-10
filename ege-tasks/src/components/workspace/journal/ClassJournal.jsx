@@ -6,7 +6,7 @@ import {
   CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
   ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FireOutlined, FormatPainterOutlined, MobileOutlined,
   MoreOutlined, PlusOutlined, SettingOutlined, ShrinkOutlined, ArrowsAltOutlined, UnorderedListOutlined,
-  RobotOutlined,
+  RobotOutlined, TrophyOutlined, AuditOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -20,6 +20,7 @@ import {
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
   ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
+  isExamBlock, blockKindLabel,
 } from '../../../utils/classJournal';
 import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
@@ -28,6 +29,7 @@ import JournalColumnModal, { lessonOptionLabel } from './JournalColumnModal';
 import JournalColumnEntry from './JournalColumnEntry';
 import WorkColumnModal from './WorkColumnModal';
 import IntensiveModal from './IntensiveModal';
+import ExamModal from './ExamModal';
 import IntensiveFeedbackModal from './IntensiveFeedbackModal';
 import './journal.css';
 
@@ -99,6 +101,8 @@ export default function ClassJournal() {
   const [fill, setFill] = useState(null); // { column, text, error }
   const [blockModal, setBlockModal] = useState(null); // { block } — null-блок = новый интенсив
   const [blockSaving, setBlockSaving] = useState(false);
+  // Зачёт / экзамен (v3.9.334): { block } — правка, { block: null, kind } — новый.
+  const [examModal, setExamModal] = useState(null);
   const [feedbackBlockId, setFeedbackBlockId] = useState(null);
   // Образцы стиля, сохранённые в этой сессии (запись учителя в контексте
   // авторизации обновится только при следующем входе).
@@ -521,6 +525,13 @@ export default function ClassJournal() {
   const blockDefaults = useMemo(() => {
     const block = colModal?.presetBlock;
     if (!block) return null;
+    // Часть зачёта — новый сюжет: название пустое, письменно, баллы.
+    if (isExamBlock(block)) {
+      return {
+        ...newDefaults, title: '', category: blockKindLabel(block), scale: 'points',
+        max_score: 10, role: 'work', format: 'written', weight: 1, no_avg: false,
+      };
+    }
     const last = [...(data?.columns || [])]
       .filter((c) => c.block === block.id && (!c.role || c.role === 'work'))
       .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))[0];
@@ -779,6 +790,83 @@ export default function ClassJournal() {
     }
   };
 
+  // ── Зачёт / экзамен (v3.9.334) ────────────────────────────────────────────
+  // Новый: запись блока (kind credit|exam) + колонка на каждую часть и «Итог».
+  // Правка: поля блока; сменилась дата — переносим и колонки (мероприятие
+  // одного дня), сменился вид — категория колонок «Зачёт» ⇄ «Экзамен».
+  const saveExam = async (values, plan) => {
+    const gid = data?.groupId;
+    const block = examModal?.block;
+    if (!gid) return;
+    setBlockSaving(true);
+    try {
+      if (block) {
+        const rec = await api.updateJournalBlock(block.id, values);
+        const newDay = dayOf(rec.date_from);
+        const oldLabel = blockKindLabel(block);
+        const newLabel = blockKindLabel(rec);
+        const own = (dataRef.current?.columns || []).filter((c) => c.block === block.id);
+        const updated = [];
+        for (const col of own) {
+          const patch = {};
+          if (newDay && dayOf(col.date) !== newDay) patch.date = toStoredDate(newDay);
+          if (oldLabel !== newLabel && col.category === oldLabel) patch.category = newLabel;
+          if (Object.keys(patch).length) updated.push(await api.updateJournalColumn(col.id, patch));
+        }
+        const byId = new Map(updated.map((c) => [c.id, c]));
+        patchData(gid, (d) => ({
+          ...d,
+          blocks: d.blocks.map((b) => (b.id === rec.id ? rec : b)),
+          columns: byId.size ? d.columns.map((c) => byId.get(c.id) || c) : d.columns,
+        }));
+        setExamModal(null);
+        return;
+      }
+      let rec;
+      try {
+        rec = await api.createJournalBlock({ ...values, group: gid });
+      } catch (e) {
+        if (e?.status === 400 && e?.response?.data?.kind) {
+          message.error('На сервере ещё нет зачётов и экзаменов (миграция 1788600000)');
+          return;
+        }
+        throw e;
+      }
+      patchData(gid, (d) => ({ ...d, blocks: [...(d.blocks || []), rec] }));
+      const label = blockKindLabel(rec);
+      const common = {
+        group: gid, source: 'manual', block: rec.id, category: label,
+        date: rec.date_from, ...(plan.lessonId ? { lesson: plan.lessonId } : {}),
+      };
+      const specs = plan.parts.map((part) => ({
+        ...common,
+        title: part.title,
+        role: 'work',
+        format: part.format,
+        scale: part.scale,
+        ...(part.scale === 'points' ? { max_score: part.max_score } : {}),
+        weight: part.weight || 1,
+        ...(part.note ? { note: part.note } : {}),
+      }));
+      specs.push({ ...common, title: 'Итог', role: 'total', scale: plan.total.scale, weight: plan.total.weight || 1 });
+      const created = [];
+      try {
+        for (const spec of specs) created.push(await api.createJournalColumn(spec));
+      } finally {
+        if (created.length) patchData(gid, (d) => ({ ...d, columns: [...d.columns, ...created] }));
+      }
+      if (plan.lessonId) loadLessonAttendance(gid, plan.lessonId);
+      setPeriod('all');
+      setExamModal(null);
+      message.success(`${label} «${rec.title}» заведён — частей: ${plan.parts.length}`);
+    } catch (e) {
+      console.error('journal exam save failed', e);
+      message.error('Не удалось сохранить');
+    } finally {
+      setBlockSaving(false);
+    }
+  };
+
   const deleteBlock = async (block, withColumns) => {
     const gid = data?.groupId;
     try {
@@ -803,10 +891,12 @@ export default function ClassJournal() {
         }
       }
       setBlockModal(null);
-      message.success(withColumns ? 'Интенсив удалён вместе с колонками' : 'Интенсив удалён, колонки остались в журнале');
+      setExamModal(null);
+      const label = blockKindLabel(block);
+      message.success(withColumns ? `${label} удалён вместе с колонками` : `${label} удалён, колонки остались в журнале`);
     } catch (e) {
       console.error('journal block delete failed', e);
-      message.error('Не удалось удалить интенсив');
+      message.error('Не удалось удалить');
       reloadMarks();
     }
   };
@@ -818,18 +908,29 @@ export default function ClassJournal() {
 
   const blockMenuFor = useCallback((block) => {
     if (!block) return [];
+    const exam = isExamBlock(block);
     const items = [];
     if (canEdit && !data?.missing) {
-      items.push({ key: 'block-add', icon: <PlusOutlined />, label: 'Добавить работу дня' });
+      items.push({ key: 'block-add', icon: <PlusOutlined />, label: exam ? 'Добавить часть' : 'Добавить работу дня' });
     }
-    items.push(collapsed.has(block.id)
-      ? { key: 'block-expand', icon: <ArrowsAltOutlined />, label: 'Показать работы дней' }
-      : { key: 'block-collapse', icon: <ShrinkOutlined />, label: 'Свернуть до итогов (за день, зачёт, итог)' });
+    if (exam) {
+      items.push(collapsed.has(block.id)
+        ? { key: 'block-expand', icon: <ArrowsAltOutlined />, label: 'Показать части' }
+        : { key: 'block-collapse', icon: <ShrinkOutlined />, label: 'Свернуть до итога' });
+    } else {
+      items.push(collapsed.has(block.id)
+        ? { key: 'block-expand', icon: <ArrowsAltOutlined />, label: 'Показать работы дней' }
+        : { key: 'block-collapse', icon: <ShrinkOutlined />, label: 'Свернуть до итогов (за день, зачёт, итог)' });
+    }
     if (canEdit && !data?.missing) {
       items.push({ key: 'block-feedback', icon: <RobotOutlined />, label: 'Обратная связь ученикам (черновики ИИ)' });
     }
     if (canEdit && !data?.missing && canManageBlock(block)) {
-      items.push({ key: 'block-edit', icon: <SettingOutlined />, label: 'Настроить интенсив' });
+      items.push({
+        key: 'block-edit',
+        icon: <SettingOutlined />,
+        label: exam ? `Настроить ${block.kind === 'exam' ? 'экзамен' : 'зачёт'}` : 'Настроить интенсив',
+      });
     }
     return items;
   }, [canEdit, data?.missing, collapsed, canManageBlock]);
@@ -837,7 +938,10 @@ export default function ClassJournal() {
   const onBlockMenu = (key, block) => {
     if (key === 'block-add') setColModal({ column: null, presetBlock: block });
     else if (key === 'block-collapse' || key === 'block-expand') toggleCollapsed(block.id);
-    else if (key === 'block-edit') setBlockModal({ block });
+    else if (key === 'block-edit') {
+      if (isExamBlock(block)) setExamModal({ block });
+      else setBlockModal({ block });
+    }
     else if (key === 'block-feedback') setFeedbackBlockId(block.id);
   };
 
@@ -1170,11 +1274,14 @@ export default function ClassJournal() {
                 ...(data.blocksMissing ? [] : [
                   { type: 'divider' },
                   { key: 'intensive', icon: <FireOutlined />, label: 'Интенсив — несколько дней по одной теме' },
+                  { key: 'credit', icon: <AuditOutlined />, label: 'Зачёт — части письменно и устно, итог' },
+                  { key: 'exam', icon: <TrophyOutlined />, label: 'Экзамен — части письменно и устно, итог' },
                 ]),
               ],
               onClick: ({ key }) => {
                 if (key === 'work') setWorkModal(true);
                 else if (key === 'intensive') setBlockModal({ block: null });
+                else if (key === 'credit' || key === 'exam') setExamModal({ block: null, kind: key });
                 else setColModal({ column: null, pickLesson: key === 'lesson' });
               },
             }}
@@ -1260,7 +1367,13 @@ export default function ClassJournal() {
           <span><i className="cj-legend-flag cj-legend-flag--comment" /> комментарий</span>
           <span><CalendarOutlined /> колонка урока: «н» — из посещаемости</span>
           <span><b className="cj-x-wait">w</b> — вейтинг, ждём пересдачи · «—» — не писал, не в счёт</span>
-          {blocks.length > 0 && <span><i className="cj-x-hint">≈4,2</i> — подсказка интенсива, оценку ставите вы</span>}
+          {blocks.length > 0 && (
+            <span>
+              <i className="cj-x-hint">≈4,2</i> — подсказка {blocks.some(isExamBlock)
+                ? (blocks.some((b) => !isExamBlock(b)) ? 'интенсива или зачёта' : 'итога по частям')
+                : 'интенсива'}, оценку ставите вы
+            </span>
+          )}
           <span>
             <span className="cj-swatch cj-swatch--teal">5</span>{' '}
             <span className="cj-swatch cj-swatch--blue">4</span>{' '}
@@ -1325,6 +1438,19 @@ export default function ClassJournal() {
         onCancel={() => setBlockModal(null)}
         onSave={saveBlock}
         onDelete={(withColumns) => deleteBlock(blockModal.block, withColumns)}
+      />
+      <ExamModal
+        open={!!examModal}
+        block={examModal?.block || null}
+        defaultKind={examModal?.kind || 'credit'}
+        lessons={data?.lessons || []}
+        columnsCount={examModal?.block
+          ? (data?.columns || []).filter((c) => c.block === examModal.block.id).length : 0}
+        saving={blockSaving}
+        canDelete={canDelete && !!examModal?.block && canManageBlock(examModal.block)}
+        onCancel={() => setExamModal(null)}
+        onSave={saveExam}
+        onDelete={(withColumns) => deleteBlock(examModal.block, withColumns)}
       />
       <IntensiveFeedbackModal
         open={!!feedback}
