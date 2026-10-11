@@ -133,6 +133,31 @@ describe('панель эфира: кнопка «Все смотрят сюда
     fireEvent.click(screen.getByText('Все смотрят сюда · отпустить'));
     expect(setLead).toHaveBeenLastCalledWith(false, cam);
   });
+
+  it('сворачивается в строку: старт/стоп и «Все смотрят сюда» остаются', () => {
+    localStorage.removeItem('lemma.stereo.liveCollapsed');
+    const start = vi.fn();
+    const stop = vi.fn();
+    const setLead = vi.fn();
+    const { unmount } = mount(live({ isLive: false, start, setLead }));
+    fireEvent.click(screen.getByTitle('Свернуть в одну строку'));
+    expect(screen.queryByText('student.oipav.ru/b/10a')).toBeNull();
+    expect(screen.getByText('10a')).toBeTruthy();
+    expect(screen.getByLabelText('Все смотрят сюда').disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText('Начать эфир'));
+    expect(start).toHaveBeenCalledWith(cam);
+    unmount();
+
+    // Свёрнутость помнится; в эфире — «Стоп» и ведение.
+    mount(live({ stop, setLead }));
+    fireEvent.click(screen.getByLabelText('Все смотрят сюда'));
+    expect(setLead).toHaveBeenCalledWith(true, cam);
+    fireEvent.click(screen.getByLabelText('Остановить эфир'));
+    expect(stop).toHaveBeenCalled();
+    fireEvent.click(screen.getByTitle('Развернуть панель эфира'));
+    expect(screen.getByText('Смотрите отсюда')).toBeTruthy();
+    localStorage.removeItem('lemma.stereo.liveCollapsed');
+  });
 });
 
 describe('useStereoLive: ракурс в эфир, пока учитель ведёт', () => {

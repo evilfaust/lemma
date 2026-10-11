@@ -3,22 +3,36 @@ import {
   Alert, App, Button, Form, Input, Modal, Select, Space, Tooltip,
 } from 'antd';
 import {
-  AimOutlined, CopyOutlined, DeleteOutlined, EyeOutlined, PlusOutlined, WifiOutlined,
+  AimOutlined, CopyOutlined, DeleteOutlined, DownOutlined, EyeOutlined,
+  PauseCircleOutlined, PlayCircleOutlined, PlusOutlined, RightOutlined, WifiOutlined,
 } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { roomCodeFromName, normalizeRoomCode, roomLink } from '../../utils/stereo/room';
 import StereoGroupsSelect from './StereoGroupsSelect';
+
+const COLLAPSED_KEY = 'lemma.stereo.liveCollapsed';
+
+const readCollapsed = () => {
+  try { return localStorage.getItem(COLLAPSED_KEY) === '1'; } catch { return false; }
+};
 
 /**
  * Панель «Эфир» редактора: комната класса, классы трансляции (у их учеников
  * идущий эфир виден в личном кабинете), ссылка для доски, старт/стоп,
  * «Смотрите отсюда» (разово) и «Все смотрят сюда» (ученики следят за каждым
  * поворотом учителя и сами не крутят). Состояние — хук useStereoLive
- * (передаётся целиком).
+ * (передаётся целиком). Панель сворачивается в одну строку (чтобы влезли
+ * инструменты): в ней остаются старт/стоп и «Все смотрят сюда».
  */
 export default function StereoLivePanel({ live, camera }) {
   const { message, modal } = App.useApp();
   const [createOpen, setCreateOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+
+  const toggleCollapsed = () => setCollapsed((v) => {
+    try { localStorage.setItem(COLLAPSED_KEY, v ? '0' : '1'); } catch { /* приватное окно */ }
+    return !v;
+  });
 
   if (live.rooms === undefined) return null;
   if (live.rooms === null) {
@@ -61,13 +75,56 @@ export default function StereoLivePanel({ live, camera }) {
   });
 
   return (
-    <div className={`stereo-live${live.isLive ? ' is-live' : ''}`}>
+    <div className={`stereo-live${live.isLive ? ' is-live' : ''}${collapsed ? ' is-collapsed' : ''}`}>
       <div className="stereo-live__head">
-        <strong><WifiOutlined /> Эфир</strong>
-        {live.isLive && <span className="stereo-live__dot">в эфире</span>}
+        <button
+          type="button"
+          className="stereo-live__toggle"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Развернуть панель эфира' : 'Свернуть в одну строку'}
+        >
+          {collapsed ? <RightOutlined /> : <DownOutlined />}
+          <strong><WifiOutlined /> Эфир</strong>
+          {collapsed && room && <span className="stereo-live__code">{room.code}</span>}
+        </button>
+        {live.isLive && (
+          <span className="stereo-live__dot" title="в эфире">{collapsed ? '' : 'в эфире'}</span>
+        )}
+        {collapsed && (
+          <Space size={4} className="stereo-live__mini">
+            <Tooltip title={!room ? 'Сначала создайте комнату' : live.isLive ? 'Остановить эфир' : 'Начать эфир'}>
+              <Button
+                size="small"
+                aria-label={live.isLive ? 'Остановить эфир' : 'Начать эфир'}
+                type={live.isLive ? 'default' : 'primary'}
+                danger={live.isLive}
+                disabled={!room}
+                icon={live.isLive ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
+                onClick={() => (live.isLive ? live.stop() : live.start(camera))}
+              />
+            </Tooltip>
+            <Tooltip
+              title={!live.isLive
+                ? '«Все смотрят сюда» — во время эфира'
+                : live.isLeading ? 'Все смотрят сюда · отпустить' : 'Все смотрят сюда'}
+            >
+              <Button
+                size="small"
+                aria-label="Все смотрят сюда"
+                aria-pressed={live.isLeading}
+                type={live.isLeading ? 'primary' : 'default'}
+                className={live.isLeading ? 'stereo-live__lead is-on' : 'stereo-live__lead'}
+                disabled={!live.isLive}
+                icon={<EyeOutlined />}
+                onClick={() => live.setLead(!live.isLeading, camera)}
+              />
+            </Tooltip>
+          </Space>
+        )}
       </div>
 
-      {!room ? (
+      {collapsed ? null : !room ? (
         <Button block icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
           Создать комнату класса
         </Button>
