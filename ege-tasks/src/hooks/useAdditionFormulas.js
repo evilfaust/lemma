@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
 import { buildUniqueVariants } from '../utils/trig/variants';
+import { exactFromLatex, exactMul, exactToLatex } from '../utils/exactValue';
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -170,12 +171,56 @@ function genNonstandardTask(funcs, showHint) {
   return { exprLatex: expr, resultLatex: p.result };
 }
 
+// ─── Тип 4: сумма и разность → произведение ───────────────────────────────────
+// sin a ± sin b, cos a ± cos b = 2·f((a ± b)/2)·g((a ∓ b)/2)
+
+const SP_FORMS = {
+  // [f(a) ± f(b)] → [знак, f1 от полусуммы, f2 от полуразности]
+  sinPlus:  { expr: (a, b) => `\\sin ${a} + \\sin ${b}`, sign: 1,  f1: 'sin', f2: 'cos' },
+  sinMinus: { expr: (a, b) => `\\sin ${a} - \\sin ${b}`, sign: 1,  f1: 'cos', f2: 'sin' },
+  cosPlus:  { expr: (a, b) => `\\cos ${a} + \\cos ${b}`, sign: 1,  f1: 'cos', f2: 'cos' },
+  cosMinus: { expr: (a, b) => `\\cos ${a} - \\cos ${b}`, sign: -1, f1: 'sin', f2: 'sin' },
+};
+
+function genSumProductTask(funcs) {
+  const forms = Object.keys(SP_FORMS).filter(k => funcs.includes(k.startsWith('sin') ? 'sin' : 'cos'));
+  if (!forms.length) return null;
+  const form = SP_FORMS[rand(forms)];
+  if (Math.random() < 0.5) {
+    // символьно: sin 5x + sin 3x = 2 sin 4x cos x
+    let n; let m;
+    do { n = randInt(2, 9); m = randInt(1, n - 1); } while ((n + m) % 2 !== 0);
+    const v = rand(VARS);
+    const s = (n + m) / 2; const d = (n - m) / 2;
+    const t = (k) => (k === 1 ? v : `${k}${v}`);
+    const head = form.sign < 0 ? '-2' : '2';
+    return {
+      exprLatex: form.expr(t(n), t(m)),
+      resultLatex: `${head}\\${form.f1} ${t(s)}\\${form.f2} ${t(d)}`,
+    };
+  }
+  // числом: sin 75° + sin 15° = 2 sin 45° cos 30° = √6/2
+  const S = rand([45, 60, 30, 90, 120, 135]);
+  const D = rand([15, 30, 45, 60].filter(x => x < S || S >= 90));
+  const a = S + D; const b = S - D;
+  if (b <= 0 || isStd(a) || isStd(b)) return null;
+  const v1 = STD[String(S)]?.[form.f1]; const v2 = STD[String(D)]?.[form.f2];
+  if (v1 == null || v2 == null) return null;
+  const val = exactMul(exactMul(exactFromLatex(v1), exactFromLatex(v2)), exactFromLatex(form.sign < 0 ? '-2' : '2'));
+  if (!val) return null;
+  return {
+    exprLatex: form.expr(`${a}^{\\circ}`, `${b}^{\\circ}`),
+    resultLatex: exactToLatex(val),
+  };
+}
+
 // ─── Одно задание ─────────────────────────────────────────────────────────────
 
 function generateTask({ taskTypes, funcs, incSum, incDiff, showHint }) {
   const type = rand(taskTypes);
   if (type === 'formula_eval') return genFormulaEvalTask(funcs, incSum, incDiff);
   if (type === 'symbolic') return genSymbolicTask(funcs);
+  if (type === 'sum_product') return genSumProductTask(funcs);
   return genNonstandardTask(funcs, showHint);
 }
 

@@ -27,6 +27,7 @@ const TASK_TYPE_OPTIONS = [
   { value: 'formula_eval', label: 'Числовое распознавание' },
   { value: 'symbolic', label: 'Символьное упрощение' },
   { value: 'nonstandard', label: 'Нестандартные углы' },
+  { value: 'sum_product', label: 'Сумма → произведение' },
 ];
 
 const FUNC_OPTIONS = [
@@ -38,6 +39,7 @@ const FUNC_OPTIONS = [
 function getInstruction(taskTypes) {
   const hasEval = taskTypes.includes('formula_eval') || taskTypes.includes('nonstandard');
   const hasSym = taskTypes.includes('symbolic');
+  if (taskTypes.includes('sum_product')) return 'Вычислите или преобразуйте в произведение:';
   if (hasSym && !hasEval) return 'Упростите выражение:';
   if (!hasSym && hasEval) return 'Вычислите:';
   return 'Вычислите или упростите:';

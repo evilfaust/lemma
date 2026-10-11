@@ -242,3 +242,37 @@ export function exactToText(v) {
   if (den === 1) return num;
   return parts.length > 1 ? `(${num})/${den}` : `${num}/${den}`;
 }
+
+/** Запись значения в LaTeX бланка: «\dfrac{\sqrt{6}+\sqrt{2}}{4}», «-\dfrac{5\pi}{6}» */
+export function exactToLatex(v) {
+  if (!v) return '';
+  if (v.size === 0) return '0';
+  const entries = [...v].sort(([a], [b]) => unkey(a)[0] - unkey(b)[0]);
+  const den = entries.reduce((l, [, r]) => (l * r.d) / gcd(l, r.d), 1);
+  const parts = entries.map(([k, r]) => {
+    const [m, p] = unkey(k);
+    const c = (r.n * den) / r.d;
+    const body = `${m > 1 ? `\\sqrt{${m}}` : ''}${p ? '\\pi' : ''}`;
+    const abs = Math.abs(c);
+    return { neg: c < 0, text: `${body && abs === 1 ? '' : abs}${body}` };
+  });
+  // одночлен: знак выносится за дробь — «-\dfrac{\sqrt{3}}{2}»
+  if (parts.length === 1) {
+    const { neg, text } = parts[0];
+    return `${neg ? '-' : ''}${den === 1 ? text : `\\dfrac{${text}}{${den}}`}`;
+  }
+  const num = parts.map((p, i) => (i === 0 ? `${p.neg ? '-' : ''}${p.text}` : `${p.neg ? ' - ' : ' + '}${p.text}`)).join('');
+  return den === 1 ? num : `\\dfrac{${num}}{${den}}`;
+}
+
+/** −v */
+export const exactNeg = (v) => vNeg(v);
+
+/** Сопряжённое: знак при иррациональных слагаемых меняется (2 + √3 → 2 − √3) */
+export function exactConjugate(v) {
+  if (!v) return null;
+  return vec([...v].map(([k, r]) => [k, k === key(1, 0) ? r : rat(-r.n, r.d)]));
+}
+
+/** a·b — для произведений табличных значений (2·sin 45°·cos 30° = √6/2) */
+export const exactMul = (a, b) => vMul(a, b);

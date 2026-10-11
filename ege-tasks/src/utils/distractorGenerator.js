@@ -1,4 +1,7 @@
 import { normalizeAnswer } from './answerChecker';
+import {
+  exactFromLatex, exactToLatex, exactEqual, exactNeg, exactConjugate,
+} from './exactValue';
 
 const NUMERIC_DELTAS = [-2, -1, 1, 2, -3, 3, -5, 5, -10, 10];
 
@@ -122,6 +125,46 @@ function genTextDistractors(correctRaw, count) {
   return result.slice(0, count);
 }
 
+// ─── Тригонометрия: значения и углы ──────────────────────────────────────────
+// Правдоподобные соседи вместо «\dfrac{\sqrt{4}}{2}» и «(0)^n»: знак, соседнее
+// табличное значение, sin ↔ cos, tg ↔ ctg, соседний угол.
+const TRIG_VALUES = [
+  '0', '\\dfrac{1}{2}', '\\dfrac{\\sqrt{2}}{2}', '\\dfrac{\\sqrt{3}}{2}', '1',
+  '\\dfrac{\\sqrt{3}}{3}', '\\sqrt{3}', '2', '\\dfrac{3}{2}',
+];
+const TRIG_ANGLES = [
+  '0', '\\dfrac{\\pi}{6}', '\\dfrac{\\pi}{4}', '\\dfrac{\\pi}{3}', '\\dfrac{\\pi}{2}',
+  '\\dfrac{2\\pi}{3}', '\\dfrac{3\\pi}{4}', '\\dfrac{5\\pi}{6}', '\\pi',
+];
+
+function genExactDistractors(correctRaw, count) {
+  const v = exactFromLatex(correctRaw);
+  if (!v) return [];
+  const isRationalOnly = [...v.keys()].every(k => k === '1|0');
+  const hasPi = [...v.keys()].some(k => k.endsWith('|1'));
+  const table = (hasPi ? TRIG_ANGLES : TRIG_VALUES).map(exactFromLatex);
+  const idx = table.findIndex(t => exactEqual(t, exactNeg(v)) || exactEqual(t, v));
+  // обычное число не из таблицы (7, 0,25) — обычным путём
+  if (isRationalOnly && idx < 0) return [];
+  const cands = [exactNeg(v), exactConjugate(v)];
+  if (idx >= 0) {
+    const sign = [...v.values()].some(r => r.n < 0) ? exactNeg : (x) => x;
+    for (const d of [1, -1, 2, -2, 3]) {
+      const t = table[idx + d];
+      if (t) cands.push(sign(t), exactNeg(sign(t)));
+    }
+  }
+  const out = [];
+  const seen = [v];
+  for (const c of cands) {
+    if (!c || seen.some(x => exactEqual(x, c))) continue;
+    seen.push(c);
+    out.push(exactToLatex(c));
+    if (out.length >= count) break;
+  }
+  return out;
+}
+
 export function generateDistractors(correctAnswer, count = 3) {
   if (!correctAnswer || typeof correctAnswer !== 'string') return Array(count).fill('');
   const primary = correctAnswer.split('|')[0].trim();
@@ -133,7 +176,12 @@ export function generateDistractors(correctAnswer, count = 3) {
   } else if (isPureNumeric(primary)) {
     distractors = genNumericDistractors(primary, count);
   } else {
-    distractors = genTextDistractors(primary, count);
+    distractors = genExactDistractors(primary, count);
+    if (distractors.length < count) {
+      const more = genTextDistractors(primary, count * 2)
+        .filter(d => !distractors.includes(d) && !/\\sqrt\{(0|1|4|9|16)\}|\(0\)\^/.test(d));
+      distractors = [...distractors, ...more].slice(0, count);
+    }
   }
 
   while (distractors.length < count) distractors.push('');

@@ -14,6 +14,7 @@ import { generateTrigByValueVariants, CATEGORY_LABELS_BY_VALUE } from '../hooks/
 import { QUARTERS } from '../utils/trig/byValue';
 import { generateTrigEquationsEgeVariants, CATEGORY_LABELS_TRIG_EGE } from '../hooks/useTrigEquationsEge';
 import { generateTrigInequalitiesVariants, CATEGORY_LABELS_TRIG_INEQ } from '../hooks/useTrigInequalities';
+import { generateTrigBasicsVariants, CATEGORY_LABELS_TRIG_BASICS } from '../hooks/useTrigBasics';
 
 const renders = (tex) => {
   katex.renderToString(tex, { throwOnError: true });
@@ -167,4 +168,70 @@ describe('тригонометрические неравенства', () => {
     expect(out(Math.PI / 6)).toBe(false);
     expect(checkInequality('\\sin x > \\dfrac{1}{2}', 'x \\in \\left(-\\dfrac{\\pi}{6} + 2\\pi n;\\, \\dfrac{\\pi}{6} + 2\\pi n\\right),\\; n \\in \\mathbb{Z}')).not.toBeNull();
   });
+});
+
+// ─── Основы: радианы, знаки, четверти, период, область значений ─────────────
+const fnOf = (tex) => {
+  const rhs = tex.replace(/^y\s*=\s*/, '');
+  const c = compileTrig(rhs);
+  return (x) => c({ x });
+};
+
+function sampleRange(f) {
+  let lo = Infinity; let hi = -Infinity;
+  for (let i = 0; i <= 20000; i++) {
+    const v = f(-7 + (14 * i) / 20000);
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+
+describe('основы тригонометрии', () => {
+  for (const cat of Object.keys(CATEGORY_LABELS_TRIG_BASICS)) {
+    it(cat, () => {
+      const tasks = collect(generateTrigBasicsVariants, { categories: { [cat]: true } });
+      expect(tasks.length).toBeGreaterThan(5);
+      const wrong = [];
+      for (const q of tasks) {
+        expect(renders(q.exprLatex)).toBe(true);
+        expect(renders(q.resultLatex)).toBe(true);
+        const c = q.check;
+        const fail = (why) => wrong.push(`${q.exprLatex} → ${q.resultLatex}: ${why}`);
+        // напечатанное условие начинается с того, что проверяем
+        if (c.kind === 'equal') {
+          if (!q.exprLatex.startsWith(c.a) || q.resultLatex !== c.b) fail('условие/ответ не те');
+          if (!close(evalTrig(c.a), evalTrig(c.b))) fail('величины не равны');
+        } else if (c.kind === 'sign') {
+          const v = evalTrig(c.expr);
+          if ((v > 0 ? '+' : '-') !== q.resultLatex) fail(`значение ${v}`);
+        } else if (c.kind === 'quarter') {
+          const x = evalTrig(c.angle);
+          const t = ((x % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          const roman = ['I', 'II', 'III', 'IV'][Math.floor(t / (Math.PI / 2))];
+          if (q.resultLatex !== `\\text{${roman}}`) fail(`угол ${t}`);
+        } else if (c.kind === 'period') {
+          const f = fnOf(c.f);
+          const T = evalTrig(q.resultLatex);
+          const pts = Array.from({ length: 40 }, (_, i) => -3.1 + i * 0.157);
+          const periodic = (P) => pts.every(x => {
+            const a = f(x); const b = f(x + P);
+            return !Number.isFinite(a) || Math.abs(a) > 1e6 || close(a, b, 1e-6);
+          });
+          if (!periodic(T)) fail('не период');
+          for (const m of [2, 3, 4, 5, 6]) if (periodic(T / m)) fail(`T/${m} — тоже период`);
+        } else if (c.kind === 'range') {
+          const [lo, hi] = sampleRange(fnOf(c.f));
+          const [a, b] = q.resultLatex.replace(/\\left\[|\\right\]/g, '').split(';').map(t => evalTrig(t));
+          if (!close(lo, a, 1e-6) || !close(hi, b, 1e-6)) fail(`по графику [${lo}; ${hi}]`);
+        } else {
+          const [lo, hi] = sampleRange(fnOf(c.f));
+          const v = Number(q.resultLatex.replace('{,}', '.'));
+          if (!close(c.kind === 'max' ? hi : lo, v, 1e-6)) fail(`по графику ${c.kind === 'max' ? hi : lo}`);
+          if (!q.exprLatex.startsWith(c.f)) fail('функция не та');
+        }
+      }
+      expect(wrong).toEqual([]);
+    });
+  }
 });

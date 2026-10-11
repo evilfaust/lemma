@@ -290,8 +290,9 @@ describe('формулы приведения', () => {
 });
 
 describe('формулы сложения', () => {
-  for (const taskTypes of [['formula_eval'], ['symbolic'], ['nonstandard']]) {
+  for (const taskTypes of [['formula_eval'], ['symbolic'], ['nonstandard'], ['sum_product']]) {
     for (const funcs of [['sin', 'cos', 'tan'], ['tan']]) {
+      if (taskTypes[0] === 'sum_product' && funcs.length === 1) continue;   // только sin/cos
       it(`${taskTypes[0]}: ${funcs.join(', ')}`, () => {
         for (const showHint of [false, true]) {
           const wrong = checkSheet(many(generateAdditionFormulasVariants, {

@@ -109,6 +109,7 @@ export function compileTrig(src) {
   function atom() {
     ws();
     if (eat('(')) { const v = expr(); need(')'); return v; }
+    if (eat('|')) { const v = expr(); need('|'); return (e) => Math.abs(v(e)); }
     if (s[i] === '{') return group();
     if (eat('\\dfrac') || eat('\\frac') || eat('\\tfrac')) {
       const a = group(); const b = group(); return (e) => a(e) / b(e);

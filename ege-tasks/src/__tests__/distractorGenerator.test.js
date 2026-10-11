@@ -156,3 +156,25 @@ describe('hashStringToSeed', () => {
     expect(hashStringToSeed('')).toBe(2166136261);
   });
 });
+
+describe('дистракторы тригонометрии (v3.9.351)', () => {
+  it('соседние табличные значения вместо «√4» и «(0)^n»', () => {
+    const d = generateDistractors('\\dfrac{\\sqrt{3}}{2}', 3);
+    expect(d).toHaveLength(3);
+    expect(d).toContain('-\\dfrac{\\sqrt{3}}{2}');
+    for (const x of d) {
+      expect(x).not.toMatch(/sqrt\{(0|1|4)\}/);
+      expect(x).not.toBe('\\dfrac{\\sqrt{3}}{2}');
+    }
+  });
+  it('углы — соседние углы', () => {
+    const d = generateDistractors('\\dfrac{5\\pi}{6}', 3);
+    expect(d.every(x => x.includes('\\pi'))).toBe(true);
+    expect(new Set(d).size).toBe(3);
+  });
+  it('2 + √3 → сопряжённое и знак', () => {
+    const d = generateDistractors('2+\\sqrt{3}', 3);
+    expect(d).toContain('2 - \\sqrt{3}');
+    expect(d).toContain('-2 - \\sqrt{3}');
+  });
+});

@@ -100,6 +100,7 @@ const DoubleAngleGenerator = lazy(() => import('./components/DoubleAngleGenerato
 const TrigByValueGenerator = lazy(() => import('./components/TrigByValueGenerator'));
 const TrigEquationsEgeGenerator = lazy(() => import('./components/TrigEquationsEgeGenerator'));
 const TrigInequalitiesGenerator = lazy(() => import('./components/TrigInequalitiesGenerator'));
+const TrigBasicsGenerator = lazy(() => import('./components/TrigBasicsGenerator'));
 const OralCountingGenerator = lazy(() => import('./components/OralCountingGenerator'));
 const LogExpEquationsGenerator = lazy(() => import('./components/LogExpEquationsGenerator'));
 const OralPowersRootsGenerator = lazy(() => import('./components/OralPowersRootsGenerator'));
@@ -221,6 +222,7 @@ export const R = {
   TRIG_BY_VALUE:       '/app/trig/by-value',
   TRIG_EQUATIONS_EGE:  '/app/trig/equations-ege',
   TRIG_INEQUALITIES:   '/app/trig/inequalities',
+  TRIG_BASICS:         '/app/trig/basics',
   TRIG_CRYPTOGRAM:     '/app/trig/cryptogram',
   // Арифметика
   ORAL_COUNTING:       '/app/arith/oral-counting',
@@ -348,6 +350,7 @@ const ROUTE_META = [
   { re: /^\/app\/trig\/reduction/,         menuKey: 'reduction-formulas', menuGroup: 'trig', title: 'Тригонометрия — Формулы приведения' },
   { re: /^\/app\/trig\/addition/,          menuKey: 'addition-formulas', menuGroup: 'trig', title: 'Тригонометрия — Формулы сложения' },
   { re: /^\/app\/trig\/double-angle/,      menuKey: 'double-angle',     menuGroup: 'trig', title: 'Тригонометрия — Двойной аргумент' },
+  { re: /^\/app\/trig\/basics/,          menuKey: 'trig-basics',      menuGroup: 'trig', title: 'Тригонометрия — Основы' },
   { re: /^\/app\/trig\/inequalities/,    menuKey: 'trig-inequalities', menuGroup: 'trig', title: 'Тригонометрия — Неравенства' },
   { re: /^\/app\/trig\/equations-ege/,   menuKey: 'trig-equations-ege', menuGroup: 'trig', title: 'Тригонометрия — Уравнения ЕГЭ (часть 2)' },
   { re: /^\/app\/trig\/by-value/,         menuKey: 'trig-by-value',    menuGroup: 'trig', title: 'Тригонометрия — По значению и четверти' },
@@ -447,6 +450,7 @@ const MENU_KEY_PATH = {
   'trig-by-value':          R.TRIG_BY_VALUE,
   'trig-equations-ege':     R.TRIG_EQUATIONS_EGE,
   'trig-inequalities':      R.TRIG_INEQUALITIES,
+  'trig-basics':            R.TRIG_BASICS,
   'trig-cryptogram':        R.TRIG_CRYPTOGRAM,
   'oral-counting':          R.ORAL_COUNTING,
   'log-exp':                R.LOG_EXP_EQUATIONS,
@@ -819,6 +823,7 @@ function AppLayout() {
       key: 'trig', icon: <RadarChartOutlined />, label: 'Тригонометрия', section: 'trig',
       children: [
         { key: 'trig-mixed',              icon: <FunctionOutlined />,    label: 'Смешанная работа' },
+        { key: 'trig-basics',             icon: <RadarChartOutlined />,  label: 'Основы: радианы, знаки, период' },
         { key: 'unit-circle',             icon: <RadarChartOutlined />,  label: 'Единичная окружность' },
         { key: 'trig-values',             icon: <RadarChartOutlined />,  label: 'Значения функций' },
         { key: 'trig-expressions',        icon: <FunctionOutlined />,    label: 'Вычисление выражений' },
@@ -1159,6 +1164,7 @@ function App() {
               <Route path={R.TRIG_BY_VALUE}      element={<TrigByValueGenerator />} />
               <Route path={R.TRIG_EQUATIONS_EGE} element={<TrigEquationsEgeGenerator />} />
               <Route path={R.TRIG_INEQUALITIES}  element={<TrigInequalitiesGenerator />} />
+              <Route path={R.TRIG_BASICS}        element={<TrigBasicsGenerator />} />
               <Route path={R.TRIG_CRYPTOGRAM}    element={<UnitCircleCryptogramGenerator />} />
 
               {/* Арифметика */}

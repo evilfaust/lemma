@@ -80,6 +80,10 @@ import { generateAdditionFormulasVariants }     from '../hooks/useAdditionFormul
 import { generateTrigEquationsVariants }        from '../hooks/useTrigEquations';
 import { generateDoubleAngleVariants }          from '../hooks/useDoubleAngle';
 import {
+  generateTrigBasicsVariants,
+  CATEGORY_LABELS_TRIG_BASICS,
+} from '../hooks/useTrigBasics';
+import {
   generateTrigInequalitiesVariants,
   CATEGORY_LABELS_TRIG_INEQ,
 } from '../hooks/useTrigInequalities';
@@ -280,6 +284,13 @@ export const SHEET_GENERATORS = {
     instruction: 'а) Решите уравнение. б) Найдите все корни этого уравнения, принадлежащие отрезку.',
     categoryLabels: CATEGORY_LABELS_TRIG_EGE,
     generate: generateTrigEquationsEgeVariants,
+  },
+  trig_basics: {
+    label: 'Основы тригонометрии',
+    route: '/app/trig/basics',
+    instruction: 'Выполните задания:',
+    categoryLabels: CATEGORY_LABELS_TRIG_BASICS,
+    generate: generateTrigBasicsVariants,
   },
   trig_inequalities: {
     label: 'Тригонометрические неравенства',

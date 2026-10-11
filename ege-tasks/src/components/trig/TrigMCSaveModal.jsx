@@ -38,6 +38,7 @@ export const GENERATOR_LABELS = {
   trig_by_value:           'По значению и четверти',
   trig_equations_ege:      'Уравнения ЕГЭ (часть 2)',
   trig_inequalities:       'Тригонометрические неравенства',
+  trig_basics:             'Основы тригонометрии',
 };
 
 // Инструкция-префикс, записываемая в statement_md задачи
@@ -62,6 +63,7 @@ const GENERATOR_INSTRUCTIONS = {
   trig_by_value:           'Найдите значение выражения:',
   trig_equations_ege:      'Решите уравнение и найдите корни на отрезке:',
   trig_inequalities:       'Решите неравенство:',
+  trig_basics:             'Выполните задание:',
 };
 
 /**
