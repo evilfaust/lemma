@@ -251,6 +251,10 @@ export const FORMULA_ONLY_BODIES = {
     label: 'Шар (только первая часть)', short: 'шар', gen: 'шара', facet: 'Шар', formulaOnly: true,
     draw: { kind: 'sphere', r: 2 },
   },
+  combo: {
+    label: 'Комбинации тел (только первая часть)', short: 'комбинация', gen: 'тел', facet: 'Комбинации тел', formulaOnly: true,
+    draw: { kind: 'group', parts: [{ kind: 'cylinder', r: 2, h: 4, frame: true, at: [0, 0, 0] }, { kind: 'sphere', r: 2, at: [0, 0, 0] }] },
+  },
 };
 
 /** Описание тела генератора по ключу (включая только-первая-часть). */

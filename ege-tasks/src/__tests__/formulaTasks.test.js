@@ -28,6 +28,15 @@ function bodyVolume(body) {
 
 function recompute(task) {
   const body = task.model.body;
+  if (task.body === 'combo') {
+    // Комбинации: величины частей — по их размерам на чертеже
+    const parts = body.spec.parts;
+    const meas = (i, what) => revolutionMeasures(parts[i])[what];
+    const { meta } = task;
+    if (meta.ratio) return meas(meta.ratio[0], meta.ratio[2]) / meas(meta.ratio[1], meta.ratio[2]);
+    if (meta.sphereR) return parts[meta.sphereR].r;
+    return (meta.given * meas(meta.find[0], meta.find[1])) / meas(meta.of[0], meta.of[1]);
+  }
   if (body.revolution && (task.type === 'fVolume' || task.type === 'fSurface')) {
     const m = revolutionMeasures(body.spec);
     if (task.type === 'fVolume') return m.V / Math.PI;
@@ -54,7 +63,7 @@ const SEEDS = [11, 222, 3333, 44444, 555];
 describe('задачи первой части: генерация по всем телам и уровням', () => {
   for (const type of Object.keys(FORMULA_TYPES)) {
     it(`${type}: каждое тело, каждый уровень — ответ конечной дробью и сходится с чертежом`, () => {
-      for (const body of [...GEN_BODY_KEYS, 'steps', 'cylinder', 'cone', 'sphere']) {
+      for (const body of [...GEN_BODY_KEYS, 'steps', 'cylinder', 'cone', 'sphere', 'combo']) {
         for (const level of [1, 2, 3]) {
           for (const seed of SEEDS) {
             const t = generateFormulaTask({ body, type, level, seed });
@@ -67,7 +76,7 @@ describe('задачи первой части: генерация по всем
               expect({ body, level, seed, stmt: t.statement, v: Math.round(r * 1e6) / 1e6 })
                 .toEqual({ body, level, seed, stmt: t.statement, v: Math.round(t.answerValue * 1e6) / 1e6 });
             }
-            if (t.type === 'fLength' || t.type === 'fReverse') expect(t.ask).toHaveLength(2);
+            if ((t.type === 'fLength' || t.type === 'fReverse') && body !== 'combo') expect(t.ask).toHaveLength(2);
           }
         }
       }

@@ -246,3 +246,90 @@ export function revTask(key, type, rand, level) {
   if (plan) plan.hide = (plan.extra || []).map((o) => o.name).filter(Boolean);
   return plan;
 }
+
+// ─── комбинации тел ─────────────────────────────────────────────────────────
+
+const group = (...parts) => ({ kind: 'group', parts });
+
+/**
+ * Задача на комбинацию тел: шар в цилиндре, конус и цилиндр с общим
+ * основанием, две кружки, шар в кубе. meta — какие величины частей
+ * сравниваются (для проверки в тестах).
+ */
+export function comboTask(type, rand, level) {
+  switch (type) {
+    case 'fVolume': {
+      // Цилиндр описан около шара: V_ц = 3/2 V_ш
+      const Vs = 2 * pickInt(rand, 2, 30);
+      return {
+        spec: group({ kind: 'cylinder', r: 2, h: 4, frame: true, at: [0, 0, 0] }, { kind: 'sphere', r: 2, at: [0, 0, 0] }),
+        labels: [],
+        question: `Цилиндр описан около шара. Объём шара равен $${Vs}$. Найдите объём цилиндра.`,
+        answer: (3 * Vs) / 2,
+        solution: [
+          'У цилиндра, описанного около шара радиуса $r$, радиус основания $r$ и высота $2r$.',
+          `$V_{\\text{ц}} = \\pi r^2\\cdot 2r = 2\\pi r^3$, $V_{\\text{ш}} = \\dfrac43\\pi r^3$, $\\dfrac{V_{\\text{ц}}}{V_{\\text{ш}}} = \\dfrac32$; $V_{\\text{ц}} = \\dfrac32\\cdot ${Vs} = ${numTex((3 * Vs) / 2)}$.`,
+        ],
+        meta: { given: Vs, of: [1, 'V'], find: [0, 'V'] },
+      };
+    }
+    case 'fSurface': {
+      // Шар вписан в цилиндр: S_ц(полная) = 6πr², S_ш = 4πr²
+      const Ss = 2 * pickInt(rand, 2, 30);
+      return {
+        spec: group({ kind: 'cylinder', r: 2, h: 4, frame: true, at: [0, 0, 0] }, { kind: 'sphere', r: 2, at: [0, 0, 0] }),
+        labels: [],
+        question: `Шар вписан в цилиндр. Площадь поверхности шара равна $${Ss}$. Найдите площадь полной поверхности цилиндра.`,
+        answer: (3 * Ss) / 2,
+        solution: [
+          'Радиус основания цилиндра равен радиусу шара $r$, высота — $2r$.',
+          `$S_{\\text{ц}} = 2\\pi r^2 + 2\\pi r\\cdot 2r = 6\\pi r^2$, $S_{\\text{ш}} = 4\\pi r^2$; $S_{\\text{ц}} = \\dfrac32\\cdot ${Ss} = ${numTex((3 * Ss) / 2)}$.`,
+        ],
+        meta: { given: Ss, of: [1, 'S'], find: [0, 'S'] },
+      };
+    }
+    case 'fReverse': {
+      // Конус и цилиндр с общим основанием и высотой: V_к = V_ц / 3
+      const Vc = 3 * pickInt(rand, 2, 40);
+      const coneInside = rand() < 0.5;
+      return {
+        spec: group({ kind: 'cylinder', r: 2, h: 4, frame: true, at: [0, 0, 0] }, { kind: 'cone', r: 2, h: 4, at: [0, 0, 0] }),
+        labels: [],
+        question: coneInside
+          ? `Цилиндр и конус имеют общие основание и высоту. Объём цилиндра равен $${Vc}$. Найдите объём конуса.`
+          : `Цилиндр и конус имеют общие основание и высоту. Объём конуса равен $${Vc / 3}$. Найдите объём цилиндра.`,
+        answer: coneInside ? Vc / 3 : Vc,
+        solution: [`$V_{\\text{к}} = \\dfrac13\\pi r^2 h = \\dfrac13 V_{\\text{ц}}$.`, `Ответ: $${coneInside ? Vc / 3 : Vc}$.`],
+        meta: coneInside ? { given: Vc, of: [0, 'V'], find: [1, 'V'] } : { given: Vc / 3, of: [1, 'V'], find: [0, 'V'] },
+      };
+    }
+    case 'fScale': {
+      // Две кружки: первая в k раз выше, вторая в m раз шире
+      const k = pickInt(rand, 2, 4);
+      const m = pickInt(rand, 2, 3);
+      if ((m * m) % k && level === 1) return null;
+      const ans = (m * m) / k;
+      return {
+        spec: group({ kind: 'cylinder', r: 1, h: 1.2 * k, at: [0, 0, 0] }, { kind: 'cylinder', r: m, h: 1.2, at: [1 + m + 1.2, 0, 0.6 * (1 - k)] }),
+        labels: [],
+        question: `Даны две кружки цилиндрической формы. Первая кружка ${times(k)} выше второй, а вторая ${times(m)} шире первой. Во сколько раз объём второй кружки больше объёма первой?`,
+        answer: ans,
+        solution: [`Объём цилиндра $V = \\pi r^2 h$: $\\dfrac{V_2}{V_1} = \\dfrac{${m}^2\\cdot 1}{1\\cdot ${k}} = ${numTex(ans)}$.`],
+        meta: { ratio: [1, 0, 'V'] },
+      };
+    }
+    case 'fLength': {
+      // Шар вписан в куб: радиус — половина ребра
+      const a = 2 * pickInt(rand, 1, 6);
+      return {
+        spec: group({ kind: 'cube', a, frame: true, at: [0, 0, 0] }, { kind: 'sphere', r: a / 2, at: [0, 0, 0] }),
+        labels: [{ ref: ['A', 'B'], g: G(a) }],
+        question: `Шар вписан в куб с ребром $${a}$. Найдите радиус шара.`,
+        answer: a / 2,
+        solution: ['Шар касается всех граней куба, его диаметр равен ребру куба.', `$r = \\dfrac{${a}}{2} = ${numTex(a / 2)}$.`],
+        meta: { sphereR: 1 },
+      };
+    }
+    default: return null;
+  }
+}

@@ -13,10 +13,12 @@ import {
 } from './vec3';
 import { isPointHiddenBlocks } from './blocks';
 import { rayThroughSphere } from './revolution';
+import { isPointHiddenGroup } from './group';
 
 /** Точка скрыта телом при взгляде вдоль toViewer. */
 export function isPointHidden(body, P, toViewer) {
   if (body.sheets?.length && hiddenBySheet(body.sheets, P, toViewer, 1e-6 * body.size)) return true;
+  if (body.parts) return isPointHiddenGroup(body, P, toViewer, (b, p, w) => isPointHidden({ ...b, sheets: null }, p, w));
   if (body.cells) return isPointHiddenBlocks(body, P, toViewer);
   if (body.sphere) return rayThroughSphere(body.sphere, P, toViewer, 1e-6 * body.size);
   if (!body.faces.length) return false; // чертёж без тела
@@ -80,7 +82,7 @@ export function hiddenInterval(body, A, B, toViewer) {
  * Куски отрезка: [{ t0, t1, hidden }] по порядку от A к B.
  */
 export function splitByVisibility(body, A, B, toViewer) {
-  if (body.cells || body.sheets?.length) return splitMany(body, A, B, toViewer);
+  if (body.cells || body.parts || body.sheets?.length) return splitMany(body, A, B, toViewer);
   const iv = hiddenInterval(body, A, B, toViewer);
   if (!iv) return [{ t0: 0, t1: 1, hidden: false }];
   const out = [];

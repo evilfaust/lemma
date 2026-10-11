@@ -17,7 +17,7 @@ import {
   GEN_BODIES, bodyNamesTex, texName, genBodyDef,
 } from './genBodies';
 import { stepsTask } from './stepsTasks';
-import { revTask } from './revTasks';
+import { revTask, comboTask } from './revTasks';
 
 export const FORMULA_TYPES = {
   fVolume: {
@@ -645,6 +645,7 @@ export function generateFormulaTask({
   const rand = rng(seed);
   for (let i = 0; i < attempts; i += 1) {
     const plan = key === 'steps' ? stepsTask(type, rand, DEFAULT_CAMERA)
+      : key === 'combo' ? comboTask(type, rand, level)
       : REV_KEYS.includes(key) ? revTask(key, type, rand, level)
         : BUILDERS[type](key, rand, level);
     if (!plan) continue;
@@ -676,7 +677,7 @@ function buildFormulaTask(ctx, { type, typeDef, level, seed, answer }) {
   const {
     key, def, spec, labels = [], extra = [], ask = null, question, solution,
   } = ctx;
-  if (type !== 'fScale' && key !== 'steps' && !goodShape(spec)) return null;
+  if (type !== 'fScale' && key !== 'steps' && key !== 'combo' && !goodShape(spec)) return null;
   const ops = [...extra];
   labels.forEach((l, i) => ops.push({ id: `l${i}`, type: 'lengthMark', ref: [...l.ref], text: l.g.label }));
   const askOps = ask ? [{ id: 'ask', type: 'segment', ref: [...ask] }] : [];
@@ -705,6 +706,7 @@ function buildFormulaTask(ctx, { type, typeDef, level, seed, answer }) {
     facets: [def.facet, ...typeDef.facets],
     given: labels.map((l) => ({ ref: l.ref, value: l.g.label })),
     ask,
+    ...(ctx.meta ? { meta: ctx.meta } : {}),
   };
 }
 

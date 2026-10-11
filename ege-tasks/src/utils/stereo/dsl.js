@@ -277,7 +277,16 @@ const fmt = (x) => String(Math.round(Number(x) * 100) / 100);
 
 /** Тело → строка блока. */
 export function bodyLine(specIn) {
-  const s = normalizeBodySpec(specIn);
+  const s0 = normalizeBodySpec(specIn);
+  // Несколько тел: первая строка — первое тело, дальше «и … сдвиг x y z»
+  if (s0.kind === 'group') {
+    return s0.parts.map((p, i) => {
+      const { at, frame, ...part } = p;
+      const line = `${bodyLine(part)}${frame ? ' каркас' : ''}`;
+      return i === 0 ? line : `и ${line}${at.some((x) => x) ? ` сдвиг ${at.map(fmt).join(' ')}` : ''}`;
+    }).join('\n');
+  }
+  const s = s0;
   const line = join(
     bodyShapeLine(s),
     s.cw ? 'по часовой' : '',
@@ -341,6 +350,64 @@ function bodyShapeLine(s) {
   }
 }
 
+const PLACE_WORDS = {
+  справа: 'right', рядом: 'right', слева: 'left', сзади: 'back', сверху: 'top', центре: 'center', внутри: 'center',
+};
+
+/** «конус 2 4 справа каркас» / «шар 2 сдвиг 1 0 0» → тело, размещение, каркас. */
+function parsePartLine(text) {
+  let t = ` ${text} `;
+  let placement = { kind: 'center' };
+  const sh = /\s(?:сдвиг|at)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)(?=\s)/i.exec(t);
+  if (sh) { placement = { kind: 'shift', at: [sh[1], sh[2], sh[3]].map(num) }; t = t.replace(sh[0], ' '); }
+  for (const [w, kind] of Object.entries(PLACE_WORDS)) {
+    const re = new RegExp(`\\s(?:в\\s+)?${w}(?=\\s)`, 'i');
+    if (re.test(t)) { if (!sh) placement = { kind }; t = t.replace(re, ' '); }
+  }
+  const frame = /\sкаркас(?=\s)/i.test(t);
+  t = t.replace(/\sкаркас(?=\s)/i, ' ');
+  return { spec: parseBodyLine(t.trim()), placement, frame };
+}
+
+/** Габарит тела в его собственных координатах. */
+function extentOf(spec) {
+  const b = buildBody(spec);
+  const pts = b.extent || b.order.map((n) => b.vertices[n]);
+  const lo = { x: Infinity, y: Infinity, z: Infinity };
+  const hi = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const p of pts) {
+    lo.x = Math.min(lo.x, p.x); lo.y = Math.min(lo.y, p.y); lo.z = Math.min(lo.z, p.z);
+    hi.x = Math.max(hi.x, p.x); hi.y = Math.max(hi.y, p.y); hi.z = Math.max(hi.z, p.z);
+  }
+  return { lo, hi };
+}
+
+/** Добавить тело к чертежу: вписанное (в центре), рядом, сверху или со сдвигом. */
+export function addPart(bodySpec, partSpec, placement = { kind: 'center' }, frame = false) {
+  const cur = normalizeBodySpec(bodySpec);
+  const parts = cur.kind === 'group' ? cur.parts : [{ ...cur, at: [0, 0, 0], ...(bodySpec?.frame ? { frame: true } : {}) }];
+  const U = { lo: { x: Infinity, y: Infinity, z: Infinity }, hi: { x: -Infinity, y: -Infinity, z: -Infinity } };
+  for (const p of parts) {
+    const { at, frame: _f, ...ps } = p;
+    void _f;
+    const e = extentOf(ps);
+    for (const k of ['x', 'y', 'z']) {
+      U.lo[k] = Math.min(U.lo[k], e.lo[k] + at['xyz'.indexOf(k)]);
+      U.hi[k] = Math.max(U.hi[k], e.hi[k] + at['xyz'.indexOf(k)]);
+    }
+  }
+  const e2 = extentOf(partSpec);
+  const gap = 0.25 * Math.max(U.hi.x - U.lo.x, e2.hi.x - e2.lo.x, 1);
+  const r2 = (x) => Math.round(x * 1000) / 1000;
+  let at = [0, 0, 0];
+  if (placement.kind === 'shift') at = placement.at;
+  else if (placement.kind === 'right') at = [U.hi.x - e2.lo.x + gap, 0, U.lo.z - e2.lo.z];
+  else if (placement.kind === 'left') at = [U.lo.x - e2.hi.x - gap, 0, U.lo.z - e2.lo.z];
+  else if (placement.kind === 'back') at = [0, U.hi.y - e2.lo.y + gap, U.lo.z - e2.lo.z];
+  else if (placement.kind === 'top') at = [0, 0, U.hi.z - e2.lo.z];
+  return normalizeBodySpec({ kind: 'group', parts: [...parts, { ...partSpec, at: at.map(r2), ...(frame ? { frame: true } : {}) }] });
+}
+
 const STILL_RE = /^(статично|статичный|static|без вращения)$/;
 
 /** Блок помечен «статично» — в статье теории его не крутят. */
@@ -360,6 +427,8 @@ export function parseStereoBlock(text) {
   let color = false;
   let still = false;
   let bodySet = false;
+  // Первое тело — каркас, а второго ещё нет: держим отдельно
+  let firstFrame = null;
   const errors = [];
 
   lines.forEach((raw, i) => {
@@ -371,11 +440,26 @@ export function parseStereoBlock(text) {
     if (!cmd) return;
     const low = cmd.toLowerCase();
 
+    // «и шар 2», «+ конус 2 4 справа» — ещё одно тело на том же чертеже.
+    const more = /^(?:и|\+)\s+(.+)$/i.exec(cmd);
+    if (more && bodySet) {
+      const { spec: part, placement, frame } = parsePartLine(more[1]);
+      if (!part) { errors.push({ line: lineNo, message: 'Не понял тело: «и шар 2», «и конус 2 4 справа»' }); return; }
+      if (scene.ops.length) { errors.push({ line: lineNo, message: 'Тела — в начале, до построений' }); return; }
+      scene = { ...scene, body: addPart(firstFrame || scene.body, part, placement, frame) };
+      firstFrame = null;
+      return;
+    }
     if (!bodySet || !scene.ops.length) {
-      const body = parseBodyLine(cmd);
+      const frame = /(^|\s)каркас(\s|$)/i.test(cmd);
+      const body = parseBodyLine(cmd.replace(/(^|\s)каркас(?=\s|$)/i, ' ').trim());
       if (body) {
-        if (bodySet) errors.push({ line: lineNo, message: 'Тело уже задано — оставлено первое' });
-        else { scene = { body, ops: [] }; bodySet = true; }
+        if (bodySet) errors.push({ line: lineNo, message: 'Тело уже задано — оставлено первое (ещё одно тело — «и шар 2»)' });
+        else {
+          scene = { body, ops: [] };
+          if (frame) firstFrame = { ...body, frame: true };
+          bodySet = true;
+        }
         return;
       }
     }

@@ -7,6 +7,7 @@ import {
 } from './vec3';
 import { makeProjector } from './camera';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
+import { groupOccluder } from './group';
 
 /**
  * Палитра выделения: точки (например, через которые проводится сечение),
@@ -265,17 +266,19 @@ export function renderStereo(model, camera, viewport, opts = {}) {
       });
     }
   };
+  // Группа тел: линии части закрывает и её каркас, остальные — только «сплошные» части.
+  const ownerOcc = (part) => (body.parts && part != null ? groupOccluder(body, { owner: part }) : body);
   for (const o of model.lines) {
     const color = pointColorHex(o.color) || o.color || (o.kind === 'edge' ? STEREO_COLORS.edge : STEREO_COLORS.construct);
     // Выделенная прямая толще — и в цвете, и в ч/б печати (там цвет — чёрный).
     const w = (WIDTH[o.kind] || 1.5) * (o.painted ? PAINTED_WIDTH : 1);
-    if (!o.colorRanges?.length) pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step);
+    if (!o.colorRanges?.length) pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step, ownerOcc(o.part));
     else {
       // Покрашенные отрезки режут линию на куски: свой цвет — свой кусок.
       const paintedW = (WIDTH[o.kind] || 1.5) * PAINTED_WIDTH;
       for (const pc of colorPieces(o.colorRanges)) {
         const c = pc.color ? pointColorHex(pc.color) || pc.color : color;
-        pushSplit(o.id, o.kind, lerp(o.a, o.b, pc.t0), lerp(o.a, o.b, pc.t1), c, pc.color ? paintedW : w, o.step);
+        pushSplit(o.id, o.kind, lerp(o.a, o.b, pc.t0), lerp(o.a, o.b, pc.t1), c, pc.color ? paintedW : w, o.step, ownerOcc(o.part));
       }
     }
     const a = P(o.a);
@@ -286,15 +289,19 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   // видимость как у рёбер; контур под ракурс — всегда виден своим телом.
   if (body.curves) {
     for (const cv of body.curves) {
+      const occ = ownerOcc(cv.part);
       cv.pts.forEach((A, i) => {
-        pushSplit(`curve:${cv.id}`, 'edge', A, cv.pts[(i + 1) % cv.pts.length], STEREO_COLORS.edge, WIDTH.edge, -1);
+        pushSplit(`curve:${cv.id}`, 'edge', A, cv.pts[(i + 1) % cv.pts.length], STEREO_COLORS.edge, WIDTH.edge, -1, occ);
       });
     }
   }
   if (body.silhouette) {
     const others = { ...body, faces: [], sphere: null, cells: null, curves: null };
-    body.silhouette(toViewer).forEach(([A, B], i) => {
-      pushSplit(`sil:${i}`, 'edge', A, B, STEREO_COLORS.edge, WIDTH.edge, -1, others);
+    body.silhouette(toViewer).forEach((s, i) => {
+      // У группы контур части закрывают другие части, но не она сама
+      const [A, B] = s.seg || s;
+      const occ = s.seg ? groupOccluder(body, { exclude: s.part }) : others;
+      pushSplit(`sil:${i}`, 'edge', A, B, STEREO_COLORS.edge, WIDTH.edge, -1, occ);
     });
   }
 
@@ -462,7 +469,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const s = P(pt.pos);
     dots.push({
       name, x: s.x, y: s.y, vertex: pt.kind === 'vertex', step: pt.step,
-      hidden: isPointHidden(body, pt.pos, toViewer),
+      hidden: isPointHidden(pt.part != null ? ownerOcc(pt.part) : body, pt.pos, toViewer),
       color: pointColorHex(pt.color), ghost: !!pt.concealed,
     });
   }

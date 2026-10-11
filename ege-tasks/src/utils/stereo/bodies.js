@@ -17,6 +17,7 @@ import { v3, sub, cross, dot, len, mul, centroid, dist, add } from './vec3';
 import { convexHull3 } from './hull';
 import { normalizeBlocksSpec, buildBlocksBody } from './blocks';
 import { REVOLUTION_KINDS, normalizeRevolution, buildRevolutionBody } from './revolution';
+import { normalizeGroupSpec, buildGroupBody } from './group';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L'];
 
@@ -205,6 +206,17 @@ export const POINT_NAME_RE = /^[A-Z][0-9]*$/;
  * например куб KLMNK1L1M1N1; проверяются в buildBody по числу вершин.
  */
 export function normalizeBodySpec(spec = DEFAULT_BODY) {
+  // Несколько тел: части нормализуются каждая; одна часть — просто тело.
+  if (spec?.kind === 'group') {
+    const g = normalizeGroupSpec(spec, normalizeBodySpec);
+    if (!g) return { kind: 'cube', a: 4 };
+    if (g.single) {
+      const { at, frame, ...one } = g.single;
+      void at; void frame;
+      return one;
+    }
+    return g;
+  }
   const out = normalizeBodyShape(spec);
   // Модификаторы: пирамида сверху (roof — её высота), срезанные вершины
   // (cut — сколько отрезать по рёбрам от каждой вершины), без букв (bare).
@@ -308,6 +320,7 @@ function reorder(obj, first) {
 /** Человеческое имя тела: «Куб ABCDA₁B₁C₁D₁». */
 export function bodyTitle(spec) {
   const s = normalizeBodySpec(spec);
+  if (s.kind === 'group') return s.parts.map((p) => bodyTitle(p).split(' ')[0]).join(' и ');
   const base = bodyTitleBase(s);
   if (s.cut) return `${base.split(' ')[0]} со срезанными вершинами`;
   return s.roof ? `${base} с пирамидой сверху` : base;
@@ -408,6 +421,10 @@ function tiltShift(spec, h) {
  */
 export function buildBody(specIn) {
   const spec = normalizeBodySpec(specIn);
+  if (spec.kind === 'group') {
+    const built = spec.parts.map(({ at, frame, ...part }) => ({ body: buildBody(part), at, frame }));
+    return buildGroupBody(spec, built);
+  }
   if (spec.kind === 'blocks') return buildBlocksBody(spec);
   if (REVOLUTION_KINDS.includes(spec.kind)) {
     const rb = buildRevolutionBody(spec);

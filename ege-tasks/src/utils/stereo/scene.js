@@ -189,12 +189,15 @@ export function evaluateScene(scene, opts = {}) {
 
   for (const name of body.order) {
     points[name] = { name, pos: body.vertices[name], kind: 'vertex', step: -1 };
+    if (body.vertexPart) points[name].part = body.vertexPart[name];
     pointOrder.push(name);
   }
   for (const [a, b] of body.edges) {
     const A = body.vertices[a];
     const B = body.vertices[b];
-    lines.push({ id: `edge:${a}-${b}`, kind: 'edge', ref: [a, b], a: A, b: B, p: A, u: sub(B, A), step: -1 });
+    const line = { id: `edge:${a}-${b}`, kind: 'edge', ref: [a, b], a: A, b: B, p: A, u: sub(B, A), step: -1 };
+    if (body.edgePart) line.part = body.edgePart[`${a}-${b}`];
+    lines.push(line);
   }
 
   // --- вспомогательные --------------------------------------------------
@@ -203,9 +206,13 @@ export function evaluateScene(scene, opts = {}) {
 
   // Сечение плоскостью: у выпуклого тела — один многоугольник, у
   // ступенчатого — куски по ячейкам (общие стороны кусков не обводятся).
-  const sectionPieces = (plane) => (body.cells
-    ? blocksSectionPieces(body, plane)
-    : [{ pts: sectionPolygon(body, plane), skip: [] }].filter((pc) => pc.pts.length >= 3));
+  const piecesOf = (b, plane) => (b.cells
+    ? blocksSectionPieces(b, plane)
+    : [{ pts: sectionPolygon(b, plane), skip: [] }].filter((pc) => pc.pts.length >= 3));
+  // У группы — куски по частям (кроме каркаса, если есть что-то кроме него)
+  const sectionPieces = (plane) => (body.parts
+    ? body.parts.flatMap((p) => piecesOf(p.body, plane))
+    : piecesOf(body, plane));
   const pushPieces = (opId, kind, pieces, stepIdx, created, color, extra = {}) => {
     pieces.forEach((pc, i) => {
       const id = i ? `${opId}:p${i}` : opId;
@@ -1086,6 +1093,19 @@ export function renamePoint(scene, from, to) {
   if (from === to) return { scene };
   if (model.points[to]) return { error: `Имя ${prettyName(to)} уже занято` };
   const next = renamePointInScene(scene, from, to);
+  if (pt.kind === 'vertex' && model.body.group) {
+    // Вершина части группы: имя — в описании этой части (names).
+    const { part, name: local } = model.body.localName[from];
+    const spec = normalizeBodySpec(scene.body);
+    const { at, frame, ...ps } = spec.parts[part];
+    if (ps.kind === 'blocks') return { error: 'Вершину ступенчатого тела в группе переименуйте строкой «вершины …»' };
+    const pb = buildBody(ps);
+    const display = Object.fromEntries(Object.entries(model.body.localName).filter(([, v]) => v.part === part).map(([g, v]) => [v.name, g]));
+    const names = pb.order.map((n) => (n === local ? to : display[n] || n));
+    const parts = spec.parts.map((p, i) => (i === part ? { ...ps, names, at, ...(frame ? { frame } : {}) } : p));
+    next.body = { ...spec, parts };
+    return { scene: next };
+  }
   if (pt.kind === 'vertex' && model.body.coordOf) {
     // Ступенчатое тело: имя вершины — по её координате (labels).
     const labels = { ...(normalizeBodySpec(scene.body).labels || {}) };
