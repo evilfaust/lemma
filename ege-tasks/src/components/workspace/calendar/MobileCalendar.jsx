@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button } from 'antd';
 import {
-  BankOutlined, CheckOutlined, DownOutlined, FlagOutlined, LeftOutlined, PlusOutlined,
+  BankOutlined, CheckOutlined, DownOutlined, FlagOutlined, LeftOutlined, MobileOutlined, PlusOutlined,
   RightOutlined, UpOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -32,7 +32,7 @@ function plural(n, one, few, many) {
  */
 export default function MobileCalendar({
   events, date, onDateChange, groups, groupFilter, setGroupFilter,
-  onOpenLesson, onOpenEvent, onToggleTodo, onToggleLessonDone, onCreate, canEdit,
+  onOpenLesson, onOpenEvent, onToggleTodo, onToggleLessonDone, onCreate, onSubscribe, canEdit,
 }) {
   const [mode, setMode] = useState('week'); // week | month
   const day = dayjs(date);
@@ -84,6 +84,12 @@ export default function MobileCalendar({
         <button type="button" className="mc-arrow" onClick={() => shift(1)} aria-label="Вперёд"><RightOutlined /></button>
         {!day.isSame(today, 'day') && (
           <Button size="small" onClick={() => onDateChange(new Date())}>Сегодня</Button>
+        )}
+        {onSubscribe && (
+          <button type="button" className="mc-arrow mc-subscribe" onClick={onSubscribe}
+            aria-label="Календарь на телефоне" title="Календарь на телефоне">
+            <MobileOutlined />
+          </button>
         )}
       </div>
 

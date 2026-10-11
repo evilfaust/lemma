@@ -5,7 +5,7 @@ import { App, Button, Segmented, Select, Tooltip } from 'antd';
 import {
   CalendarOutlined, PlusOutlined, LeftOutlined, RightOutlined,
   LayoutOutlined, ColumnHeightOutlined, CompressOutlined,
-  BankOutlined, BulbOutlined, CheckSquareOutlined, FlagOutlined,
+  BankOutlined, BulbOutlined, CheckSquareOutlined, FlagOutlined, MobileOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
@@ -28,6 +28,7 @@ import MobileCalendar from './calendar/MobileCalendar';
 import LessonSheet from './calendar/LessonSheet';
 import QuickAddFab from './calendar/QuickAddFab';
 import QuickCaptureSheet from './calendar/QuickCaptureSheet';
+import CalendarSubscribeModal from './calendar/CalendarSubscribeModal';
 import { saveLesson } from './calendar/lessonActions';
 import useIsMobile from '../../hooks/useIsMobile';
 import { CalendarContext, useCalendarCtx } from './calendar/CalendarContext';
@@ -107,6 +108,7 @@ export default function TeacherCalendar() {
   const [editingEvent, setEditingEvent] = useState(null); // школьное мероприятие в правке
   const [sheetLesson, setSheetLesson] = useState(null);   // карточка урока (телефон)
   const [capture, setCapture] = useState(null);           // быстрый ввод: 'todo' | 'idea'
+  const [subscribeOpen, setSubscribeOpen] = useState(false); // подписка .ics на телефон
 
   const load = useCallback(async () => {
     try {
@@ -388,6 +390,7 @@ export default function TeacherCalendar() {
           onToggleTodo={toggleTodo}
           onToggleLessonDone={toggleLessonDone}
           onCreate={openCreate}
+          onSubscribe={() => setSubscribeOpen(true)}
           canEdit={canEdit}
         />
       ) : (
@@ -407,6 +410,11 @@ export default function TeacherCalendar() {
               <Tooltip title={density === 'comfortable' ? 'Компактная сетка' : 'Просторная сетка'}>
                 <Button icon={density === 'comfortable' ? <CompressOutlined /> : <ColumnHeightOutlined />}
                   onClick={() => setDensity((x) => (x === 'comfortable' ? 'compact' : 'comfortable'))} />
+              </Tooltip>
+              <Tooltip title="Уроки, мероприятия и дела — в календаре iPhone, Google или Яндекса">
+                <Button icon={<MobileOutlined />} onClick={() => setSubscribeOpen(true)}>
+                  На телефон
+                </Button>
               </Tooltip>
               <Tooltip title={showRail ? 'Скрыть панель' : 'Показать панель'}>
                 <Button icon={<LayoutOutlined />} type={showRail ? 'default' : 'text'}
@@ -546,6 +554,8 @@ export default function TeacherCalendar() {
         canEdit={canEdit}
         myTeacherId={teacher?.id}
       />
+
+      <CalendarSubscribeModal open={subscribeOpen} onClose={() => setSubscribeOpen(false)} />
 
       <QuickCaptureSheet
         mode={capture}

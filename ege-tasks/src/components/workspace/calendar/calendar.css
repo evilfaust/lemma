@@ -442,3 +442,13 @@
 .dark .cal-period { color: rgba(255,255,255,0.88); }
 [data-theme='dark'] .rbc-evt-todo,
 .dark .rbc-evt-todo { background-color: #262626 !important; border-color: #3a3a3a !important; color: rgba(255,255,255,0.85) !important; }
+
+/* ── Календарь на телефоне (v3.9.352) ── */
+.cal-sub-apple { display: flex; flex-direction: column; gap: 10px; }
+.cal-sub-qr { display: flex; align-items: center; gap: 16px; }
+.cal-sub-qr svg { flex: none; background: #fff; border-radius: 8px; }
+.cal-sub-link { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cal-sub-link__url { flex: 1; min-width: 0; }
+@media (max-width: 520px) {
+  .cal-sub-qr { flex-direction: column; align-items: flex-start; }
+}
