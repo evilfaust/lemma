@@ -80,6 +80,10 @@ import { generateAdditionFormulasVariants }     from '../hooks/useAdditionFormul
 import { generateTrigEquationsVariants }        from '../hooks/useTrigEquations';
 import { generateDoubleAngleVariants }          from '../hooks/useDoubleAngle';
 import {
+  generateTrigByValueVariants,
+  CATEGORY_LABELS_BY_VALUE,
+} from '../hooks/useTrigByValue';
+import {
   generateTrigEquationsAdvancedVariants,
   CATEGORY_LABELS_TRIG_ADV,
 } from '../hooks/useTrigEquationsAdvanced';
@@ -261,6 +265,13 @@ export const SHEET_GENERATORS = {
     route: '/app/trig/double-angle',
     instruction: 'Вычислите или упростите:',
     generate: generateDoubleAngleVariants,
+  },
+  trig_by_value: {
+    label: 'По значению и четверти',
+    route: '/app/trig/by-value',
+    instruction: 'Найдите значение выражения:',
+    categoryLabels: CATEGORY_LABELS_BY_VALUE,
+    generate: generateTrigByValueVariants,
   },
 
   // ── Смешанные работы (несколько разделов на листе) ──

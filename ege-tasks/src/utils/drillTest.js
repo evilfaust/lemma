@@ -22,6 +22,7 @@ export const INPUT_GENERATORS = new Set([
   'oral_logarithms',
   'log_exp_equations',
   'linear_equations',
+  'trig_by_value',        // ответ — число в бланк (ЕГЭ, первая часть)
 ]);
 
 export const ANSWER_MODES = { choice: 'choice', input: 'input' };

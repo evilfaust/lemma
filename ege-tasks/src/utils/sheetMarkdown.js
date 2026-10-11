@@ -44,6 +44,7 @@ const EXAM_TYPE_BY_GENERATOR = {
   reduction_formulas:      'trig',
   addition_formulas:       'trig',
   double_angle:            'trig',
+  trig_by_value:           'ege_profile',   // первая часть профиля: вычисления и преобразования
   trig_mixed:              'trig',
   chart_reading:           'ege_base',
 };
@@ -58,6 +59,7 @@ const PROMPT_BY_GENERATOR = {
   log_exp_equations:  'var',
   trig_equations:     'answer',   // ответ — серии целиком: «t = … , n ∈ ℤ»
   trig_equations_advanced: 'answer',
+  trig_by_value:           'answer',
   quadratic_equations:     'answer',
   quadratic_inequalities:  'answer',
   linear_inequalities:     'answer',

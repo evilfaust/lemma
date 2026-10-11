@@ -20,6 +20,7 @@ import { generatePowersRootsVariants } from '../hooks/useOralPowersRoots';
 import { generateLogarithmsVariants } from '../hooks/useOralLogarithms';
 import { generateLogExpVariants } from '../hooks/useLogExpEquations';
 import { generateLinearEquationVariants, DEFAULT_SETTINGS_LINEQ } from '../hooks/useLinearEquations';
+import { generateTrigByValueVariants, DEFAULT_SETTINGS_BY_VALUE } from '../hooks/useTrigByValue';
 
 const allOn = (cats) => Object.fromEntries(Object.keys(cats || {}).map(k => [k, true]));
 
@@ -32,6 +33,9 @@ const GENERATORS = {
   log_exp_equations: generateLogExpVariants,
   linear_equations: (s) => generateLinearEquationVariants({
     ...DEFAULT_SETTINGS_LINEQ, ...s, categories: allOn(DEFAULT_SETTINGS_LINEQ.categories),
+  }),
+  trig_by_value: (s) => generateTrigByValueVariants({
+    ...s, categories: allOn(DEFAULT_SETTINGS_BY_VALUE.categories),
   }),
 };
 
