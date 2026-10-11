@@ -208,7 +208,7 @@ export function numericRoots(f, lo, hi, steps = 30000) {
           if (fa * fm <= 0) b = m; else { a = m; fa = fm; }
         }
         const r = (a + b) / 2;
-        if (Math.abs(f(r)) < 1e-6) push(r);
+        if (Math.abs(f(r)) < 1e-9) push(r);
       } else if (ypp !== null && Math.abs(yp) < Math.abs(y) && Math.abs(yp) < Math.abs(ypp) && Math.abs(yp) < 1e-2) {
         let a = xp - h; let b = x;
         for (let it = 0; it < 100; it++) {
@@ -225,13 +225,29 @@ export function numericRoots(f, lo, hi, steps = 30000) {
 }
 
 /**
+ * Область определения: где в уравнении есть tg (ctg), точки с cos x = 0
+ * (sin x = 0) — не корни, даже если произведение там «обнуляется» численно
+ * ((sin x − 1)·tg x при x = π/2). Только для аргумента x без множителя.
+ */
+export function domainGuarded(tex, g) {
+  const tg = /\\operatorname\{tg\}\s*x/.test(tex);
+  const ctg = /\\operatorname\{ctg\}\s*x/.test(tex);
+  if (!tg && !ctg) return g;
+  return (x) => {
+    if (tg && Math.abs(Math.cos(x)) < 1e-5) return NaN;
+    if (ctg && Math.abs(Math.sin(x)) < 1e-5) return NaN;
+    return g(x);
+  };
+}
+
+/**
  * Сверка ответа уравнения с самим уравнением (обе части — напечатанный текст).
  * Возвращает null, если всё сходится, иначе — текст проблемы.
  */
 export function checkEquation(exprLatex, resultLatex, v = 'x', window = [-28, 28]) {
   const [left, right] = exprLatex.split('=');
   const L = compileTrig(left); const R = compileTrig(right);
-  const g = (x) => L({ [v]: x }) - R({ [v]: x });
+  const g = domainGuarded(exprLatex, (x) => L({ [v]: x }) - R({ [v]: x }));
   const fams = parseFamilies(resultLatex);
   // каждая точка серии — корень
   for (const fam of fams) {

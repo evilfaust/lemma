@@ -80,6 +80,10 @@ import { generateAdditionFormulasVariants }     from '../hooks/useAdditionFormul
 import { generateTrigEquationsVariants }        from '../hooks/useTrigEquations';
 import { generateDoubleAngleVariants }          from '../hooks/useDoubleAngle';
 import {
+  generateTrigEquationsEgeVariants,
+  CATEGORY_LABELS_TRIG_EGE,
+} from '../hooks/useTrigEquationsEge';
+import {
   generateTrigByValueVariants,
   CATEGORY_LABELS_BY_VALUE,
 } from '../hooks/useTrigByValue';
@@ -265,6 +269,13 @@ export const SHEET_GENERATORS = {
     route: '/app/trig/double-angle',
     instruction: 'Вычислите или упростите:',
     generate: generateDoubleAngleVariants,
+  },
+  trig_equations_ege: {
+    label: 'Уравнения ЕГЭ (часть 2)',
+    route: '/app/trig/equations-ege',
+    instruction: 'а) Решите уравнение. б) Найдите все корни этого уравнения, принадлежащие отрезку.',
+    categoryLabels: CATEGORY_LABELS_TRIG_EGE,
+    generate: generateTrigEquationsEgeVariants,
   },
   trig_by_value: {
     label: 'По значению и четверти',

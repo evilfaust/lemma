@@ -98,6 +98,7 @@ const AdditionFormulasGenerator = lazy(() => import('./components/AdditionFormul
 const TrigMixedGenerator = lazy(() => import('./components/TrigMixedGenerator'));
 const DoubleAngleGenerator = lazy(() => import('./components/DoubleAngleGenerator'));
 const TrigByValueGenerator = lazy(() => import('./components/TrigByValueGenerator'));
+const TrigEquationsEgeGenerator = lazy(() => import('./components/TrigEquationsEgeGenerator'));
 const OralCountingGenerator = lazy(() => import('./components/OralCountingGenerator'));
 const LogExpEquationsGenerator = lazy(() => import('./components/LogExpEquationsGenerator'));
 const OralPowersRootsGenerator = lazy(() => import('./components/OralPowersRootsGenerator'));
@@ -217,6 +218,7 @@ export const R = {
   ADDITION:            '/app/trig/addition',
   DOUBLE_ANGLE:        '/app/trig/double-angle',
   TRIG_BY_VALUE:       '/app/trig/by-value',
+  TRIG_EQUATIONS_EGE:  '/app/trig/equations-ege',
   TRIG_CRYPTOGRAM:     '/app/trig/cryptogram',
   // Арифметика
   ORAL_COUNTING:       '/app/arith/oral-counting',
@@ -344,6 +346,7 @@ const ROUTE_META = [
   { re: /^\/app\/trig\/reduction/,         menuKey: 'reduction-formulas', menuGroup: 'trig', title: 'Тригонометрия — Формулы приведения' },
   { re: /^\/app\/trig\/addition/,          menuKey: 'addition-formulas', menuGroup: 'trig', title: 'Тригонометрия — Формулы сложения' },
   { re: /^\/app\/trig\/double-angle/,      menuKey: 'double-angle',     menuGroup: 'trig', title: 'Тригонометрия — Двойной аргумент' },
+  { re: /^\/app\/trig\/equations-ege/,   menuKey: 'trig-equations-ege', menuGroup: 'trig', title: 'Тригонометрия — Уравнения ЕГЭ (часть 2)' },
   { re: /^\/app\/trig\/by-value/,         menuKey: 'trig-by-value',    menuGroup: 'trig', title: 'Тригонометрия — По значению и четверти' },
   { re: /^\/app\/trig\/cryptogram/,        menuKey: 'trig-cryptogram',  menuGroup: 'trig', title: 'Тригонометрия — Шифровки' },
   { re: /^\/app\/arith\/oral-counting/,   menuKey: 'oral-counting',    menuGroup: 'arith', title: 'Устный счёт — Арифметика' },
@@ -439,6 +442,7 @@ const MENU_KEY_PATH = {
   'addition-formulas':      R.ADDITION,
   'double-angle':           R.DOUBLE_ANGLE,
   'trig-by-value':          R.TRIG_BY_VALUE,
+  'trig-equations-ege':     R.TRIG_EQUATIONS_EGE,
   'trig-cryptogram':        R.TRIG_CRYPTOGRAM,
   'oral-counting':          R.ORAL_COUNTING,
   'log-exp':                R.LOG_EXP_EQUATIONS,
@@ -817,6 +821,7 @@ function AppLayout() {
         { key: 'inverse-trig',            icon: <FunctionOutlined />,    label: 'Обратные функции' },
         { key: 'trig-equations',          icon: <FunctionOutlined />,    label: 'Уравнения' },
         { key: 'trig-equations-advanced', icon: <FunctionOutlined />,    label: 'Уравнения f(kx+b)=a' },
+        { key: 'trig-equations-ege',      icon: <FunctionOutlined />,    label: 'Уравнения ЕГЭ (часть 2)' },
         { key: 'reduction-formulas',      icon: <FunctionOutlined />,    label: 'Формулы приведения' },
         { key: 'addition-formulas',       icon: <FunctionOutlined />,    label: 'Формулы сложения' },
         { key: 'double-angle',            icon: <FunctionOutlined />,    label: 'Двойной аргумент' },
@@ -1147,6 +1152,7 @@ function App() {
               <Route path={R.ADDITION}           element={<AdditionFormulasGenerator />} />
               <Route path={R.DOUBLE_ANGLE}       element={<DoubleAngleGenerator />} />
               <Route path={R.TRIG_BY_VALUE}      element={<TrigByValueGenerator />} />
+              <Route path={R.TRIG_EQUATIONS_EGE} element={<TrigEquationsEgeGenerator />} />
               <Route path={R.TRIG_CRYPTOGRAM}    element={<UnitCircleCryptogramGenerator />} />
 
               {/* Арифметика */}
