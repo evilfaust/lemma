@@ -79,7 +79,10 @@ import { generateReductionFormulasVariants }    from '../hooks/useReductionFormu
 import { generateAdditionFormulasVariants }     from '../hooks/useAdditionFormulas';
 import { generateTrigEquationsVariants }        from '../hooks/useTrigEquations';
 import { generateDoubleAngleVariants }          from '../hooks/useDoubleAngle';
-import { generateTrigEquationsAdvancedVariants } from '../hooks/useTrigEquationsAdvanced';
+import {
+  generateTrigEquationsAdvancedVariants,
+  CATEGORY_LABELS_TRIG_ADV,
+} from '../hooks/useTrigEquationsAdvanced';
 
 // Пути дублируются строками намеренно: реестр лежит в utils/ и не может
 // импортировать R из App.jsx (циклическая зависимость). Синхронность
@@ -238,6 +241,7 @@ export const SHEET_GENERATORS = {
     label: 'Уравнения f(kx+b)=a',
     route: '/app/trig/equations-advanced',
     instruction: 'Решите уравнение:',
+    categoryLabels: CATEGORY_LABELS_TRIG_ADV,
     generate: generateTrigEquationsAdvancedVariants,
   },
   reduction_formulas: {

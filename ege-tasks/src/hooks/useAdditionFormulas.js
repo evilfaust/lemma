@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
+import { buildUniqueVariants } from '../utils/trig/variants';
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -11,15 +12,15 @@ const isStd = d => STANDARD_DEG.has(((d % 360) + 360) % 360);
 const STD = {
   '-60': { sin: '-\\dfrac{\\sqrt{3}}{2}', cos: '\\dfrac{1}{2}',              tan: '-\\sqrt{3}' },
   '-45': { sin: '-\\dfrac{\\sqrt{2}}{2}', cos: '\\dfrac{\\sqrt{2}}{2}',      tan: '-1' },
-  '-30': { sin: '-\\dfrac{1}{2}',          cos: '\\dfrac{\\sqrt{3}}{2}',      tan: '-\\dfrac{1}{\\sqrt{3}}' },
+  '-30': { sin: '-\\dfrac{1}{2}',          cos: '\\dfrac{\\sqrt{3}}{2}',      tan: '-\\dfrac{\\sqrt{3}}{3}' },
   '0':   { sin: '0',                       cos: '1',                          tan: '0' },
-  '30':  { sin: '\\dfrac{1}{2}',           cos: '\\dfrac{\\sqrt{3}}{2}',      tan: '\\dfrac{1}{\\sqrt{3}}' },
+  '30':  { sin: '\\dfrac{1}{2}',           cos: '\\dfrac{\\sqrt{3}}{2}',      tan: '\\dfrac{\\sqrt{3}}{3}' },
   '45':  { sin: '\\dfrac{\\sqrt{2}}{2}',   cos: '\\dfrac{\\sqrt{2}}{2}',      tan: '1' },
   '60':  { sin: '\\dfrac{\\sqrt{3}}{2}',   cos: '\\dfrac{1}{2}',              tan: '\\sqrt{3}' },
   '90':  { sin: '1',                       cos: '0',                          tan: null },
   '120': { sin: '\\dfrac{\\sqrt{3}}{2}',   cos: '-\\dfrac{1}{2}',             tan: '-\\sqrt{3}' },
   '135': { sin: '\\dfrac{\\sqrt{2}}{2}',   cos: '-\\dfrac{\\sqrt{2}}{2}',     tan: '-1' },
-  '150': { sin: '\\dfrac{1}{2}',           cos: '-\\dfrac{\\sqrt{3}}{2}',     tan: '-\\dfrac{1}{\\sqrt{3}}' },
+  '150': { sin: '\\dfrac{1}{2}',           cos: '-\\dfrac{\\sqrt{3}}{2}',     tan: '-\\dfrac{\\sqrt{3}}{3}' },
   '180': { sin: '0',                       cos: '-1',                         tan: '0' },
 };
 
@@ -91,7 +92,7 @@ function genFormulaEvalTask(funcs, incSum, incDiff) {
 
 const VARS = ['\\alpha', '\\beta', 'x', 'y', '\\varphi', 't'];
 
-const FORMULAS = ['sin_sum', 'sin_diff', 'cos_sum', 'cos_diff'];
+const FORMULAS = ['sin_sum', 'sin_diff', 'cos_sum', 'cos_diff', 'tan_sum', 'tan_diff'];
 
 function coef(k, v) { return k === 1 ? v : `${k}${v}`; }
 
@@ -100,11 +101,12 @@ function genSymbolicTask(funcs) {
   do { n = randInt(1, 7); m = randInt(1, 7); } while (n === m || n + m > 12);
 
   const v = rand(VARS);
-  const validFormulas = FORMULAS.filter(f =>
-    !(f.startsWith('sin') && !funcs.includes('sin')) &&
-    !(f.startsWith('cos') && !funcs.includes('cos'))
-  );
-  const f = rand(validFormulas.length ? validFormulas : FORMULAS);
+  // Формула выбирается только из отмеченных функций (до v3.9.348 при одном
+  // «tg» генератор молча выдавал sin/cos — tg-формул тут не было вовсе)
+  const validFormulas = FORMULAS.filter(f => funcs.includes(f.split('_')[0]));
+  if (!validFormulas.length) return null;
+  const f = rand(validFormulas);
+  const tg = '\\operatorname{tg}';
 
   const nv = coef(n, v), mv = coef(m, v);
   const kSum  = n + m;
@@ -122,9 +124,15 @@ function genSymbolicTask(funcs) {
   } else if (f === 'cos_sum') {
     exprLatex   = `\\cos ${nv}\\cos ${mv} - \\sin ${nv}\\sin ${mv}`;
     resultLatex = `\\cos ${sumV}`;
-  } else {
+  } else if (f === 'cos_diff') {
     exprLatex   = `\\cos ${nv}\\cos ${mv} + \\sin ${nv}\\sin ${mv}`;
     resultLatex = `\\cos ${diffV}`;
+  } else if (f === 'tan_sum') {
+    exprLatex   = `\\dfrac{${tg}\\,${nv} + ${tg}\\,${mv}}{1 - ${tg}\\,${nv}\\,${tg}\\,${mv}}`;
+    resultLatex = `${tg}\\,${sumV}`;
+  } else {
+    exprLatex   = `\\dfrac{${tg}\\,${nv} - ${tg}\\,${mv}}{1 + ${tg}\\,${nv}\\,${tg}\\,${mv}}`;
+    resultLatex = n > m ? `${tg}\\,${diffV}` : `-${tg}\\,${diffV}`;
   }
   return { exprLatex, resultLatex };
 }
@@ -162,22 +170,13 @@ function genNonstandardTask(funcs, showHint) {
   return { exprLatex: expr, resultLatex: p.result };
 }
 
-// ─── Вариант ──────────────────────────────────────────────────────────────────
+// ─── Одно задание ─────────────────────────────────────────────────────────────
 
-function generateVariant({ count, taskTypes, funcs, incSum, incDiff, showHint }) {
-  const tasks = [];
-  for (let i = 0; i < count; i++) {
-    const type = rand(taskTypes);
-    let task = null;
-    for (let attempt = 0; attempt < 10; attempt++) {
-      if (type === 'formula_eval') task = genFormulaEvalTask(funcs, incSum, incDiff);
-      else if (type === 'symbolic')  task = genSymbolicTask(funcs);
-      else                           task = genNonstandardTask(funcs, showHint);
-      if (task) break;
-    }
-    tasks.push(task || { exprLatex: '?', resultLatex: '?' });
-  }
-  return tasks;
+function generateTask({ taskTypes, funcs, incSum, incDiff, showHint }) {
+  const type = rand(taskTypes);
+  if (type === 'formula_eval') return genFormulaEvalTask(funcs, incSum, incDiff);
+  if (type === 'symbolic') return genSymbolicTask(funcs);
+  return genNonstandardTask(funcs, showHint);
 }
 
 // ─── Хук ──────────────────────────────────────────────────────────────────────
@@ -201,9 +200,11 @@ export function generateAdditionFormulasVariants(settings) {
   const s = { ...DEFAULT_AF_SETTINGS, ...settings };
   const { variantsCount, tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint } = s;
   if (!taskTypes?.length || !funcs?.length) return [];
-  return Array.from({ length: variantsCount }, () =>
-    generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint })
-  );
+  return buildUniqueVariants({
+    variantsCount,
+    count: tasksPerVariant,
+    makeOne: () => generateTask({ taskTypes, funcs, incSum, incDiff, showHint }),
+  });
 }
 
 export function useAdditionFormulas() {
@@ -220,11 +221,8 @@ export function useAdditionFormulas() {
 
   const generate = useCallback((override) => {
     const s = override ? { ...settings, ...override } : settings;
-    const { variantsCount, tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint } = s;
-    if (!taskTypes.length || !funcs.length) return;
-    const data = Array.from({ length: variantsCount }, () =>
-      generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSum, incDiff, showHint })
-    );
+    const data = generateAdditionFormulasVariants(s);
+    if (!data.length) return;
     setTasksData(data);
   }, [settings]);
 

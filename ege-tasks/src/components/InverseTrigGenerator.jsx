@@ -27,6 +27,8 @@ const TASK_TYPE_OPTIONS = [
   { value: 'basic',  label: 'Простые (arcsin, arccos...)' },
   { value: 'sum',    label: 'Сумма / разность' },
   { value: 'nested', label: 'Вложенные (sin(arccos...) )' },
+  { value: 'arcOfTrig', label: 'Главное значение: arcsin(sin 5π/6)' },
+  { value: 'nestedNonTable', label: 'Через тождество: sin(arccos 3/5)' },
   { value: 'mixed',  label: 'Смешанный' },
 ];
 
@@ -58,7 +60,7 @@ export default function InverseTrigGenerator() {
     { key: 'useOuterCot', label: 'ctg' },
   ];
 
-  const showNested = settings.taskType === 'nested' || settings.taskType === 'mixed';
+  const showNested = ['nested', 'nestedNonTable', 'mixed'].includes(settings.taskType);
   const typeLabel = TASK_TYPE_OPTIONS.find(o => o.value === settings.taskType)?.label ?? 'Обратные функции';
 
   return (
@@ -147,7 +149,7 @@ export default function InverseTrigGenerator() {
             {tasksData && <SheetTasksPanel sheet={sheet} />}
 
             <TrigActions>
-              <Button type="primary" block icon={<ThunderboltOutlined />} onClick={generate}>
+              <Button type="primary" block icon={<ThunderboltOutlined />} onClick={() => generate()}>
                 Сформировать
               </Button>
               {tasksData && (

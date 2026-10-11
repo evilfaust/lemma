@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
+import { buildUniqueVariants } from '../utils/trig/variants';
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -221,22 +222,13 @@ function genMixedTask(funcs) {
   };
 }
 
-// ─── Генерация одного варианта ────────────────────────────────────────────────
+// ─── Одно задание ─────────────────────────────────────────────────────────────
 
-function generateVariant({ count, taskTypes, funcs, incSin, incCos, incTan }) {
-  const tasks = [];
-  for (let i = 0; i < count; i++) {
-    const type = rand(taskTypes);
-    let task = null;
-    for (let attempt = 0; attempt < 12; attempt++) {
-      if (type === 'numeric')  task = genNumericTask(funcs, incSin, incCos, incTan);
-      else if (type === 'symbolic') task = genSymbolicTask(funcs, incSin, incCos, incTan);
-      else                     task = genMixedTask(funcs);
-      if (task) break;
-    }
-    tasks.push(task || { exprLatex: '?', resultLatex: '?' });
-  }
-  return tasks;
+function generateTask({ taskTypes, funcs, incSin, incCos, incTan }) {
+  const type = rand(taskTypes);
+  if (type === 'numeric') return genNumericTask(funcs, incSin, incCos, incTan);
+  if (type === 'symbolic') return genSymbolicTask(funcs, incSin, incCos, incTan);
+  return genMixedTask(funcs);
 }
 
 // ─── Настройки по умолчанию ───────────────────────────────────────────────────
@@ -262,9 +254,11 @@ export function generateDoubleAngleVariants(settings) {
   const s = { ...DEFAULT_DA_SETTINGS, ...settings };
   const { variantsCount, tasksPerVariant, taskTypes, funcs, incSin, incCos, incTan } = s;
   if (!taskTypes?.length || !funcs?.length) return [];
-  return Array.from({ length: variantsCount }, () =>
-    generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSin, incCos, incTan })
-  );
+  return buildUniqueVariants({
+    variantsCount,
+    count: tasksPerVariant,
+    makeOne: () => generateTask({ taskTypes, funcs, incSin, incCos, incTan }),
+  });
 }
 
 export function useDoubleAngle() {
@@ -281,11 +275,8 @@ export function useDoubleAngle() {
 
   const generate = useCallback((override) => {
     const s = override ? { ...settings, ...override } : settings;
-    const { variantsCount, tasksPerVariant, taskTypes, funcs, incSin, incCos, incTan } = s;
-    if (!taskTypes.length || !funcs.length) return;
-    const data = Array.from({ length: variantsCount }, () =>
-      generateVariant({ count: tasksPerVariant, taskTypes, funcs, incSin, incCos, incTan })
-    );
+    const data = generateDoubleAngleVariants(s);
+    if (!data.length) return;
     setTasksData(data);
   }, [settings]);
 

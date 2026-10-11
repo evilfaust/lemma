@@ -1,20 +1,12 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
+import { buildUniqueVariants } from '../utils/trig/variants';
 
 // ─── Вспомогательные функции ─────────────────────────────────────────────────
 function gcd(a, b) {
   a = Math.abs(a); b = Math.abs(b);
   while (b) { [a, b] = [b, a % b]; }
   return a || 1;
-}
-
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 function rand(arr) {
@@ -225,17 +217,14 @@ export function generateTrigExpressionsVariants(settings) {
   const fns = [useSin && 'sin', useCos && 'cos', useTan && 'tan', useCot && 'cot'].filter(Boolean);
   if (fns.length === 0) return [];
   const anglePool = useNegAngles ? STD_ANGLES : STD_ANGLES.filter(a => a.num >= 0);
-  return Array.from({ length: variantsCount }, () => {
-    const questions = [];
-    let failCount = 0;
-    while (questions.length < questionsCount && failCount < 60) {
-      let type = taskType;
-      if (type === 'mixed') type = questions.length % 2 === 0 ? 'sum' : 'product';
-      const expr = generateExpression(type, termsCount, fns, anglePool, 400, useDegrees);
-      if (expr) questions.push(expr);
-      else failCount++;
-    }
-    return questions;
+  // mixed: чётные позиции — сумма, нечётные — произведение
+  return buildUniqueVariants({
+    variantsCount,
+    count: questionsCount,
+    makeOne: (i) => {
+      const type = taskType === 'mixed' ? (i % 2 === 0 ? 'sum' : 'product') : taskType;
+      return generateExpression(type, termsCount, fns, anglePool, 400, useDegrees);
+    },
   });
 }
 
@@ -253,36 +242,8 @@ export function useTrigExpressions() {
 
   const generate = useCallback((override) => {
     const s = override ? { ...settings, ...override } : settings;
-    const {
-      variantsCount, questionsCount, taskType, termsCount,
-      useSin, useCos, useTan, useCot, useNegAngles, useDegrees,
-    } = s;
-
-    const fns = [useSin && 'sin', useCos && 'cos', useTan && 'tan', useCot && 'cot'].filter(Boolean);
-    if (fns.length === 0) return;
-
-    const anglePool = useNegAngles
-      ? STD_ANGLES
-      : STD_ANGLES.filter(a => a.num >= 0);
-
-    const variants = Array.from({ length: variantsCount }, () => {
-      const questions = [];
-      let failCount = 0;
-
-      while (questions.length < questionsCount && failCount < 60) {
-        let type = taskType;
-        if (type === 'mixed') {
-          // чередуем: чётные — сумма, нечётные — произведение
-          type = questions.length % 2 === 0 ? 'sum' : 'product';
-        }
-        const expr = generateExpression(type, termsCount, fns, anglePool, 400, useDegrees);
-        if (expr) questions.push(expr);
-        else failCount++;
-      }
-
-      return questions;
-    });
-
+    const variants = generateTrigExpressionsVariants(s);
+    if (!variants.length) return;
     setTasksData(variants);
   }, [settings]);
 

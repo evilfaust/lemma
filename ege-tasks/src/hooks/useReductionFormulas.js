@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
+import { buildUniqueVariants } from '../utils/trig/variants';
 
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
@@ -197,24 +198,19 @@ function genNumericTask(funcs, numPatterns) {
       genComplementaryTask(funcs);
     if (t) return t;
   }
-  return genSqrt3Task(['sin', 'cos', 'tan', 'cot']) || { exprLatex: '?', resultLatex: '?' };
+  return null;
 }
 
-// ─── Вариант ──────────────────────────────────────────────────────────────────
-function generateVariant({ count, taskTypes, funcs, angleMode, numPatterns }) {
-  const tasks = [];
-  for (let i = 0; i < count; i++) {
-    const type = rand(taskTypes);
-    const radians =
-      angleMode === 'radians' ? true :
-      angleMode === 'degrees' ? false :
-      Math.random() < 0.5;
-
-    if (type === 'basic')    tasks.push(genBasicTask(funcs, radians));
-    else if (type === 'reversed') tasks.push(genReversedTask(funcs, radians));
-    else tasks.push(genNumericTask(funcs, numPatterns));
-  }
-  return tasks;
+// ─── Одно задание ─────────────────────────────────────────────────────────────
+function generateTask({ taskTypes, funcs, angleMode, numPatterns }) {
+  const type = rand(taskTypes);
+  const radians =
+    angleMode === 'radians' ? true :
+    angleMode === 'degrees' ? false :
+    Math.random() < 0.5;
+  if (type === 'basic') return genBasicTask(funcs, radians);
+  if (type === 'reversed') return genReversedTask(funcs, radians);
+  return genNumericTask(funcs, numPatterns);
 }
 
 // ─── Хук ──────────────────────────────────────────────────────────────────────
@@ -236,9 +232,11 @@ export function generateReductionFormulasVariants(settings) {
   const s = { ...DEFAULT_RF_SETTINGS, ...settings };
   const { variantsCount, tasksPerVariant, taskTypes, funcs, angleMode, numPatterns } = s;
   if (!taskTypes?.length || !funcs?.length) return [];
-  return Array.from({ length: variantsCount }, () =>
-    generateVariant({ count: tasksPerVariant, taskTypes, funcs, angleMode, numPatterns })
-  );
+  return buildUniqueVariants({
+    variantsCount,
+    count: tasksPerVariant,
+    makeOne: () => generateTask({ taskTypes, funcs, angleMode, numPatterns }),
+  });
 }
 
 export function useReductionFormulas() {
@@ -255,12 +253,8 @@ export function useReductionFormulas() {
 
   const generate = useCallback((override) => {
     const s = override ? { ...settings, ...override } : settings;
-    const { variantsCount, tasksPerVariant, taskTypes, funcs, angleMode, numPatterns } = s;
-    if (!taskTypes.length || !funcs.length) return;
-
-    const data = Array.from({ length: variantsCount }, () =>
-      generateVariant({ count: tasksPerVariant, taskTypes, funcs, angleMode, numPatterns })
-    );
+    const data = generateReductionFormulasVariants(s);
+    if (!data.length) return;
     setTasksData(data);
   }, [settings]);
 

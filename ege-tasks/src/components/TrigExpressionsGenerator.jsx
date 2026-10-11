@@ -154,7 +154,7 @@ export default function TrigExpressionsGenerator() {
           {tasksData && <SheetTasksPanel sheet={sheet} />}
 
           <TrigActions>
-            <Button type="primary" block icon={<ThunderboltOutlined />} onClick={generate}>
+            <Button type="primary" block icon={<ThunderboltOutlined />} onClick={() => generate()}>
               Сформировать
             </Button>
             {tasksData && (

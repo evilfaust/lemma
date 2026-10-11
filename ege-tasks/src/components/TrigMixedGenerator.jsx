@@ -11,11 +11,35 @@ import { SplitLayout, ConfigLabel } from '../ui';
 import UnitCircleSVG from './trig/UnitCircleSVG';
 import TrigMixedPrintLayout from './trig/TrigMixedPrintLayout';
 import { SheetLayoutOptions, SHEET_DEFAULTS } from './trig/sheetOptions';
+import { CATEGORY_GROUPS_TRIG_ADV, DEFAULT_SETTINGS as ADV_DEFAULTS } from '../hooks/useTrigEquationsAdvanced';
 import { TRIG_TYPES, getTrigType } from '../hooks/trigMixedRegistry';
 import { useSheetTools } from '../hooks/useSheetTools';
 import { SheetStorageActions } from './trig/SheetStorageActions';
 
 const { Text } = Typography;
+
+// «Уравнения f(kx + b) = a» в смешанной работе: блоки категорий одной
+// галочкой. Раздел, сохранённый до v3.9.347, хранит два флажка useType1/2.
+function advCategories(cfg) {
+  if (cfg.categories) return cfg.categories;
+  const on = new Set([
+    ...(cfg.useType1 !== false ? CATEGORY_GROUPS_TRIG_ADV[0].keys : []),
+    ...(cfg.useType2 ? CATEGORY_GROUPS_TRIG_ADV[2].keys : []),
+  ]);
+  return Object.fromEntries(Object.keys(ADV_DEFAULTS.categories).map(k => [k, on.has(k)]));
+}
+const advGroupsOn = (cfg) => {
+  const cats = advCategories(cfg);
+  return CATEGORY_GROUPS_TRIG_ADV
+    .map((g, i) => (g.keys.some(k => cats[k]) ? String(i) : null))
+    .filter(Boolean);
+};
+function withAdvGroups(cfg, vals) {
+  const categories = {};
+  CATEGORY_GROUPS_TRIG_ADV.forEach((g, i) => g.keys.forEach(k => { categories[k] = vals.includes(String(i)); }));
+  const { useType1, useType2, ...rest } = cfg;
+  return { ...rest, categories };
+}
 
 
 // ─── Уникальный id для секции ────────────────────────────────────────────────
@@ -97,11 +121,13 @@ function SectionSettings({ section, onChange }) {
           <Col><Text type="secondary" style={{ fontSize: 12 }}>Тип:</Text></Col>
           <Col>
             <Select size="small" value={cfg.taskType} onChange={v => set('taskType', v)}
-              style={{ width: 110 }}
+              style={{ width: 150 }}
               options={[
                 { value: 'basic',  label: 'Простые' },
                 { value: 'sum',    label: 'Суммы' },
                 { value: 'nested', label: 'Вложенные' },
+                { value: 'arcOfTrig', label: 'arcsin(sin 5π/6)' },
+                { value: 'nestedNonTable', label: 'sin(arccos 3/5)' },
                 { value: 'mixed',  label: 'Смешанные' },
               ]}
             />
@@ -314,12 +340,9 @@ function SectionSettings({ section, onChange }) {
           <Col><Text type="secondary" style={{ fontSize: 12 }}>Типы:</Text></Col>
           <Col>
             <Checkbox.Group
-              options={[
-                { label: 'f(kx) = a',      value: 'type1' },
-                { label: 'A·f(kx+b) = c',  value: 'type2' },
-              ]}
-              value={[cfg.useType1 && 'type1', cfg.useType2 && 'type2'].filter(Boolean)}
-              onChange={vals => onChange({ ...cfg, useType1: vals.includes('type1'), useType2: vals.includes('type2') })}
+              options={CATEGORY_GROUPS_TRIG_ADV.map((g, i) => ({ label: g.label, value: String(i) }))}
+              value={advGroupsOn(cfg)}
+              onChange={vals => onChange(withAdvGroups(cfg, vals))}
             />
           </Col>
         </Row>
@@ -782,7 +805,7 @@ export default function TrigMixedGenerator() {
                                           <MathInline latex={q.exprLatex} />
                                         </span>
                                         <span style={{ color: 'var(--rule)', padding: '0 4px', flexShrink: 0 }}>
-                                          {sec.questionMode === 'twoLine' ? 't =' : '='}
+                                          {sec.questionMode === 'twoLine' ? (q.hideKeyPrompt ? '' : `${q.varLatex || 't'} =`) : '='}
                                         </span>
                                         <span style={{ color: 'var(--accent)', fontStyle: 'italic', fontWeight: 500, flexShrink: 0 }}>
                                           <MathInline latex={q.resultLatex} />

@@ -56,8 +56,8 @@ const EXAM_TYPE_BY_GENERATOR = {
 const PROMPT_BY_GENERATOR = {
   linear_equations:   'var',
   log_exp_equations:  'var',
-  trig_equations:     'var',
-  trig_equations_advanced: 'var',
+  trig_equations:     'answer',   // ответ — серии целиком: «t = … , n ∈ ℤ»
+  trig_equations_advanced: 'answer',
   quadratic_equations:     'answer',
   quadratic_inequalities:  'answer',
   linear_inequalities:     'answer',

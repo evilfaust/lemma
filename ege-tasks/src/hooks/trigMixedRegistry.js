@@ -118,7 +118,10 @@ export const TRIG_TYPES = [
     generator:    generateTrigEquationsAdvancedVariants,
     defaultCfg: {
       questionsCount: 4,
-      useType1: true, useType2: false,
+      categories: {
+        sin_k: true, cos_k: true, tan_k: true,
+        sin_shift: true, cos_shift: true, tan_shift: true,
+      },
       twoColumns: true,
     },
   },

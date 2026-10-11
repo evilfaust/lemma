@@ -32,7 +32,7 @@ function QuestionRow({ q, qi, questionMode, showWorkSpace, workSpaceSize }) {
           <span className="texpr-q-expr"><MathLine latex={q.exprLatex} /></span>
         </div>
         <div className="texpr-question-answer">
-          <span className="texpr-q-answer-label">t =</span>
+          <span className="texpr-q-answer-label">{q.varLatex || 't'} =</span>
           <span className="texpr-q-answer-line" />
         </div>
         {ws}
@@ -110,7 +110,11 @@ function TeacherKeyPage({ tasksData, title, questionMode, opts }) {
                 <span className="texpr-key-expr">
                   <MathLine latex={q.exprLatex} />
                 </span>
-                <span className="texpr-key-eq">{questionMode === 'twoLine' ? 't =' : '='}</span>
+                <span className="texpr-key-eq">
+                  {questionMode === 'twoLine' || questionMode === 'plain'
+                    ? (q.hideKeyPrompt ? '' : questionMode === 'twoLine' ? `${q.varLatex || 't'} =` : '=')
+                    : '='}
+                </span>
                 <span className="texpr-key-ans">
                   <MathLine latex={keyAnswerLatex(q.resultLatex, opts)} />
                 </span>

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
+import { buildUniqueVariants } from '../utils/trig/variants';
 
 // ─── Форматирование результата (угол) ─────────────────────────────────────────
 const P = Math.PI;
@@ -125,14 +126,6 @@ function formatArcArg(argTex) {
 
 // ─── Рандом ───────────────────────────────────────────────────────────────────
 function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 // ─── Генераторы заданий ───────────────────────────────────────────────────────
 
@@ -227,11 +220,101 @@ function genNested(outerFns, arcFns) {
   return results;
 }
 
+// Тип arcOfTrig: arcsin(sin 5π/6) = π/6 — главное значение, а не «сам угол»
+const THETAS = [];
+for (const den of [6, 4, 3]) {
+  for (let num = -2 * den + 1; num < 2 * den; num++) {
+    const g = gcdInt(Math.abs(num), den);
+    if (g !== 1 && num !== 0) continue;
+    if (num === 0 && den !== 6) continue;
+    THETAS.push({ num, den });
+  }
+}
+function gcdInt(a, b) { while (b) [a, b] = [b, a % b]; return a || 1; }
+function angleTex(num, den) {
+  if (num === 0) return '0';
+  const sign = num < 0 ? '-' : '';
+  const n = Math.abs(num);
+  if (den === 1) return `${sign}${n === 1 ? '' : n}\\pi`;
+  return `${sign}\\dfrac{${n === 1 ? '' : n}\\pi}{${den}}`;
+}
+
+const ARC_OF = { sin: 'arcsin', cos: 'arccos', tan: 'arctan', cot: 'arccot' };
+const ARC_VAL = { arcsin: arcsinVal, arccos: arccosVal, arctan: arctanVal, arccot: arccotVal };
+
+function genArcOfTrig(arcFns, useDegrees) {
+  const out = [];
+  const outerOf = Object.fromEntries(Object.entries(ARC_OF).map(([f, a]) => [a, f]));
+  for (const arc of arcFns) {
+    const fn = outerOf[arc];
+    for (const { num, den } of THETAS) {
+      const theta = (num / den) * Math.PI;
+      const inner = evalOuter(fn, theta);
+      if (inner === null || !isFinite(inner)) continue;
+      const resultLatex = formatArcResult(ARC_VAL[arc](inner), useDegrees);
+      if (!resultLatex) continue;
+      // угол уже в области значений — это не задание на «главное значение»
+      if (Math.abs(ARC_VAL[arc](inner) - theta) < 1e-9 && Math.random() < 0.7) continue;
+      const thetaTex = angleTex(num, den);
+      const innerTex = num < 0
+        ? `${outerFnTex(fn)}\\!\\left(${thetaTex}\\right)`
+        : `${outerFnTex(fn)}\\,${thetaTex}`;
+      out.push({ exprLatex: `${arcFnTex(arc)}\\!\\left(${innerTex}\\right)`, resultLatex });
+    }
+  }
+  return out;
+}
+
+// Тип nestedNonTable: sin(arccos 3/5) = 4/5 — через основное тождество.
+// Пифагоровы тройки дают рациональные значения всех четырёх функций.
+const TRIPLES = [[3, 4, 5], [4, 3, 5], [5, 12, 13], [12, 5, 13], [8, 15, 17], [15, 8, 17], [7, 24, 25], [24, 7, 25]];
+
+function ratTex(n, d) {
+  const g = gcdInt(Math.abs(n), Math.abs(d));
+  let a = n / g; let b = d / g;
+  if (b < 0) { a = -a; b = -b; }
+  if (b === 1) return String(a);
+  return a < 0 ? `-\\dfrac{${-a}}{${b}}` : `\\dfrac{${a}}{${b}}`;
+}
+
+function genNestedNonTable(outerFns, arcFns) {
+  const out = [];
+  for (const arc of arcFns) {
+    for (const [a, b, c] of TRIPLES) {
+      for (const sign of [1, -1]) {
+        // sin, cos угла arc(p): у arcsin cos ≥ 0, у arccos sin ≥ 0, у arctg/arcctg — по четверти
+        let sn; let cs; let pTex; let pVal;
+        if (arc === 'arcsin') { sn = [sign * a, c]; cs = [b, c]; pTex = ratTex(sign * a, c); pVal = sign * a / c; }
+        else if (arc === 'arccos') { cs = [sign * a, c]; sn = [b, c]; pTex = ratTex(sign * a, c); pVal = sign * a / c; }
+        else if (arc === 'arctan') { sn = [sign * a, c]; cs = [b, c]; pTex = ratTex(sign * a, b); pVal = sign * a / b; }
+        else { // arcctg p ∈ (0; π): sin > 0, знак cos = знак p
+          sn = [b, c]; cs = [sign * a, c]; pTex = ratTex(sign * a, b); pVal = sign * a / b;
+        }
+        for (const outer of outerFns) {
+          const own = { arcsin: 'sin', arccos: 'cos', arctan: 'tan', arccot: 'cot' }[arc];
+          if (outer === own) continue;
+          let res;
+          if (outer === 'sin') res = ratTex(sn[0], sn[1]);
+          else if (outer === 'cos') res = ratTex(cs[0], cs[1]);
+          else if (outer === 'tan') res = ratTex(sn[0], cs[0]);
+          else res = ratTex(cs[0], sn[0]);
+          const argTex = pVal < 0 ? `\\!\\left(${pTex}\\right)` : `\\,${pTex}`;
+          out.push({
+            exprLatex: `${outerFnTex(outer)}\\!\\left(${arcFnTex(arc)}${argTex}\\right)`,
+            resultLatex: res,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 // ─── Настройки по умолчанию ───────────────────────────────────────────────────
 export const DEFAULT_SETTINGS = {
   variantsCount:  4,
   questionsCount: 6,
-  taskType:       'basic',    // 'basic' | 'sum' | 'nested' | 'mixed'
+  taskType:       'basic',    // 'basic' | 'sum' | 'nested' | 'arcOfTrig' | 'nestedNonTable' | 'mixed'
   useArcsin:      true,
   useArccos:      true,
   useArctan:      false,
@@ -248,6 +331,8 @@ export const DEFAULT_SETTINGS = {
 };
 
 // ─── Чистая функция генерации (для смешанных работ) ──────────────────────────
+const MIXED_TYPES = ['basic', 'sum', 'nested', 'arcOfTrig', 'nestedNonTable'];
+
 export function generateInverseTrigVariants(settings) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const {
@@ -265,16 +350,25 @@ export function generateInverseTrigVariants(settings) {
     useOuterSin && 'sin', useOuterCos && 'cos',
     useOuterTan && 'tan', useOuterCot && 'cot',
   ].filter(Boolean);
-  let pool = [];
-  if (taskType === 'basic'  || taskType === 'mixed') pool.push(...genBasic(arcFns, useDegrees));
-  if (taskType === 'sum'    || taskType === 'mixed') pool.push(...genSum(arcFns, useDegrees));
-  if ((taskType === 'nested' || taskType === 'mixed') && outerFns.length > 0) {
-    pool.push(...genNested(outerFns, arcFns));
-  }
-  if (pool.length === 0) return [];
-  return Array.from({ length: variantsCount }, () => {
-    const shuffled = shuffle(pool);
-    return shuffled.slice(0, Math.min(questionsCount, shuffled.length));
+
+  const pools = {};
+  const want = taskType === 'mixed' ? MIXED_TYPES : [taskType];
+  if (want.includes('basic')) pools.basic = genBasic(arcFns, useDegrees);
+  if (want.includes('sum')) pools.sum = genSum(arcFns, useDegrees);
+  if (want.includes('nested') && outerFns.length) pools.nested = genNested(outerFns, arcFns);
+  if (want.includes('arcOfTrig')) pools.arcOfTrig = genArcOfTrig(arcFns, useDegrees);
+  if (want.includes('nestedNonTable') && outerFns.length) pools.nestedNonTable = genNestedNonTable(outerFns, arcFns);
+  const types = want.filter(t => pools[t]?.length);
+  if (!types.length) return [];
+
+  // В смешанном листе типы идут по кругу: задание №k во всех вариантах одного типа
+  return buildUniqueVariants({
+    variantsCount,
+    count: questionsCount,
+    makeOne: (i) => {
+      const pool = pools[types[i % types.length]];
+      return pool[Math.floor(Math.random() * pool.length)];
+    },
   });
 }
 
@@ -292,38 +386,8 @@ export function useInverseTrig() {
 
   const generate = useCallback((override) => {
     const s = override ? { ...settings, ...override } : settings;
-    const {
-      variantsCount, questionsCount, taskType,
-      useArcsin, useArccos, useArctan, useArccot,
-      useOuterSin, useOuterCos, useOuterTan, useOuterCot,
-      useDegrees,
-    } = s;
-
-    const arcFns = [
-      useArcsin && 'arcsin', useArccos && 'arccos',
-      useArctan && 'arctan', useArccot && 'arccot',
-    ].filter(Boolean);
-    if (arcFns.length === 0) return;
-
-    const outerFns = [
-      useOuterSin && 'sin', useOuterCos && 'cos',
-      useOuterTan && 'tan', useOuterCot && 'cot',
-    ].filter(Boolean);
-
-    // Формируем полный пул заданий по типу
-    let pool = [];
-    if (taskType === 'basic' || taskType === 'mixed') pool.push(...genBasic(arcFns, useDegrees));
-    if (taskType === 'sum'   || taskType === 'mixed') pool.push(...genSum(arcFns, useDegrees));
-    if ((taskType === 'nested' || taskType === 'mixed') && outerFns.length > 0) {
-      pool.push(...genNested(outerFns, arcFns)); // nested: результат — число, не угол
-    }
-    if (pool.length === 0) return;
-
-    const variants = Array.from({ length: variantsCount }, () => {
-      const shuffled = shuffle(pool);
-      return shuffled.slice(0, Math.min(questionsCount, shuffled.length));
-    });
-
+    const variants = generateInverseTrigVariants(s);
+    if (!variants.length) return;
     setTasksData(variants);
   }, [settings]);
 

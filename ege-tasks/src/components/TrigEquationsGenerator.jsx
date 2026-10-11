@@ -72,6 +72,15 @@ export default function TrigEquationsGenerator() {
                   </Checkbox>
                 ))}
               </Space>
+              <Divider style={{ margin: '10px 0' }} />
+              <Space direction="vertical" size={4}>
+                <Checkbox checked={settings.useNonTable} onChange={e => updateSetting('useNonTable', e.target.checked)}>
+                  Нетабличные: <MathInline latex={"\\sin t = \\tfrac{1}{3}"} /> (через arcsin)
+                </Checkbox>
+                <Checkbox checked={settings.useNoRoots} onChange={e => updateSetting('useNoRoots', e.target.checked)}>
+                  Без корней: <MathInline latex={"\\cos t = \\tfrac{3}{2}"} />
+                </Checkbox>
+              </Space>
             </TrigSettingsSection>
 
             <TrigSettingsSection label="Печать и вид">
@@ -101,7 +110,7 @@ export default function TrigEquationsGenerator() {
             {tasksData && <SheetTasksPanel sheet={sheet} />}
 
             <TrigActions>
-              <Button type="primary" block icon={<ThunderboltOutlined />} onClick={generate}>
+              <Button type="primary" block icon={<ThunderboltOutlined />} onClick={() => generate()}>
                 Сформировать
               </Button>
               {tasksData && (

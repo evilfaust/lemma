@@ -1,178 +1,16 @@
 import { useState, useCallback } from 'react';
 import { useApplySheet } from './useApplySheet';
+import { simpleEquation } from '../utils/trig/equations';
+import { valuesFor } from '../utils/trig/angles';
 
-// ─── Таблица уравнений sin t = a ──────────────────────────────────────────────
-// Для каждого a: главное решение (arcsin a) + общая формула
-// Формат: { a, aTex, answer1Tex, answer2Tex, generalTex }
-// answer1 = arcsin(a),  answer2 = π − arcsin(a)
-// Общая формула: t = (-1)^n · arcsin(a) + πn, n ∈ ℤ
+/**
+ * Простейшие уравнения f(t) = a. Серии корней считает ядро
+ * `utils/trig/equations.js` и проверяет подстановкой — таблицы ответов,
+ * набранной руками, больше нет. С v3.9.347 ещё нетабличные значения
+ * (t = (−1)^n arcsin 1/3 + πn) и уравнения без корней (|a| > 1).
+ * Соглашение arcctg(−a) = π − arcctg a: ctg t = −1 → t = 3π/4 + πn.
+ */
 
-const SIN_ENTRIES = [
-  {
-    a: 0, aTex: '0',
-    generalTex: 't = \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: 1, aTex: '1',
-    generalTex: 't = \\dfrac{\\pi}{2} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -1, aTex: '-1',
-    generalTex: 't = -\\dfrac{\\pi}{2} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: 0.5, aTex: '\\dfrac{1}{2}',
-    generalTex: 't = (-1)^n \\dfrac{\\pi}{6} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -0.5, aTex: '-\\dfrac{1}{2}',
-    generalTex: 't = (-1)^n \\left(-\\dfrac{\\pi}{6}\\right) + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.SQRT2 / 2, aTex: '\\dfrac{\\sqrt{2}}{2}',
-    generalTex: 't = (-1)^n \\dfrac{\\pi}{4} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.SQRT2 / 2, aTex: '-\\dfrac{\\sqrt{2}}{2}',
-    generalTex: 't = (-1)^n \\left(-\\dfrac{\\pi}{4}\\right) + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.sqrt(3) / 2, aTex: '\\dfrac{\\sqrt{3}}{2}',
-    generalTex: 't = (-1)^n \\dfrac{\\pi}{3} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.sqrt(3) / 2, aTex: '-\\dfrac{\\sqrt{3}}{2}',
-    generalTex: 't = (-1)^n \\left(-\\dfrac{\\pi}{3}\\right) + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-];
-
-// ─── Таблица уравнений cos t = a ──────────────────────────────────────────────
-// Общая формула: t = ± arccos(a) + 2πn, n ∈ ℤ
-
-const COS_ENTRIES = [
-  {
-    a: 0, aTex: '0',
-    generalTex: 't = \\dfrac{\\pi}{2} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: 1, aTex: '1',
-    generalTex: 't = 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -1, aTex: '-1',
-    generalTex: 't = \\pi + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: 0.5, aTex: '\\dfrac{1}{2}',
-    generalTex: 't = \\pm\\dfrac{\\pi}{3} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -0.5, aTex: '-\\dfrac{1}{2}',
-    generalTex: 't = \\pm\\dfrac{2\\pi}{3} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.SQRT2 / 2, aTex: '\\dfrac{\\sqrt{2}}{2}',
-    generalTex: 't = \\pm\\dfrac{\\pi}{4} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.SQRT2 / 2, aTex: '-\\dfrac{\\sqrt{2}}{2}',
-    generalTex: 't = \\pm\\dfrac{3\\pi}{4} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.sqrt(3) / 2, aTex: '\\dfrac{\\sqrt{3}}{2}',
-    generalTex: 't = \\pm\\dfrac{\\pi}{6} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.sqrt(3) / 2, aTex: '-\\dfrac{\\sqrt{3}}{2}',
-    generalTex: 't = \\pm\\dfrac{5\\pi}{6} + 2\\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-];
-
-// ─── Таблица уравнений tg t = a ───────────────────────────────────────────────
-// Общая формула: t = arctan(a) + πn, n ∈ ℤ
-
-const TAN_ENTRIES = [
-  {
-    a: 0, aTex: '0',
-    generalTex: 't = \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: 1, aTex: '1',
-    generalTex: 't = \\dfrac{\\pi}{4} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -1, aTex: '-1',
-    generalTex: 't = -\\dfrac{\\pi}{4} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.sqrt(3) / 3, aTex: '\\dfrac{\\sqrt{3}}{3}',
-    generalTex: 't = \\dfrac{\\pi}{6} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.sqrt(3) / 3, aTex: '-\\dfrac{\\sqrt{3}}{3}',
-    generalTex: 't = -\\dfrac{\\pi}{6} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.sqrt(3), aTex: '\\sqrt{3}',
-    generalTex: 't = \\dfrac{\\pi}{3} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.sqrt(3), aTex: '-\\sqrt{3}',
-    generalTex: 't = -\\dfrac{\\pi}{3} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-];
-
-// ─── Таблица уравнений ctg t = a ──────────────────────────────────────────────
-// Общая формула: t = arccot(a) + πn, n ∈ ℤ
-
-const COT_ENTRIES = [
-  {
-    a: 0, aTex: '0',
-    generalTex: 't = \\dfrac{\\pi}{2} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: 1, aTex: '1',
-    generalTex: 't = \\dfrac{\\pi}{4} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -1, aTex: '-1',
-    generalTex: 't = -\\dfrac{\\pi}{4} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.sqrt(3) / 3, aTex: '\\dfrac{\\sqrt{3}}{3}',
-    generalTex: 't = \\dfrac{\\pi}{3} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.sqrt(3) / 3, aTex: '-\\dfrac{\\sqrt{3}}{3}',
-    generalTex: 't = -\\dfrac{\\pi}{3} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: Math.sqrt(3), aTex: '\\sqrt{3}',
-    generalTex: 't = \\dfrac{\\pi}{6} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-  {
-    a: -Math.sqrt(3), aTex: '-\\sqrt{3}',
-    generalTex: 't = -\\dfrac{\\pi}{6} + \\pi n, \\quad n \\in \\mathbb{Z}',
-  },
-];
-
-// ─── LaTeX форматирование функций ─────────────────────────────────────────────
-function fnTex(fn) {
-  if (fn === 'sin') return '\\sin';
-  if (fn === 'cos') return '\\cos';
-  if (fn === 'tan') return '\\operatorname{tg}';
-  return '\\operatorname{ctg}';
-}
-
-function entriesFor(fn) {
-  if (fn === 'sin') return SIN_ENTRIES;
-  if (fn === 'cos') return COS_ENTRIES;
-  if (fn === 'tan') return TAN_ENTRIES;
-  return COT_ENTRIES;
-}
-
-// ─── Рандом ───────────────────────────────────────────────────────────────────
-function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -180,45 +18,6 @@ function shuffle(arr) {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
-}
-
-// ─── Генерация вариантов с гарантированным балансом функций ──────────────────
-// Квоты делятся поровну между включёнными функциями; пул каждой функции
-// перемешивается заранее для всех вариантов → нет повторов ни внутри варианта,
-// ни между вариантами (пока хватает записей).
-function generateVariants({ variantsCount, questionsCount, fns }) {
-  if (!fns.length) return [];
-
-  // Квота каждой функции в одном варианте (распределяем остаток по первым функциям)
-  const base      = Math.floor(questionsCount / fns.length);
-  const remainder = questionsCount % fns.length;
-  const quotas    = fns.map((_, i) => base + (i < remainder ? 1 : 0));
-
-  // Для каждой функции строим пул достаточной длины (без повторов внутри одного прохода)
-  const fnPools = fns.map((fn, fi) => {
-    const entries = entriesFor(fn);
-    const needed  = quotas[fi] * variantsCount;
-    let pool = [];
-    // Повторяем перемешанные записи пока не наберём нужное количество
-    while (pool.length < needed) pool = [...pool, ...shuffle([...entries])];
-    return pool;
-  });
-
-  // Собираем варианты: каждый вариант берёт свою «порцию» из каждого пула
-  return Array.from({ length: variantsCount }, (_, vi) => {
-    const tasks = [];
-    fns.forEach((fn, fi) => {
-      const start = vi * quotas[fi];
-      fnPools[fi].slice(start, start + quotas[fi]).forEach(entry => {
-        tasks.push({
-          exprLatex:   `${fnTex(fn)}\\, t = ${entry.aTex}`,
-          resultLatex: entry.generalTex,
-        });
-      });
-    });
-    // Перемешиваем задания внутри варианта, чтобы функции не шли группами
-    return shuffle(tasks);
-  });
 }
 
 // ─── Настройки по умолчанию ───────────────────────────────────────────────────
@@ -229,22 +28,64 @@ export const DEFAULT_SETTINGS = {
   useCos:         true,
   useTan:         false,
   useCot:         false,
+  useNonTable:    false,   // a = 1/3: ответ через arcsin
+  useNoRoots:     false,   // |a| > 1
   showTeacherKey: true,
   twoPerPage:     false,
   showWorkSpace:  false,
   workSpaceSize:  30,
 };
 
-// ─── Чистая функция генерации (для смешанных работ) ──────────────────────────
+/**
+ * Квоты делятся поровну между включёнными функциями; табличные значения
+ * каждой функции идут по кругу перемешанной колодой — повторов нет ни внутри
+ * варианта, ни между вариантами, пока хватает значений. Нетабличные и «без
+ * корней» подмешиваются долей (по одному-два на вариант).
+ */
 export function generateTrigEquationsVariants(settings) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
-  const { variantsCount, questionsCount, useSin, useCos, useTan, useCot } = s;
   const fns = [
-    useSin && 'sin', useCos && 'cos',
-    useTan && 'tan', useCot && 'cot',
+    s.useSin && 'sin', s.useCos && 'cos',
+    s.useTan && 'tan', s.useCot && 'cot',
   ].filter(Boolean);
   if (fns.length === 0) return [];
-  return generateVariants({ variantsCount, questionsCount, fns });
+
+  const { variantsCount, questionsCount } = s;
+  const base = Math.floor(questionsCount / fns.length);
+  const quotas = fns.map((_, i) => base + (i < questionsCount % fns.length ? 1 : 0));
+
+  const decks = Object.fromEntries(fns.map(fn => [fn, { cards: [], at: 0 }]));
+  const nextTable = (fn) => {
+    const d = decks[fn];
+    if (d.at >= d.cards.length) { d.cards = shuffle(valuesFor(fn)); d.at = 0; }
+    return d.cards[d.at++];
+  };
+
+  const extraKinds = [s.useNonTable && 'nontable', s.useNoRoots && 'noroots'].filter(Boolean);
+  const seen = new Set();
+
+  return Array.from({ length: variantsCount }, () => {
+    const tasks = [];
+    const inVariant = new Set();
+    // сколько «особых» заданий в варианте: треть, но хотя бы одно
+    const extraCount = extraKinds.length ? Math.max(1, Math.round(questionsCount / 3)) : 0;
+    const slots = shuffle(fns.flatMap((fn, i) => Array(quotas[i]).fill(fn)));
+    slots.forEach((fn, idx) => {
+      let kind = idx < extraCount ? extraKinds[idx % extraKinds.length] : 'table';
+      if (kind === 'noroots' && (fn === 'tan' || fn === 'cot')) kind = 'nontable';
+      if (kind === 'nontable' && !s.useNonTable) kind = 'table';
+      let q = null;
+      for (let t = 0; t < 30 && !q; t++) {
+        const cand = kind === 'table' ? simpleEquation(fn, 'table', nextTable(fn)) : simpleEquation(fn, kind);
+        if (!cand) continue;
+        if (inVariant.has(cand.exprLatex)) continue;
+        if (seen.has(cand.exprLatex) && t < 20) continue;
+        q = cand;
+      }
+      if (q) { tasks.push(q); inVariant.add(q.exprLatex); seen.add(q.exprLatex); }
+    });
+    return shuffle(tasks);
+  });
 }
 
 // ─── Хук ──────────────────────────────────────────────────────────────────────
@@ -261,17 +102,8 @@ export function useTrigEquations() {
 
   const generate = useCallback((override) => {
     const s = override ? { ...settings, ...override } : settings;
-    const { variantsCount, questionsCount, useSin, useCos, useTan, useCot } = s;
-
-    const fns = [
-      useSin && 'sin', useCos && 'cos',
-      useTan && 'tan', useCot && 'cot',
-    ].filter(Boolean);
-    if (fns.length === 0) return;
-
-    const variants = generateVariants({ variantsCount, questionsCount, fns });
+    const variants = generateTrigEquationsVariants(s);
     if (!variants.length) return;
-
     setTasksData(variants);
   }, [settings]);
 

@@ -250,7 +250,7 @@ function VariantKeyBlock({ variant }) {
                   <span className="tmixed-key-expr">
                     <MathLine latex={q.exprLatex} />
                   </span>
-                  <span className="tmixed-key-eq">{isEq ? 'x =' : '='}</span>
+                  <span className="tmixed-key-eq">{isEq ? (q.hideKeyPrompt ? '' : `${q.varLatex || 'x'} =`) : '='}</span>
                   <span className="tmixed-key-ans">
                     <MathLine latex={keyAnswerLatex(q.resultLatex, opts)} />
                   </span>

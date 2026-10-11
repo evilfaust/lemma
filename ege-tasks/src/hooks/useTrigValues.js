@@ -129,6 +129,23 @@ export const DEFAULT_SETTINGS = {
   layout:          'landscape',
 };
 
+// ─── Чистая функция генерации ──────────────────────────────────────────────
+export function generateTrigValuesVariants(settings) {
+  const s = { ...DEFAULT_SETTINGS, ...settings };
+  const maxK = s.maxK ?? 2;
+  const count = Math.min(s.anglesCount ?? 8, 16);
+  return Array.from({ length: s.variantsCount }, () => {
+    // Случайно выбираем count углов из 16 стандартных
+    const selected = shuffleArray(STANDARD_ANGLES).slice(0, count);
+    selected.sort((a, b) => (a.num / a.den) - (b.num / b.den));
+    // Каждый угол получает случайный сдвиг k ∈ [-maxK, +maxK]
+    return selected.map((a, i) => {
+      const k = maxK === 0 ? 0 : Math.floor(Math.random() * (2 * maxK + 1)) - maxK;
+      return buildAngleData(a, i + 1, k, s.useDegrees ?? false);
+    });
+  });
+}
+
 // ─── Хук ───────────────────────────────────────────────────────────────────
 export function useTrigValues() {
   const [title, setTitle]           = useState('Значения тригонометрических функций');
@@ -140,24 +157,7 @@ export function useTrigValues() {
   const [saving, setSaving]         = useState(false);
 
   const generate = useCallback(() => {
-    const maxK = settings.maxK ?? 2;
-    const count = Math.min(settings.anglesCount ?? 8, 16);
-
-    const variants = Array.from({ length: settings.variantsCount }, () => {
-      // Случайно выбираем count углов из 16 стандартных
-      const shuffled = shuffleArray(STANDARD_ANGLES);
-      const selected = shuffled.slice(0, count);
-      selected.sort((a, b) => (a.num / a.den) - (b.num / b.den));
-
-      // Каждый угол получает случайный сдвиг k ∈ [-maxK, +maxK]
-      return selected.map((a, i) => {
-        const k = maxK === 0 ? 0
-          : Math.floor(Math.random() * (2 * maxK + 1)) - maxK;
-        return buildAngleData(a, i + 1, k, settings.useDegrees ?? false);
-      });
-    });
-
-    setTasksData(variants);
+    setTasksData(generateTrigValuesVariants(settings));
     setSavedId(null);
   }, [settings]);
 
