@@ -15,6 +15,41 @@ import { paramOnLine, add, mul, sub } from './vec3';
 import {
   intersectLinePlane, planeFromPoints, affineCoords, pointInConvexPolygon,
 } from './geometry';
+import { bodySurfaceParams } from './revolution';
+import { pickFace } from './render';
+
+/** Чертёж без тела: точки ставятся в пустоту, плоскости — листами. */
+export const isEmptySpace = (model) => !model.body.faces.length && !model.body.parts;
+
+const SHEET_LABELS = ['α', 'β', 'γ', 'δ', 'ε', 'φ', 'ψ', 'ω'];
+/** Следующая свободная буква листа. */
+export function nextSheetLabel(model) {
+  const used = new Set(Object.values(model.opsById || {}).filter((o) => o.type === 'sheet').map((o) => o.label));
+  return SHEET_LABELS.find((l) => !used.has(l)) || null;
+}
+
+/** Имя точки без тела: как в учебнике — A, B, C…, а не M, N (те — для построений на теле). */
+function spaceName(model) {
+  const used = new Set(Object.keys(model.points || {}));
+  const n = 'ABCDEFGHKLMNPQRSTUVWXYZ'.split('').find((l) => !used.has(l));
+  return n || nextFreeName(model);
+}
+
+/** Координата с прилипанием к 0,5. */
+const snapCoord = (x) => {
+  const h = Math.round(x * 2) / 2;
+  return Math.abs(h - x) <= 0.08 ? h : Math.round(x * 100) / 100;
+};
+
+/** Луч взгляда ∩ плоскость «пола» z = 0 (взгляд вдоль пола — вертикальная плоскость через начало). */
+function groundPoint(ray, size) {
+  let r = intersectLinePlane(ray, { n: { x: 0, y: 0, z: 1 }, d: 0 }, size);
+  if (r.kind !== 'point' || Math.abs(r.t) > 50 * size) {
+    const h = Math.hypot(ray.u.x, ray.u.y) || 1;
+    r = intersectLinePlane(ray, { n: { x: ray.u.x / h, y: ray.u.y / h, z: 0 }, d: 0 }, size);
+  }
+  return r.kind === 'point' ? r.point : null;
+}
 
 export const TOOLS = [
   { key: 'rotate', label: 'Вращать', glyph: '⟳', hot: 'V' },
@@ -82,7 +117,7 @@ export function lineHitParam(hit, project) {
 export function toolHint(tool, pending = []) {
   const names = pending.filter((p) => p.kind === 'point').map((p) => prettyName(p.name));
   switch (tool) {
-    case 'point': return 'Кликните по ребру, прямой или внутри грани — там появится точка';
+    case 'point': return 'Кликните по ребру, прямой, внутри грани или сечения; у цилиндра, конуса, шара — по поверхности или основанию; на чертеже без тела — в любое место (точка встанет на «пол» z = 0) или на лист. Точку можно тянуть, с Shift — по высоте';
     case 'mid':
       return names.length
         ? `Середина ${names[0]}… — выберите вторую точку`
@@ -127,7 +162,9 @@ export function toolHint(tool, pending = []) {
     case 'section':
       return names.length ? `Сечение ${names.join('')}… — ещё ${3 - names.length}` : 'Выберите три точки секущей плоскости';
     case 'plane':
-      return names.length ? `Плоскость ${names.join('')}… — ещё ${3 - names.length}` : 'Кликните по грани или выберите три точки';
+      return names.length
+        ? `Плоскость ${names.join('')}… — ещё ${3 - names.length} (без тела: повторный клик по точке или Enter — горизонтальная плоскость через неё)`
+        : 'Кликните по грани или выберите три точки. Без тела — плоскость-лист: три точки, одна точка (дважды) — горизонтально через неё, клик в пустоту — «пол» z = 0';
     case 'fill':
       return names.length >= 3
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
@@ -154,7 +191,7 @@ export function toolHint(tool, pending = []) {
 /** Какие попадания инструмент принимает сейчас (для подсветки под курсором). */
 export function acceptedKinds(tool, pending = []) {
   switch (tool) {
-    case 'point': return ['line', 'face'];
+    case 'point': return ['line', 'poly', 'face', 'empty'];
     case 'segment': return ['point'];
     case 'mid': return pending.length ? ['point'] : ['point', 'line'];
     case 'length': return pending.length ? ['point'] : ['point', 'line'];
@@ -178,7 +215,7 @@ export function acceptedKinds(tool, pending = []) {
       if (!pending.length) return ['point', 'line'];
       return pending[0].kind === 'point' ? ['line'] : ['poly', 'face'];
     case 'section': return ['point'];
-    case 'plane': return pending.length ? ['point'] : ['face', 'point'];
+    case 'plane': return pending.length ? ['point'] : ['face', 'point', 'empty'];
     case 'fill': return ['point'];
     case 'level': return ['point', 'line'];
     case 'attention': return ['point', 'line'];
@@ -201,7 +238,12 @@ export function chooseHit(tool, pending, hit) {
   if (hit.point && ok.includes('point')) return { kind: 'point', name: hit.point };
   if (hit.line && ok.includes('line')) return { kind: 'line', ...hit.line };
   if (hit.poly && ok.includes('poly')) return { kind: 'poly', id: hit.poly.id };
-  if (hit.face && ok.includes('face')) return { kind: 'face', id: hit.face.id, verts: hit.face.verts, pos: hit.face.pos };
+  if (hit.face && ok.includes('face')) {
+    return {
+      kind: 'face', id: hit.face.id, verts: hit.face.verts, pos: hit.face.pos, surface: hit.face.surface, center: hit.face.center,
+    };
+  }
+  if (hit.ray && ok.includes('empty')) return { kind: 'empty', ray: hit.ray };
   return null;
 }
 
@@ -218,18 +260,71 @@ export function toolClick(tool, pending, hit, model) {
   }
   // Часть грани ступенчатого тела, у которой не все углы — вершины с
   // именами: плоскость по ней не назвать.
-  if (target.kind === 'face' && !target.verts && ['point', 'trace', 'perp', 'angle', 'perpPlane', 'plane'].includes(tool)) {
-    return { pending, error: 'У этой части грани нет вершин с именами — задайте плоскость тремя точками (или дайте вершинам имена)' };
+  if (target.kind === 'face' && !target.verts && !(tool === 'point' && target.surface)
+    && ['point', 'trace', 'perp', 'angle', 'perpPlane', 'plane'].includes(tool)) {
+    return {
+      pending,
+      error: target.surface
+        ? 'Поверхность тела вращения — не плоскость: задайте плоскость тремя точками'
+        : 'У этой части грани нет вершин с именами — задайте плоскость тремя точками (или дайте вершинам имена)',
+    };
   }
   const name = () => nextFreeName(model);
   const pts = [...pending, target].filter((p) => p.kind === 'point').map((p) => p.name);
   const same = (a, b) => a.kind === b.kind && (a.kind === 'point' ? a.name === b.name : a.id === b.id);
+  // Без тела: повторный клик по единственной точке «Плоскостью» — горизонтальный лист через неё
+  if (tool === 'plane' && isEmptySpace(model) && pending.length === 1 && target.kind === 'point' && pending[0].name === target.name) {
+    return { pending: [], op: { id: newOpId(), type: 'sheet', through: target.name, label: nextSheetLabel(model) } };
+  }
   if (pending.some((p) => same(p, target)) && !(tool === 'fill' && target.kind === 'point' && pending[0]?.name === target.name)) {
     return { pending };
   }
 
   switch (tool) {
     case 'point': {
+      if (target.kind === 'empty') {
+        // Без тела — точка на «пол» z = 0; у тела клик мимо ничего не ставит
+        if (!isEmptySpace(model)) return { pending: [] };
+        const P = groundPoint(target.ray, model.body.size);
+        if (!P) return { pending: [] };
+        return { pending: [], op: { id: newOpId(), type: 'freePoint', name: spaceName(model), at: [P.x, P.y, P.z].map(snapCoord) } };
+      }
+      if (target.kind === 'poly') {
+        // Внутри листа, сечения, плоскости — точка в её плоскости
+        const pg = model.polys.find((p) => p.id === target.id);
+        const opId = pg?.base || target.id;
+        const pop = model.opsById[opId];
+        const plane = model.planes?.[opId] || (Array.isArray(pop?.pts) ? planeOfPts(model, pop.pts) : null);
+        if (!plane || !hit.ray) return { pending: [] };
+        const r = intersectLinePlane(hit.ray, plane, model.body.size);
+        if (r.kind !== 'point') return { pending: [] };
+        if (Array.isArray(pop?.pts) && pop.pts.length >= 3 && pop.type !== 'sheet') {
+          const [A, B, C] = pop.pts.slice(0, 3).map((v) => model.points[v]?.pos);
+          const st = A && B && C ? affineCoords(A, B, C, r.point) : null;
+          if (st) {
+            return {
+              pending: [],
+              op: {
+                id: newOpId(), type: 'pointOnFace', name: name(), face: pop.pts.slice(0, 3),
+                s: Math.round(st.s * 1000) / 1000, t: Math.round(st.t * 1000) / 1000,
+              },
+            };
+          }
+        }
+        return { pending: [], op: { id: newOpId(), type: 'freePoint', name: isEmptySpace(model) ? spaceName(model) : name(), at: [r.point.x, r.point.y, r.point.z].map((x) => Math.round(x * 100) / 100) } };
+      }
+      if (target.kind === 'face' && target.surface) {
+        // Поверхность тела вращения: боковая, круг основания, сфера
+        const circle = model.body.circles?.[target.center];
+        if (!circle || !target.pos) return { pending: [] };
+        return {
+          pending: [],
+          op: {
+            id: newOpId(), type: 'pointOnBody', name: name(), surface: target.surface, center: target.center,
+            ...bodySurfaceParams(circle, target.surface, target.pos),
+          },
+        };
+      }
       if (target.kind === 'face') {
         const [A, B, C] = target.verts.slice(0, 3).map((v) => model.points[v]?.pos);
         const st = target.pos && A && B && C ? affineCoords(A, B, C, target.pos) : null;
@@ -349,6 +444,13 @@ export function toolClick(tool, pending, hit, model) {
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'section', pts: pts.slice(0, 3) } };
     case 'plane':
+      if (isEmptySpace(model)) {
+        // Без тела плоскость — лист: три точки, «пол» (клик в пустоту)
+        if (target.kind === 'empty') return pending.length ? { pending } : { pending: [], op: { id: newOpId(), type: 'sheet', z: 0, label: nextSheetLabel(model) } };
+        if (pts.length < 3) return { pending: [...pending, target] };
+        return { pending: [], op: { id: newOpId(), type: 'sheet', pts: pts.slice(0, 3), label: nextSheetLabel(model) } };
+      }
+      if (target.kind === 'empty') return { pending };
       if (target.kind === 'face') {
         if (!target.verts) return { pending: [], error: 'У этой части грани нет вершин с именами — выберите три точки' };
         return { pending: [], op: { id: newOpId(), type: 'plane', pts: target.verts } };
@@ -455,11 +557,21 @@ function measureObject(model, target) {
 }
 
 /** Enter у «Закрасить»: замкнуть многоугольник. */
-export function finishPending(tool, pending) {
+export function finishPending(tool, pending, model = null) {
   if (tool === 'fill' && pending.length >= 3) {
     return { pending: [], op: { id: newOpId(), type: 'fill', pts: pending.map((p) => p.name) } };
   }
+  // Без тела: Enter после одной точки — горизонтальный лист через неё
+  if (tool === 'plane' && model && isEmptySpace(model) && pending.length === 1 && pending[0].kind === 'point') {
+    return { pending: [], op: { id: newOpId(), type: 'sheet', through: pending[0].name, label: nextSheetLabel(model) } };
+  }
   return { pending };
+}
+
+/** Плоскость по именам точек модели; null — их нет или на одной прямой. */
+function planeOfPts(model, names) {
+  const [A, B, C] = names.slice(0, 3).map((n) => model.points[n]?.pos);
+  return A && B && C ? planeFromPoints(A, B, C, model.body.size) : null;
 }
 
 
@@ -473,8 +585,53 @@ export function finishPending(tool, pending) {
 /** Операция, поставившая точку name, если точку можно двигать. */
 export function draggableOp(scene, name) {
   return (scene?.ops || []).find(
-    (o) => (o.type === 'pointOnLine' || o.type === 'pointOnFace') && o.name === name,
+    (o) => ['pointOnLine', 'pointOnFace', 'freePoint', 'pointOnBody', 'pointOnCircle'].includes(o.type) && o.name === name,
   ) || null;
+}
+
+/**
+ * Перетаскивание точки без тела (по горизонтали, с Shift — по высоте), точки
+ * на поверхности тела вращения и на его окружности.
+ * @returns {object|null} поля шага, которые меняются
+ */
+export function dragOpPatch(model, op, frame, x, y, { shiftKey = false } = {}) {
+  const ray = frame.unproject(x, y);
+  const size = model.body.size;
+  if (op.type === 'freePoint') {
+    const P = { x: op.at[0], y: op.at[1], z: op.at[2] };
+    let plane;
+    if (shiftKey) {
+      const h = Math.hypot(ray.u.x, ray.u.y) || 1;
+      const n = { x: ray.u.x / h, y: ray.u.y / h, z: 0 };
+      plane = { n, d: n.x * P.x + n.y * P.y };
+    } else plane = { n: { x: 0, y: 0, z: 1 }, d: P.z };
+    const r = intersectLinePlane(ray, plane, size);
+    if (r.kind !== 'point') return null;
+    const Q = shiftKey ? { x: P.x, y: P.y, z: r.point.z } : r.point;
+    return { at: [Q.x, Q.y, Q.z].map(snapCoord) };
+  }
+  if (op.type === 'pointOnCircle') {
+    const c = model.body.circles?.[op.center];
+    if (!c?.axis) return null;
+    const r = intersectLinePlane(ray, { n: c.axis, d: c.axis.x * c.c.x + c.axis.y * c.c.y + c.axis.z * c.c.z }, size);
+    if (r.kind !== 'point') return null;
+    return { angle: bodySurfaceParams(c, 'disk', r.point).angle };
+  }
+  if (op.type === 'pointOnBody') {
+    const f = pickFace(frame, x, y);
+    if (!f) return null;
+    const bf = model.body.faces.find((q) => q.id === f.id);
+    if (!bf || bf.surface !== op.surface || bf.center !== op.center) return null;
+    const r = intersectLinePlane(ray, { n: bf.n, d: bf.d }, size);
+    if (r.kind !== 'point') return null;
+    return bodySurfaceParams(model.body.circles[op.center], op.surface, r.point);
+  }
+  return null;
+}
+
+/** Сцена с новыми полями шага. */
+export function setOpFields(scene, opId, patch) {
+  return { ...scene, ops: (scene.ops || []).map((o) => (o.id === opId ? { ...o, ...patch } : o)) };
 }
 
 /** Точка грани под курсором: луч взгляда ∩ плоскость грани. */

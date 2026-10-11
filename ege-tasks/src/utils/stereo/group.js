@@ -87,6 +87,7 @@ export function buildGroupBody(spec, built) {
       const verts = f.verts ? f.verts.map((v) => map[v]) : null;
       faces.push({
         ...f, id: verts ? verts.join('') : `p${i}${f.id}`, verts, pts3, d: f.d + (f.n.x * d.x + f.n.y * d.y + f.n.z * d.z), part: i,
+        ...(f.center ? { center: map[f.center] || f.center } : {}),
       });
     }
     for (const cv of body.curves || []) curves.push({ ...cv, id: `${i}:${cv.id}`, pts: cv.pts.map((p) => tr(p, d)), part: i });

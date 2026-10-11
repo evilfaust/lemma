@@ -20,7 +20,7 @@ import {
   affinePoint, clipPolygonBelow,
 } from './geometry';
 import { blocksSectionPieces } from './blocks';
-import { circlePoint } from './revolution';
+import { circlePoint, bodySurfacePoint } from './revolution';
 
 /** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
 export function isPlaneRefId(ref) {
@@ -29,7 +29,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'pointOnCircle',
+  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'pointOnCircle', 'pointOnBody',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -383,6 +383,44 @@ export function evaluateScene(scene, opts = {}) {
     return { w, plus, minus };
   };
 
+  // Плоскость-лист (шаг sheet; без тела — и «плоскость ABC»)
+  const buildSheet = (op, opId, stepIdx, created, color) => {
+    let plane;
+    if (Array.isArray(op.pts)) ({ plane } = resolvePlane(op.pts));
+    else if (op.through) plane = { n: { x: 0, y: 0, z: 1 }, d: pointPos(op.through).z };
+    else if (Number.isFinite(Number(op.z))) plane = { n: { x: 0, y: 0, z: 1 }, d: Number(op.z) };
+    else fail('Лист: «лист α ABC», «лист α через M» или «лист α z=0»');
+    if (plane.n.z < 0) plane = { n: mul(plane.n, -1), d: -plane.d };
+    let e1 = sub({ x: 1, y: 0, z: 0 }, mul(plane.n, plane.n.x));
+    if (len(e1) < 0.3) e1 = sub({ x: 0, y: 1, z: 0 }, mul(plane.n, plane.n.y));
+    e1 = norm(e1);
+    const e2 = cross(plane.n, e1);
+    const o = mul(plane.n, plane.d);
+    let u0 = Infinity; let u1 = -Infinity; let v0 = Infinity; let v1 = -Infinity;
+    for (const nm of pointOrder) {
+      if (points[nm].alias) continue;
+      const w = sub(points[nm].pos, o);
+      const u = dot(w, e1);
+      const v = dot(w, e2);
+      u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
+    }
+    if (!Number.isFinite(u0)) { u0 = -3; u1 = 3; v0 = -2; v1 = 2; }
+    const pad = 0.22 * Math.max(u1 - u0, v1 - v0, 2);
+    let [cu, cv, hu, hv] = [(u0 + u1) / 2, (v0 + v1) / 2, (u1 - u0) / 2 + pad, (v1 - v0) / 2 + pad];
+    if (Array.isArray(op.size) && op.size.length === 2 && op.size.every((x) => Number(x) > 0)) {
+      [hu, hv] = [Number(op.size[0]) / 2, Number(op.size[1]) / 2];
+    }
+    const at = (a, b) => add(o, add(mul(e1, cu + a), mul(e2, cv + b)));
+    const pts = [at(-hu, -hv), at(hu, -hv), at(hu, hv), at(-hu, hv)];
+    planeDefs[opId] = plane;
+    sheets.push({ id: opId, pts, n: plane.n, d: plane.d });
+    polys.push({
+      id: opId, kind: 'sheet', pts, n: plane.n, step: stepIdx, color, faceId: null,
+      ...(op.label ? { label: String(op.label).slice(0, 4) } : {}),
+    });
+    created.polys.push(opId);
+  };
+
   // --- журнал -------------------------------------------------------------
 
   ops.forEach((op, stepIdx) => {
@@ -633,6 +671,16 @@ export function evaluateScene(scene, opts = {}) {
           addPoint(op.name, circlePoint(circle, deg), stepIdx, created);
           break;
         }
+        case 'pointOnBody': {
+          // Точка на поверхности тела вращения: боковая поверхность, круг
+          // основания, сфера (revolution.js · bodySurfacePoint).
+          const circle = body.circles?.[op.center];
+          if (!circle) fail(`Нет тела вращения с центром ${prettyName(op.center || '?')}`);
+          const P = bodySurfacePoint(circle, op);
+          if (!P) fail('Здесь нет такой поверхности');
+          addPoint(op.name, P, stepIdx, created);
+          break;
+        }
         case 'freePoint': {
           // Точка по координатам (x; y; z), z — вверх. Чертёж без тела
           // начинается с таких точек.
@@ -641,47 +689,9 @@ export function evaluateScene(scene, opts = {}) {
           addPoint(op.name, { x: at[0], y: at[1], z: at[2] }, stepIdx, created);
           break;
         }
-        case 'sheet': {
-          // Плоскость-лист: непрозрачный прямоугольник в плоскости (на
-          // рисунке — параллелограмм), закрывает то, что за ним, — линии под
-          // ним становятся пунктиром. Плоскость — через три точки, через
-          // точку горизонтально или «z = …»; размер — по точкам чертежа.
-          let plane;
-          if (Array.isArray(op.pts)) ({ plane } = resolvePlane(op.pts));
-          else if (op.through) plane = { n: { x: 0, y: 0, z: 1 }, d: pointPos(op.through).z };
-          else if (Number.isFinite(Number(op.z))) plane = { n: { x: 0, y: 0, z: 1 }, d: Number(op.z) };
-          else fail('Лист: «лист α ABC», «лист α через M» или «лист α z=0»');
-          if (plane.n.z < 0) plane = { n: mul(plane.n, -1), d: -plane.d };
-          let e1 = sub({ x: 1, y: 0, z: 0 }, mul(plane.n, plane.n.x));
-          if (len(e1) < 0.3) e1 = sub({ x: 0, y: 1, z: 0 }, mul(plane.n, plane.n.y));
-          e1 = norm(e1);
-          const e2 = cross(plane.n, e1);
-          const o = mul(plane.n, plane.d);
-          let u0 = Infinity; let u1 = -Infinity; let v0 = Infinity; let v1 = -Infinity;
-          for (const nm of pointOrder) {
-            if (points[nm].alias) continue;
-            const w = sub(points[nm].pos, o);
-            const u = dot(w, e1);
-            const v = dot(w, e2);
-            u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v);
-          }
-          if (!Number.isFinite(u0)) { u0 = -3; u1 = 3; v0 = -2; v1 = 2; }
-          const pad = 0.22 * Math.max(u1 - u0, v1 - v0, 2);
-          let [cu, cv, hu, hv] = [(u0 + u1) / 2, (v0 + v1) / 2, (u1 - u0) / 2 + pad, (v1 - v0) / 2 + pad];
-          if (Array.isArray(op.size) && op.size.length === 2 && op.size.every((x) => Number(x) > 0)) {
-            [hu, hv] = [Number(op.size[0]) / 2, Number(op.size[1]) / 2];
-          }
-          const at = (a, b) => add(o, add(mul(e1, cu + a), mul(e2, cv + b)));
-          const pts = [at(-hu, -hv), at(hu, -hv), at(hu, hv), at(-hu, hv)];
-          planeDefs[opId] = plane;
-          sheets.push({ id: opId, pts, n: plane.n, d: plane.d });
-          polys.push({
-            id: opId, kind: 'sheet', pts, n: plane.n, step: stepIdx, color: op.color, faceId: null,
-            ...(op.label ? { label: String(op.label).slice(0, 4) } : {}),
-          });
-          created.polys.push(opId);
+        case 'sheet':
+          buildSheet(op, opId, stepIdx, created, op.color);
           break;
-        }
         case 'intersect': {
           const L1 = resolveLine(op.l1);
           const L2 = resolveLine(op.l2);
@@ -736,6 +746,11 @@ export function evaluateScene(scene, opts = {}) {
         }
         case 'section':
         case 'plane': {
+          // Без тела рассекать нечего: плоскость рисуется листом.
+          if (!body.faces.length && !body.parts) {
+            buildSheet({ pts: op.pts, label: op.label }, opId, stepIdx, created, op.color);
+            break;
+          }
           const { plane, face } = resolvePlane(op.pts);
           if (face) {
             polys.push({ id: opId, kind: op.type, pts: face.pts3 || face.verts.map((v) => body.vertices[v]), step: stepIdx, color: op.color, faceId: face.id });
@@ -990,7 +1005,7 @@ export function opPointNames(op) {
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
     case 'level': if (op.through) out.push(op.through); break;
-    case 'pointOnCircle': if (op.center) out.push(op.center); break;
+    case 'pointOnCircle': case 'pointOnBody': if (op.center) out.push(op.center); break;
     case 'sheet': if (op.through) out.push(op.through); if (Array.isArray(op.pts)) out.push(...op.pts); break;
     default: break;
   }

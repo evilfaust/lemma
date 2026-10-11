@@ -116,7 +116,7 @@ export default function StereoCanvas({
       return;
     }
     if (g.mode === 'drag') {
-      onDrag?.({ phase: 'move', ...pt, frame: frameRef.current, target: g.start.target });
+      onDrag?.({ phase: 'move', ...pt, shiftKey: e.shiftKey, frame: frameRef.current, target: g.start.target });
       return;
     }
     if (g.mode === 'press' || g.mode === 'rotate') {
@@ -126,7 +126,7 @@ export default function StereoCanvas({
       if (g.mode === 'press' && g.start.target && onDrag) {
         g.mode = 'drag';
         onDrag({ phase: 'start', ...pt, frame: frameRef.current, target: g.start.target });
-        onDrag({ phase: 'move', ...pt, frame: frameRef.current, target: g.start.target });
+        onDrag({ phase: 'move', ...pt, shiftKey: e.shiftKey, frame: frameRef.current, target: g.start.target });
         return;
       }
       g.mode = 'rotate';

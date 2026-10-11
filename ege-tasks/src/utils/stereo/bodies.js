@@ -433,6 +433,7 @@ export function buildBody(specIn) {
     const map = Object.fromEntries(rb.order.map((n, i) => [n, spec.names[i]]));
     renamed.circles = Object.fromEntries(Object.entries(rb.circles).map(([k, c]) => [map[k] || k, c]));
     renamed.concealed = new Set([...rb.concealed].map((n) => map[n] || n));
+    renamed.faces = renamed.faces.map((f) => (f.center ? { ...f, center: map[f.center] || f.center } : f));
     return renamed;
   }
   // Чертёж без тела (параллельность прямых и плоскостей, гл. 1 Атанасяна):

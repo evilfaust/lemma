@@ -22,7 +22,7 @@ import {
   bodyFormValues, bodySpecFromForm, TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace, pickPoly, cameraFacing,
   renderStereo, stereoSvgString, isTeachingNotice,
-  draggableOp, lineOfOp, dragPosition, setOpPosition,
+  draggableOp, lineOfOp, dragPosition, setOpPosition, dragOpPatch, setOpFields,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, setPolyColors, applyColorCommand, renamePoint,
   setPointsHidden,
@@ -83,7 +83,12 @@ function buildHit(frame, x, y, back, model) {
     point,
     line,
     poly: poly ? { id: poly.id } : null,
-    face: face ? { id: face.id, verts: face.verts, pos: model ? facePointAt(model, frame, face.id, x, y) : null } : null,
+    face: face ? {
+      id: face.id, verts: face.verts, surface: face.surface, center: face.center,
+      pos: model ? facePointAt(model, frame, face.id, x, y) : null,
+    } : null,
+    // Луч взгляда под курсором: точка в пустоту (чертёж без тела), в лист
+    ray: frame.unproject ? frame.unproject(x, y) : null,
     shift: !!back,
   };
 }
@@ -281,13 +286,19 @@ export default function StereoEditor({
       const ft = faceDragTarget(model, op);
       return ft ? { ...ft, name, opId: op.id } : null;
     }
+    // Точка без тела, на поверхности или окружности тела вращения
+    if (op.type === 'freePoint' || op.type === 'pointOnBody' || op.type === 'pointOnCircle') {
+      return { kind: 'patch', name, opId: op.id };
+    }
     const line = lineOfOp(model, op);
     if (!line) return null;
     return { kind: 'line', name, opId: op.id, line, onSegment: op.t >= 0 && op.t <= 1 };
   }, [model, replay]);
 
   const droppedRef = useRef(false);
-  const handleDrag = useCallback(({ phase, x, y, frame, target }) => {
+  const handleDrag = useCallback(({
+    phase, x, y, frame, target, shiftKey,
+  }) => {
     if (phase === 'start') {
       pushHistory(sceneRef.current);
       setPending([]);
@@ -299,6 +310,15 @@ export default function StereoEditor({
       setDragging(null);
       return;
     }
+    if (target.kind === 'patch') {
+      const op = sceneRef.current.ops.find((o) => o.id === target.opId);
+      const patch = op ? dragOpPatch(model, op, frame, x, y, { shiftKey }) : null;
+      if (!patch) return;
+      const next = setOpFields(sceneRef.current, target.opId, patch);
+      sceneRef.current = next;
+      setSceneRaw(next);
+      return;
+    }
     const pos = target.kind === 'face'
       ? dragFacePosition(target, frame, x, y, model.body.size)
       : dragPosition(target.line, frame.project, x, y, { onSegment: target.onSegment });
@@ -306,7 +326,7 @@ export default function StereoEditor({
     const next = setOpPosition(sceneRef.current, target.opId, pos);
     sceneRef.current = next;
     setSceneRaw(next);
-  }, [pushHistory, model.body.size]);
+  }, [pushHistory, model]);
 
   // После сдвига точки часть построений могла перестать строиться
   // (пересечение стало параллельным) — говорим об этом сразу.
@@ -462,7 +482,7 @@ export default function StereoEditor({
         return;
       }
       if (e.key === 'Enter') {
-        const r = finishPending(tool, pending);
+        const r = finishPending(tool, pending, model);
         setPending(r.pending);
         if (r.op) commit(r.op);
         return;
@@ -472,7 +492,7 @@ export default function StereoEditor({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tool, pending, undo, selectTool, commit, replay, exitReplay, goStep, viewStep]);
+  }, [tool, pending, undo, selectTool, commit, replay, exitReplay, goStep, viewStep, model]);
 
   // --- строка команд ----------------------------------------------------------
   const runCommand = () => {

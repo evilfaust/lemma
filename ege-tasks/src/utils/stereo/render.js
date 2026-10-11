@@ -520,6 +520,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     verts: f.verts,
     pts: (f.pts3 || f.verts.map((v) => body.vertices[v])).map(P),
     front: isFaceFront(f, toViewer),
+    ...(f.surface ? { surface: f.surface, center: f.center } : {}),
   }));
 
   return {

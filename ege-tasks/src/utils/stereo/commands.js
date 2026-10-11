@@ -452,6 +452,18 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'freePoint', name: m[1], at: [m[2], m[3], m[4]].map((x) => Number(x.replace(',', '.'))) } };
     }
 
+    // «K на поверхности O 30 0,5» (боковая: угол, доля высоты), «K в круге
+    // O1 30 0,5» (основание: угол, доля радиуса), «K на сфере O 30 45»
+    // (долгота, широта) — точка на теле вращения.
+    m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?(на\s+(?:боковой\s+)?поверхност[а-яё]*|в\s+круге|на\s+сфере|на\s+шаре)\s+([A-Z][0-9]*)\s+(-?\d+(?:[.,]\d+)?)°?\s+(-?\d+(?:[.,]\d+)?)°?$/i.exec(src);
+    if (m) {
+      const surface = /круг/i.test(m[2]) ? 'disk' : /сфер|шар/i.test(m[2]) ? 'sphere' : 'side';
+      const v = Number(m[5].replace(',', '.'));
+      const op = { id: newOpId(), type: 'pointOnBody', name: auto(m[1]), surface, center: m[3], angle: Number(m[4].replace(',', '.')) };
+      if (surface === 'side') op.t = v; else if (surface === 'disk') op.rho = v; else op.lat = v;
+      return { op };
+    }
+
     // «K на окружности O 120» — точка окружности тела вращения по углу.
     m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?на\s+окружност[а-яё]*\s+(?:с\s+центром\s+)?([A-Z][0-9]*)\s+(-?\d+(?:[.,]\d+)?)\s*°?$/i.exec(src);
     if (m) {
@@ -763,6 +775,10 @@ export function describeOp(op, opsById = {}) {
     case 'level': return `Уровень жидкости ${levelArg(op, P)}`;
     case 'freePoint': return `${P(op.name)} = (${(op.at || []).map(fmt).join('; ')})`;
     case 'pointOnCircle': return `${P(op.name)} на окружности с центром ${P(op.center)}, ${fmt(op.angle)}°`;
+    case 'pointOnBody':
+      if (op.surface === 'disk') return `${P(op.name)} в круге с центром ${P(op.center)}`;
+      if (op.surface === 'sphere') return `${P(op.name)} на сфере с центром ${P(op.center)}`;
+      return `${P(op.name)} на боковой поверхности`;
     case 'sheet': return `Плоскость${op.label ? ` ${op.label}` : ''}${sheetArg(op, P)}`;
     default: return String(op?.type || '?');
   }
@@ -823,6 +839,11 @@ export function opToCommand(op, opsById = {}) {
     case 'level': return `уровень ${levelArg(op, (x) => x)}`;
     case 'freePoint': return `${op.name} = (${(op.at || []).map(fmt).join('; ')})`;
     case 'pointOnCircle': return `${op.name} на окружности ${op.center} ${fmt(op.angle)}`;
+    case 'pointOnBody': {
+      const where = op.surface === 'disk' ? 'в круге' : op.surface === 'sphere' ? 'на сфере' : 'на поверхности';
+      const v = op.surface === 'disk' ? op.rho : op.surface === 'sphere' ? op.lat : op.t;
+      return `${op.name} ${where} ${op.center} ${fmt(op.angle)} ${fmt(v)}`;
+    }
     case 'sheet': {
       const where = op.through ? `через ${op.through}` : Array.isArray(op.pts) ? n(op.pts) : `z=${fmtDot(op.z)}`;
       return `лист ${op.label ? `${op.label} ` : ''}${where}${op.size ? ` ${op.size.map(fmtDot).join(' ')}` : ''}`;

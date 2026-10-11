@@ -86,11 +86,12 @@ export function buildRevolutionBody(spec) {
         faces.push(planeFace([rings[i][k], rings[i][k2], rings[i + 1][k2], rings[i + 1][k]], center));
       }
     }
+    for (const f of faces) { f.surface = 'sphere'; f.center = 'O'; }
     const eq = ring(r, 0, N * 2);
     curves.push({ id: 'eq', pts: eq, analytic: true });
     put('O', center);
     put('A', v3(r * Math.cos(-Math.PI / 6), r * Math.sin(-Math.PI / 6), 0)); // на экваторе, спереди справа
-    circles.O = { c: center, r, e1: v3(1, 0, 0), e2: v3(0, 1, 0) };
+    circles.O = { c: center, r, e1: v3(1, 0, 0), e2: v3(0, 1, 0), axis: axisUp, sphere: true };
     return finish(spec, {
       vertices, order, edges: [], faces, curves, circles, center, size: 2 * r,
       sphere: { c: center, r },
@@ -116,20 +117,21 @@ export function buildRevolutionBody(spec) {
   const bottom = ring(r1, zb);
   const top = r2 > 0 ? ring(r2, zt) : null;
   const apex = r2 > 0 ? null : v3(0, 0, zt);
-  faces.push(planeFace(bottom, center));
-  if (top) faces.push(planeFace(top, center));
+  faces.push({ ...planeFace(bottom, center), surface: 'disk', center: 'O' });
+  if (top) faces.push({ ...planeFace(top, center), surface: 'disk', center: 'O1' });
   for (let k = 0; k < N; k += 1) {
     const k2 = (k + 1) % N;
-    faces.push(planeFace(top ? [bottom[k], bottom[k2], top[k2], top[k]] : [bottom[k], bottom[k2], apex], center));
+    faces.push({ ...planeFace(top ? [bottom[k], bottom[k2], top[k2], top[k]] : [bottom[k], bottom[k2], apex], center), surface: 'side', center: 'O' });
   }
   curves.push({ id: 'b', pts: bottom });
   if (top) curves.push({ id: 't', pts: top });
 
   put('O', v3(0, 0, zb));
-  circles.O = { c: v3(0, 0, zb), r: r1, e1: v3(1, 0, 0), e2: v3(0, 1, 0) };
+  // У нижней окружности — и ось с высотой: по ним точка на боковой поверхности
+  circles.O = { c: v3(0, 0, zb), r: r1, e1: v3(1, 0, 0), e2: v3(0, 1, 0), axis: axisUp, h, rTop: r2 };
   if (top) {
     put('O1', v3(0, 0, zt));
-    circles.O1 = { c: v3(0, 0, zt), r: r2, e1: v3(1, 0, 0), e2: v3(0, 1, 0) };
+    circles.O1 = { c: v3(0, 0, zt), r: r2, e1: v3(1, 0, 0), e2: v3(0, 1, 0), axis: axisUp };
   } else put('S', apex);
   // A — спереди справа (не на контуре, иначе образующая AA1 сливается с ним)
   const ca = Math.cos(-Math.PI / 3);
@@ -215,6 +217,67 @@ export function sphereSection(sp, plane, n = 96) {
 export function circlePoint(circle, deg) {
   const t = (deg * Math.PI) / 180;
   return add(circle.c, add(mul(circle.e1, circle.r * Math.cos(t)), mul(circle.e2, circle.r * Math.sin(t))));
+}
+
+// ─── точка на поверхности тела вращения ───────────────────────────────────
+//
+// Шаг pointOnBody: surface 'side' (боковая поверхность: угол и доля t от
+// нижней окружности к верхней / вершине), 'disk' (круг основания: угол и
+// доля радиуса rho), 'sphere' (долгота и широта, °). center — центр нижней
+// окружности (у верхнего круга — O1).
+
+const rad = (d) => (d * Math.PI) / 180;
+const around = (c, deg) => add(mul(c.e1, Math.cos(rad(deg))), mul(c.e2, Math.sin(rad(deg))));
+
+/** Положение точки шага pointOnBody по окружности тела; null — не та поверхность. */
+export function bodySurfacePoint(circle, op) {
+  if (!circle) return null;
+  const a = Number(op.angle) || 0;
+  if (op.surface === 'sphere') {
+    if (!circle.sphere) return null;
+    const lat = rad(Number(op.lat) || 0);
+    return add(circle.c, add(mul(around(circle, a), circle.r * Math.cos(lat)), mul(circle.axis, circle.r * Math.sin(lat))));
+  }
+  if (op.surface === 'disk') {
+    const rho = Math.max(0, Math.min(1, Number(op.rho)));
+    return add(circle.c, mul(around(circle, a), circle.r * rho));
+  }
+  if (op.surface === 'side') {
+    if (circle.h == null) return null;
+    const t = Number(op.t);
+    const B = add(circle.c, mul(around(circle, a), circle.r));
+    const T = add(add(circle.c, mul(circle.axis, circle.h)), mul(around(circle, a), circle.rTop || 0));
+    return add(B, mul(sub(T, B), t));
+  }
+  return null;
+}
+
+const snapDeg = (d) => {
+  const n = ((d % 360) + 360) % 360;
+  const s15 = Math.round(n / 15) * 15;
+  return Math.abs(s15 - n) <= 4 ? s15 % 360 : Math.round(n);
+};
+const snapFrac = (x) => {
+  for (const f of [0, 0.25, 1 / 3, 0.5, 2 / 3, 0.75, 1]) if (Math.abs(x - f) <= 0.04) return Math.round(f * 1000) / 1000;
+  return Math.round(x * 100) / 100;
+};
+
+/** Параметры шага pointOnBody по точке P на поверхности (прилипание к 15° и ½, ⅓…). */
+export function bodySurfaceParams(circle, surface, P) {
+  const w = sub(P, circle.c);
+  const along = dot(w, circle.axis);
+  const flat = sub(w, mul(circle.axis, along));
+  const angle = snapDeg((Math.atan2(dot(flat, circle.e2), dot(flat, circle.e1)) * 180) / Math.PI);
+  const radial = Math.hypot(dot(flat, circle.e1), dot(flat, circle.e2));
+  if (surface === 'sphere') {
+    const lat = Math.max(-90, Math.min(90, (Math.atan2(along, radial) * 180) / Math.PI));
+    return { angle, lat: Math.abs(lat) <= 4 ? 0 : Math.round(lat) };
+  }
+  if (surface === 'disk') {
+    const rho = radial / circle.r;
+    return { angle, rho: rho >= 0.94 ? 1 : snapFrac(rho) };
+  }
+  return { angle, t: Math.max(0, Math.min(1, snapFrac(along / circle.h))) };
 }
 
 /** Объём и площадь поверхности тела вращения (точные формулы). */
