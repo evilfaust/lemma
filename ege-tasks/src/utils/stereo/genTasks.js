@@ -11,6 +11,9 @@ import {
   generateFormulaTask, formulaTaskToRecord, FORMULA_TYPES, FORMULA_LEVELS,
 } from './formulaTasks';
 import { GEN_BODIES, FORMULA_ONLY_BODIES, genBodyDef } from './genBodies';
+import {
+  EXAM_TYPES, EXAM_SECTIONS, generateExamTask, examTaskToRecord,
+} from './examTasks';
 
 /** Типы заданий по группам (порядок — порядок в меню). */
 export const GEN_TYPES = {
@@ -23,23 +26,28 @@ export const GEN_TYPES = {
   distPointPlane: { label: METRIC_TYPES.distPointPlane.label, group: 'Расстояния', family: 'metric' },
   distSkew: { label: METRIC_TYPES.distSkew.label, group: 'Расстояния', family: 'metric' },
   volume: { label: METRIC_TYPES.volume.label, group: 'Объёмы', family: 'metric' },
-  // Первая часть ЕГЭ (база №13, профиль №3) — ответ числом
-  ...Object.fromEntries(Object.entries(FORMULA_TYPES).map(([k, t]) => [k, {
-    label: t.label, short: t.short, group: 'Первая часть ЕГЭ', family: 'formula',
-  }])),
 };
 
-export const GEN_TYPE_GROUPS = ['Сечения', 'Углы', 'Расстояния', 'Объёмы', 'Первая часть ЕГЭ'];
+// Первая часть ЕГЭ — отдельный режим генератора: каталог типов экзамена
+// (examTasks.js), тело выбирает сам тип. Формульные типы «по телу»
+// (formulaTasks.js) в меню больше не показываются — ими пользуются типы
+// каталога и тесты.
+export { EXAM_TYPES, EXAM_SECTIONS };
+
+export const GEN_TYPE_GROUPS = ['Сечения', 'Углы', 'Расстояния', 'Объёмы'];
 
 /** Что значит уровень сложности для семейства типа. */
-export const GEN_LEVELS = { section: SECTION_LEVELS, metric: METRIC_LEVELS, formula: FORMULA_LEVELS };
+export const GEN_LEVELS = {
+  section: SECTION_LEVELS, metric: METRIC_LEVELS, formula: FORMULA_LEVELS, exam: { 1: '', 2: '', 3: '' },
+};
 
-export const familyOf = (type) => GEN_TYPES[type]?.family || 'section';
+export const familyOf = (type) => (EXAM_TYPES[type] ? 'exam' : FORMULA_TYPES[type] ? 'formula' : GEN_TYPES[type]?.family || 'section');
 
 /** Сгенерировать задание любого типа; null — подходящее не нашлось. */
 export function generateGenTask({
   body, type, level, seed,
 }) {
+  if (familyOf(type) === 'exam') return generateExamTask({ type, seed });
   // Ступенчатое тело — только задачи первой части
   if (FORMULA_ONLY_BODIES[body] && familyOf(type) !== 'formula') return null;
   if (familyOf(type) === 'metric') return generateMetricTask({ body, type, level, seed });
@@ -49,12 +57,14 @@ export function generateGenTask({
 
 /** Задание → запись банка geometry_tasks. */
 export function genTaskToRecord(task, opts) {
+  if (task.family === 'exam') return examTaskToRecord(task, opts);
   if (task.family === 'formula') return formulaTaskToRecord(task, opts);
   return task.family === 'metric' ? metricTaskToRecord(task, opts) : sectionTaskToRecord(task, opts);
 }
 
 /** Префикс кода задачи в банке. */
 export function genCodePrefix(type) {
+  if (familyOf(type) === 'exam') return { b11: 'B11', b13: 'B13', p3: 'P3' }[EXAM_TYPES[type].exam];
   if (familyOf(type) === 'formula') return FORMULA_TYPES[type].prefix;
   return familyOf(type) === 'metric' ? METRIC_TYPES[type].prefix : 'SEC';
 }

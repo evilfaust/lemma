@@ -59,7 +59,7 @@ const pickInt = (rand, lo, hi) => lo + Math.floor(rand() * (hi - lo + 1));
 // ─── числа ────────────────────────────────────────────────────────────────
 
 /** Конечная десятичная дробь с точностью до 1e-9, не длиннее 3 знаков. */
-function finiteDecimal(x) {
+export function finiteDecimal(x) {
   if (!Number.isFinite(x) || x <= 0 || x > 1e6) return null;
   const r = Math.round(x * 1000) / 1000;
   if (Math.abs(r - x) > 1e-9 * Math.max(1, x)) return null;
@@ -673,15 +673,19 @@ function goodShape(spec) {
   return ez / w <= 3 && w / ez <= 3 && Math.min(ex, ey) / w >= 0.3;
 }
 
-function buildFormulaTask(ctx, { type, typeDef, level, seed, answer }) {
+export function buildFormulaTask(ctx, { type, typeDef, level, seed, answer }) {
   const {
     key, def, spec, labels = [], extra = [], ask = null, question, solution,
   } = ctx;
-  if (type !== 'fScale' && key !== 'steps' && key !== 'combo' && !goodShape(spec)) return null;
+  if (type !== 'fScale' && key !== 'steps' && key !== 'combo' && !ctx.skipShape && !goodShape(spec)) return null;
   const ops = [...extra];
   labels.forEach((l, i) => ops.push({ id: `l${i}`, type: 'lengthMark', ref: [...l.ref], text: l.g.label }));
   const askOps = ask ? [{ id: 'ask', type: 'segment', ref: [...ask] }] : [];
-  const scene = { body: spec, ops: [...ops, ...askOps], ...(ctx.hide?.length ? { hidden: [...ctx.hide] } : {}) };
+  const scene = {
+    body: spec, ops: [...ops, ...askOps],
+    ...(ctx.hide?.length ? { hidden: [...ctx.hide] } : {}),
+    ...(ctx.show?.length ? { shown: [...ctx.show] } : {}),
+  };
   const model = evaluateScene(scene);
   if (model.steps.some((s) => !s.ok)) return null;
   // 🚨 подпись = длина на чертеже

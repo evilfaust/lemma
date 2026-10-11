@@ -119,9 +119,9 @@ describe('ступенчатый многогранник', () => {
 });
 
 describe('задачи первой части в общем генераторе', () => {
-  it('типы — в группе «Первая часть ЕГЭ», семейство formula', () => {
+  it('формульные типы — семейство formula (в меню их заменил каталог экзамена)', () => {
     for (const type of Object.keys(FORMULA_TYPES)) {
-      expect(GEN_TYPES[type]).toMatchObject({ group: 'Первая часть ЕГЭ', family: 'formula' });
+      expect(GEN_TYPES[type]).toBeUndefined();
       expect(familyOf(type)).toBe('formula');
       expect(genCodePrefix(type)).toBe(FORMULA_TYPES[type].prefix);
     }

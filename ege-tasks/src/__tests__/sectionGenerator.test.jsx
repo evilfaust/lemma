@@ -88,4 +88,23 @@ describe('генератор сечений — страница', () => {
     expect(angle.tags).toEqual(expect.arrayContaining(['cube', 'skew']));
     expect(mockApi.createGeometryWork.mock.calls[0][0].title).toMatch(/^Стереометрия · /);
   });
+
+  it('первая часть ЕГЭ: типы по номерам экзамена, тело выбирать не нужно', async () => {
+    render(<AntApp><MemoryRouter><SectionGenerator /></MemoryRouter></AntApp>);
+    fireEvent.click(screen.getByText('Первая часть ЕГЭ (база №11, №13, профиль №3)'));
+    expect(screen.queryByLabelText('Тела')).toBeNull();
+    expect(screen.queryByText('Сложность')).toBeNull();
+    // кнопка «весь номер» — все типы базы №11
+    fireEvent.click(screen.getByText('Весь база №11'));
+    fireEvent.click(screen.getByText('Сгенерировать'));
+    expect(await screen.findByText('Вариант 2')).toBeInTheDocument();
+    // карточки подписаны номером и группой: Б11 · …
+    expect(screen.getAllByText(/^Б11 · /).length).toBe(8);
+    fireEvent.click(screen.getByText('Создать работу'));
+    fireEvent.click(await screen.findByText('Создать'));
+    await waitFor(() => expect(mockApi.createGeometryWork).toHaveBeenCalled());
+    const rec = mockApi.createGeneratedGeometryTasks.mock.calls[0][0][0];
+    expect(rec.code).toMatch(/^B11-/);
+    expect(mockApi.createGeometryWork.mock.calls[0][0].title).toMatch(/^Стереометрия, первая часть \(Б11\)/);
+  });
 });

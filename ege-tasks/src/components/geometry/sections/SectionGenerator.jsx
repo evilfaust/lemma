@@ -12,7 +12,7 @@ import { useGeometryBasket } from '../../../hooks/useGeometryBasket';
 import { sanitizeSvg } from '../../../utils/sanitizeSvg';
 import {
   GEN_TYPES, GEN_TYPE_GROUPS, GEN_LEVELS, familyOf, generateGenTask, genTaskToRecord, genCodePrefix, slotPlan,
-  GEN_BODY_OPTIONS, genBodyDef,
+  GEN_BODIES, genBodyDef, EXAM_TYPES, EXAM_SECTIONS,
 } from '../../../utils/stereo/genTasks';
 import { stereoDrawingSvg } from '../../../utils/stereo/dsl';
 import { DEFAULT_CAMERA } from '../../../utils/stereo/camera';
@@ -22,7 +22,14 @@ import SectionStepsModal from './SectionStepsModal';
 
 const { Text } = Typography;
 
-const BODY_OPTIONS = Object.entries(GEN_BODY_OPTIONS).map(([value, b]) => ({ value, label: b.label }));
+const BODY_OPTIONS = Object.entries(GEN_BODIES).map(([value, b]) => ({ value, label: b.label }));
+// Первая часть ЕГЭ: каталог по номерам экзамена, тело выбирает сам тип
+const EXAM_OPTIONS = EXAM_SECTIONS.map((sec) => ({
+  label: sec.title,
+  title: sec.title,
+  options: Object.entries(sec.types).map(([value, t]) => ({ value, label: `${sec.short} · ${t.group}: ${t.label}` })),
+}));
+const MODE_PART1 = 'part1';
 const TYPE_OPTIONS = GEN_TYPE_GROUPS.map((group) => ({
   label: group,
   title: group,
@@ -65,7 +72,7 @@ function TaskCell({
         <Space size={6} wrap>
           <Text strong>№{index + 1}</Text>
           <Tag style={{ margin: 0 }}>{task.tag}</Tag>
-          {showBody && <Tag color="blue" style={{ margin: 0 }}>{genBodyDef(task.body).short}</Tag>}
+          {showBody && task.family !== 'exam' && <Tag color="blue" style={{ margin: 0 }}>{genBodyDef(task.body)?.short}</Tag>}
         </Space>
       )}
       extra={(
@@ -91,6 +98,10 @@ function TaskCell({
 
 /** Название работы по составу листа. */
 function workTitle(cfg) {
+  if (cfg.mode === MODE_PART1) {
+    const exams = [...new Set(cfg.types.map((t) => EXAM_TYPES[t]?.short).filter(Boolean))].join(', ');
+    return `Стереометрия, первая часть (${exams}) · ${new Date().toLocaleDateString('ru-RU')}`;
+  }
   const one = GEN_TYPES[cfg.types[0]];
   const kind = cfg.types.length === 1 ? one.short || one.label : 'Стереометрия';
   const body = cfg.bodies.length === 1 ? ` · ${genBodyDef(cfg.bodies[0]).short}` : '';
@@ -109,7 +120,10 @@ export default function SectionGenerator() {
   const { message } = App.useApp();
   const { canEdit } = useAuth();
   const basket = useGeometryBasket();
-  const [cfg, setCfg] = useState({ bodies: ['cube'], types: ['build'], level: 2, count: 4, variants: 2 });
+  const [cfg, setCfg] = useState({
+    mode: 'part2', bodies: ['cube'], types: ['build'], level: 2, count: 4, variants: 2,
+    examTypes: Object.keys(EXAM_SECTIONS.find((sec) => sec.key === 'b13').types),
+  });
   const [sheet, setSheet] = useState(null);
   const [steps, setSteps] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -117,10 +131,13 @@ export default function SectionGenerator() {
   const [form] = Form.useForm();
 
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
-  const families = [...new Set(cfg.types.map(familyOf))];
-  const ready = cfg.types.length > 0 && cfg.bodies.length > 0;
+  const part1 = cfg.mode === MODE_PART1;
+  // В первой части позиции — типы каталога, тело выбирает тип
+  const effective = part1 ? { ...cfg, types: cfg.examTypes, bodies: ['exam'] } : cfg;
+  const families = [...new Set(effective.types.map(familyOf))];
+  const ready = effective.types.length > 0 && effective.bodies.length > 0;
 
-  const run = () => setSheet({ cfg, rows: generateSheet(cfg, newSeed()) });
+  const run = () => setSheet({ cfg: effective, rows: generateSheet(effective, newSeed()) });
 
   const replace = (v, r) => setSheet((s) => {
     const rows = s.rows.map((col) => [...col]);
@@ -194,65 +211,105 @@ export default function SectionGenerator() {
   };
 
   const filled = sheet ? sheet.rows.flat().filter(Boolean).length : 0;
-  const levelHint = families.map((f) => GEN_LEVELS[f][cfg.level]).join('; ');
+  const levelHint = families.map((f) => GEN_LEVELS[f][cfg.level]).filter(Boolean).join('; ');
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card size="small">
         <Space direction="vertical" size={10} style={{ width: '100%' }}>
-          <Space wrap align="start" size={16}>
-            <Space direction="vertical" size={4}>
-              <Text>Задания</Text>
+          <Segmented
+            value={cfg.mode}
+            onChange={(v) => set({ mode: v })}
+            options={[
+              { value: 'part2', label: 'Сечения, углы, расстояния' },
+              { value: MODE_PART1, label: 'Первая часть ЕГЭ (база №11, №13, профиль №3)' },
+            ]}
+          />
+          {part1 ? (
+            <Space direction="vertical" size={6} style={{ width: '100%' }}>
+              <Space wrap>
+                <Text>Типы заданий как на экзамене</Text>
+                {EXAM_SECTIONS.map((sec) => (
+                  <Button
+                    key={sec.key}
+                    size="small"
+                    onClick={() => set({ examTypes: Object.keys(sec.types) })}
+                    title={sec.title}
+                  >
+                    Весь {sec.short.replace('Б', 'база №').replace('П', 'профиль №')}
+                  </Button>
+                ))}
+              </Space>
               <Select
                 mode="multiple"
-                value={cfg.types}
-                onChange={(v) => set({ types: v })}
-                options={TYPE_OPTIONS}
-                placeholder="Что решать"
-                style={{ minWidth: 360, maxWidth: 560 }}
+                value={cfg.examTypes}
+                onChange={(v) => set({ examTypes: v })}
+                options={EXAM_OPTIONS}
+                placeholder="Выберите типы заданий"
+                style={{ width: '100%', maxWidth: 900 }}
                 maxTagCount="responsive"
-                aria-label="Типы заданий"
+                listHeight={420}
+                aria-label="Типы заданий первой части"
               />
             </Space>
-            <Space direction="vertical" size={4}>
-              <Text>Тела</Text>
-              <Select
-                mode="multiple"
-                value={cfg.bodies}
-                onChange={(v) => set({ bodies: v })}
-                options={BODY_OPTIONS}
-                placeholder="Многогранники"
-                style={{ minWidth: 320, maxWidth: 560 }}
-                maxTagCount="responsive"
-                aria-label="Тела"
-              />
+          ) : (
+            <Space wrap align="start" size={16}>
+              <Space direction="vertical" size={4}>
+                <Text>Задания</Text>
+                <Select
+                  mode="multiple"
+                  value={cfg.types}
+                  onChange={(v) => set({ types: v })}
+                  options={TYPE_OPTIONS}
+                  placeholder="Что решать"
+                  style={{ minWidth: 360, maxWidth: 560 }}
+                  maxTagCount="responsive"
+                  aria-label="Типы заданий"
+                />
+              </Space>
+              <Space direction="vertical" size={4}>
+                <Text>Тела</Text>
+                <Select
+                  mode="multiple"
+                  value={cfg.bodies}
+                  onChange={(v) => set({ bodies: v })}
+                  options={BODY_OPTIONS}
+                  placeholder="Многогранники"
+                  style={{ minWidth: 320, maxWidth: 560 }}
+                  maxTagCount="responsive"
+                  aria-label="Тела"
+                />
+              </Space>
             </Space>
-          </Space>
+          )}
           <Space wrap size={16}>
-            <Space>
-              <Text>Сложность</Text>
-              <Segmented
-                value={cfg.level}
-                onChange={(v) => set({ level: v })}
-                options={[1, 2, 3].map((v) => ({
-                  value: v,
-                  label: <Tooltip title={families.map((f) => GEN_LEVELS[f][v]).join('; ')}>{LEVEL_NAMES[v - 1]}</Tooltip>,
-                }))}
-              />
-            </Space>
+            {!part1 && (
+              <Space>
+                <Text>Сложность</Text>
+                <Segmented
+                  value={cfg.level}
+                  onChange={(v) => set({ level: v })}
+                  options={[1, 2, 3].map((v) => ({
+                    value: v,
+                    label: <Tooltip title={families.map((f) => GEN_LEVELS[f][v]).join('; ')}>{LEVEL_NAMES[v - 1]}</Tooltip>,
+                  }))}
+                />
+              </Space>
+            )}
             <Space><Text>Задач</Text><InputNumber min={1} max={12} value={cfg.count} onChange={(v) => set({ count: v || 1 })} style={{ width: 70 }} /></Space>
             <Space><Text>Вариантов</Text><Segmented value={cfg.variants} onChange={(v) => set({ variants: v })} options={[1, 2, 3, 4]} /></Space>
             <Button type="primary" icon={<ThunderboltOutlined />} onClick={run} disabled={!ready}>Сгенерировать</Button>
           </Space>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {levelHint}. Несколько типов и тел чередуются по позициям; задачи одной позиции во всех вариантах —
-            параллельные. Чертёж, ответ и решение даёт одна модель: ответ точный и сверен с чертежом движка.
+            {part1
+              ? 'Каждый тип — сюжет из банка экзамена со своим телом и числами; ответ — число для бланка. Типы чередуются по позициям; задачи одной позиции во всех вариантах — параллельные. Подписи длин на чертеже сверены с самим телом.'
+              : `${levelHint}. Несколько типов и тел чередуются по позициям; задачи одной позиции во всех вариантах — параллельные. Чертёж, ответ и решение даёт одна модель: ответ точный и сверен с чертежом движка.`}
           </Text>
         </Space>
       </Card>
 
       {!sheet ? (
-        <Empty description="Выберите задания, тела и нажмите «Сгенерировать»" />
+        <Empty description={part1 ? 'Выберите типы заданий и нажмите «Сгенерировать»' : 'Выберите задания, тела и нажмите «Сгенерировать»'} />
       ) : (
         <>
           {filled < sheet.rows.flat().length && (

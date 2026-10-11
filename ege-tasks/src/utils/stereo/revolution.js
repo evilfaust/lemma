@@ -41,7 +41,7 @@ function planeFace(pts, inwardRef) {
 export function normalizeRevolution(spec, num) {
   switch (spec.kind) {
     case 'cylinder': return { kind: 'cylinder', r: num(spec.r, 2), h: num(spec.h, 4) };
-    case 'cone': return { kind: 'cone', r: num(spec.r, 2), h: num(spec.h, 4) };
+    case 'cone': return { kind: 'cone', r: num(spec.r, 2), h: num(spec.h, 4), ...(spec.down ? { down: true } : {}) };
     case 'tcone': {
       const r = num(spec.r, 3);
       let r2 = num(spec.r2, r / 2);
@@ -110,34 +110,54 @@ export function buildRevolutionBody(spec) {
   }
 
   const { h } = spec;
-  const r1 = spec.r;
-  const r2 = spec.kind === 'cylinder' ? spec.r : spec.kind === 'tcone' ? spec.r2 : 0;
+  // Конус «вершиной вниз» (сосуд): у нижнего края радиус 0 — там вершина S,
+  // основание с центром O — сверху.
+  const down = spec.kind === 'cone' && spec.down;
+  const rB = down ? 0 : spec.r; // радиус внизу
+  const rT = spec.kind === 'cylinder' ? spec.r : spec.kind === 'tcone' ? spec.r2 : down ? spec.r : 0; // наверху
+  const r1 = rB;
+  const r2 = rT;
   const zb = -h / 2;
   const zt = h / 2;
-  const bottom = ring(r1, zb);
-  const top = r2 > 0 ? ring(r2, zt) : null;
-  const apex = r2 > 0 ? null : v3(0, 0, zt);
-  faces.push({ ...planeFace(bottom, center), surface: 'disk', center: 'O' });
-  if (top) faces.push({ ...planeFace(top, center), surface: 'disk', center: 'O1' });
+  const bottom = rB > 0 ? ring(rB, zb) : null;
+  const top = rT > 0 ? ring(rT, zt) : null;
+  const apex = !top ? v3(0, 0, zt) : !bottom ? v3(0, 0, zb) : null;
+  if (bottom) faces.push({ ...planeFace(bottom, center), surface: 'disk', center: 'O' });
+  if (top) faces.push({ ...planeFace(top, center), surface: 'disk', center: down ? 'O' : 'O1' });
+  const sideCenter = down ? 'S' : 'O';
   for (let k = 0; k < N; k += 1) {
     const k2 = (k + 1) % N;
-    faces.push({ ...planeFace(top ? [bottom[k], bottom[k2], top[k2], top[k]] : [bottom[k], bottom[k2], apex], center), surface: 'side', center: 'O' });
+    const quad = bottom && top
+      ? [bottom[k], bottom[k2], top[k2], top[k]]
+      : bottom ? [bottom[k], bottom[k2], apex] : [apex, top[k2], top[k]];
+    faces.push({ ...planeFace(quad, center), surface: 'side', center: sideCenter });
   }
-  curves.push({ id: 'b', pts: bottom });
+  if (bottom) curves.push({ id: 'b', pts: bottom });
   if (top) curves.push({ id: 't', pts: top });
 
-  put('O', v3(0, 0, zb));
-  // У нижней окружности — и ось с высотой: по ним точка на боковой поверхности
-  circles.O = { c: v3(0, 0, zb), r: r1, e1: v3(1, 0, 0), e2: v3(0, 1, 0), axis: axisUp, h, rTop: r2 };
-  if (top) {
-    put('O1', v3(0, 0, zt));
-    circles.O1 = { c: v3(0, 0, zt), r: r2, e1: v3(1, 0, 0), e2: v3(0, 1, 0), axis: axisUp };
-  } else put('S', apex);
-  // A — спереди справа (не на контуре, иначе образующая AA1 сливается с ним)
+  const E1 = v3(1, 0, 0);
+  const E2 = v3(0, 1, 0);
   const ca = Math.cos(-Math.PI / 3);
   const sa = Math.sin(-Math.PI / 3);
-  put('A', v3(r1 * ca, r1 * sa, zb));
-  if (top) put('A1', v3(r2 * ca, r2 * sa, zt));
+  if (down) {
+    // Вершина S внизу, основание O сверху; боковая поверхность — от вершины
+    put('O', v3(0, 0, zt));
+    put('S', apex);
+    put('A', v3(rT * ca, rT * sa, zt));
+    circles.O = { c: v3(0, 0, zt), r: rT, e1: E1, e2: E2, axis: axisUp };
+    circles.S = { c: v3(0, 0, zb), r: 0, e1: E1, e2: E2, axis: axisUp, h, rTop: rT };
+  } else {
+    put('O', v3(0, 0, zb));
+    // У нижней окружности — и ось с высотой: по ним точка на боковой поверхности
+    circles.O = { c: v3(0, 0, zb), r: r1, e1: E1, e2: E2, axis: axisUp, h, rTop: r2 };
+    if (top) {
+      put('O1', v3(0, 0, zt));
+      circles.O1 = { c: v3(0, 0, zt), r: r2, e1: E1, e2: E2, axis: axisUp };
+    } else put('S', apex);
+    // A — спереди справа (не на контуре, иначе образующая AA1 сливается с ним)
+    put('A', v3(r1 * ca, r1 * sa, zb));
+    if (top) put('A1', v3(r2 * ca, r2 * sa, zt));
+  }
 
   // Контурная образующая под углом φ: нормаль боковой поверхности ⊥ взгляду.
   // Нормаль в точке φ — (h·cosφ, h·sinφ, r1 − r2): h(vx cosφ + vy sinφ) = −(r1 − r2)·vz.
@@ -148,14 +168,13 @@ export function buildRevolutionBody(spec) {
     if (Math.abs(c) > 1) return []; // смотрим почти вдоль оси: контура-образующих нет
     const psi = Math.atan2(v.y, v.x);
     const d = Math.acos(c);
-    return [psi + d, psi - d].map((phi) => {
-      const lo = v3(r1 * Math.cos(phi), r1 * Math.sin(phi), zb);
-      const hi = top ? v3(r2 * Math.cos(phi), r2 * Math.sin(phi), zt) : apex;
-      return [lo, hi];
-    });
+    return [psi + d, psi - d].map((phi) => [
+      v3(r1 * Math.cos(phi), r1 * Math.sin(phi), zb),
+      v3(r2 * Math.cos(phi), r2 * Math.sin(phi), zt),
+    ]);
   };
   return finish(spec, {
-    vertices, order, edges: [], faces, curves, circles, center: v3(0, 0, 0), size: Math.hypot(2 * r1, h), silhouette,
+    vertices, order, edges: [], faces, curves, circles, center: v3(0, 0, 0), size: Math.hypot(2 * Math.max(r1, r2), h), silhouette,
   });
 }
 

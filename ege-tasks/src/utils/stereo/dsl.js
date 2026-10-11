@@ -145,6 +145,7 @@ export function parseBodyLine(line) {
     else if (kind === 'tcone') { spec.r = named.r ?? vals[0]; spec.r2 = named.r2 ?? vals[1]; spec.h = named.h ?? vals[2]; }
     else { spec.r = named.r ?? vals[0]; spec.h = named.h ?? vals[1]; }
     if (restR.some((w, j) => /^букв/i.test(w) && /^с$/i.test(restR[j - 1] || ''))) spec.letters = true;
+    if (kind === 'cone' && restR.some((w, j) => /^вниз$/i.test(w) && /^вершин/i.test(restR[j - 1] || ''))) spec.down = true;
     return normalizeBodySpec(spec);
   }
   const rest = words.slice(i + 1);
@@ -334,7 +335,7 @@ function bodyShapeLine(s) {
     case 'octa': return `октаэдр ${fmt(s.a)}`;
     case 'space': return 'пространство';
     case 'cylinder': return `цилиндр ${fmt(s.r)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
-    case 'cone': return `конус ${fmt(s.r)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
+    case 'cone': return `конус ${fmt(s.r)} ${fmt(s.h)}${s.down ? ' вершиной вниз' : ''}${s.letters ? ' с буквами' : ''}`;
     case 'tcone': return `усечённый конус ${fmt(s.r)} ${fmt(s.r2)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
     case 'sphere': return `шар ${fmt(s.r)}${s.letters ? ' с буквами' : ''}`;
     case 'blocks': return join(
