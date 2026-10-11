@@ -961,6 +961,32 @@ export function evaluateScene(scene, opts = {}) {
     }
   }
 
+  // Скрытые прямые и отрезки — оформление, как цвет: scene.hiddenLines =
+  // ['A-B'] (прямая целиком, с продолжениями), scene.hiddenSegments = ['A-M']
+  // (кусок между точками). Линия остаётся в построениях; на чертеже её нет,
+  // в редакторе она бледная (renderStereo, showHidden).
+  const hidLines = new Set(Array.isArray(scene?.hiddenLines) ? scene.hiddenLines : []);
+  for (const o of lines) if (hidLines.has(lineColorKey(o.ref))) o.concealed = true;
+  for (const key of Array.isArray(scene?.hiddenSegments) ? scene.hiddenSegments : []) {
+    const ref = refOfLineColorKey(key);
+    if (!Array.isArray(ref)) continue;
+    const P = points[ref[0]]?.pos;
+    const Q = points[ref[1]]?.pos;
+    if (!P || !Q || dist(P, Q) <= eps) continue;
+    const u = sub(Q, P);
+    for (const o of lines) {
+      if (!sameLine(o.p, o.u, P, u, eps * 10)) continue;
+      const d = sub(o.b, o.a);
+      let t0 = paramOnLine(P, o.a, d);
+      let t1 = paramOnLine(Q, o.a, d);
+      if (t0 > t1) [t0, t1] = [t1, t0];
+      t0 = Math.max(0, t0);
+      t1 = Math.min(1, t1);
+      if (t1 - t0 <= 1e-9) continue;
+      (o.hideRanges = o.hideRanges || []).push({ t0, t1 });
+    }
+  }
+
   // Цвета сечений и плоскостей — оформление по id шага: scene.polyColors =
   // { <id шага>: 'green' }. Красится и заливка, и контур сечения — так на
   // одном теле различаются два сечения.
@@ -1047,6 +1073,14 @@ export function removeOpCascade(scene, opId) {
       return Array.isArray(ref) ? !ref.some((n) => deadNames.has(n)) : !deadIds.has(ref);
     }));
   }
+  for (const field of ['hiddenLines', 'hiddenSegments']) {
+    if (!scene?.[field]) continue;
+    next[field] = scene[field].filter((k) => {
+      const ref = refOfLineColorKey(k);
+      return Array.isArray(ref) ? !ref.some((n) => deadNames.has(n)) : !deadIds.has(ref);
+    });
+    if (!next[field].length) delete next[field];
+  }
   if (scene?.polyColors) {
     next.polyColors = withoutKeys(scene.polyColors, deadIds);
     if (!Object.keys(next.polyColors).length) delete next.polyColors;
@@ -1091,6 +1125,13 @@ export function renamePointInScene(scene, from, to) {
       const ref = refOfLineColorKey(k);
       return [Array.isArray(ref) ? lineColorKey(ref.map(swap)) : k, v];
     }));
+  }
+  for (const field of ['hiddenLines', 'hiddenSegments']) {
+    if (!scene?.[field]) continue;
+    next[field] = scene[field].map((k) => {
+      const ref = refOfLineColorKey(k);
+      return Array.isArray(ref) ? lineColorKey(ref.map(swap)) : k;
+    });
   }
   return next;
 }
@@ -1175,6 +1216,51 @@ export function setPointsHidden(scene, names, hidden = true) {
   if (!next.hidden.length) delete next.hidden;
   if (!next.shown.length) delete next.shown;
   return next;
+}
+
+/**
+ * Скрыть прямые (field = 'hiddenLines', ключи lineColorKey) или отрезки
+ * ('hiddenSegments', ключи «A-M») — или показать снова. Оформление, не шаг.
+ */
+export function setLinesHidden(scene, keys, hidden = true, field = 'hiddenLines') {
+  const set = new Set(scene?.[field] || []);
+  for (const k of keys) {
+    if (hidden) set.add(k); else set.delete(k);
+  }
+  const next = { ...scene, [field]: [...set] };
+  if (!next[field].length) delete next[field];
+  return next;
+}
+
+/**
+ * Команда «скрыть / показать» (точки, «прямую AB», «отрезок AM», «все»)
+ * → новая сцена. Общая для строки команд и блока ```stereo.
+ * @returns {{ scene } | { error }}
+ */
+export function applyHideCommand(scene, r) {
+  const model = evaluateScene(scene);
+  if (r.names === 'all') {
+    let next = setPointsHidden(scene, [...(scene.hidden || [])], false);
+    next = { ...next };
+    delete next.hiddenLines;
+    delete next.hiddenSegments;
+    return { scene: next };
+  }
+  const lines = r.lines || [];
+  const segs = r.segments || [];
+  const missing = [...(r.names || []), ...lines.flat(), ...segs.flat()].filter((n) => !model.points[n]);
+  if (missing.length) return { error: `Нет точки ${missing.map(prettyName).join(', ')}` };
+  if (r.hidden) {
+    for (const [a, b] of [...lines, ...segs]) {
+      const err = segmentColorError(model, a, b);
+      if (err) return { error: err.replace('не лежит на нарисованной линии', 'не нарисован — скрывать нечего') };
+    }
+  }
+  let next = scene;
+  if (r.names?.length) next = setPointsHidden(next, r.names, r.hidden);
+  if (lines.length) next = setLinesHidden(next, lines.map(lineColorKey), r.hidden, 'hiddenLines');
+  if (segs.length) next = setLinesHidden(next, segs.map(lineColorKey), r.hidden, 'hiddenSegments');
+  return { scene: next };
 }
 
 /**

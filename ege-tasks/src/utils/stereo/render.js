@@ -66,6 +66,8 @@ export const RIGHT_MARK_PX = 12;
 export const ARC_PX = 20;
 const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
+// Метка скрытого куска линии среди цветов отрезков (colorPieces)
+const HIDE = '__hidden';
 
 // Буквы — шрифтом формул KaTeX, как $A$ в условии (Times — запасной: SVG в
 // <img> шрифтов страницы не видит). Размер постоянный в единицах кадра — его
@@ -272,13 +274,24 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const color = pointColorHex(o.color) || o.color || (o.kind === 'edge' ? STEREO_COLORS.edge : STEREO_COLORS.construct);
     // Выделенная прямая толще — и в цвете, и в ч/б печати (там цвет — чёрный).
     const w = (WIDTH[o.kind] || 1.5) * (o.painted ? PAINTED_WIDTH : 1);
-    if (!o.colorRanges?.length) pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step, ownerOcc(o.part));
+    // Скрытая прямая / скрытый кусок: у учеников и в печати её нет, в
+    // редакторе (showHidden) — бледная (stroke.ghost).
+    const ghostFrom = (k) => { for (let i = k; i < strokes.length; i += 1) strokes[i].ghost = true; };
+    const ranges = [...(o.colorRanges || []), ...(o.hideRanges || []).map((r) => ({ ...r, color: HIDE }))];
+    if (o.concealed) {
+      if (opts.showHidden) { const k = strokes.length; pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step, ownerOcc(o.part)); ghostFrom(k); }
+    } else if (!ranges.length) pushSplit(o.id, o.kind, o.a, o.b, color, w, o.step, ownerOcc(o.part));
     else {
-      // Покрашенные отрезки режут линию на куски: свой цвет — свой кусок.
+      // Покрашенные отрезки режут линию на куски: свой цвет — свой кусок;
+      // скрытый кусок побеждает цвет.
       const paintedW = (WIDTH[o.kind] || 1.5) * PAINTED_WIDTH;
-      for (const pc of colorPieces(o.colorRanges)) {
-        const c = pc.color ? pointColorHex(pc.color) || pc.color : color;
-        pushSplit(o.id, o.kind, lerp(o.a, o.b, pc.t0), lerp(o.a, o.b, pc.t1), c, pc.color ? paintedW : w, o.step, ownerOcc(o.part));
+      for (const pc of colorPieces(ranges)) {
+        const hide = pc.color === HIDE;
+        if (hide && !opts.showHidden) continue;
+        const c = pc.color && !hide ? pointColorHex(pc.color) || pc.color : color;
+        const k = strokes.length;
+        pushSplit(o.id, o.kind, lerp(o.a, o.b, pc.t0), lerp(o.a, o.b, pc.t1), c, pc.color && !hide ? paintedW : w, o.step, ownerOcc(o.part));
+        if (hide) ghostFrom(k);
       }
     }
     const a = P(o.a);
@@ -601,7 +614,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 export function contentBox(frame, pad = 8) {
   let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
   const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
-  for (const s of frame.strokes) { add(s.x1, s.y1); add(s.x2, s.y2); }
+  for (const s of frame.strokes) { if (!s.ghost) { add(s.x1, s.y1); add(s.x2, s.y2); } }
   for (const d of frame.dots) { add(d.x - 5, d.y - 5); add(d.x + 5, d.y + 5); }
   for (const l of frame.labels) {
     const w = 10 * l.base.length + 7 * l.sub.length;
@@ -658,8 +671,8 @@ export function stereoSvgString(frame, opts = {}) {
     const w = (s.hidden ? s.width * 0.8 : s.width) * (mono && s.kind !== 'edge' && s.kind !== 'section' && s.kind !== 'mark' ? 0.85 : 1);
     return `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${s.hidden && s.kind !== 'mark' ? ` stroke-dasharray="${DASH}"` : ''}/>`;
   };
-  for (const s of frame.strokes) if (s.hidden) parts.push(line(s));
-  for (const s of frame.strokes) if (!s.hidden) parts.push(line(s));
+  for (const s of frame.strokes) if (s.hidden && !s.ghost) parts.push(line(s));
+  for (const s of frame.strokes) if (!s.hidden && !s.ghost) parts.push(line(s));
   for (const d of frame.dots) {
     if (d.ghost) continue;
     // Выделенная точка: цветом, а в ч/б — крупнее, с белым ободком.

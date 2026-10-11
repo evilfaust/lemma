@@ -196,6 +196,7 @@ export default function StereoCanvas({
         strokeWidth={(s.hidden ? s.width * 0.8 : s.width) + (hl ? 1.4 : 0)}
         strokeDasharray={s.hidden && s.kind !== 'mark' ? DASH : undefined}
         strokeLinecap="round"
+        opacity={s.ghost ? 0.25 : undefined}
         className={cls || undefined}
       />
     );

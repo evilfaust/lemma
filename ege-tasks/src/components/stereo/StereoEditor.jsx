@@ -25,7 +25,7 @@ import {
   draggableOp, lineOfOp, dragPosition, setOpPosition, dragOpPatch, setOpFields,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, setPolyColors, applyColorCommand, renamePoint,
-  setPointsHidden,
+  setPointsHidden, setLinesHidden, applyHideCommand,
   opToCommand, editStepCommand, measureKey, measurePoints, lengthLabelText,
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
@@ -362,8 +362,11 @@ export default function StereoEditor({
       else commit(lengthDim ? { ...r.op, text, dim: true } : { ...r.op, text });
     } else if (r.op) commit(r.op);
     if (r.hide) {
+      // Повторный клик возвращает: точку, кусок прямой или прямую целиком.
       const sc = sceneRef.current;
-      setScene(setPointsHidden(sc, [r.hide.name], !(sc.hidden || []).includes(r.hide.name)));
+      if (r.hide.name) setScene(setPointsHidden(sc, [r.hide.name], !(sc.hidden || []).includes(r.hide.name)));
+      else if (r.hide.segment) setScene(setLinesHidden(sc, [r.hide.segment], !(sc.hiddenSegments || []).includes(r.hide.segment), 'hiddenSegments'));
+      else if (r.hide.line) setScene(setLinesHidden(sc, [r.hide.line], !(sc.hiddenLines || []).includes(r.hide.line), 'hiddenLines'));
     }
     if (r.attention) attention(r.attention);
     if (r.rename) setRenameTarget(r.rename.name);
@@ -509,10 +512,9 @@ export default function StereoEditor({
       return;
     }
     if (r.action === 'hide') {
-      const names = r.names === 'all' ? [...(scene.hidden || [])] : r.names;
-      const missing = names.filter((n) => !model.points[n]);
-      if (missing.length) { setCmdError(`Нет точки ${missing.join(', ')}`); return; }
-      setScene(setPointsHidden(scene, names, r.hidden));
+      const res = applyHideCommand(scene, r);
+      if (res.error) { setCmdError(res.error); return; }
+      setScene(res.scene);
       setCmd('');
       return;
     }

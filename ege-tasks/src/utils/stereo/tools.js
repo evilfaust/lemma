@@ -182,7 +182,7 @@ export function toolHint(tool, pending = []) {
     case 'view': return 'Кликните по грани или сечению — чертёж повернётся перпендикулярно этой плоскости (Esc — отмена)';
     case 'color': return 'Клик по точке, отрезку или внутри сечения — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
-    case 'hide': return 'Кликните по точке — она пропадёт с чертежа (у учеников и в печати), построения через неё останутся. Здесь она видна бледной; повторный клик вернёт';
+    case 'hide': return 'Клик по точке или отрезку (кусок между соседними точками) — пропадёт с чертежа у учеников и в печати, построения останутся; Shift+клик по линии — прямая целиком. Здесь скрытое видно бледным, повторный клик вернёт';
     case 'erase': return 'Кликните по точке, прямой или сечению — уберётся шаг, который их построил (вместе с зависящими от него). Ctrl+Z вернёт';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
@@ -223,7 +223,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'color': return ['point', 'line', 'poly', 'face'];
     case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
-    case 'hide': return ['point'];
+    case 'hide': return ['point', 'line'];
     case 'erase': return ['point', 'line', 'poly'];
     default: return [];
   }
@@ -473,8 +473,14 @@ export function toolClick(tool, pending, hit, model) {
     case 'rename':
       return { pending: [], rename: { name: target.name } };
     case 'hide':
-      // Не операция журнала: скрытие — оформление, решает редактор.
-      return { pending: [], hide: { name: target.name } };
+      // Не операция журнала: скрытие — оформление, решает редактор. Клик по
+      // линии — кусок между соседними точками, Shift — прямая целиком.
+      if (target.kind === 'point') return { pending: [], hide: { name: target.name } };
+      if (!hit.shift) {
+        const seg = segmentAt(model, target, target.pos);
+        if (seg) return { pending: [], hide: { segment: lineColorKey(seg) } };
+      }
+      return { pending: [], hide: { line: lineColorKey(target.ref) } };
     case 'measure': {
       // Не операция журнала: измерение видит только учитель.
       if (!pending.length) return { pending: [target] };

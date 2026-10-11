@@ -432,6 +432,18 @@ export function parseCommand(text, model) {
     let m = /^(?:измерить|измерь|measure)\s+(.+)$/i.exec(src);
     if (m) return { action: 'measure', measure: parseMeasure(m[1], model) };
 
+    // «скрыть прямую AB», «скрыть отрезки AM, BK», «показать отрезок AM».
+    m = /^(скрыть|спрятать|hide|показать|show)\s+(прям|отрез|лини|line|seg)[а-яёa-z]*\s+(.+)$/i.exec(src);
+    if (m) {
+      const hidden = /^(скрыть|спрятать|hide)$/i.test(m[1]);
+      const isSeg = /^(отрез|seg)/i.test(m[2]);
+      const pairs = m[3].split(/[\s,;]+/).filter(Boolean).map(splitNames);
+      if (!pairs.length || pairs.some((n) => !n || n.length !== 2)) {
+        throw new Error(isSeg ? 'Отрезок — двумя точками: «скрыть отрезок AM»' : 'Прямая — двумя точками: «скрыть прямую AB»');
+      }
+      return { action: 'hide', names: [], hidden, ...(isSeg ? { segments: pairs } : { lines: pairs }) };
+    }
+
     // «скрыть M, N», «показать M», «показать все» — оформление, не шаг.
     m = /^(скрыть|спрятать|hide|показать|show)\s+(?:точк[а-яё]*\s+)?(.+)$/i.exec(src);
     if (m) {

@@ -23,7 +23,7 @@ import {
   normalizeBodySpec, DEFAULT_BODY, BASE_SHAPES, TILT_DIRS, DEFAULT_TILT_DIR, baseLetters,
 } from './bodies';
 import {
-  evaluateScene, tryAppendOp, applyColorCommand, refOfLineColorKey, setPointsHidden,
+  evaluateScene, tryAppendOp, applyColorCommand, refOfLineColorKey, applyHideCommand,
 } from './scene';
 import { parseCommand, opToCommand, splitNames } from './commands';
 import { buildBody } from './bodies';
@@ -516,11 +516,9 @@ export function parseStereoBlock(text) {
       return;
     }
     if (r.action === 'hide') {
-      const names = r.names === 'all' ? [...(scene.hidden || [])] : r.names;
-      const model = evaluateScene(scene);
-      const missing = names.filter((n) => !model.points[n]);
-      if (missing.length) errors.push({ line: lineNo, message: `Нет точки ${missing.join(', ')}` });
-      else scene = setPointsHidden(scene, names, r.hidden);
+      const res = applyHideCommand(scene, r);
+      if (res.error) errors.push({ line: lineNo, message: res.error });
+      else scene = res.scene;
       return;
     }
     if (!r.op) { errors.push({ line: lineNo, message: 'Эта команда в блоке не работает' }); return; }
@@ -596,6 +594,13 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
   }
   // Скрытые точки — одной строкой: «скрыть M, N».
   if (scene?.hidden?.length) out.push(`скрыть ${scene.hidden.join(', ')}`);
+  // Скрытые прямые и отрезки: «скрыть прямые AB, CD», «скрыть отрезок AM»
+  // (параллельная по ссылке на шаг текстом не выражается).
+  const pairsOf = (keys) => (keys || []).map(refOfLineColorKey).filter(Array.isArray).map((r) => r.join(''));
+  const hl = pairsOf(scene?.hiddenLines);
+  if (hl.length) out.push(`скрыть ${hl.length > 1 ? 'прямые' : 'прямую'} ${hl.join(', ')}`);
+  const hs = pairsOf(scene?.hiddenSegments);
+  if (hs.length) out.push(`скрыть ${hs.length > 1 ? 'отрезки' : 'отрезок'} ${hs.join(', ')}`);
   const c = clampCamera(camera);
   out.push(`вид ${fmt(c.yaw)} ${fmt(c.pitch)}${Math.abs(c.zoom - 1) > 0.01 ? ` ${fmt(c.zoom)}` : ''}`);
   if (color) out.push('цвет');
