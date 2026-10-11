@@ -7,6 +7,9 @@ import { generateSectionTask, sectionTaskToRecord, SECTION_LEVELS } from './sect
 import {
   generateMetricTask, metricTaskToRecord, METRIC_TYPES, METRIC_LEVELS,
 } from './metricTasks';
+import {
+  generateFormulaTask, formulaTaskToRecord, FORMULA_TYPES, FORMULA_LEVELS,
+} from './formulaTasks';
 import { GEN_BODIES } from './genBodies';
 
 /** Типы заданий по группам (порядок — порядок в меню). */
@@ -20,12 +23,16 @@ export const GEN_TYPES = {
   distPointPlane: { label: METRIC_TYPES.distPointPlane.label, group: 'Расстояния', family: 'metric' },
   distSkew: { label: METRIC_TYPES.distSkew.label, group: 'Расстояния', family: 'metric' },
   volume: { label: METRIC_TYPES.volume.label, group: 'Объёмы', family: 'metric' },
+  // Первая часть ЕГЭ (база №13, профиль №3) — ответ числом
+  ...Object.fromEntries(Object.entries(FORMULA_TYPES).map(([k, t]) => [k, {
+    label: t.label, short: t.short, group: 'Первая часть ЕГЭ', family: 'formula',
+  }])),
 };
 
-export const GEN_TYPE_GROUPS = ['Сечения', 'Углы', 'Расстояния', 'Объёмы'];
+export const GEN_TYPE_GROUPS = ['Первая часть ЕГЭ', 'Сечения', 'Углы', 'Расстояния', 'Объёмы'];
 
 /** Что значит уровень сложности для семейства типа. */
-export const GEN_LEVELS = { section: SECTION_LEVELS, metric: METRIC_LEVELS };
+export const GEN_LEVELS = { section: SECTION_LEVELS, metric: METRIC_LEVELS, formula: FORMULA_LEVELS };
 
 export const familyOf = (type) => GEN_TYPES[type]?.family || 'section';
 
@@ -34,16 +41,19 @@ export function generateGenTask({
   body, type, level, seed,
 }) {
   if (familyOf(type) === 'metric') return generateMetricTask({ body, type, level, seed });
+  if (familyOf(type) === 'formula') return generateFormulaTask({ body, type, level, seed });
   return generateSectionTask({ body, type, level, seed });
 }
 
 /** Задание → запись банка geometry_tasks. */
 export function genTaskToRecord(task, opts) {
+  if (task.family === 'formula') return formulaTaskToRecord(task, opts);
   return task.family === 'metric' ? metricTaskToRecord(task, opts) : sectionTaskToRecord(task, opts);
 }
 
 /** Префикс кода задачи в банке. */
 export function genCodePrefix(type) {
+  if (familyOf(type) === 'formula') return FORMULA_TYPES[type].prefix;
   return familyOf(type) === 'metric' ? METRIC_TYPES[type].prefix : 'SEC';
 }
 
