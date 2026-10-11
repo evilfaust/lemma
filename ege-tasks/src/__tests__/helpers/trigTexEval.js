@@ -273,3 +273,62 @@ export function checkEquation(exprLatex, resultLatex, v = 'x', window = [-28, 28
   if (extra.length) return `лишние точки: ${extra.slice(0, 3).map(r => r.toFixed(4)).join(', ')}`;
   return null;
 }
+
+// ─── Неравенства ─────────────────────────────────────────────────────────────
+const REL = [
+  ['\\geqslant', (a, b) => a >= b], ['\\leqslant', (a, b) => a <= b],
+  ['>', (a, b) => a > b], ['<', (a, b) => a < b],
+];
+
+/** Ответ неравенства → x ↦ принадлежит ли. Читает обе записи и ∅, ℝ, «=», «≠». */
+export function parseInequalityAnswer(answer) {
+  const a = String(answer).replace(/,\s*(\\[;,]\s*)?n\s*\\in\s*\\mathbb\{Z\}\s*$/, '').trim();
+  if (a === '\\varnothing') return () => false;
+  if (/^x\s*\\in\s*\\mathbb\{R\}$/.test(a)) return () => true;
+  // серия линейна по n: период = c(1) − c(0), проверяем только соседние n
+  const periodic = (c, f) => {
+    const c0 = c({ n: 0 }); const T = c({ n: 1 }) - c0;
+    return (x) => {
+      const n0 = Math.floor((x - c0) / T);
+      for (let n = n0 - 2; n <= n0 + 2; n++) if (f(n, x)) return true;
+      return false;
+    };
+  };
+  let m = /^x\s*=\s*(.+)$/.exec(a);
+  if (m) { const c = compileTrig(m[1]); return periodic(c, (n, x) => Math.abs(c({ n }) - x) < 1e-9); }
+  m = /^x\s*\\ne\s*(.+)$/.exec(a);
+  if (m) { const c = compileTrig(m[1]); const on = periodic(c, (n, x) => Math.abs(c({ n }) - x) < 1e-9); return (x) => !on(x); }
+  m = /^x\s*\\in\s*\\left([[(])(.+);\\,\s*(.+)\\right([\])])$/.exec(a);
+  if (m) {
+    const L = compileTrig(m[2]); const R = compileTrig(m[3]);
+    const lo = m[1] === '[' ? (p, x) => p <= x : (p, x) => p < x;
+    const hi = m[4] === ']' ? (x, p) => x <= p : (x, p) => x < p;
+    return periodic(L, (n, x) => lo(L({ n }), x) && hi(x, R({ n })));
+  }
+  // «L < x ⩽ R»
+  const parts = a.split(/\s(\\leqslant|<)\s/);
+  if (parts.length === 5 && parts[2].trim() === 'x') {
+    const L = compileTrig(parts[0]); const R = compileTrig(parts[4]);
+    const r1 = REL.find(([t]) => t === parts[1])[1];
+    const r2 = REL.find(([t]) => t === parts[3])[1];
+    return periodic(L, (n, x) => r1(L({ n }), x) && r2(x, R({ n })));
+  }
+  throw new Error(`не разобран ответ неравенства: ${answer}`);
+}
+
+/** Сверка ответа неравенства с напечатанным неравенством в пробных точках */
+export function checkInequality(exprLatex, resultLatex) {
+  const [tex, fn] = REL.find(([t]) => exprLatex.includes(` ${t} `));
+  const [l, r] = exprLatex.split(` ${tex} `);
+  const L = compileTrig(l); const R = compileTrig(r);
+  const inAns = parseInequalityAnswer(resultLatex);
+  for (let i = 0; i < 1500; i++) {
+    const x = -14 + (28 * i) / 1500 + 0.00731;
+    const lv = L({ x }); const rv = R({ x });
+    if (!Number.isFinite(lv) || Math.abs(lv) > 1e6) continue;
+    if (Math.abs(lv - rv) < 1e-5) continue;          // у границы — не судим
+    if (fn(lv, rv) !== inAns(x)) return `x = ${x.toFixed(4)}: неравенство ${fn(lv, rv)}, ответ ${inAns(x)}`;
+  }
+  // и граничные точки: при нестрогом знаке входят, при строгом — нет
+  return null;
+}

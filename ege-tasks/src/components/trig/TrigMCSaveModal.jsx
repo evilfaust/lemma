@@ -35,6 +35,9 @@ export const GENERATOR_LABELS = {
   derivatives:             'Вычисление производных',
   linear_systems:          'Системы линейных неравенств',
   quadratic_systems:       'Системы квадратных неравенств',
+  trig_by_value:           'По значению и четверти',
+  trig_equations_ege:      'Уравнения ЕГЭ (часть 2)',
+  trig_inequalities:       'Тригонометрические неравенства',
 };
 
 // Инструкция-префикс, записываемая в statement_md задачи
@@ -56,6 +59,9 @@ const GENERATOR_INSTRUCTIONS = {
   derivatives:             'Найдите производную функции:',
   linear_systems:          'Решите систему неравенств:',
   quadratic_systems:       'Решите систему неравенств:',
+  trig_by_value:           'Найдите значение выражения:',
+  trig_equations_ege:      'Решите уравнение и найдите корни на отрезке:',
+  trig_inequalities:       'Решите неравенство:',
 };
 
 /**

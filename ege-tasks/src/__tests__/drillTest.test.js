@@ -21,6 +21,9 @@ import { generateLogarithmsVariants } from '../hooks/useOralLogarithms';
 import { generateLogExpVariants } from '../hooks/useLogExpEquations';
 import { generateLinearEquationVariants, DEFAULT_SETTINGS_LINEQ } from '../hooks/useLinearEquations';
 import { generateTrigByValueVariants, DEFAULT_SETTINGS_BY_VALUE } from '../hooks/useTrigByValue';
+import { generateTrigExpressionsVariants } from '../hooks/useTrigExpressions';
+import { generateInverseTrigVariants } from '../hooks/useInverseTrig';
+import { exactToText, exactFromText, exactFromLatex, exactEqual } from '../utils/exactValue';
 
 const allOn = (cats) => Object.fromEntries(Object.keys(cats || {}).map(k => [k, true]));
 
@@ -37,12 +40,22 @@ const GENERATORS = {
   trig_by_value: (s) => generateTrigByValueVariants({
     ...s, categories: allOn(DEFAULT_SETTINGS_BY_VALUE.categories),
   }),
+  trig_expressions: (s) => generateTrigExpressionsVariants({
+    ...s, taskType: 'mixed', useTan: true, useCot: true, useDegrees: s.level === 3,
+  }),
+  inverse_trig: (s) => generateInverseTrigVariants({
+    ...s, taskType: 'mixed', useArctan: true, useArccot: true, useOuterTan: true, useDegrees: s.level === 3,
+  }),
 };
 
 /** Ответ так, как его напишет ученик: дробью через «/», запятой, словами. */
 function typedForms(value) {
   if (value.kind === 'empty') return ['нет корней', '∅', 'нет'];
   if (value.kind === 'all') return ['любое число', 'R', 'x любое'];
+  if (value.kind === 'exact') {
+    const t = exactToText(value.v);
+    return [t, t.replace(/√(\d+)/g, 'sqrt($1)'), t.replace(/π/g, 'pi'), t.replace(/-/g, '−')];
+  }
   const { n, d } = value;
   const forms = [d === 1 ? String(n) : `${n}/${d}`];
   const dec = n / d;
@@ -55,6 +68,34 @@ function typedForms(value) {
   return forms;
 }
 
+describe('точные значения с корнями и π', () => {
+  it('одно значение — разные записи', () => {
+    const v = exactFromLatex('\\dfrac{\\sqrt{3}}{2}');
+    for (const t of ['√3/2', 'sqrt(3)/2', '√(3)/2', '(√3)/2', 'корень из 3/2', '√(3/4)', '1/2*√3', '0,5√3']) {
+      expect(exactEqual(exactFromText(t), v), t).toBe(true);
+    }
+    expect(exactEqual(exactFromText('(√6+√2)/4'), exactFromLatex('\\dfrac{\\sqrt{6}+\\sqrt{2}}{4}'))).toBe(true);
+    expect(exactEqual(exactFromText('-2-√3'), exactFromLatex('-(2+\\sqrt{3})'))).toBe(true);
+    expect(exactEqual(exactFromText('5pi/6'), exactFromLatex('\\dfrac{5\\pi}{6}'))).toBe(true);
+    expect(exactEqual(exactFromText('1/√3'), exactFromLatex('\\dfrac{\\sqrt{3}}{3}'))).toBe(true);
+    expect(exactEqual(exactFromText('30°'), exactFromLatex('30^{\\circ}'))).toBe(true);
+  });
+
+  it('приближение и другое число — не засчитываются', () => {
+    expect(checkDrillAnswer('0,866', '\\dfrac{\\sqrt{3}}{2}')).toBe(false);
+    expect(checkDrillAnswer('√2/2', '\\dfrac{\\sqrt{3}}{2}')).toBe(false);
+    expect(checkDrillAnswer('π/3', '\\dfrac{\\pi}{6}')).toBe(false);
+    expect(checkDrillAnswer('√3/2', '-\\dfrac{\\sqrt{3}}{2}')).toBe(false);
+    expect(checkDrillAnswer('-√3/2', '-\\dfrac{\\sqrt{3}}{2}')).toBe(true);
+    expect(checkDrillAnswer('1/2', '\\dfrac{1}{2}')).toBe(true);
+  });
+
+  it('формулы с буквами не проверяются по значению', () => {
+    expect(parseExpectedAnswer('-\\sin\\,\\alpha')).toBeNull();
+    expect(parseExpectedAnswer('\\cos 6x')).toBeNull();
+  });
+});
+
 describe('проверка вписанного ответа', () => {
   it('читает запись бланка', () => {
     expect(parseExpectedAnswer('-7')).toEqual({ kind: 'num', n: -7, d: 1 });
@@ -64,7 +105,8 @@ describe('проверка вписанного ответа', () => {
     expect(parseExpectedAnswer('-2\\dfrac{2}{3}')).toEqual({ kind: 'num', n: -8, d: 3 });
     expect(parseExpectedAnswer('\\varnothing')).toEqual({ kind: 'empty' });
     expect(parseExpectedAnswer('y \\in \\mathbb{R}')).toEqual({ kind: 'all' });
-    expect(parseExpectedAnswer('\\dfrac{\\sqrt{3}}{2}')).toBeNull();
+    // с v3.9.350 ответы с корнями проверяются точно (utils/exactValue)
+    expect(parseExpectedAnswer('\\dfrac{\\sqrt{3}}{2}').kind).toBe('exact');
     expect(parseExpectedAnswer('(-\\infty; 2)')).toBeNull();
   });
 

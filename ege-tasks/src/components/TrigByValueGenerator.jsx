@@ -25,6 +25,7 @@ export default function TrigByValueGenerator() {
       badges={CATEGORY_EXAM_BY_VALUE}
       instruction={BY_VALUE_INSTRUCTION}
       wideAnswers={false}
+      inputMode
     />
   );
 }

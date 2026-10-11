@@ -93,7 +93,7 @@ export function applyTex(fn, arg) {
 }
 
 /** Коэффициент перед функцией: «2», «\sqrt{3}», «-» */
-function coefPrefix(A) {
+export function coefPrefix(A) {
   if (sNum(A) === 1) return '';
   if (sNum(A) === -1) return '-';
   const t = sTex(A);

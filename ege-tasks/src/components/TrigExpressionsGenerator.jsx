@@ -5,7 +5,7 @@ import {
   Divider, Space, Switch,
 } from 'antd';
 import {
-  PrinterOutlined, FunctionOutlined, CheckSquareOutlined, ThunderboltOutlined,
+  PrinterOutlined, FunctionOutlined, CheckSquareOutlined, ThunderboltOutlined, EditOutlined,
 } from '@ant-design/icons';
 import { useTrigExpressions } from '../hooks/useTrigExpressions';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
@@ -48,6 +48,7 @@ export default function TrigExpressionsGenerator() {
   });
 
   const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
+  const [mcFillMode, setMcFillMode] = useState(false);
 
   const handlePrint = () => {
     const style = document.createElement('style');
@@ -160,7 +161,8 @@ export default function TrigExpressionsGenerator() {
             {tasksData && (
               <div style={{ display: 'flex', gap: 6 }}>
                 <Button block icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>
-                <Button block icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>Тест</Button>
+                <Button block icon={<CheckSquareOutlined />} onClick={() => { setMcFillMode(false); setModalOpen(true); }}>Тест</Button>
+                  <Button block icon={<EditOutlined />} onClick={() => { setMcFillMode(true); setModalOpen(true); }}>Вписать ответ</Button>
               </div>
             )}
             <SheetStorageActions
@@ -231,6 +233,7 @@ export default function TrigExpressionsGenerator() {
         generatorType="trig_expressions"
         generatorTitle={title}
         settings={settings}
+        fillMode={mcFillMode}
       />
     </>
   );

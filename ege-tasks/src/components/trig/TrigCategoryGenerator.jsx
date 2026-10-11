@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Button, Slider, Checkbox, Space, Switch, Divider, Segmented } from 'antd';
-import { PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined, EditOutlined } from '@ant-design/icons';
 import { useTrigMCModal } from '../../hooks/useTrigMCModal';
 import OralCountingPrintLayout from './OralCountingPrintLayout';
 import { SheetOrderPanel } from './SheetOrderPanel';
@@ -27,7 +28,8 @@ import { SheetLayoutOptions } from './sheetOptions';
  * экран добавляет квоты типов, план листа, печать с ключом и тест A/B/C/D.
  *
  * `extraSettings(settings, updateSetting)` — свои переключатели генератора
- * в секции «Параметры»; `badges` — метки экзамена у типов.
+ * в секции «Параметры»; `badges` — метки экзамена у типов; `inputMode` —
+ * ответы-числа, доступен тест «Вписать ответ» (генератор — в INPUT_GENERATORS).
  */
 export function TrigCategoryGenerator({
   hook,
@@ -42,6 +44,7 @@ export function TrigCategoryGenerator({
   extraSettings,
   maxQuestions = 20,
   emptyHint,
+  inputMode = false,
 }) {
   const {
     title, setTitle, settings, updateSetting, updateCategory, tasksData, generate, reset,
@@ -49,6 +52,7 @@ export function TrigCategoryGenerator({
   } = hook;
 
   const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
+  const [fillMode, setFillMode] = useState(false);
   const order = useSheetLayout(tasksData);
   const sheet = useSheetTools({
     generator,
@@ -193,9 +197,14 @@ export function TrigCategoryGenerator({
                     generator={generator}
                     instruction={instruction}
                   />
-                  <Button block icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>
+                  <Button block icon={<CheckSquareOutlined />} onClick={() => { setFillMode(false); setModalOpen(true); }}>
                     Тест A/B/C/D
                   </Button>
+                  {inputMode && (
+                    <Button block icon={<EditOutlined />} onClick={() => { setFillMode(true); setModalOpen(true); }}>
+                      Вписать ответ
+                    </Button>
+                  )}
                   <Button block onClick={reset}>Сбросить</Button>
                 </>
               )}
@@ -232,6 +241,7 @@ export function TrigCategoryGenerator({
         generatorType={generator}
         generatorTitle={title}
         settings={settings}
+        fillMode={fillMode}
       />
     </>
   );

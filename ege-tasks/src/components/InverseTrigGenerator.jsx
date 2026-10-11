@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { printPaged } from '../utils/printPage';
 import { MathInline } from './shared/MathInline';
 import { Button, Slider, Radio, Checkbox, Divider, Space, Switch } from 'antd';
-import { PrinterOutlined, FunctionOutlined, CheckSquareOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import { PrinterOutlined, FunctionOutlined, CheckSquareOutlined, ThunderboltOutlined, EditOutlined } from '@ant-design/icons';
 import { useInverseTrig } from '../hooks/useInverseTrig';
 import { useTrigMCModal } from '../hooks/useTrigMCModal';
 import TrigExprPrintLayout from './trig/TrigExprPrintLayout';
@@ -43,6 +43,7 @@ export default function InverseTrigGenerator() {
     hook: { title, settings, tasksData, setTasksData, applySheet },
   });
   const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
+  const [mcFillMode, setMcFillMode] = useState(false);
 
   const handlePrint = () => printPaged();
 
@@ -155,7 +156,8 @@ export default function InverseTrigGenerator() {
               {tasksData && (
                 <div style={{ display: 'flex', gap: 6 }}>
                   <Button block icon={<PrinterOutlined />} onClick={handlePrint}>Печать</Button>
-                  <Button block icon={<CheckSquareOutlined />} onClick={() => setModalOpen(true)}>Тест</Button>
+                  <Button block icon={<CheckSquareOutlined />} onClick={() => { setMcFillMode(false); setModalOpen(true); }}>Тест</Button>
+                  <Button block icon={<EditOutlined />} onClick={() => { setMcFillMode(true); setModalOpen(true); }}>Вписать ответ</Button>
                 </div>
               )}
               <SheetStorageActions
@@ -225,6 +227,7 @@ export default function InverseTrigGenerator() {
         generatorType="inverse_trig"
         generatorTitle={title}
         settings={settings}
+        fillMode={mcFillMode}
       />
     </>
   );

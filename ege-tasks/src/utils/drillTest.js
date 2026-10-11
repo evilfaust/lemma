@@ -23,6 +23,8 @@ export const INPUT_GENERATORS = new Set([
   'log_exp_equations',
   'linear_equations',
   'trig_by_value',        // ответ — число в бланк (ЕГЭ, первая часть)
+  'trig_expressions',     // ответы с корнями — точное сравнение (utils/exactValue)
+  'inverse_trig',         // углы: π/6, 5π/6, 30°
 ]);
 
 export const ANSWER_MODES = { choice: 'choice', input: 'input' };

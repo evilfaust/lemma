@@ -45,7 +45,8 @@ const EXAM_TYPE_BY_GENERATOR = {
   addition_formulas:       'trig',
   double_angle:            'trig',
   trig_by_value:           'ege_profile',
-  trig_equations_ege:      'ege_profile',   // первая часть профиля: вычисления и преобразования
+  trig_equations_ege:      'ege_profile',
+  trig_inequalities:       'trig',   // первая часть профиля: вычисления и преобразования
   trig_mixed:              'trig',
   chart_reading:           'ege_base',
 };
@@ -62,6 +63,7 @@ const PROMPT_BY_GENERATOR = {
   trig_equations_advanced: 'answer',
   trig_by_value:           'answer',
   trig_equations_ege:      'answer',
+  trig_inequalities:       'answer',
   quadratic_equations:     'answer',
   quadratic_inequalities:  'answer',
   linear_inequalities:     'answer',

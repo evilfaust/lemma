@@ -32,6 +32,9 @@ const StudentMCTestPage = ({ studentSession }) => {
   // в режиме «Вписать ответ» вместо вариантов — поле ввода
   const isDrill = !!variant?.drill;
   const isInput = isDrill && variant?.answerMode === 'input';
+  // Ответы с корнями и π (тригонометрия): на телефоне этих знаков нет — кнопки.
+  // Решается на весь тест, а не на задание, — иначе кнопка подсказывала бы ответ.
+  const symbolKeys = isInput && (tasks || []).some(t => /\\sqrt|\\pi/.test(t.answer || ''));
   const [submitting, setSubmitting] = useState(false);
   const [startTime] = useState(Date.now());
 
@@ -244,14 +247,19 @@ const StudentMCTestPage = ({ studentSession }) => {
               )}
             </div>
             {isInput ? (
-              <Input
-                className="task-answer-input"
-                placeholder="Ответ: число, дробь 7/9 или 2 1/3"
-                inputMode="text"
-                type="text"
-                value={value || ''}
-                onChange={e => updateAnswer(task.id, e.target.value)}
-              />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <Input
+                  className="task-answer-input"
+                  placeholder={symbolKeys ? 'Ответ: 7/9, √3/2 или 5π/6' : 'Ответ: число, дробь 7/9 или 2 1/3'}
+                  inputMode="text"
+                  type="text"
+                  value={value || ''}
+                  onChange={e => updateAnswer(task.id, e.target.value)}
+                />
+                {symbolKeys && ['√', 'π'].map(sym => (
+                  <Button key={sym} onClick={() => updateAnswer(task.id, `${value || ''}${sym}`)}>{sym}</Button>
+                ))}
+              </div>
             ) : (
               <Radio.Group
                 value={answers[task.id]}

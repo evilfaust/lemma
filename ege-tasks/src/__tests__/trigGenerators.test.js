@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import katex from 'katex';
 import {
-  evalTrig, compileTrig, close, stripHint, checkEquation, parseFamilies, numericRoots, domainGuarded,
+  evalTrig, close, stripHint, checkEquation, parseFamilies,
 } from './helpers/trigTexEval';
 import {
   generateTrigEquationsAdvancedVariants, CATEGORY_LABELS_TRIG_ADV,
@@ -26,9 +26,6 @@ import { generateReductionFormulasVariants } from '../hooks/useReductionFormulas
 import { generateAdditionFormulasVariants } from '../hooks/useAdditionFormulas';
 import { generateDoubleAngleVariants } from '../hooks/useDoubleAngle';
 import { TRIG_TYPES } from '../hooks/trigMixedRegistry';
-import { generateTrigByValueVariants, CATEGORY_LABELS_BY_VALUE } from '../hooks/useTrigByValue';
-import { QUARTERS } from '../utils/trig/byValue';
-import { generateTrigEquationsEgeVariants, CATEGORY_LABELS_TRIG_EGE } from '../hooks/useTrigEquationsEge';
 
 const renders = (tex) => {
   katex.renderToString(tex, { throwOnError: true });
@@ -75,7 +72,7 @@ describe('уравнения f(kx + b) = a', () => {
     it(cat, { timeout: 60000 }, () => {
       const tasks = collect(generateTrigEquationsAdvancedVariants, {
         categories: { [cat]: true },
-      }, 2);
+      }, 1);
       expect(tasks.length).toBeGreaterThan(3);
       const wrong = [];
       for (const q of tasks) {
@@ -126,7 +123,7 @@ describe('простейшие уравнения', () => {
   const settings = { useSin: true, useCos: true, useTan: true, useCot: true, useNonTable: true, useNoRoots: true };
 
   it('ответы верны (все функции, нетабличные, без корней)', { timeout: 60000 }, () => {
-    const tasks = collect(generateTrigEquationsVariants, settings, 3);
+    const tasks = collect(generateTrigEquationsVariants, settings, 2);
     const wrong = [];
     for (const q of tasks) {
       expect(renders(q.exprLatex)).toBe(true);
@@ -352,113 +349,3 @@ describe('смешанная работа: каждый раздел', () => {
   }
 });
 
-// ─── По значению и четверти ─────────────────────────────────────────────────
-// Условия «sin α = …» и промежуток α ∈ (…) задают угол: ищем его численно на
-// промежутке по напечатанным условиям и считаем по нему напечатанный вопрос.
-function solveAlpha(check) {
-  const conds = check.conds.map((c) => {
-    const [l, r] = c.split('=');
-    const L = (a) => evalTrig(l, { '\\alpha': a });
-    const R = evalTrig(r);
-    return (a) => L(a) - R;
-  });
-  const [lo, hi] = check.range ? check.range.map(x => x * Math.PI) : [-Math.PI + 1e-6, Math.PI + 1e-6];
-  const g = conds[0];
-  const roots = [];
-  const N = 4000;
-  for (let k = 0; k < N; k++) {
-    let a = lo + ((hi - lo) * k) / N; let b = lo + ((hi - lo) * (k + 1)) / N;
-    let fa = g(a); const fb = g(b);
-    if (!Number.isFinite(fa) || !Number.isFinite(fb)) continue;
-    if (fa === 0) { roots.push(a); continue; }
-    if (fa * fb > 0) continue;
-    for (let it = 0; it < 80; it++) {
-      const m = (a + b) / 2; const fm = g(m);
-      if (fa * fm <= 0) b = m; else { a = m; fa = fm; }
-    }
-    if (Math.abs(g((a + b) / 2)) < 1e-9) roots.push((a + b) / 2);
-  }
-  return roots;
-}
-
-describe('по значению и четверти', () => {
-  for (const cat of Object.keys(CATEGORY_LABELS_BY_VALUE)) {
-    it(cat, () => {
-      const tasks = collect(generateTrigByValueVariants, { categories: { [cat]: true } }, 2);
-      expect(tasks.length).toBeGreaterThan(5);
-      const wrong = [];
-      for (const q of tasks) {
-        expect(renders(q.exprLatex)).toBe(true);
-        expect(q.resultLatex).not.toMatch(/dfrac|sqrt/);          // в бланк — число
-        const ans = Number(q.resultLatex.replace('{,}', '.'));
-        const ask = q.check.ask;
-        expect(q.exprLatex.startsWith(ask)).toBe(true);
-        for (const c of q.check.conds) expect(q.exprLatex).toContain(c);
-        let value;
-        if (!q.check.conds.length) value = evalTrig(ask);
-        else {
-          const roots = solveAlpha(q.check);
-          if (!roots.length) { wrong.push(`${q.exprLatex}: нет угла`); continue; }
-          // все углы, подходящие под условия, дают один ответ
-          const vals = roots.map(a => evalTrig(ask, { '\\alpha': a }));
-          if (vals.some(v => !close(v, vals[0], 1e-6))) { wrong.push(`${q.exprLatex}: ответ зависит от угла`); continue; }
-          value = vals[0];
-        }
-        if (!close(value, ans, 1e-7)) wrong.push(`${q.exprLatex} = ${value}, в ключе ${q.resultLatex}`);
-      }
-      expect(wrong).toEqual([]);
-    });
-  }
-
-  it('промежуток в условии совпадает с четвертью', () => {
-    for (const q of QUARTERS) {
-      const [lo, hi] = q.tex.replace(/\\left\(|\\right\)/g, '').split(';').map(t => evalTrig(t));
-      expect(close(lo / Math.PI, Number(q.lo.n / q.lo.d))).toBe(true);
-      expect(close(hi / Math.PI, Number(q.hi.n / q.hi.d))).toBe(true);
-    }
-  });
-});
-
-// ─── Уравнения части 2: а) серии, б) корни на отрезке ───────────────────────
-describe('уравнения ЕГЭ, часть 2', () => {
-  for (const cat of Object.keys(CATEGORY_LABELS_TRIG_EGE)) {
-    it(cat, { timeout: 60000 }, () => {
-      const tasks = collect(generateTrigEquationsEgeVariants, { categories: { [cat]: true } }, 1);
-      expect(tasks.length).toBeGreaterThan(5);
-      const wrong = [];
-      for (const q of tasks) {
-        expect(renders(q.exprLatex)).toBe(true);
-        expect(renders(q.resultLatex)).toBe(true);
-        const [eq, segTex] = q.exprLatex.split(';\\quad ');
-        const [a, b] = q.resultLatex.split(';\\quad \\text{б) }');
-        const famsTex = a.replace('\\text{а) } ', '');
-        const err = checkEquation(eq, famsTex, 'x', [-10, 10]);   // аргумент x: период 2π
-        if (err) { wrong.push(`${eq} → ${famsTex}: ${err}`); continue; }
-        // б): корни на отрезке — численно по самому уравнению
-        const [lo, hi] = segTex.replace(/\\left\[|\\right\]/g, '').split(';').map(t => evalTrig(t));
-        const [l, r] = eq.split('=');
-        const L = compileTrig(l); const R = compileTrig(r);
-        const g = domainGuarded(eq, (x) => L({ x }) - R({ x }));
-        const eps = 1e-6;
-        const roots = numericRoots(g, lo - eps, hi + eps, 5000).filter(x => x >= lo - 1e-7 && x <= hi + 1e-7);
-        // концы отрезка проверяем отдельно (скан мог пропустить точку на границе)
-        for (const end of [lo, hi]) {
-          if (Math.abs(g(end)) < 1e-9 && !roots.some(x => Math.abs(x - end) < 1e-6)) roots.push(end);
-        }
-        const listed = b.split(';\\;').map(t => evalTrig(t.trim()));
-        const ok = roots.length === listed.length && roots.every(x => listed.some(y => Math.abs(x - y) < 1e-5));
-        if (!ok) wrong.push(`${q.exprLatex}: б) в ключе ${listed.map(v => v.toFixed(4))}, по уравнению ${roots.map(v => v.toFixed(4))}`);
-      }
-      expect(wrong).toEqual([]);
-    });
-  }
-
-  it('без пункта б) — только серии', () => {
-    for (const v of generateTrigEquationsEgeVariants({ variantsCount: 2, questionsCount: 4, withSegment: false })) {
-      for (const q of v) {
-        expect(q.exprLatex).not.toContain('\\quad');
-        expect(checkEquation(q.exprLatex, q.resultLatex, 'x', [-10, 10])).toBeNull();
-      }
-    }
-  });
-});

@@ -11,6 +11,8 @@
  * умножением: никакой плавающей точки, 0,1 + 0,2 здесь равно 0,3.
  */
 
+import { exactFromLatex, exactFromText, exactEqual } from './exactValue';
+
 function gcd(a, b) {
   let x = Math.abs(a); let y = Math.abs(b);
   while (y) [x, y] = [y, x % y];
@@ -58,7 +60,11 @@ export function parseExpectedAnswer(latex) {
   const body = s.replace(/^[a-z]\s*=\s*/i, '');
   const fr = /^([+-]?)\s*(\d+)?\s*\\[dt]?frac\s*\{(\d+)\}\s*\{(\d+)\}$/.exec(body);
   if (fr) return signed(fr[1], Number(fr[2] || 0), Number(fr[3]), Number(fr[4]));
-  return fromDecimal(body.replace(/\s/g, ''));
+  const plain = fromDecimal(body.replace(/\s/g, ''));
+  if (plain) return plain;
+  // корни и π (тригонометрия, v3.9.350): √3/2, 2 − √3, 5π/6, 30°
+  const exact = exactFromLatex(body);
+  return exact ? { kind: 'exact', v: exact } : null;
 }
 
 const EMPTY_WORDS = /^(нет|нет корней|корней нет|нет решений|решений нет|∅|пусто|пустое множество|пустое)$/;
@@ -90,8 +96,14 @@ export function parseStudentAnswer(text) {
     const r = rat(a.n * b.d, a.d * b.n);
     return r && fr[1] === '-' ? { ...r, n: -r.n } : r;
   }
-  return fromDecimal(s.replace(/ /g, ''));
+  const plain = fromDecimal(s.replace(/ /g, ''));
+  if (plain) return plain;
+  const exact = exactFromText(text);
+  return exact ? { kind: 'exact', v: exact } : null;
 }
+
+// Рациональное число — как точное значение (для сравнения с ответом с корнем)
+const asExact = (x) => (x.kind === 'exact' ? x.v : exactFromLatex(`\\dfrac{${x.n}}{${x.d}}`));
 
 /** Можно ли проверить вписанный ответ на это задание. */
 export function canCheckByValue(latex) {
@@ -102,7 +114,12 @@ export function canCheckByValue(latex) {
 export function checkDrillAnswer(given, expectedLatex) {
   const e = parseExpectedAnswer(expectedLatex);
   const g = parseStudentAnswer(given);
-  if (!e || !g || e.kind !== g.kind) return false;
+  if (!e || !g) return false;
+  if (e.kind === 'exact' || g.kind === 'exact') {
+    if (e.kind === 'empty' || e.kind === 'all' || g.kind === 'empty' || g.kind === 'all') return false;
+    return exactEqual(asExact(e), asExact(g));
+  }
+  if (e.kind !== g.kind) return false;
   if (e.kind !== 'num') return true;
   return e.n === g.n && e.d === g.d;
 }
