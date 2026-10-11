@@ -229,20 +229,25 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   const P = (v) => pr.project(v);
   const body = model.body;
 
-  // Заливки: сечения, плоскости, многоугольники.
-  const polys = model.polys.map((pg) => {
-    const pts = pg.pts.map(P);
-    const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : STEREO_COLORS.sectionFill);
-    return {
-      id: pg.id,
-      kind: pg.kind,
-      pts,
-      points: pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
-      fill: color,
-      opacity: pg.kind === 'plane' ? 0.2 : pg.kind === 'fill' ? 0.28 : 0.3,
-      step: pg.step,
-    };
-  });
+  // Заливки: сечения, плоскости, многоугольники, жидкость. Стенки сосуда
+  // ниже уровня закрашиваются только те, что смотрят на зрителя — иначе
+  // передняя и задняя легли бы друг на друга двойной краской.
+  const OPACITY = { plane: 0.2, fill: 0.28, water: 0.38, waterSide: 0.2 };
+  const polys = model.polys
+    .filter((pg) => pg.kind !== 'waterSide' || dot(pg.n, toViewer) > 1e-9)
+    .map((pg) => {
+      const pts = pg.pts.map(P);
+      const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : STEREO_COLORS.sectionFill);
+      return {
+        id: pg.id,
+        kind: pg.kind,
+        pts,
+        points: pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
+        fill: color,
+        opacity: OPACITY[pg.kind] ?? 0.3,
+        step: pg.step,
+      };
+    });
 
   // Линии: каждая режется на видимые и скрытые куски.
   const strokes = [];
@@ -276,7 +281,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     hitLines.push({ id: o.id, kind: o.kind, ref: o.ref, x1: a.x, y1: a.y, x2: b.x, y2: b.y, a3: o.a, b3: o.b, p: o.p, u: o.u });
   }
   for (const pg of model.polys) {
-    if (pg.kind !== 'section') continue;
+    if (pg.kind !== 'section' && pg.kind !== 'water') continue;
     const color = pointColorHex(pg.color) || pg.color || STEREO_COLORS.section;
     pg.pts.forEach((A, i) => {
       const B = pg.pts[(i + 1) % pg.pts.length];

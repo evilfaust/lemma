@@ -4,7 +4,7 @@ import {
 } from 'antd';
 import {
   BODY_KINDS, TILT_DIRS, DEFAULT_TILT_DIR, bodySpecFromForm, baseShapeOptions, apexPosOptions,
-  evaluateScene, renderStereo, stereoSvgString, DEFAULT_CAMERA, bodyTitle,
+  evaluateScene, renderStereo, stereoSvgString, DEFAULT_CAMERA, bodyTitle, ROOF_KINDS,
 } from '../../utils/stereo';
 
 // Форма «Новый чертёж»: тело, основание, размеры, наклон призмы, положение
@@ -36,12 +36,12 @@ export default function StereoBodyForm({ form, initialValues }) {
     }
   }, [spec]);
 
-  const hasShape = kind !== 'cube';
+  const hasShape = kind !== 'cube' && kind !== 'octa';
   const hasApex = kind === 'pyramid' || kind === 'frustum' || (kind === 'tetra' && values?.shape && values.shape !== 'regular') || (kind === 'tetra' && values?.apexPos && values.apexPos !== 'center');
   const canTilt = kind === 'prism' || kind === 'box';
   const shape = values?.shape || '';
   const hasB = (kind === 'box' && shape !== 'rhombus') || ((kind === 'prism' || kind === 'pyramid' || kind === 'frustum') && (shape === 'rect' || shape === 'parallelogram'));
-  const aLabel = kind === 'cube' ? 'Ребро'
+  const aLabel = kind === 'cube' || kind === 'octa' ? 'Ребро'
     : kind === 'box' || shape === 'rect' || shape === 'parallelogram' ? 'AB'
       : shape === 'trapezoid' ? 'Основание AD'
         : shape === 'right' ? 'Гипотенуза AB'
@@ -54,10 +54,11 @@ export default function StereoBodyForm({ form, initialValues }) {
   return (
     <div className="stereo-body-form">
       <div className="stereo-body-form-fields">
+        {/* «Многогранник по точкам» задаётся только текстом (блок ```stereo) */}
         <Form.Item name="kind" label="Тело">
           <Select
             onChange={onKindChange}
-            options={Object.entries(BODY_KINDS).map(([value, v]) => ({ value, label: v.label }))}
+            options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull').map(([value, v]) => ({ value, label: v.label }))}
           />
         </Form.Item>
         {hasShape && (
@@ -88,6 +89,16 @@ export default function StereoBodyForm({ form, initialValues }) {
               <Select style={{ width: 80 }} options={['S', 'D', 'M', 'P'].map((v) => ({ value: v, label: v }))} />
             </Form.Item>
           )}
+        </Space>
+        <Space wrap align="start">
+          {ROOF_KINDS.includes(kind) && (
+            <Form.Item name="roof" label="Пирамида сверху, высота" tooltip="«К кубу приклеили пирамиду»: 0 — без неё">
+              <InputNumber min={0} max={50} step={0.5} />
+            </Form.Item>
+          )}
+          <Form.Item name="cut" label="Срезать вершины на" tooltip="«Отпилили все вершины»: отрезок, отсекаемый от каждой вершины на рёбрах; 0 — не срезать. Буквы у такого тела не ставятся">
+            <InputNumber min={0} max={25} step={0.25} />
+          </Form.Item>
         </Space>
         {canTilt && (
           <Space wrap align="start">

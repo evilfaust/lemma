@@ -17,7 +17,7 @@ import {
 } from './bodies';
 import {
   intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon, orderPolygon,
-  affinePoint,
+  affinePoint, clipPolygonBelow,
 } from './geometry';
 
 /** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
@@ -27,7 +27,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill',
+  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill', 'level',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -662,6 +662,38 @@ export function evaluateScene(scene, opts = {}) {
           created.polys.push(opId);
           break;
         }
+        case 'level': {
+          // Жидкость в сосуде: горизонтальная поверхность на высоте h от дна,
+          // на доле t высоты тела или через точку (уровень через W). Рисуется
+          // поверхность (контур — как у сечения) и стенки ниже уровня —
+          // render.js закрашивает только те, что смотрят на зрителя.
+          const zs = body.order.map((v) => body.vertices[v].z);
+          const zmin = Math.min(...zs);
+          const zmax = Math.max(...zs);
+          let z;
+          if (op.through) z = pointPos(op.through).z;
+          else if (Number.isFinite(Number(op.t))) z = zmin + Number(op.t) * (zmax - zmin);
+          else if (Number.isFinite(Number(op.h))) z = zmin + Number(op.h);
+          else fail('Уровень: «уровень 3» (высота от дна), «уровень 60%» или «уровень через W»');
+          if (z <= zmin + eps * 10) fail('Уровень на самом дне — жидкости нет');
+          if (z > zmax + eps * 10) fail(`Уровень выше сосуда: высота тела ${String(Math.round((zmax - zmin) * 100) / 100).replace('.', ',')}`);
+          const plane = { n: { x: 0, y: 0, z: 1 }, d: Math.min(z, zmax) };
+          const surface = sectionPolygon(body, plane);
+          if (surface.length < 3) fail('На этой высоте у тела нет горизонтального сечения');
+          const color = op.color || 'cyan';
+          polys.push({ id: opId, kind: 'water', pts: surface, step: stepIdx, color, faceId: null });
+          created.polys.push(opId);
+          body.faces.forEach((f, i) => {
+            const pts = clipPolygonBelow(f.verts.map((v) => body.vertices[v]), plane, eps);
+            if (pts.length < 3) return;
+            const id = `${opId}:w${i}`;
+            polys.push({ id, base: opId, kind: 'waterSide', pts, n: f.n, step: stepIdx, color });
+            created.polys.push(id);
+          });
+          created.value = `${String(Math.round((plane.d - zmin) * 100) / 100).replace('.', ',')} от дна`;
+          created.note = `Уровень жидкости: ${created.value}`;
+          break;
+        }
         case 'fill': {
           const { plane } = resolvePlane(op.pts);
           const pts = orderPolygon(op.pts.map(pointPos), plane.n);
@@ -779,6 +811,8 @@ export function evaluateScene(scene, opts = {}) {
   for (const name of Array.isArray(scene?.hidden) ? scene.hidden : []) {
     if (points[name]) points[name].concealed = true;
   }
+  // Тело «без букв» (срезанные вершины, bare) — вершины не подписываются.
+  if (body.spec?.bare || body.spec?.cut) for (const name of body.order) points[name].concealed = true;
 
   // Цвета точек — оформление, не шаг: scene.colors = { M: 'red' }.
   const colors = scene?.colors && typeof scene.colors === 'object' ? scene.colors : {};
@@ -822,7 +856,7 @@ export function evaluateScene(scene, opts = {}) {
   // одном теле различаются два сечения.
   const polyColors = scene?.polyColors && typeof scene.polyColors === 'object' ? scene.polyColors : {};
   for (const pg of polys) {
-    const c = polyColors[pg.id];
+    const c = polyColors[pg.id] || (pg.base && polyColors[pg.base]);
     if (c) { pg.color = c; pg.painted = true; }
   }
 
@@ -860,6 +894,7 @@ export function opPointNames(op) {
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
+    case 'level': if (op.through) out.push(op.through); break;
     default: break;
   }
   return out;

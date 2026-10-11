@@ -45,7 +45,7 @@ const LATIN_WORDS = new Set([
   'seg', 'segment', 'line', 'par', 'perp', 'angle', 'section', 'plane', 'face', 'fill', 'rename',
   'undo', 'on', 'in', 'mid', 'midpoint', 't', 'x', 'measure', 'hide', 'show', 'all',
   'color', 'red', 'blue', 'green', 'orange', 'violet', 'purple', 'black',
-  'cyan', 'pink', 'yellow', 'brown', 'gray', 'grey',
+  'cyan', 'pink', 'yellow', 'brown', 'gray', 'grey', 'level', 'water',
 ]);
 
 /**
@@ -540,6 +540,23 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'line', ref: n } };
     }
 
+    // «уровень 3» — жидкость на высоте 3 от дна; «уровень 60%», «уровень 3/5» —
+    // доля высоты сосуда; «уровень через W» — через точку.
+    m = /^(?:уровень|вода|жидкость|level|water)\s+(?:жидкости\s+)?(?:на\s+высоте\s+)?(.+)$/i.exec(src);
+    if (m) {
+      const arg = m[1].trim();
+      const op = { id: newOpId(), type: 'level' };
+      let mm = /^(?:через\s+)?([A-Z][0-9]*)$/.exec(arg);
+      if (mm) return { op: { ...op, through: mm[1] } };
+      mm = /^(\d+(?:[.,]\d+)?)\s*%$/.exec(arg);
+      if (mm) return { op: { ...op, t: Number(mm[1].replace(',', '.')) / 100 } };
+      mm = /^(\d+)\s*\/\s*(\d+)$/.exec(arg);
+      if (mm && Number(mm[2])) return { op: { ...op, t: Number(mm[1]) / Number(mm[2]) } };
+      mm = /^(?:H\s*=\s*)?(\d+(?:[.,]\d+)?)$/i.exec(arg);
+      if (mm) return { op: { ...op, h: Number(mm[1].replace(',', '.')) } };
+      throw new Error('Уровень жидкости: «уровень 3» (высота от дна), «уровень 60%», «уровень 3/5» или «уровень через W»');
+    }
+
     m = /^(?:сечение|section)\s+(\S+)$/i.exec(src);
     if (m) {
       const n = splitNames(m[1]);
@@ -626,6 +643,13 @@ const fmt = (x) => {
   return String(r).replace('.', ',');
 };
 
+/** Уровень жидкости словами: «через W», «60%», «3». */
+function levelArg(op, name) {
+  if (op.through) return `через ${name(op.through)}`;
+  if (Number.isFinite(Number(op.t))) return `${fmt(Number(op.t) * 100)}%`;
+  return fmt(Number(op.h));
+}
+
 /** Человеческое описание шага журнала. */
 export function describeOp(op, opsById = {}) {
   const P = prettyName;
@@ -669,6 +693,7 @@ export function describeOp(op, opsById = {}) {
     case 'section': return `Сечение (${names(op.pts)})`;
     case 'plane': return `Плоскость (${names(op.pts)})`;
     case 'fill': return `Многоугольник ${names(op.pts)}`;
+    case 'level': return `Уровень жидкости ${levelArg(op, P)}`;
     default: return String(op?.type || '?');
   }
 }
@@ -725,6 +750,7 @@ export function opToCommand(op, opsById = {}) {
     case 'section': return `сечение ${n(op.pts)}`;
     case 'plane': return `плоскость ${n(op.pts)}`;
     case 'fill': return `заливка ${n(op.pts)}`;
+    case 'level': return `уровень ${levelArg(op, (x) => x)}`;
     default: return '';
   }
 }

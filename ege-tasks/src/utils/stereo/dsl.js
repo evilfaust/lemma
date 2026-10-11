@@ -43,6 +43,8 @@ const BODY_WORDS = {
   пирамида: 'pyramid', pyramid: 'pyramid',
   тетраэдр: 'tetra', tetra: 'tetra',
   frustum: 'frustum',
+  октаэдр: 'octa', octa: 'octa', octahedron: 'octa',
+  многогранник: 'hull', hull: 'hull', polyhedron: 'hull',
 };
 
 // Слова-основания: «призма 4 4 5 трапеция», «пирамида 3 4 5 S прямоугольный».
@@ -66,6 +68,15 @@ function parsePoint(text) {
   let parts = t.split(/[;\s]+/).filter(Boolean);
   if (parts.length === 1 && (t.match(/,/g) || []).length === 1) parts = t.split(',');
   if (parts.length !== 2 || !parts.every(isNum)) return null;
+  return parts.map(num);
+}
+
+/** «(0 0 0)» / «(0; 0; 0)» → [0, 0, 0]; не точка — null. */
+function parsePoint3(text) {
+  const t = String(text).trim();
+  let parts = t.split(/[;\s]+/).filter(Boolean);
+  if (parts.length === 1) parts = t.split(',');
+  if (parts.length !== 3 || !parts.every(isNum)) return null;
   return parts.map(num);
 }
 
@@ -96,6 +107,27 @@ export function parseBodyLine(line) {
     kind = 'frustum';
   }
   const rest = words.slice(i + 1);
+  // Многогранник по точкам: «многогранник (0 0 0) (4 0 0) …», с именами —
+  // «A(0 0 0) B(4 0 0) …».
+  if (kind === 'hull') {
+    const pts = [];
+    const labels = [];
+    let bare = false;
+    for (let j = 0; j < rest.length; j++) {
+      const w = rest[j];
+      if (/^[A-Z][0-9]*$/.test(w) && /^@\d+$/.test(rest[j + 1] || '')) { labels.push(w); continue; }
+      if (/^@\d+$/.test(w)) {
+        const p = parsePoint3(points[Number(w.slice(1))]);
+        if (!p) return null;
+        pts.push(p);
+        if (labels.length && labels.length < pts.length) labels.push(null);
+      } else if (w.toLowerCase() === 'без' && /^букв/i.test(rest[j + 1] || '')) { bare = true; j += 1; }
+    }
+    const spec = { kind, pts };
+    if (labels.length === pts.length && labels.every(Boolean)) spec.labels = labels;
+    if (bare) spec.bare = true;
+    return normalizeBodySpec(spec);
+  }
   const named = {};
   const nums = [];
   let apex = null;
@@ -105,10 +137,20 @@ export function parseBodyLine(line) {
   let dir = null;
   let over = null;
   let shift = null;
+  let roof = null;
+  let cut = null;
+  let bare = false;
   for (let j = 0; j < rest.length; j++) {
     const w = rest[j];
     const lw = w.toLowerCase();
+    const next = (rest[j + 1] || '').toLowerCase();
     const m = /^([a-z])=(-?\d+(?:[.,]\d+)?)$/i.exec(w);
+    // «с пирамидой 2» — пирамида высотой 2 сверху; «без вершин 1» — срезать
+    // вершины на 1 по рёбрам; «без букв» — не подписывать вершины.
+    if ((lw === 'с' || lw === 'и') && /^пирамид/.test(next) && isNum(rest[j + 2])) { roof = num(rest[j + 2]); j += 2; continue; }
+    if (lw === 'без' && /^вершин/.test(next) && isNum(rest[j + 2])) { cut = num(rest[j + 2]); j += 2; continue; }
+    if (/^сре[зж]/.test(lw) && /^вершин/.test(next) && isNum(rest[j + 2])) { cut = num(rest[j + 2]); j += 2; continue; }
+    if (lw === 'без' && /^букв/.test(next)) { bare = true; j += 1; continue; }
     if (m) named[m[1].toLowerCase()] = num(m[2]);
     else if (isNum(w)) nums.push(num(w));
     else if (lw === 'основание' || /^@\d+$/.test(w)) {
@@ -148,6 +190,10 @@ export function parseBodyLine(line) {
     if (named.b) spec.b = named.b;
   }
   if (kind === 'tetra') { spec.a = named.a ?? nums[0]; spec.h = named.h ?? nums[1]; }
+  if (kind === 'octa') spec.a = named.a ?? nums[0];
+  if (roof) spec.roof = roof;
+  if (cut) spec.cut = cut;
+  if (bare) spec.bare = true;
   if (apex && (kind === 'pyramid' || kind === 'tetra')) spec.apex = apex;
   if (base) spec.base = base;
   if (poly) spec.poly = poly;
@@ -168,8 +214,14 @@ const fmt = (x) => String(Math.round(Number(x) * 100) / 100);
 /** Тело → строка блока. */
 export function bodyLine(specIn) {
   const s = normalizeBodySpec(specIn);
-  const line = bodyShapeLine(s);
-  return s.cw ? `${line} по часовой` : line;
+  const line = join(
+    bodyShapeLine(s),
+    s.cw ? 'по часовой' : '',
+    s.roof ? `с пирамидой ${fmt(s.roof)}` : '',
+    s.cut ? `без вершин ${fmt(s.cut)}` : '',
+    s.bare && !s.cut ? 'без букв' : '',
+  );
+  return line;
 }
 
 function baseWord(s) {
@@ -206,6 +258,8 @@ function bodyShapeLine(s) {
     case 'prism': return join(`призма ${s.n} ${fmt(s.a)} ${fmt(s.h)}`, baseWord(s), tiltWords(s));
     case 'pyramid': return join(`пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s));
     case 'frustum': return join(`усечённая пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${fmt(s.k)}`, baseWord(s), apexWords(s));
+    case 'octa': return `октаэдр ${fmt(s.a)}`;
+    case 'hull': return `многогранник ${s.pts.map((p, i) => `${s.labels ? s.labels[i] : ''}(${p.map(fmt).join(' ')})`).join(' ')}`;
     case 'tetra': return s.h
       ? join(`тетраэдр ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s))
       : `тетраэдр ${fmt(s.a)} ${s.apex}`;

@@ -102,6 +102,26 @@ export function sectionPolygon(body, plane) {
   return orderPolygon(uniq, plane.n);
 }
 
+/**
+ * Часть выпуклого многоугольника по одну сторону плоскости: n·x ≤ d
+ * (Сазерленд — Ходжмен для одной плоскости). Пусто — [].
+ */
+export function clipPolygonBelow(pts, plane, eps = 1e-9) {
+  const out = [];
+  const side = (p) => dot(plane.n, p) - plane.d;
+  for (let i = 0; i < pts.length; i++) {
+    const A = pts[i];
+    const B = pts[(i + 1) % pts.length];
+    const da = side(A);
+    const db = side(B);
+    if (da <= eps) out.push(A);
+    if ((da < -eps && db > eps) || (da > eps && db < -eps)) {
+      out.push(add(A, mul(sub(B, A), da / (da - db))));
+    }
+  }
+  return uniquePoints(out, eps * 10);
+}
+
 /** Точка внутри тела или на его поверхности. */
 export function insideBody(body, P, eps = REL_EPS * body.size * 10) {
   return body.faces.every((f) => dot(f.n, P) - f.d <= eps);

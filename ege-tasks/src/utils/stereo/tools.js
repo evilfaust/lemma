@@ -32,6 +32,7 @@ export const TOOLS = [
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
+  { key: 'level', label: 'Жидкость', glyph: '≋', hot: 'Q' },
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'O' },
   { key: 'measure', label: 'Измерить', glyph: '⟷', hot: 'U' },
   { key: 'rename', label: 'Имя', glyph: 'Aa', hot: 'R' },
@@ -131,6 +132,7 @@ export function toolHint(tool, pending = []) {
       return names.length >= 3
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
+    case 'level': return 'Кликните по боковому ребру на нужной высоте (или по точке) — сосуд наполнится до этого уровня';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
     case 'measure': {
       const first = pending[0];
@@ -178,6 +180,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'section': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point'];
     case 'fill': return ['point'];
+    case 'level': return ['point', 'line'];
     case 'attention': return ['point', 'line'];
     case 'measure': return ['point', 'line', 'poly', 'face'];
     case 'color': return ['point', 'line', 'poly', 'face'];
@@ -344,6 +347,19 @@ export function toolClick(tool, pending, hit, model) {
       if (target.kind === 'face') return { pending: [], op: { id: newOpId(), type: 'plane', pts: target.verts } };
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
+    case 'level': {
+      // Жидкость до высоты точки (через неё) или места клика на ребре.
+      if (target.kind === 'point') return { pending: [], op: { id: newOpId(), type: 'level', through: target.name } };
+      let pos = target.pos;
+      if (Array.isArray(target.ref) && Number.isFinite(target.t)) {
+        const A = model.points[target.ref[0]]?.pos;
+        const B = model.points[target.ref[1]]?.pos;
+        if (A && B) pos = add(A, mul(sub(B, A), target.t));
+      }
+      if (!pos) return { pending: [] };
+      const zmin = Math.min(...model.body.order.map((v) => model.body.vertices[v].z));
+      return { pending: [], op: { id: newOpId(), type: 'level', h: Math.round((pos.z - zmin) * 100) / 100 } };
+    }
     case 'rename':
       return { pending: [], rename: { name: target.name } };
     case 'hide':

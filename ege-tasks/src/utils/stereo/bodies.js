@@ -13,7 +13,8 @@
 // Ракурс «спереди» — со стороны −y, поэтому у оснований ребро AB — переднее.
 // Имена вершин верхнего основания — с цифрой: A1 (подпись A₁).
 
-import { v3, sub, cross, dot, len, mul, centroid, dist } from './vec3';
+import { v3, sub, cross, dot, len, mul, centroid, dist, add } from './vec3';
+import { convexHull3 } from './hull';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L'];
 
@@ -24,7 +25,20 @@ export const BODY_KINDS = {
   pyramid: { label: 'Пирамида' },
   frustum: { label: 'Усечённая пирамида' },
   tetra: { label: 'Тетраэдр' },
+  octa: { label: 'Октаэдр' },
+  hull: { label: 'Многогранник по точкам' },
 };
+
+/** Тела, к которым приклеивается пирамида сверху (roof). */
+export const ROOF_KINDS = ['cube', 'box', 'prism'];
+
+// Имена вершин тела по точкам: буквы, потом P1, P2…
+const HULL_LETTERS = 'ABCDEFGHKLMNPRSTUVWXYZ'.split('');
+export function defaultHullNames(n) {
+  return n <= HULL_LETTERS.length
+    ? HULL_LETTERS.slice(0, n)
+    : Array.from({ length: n }, (_, i) => `P${i + 1}`);
+}
 
 /**
  * Основания призм и пирамид. n — число сторон (null — любое из ns).
@@ -184,6 +198,13 @@ export const POINT_NAME_RE = /^[A-Z][0-9]*$/;
  */
 export function normalizeBodySpec(spec = DEFAULT_BODY) {
   const out = normalizeBodyShape(spec);
+  // Модификаторы: пирамида сверху (roof — её высота), срезанные вершины
+  // (cut — сколько отрезать по рёбрам от каждой вершины), без букв (bare).
+  const roof = Number(spec?.roof);
+  if (ROOF_KINDS.includes(out.kind) && Number.isFinite(roof) && roof > 0) out.roof = roof;
+  const cut = Number(spec?.cut);
+  if (out.kind !== 'hull' && Number.isFinite(cut) && cut > 0) out.cut = cut;
+  if (spec?.bare) out.bare = true;
   // Буквы основания по часовой стрелке (если смотреть сверху): A — спереди
   // слева, B — сзади слева… Так в части учебников (Атанасян). Без флага — против.
   // У своего основания (poly) порядок задают сами координаты.
@@ -232,6 +253,21 @@ function normalizeBodyShape(spec) {
       normalizeApexPos(spec, out, out.n);
       return reorder(out, ['kind', 'n', 'a', 'h', 'k']);
     }
+    case 'octa':
+      return { kind, a };
+    case 'hull': {
+      const pts = Array.isArray(spec.pts) ? spec.pts.map((p) => (Array.isArray(p) ? p.slice(0, 3).map(Number) : [p?.x, p?.y, p?.z].map(Number))) : [];
+      if (pts.length < 4 || pts.length > 60 || !pts.every((p) => p.length === 3 && p.every(Number.isFinite))) {
+        return { kind: 'cube', a: 4 };
+      }
+      if (!convexHull3(pts.map(([x, y, z]) => v3(x, y, z)))) return { kind: 'cube', a: 4 };
+      const out = { kind, pts };
+      // Имена точек списка (labels) — по порядку точек; без них — A, B, C…
+      const labels = spec.labels;
+      if (Array.isArray(labels) && labels.length === pts.length && labels.every((n) => POINT_NAME_RE.test(n))
+        && new Set(labels).size === labels.length) out.labels = [...labels];
+      return out;
+    }
     case 'tetra': {
       const apex = /^[A-Z]$/.test(spec.apex || '') ? spec.apex : 'D';
       const out = { kind, a, apex };
@@ -257,6 +293,12 @@ function reorder(obj, first) {
 /** Человеческое имя тела: «Куб ABCDA₁B₁C₁D₁». */
 export function bodyTitle(spec) {
   const s = normalizeBodySpec(spec);
+  const base = bodyTitleBase(s);
+  if (s.cut) return `${base.split(' ')[0]} со срезанными вершинами`;
+  return s.roof ? `${base} с пирамидой сверху` : base;
+}
+
+function bodyTitleBase(s) {
   const body = buildBody(s);
   const names = body.order.map(prettyName).join('');
   switch (s.kind) {
@@ -268,6 +310,8 @@ export function bodyTitle(spec) {
       return `Пирамида ${prettyName(apex)}${body.order.slice(0, -1).map(prettyName).join('')}`;
     }
     case 'frustum': return `Усечённая пирамида ${names}`;
+    case 'octa': return `Октаэдр ${names}`;
+    case 'hull': return `Многогранник ${names}`;
     case 'tetra': {
       if (!s.h) return `Тетраэдр ${names}`;
       const apex = body.order[body.order.length - 1];
@@ -343,6 +387,76 @@ function tiltShift(spec, h) {
  */
 export function buildBody(specIn) {
   const spec = normalizeBodySpec(specIn);
+  let built;
+  if (spec.kind === 'hull') {
+    built = hullBody(spec, spec.pts.map(([x, y, z]) => v3(x, y, z)), spec.labels || defaultHullNames(spec.pts.length));
+  } else if (spec.kind === 'octa') {
+    const a = spec.a;
+    const r = a / Math.SQRT2;
+    built = hullBody(spec, [...rectangle(a, a, 0), v3(0, 0, r), v3(0, 0, -r)], ['A', 'B', 'C', 'D', 'E', 'F']);
+  } else {
+    built = buildBaseBody(spec);
+  }
+  if (spec.roof) built = withRoof(spec, built);
+  if (spec.cut) built = withCut(spec, built);
+  return spec.names && spec.names.length === built.order.length ? renameBody(built, spec.names) : built;
+}
+
+/** Тело — выпуклая оболочка точек; центр габаритов — в начале координат. */
+function hullBody(spec, points, names) {
+  const lo = { x: Infinity, y: Infinity, z: Infinity };
+  const hi = { x: -Infinity, y: -Infinity, z: -Infinity };
+  for (const p of points) {
+    lo.x = Math.min(lo.x, p.x); lo.y = Math.min(lo.y, p.y); lo.z = Math.min(lo.z, p.z);
+    hi.x = Math.max(hi.x, p.x); hi.y = Math.max(hi.y, p.y); hi.z = Math.max(hi.z, p.z);
+  }
+  const mid = mul(add(lo, hi), 0.5);
+  const pts = points.map((p) => sub(p, mid));
+  const h = convexHull3(pts);
+  const vertices = {};
+  const order = [];
+  for (const i of h.vertices) { vertices[names[i]] = pts[i]; order.push(names[i]); }
+  const center = centroid(order.map((k) => vertices[k]));
+  const faces = h.faces.map((f) => {
+    const verts = f.verts.map((i) => names[i]);
+    return { id: verts.join(''), verts, n: f.n, d: f.d };
+  });
+  let size = 0;
+  for (const p of order) for (const q of order) size = Math.max(size, dist(vertices[p], vertices[q]));
+  return {
+    spec, vertices, order, edges: h.edges.map(([a, b]) => [names[a], names[b]]), faces, center, size,
+  };
+}
+
+/** Пирамида высотой h над верхним основанием (к кубу «приклеили пирамиду»). */
+function withRoof(spec, body) {
+  const top = body.faces.reduce((best, f) => (f.n.z > (best?.n.z ?? -Infinity) ? f : best), null);
+  const c = centroid(top.verts.map((v) => body.vertices[v]));
+  const apexName = body.order.includes('S') ? 'P' : 'S';
+  const names = [...body.order, apexName];
+  const pts = [...body.order.map((v) => body.vertices[v]), add(c, v3(0, 0, spec.roof))];
+  return hullBody(spec, pts, names);
+}
+
+/**
+ * Срезанные вершины: на каждом ребре — точки на расстоянии cut от концов
+ * (больше половины ребра — середина), тело — их оболочка. Букв у такого
+ * тела нет (bare): вершин много, на рисунках задач их не подписывают.
+ */
+function withCut(spec, body) {
+  const pts = [];
+  const same = (P) => pts.some((Q) => dist(P, Q) <= 1e-9 * body.size);
+  for (const [a, b] of body.edges) {
+    const A = body.vertices[a];
+    const B = body.vertices[b];
+    const L = dist(A, B);
+    const t = Math.min(spec.cut / L, 0.5);
+    for (const P of [add(A, mul(sub(B, A), t)), add(B, mul(sub(A, B), t))]) if (!same(P)) pts.push(P);
+  }
+  return hullBody(spec, pts, defaultHullNames(pts.length));
+}
+
+function buildBaseBody(spec) {
   let base;
   let top = null;
   let apex = null;
@@ -446,8 +560,7 @@ export function buildBody(specIn) {
   let size = 0;
   for (const p of order) for (const q of order) size = Math.max(size, dist(vertices[p], vertices[q]));
 
-  const built = { spec, vertices, order, edges, faces, center, size };
-  return spec.names && spec.names.length === order.length ? renameBody(built, spec.names) : built;
+  return { spec, vertices, order, edges, faces, center, size };
 }
 
 /** Тело со своими именами вершин: те же точки, рёбра и грани под новыми именами. */
