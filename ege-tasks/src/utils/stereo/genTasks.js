@@ -29,7 +29,7 @@ export const GEN_TYPES = {
   }])),
 };
 
-export const GEN_TYPE_GROUPS = ['Первая часть ЕГЭ', 'Сечения', 'Углы', 'Расстояния', 'Объёмы'];
+export const GEN_TYPE_GROUPS = ['Сечения', 'Углы', 'Расстояния', 'Объёмы', 'Первая часть ЕГЭ'];
 
 /** Что значит уровень сложности для семейства типа. */
 export const GEN_LEVELS = { section: SECTION_LEVELS, metric: METRIC_LEVELS, formula: FORMULA_LEVELS };
