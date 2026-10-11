@@ -10,7 +10,7 @@ import {
 import {
   generateFormulaTask, formulaTaskToRecord, FORMULA_TYPES, FORMULA_LEVELS,
 } from './formulaTasks';
-import { GEN_BODIES } from './genBodies';
+import { GEN_BODIES, FORMULA_ONLY_BODIES, genBodyDef } from './genBodies';
 
 /** Типы заданий по группам (порядок — порядок в меню). */
 export const GEN_TYPES = {
@@ -40,6 +40,8 @@ export const familyOf = (type) => GEN_TYPES[type]?.family || 'section';
 export function generateGenTask({
   body, type, level, seed,
 }) {
+  // Ступенчатое тело — только задачи первой части
+  if (FORMULA_ONLY_BODIES[body] && familyOf(type) !== 'formula') return null;
   if (familyOf(type) === 'metric') return generateMetricTask({ body, type, level, seed });
   if (familyOf(type) === 'formula') return generateFormulaTask({ body, type, level, seed });
   return generateSectionTask({ body, type, level, seed });
@@ -67,4 +69,7 @@ export function slotPlan(types, bodies, index) {
   return { type: t[index % t.length], body: b[Math.floor(index / t.length) % b.length] };
 }
 
-export { GEN_BODIES };
+export { GEN_BODIES, FORMULA_ONLY_BODIES, genBodyDef };
+
+/** Тела для выбора в генераторе: обычные + только для первой части. */
+export const GEN_BODY_OPTIONS = { ...GEN_BODIES, ...FORMULA_ONLY_BODIES };

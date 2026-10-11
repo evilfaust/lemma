@@ -229,6 +229,21 @@ export const GEN_BODIES = {
 
 export const GEN_BODY_KEYS = Object.keys(GEN_BODIES);
 
+/**
+ * Тела только для задач первой части (formulaTasks): ступенчатый многогранник.
+ * Сечения и метрические задачи на них не строятся — в GEN_BODIES их нет.
+ */
+export const FORMULA_ONLY_BODIES = {
+  steps: {
+    label: 'Ступенчатый многогранник (только первая часть)', short: 'ступенчатый', gen: 'многогранника',
+    facet: 'Многогранник', formulaOnly: true,
+    draw: { kind: 'blocks', boxes: [[0, 0, 0, 4, 3, 1], [0, 0, 1, 2, 3, 2]] },
+  },
+};
+
+/** Описание тела генератора по ключу (включая только-первая-часть). */
+export const genBodyDef = (key) => GEN_BODIES[key] || FORMULA_ONLY_BODIES[key] || null;
+
 /** Размеры, умноженные на k (h² — на k²). */
 export function scaleDims(d, k) {
   const out = { ...d };

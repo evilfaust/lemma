@@ -58,7 +58,7 @@ export default function StereoBodyForm({ form, initialValues }) {
         <Form.Item name="kind" label="Тело">
           <Select
             onChange={onKindChange}
-            options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull').map(([value, v]) => ({ value, label: v.label }))}
+            options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull' && value !== 'blocks').map(([value, v]) => ({ value, label: v.label }))}
           />
         </Form.Item>
         {hasShape && (

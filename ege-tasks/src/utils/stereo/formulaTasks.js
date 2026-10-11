@@ -13,7 +13,10 @@ import { dist } from './vec3';
 import { stereoBlockMarkdown, stereoDrawingSvg } from './dsl';
 import { DEFAULT_CAMERA } from './camera';
 import { rng } from './sectionTasks';
-import { GEN_BODIES, bodyNamesTex, texName } from './genBodies';
+import {
+  GEN_BODIES, bodyNamesTex, texName, genBodyDef,
+} from './genBodies';
+import { stepsTask } from './stepsTasks';
 
 export const FORMULA_TYPES = {
   fVolume: {
@@ -105,9 +108,7 @@ const BODY_WORD = {
  *   question, answer (число), solution — строки решения.
  */
 function make(key, plan) {
-  const def = GEN_BODIES[key];
-  const topo = buildBody(def.draw);
-  return { key, def, topo, ...plan };
+  return { key, def: genBodyDef(key), ...plan };
 }
 
 const T = (a, b) => `${texName(a)}${texName(b)}`;
@@ -635,12 +636,12 @@ const BUILDERS = {
 export function generateFormulaTask({
   body: bodyKey = 'cube', type = 'fVolume', level = 1, seed = 1, attempts = 60,
 } = {}) {
-  const key = bodyKey in GEN_BODIES ? bodyKey : 'cube';
+  const key = genBodyDef(bodyKey) ? bodyKey : 'cube';
   const typeDef = FORMULA_TYPES[type];
   if (!typeDef) return null;
   const rand = rng(seed);
   for (let i = 0; i < attempts; i += 1) {
-    const plan = BUILDERS[type](key, rand, level);
+    const plan = key === 'steps' ? stepsTask(type, rand, DEFAULT_CAMERA) : BUILDERS[type](key, rand, level);
     if (!plan) continue;
     const answer = finiteDecimal(plan.answer);
     if (answer == null) continue;
@@ -669,7 +670,7 @@ function buildFormulaTask(ctx, { type, typeDef, level, seed, answer }) {
   const {
     key, def, spec, labels = [], extra = [], ask = null, question, solution,
   } = ctx;
-  if (type !== 'fScale' && !goodShape(spec)) return null;
+  if (type !== 'fScale' && key !== 'steps' && !goodShape(spec)) return null;
   const ops = [...extra];
   labels.forEach((l, i) => ops.push({ id: `l${i}`, type: 'lengthMark', ref: [...l.ref], text: l.g.label }));
   const askOps = ask ? [{ id: 'ask', type: 'segment', ref: [...ask] }] : [];
@@ -708,7 +709,7 @@ const LEVEL_DIFFICULTY = { 1: 1, 2: 2, 3: 3 };
 /** Задание → geometry_tasks (origin = 'gen'). */
 export function formulaTaskToRecord(task, { code } = {}) {
   const typeDef = FORMULA_TYPES[task.type];
-  const def = GEN_BODIES[task.body];
+  const def = genBodyDef(task.body);
   const solution = [
     task.solutionText,
     '',

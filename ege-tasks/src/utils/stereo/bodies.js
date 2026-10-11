@@ -15,6 +15,7 @@
 
 import { v3, sub, cross, dot, len, mul, centroid, dist, add } from './vec3';
 import { convexHull3 } from './hull';
+import { normalizeBlocksSpec, buildBlocksBody } from './blocks';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L'];
 
@@ -27,6 +28,7 @@ export const BODY_KINDS = {
   tetra: { label: 'Тетраэдр' },
   octa: { label: 'Октаэдр' },
   hull: { label: 'Многогранник по точкам' },
+  blocks: { label: 'Ступенчатый многогранник' },
 };
 
 /** Тела, к которым приклеивается пирамида сверху (roof). */
@@ -203,7 +205,7 @@ export function normalizeBodySpec(spec = DEFAULT_BODY) {
   const roof = Number(spec?.roof);
   if (ROOF_KINDS.includes(out.kind) && Number.isFinite(roof) && roof > 0) out.roof = roof;
   const cut = Number(spec?.cut);
-  if (out.kind !== 'hull' && Number.isFinite(cut) && cut > 0) out.cut = cut;
+  if (out.kind !== 'hull' && out.kind !== 'blocks' && Number.isFinite(cut) && cut > 0) out.cut = cut;
   if (spec?.bare) out.bare = true;
   // Буквы основания по часовой стрелке (если смотреть сверху): A — спереди
   // слева, B — сзади слева… Так в части учебников (Атанасян). Без флага — против.
@@ -255,6 +257,8 @@ function normalizeBodyShape(spec) {
     }
     case 'octa':
       return { kind, a };
+    case 'blocks':
+      return normalizeBlocksSpec(spec) || { kind: 'cube', a: 4 };
     case 'hull': {
       const pts = Array.isArray(spec.pts) ? spec.pts.map((p) => (Array.isArray(p) ? p.slice(0, 3).map(Number) : [p?.x, p?.y, p?.z].map(Number))) : [];
       if (pts.length < 4 || pts.length > 60 || !pts.every((p) => p.length === 3 && p.every(Number.isFinite))) {
@@ -312,6 +316,7 @@ function bodyTitleBase(s) {
     case 'frustum': return `Усечённая пирамида ${names}`;
     case 'octa': return `Октаэдр ${names}`;
     case 'hull': return `Многогранник ${names}`;
+    case 'blocks': return 'Ступенчатый многогранник';
     case 'tetra': {
       if (!s.h) return `Тетраэдр ${names}`;
       const apex = body.order[body.order.length - 1];
@@ -387,6 +392,7 @@ function tiltShift(spec, h) {
  */
 export function buildBody(specIn) {
   const spec = normalizeBodySpec(specIn);
+  if (spec.kind === 'blocks') return buildBlocksBody(spec);
   let built;
   if (spec.kind === 'hull') {
     built = hullBody(spec, spec.pts.map(([x, y, z]) => v3(x, y, z)), spec.labels || defaultHullNames(spec.pts.length));
@@ -585,9 +591,9 @@ function renameBody(body, names) {
 export function findFace(body, names) {
   if (!names || names.length < 3) return null;
   const set = new Set(names);
-  const exact = body.faces.find((f) => f.verts.length === set.size && f.verts.every((v) => set.has(v)));
+  const exact = body.faces.find((f) => f.verts && f.verts.length === set.size && f.verts.every((v) => set.has(v)));
   if (exact) return exact;
-  const containing = body.faces.filter((f) => names.every((nm) => f.verts.includes(nm)));
+  const containing = body.faces.filter((f) => f.verts && names.every((nm) => f.verts.includes(nm)));
   return containing.length === 1 ? containing[0] : null;
 }
 

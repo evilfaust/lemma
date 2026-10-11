@@ -35,8 +35,9 @@ describe('справка стереоредактора — сторож', () =>
 
   it('каждая строка блока ```stereo из справки читается без ошибок', () => {
     for (const { line } of DSL_HELP) {
-      const isBody = /^(куб|параллелепипед|призма|пирамида|тетраэдр|октаэдр|многогранник|наклонн|усеч[её]нн|правильн|произвольн)/.test(line);
-      const r = parseStereoBlock(isBody ? line : `куб 4\n${line}`);
+      const isBody = /^(куб|параллелепипед|призма|пирамида|тетраэдр|октаэдр|многогранник|ступенчат|наклонн|усеч[её]нн|правильн|произвольн)/.test(line);
+      const blocksLine = /^вершины \S+\(/.test(line);
+      const r = parseStereoBlock(isBody ? line : blocksLine ? `ступенчатый многогранник (0 0 0 4 3 1) (0 0 1 2 3 2)\n${line}` : `куб 4\n${line}`);
       expect({ line, errors: r.errors }).toEqual({ line, errors: [] });
     }
   });

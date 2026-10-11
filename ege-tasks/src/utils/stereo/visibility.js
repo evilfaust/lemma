@@ -9,9 +9,11 @@
 // найти первую и последнюю скрытую пробу и уточнить границы бисекцией.
 
 import { dot, lerp } from './vec3';
+import { isPointHiddenBlocks } from './blocks';
 
 /** Точка скрыта телом при взгляде вдоль toViewer. */
 export function isPointHidden(body, P, toViewer) {
+  if (body.cells) return isPointHiddenBlocks(body, P, toViewer);
   const epsLen = 1e-6 * body.size;
   let lo = 0;
   let hi = Infinity;
@@ -72,6 +74,7 @@ export function hiddenInterval(body, A, B, toViewer) {
  * Куски отрезка: [{ t0, t1, hidden }] по порядку от A к B.
  */
 export function splitByVisibility(body, A, B, toViewer) {
+  if (body.cells) return splitMany(body, A, B, toViewer);
   const iv = hiddenInterval(body, A, B, toViewer);
   if (!iv) return [{ t0: 0, t1: 1, hidden: false }];
   const out = [];
@@ -79,6 +82,41 @@ export function splitByVisibility(body, A, B, toViewer) {
   out.push({ t0: iv[0], t1: iv[1], hidden: true });
   if (iv[1] < 1) out.push({ t0: iv[1], t1: 1, hidden: false });
   return out;
+}
+
+/**
+ * Невыпуклое тело: скрытых кусков у отрезка может быть несколько — пробы
+ * по всей длине, каждая смена «видно/скрыто» уточняется бисекцией.
+ */
+function splitMany(body, A, B, toViewer) {
+  const N = 96;
+  const hidden = (t) => isPointHidden(body, lerp(A, B, t), toViewer);
+  const flags = [];
+  for (let i = 0; i <= N; i += 1) flags.push(hidden(i / N));
+  const cuts = [0];
+  for (let i = 0; i < N; i += 1) {
+    if (flags[i] === flags[i + 1]) continue;
+    let lo = i / N;
+    let hi = (i + 1) / N;
+    const a = flags[i];
+    for (let k = 0; k < BISECT; k += 1) {
+      const m = (lo + hi) / 2;
+      if (hidden(m) === a) lo = m; else hi = m;
+    }
+    cuts.push((lo + hi) / 2);
+  }
+  cuts.push(1);
+  const out = [];
+  for (let i = 0; i + 1 < cuts.length; i += 1) {
+    const t0 = cuts[i];
+    const t1 = cuts[i + 1];
+    if (t1 - t0 <= 1e-4) continue;
+    const h = hidden((t0 + t1) / 2);
+    const last = out[out.length - 1];
+    if (last && last.hidden === h) last.t1 = t1;
+    else out.push({ t0, t1, hidden: h });
+  }
+  return out.length ? out : [{ t0: 0, t1: 1, hidden: false }];
 }
 
 /** Передняя ли грань (смотрит на зрителя). */

@@ -45,6 +45,7 @@ const BODY_WORDS = {
   frustum: 'frustum',
   октаэдр: 'octa', octa: 'octa', octahedron: 'octa',
   многогранник: 'hull', hull: 'hull', polyhedron: 'hull',
+  ступенчатый: 'blocks', ступенчатое: 'blocks', ступенчатая: 'blocks', блоки: 'blocks', blocks: 'blocks',
 };
 
 // Слова-основания: «призма 4 4 5 трапеция», «пирамида 3 4 5 S прямоугольный».
@@ -78,6 +79,29 @@ function parsePoint3(text) {
   if (parts.length === 1) parts = t.split(',');
   if (parts.length !== 3 || !parts.every(isNum)) return null;
   return parts.map(num);
+}
+
+/** «(0 0 0 4 3 2)» → [0, 0, 0, 4, 3, 2]: угол блока и размеры; не блок — null. */
+function parseBox(text) {
+  const parts = String(text).trim().split(/[;\s]+/).filter(Boolean);
+  if (parts.length !== 6 || !parts.every(isNum)) return null;
+  return parts.map(num);
+}
+
+/** «A(0 0 0) B(4 0 0)» → { '0 0 0': 'A', '4 0 0': 'B' }; не так — null. */
+export function parseVertexLabels(text) {
+  const out = {};
+  const re = /([A-Za-zА-Яа-я][0-9]*)\s*\(([^()]*)\)/g;
+  let any = false;
+  const rest = String(text).replace(re, (all, name, pt) => {
+    const p = parsePoint3(pt);
+    const nm = name.toUpperCase().replace(/[АВСЕНКМОРТХУ]/g, (c) => 'ABCEHKMOPTXY'['АВСЕНКМОРТХУ'.indexOf(c)]);
+    if (!p || !/^[A-Z][0-9]*$/.test(nm)) return all;
+    out[p.join(' ')] = nm;
+    any = true;
+    return '';
+  });
+  return any && !rest.trim() ? out : null;
 }
 
 /** «призма 3 4 5» → { kind: 'prism', n: 3, a: 4, h: 5 }; не тело — null. */
@@ -126,6 +150,29 @@ export function parseBodyLine(line) {
     const spec = { kind, pts };
     if (labels.length === pts.length && labels.every(Boolean)) spec.labels = labels;
     if (bare) spec.bare = true;
+    return normalizeBodySpec(spec);
+  }
+  // Ступенчатый многогранник: «ступенчатый многогранник (0 0 0 4 3 1)
+  // (0 0 1 2 3 2) минус (3 0 0 1 1 1) все буквы» — блоки (угол и размеры).
+  if (kind === 'blocks') {
+    const boxes = [];
+    const minus = [];
+    let into = boxes;
+    let letters = false;
+    for (let j = 0; j < rest.length; j++) {
+      const w = rest[j].toLowerCase();
+      if (/^@\d+$/.test(w)) {
+        const b = parseBox(points[Number(w.slice(1))]);
+        if (!b) return null;
+        into.push(b);
+      } else if (/^(минус|без|вычесть|minus)$/.test(w) && /^@/.test(rest[j + 1] || '')) into = minus;
+      else if (w === 'плюс' || w === 'и') into = boxes;
+      else if (/^все$/.test(w) && /^букв/.test(rest[j + 1] || '')) { letters = true; j += 1; }
+      else if (!/^многогранник/.test(w)) return null;
+    }
+    const spec = { kind, boxes };
+    if (minus.length) spec.minus = minus;
+    if (letters) spec.letters = true;
     return normalizeBodySpec(spec);
   }
   const named = {};
@@ -259,6 +306,11 @@ function bodyShapeLine(s) {
     case 'pyramid': return join(`пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s));
     case 'frustum': return join(`усечённая пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${fmt(s.k)}`, baseWord(s), apexWords(s));
     case 'octa': return `октаэдр ${fmt(s.a)}`;
+    case 'blocks': return join(
+      `ступенчатый многогранник ${s.boxes.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}`,
+      s.minus ? `минус ${s.minus.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}` : '',
+      s.letters ? 'все буквы' : '',
+    );
     case 'hull': return `многогранник ${s.pts.map((p, i) => `${s.labels ? s.labels[i] : ''}(${p.map(fmt).join(' ')})`).join(' ')}`;
     case 'tetra': return s.h
       ? join(`тетраэдр ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s))
@@ -305,8 +357,24 @@ export function parseStereoBlock(text) {
         return;
       }
     }
+    // Ступенчатое тело: «вершины A(0 0 0) B(4 0 0)», «вершина C1 (4 3 2)» —
+    // имя вершине по её координате.
+    let m = /^(?:вершин[аы]|vertex|vertices)\s+(.+)$/i.exec(cmd);
+    if (m && scene.body.kind === 'blocks') {
+      const labels = parseVertexLabels(m[1].replace(/^([A-Za-zА-Яа-я][0-9]*)\s+\(/, '$1('));
+      if (scene.ops.length) errors.push({ line: lineNo, message: 'Имена вершин — сразу после тела, до построений' });
+      else if (!labels) errors.push({ line: lineNo, message: 'Вершины ступенчатого тела: «вершины A(0 0 0) B(4 0 0)»' });
+      else {
+        const next = normalizeBodySpec({ ...scene.body, labels: { ...(scene.body.labels || {}), ...labels } });
+        const built = buildBody(next);
+        const missing = Object.entries(labels).filter(([k]) => !Object.values(built.coordOf || {}).includes(k.split(' ').map((x) => String(Math.round(Number(x) * 1000) / 1000)).join(' ')));
+        if (missing.length) errors.push({ line: lineNo, message: `Нет вершины в точке (${missing[0][0]})` });
+        scene = { ...scene, body: next };
+      }
+      return;
+    }
     // «вершины KLMNK1L1M1N1» — свои имена вершин тела (до построений).
-    let m = /^(?:вершины|vertices)\s+(.+)$/i.exec(cmd);
+    m = /^(?:вершины|vertices)\s+(.+)$/i.exec(cmd);
     if (m) {
       const names = splitNames(m[1].replace(/\s+/g, ''));
       const need = buildBody({ ...scene.body, names: undefined }).order.length;
@@ -365,6 +433,9 @@ export function parseStereoBlock(text) {
 export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false } = {}) {
   const out = [bodyLine(scene?.body)];
   if (scene?.body?.names?.length) out.push(`вершины ${scene.body.names.join('')}`);
+  if (scene?.body?.kind === 'blocks' && scene.body.labels) {
+    out.push(`вершины ${Object.entries(scene.body.labels).map(([k, n]) => `${n}(${k})`).join(' ')}`);
+  }
   let skipped = 0;
   const opsById = {};
   for (const op of scene?.ops || []) {

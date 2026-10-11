@@ -285,7 +285,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const color = pointColorHex(pg.color) || pg.color || STEREO_COLORS.section;
     pg.pts.forEach((A, i) => {
       const B = pg.pts[(i + 1) % pg.pts.length];
-      if (len(sub(B, A)) < 1e-9) return;
+      if (len(sub(B, A)) < 1e-9 || pg.skip?.includes(i)) return;
       pushSplit(`${pg.id}:e${i}`, 'section', A, B, color, WIDTH.section, pg.step);
     });
   }
@@ -482,7 +482,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   const faces = body.faces.map((f) => ({
     id: f.id,
     verts: f.verts,
-    pts: f.verts.map((v) => P(body.vertices[v])),
+    pts: (f.pts3 || f.verts.map((v) => body.vertices[v])).map(P),
     front: isFaceFront(f, toViewer),
   }));
 

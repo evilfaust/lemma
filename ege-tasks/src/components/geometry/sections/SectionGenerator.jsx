@@ -11,7 +11,8 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { useGeometryBasket } from '../../../hooks/useGeometryBasket';
 import { sanitizeSvg } from '../../../utils/sanitizeSvg';
 import {
-  GEN_BODIES, GEN_TYPES, GEN_TYPE_GROUPS, GEN_LEVELS, familyOf, generateGenTask, genTaskToRecord, genCodePrefix, slotPlan,
+  GEN_TYPES, GEN_TYPE_GROUPS, GEN_LEVELS, familyOf, generateGenTask, genTaskToRecord, genCodePrefix, slotPlan,
+  GEN_BODY_OPTIONS, genBodyDef,
 } from '../../../utils/stereo/genTasks';
 import { stereoDrawingSvg } from '../../../utils/stereo/dsl';
 import { DEFAULT_CAMERA } from '../../../utils/stereo/camera';
@@ -21,7 +22,7 @@ import SectionStepsModal from './SectionStepsModal';
 
 const { Text } = Typography;
 
-const BODY_OPTIONS = Object.entries(GEN_BODIES).map(([value, b]) => ({ value, label: b.label }));
+const BODY_OPTIONS = Object.entries(GEN_BODY_OPTIONS).map(([value, b]) => ({ value, label: b.label }));
 const TYPE_OPTIONS = GEN_TYPE_GROUPS.map((group) => ({
   label: group,
   title: group,
@@ -64,7 +65,7 @@ function TaskCell({
         <Space size={6} wrap>
           <Text strong>№{index + 1}</Text>
           <Tag style={{ margin: 0 }}>{task.tag}</Tag>
-          {showBody && <Tag color="blue" style={{ margin: 0 }}>{GEN_BODIES[task.body].short}</Tag>}
+          {showBody && <Tag color="blue" style={{ margin: 0 }}>{genBodyDef(task.body).short}</Tag>}
         </Space>
       )}
       extra={(
@@ -92,7 +93,7 @@ function TaskCell({
 function workTitle(cfg) {
   const one = GEN_TYPES[cfg.types[0]];
   const kind = cfg.types.length === 1 ? one.short || one.label : 'Стереометрия';
-  const body = cfg.bodies.length === 1 ? ` · ${GEN_BODIES[cfg.bodies[0]].short}` : '';
+  const body = cfg.bodies.length === 1 ? ` · ${genBodyDef(cfg.bodies[0]).short}` : '';
   return `${kind}${body} · ${new Date().toLocaleDateString('ru-RU')}`;
 }
 

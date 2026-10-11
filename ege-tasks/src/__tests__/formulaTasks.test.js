@@ -12,7 +12,7 @@ import { parseStereoBlock } from '../utils/stereo/dsl';
 // длины — по искомому отрезку. Подписи длин сверяет сам генератор.
 
 function faceArea(body, f) {
-  const P = f.verts.map((v) => body.vertices[v]);
+  const P = f.pts3 || f.verts.map((v) => body.vertices[v]);
   let s = { x: 0, y: 0, z: 0 };
   for (let i = 1; i + 1 < P.length; i += 1) {
     const c = cross(sub(P[i], P[0]), sub(P[i + 1], P[0]));
@@ -22,7 +22,7 @@ function faceArea(body, f) {
 }
 
 function bodyVolume(body) {
-  return body.faces.reduce((acc, f) => acc + (faceArea(body, f) * dot(f.n, body.vertices[f.verts[0]])) / 3, 0);
+  return body.faces.reduce((acc, f) => acc + (faceArea(body, f) * dot(f.n, (f.pts3 || f.verts.map((v) => body.vertices[v]))[0])) / 3, 0);
 }
 
 function recompute(task) {
@@ -48,7 +48,7 @@ const SEEDS = [11, 222, 3333, 44444, 555];
 describe('задачи первой части: генерация по всем телам и уровням', () => {
   for (const type of Object.keys(FORMULA_TYPES)) {
     it(`${type}: каждое тело, каждый уровень — ответ конечной дробью и сходится с чертежом`, () => {
-      for (const body of GEN_BODY_KEYS) {
+      for (const body of [...GEN_BODY_KEYS, 'steps']) {
         for (const level of [1, 2, 3]) {
           for (const seed of SEEDS) {
             const t = generateFormulaTask({ body, type, level, seed });
@@ -84,6 +84,22 @@ describe('задачи первой части: генерация по всем
     expect(texts.some((x) => /в \$[234]\$ раза\?/.test(x))).toBe(true);
     expect(texts.some((x) => /в \$5\$ раз\?/.test(x))).toBe(true);
     expect(texts.some((x) => /в \$[234]\$ раз\?/.test(x))).toBe(false);
+  });
+});
+
+describe('ступенчатый многогранник', () => {
+  it('подписей хватает, чтобы восстановить размеры; у «x» — само ребро', () => {
+    for (let seed = 1; seed <= 30; seed += 1) {
+      const t = generateFormulaTask({ body: 'steps', type: 'fReverse', level: 1, seed });
+      const marks = t.scene.ops.filter((o) => o.type === 'lengthMark');
+      expect(marks.filter((o) => o.text === 'x')).toHaveLength(1);
+      expect(t.statement).toMatch(/все двугранные углы которого прямые/);
+    }
+  });
+
+  it('в генераторе сечений/углов ступенчатое тело не участвует', () => {
+    expect(generateGenTask({ body: 'steps', type: 'build', level: 1, seed: 1 })).toBeNull();
+    expect(generateGenTask({ body: 'steps', type: 'fVolume', level: 1, seed: 1 })).not.toBeNull();
   });
 });
 

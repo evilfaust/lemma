@@ -19,6 +19,7 @@ import {
   intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon, orderPolygon,
   affinePoint, clipPolygonBelow,
 } from './geometry';
+import { blocksSectionPieces } from './blocks';
 
 /** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
 export function isPlaneRefId(ref) {
@@ -197,6 +198,22 @@ export function evaluateScene(scene, opts = {}) {
   // --- вспомогательные --------------------------------------------------
 
   const fail = (msg) => { throw new StepError(msg); };
+
+  // Сечение плоскостью: у выпуклого тела — один многоугольник, у
+  // ступенчатого — куски по ячейкам (общие стороны кусков не обводятся).
+  const sectionPieces = (plane) => (body.cells
+    ? blocksSectionPieces(body, plane)
+    : [{ pts: sectionPolygon(body, plane), skip: [] }].filter((pc) => pc.pts.length >= 3));
+  const pushPieces = (opId, kind, pieces, stepIdx, created, color, extra = {}) => {
+    pieces.forEach((pc, i) => {
+      const id = i ? `${opId}:p${i}` : opId;
+      polys.push({
+        id, ...(i ? { base: opId } : {}), kind, pts: pc.pts, ...(pc.skip?.length ? { skip: pc.skip } : {}),
+        step: stepIdx, color, faceId: null, ...extra,
+      });
+      created.polys.push(id);
+    });
+  };
 
   const pointPos = (name) => {
     const pt = points[name];
@@ -643,23 +660,23 @@ export function evaluateScene(scene, opts = {}) {
           }
           n = norm(n);
           const plane = { n, d: dot(n, P) };
-          const poly = sectionPolygon(body, plane);
-          if (poly.length < 3) fail('Плоскость не пересекает тело');
+          const pieces = sectionPieces(plane);
+          if (!pieces.length) fail('Плоскость не пересекает тело');
           planeDefs[opId] = plane;
-          polys.push({
-            id: opId, kind: op.style === 'plane' ? 'plane' : 'section', pts: poly,
-            step: stepIdx, color: op.color, faceId: null,
-          });
-          created.polys.push(opId);
+          pushPieces(opId, op.style === 'plane' ? 'plane' : 'section', pieces, stepIdx, created, op.color);
           break;
         }
         case 'section':
         case 'plane': {
           const { plane, face } = resolvePlane(op.pts);
-          const poly = face ? face.verts.map((v) => body.vertices[v]) : sectionPolygon(body, plane);
-          if (poly.length < 3) fail('Плоскость не пересекает тело');
-          polys.push({ id: opId, kind: op.type, pts: poly, step: stepIdx, color: op.color, faceId: face?.id || null });
-          created.polys.push(opId);
+          if (face) {
+            polys.push({ id: opId, kind: op.type, pts: face.pts3 || face.verts.map((v) => body.vertices[v]), step: stepIdx, color: op.color, faceId: face.id });
+            created.polys.push(opId);
+            break;
+          }
+          const pieces = sectionPieces(plane);
+          if (!pieces.length) fail('Плоскость не пересекает тело');
+          pushPieces(opId, op.type, pieces, stepIdx, created, op.color);
           break;
         }
         case 'level': {
@@ -678,13 +695,15 @@ export function evaluateScene(scene, opts = {}) {
           if (z <= zmin + eps * 10) fail('Уровень на самом дне — жидкости нет');
           if (z > zmax + eps * 10) fail(`Уровень выше сосуда: высота тела ${String(Math.round((zmax - zmin) * 100) / 100).replace('.', ',')}`);
           const plane = { n: { x: 0, y: 0, z: 1 }, d: Math.min(z, zmax) };
-          const surface = sectionPolygon(body, plane);
-          if (surface.length < 3) fail('На этой высоте у тела нет горизонтального сечения');
+          // Полный сосуд: поверхность — чуть ниже верха (у ступенчатого тела
+          // сечение по самой грани пусто).
+          let surface = sectionPieces(plane);
+          if (!surface.length && plane.d >= zmax - eps * 10) surface = sectionPieces({ ...plane, d: zmax - eps * 100 });
+          if (!surface.length) fail('На этой высоте у тела нет горизонтального сечения');
           const color = op.color || 'cyan';
-          polys.push({ id: opId, kind: 'water', pts: surface, step: stepIdx, color, faceId: null });
-          created.polys.push(opId);
+          pushPieces(opId, 'water', surface, stepIdx, created, color);
           body.faces.forEach((f, i) => {
-            const pts = clipPolygonBelow(f.verts.map((v) => body.vertices[v]), plane, eps);
+            const pts = clipPolygonBelow(f.pts3 || f.verts.map((v) => body.vertices[v]), plane, eps);
             if (pts.length < 3) return;
             const id = `${opId}:w${i}`;
             polys.push({ id, base: opId, kind: 'waterSide', pts, n: f.n, step: stepIdx, color });
@@ -811,8 +830,10 @@ export function evaluateScene(scene, opts = {}) {
   for (const name of Array.isArray(scene?.hidden) ? scene.hidden : []) {
     if (points[name]) points[name].concealed = true;
   }
-  // Тело «без букв» (срезанные вершины, bare) — вершины не подписываются.
+  // Тело «без букв» (срезанные вершины, bare) — вершины не подписываются;
+  // у ступенчатого — вершины без имени (V1, V2…).
   if (body.spec?.bare || body.spec?.cut) for (const name of body.order) points[name].concealed = true;
+  for (const name of body.concealed || []) if (points[name]) points[name].concealed = true;
 
   // Цвета точек — оформление, не шаг: scene.colors = { M: 'red' }.
   const colors = scene?.colors && typeof scene.colors === 'object' ? scene.colors : {};
@@ -994,6 +1015,14 @@ export function renamePoint(scene, from, to) {
   if (from === to) return { scene };
   if (model.points[to]) return { error: `Имя ${prettyName(to)} уже занято` };
   const next = renamePointInScene(scene, from, to);
+  if (pt.kind === 'vertex' && model.body.coordOf) {
+    // Ступенчатое тело: имя вершины — по её координате (labels).
+    const labels = { ...(normalizeBodySpec(scene.body).labels || {}) };
+    for (const [k, v] of Object.entries(labels)) if (v === from) delete labels[k];
+    labels[model.body.coordOf[from]] = to;
+    next.body = { ...normalizeBodySpec(scene.body), labels };
+    return { scene: next };
+  }
   if (pt.kind === 'vertex') {
     const names = model.body.order.map((n) => (n === from ? to : n));
     next.body = { ...normalizeBodySpec(scene.body), names };

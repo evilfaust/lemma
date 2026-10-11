@@ -216,6 +216,11 @@ export function toolClick(tool, pending, hit, model) {
     if (tool === 'point' && hit.point) return { pending, error: `Здесь уже есть точка ${prettyName(hit.point)}` };
     return { pending };
   }
+  // Часть грани ступенчатого тела, у которой не все углы — вершины с
+  // именами: плоскость по ней не назвать.
+  if (target.kind === 'face' && !target.verts && ['point', 'trace', 'perp', 'angle', 'perpPlane', 'plane'].includes(tool)) {
+    return { pending, error: 'У этой части грани нет вершин с именами — задайте плоскость тремя точками (или дайте вершинам имена)' };
+  }
   const name = () => nextFreeName(model);
   const pts = [...pending, target].filter((p) => p.kind === 'point').map((p) => p.name);
   const same = (a, b) => a.kind === b.kind && (a.kind === 'point' ? a.name === b.name : a.id === b.id);
@@ -344,7 +349,10 @@ export function toolClick(tool, pending, hit, model) {
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'section', pts: pts.slice(0, 3) } };
     case 'plane':
-      if (target.kind === 'face') return { pending: [], op: { id: newOpId(), type: 'plane', pts: target.verts } };
+      if (target.kind === 'face') {
+        if (!target.verts) return { pending: [], error: 'У этой части грани нет вершин с именами — выберите три точки' };
+        return { pending: [], op: { id: newOpId(), type: 'plane', pts: target.verts } };
+      }
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
     case 'level': {
@@ -432,7 +440,7 @@ export function stepOfTarget(model, target) {
  * закраска — имена их точек, перпендикулярная плоскость — id шага.
  */
 function planeOfTarget(model, target) {
-  if (target.kind === 'face') return target.verts;
+  if (target.kind === 'face') return target.verts || null;
   const op = model.opsById[target.id];
   if (op?.type === 'perpPlane') return op.id;
   return op?.pts || null;
