@@ -29,6 +29,7 @@ export const BODY_KINDS = {
   octa: { label: 'Октаэдр' },
   hull: { label: 'Многогранник по точкам' },
   blocks: { label: 'Ступенчатый многогранник' },
+  space: { label: 'Без тела — точки и плоскости' },
 };
 
 /** Тела, к которым приклеивается пирамида сверху (roof). */
@@ -205,7 +206,7 @@ export function normalizeBodySpec(spec = DEFAULT_BODY) {
   const roof = Number(spec?.roof);
   if (ROOF_KINDS.includes(out.kind) && Number.isFinite(roof) && roof > 0) out.roof = roof;
   const cut = Number(spec?.cut);
-  if (out.kind !== 'hull' && out.kind !== 'blocks' && Number.isFinite(cut) && cut > 0) out.cut = cut;
+  if (!['hull', 'blocks', 'space'].includes(out.kind) && Number.isFinite(cut) && cut > 0) out.cut = cut;
   if (spec?.bare) out.bare = true;
   // Буквы основания по часовой стрелке (если смотреть сверху): A — спереди
   // слева, B — сзади слева… Так в части учебников (Атанасян). Без флага — против.
@@ -259,6 +260,8 @@ function normalizeBodyShape(spec) {
       return { kind, a };
     case 'blocks':
       return normalizeBlocksSpec(spec) || { kind: 'cube', a: 4 };
+    case 'space':
+      return { kind };
     case 'hull': {
       const pts = Array.isArray(spec.pts) ? spec.pts.map((p) => (Array.isArray(p) ? p.slice(0, 3).map(Number) : [p?.x, p?.y, p?.z].map(Number))) : [];
       if (pts.length < 4 || pts.length > 60 || !pts.every((p) => p.length === 3 && p.every(Number.isFinite))) {
@@ -317,6 +320,7 @@ function bodyTitleBase(s) {
     case 'octa': return `Октаэдр ${names}`;
     case 'hull': return `Многогранник ${names}`;
     case 'blocks': return 'Ступенчатый многогранник';
+    case 'space': return 'Без тела';
     case 'tetra': {
       if (!s.h) return `Тетраэдр ${names}`;
       const apex = body.order[body.order.length - 1];
@@ -393,6 +397,13 @@ function tiltShift(spec, h) {
 export function buildBody(specIn) {
   const spec = normalizeBodySpec(specIn);
   if (spec.kind === 'blocks') return buildBlocksBody(spec);
+  // Чертёж без тела (параллельность прямых и плоскостей, гл. 1 Атанасяна):
+  // только точки, отрезки и плоскости-листы.
+  if (spec.kind === 'space') {
+    return {
+      spec, vertices: {}, order: [], edges: [], faces: [], center: v3(0, 0, 0), size: 6,
+    };
+  }
   let built;
   if (spec.kind === 'hull') {
     built = hullBody(spec, spec.pts.map(([x, y, z]) => v3(x, y, z)), spec.labels || defaultHullNames(spec.pts.length));

@@ -442,7 +442,7 @@ export function stepOfTarget(model, target) {
 function planeOfTarget(model, target) {
   if (target.kind === 'face') return target.verts || null;
   const op = model.opsById[target.id];
-  if (op?.type === 'perpPlane') return op.id;
+  if (op?.type === 'perpPlane' || op?.type === 'sheet') return op.id;
   return op?.pts || null;
 }
 

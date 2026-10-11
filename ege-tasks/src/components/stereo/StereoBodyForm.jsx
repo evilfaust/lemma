@@ -36,7 +36,7 @@ export default function StereoBodyForm({ form, initialValues }) {
     }
   }, [spec]);
 
-  const hasShape = kind !== 'cube' && kind !== 'octa';
+  const hasShape = kind !== 'cube' && kind !== 'octa' && kind !== 'space';
   const hasApex = kind === 'pyramid' || kind === 'frustum' || (kind === 'tetra' && values?.shape && values.shape !== 'regular') || (kind === 'tetra' && values?.apexPos && values.apexPos !== 'center');
   const canTilt = kind === 'prism' || kind === 'box';
   const shape = values?.shape || '';
@@ -50,6 +50,25 @@ export default function StereoBodyForm({ form, initialValues }) {
   const onKindChange = (k) => {
     form.setFieldsValue({ shape: KIND_DEFAULT_SHAPE[k], apexPos: 'center', oblique: false });
   };
+
+  if (kind === 'space') {
+    return (
+      <div className="stereo-body-form">
+        <div className="stereo-body-form-fields">
+          <Form.Item name="kind" label="Тело">
+            <Select
+              onChange={onKindChange}
+              options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull' && value !== 'blocks').map(([value, v]) => ({ value, label: v.label }))}
+            />
+          </Form.Item>
+          <div style={{ color: '#6b7280', fontSize: 13 }}>
+            Чертёж без тела: точки по координатам («A = (0; 0; 0)», z — вверх), отрезки и
+            плоскости-листы («лист α через M») — линии под листом станут пунктиром. Все команды — в «?».
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="stereo-body-form">

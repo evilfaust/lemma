@@ -9,7 +9,8 @@ import { parseStereoBlock } from '../utils/stereo/dsl';
 
 // Сцена, на которой справка «живёт»: есть P на AA1, прямая через P ∥ AB,
 // перпендикуляр к основанию, восставленный из A, и перпендикуляр к AC из
-// её середины M в плоскости основания, сечение через M перпендикулярно BD1.
+// её середины M в плоскости основания, сечение через M перпендикулярно BD1,
+// плоскость-лист α.
 const scene = {
   body: { kind: 'cube', a: 4 },
   ops: [
@@ -19,6 +20,7 @@ const scene = {
     { id: 'm', type: 'pointOnLine', name: 'M', ref: ['A', 'C'], t: 0.5 },
     { id: 'perpIn', type: 'perp', from: 'M', ref: ['A', 'C'], within: ['A', 'B', 'C'] },
     { id: 'pp', type: 'perpPlane', from: 'M', ref: ['B', 'D1'], style: 'section' },
+    { id: 'sh', type: 'sheet', label: 'α', z: 0 },
   ],
 };
 
@@ -35,7 +37,7 @@ describe('справка стереоредактора — сторож', () =>
 
   it('каждая строка блока ```stereo из справки читается без ошибок', () => {
     for (const { line } of DSL_HELP) {
-      const isBody = /^(куб|параллелепипед|призма|пирамида|тетраэдр|октаэдр|многогранник|ступенчат|наклонн|усеч[её]нн|правильн|произвольн)/.test(line);
+      const isBody = /^(куб|параллелепипед|призма|пирамида|тетраэдр|октаэдр|многогранник|ступенчат|пространство|наклонн|усеч[её]нн|правильн|произвольн)/.test(line);
       const blocksLine = /^вершины \S+\(/.test(line);
       const r = parseStereoBlock(isBody ? line : blocksLine ? `ступенчатый многогранник (0 0 0 4 3 1) (0 0 1 2 3 2)\n${line}` : `куб 4\n${line}`);
       expect({ line, errors: r.errors }).toEqual({ line, errors: [] });

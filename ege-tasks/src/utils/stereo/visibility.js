@@ -8,12 +8,16 @@
 // отрезка с выпуклой «тенью» тела, вытянутой от зрителя. Поэтому хватает
 // найти первую и последнюю скрытую пробу и уточнить границы бисекцией.
 
-import { dot, lerp } from './vec3';
+import {
+  dot, lerp, add, mul, sub, cross,
+} from './vec3';
 import { isPointHiddenBlocks } from './blocks';
 
 /** Точка скрыта телом при взгляде вдоль toViewer. */
 export function isPointHidden(body, P, toViewer) {
+  if (body.sheets?.length && hiddenBySheet(body.sheets, P, toViewer, 1e-6 * body.size)) return true;
   if (body.cells) return isPointHiddenBlocks(body, P, toViewer);
+  if (!body.faces.length) return false; // чертёж без тела
   const epsLen = 1e-6 * body.size;
   let lo = 0;
   let hi = Infinity;
@@ -74,7 +78,7 @@ export function hiddenInterval(body, A, B, toViewer) {
  * Куски отрезка: [{ t0, t1, hidden }] по порядку от A к B.
  */
 export function splitByVisibility(body, A, B, toViewer) {
-  if (body.cells) return splitMany(body, A, B, toViewer);
+  if (body.cells || body.sheets?.length) return splitMany(body, A, B, toViewer);
   const iv = hiddenInterval(body, A, B, toViewer);
   if (!iv) return [{ t0: 0, t1: 1, hidden: false }];
   const out = [];
@@ -117,6 +121,33 @@ function splitMany(body, A, B, toViewer) {
     else out.push({ t0, t1, hidden: h });
   }
   return out.length ? out : [{ t0: 0, t1: 1, hidden: false }];
+}
+
+/**
+ * Непрозрачные плоскости-листы: точка скрыта, если луч к зрителю протыкает
+ * лист (выпуклый многоугольник) — точки самого листа им не скрыты.
+ */
+function hiddenBySheet(sheets, P, v, eps) {
+  for (const sh of sheets) {
+    const den = dot(sh.n, v);
+    if (Math.abs(den) < 1e-9) continue;
+    const t = (sh.d - dot(sh.n, P)) / den;
+    if (t <= eps) continue;
+    const X = add(P, mul(v, t));
+    let sign = 0;
+    let inside = true;
+    for (let i = 0; i < sh.pts.length; i += 1) {
+      const a = sh.pts[i];
+      const b = sh.pts[(i + 1) % sh.pts.length];
+      const c = dot(cross(sub(b, a), sub(X, a)), sh.n);
+      if (Math.abs(c) <= eps) continue;
+      const sg = c > 0 ? 1 : -1;
+      if (sign && sg !== sign) { inside = false; break; }
+      sign = sg;
+    }
+    if (inside) return true;
+  }
+  return false;
 }
 
 /** Передняя ли грань (смотрит на зрителя). */

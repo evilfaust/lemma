@@ -111,6 +111,7 @@ export function refKind(tok) {
 export function planeRefText(ref, opsById = {}) {
   if (Array.isArray(ref)) return ref.join('');
   const op = opsById[ref];
+  if (op?.type === 'sheet') return op.label ? `(${op.label})` : null;
   if (op?.type !== 'perpPlane') return null;
   if (op.from) {
     const base = lineRefText(op.ref, opsById);
@@ -159,6 +160,12 @@ const samePlaneRef = (a, b) => (Array.isArray(a) && Array.isArray(b) ? sameNameS
  */
 export function parsePlaneRef(tok, model, what = 'Плоскость — три точки: «(ABC)»') {
   const t = String(tok || '');
+  if (GREEK_PLANE_RE.test(t)) {
+    const letter = t.replace(/[()]/g, '');
+    const op = Object.values(model?.opsById || {}).find((o) => o.type === 'sheet' && o.label === letter && model.planes?.[o.id]);
+    if (!op) throw new Error(`Нет плоскости ${letter} — сначала «лист ${letter} …»`);
+    return op.id;
+  }
   const m = PERP_TOK.exec(t);
   if (m && refKind(t) === 'plane') {
     const head = splitNames(m[1]);
@@ -226,7 +233,10 @@ export function parseLineRef(tok, model, what = 'Прямая — две точ�
 }
 
 /** Плоскость в команде: «(ABC)», три и больше точек или «(M⊥BD1)» (но не «(P||AB)»). */
-const isPlaneTok = (t) => refKind(t) === 'plane' || /^\((?:[A-Z][0-9]*)+\)$/.test(String(t));
+const isPlaneTok = (t) => refKind(t) === 'plane' || /^\((?:[A-Z][0-9]*)+\)$/.test(String(t)) || GREEK_PLANE_RE.test(String(t));
+
+/** «α», «(α)» — плоскость-лист по подписи. */
+const GREEK_PLANE_RE = /^\(?[α-ωΑ-Ω]\)?$/;
 
 /** Имя точки, набранное как угодно («м», «m1», «К») → «M», «M1», «K». */
 export function normalizePointName(text) {
@@ -362,6 +372,40 @@ function parseLengthMark(text) {
   return op;
 }
 
+/**
+ * «лист α ABC», «лист β через M 10 6», «лист z=0» — плоскость-лист. Подпись
+ * (α, «альфа») разбирается по исходному тексту.
+ */
+function parseSheet(text) {
+  const mm = /^\s*(?:лист|sheet)\s+(.+)$/i.exec(String(text || ''));
+  if (!mm) return null;
+  let words = mm[1].trim().split(/\s+/);
+  const op = { id: newOpId(), type: 'sheet' };
+  const first = words[0];
+  if (first && !splitNames(normalizeCommand(first)) && !/^(через|z=)/i.test(first) && !/^-?\d/.test(first)) {
+    op.label = angleLabelText(first).slice(0, 4);
+    words = words.slice(1);
+  }
+  const nums = [];
+  while (words.length && /^\d+(?:[.,]\d+)?$/.test(words[words.length - 1])) nums.unshift(Number(words.pop().replace(',', '.')));
+  if (nums.length === 2) op.size = nums;
+  else if (nums.length) words.push(...nums.map(String));
+  const rest = words.join(' ');
+  let r = /^через\s+(\S+)$/i.exec(rest);
+  if (r) {
+    const n = splitNames(normalizeCommand(r[1]));
+    if (!n || n.length !== 1) throw new Error('Горизонтальный лист через точку: «лист α через M»');
+    op.through = n[0];
+    return op;
+  }
+  r = /^z\s*=\s*(-?\d+(?:[.,]\d+)?)$/i.exec(rest);
+  if (r) { op.z = Number(r[1].replace(',', '.')); return op; }
+  const n = splitNames(normalizeCommand(rest));
+  if (!n || n.length < 3) throw new Error('Лист: «лист α ABC» (через три точки), «лист α через M» (горизонтально) или «лист α z=0»');
+  op.pts = n;
+  return op;
+}
+
 const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч[а-яё]*(?:\\s+с)?)';
 
 /**
@@ -401,6 +445,16 @@ export function parseCommand(text, model) {
     // «подпись AB 4», «AB = 4», «стрелка AA1 h» — по исходному тексту.
     const lengthMark = parseLengthMark(text);
     if (lengthMark) return { op: lengthMark };
+
+    // «A = (0; 0; 0)», «точка A (0 0 0)» — точка по координатам (z — вверх).
+    m = /^(?:точка\s+)?([A-Z][0-9]*)\s*=?\s*\(\s*(-?\d+(?:[.,]\d+)?)\s*[;\s]\s*(-?\d+(?:[.,]\d+)?)\s*[;\s]\s*(-?\d+(?:[.,]\d+)?)\s*\)$/.exec(src);
+    if (m) {
+      return { op: { id: newOpId(), type: 'freePoint', name: m[1], at: [m[2], m[3], m[4]].map((x) => Number(x.replace(',', '.'))) } };
+    }
+
+    // «лист α ABC», «лист α через M», «лист α z=0» (+ «10 6» — размер).
+    const sheet = parseSheet(text);
+    if (sheet) return { op: sheet };
 
     m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
@@ -585,7 +639,7 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'trace', name: auto(null), ref: l, plane: pl } };
     }
 
-    const OPERAND = '(\\([A-Z0-9|⊥в()]+\\)|[A-Z0-9]+)';
+    const OPERAND = '(\\([A-Z0-9|⊥в()]+\\)|\\([α-ωΑ-Ω]\\)|[α-ωΑ-Ω]|[A-Z0-9]+)';
     m = new RegExp(`^(?:([A-Z][0-9]*)\\s*=\\s*)?${OPERAND}\\s*${OP_RE}\\s*${OPERAND}$`).exec(src);
     if (m) {
       const rightPlane = isPlaneTok(m[3]);
@@ -643,6 +697,13 @@ const fmt = (x) => {
   return String(r).replace('.', ',');
 };
 
+/** Плоскость-лист словами: « через M», « (ABC)», « z = 0». */
+function sheetArg(op, name) {
+  if (op.through) return ` через ${name(op.through)} (горизонтальная)`;
+  if (Array.isArray(op.pts)) return ` (${op.pts.map(name).join('')})`;
+  return ` z = ${fmt(op.z)}`;
+}
+
 /** Уровень жидкости словами: «через W», «60%», «3». */
 function levelArg(op, name) {
   if (op.through) return `через ${name(op.through)}`;
@@ -694,6 +755,8 @@ export function describeOp(op, opsById = {}) {
     case 'plane': return `Плоскость (${names(op.pts)})`;
     case 'fill': return `Многоугольник ${names(op.pts)}`;
     case 'level': return `Уровень жидкости ${levelArg(op, P)}`;
+    case 'freePoint': return `${P(op.name)} = (${(op.at || []).map(fmt).join('; ')})`;
+    case 'sheet': return `Плоскость${op.label ? ` ${op.label}` : ''}${sheetArg(op, P)}`;
     default: return String(op?.type || '?');
   }
 }
@@ -751,6 +814,11 @@ export function opToCommand(op, opsById = {}) {
     case 'plane': return `плоскость ${n(op.pts)}`;
     case 'fill': return `заливка ${n(op.pts)}`;
     case 'level': return `уровень ${levelArg(op, (x) => x)}`;
+    case 'freePoint': return `${op.name} = (${(op.at || []).map(fmt).join('; ')})`;
+    case 'sheet': {
+      const where = op.through ? `через ${op.through}` : Array.isArray(op.pts) ? n(op.pts) : `z=${fmtDot(op.z)}`;
+      return `лист ${op.label ? `${op.label} ` : ''}${where}${op.size ? ` ${op.size.map(fmtDot).join(' ')}` : ''}`;
+    }
     default: return '';
   }
 }

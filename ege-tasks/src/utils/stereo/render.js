@@ -50,6 +50,7 @@ export const STEREO_COLORS = {
   section: '#2563eb',
   sectionFill: '#3b82f6',
   plane: '#f59e0b',
+  sheet: '#64748b',
   fill: '#10b981',
   point: '#111827',
   newPoint: '#dc2626',
@@ -227,17 +228,18 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   });
   const toViewer = pr.basis.toViewer;
   const P = (v) => pr.project(v);
-  const body = model.body;
+  // Тело и непрозрачные листы (плоскости α) закрывают то, что за ними.
+  const body = model.sheets?.length ? { ...model.body, sheets: model.sheets } : model.body;
 
   // Заливки: сечения, плоскости, многоугольники, жидкость. Стенки сосуда
   // ниже уровня закрашиваются только те, что смотрят на зрителя — иначе
   // передняя и задняя легли бы друг на друга двойной краской.
-  const OPACITY = { plane: 0.2, fill: 0.28, water: 0.38, waterSide: 0.2 };
+  const OPACITY = { plane: 0.2, fill: 0.28, water: 0.38, waterSide: 0.2, sheet: 0.13 };
   const polys = model.polys
     .filter((pg) => pg.kind !== 'waterSide' || dot(pg.n, toViewer) > 1e-9)
     .map((pg) => {
       const pts = pg.pts.map(P);
-      const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : STEREO_COLORS.sectionFill);
+      const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : pg.kind === 'sheet' ? STEREO_COLORS.sheet : STEREO_COLORS.sectionFill);
       return {
         id: pg.id,
         kind: pg.kind,
@@ -281,12 +283,12 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     hitLines.push({ id: o.id, kind: o.kind, ref: o.ref, x1: a.x, y1: a.y, x2: b.x, y2: b.y, a3: o.a, b3: o.b, p: o.p, u: o.u });
   }
   for (const pg of model.polys) {
-    if (pg.kind !== 'section' && pg.kind !== 'water') continue;
-    const color = pointColorHex(pg.color) || pg.color || STEREO_COLORS.section;
+    if (pg.kind !== 'section' && pg.kind !== 'water' && pg.kind !== 'sheet') continue;
+    const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'sheet' ? STEREO_COLORS.edge : STEREO_COLORS.section);
     pg.pts.forEach((A, i) => {
       const B = pg.pts[(i + 1) % pg.pts.length];
       if (len(sub(B, A)) < 1e-9 || pg.skip?.includes(i)) return;
-      pushSplit(`${pg.id}:e${i}`, 'section', A, B, color, WIDTH.section, pg.step);
+      pushSplit(`${pg.id}:e${i}`, pg.kind === 'sheet' ? 'sheet' : 'section', A, B, color, pg.kind === 'sheet' ? WIDTH.ext : WIDTH.section, pg.step);
     });
   }
 
@@ -422,6 +424,17 @@ export function renderStereo(model, camera, viewport, opts = {}) {
       plan.gap = 3;
     }
     lengthPlans.push(plan);
+  }
+
+  // Подпись листа (α) — у ближнего правого угла, внутри.
+  for (const pg of model.polys) {
+    if (pg.kind !== 'sheet' || !pg.label) continue;
+    const c = P(pg.pts.reduce((acc, q) => addVec(acc, mul(q, 1 / pg.pts.length)), { x: 0, y: 0, z: 0 }));
+    const corner = P(pg.pts[1]);
+    angleTexts.push({
+      id: `${pg.id}:t`, x: corner.x + (c.x - corner.x) * 0.12, y: corner.y + (c.y - corner.y) * 0.12,
+      text: pg.label, step: pg.step, color: pointColorHex(pg.color) || null,
+    });
   }
 
   // Точки.

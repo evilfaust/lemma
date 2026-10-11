@@ -46,6 +46,7 @@ const BODY_WORDS = {
   октаэдр: 'octa', octa: 'octa', octahedron: 'octa',
   многогранник: 'hull', hull: 'hull', polyhedron: 'hull',
   ступенчатый: 'blocks', ступенчатое: 'blocks', ступенчатая: 'blocks', блоки: 'blocks', blocks: 'blocks',
+  пространство: 'space', space: 'space',
 };
 
 // Слова-основания: «призма 4 4 5 трапеция», «пирамида 3 4 5 S прямоугольный».
@@ -306,6 +307,7 @@ function bodyShapeLine(s) {
     case 'pyramid': return join(`пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s));
     case 'frustum': return join(`усечённая пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${fmt(s.k)}`, baseWord(s), apexWords(s));
     case 'octa': return `октаэдр ${fmt(s.a)}`;
+    case 'space': return 'пространство';
     case 'blocks': return join(
       `ступенчатый многогранник ${s.boxes.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}`,
       s.minus ? `минус ${s.minus.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}` : '',
