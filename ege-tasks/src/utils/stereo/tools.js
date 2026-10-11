@@ -28,6 +28,7 @@ export const TOOLS = [
   { key: 'perp', label: 'Перпендикуляр', glyph: '⊥', hot: 'H' },
   { key: 'perpPlane', label: 'Плоскость ⊥', glyph: '◧⊥', hot: 'N' },
   { key: 'angle', label: 'Угол', glyph: '∠', hot: 'E' },
+  { key: 'length', label: 'Длина', glyph: '↦', hot: 'Y' },
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
@@ -112,6 +113,10 @@ export function toolHint(tool, pending = []) {
       return pending.length
         ? 'Теперь вторую прямую (отметим угол между ними) или плоскость — грань / сечение (построим проекцию; Shift — задняя грань)'
         : 'Три точки — ∠ABC (вершина вторая); две прямые — угол между ними; прямая и грань — угол с плоскостью';
+    case 'length':
+      return names.length
+        ? `Подпись ${names[0]}… — выберите вторую точку`
+        : 'Кликните по ребру или отрезку (между двумя точками) или выберите две точки — у отрезка встанет подпись из поля ниже';
     case 'perpPlane': {
       const line = pending.find((p) => p.kind === 'line');
       if (line) return 'Плоскость пройдёт через эту прямую — выберите плоскость (грань или сечение), которой она перпендикулярна';
@@ -150,6 +155,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'point': return ['line', 'face'];
     case 'segment': return ['point'];
     case 'mid': return pending.length ? ['point'] : ['point', 'line'];
+    case 'length': return pending.length ? ['point'] : ['point', 'line'];
     case 'line': return pending.length ? ['point'] : ['point', 'line'];
     case 'intersect': return ['line'];
     case 'trace': return pending.length ? ['face'] : ['line'];
@@ -242,6 +248,17 @@ export function toolClick(tool, pending, hit, model) {
       }
       if (!pending.length) return { pending: [target] };
       return mid([pending[0].name, target.name]);
+    }
+    case 'length': {
+      // Подпись длины: кусок прямой под курсором или две точки. Текст и вид
+      // (у отрезка / стрелкой) ставит редактор — из поля под панелью.
+      const mark = (ref) => ({ pending: [], op: { id: newOpId(), type: 'lengthMark', ref, text: '' } });
+      if (target.kind === 'line') {
+        const seg = segmentAt(model, target, target.pos);
+        return seg ? mark(seg) : { pending: [], error: 'Кликните между двумя точками на прямой — или выберите две точки' };
+      }
+      if (!pending.length) return { pending: [target] };
+      return mark([pending[0].name, target.name]);
     }
     case 'segment':
     case 'line': {

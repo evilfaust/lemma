@@ -26,7 +26,7 @@ import {
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
   POINT_COLORS, setPointColors, setLineColors, setSegmentColors, setPolyColors, applyColorCommand, renamePoint,
   setPointsHidden,
-  opToCommand, editStepCommand, measureKey, measurePoints,
+  opToCommand, editStepCommand, measureKey, measurePoints, lengthLabelText,
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
 import StereoMeasures from './StereoMeasures';
@@ -145,6 +145,9 @@ export default function StereoEditor({
   // Оформление отметки угла, поставленной инструментом «Угол»: подпись и дуги.
   const [angleLabel, setAngleLabel] = useState('');
   const [angleArcs, setAngleArcs] = useState(1);
+  // Подпись длины, поставленная инструментом «Длина»: текст и вид.
+  const [lengthText, setLengthText] = useState('');
+  const [lengthDim, setLengthDim] = useState(false);
   const [renameTarget, setRenameTarget] = useState(null);
   // Измерения — только учителю: не шаги, в сцену и эфир не попадают.
   const [measures, setMeasures] = useState([]);
@@ -333,6 +336,10 @@ export default function StereoEditor({
       if (angleLabel.trim()) op.label = angleLabel.trim().slice(0, 12);
       if (angleArcs > 1) op.arcs = angleArcs;
       commit(op);
+    } else if (r.op?.type === 'lengthMark') {
+      const text = lengthLabelText(lengthText);
+      if (!text) showNotice('error', 'Впишите подпись в поле под инструментами: 4, √17, h, a√3');
+      else commit(lengthDim ? { ...r.op, text, dim: true } : { ...r.op, text });
     } else if (r.op) commit(r.op);
     if (r.hide) {
       const sc = sceneRef.current;
@@ -364,7 +371,7 @@ export default function StereoEditor({
         setScene(setPointColors(sc, [r.paint.name], cur === paintColor ? '' : paintColor));
       }
     }
-  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure, angleLabel, angleArcs]);
+  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure, angleLabel, angleArcs, lengthText, lengthDim]);
 
   // --- пошаговый показ ----------------------------------------------------------
   const stepsTotal = scene.ops.length;
@@ -780,6 +787,28 @@ export default function StereoEditor({
                 value={angleArcs}
                 onChange={setAngleArcs}
                 options={[1, 2, 3].map((n) => ({ value: n, label: '◠'.repeat(n) }))}
+              />
+            </div>
+          )}
+
+          {tool === 'length' && (
+            <div className="stereo-angle-style" aria-label="Подпись длины">
+              <span>Подпись:</span>
+              <Input
+                size="small"
+                value={lengthText}
+                placeholder="4, √17, h, a√3"
+                maxLength={16}
+                onChange={(e) => setLengthText(e.target.value)}
+                style={{ width: 120 }}
+                aria-label="Подпись длины"
+              />
+              <Button size="small" onClick={() => setLengthText((t) => `${t}√`)} title="Корень">√</Button>
+              <Segmented
+                size="small"
+                value={lengthDim ? 'dim' : 'text'}
+                onChange={(v) => setLengthDim(v === 'dim')}
+                options={[{ value: 'text', label: 'у отрезка' }, { value: 'dim', label: '↔ стрелкой' }]}
               />
             </div>
           )}

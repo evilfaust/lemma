@@ -70,6 +70,61 @@ export const DASH = '6 4';
 // высоту на бумаге задаёт масштаб кадра (stereoPrintFrame).
 export const LABEL_FONT = "KaTeX_Math, 'Times New Roman', Times, serif";
 export const LABEL_SIZE = 17;
+// Подписи длин: цифры прямым шрифтом формул, буквы — курсивом (как «4», «h»,
+// «a√3» на рисунках учебника).
+export const MAIN_FONT = "KaTeX_Main, 'Times New Roman', Times, serif";
+export const LENGTH_SIZE = 15;
+
+/**
+ * Подпись длины → куски для <tspan>: буквы курсивом, остальное прямо;
+ * подкоренное выражение после «√» — с чертой сверху.
+ * @returns {{ text: string, italic: boolean, over: boolean }[]}
+ */
+export function lengthTextRuns(text) {
+  const out = [];
+  const push = (t, over) => {
+    for (const part of String(t).split(/([A-Za-zα-ωΑ-Ω]+)/)) {
+      if (!part) continue;
+      const italic = /^[A-Za-zα-ωΑ-Ω]+$/.test(part) && part !== 'π';
+      const last = out[out.length - 1];
+      if (last && last.italic === italic && last.over === over) last.text += part;
+      else out.push({ text: part, italic, over });
+    }
+  };
+  const s = String(text || '');
+  let i = 0;
+  while (i < s.length) {
+    const k = s.indexOf('√', i);
+    if (k < 0) { push(s.slice(i), false); break; }
+    push(s.slice(i, k + 1), false);
+    let j = k + 1;
+    if (s[j] === '(' || s[j] === '{') {
+      const close = s.indexOf(s[j] === '(' ? ')' : '}', j);
+      const end = close < 0 ? s.length : close;
+      push(s.slice(j + 1, end), true);
+      j = close < 0 ? s.length : close + 1;
+    } else {
+      const m = /^[0-9A-Za-zα-ωΑ-Ω.,]+/.exec(s.slice(j));
+      if (m) { push(m[0], true); j += m[0].length; }
+    }
+    i = j;
+  }
+  return out;
+}
+
+/** Ширина подписи длины в единицах кадра (оценка по кеглю). */
+export function lengthTextWidth(text) {
+  let w = 0;
+  for (const ch of String(text || '')) {
+    if (/[0-9]/.test(ch)) w += 0.5;
+    else if (ch === '√') w += 0.85;
+    else if (/[A-Za-zα-ωΑ-Ω]/.test(ch)) w += 0.55;
+    else if (ch === ' ') w += 0.3;
+    else if (/[.,]/.test(ch)) w += 0.3;
+    else w += 0.6;
+  }
+  return w * LENGTH_SIZE + 2;
+}
 
 /**
  * Доли [0; 1] линии → куски с цветом отрезка (null — цвет самой линии).
@@ -293,6 +348,77 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     }
   }
 
+  // Подписи длин. Размерная стрелка — до подписей точек (буквы её обходят),
+  // текст — после (обходит и буквы). Сторона — снаружи тела (от центра
+  // чертежа), если там не тесно.
+  const c2 = P(model.center);
+  const nearStroke = (x, y, lim) => {
+    let cost = 0;
+    for (const s of strokes) {
+      const dd = segDist(x, y, s.x1, s.y1, s.x2, s.y2);
+      if (dd < lim) cost += (s.hidden ? 2 : 4) * (1 + (lim - dd) / lim);
+    }
+    return cost;
+  };
+  const lengthPlans = [];
+  for (const lm of model.lengthMarks || []) {
+    const A = P(lm.a);
+    const B = P(lm.b);
+    const color = pointColorHex(lm.color) || lm.color || null;
+    let dx = B.x - A.x;
+    let dy = B.y - A.y;
+    const L = Math.hypot(dx, dy);
+    if (L < 1e-6) { dx = 1; dy = 0; } else { dx /= L; dy /= L; }
+    const nx = -dy;
+    const ny = dx;
+    const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+    const outward = (M.x - c2.x) * nx + (M.y - c2.y) * ny;
+    const plan = { lm, A, B, L, d: { x: dx, y: dy }, n: { x: nx, y: ny }, M, outward, color, side: null };
+    if (lm.dim && L > 6) {
+      const OFF = 16;
+      let best = null;
+      for (const s of [1, -1]) {
+        let cost = -2 * Math.sign(outward) * s * Math.min(1, Math.abs(outward) / 20);
+        for (let k = 0; k <= 6; k++) {
+          const t = k / 6;
+          cost += nearStroke(A.x + (B.x - A.x) * t + nx * s * OFF, A.y + (B.y - A.y) * t + ny * s * OFF, 5);
+        }
+        if (!best || cost < best.cost) best = { cost, s };
+      }
+      const s = best.s;
+      plan.side = s;
+      const ox = nx * s;
+      const oy = ny * s;
+      const lineColor = color || STEREO_COLORS.construct;
+      const push = (x1, y1, x2, y2, w = 1.05) => strokes.push({
+        id: `${lm.id}#dim${strokes.length}`, objId: lm.id, kind: 'dim',
+        x1, y1, x2, y2, hidden: false, color: lineColor, width: w, step: lm.step,
+      });
+      const a1 = { x: A.x + ox * OFF, y: A.y + oy * OFF };
+      const b1 = { x: B.x + ox * OFF, y: B.y + oy * OFF };
+      // выносные линии — от отрезка с зазором и чуть за размерную
+      push(A.x + ox * 3, A.y + oy * 3, a1.x + ox * 4, a1.y + oy * 4, 0.8);
+      push(B.x + ox * 3, B.y + oy * 3, b1.x + ox * 4, b1.y + oy * 4, 0.8);
+      push(a1.x, a1.y, b1.x, b1.y);
+      // стрелки на концах: острие на выносной линии
+      const head = Math.min(7, L / 3);
+      const wing = (tip, dirx, diry) => {
+        for (const sg of [1, -1]) {
+          const c = Math.cos(0.42);
+          const sn = Math.sin(0.42) * sg;
+          const wx = dirx * c - diry * sn;
+          const wy = dirx * sn + diry * c;
+          push(tip.x, tip.y, tip.x + wx * head, tip.y + wy * head);
+        }
+      };
+      wing(a1, dx, dy);
+      wing(b1, -dx, -dy);
+      plan.M = { x: (a1.x + b1.x) / 2, y: (a1.y + b1.y) / 2 };
+      plan.gap = 3;
+    }
+    lengthPlans.push(plan);
+  }
+
   // Точки.
   const dots = [];
   for (const name of model.pointOrder) {
@@ -306,8 +432,46 @@ export function renderStereo(model, camera, viewport, opts = {}) {
       color: pointColorHex(pt.color), ghost: !!pt.concealed,
     });
   }
-  const c2 = P(model.center);
   const labels = placeLabels(dots, strokes, c2);
+
+  const lengthTexts = [];
+  const taken = [
+    ...labels.map((l) => { const b = labelBox(l.name); return { x: l.x, y: l.y, w: b.w, h: b.h }; }),
+    ...angleTexts.map((t) => ({ x: t.x, y: t.y, w: 9 * String(t.text).length, h: 16 })),
+  ];
+  for (const pl of lengthPlans) {
+    const w = lengthTextWidth(pl.lm.text);
+    const h = 15;
+    const ext = Math.abs(pl.n.x) * (w / 2) + Math.abs(pl.n.y) * (h / 2);
+    const sides = pl.side ? [pl.side] : [1, -1];
+    const shiftMax = Math.min(0.3 * pl.L, 40);
+    let best = null;
+    for (const s of sides) {
+      for (const sh of [0, 0.5, -0.5, 1, -1]) {
+        const along = sh * shiftMax;
+        const gap = pl.gap ?? 5;
+        const cx = pl.M.x + pl.d.x * along + pl.n.x * s * (gap + ext);
+        const cy = pl.M.y + pl.d.y * along + pl.n.y * s * (gap + ext);
+        let score = Math.abs(sh) * 2.5;
+        if (!pl.side) score -= 3 * Math.sign(pl.outward) * s * Math.min(1, Math.abs(pl.outward) / 20);
+        for (const p of taken) {
+          const ox = Math.max(0, Math.min(cx + w / 2, p.x + p.w / 2) - Math.max(cx - w / 2, p.x - p.w / 2));
+          const oy = Math.max(0, Math.min(cy + h / 2, p.y + p.h / 2) - Math.max(cy - h / 2, p.y - p.h / 2));
+          if (ox > 0 && oy > 0) score += 20 + (ox * oy) / 10;
+        }
+        score += nearStroke(cx, cy, Math.min(w, h) / 2 + 1.5);
+        for (const d of dots) {
+          if (Math.abs(d.x - cx) < w / 2 + 3 && Math.abs(d.y - cy) < h / 2 + 3) score += 12;
+        }
+        if (!best || score < best.score) best = { score, cx, cy };
+      }
+    }
+    taken.push({ x: best.cx, y: best.cy, w, h });
+    lengthTexts.push({
+      id: `${pl.lm.id}:len`, x: best.cx, y: best.cy, w, text: pl.lm.text,
+      runs: lengthTextRuns(pl.lm.text), step: pl.lm.step, color: pl.color,
+    });
+  }
 
   // Грани — для выбора кликом (передние первыми).
   const faces = body.faces.map((f) => ({
@@ -319,7 +483,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
 
   return {
     width, height, scale: pr.scale, project: pr.project, unproject: pr.unproject,
-    polys, strokes, dots, labels, angleTexts,
+    polys, strokes, dots, labels, angleTexts, lengthTexts,
     hits: { lines: hitLines, faces, points: dots },
     lastStep: opts.lastStep ?? null,
   };
@@ -407,6 +571,10 @@ export function contentBox(frame, pad = 8) {
     add(t.x - w / 2 - 2, t.y - 11);
     add(t.x + w / 2 + 2, t.y + 10);
   }
+  for (const t of frame.lengthTexts || []) {
+    add(t.x - t.w / 2 - 2, t.y - 11);
+    add(t.x + t.w / 2 + 2, t.y + 9);
+  }
   if (!Number.isFinite(x0)) return null;
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
@@ -462,6 +630,11 @@ export function stereoSvgString(frame, opts = {}) {
     parts.push(
       `<text x="${t.x.toFixed(2)}" y="${(t.y + 5).toFixed(2)}" text-anchor="middle" font-family="${LABEL_FONT}" font-style="italic" font-size="${LABEL_SIZE - 1}" fill="${t.color && !mono ? t.color : STEREO_COLORS.label}">${esc(t.text)}</text>`,
     );
+  }
+  for (const t of frame.lengthTexts || []) {
+    const fill = t.color && !mono ? t.color : STEREO_COLORS.label;
+    const spans = t.runs.map((r) => `<tspan font-family="${r.italic ? LABEL_FONT : MAIN_FONT}" font-style="${r.italic ? 'italic' : 'normal'}"${r.over ? ' text-decoration="overline"' : ''}>${esc(r.text)}</tspan>`).join('');
+    parts.push(`<text x="${t.x.toFixed(2)}" y="${(t.y + 5).toFixed(2)}" text-anchor="middle" font-size="${LENGTH_SIZE}" fill="${fill}">${spans}</text>`);
   }
   for (const l of frame.labels) {
     if (l.ghost) continue;

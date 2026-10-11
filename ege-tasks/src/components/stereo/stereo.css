@@ -26,6 +26,17 @@
   stroke-linejoin: round;
 }
 
+/* Подпись длины: цифры прямо, буквы курсивом (шрифты — на <tspan>). */
+.stereo-length {
+  font-size: 15px;
+  fill: #111827;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: #fff;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
 /* Новое на чертеже вспыхивает. */
 @keyframes stereo-flash-stroke {
   0%, 60% { stroke: #dc2626; stroke-width: 3.2px; }

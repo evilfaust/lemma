@@ -27,7 +27,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'angleMark', 'section', 'plane', 'fill',
+  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -178,6 +178,7 @@ export function evaluateScene(scene, opts = {}) {
   const steps = [];
   const rightAngles = []; // заготовки знаков прямого угла — доводятся после журнала
   const arcs = []; // дуги углов: { id, at, u, v, step, color, count?, label?, right? }
+  const lengthMarks = []; // подписи длин: { id, a, b, text, dim, step, color }
   const lineDefs = {};
   const planeDefs = {}; // плоскости-шаги («перпендикулярная плоскость»): id → { n, d }
   const opsById = {};
@@ -578,6 +579,24 @@ export function evaluateScene(scene, opts = {}) {
           created.note = `${title}${label ? ` = ${label}` : ''} ${created.value}`;
           break;
         }
+        case 'lengthMark': {
+          // Подпись длины отрезка: «4», «√17», «h» у середины, снаружи тела;
+          // dim — размерной стрелкой рядом с отрезком (как «h» у аквариума).
+          // Отрезок дорисовывается, если его нет (высота пирамиды SO). Длина
+          // на чертеже — только учителю (created.value): видно, если подпись
+          // разошлась с телом.
+          if (!isPairRef(op.ref)) fail('Подпись ставится у отрезка: «подпись AB 4»');
+          const text = String(op.text || '').trim().slice(0, 16);
+          if (!text) fail('Нет подписи: «подпись AB 4»');
+          const [A, B] = op.ref.map(pointPos);
+          const ab = `${prettyName(op.ref[0])}${prettyName(op.ref[1])}`;
+          if (dist(A, B) <= eps * 10) fail(`Точки ${prettyName(op.ref[0])} и ${prettyName(op.ref[1])} совпадают`);
+          if (!op.dim) segmentOnce(`${opId}:s`, op.ref, A, B, stepIdx, created, op.color);
+          lengthMarks.push({ id: opId, a: A, b: B, text, dim: !!op.dim, step: stepIdx, color: op.color });
+          created.value = `≈ ${String(Math.round(dist(A, B) * 100) / 100).replace('.', ',')}`;
+          created.note = `${ab} = ${text} (на чертеже ${created.value})`;
+          break;
+        }
         case 'intersect': {
           const L1 = resolveLine(op.l1);
           const L2 = resolveLine(op.l2);
@@ -808,7 +827,7 @@ export function evaluateScene(scene, opts = {}) {
   }
 
   return {
-    body, points, pointOrder, lines, polys, marks, arcs: angleArcs, steps, opsById, planes: planeDefs,
+    body, points, pointOrder, lines, polys, marks, arcs: angleArcs, lengthMarks, steps, opsById, planes: planeDefs,
     radius, viewCenter, center: body.center,
   };
 }
@@ -837,6 +856,7 @@ export function opPointNames(op) {
     case 'perpPlane': fromRef(op.ref); fromRef(op.line); fromPlane(op.plane); if (op.from) out.push(op.from); break;
     case 'angle': fromRef(op.ref); fromPlane(op.plane); break;
     case 'angleMark': fromRef(op.l1); fromRef(op.l2); out.push(...(op.pts || [])); break;
+    case 'lengthMark': fromRef(op.ref); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;

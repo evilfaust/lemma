@@ -450,7 +450,7 @@ export function useMarkdownProcessor(markdown, columns = 1) {
           'd', 'fill', 'stroke', 'stroke-width', 'width', 'height', 'transform',
           'font-size', 'font-style', 'text-anchor',
           'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray',
-          'font-weight', 'font-family', 'opacity', 'fill-opacity', 'points', 'dy'],
+          'font-weight', 'font-family', 'opacity', 'fill-opacity', 'points', 'dy', 'text-decoration'],
         ALLOW_DATA_ATTR: true,
       })
       setHtml(cleanHtml)

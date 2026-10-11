@@ -313,6 +313,55 @@ function parseAngleMark(text, model) {
   return op;
 }
 
+/**
+ * Подпись длины словом → как на рисунке: «\\sqrt{17}», «sqrt17», «корень 17»
+ * → «√17», «\\pi» → «π», «\\frac{a}{2}» → «a/2».
+ */
+export function lengthLabelText(raw) {
+  return String(raw || '').trim()
+    .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
+    .replace(/\\?sqrt\s*\{([^{}]*)\}/gi, '√$1')
+    .replace(/\\?sqrt\s*\(([^()]*)\)/gi, '√$1')
+    .replace(/\\?sqrt\s*/gi, '√')
+    .replace(/корень\s+(?:из\s+)?/gi, '√')
+    .replace(/\\pi\b|(?<![A-Za-zА-Яа-яЁё])пи(?![А-Яа-яЁё])/g, 'π')
+    .replace(/\\cdot/g, '·')
+    .replace(/\\/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 16);
+}
+
+/**
+ * «подпись AB 4», «длина SO h», «AB = 4√2» — подпись длины у отрезка;
+ * «стрелка AA1 h», «размер AW h» — размерной стрелкой рядом. Разбирается по
+ * исходному тексту: подпись («h», «a√3») нормализация сделала бы именами.
+ * null — это не подпись.
+ */
+function parseLengthMark(text) {
+  const src = String(text || '');
+  let m = /^\s*(подпись|подписать|длина|размер|стрелка|label|length|dim)\s+(\S+)\s+(.+)$/i.exec(src);
+  let ref = null;
+  let label = '';
+  let dim = false;
+  if (m) {
+    ref = splitNames(normalizeCommand(m[2]).replace(/^\|(.*)\|$/, '$1'));
+    if (!ref || ref.length !== 2) throw new Error('Подпись ставится у отрезка из двух точек: «подпись AB 4»');
+    label = m[3];
+    dim = /^(размер|стрелка|dim)$/i.test(m[1]);
+  } else {
+    m = /^\s*\|?([A-Za-zА-Яа-яЁё][0-9₀-₉]*[A-Za-zА-Яа-яЁё][0-9₀-₉]*)\|?\s*=\s*(.+)$/.exec(src);
+    if (!m || /[∩×⊥]|\|\||середин|mid|пересеч/i.test(m[2])) return null;
+    ref = splitNames(normalizeCommand(m[1]));
+    if (!ref || ref.length !== 2) return null;
+    label = m[2];
+  }
+  const t = lengthLabelText(label);
+  if (!t) throw new Error('Нет подписи: «подпись AB 4»');
+  const op = { id: newOpId(), type: 'lengthMark', ref, text: t };
+  if (dim) op.dim = true;
+  return op;
+}
+
 const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч[а-яё]*(?:\\s+с)?)';
 
 /**
@@ -348,6 +397,10 @@ export function parseCommand(text, model) {
       if (!groups.length || groups.some((g) => !g)) throw new Error('Скрыть точки: «скрыть M» или «скрыть M, N»; вернуть — «показать M»');
       return { action: 'hide', names: groups.flat(), hidden };
     }
+
+    // «подпись AB 4», «AB = 4», «стрелка AA1 h» — по исходному тексту.
+    const lengthMark = parseLengthMark(text);
+    if (lengthMark) return { op: lengthMark };
 
     m = /^(?:переименовать|rename)\s+([A-Z][0-9]*)\s+(?:в\s+)?([A-Z][0-9]*)$/.exec(src);
     if (m) return { action: 'rename', from: m[1], to: m[2] };
@@ -604,6 +657,7 @@ export function describeOp(op, opsById = {}) {
       if (Array.isArray(op.pts)) return `Угол ∠${names(op.pts)}${tail}`;
       return `Угол между ${refName(op.l1, opsById)} и ${refName(op.l2, opsById)}${tail}`;
     }
+    case 'lengthMark': return `${op.dim ? 'Размер' : 'Подпись'} ${names(op.ref)} = ${op.text}`;
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'Плоскость' : 'Сечение';
       return op.from
@@ -655,6 +709,7 @@ export function opToCommand(op, opsById = {}) {
       if (Array.isArray(op.pts)) return `угол ${n(op.pts)}${tail}`;
       return r(op.l1) && r(op.l2) ? `угол ${r(op.l1)} ${r(op.l2)}${tail}` : '';
     }
+    case 'lengthMark': return Array.isArray(op.ref) ? `${op.dim ? 'стрелка' : 'подпись'} ${n(op.ref)} ${op.text}` : '';
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'плоскость' : 'сечение';
       if (op.from) return r(op.ref) ? `${what} ${op.from} ⊥ ${r(op.ref)}` : '';
