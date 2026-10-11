@@ -239,6 +239,18 @@ export const FORMULA_ONLY_BODIES = {
     facet: 'Многогранник', formulaOnly: true,
     draw: { kind: 'blocks', boxes: [[0, 0, 0, 4, 3, 1], [0, 0, 1, 2, 3, 2]] },
   },
+  cylinder: {
+    label: 'Цилиндр (только первая часть)', short: 'цилиндр', gen: 'цилиндра', facet: 'Цилиндр', formulaOnly: true,
+    draw: { kind: 'cylinder', r: 2, h: 4 },
+  },
+  cone: {
+    label: 'Конус (только первая часть)', short: 'конус', gen: 'конуса', facet: 'Конус', formulaOnly: true,
+    draw: { kind: 'cone', r: 2, h: 4 },
+  },
+  sphere: {
+    label: 'Шар (только первая часть)', short: 'шар', gen: 'шара', facet: 'Шар', formulaOnly: true,
+    draw: { kind: 'sphere', r: 2 },
+  },
 };
 
 /** Описание тела генератора по ключу (включая только-первая-часть). */

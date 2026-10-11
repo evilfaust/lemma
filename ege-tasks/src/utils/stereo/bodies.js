@@ -16,6 +16,7 @@
 import { v3, sub, cross, dot, len, mul, centroid, dist, add } from './vec3';
 import { convexHull3 } from './hull';
 import { normalizeBlocksSpec, buildBlocksBody } from './blocks';
+import { REVOLUTION_KINDS, normalizeRevolution, buildRevolutionBody } from './revolution';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L'];
 
@@ -30,6 +31,10 @@ export const BODY_KINDS = {
   hull: { label: 'Многогранник по точкам' },
   blocks: { label: 'Ступенчатый многогранник' },
   space: { label: 'Без тела — точки и плоскости' },
+  cylinder: { label: 'Цилиндр' },
+  cone: { label: 'Конус' },
+  tcone: { label: 'Усечённый конус' },
+  sphere: { label: 'Шар' },
 };
 
 /** Тела, к которым приклеивается пирамида сверху (roof). */
@@ -206,8 +211,9 @@ export function normalizeBodySpec(spec = DEFAULT_BODY) {
   const roof = Number(spec?.roof);
   if (ROOF_KINDS.includes(out.kind) && Number.isFinite(roof) && roof > 0) out.roof = roof;
   const cut = Number(spec?.cut);
-  if (!['hull', 'blocks', 'space'].includes(out.kind) && Number.isFinite(cut) && cut > 0) out.cut = cut;
+  if (!['hull', 'blocks', 'space', ...REVOLUTION_KINDS].includes(out.kind) && Number.isFinite(cut) && cut > 0) out.cut = cut;
   if (spec?.bare) out.bare = true;
+  if (spec?.letters && REVOLUTION_KINDS.includes(out.kind)) out.letters = true;
   // Буквы основания по часовой стрелке (если смотреть сверху): A — спереди
   // слева, B — сзади слева… Так в части учебников (Атанасян). Без флага — против.
   // У своего основания (poly) порядок задают сами координаты.
@@ -262,6 +268,8 @@ function normalizeBodyShape(spec) {
       return normalizeBlocksSpec(spec) || { kind: 'cube', a: 4 };
     case 'space':
       return { kind };
+    case 'cylinder': case 'cone': case 'tcone': case 'sphere':
+      return normalizeRevolution(spec, num);
     case 'hull': {
       const pts = Array.isArray(spec.pts) ? spec.pts.map((p) => (Array.isArray(p) ? p.slice(0, 3).map(Number) : [p?.x, p?.y, p?.z].map(Number))) : [];
       if (pts.length < 4 || pts.length > 60 || !pts.every((p) => p.length === 3 && p.every(Number.isFinite))) {
@@ -321,6 +329,10 @@ function bodyTitleBase(s) {
     case 'hull': return `Многогранник ${names}`;
     case 'blocks': return 'Ступенчатый многогранник';
     case 'space': return 'Без тела';
+    case 'cylinder': return 'Цилиндр';
+    case 'cone': return 'Конус';
+    case 'tcone': return 'Усечённый конус';
+    case 'sphere': return 'Шар';
     case 'tetra': {
       if (!s.h) return `Тетраэдр ${names}`;
       const apex = body.order[body.order.length - 1];
@@ -397,6 +409,15 @@ function tiltShift(spec, h) {
 export function buildBody(specIn) {
   const spec = normalizeBodySpec(specIn);
   if (spec.kind === 'blocks') return buildBlocksBody(spec);
+  if (REVOLUTION_KINDS.includes(spec.kind)) {
+    const rb = buildRevolutionBody(spec);
+    if (!(spec.names && spec.names.length === rb.order.length)) return rb;
+    const renamed = renameBody(rb, spec.names);
+    const map = Object.fromEntries(rb.order.map((n, i) => [n, spec.names[i]]));
+    renamed.circles = Object.fromEntries(Object.entries(rb.circles).map(([k, c]) => [map[k] || k, c]));
+    renamed.concealed = new Set([...rb.concealed].map((n) => map[n] || n));
+    return renamed;
+  }
   // Чертёж без тела (параллельность прямых и плоскостей, гл. 1 Атанасяна):
   // только точки, отрезки и плоскости-листы.
   if (spec.kind === 'space') {
@@ -591,7 +612,7 @@ function renameBody(body, names) {
     vertices,
     order: body.order.map(r),
     edges: body.edges.map(([a, b]) => [r(a), r(b)]),
-    faces: body.faces.map((f) => ({ ...f, id: f.verts.map(r).join(''), verts: f.verts.map(r) })),
+    faces: body.faces.map((f) => (f.verts ? { ...f, id: f.verts.map(r).join(''), verts: f.verts.map(r) } : f)),
   };
 }
 

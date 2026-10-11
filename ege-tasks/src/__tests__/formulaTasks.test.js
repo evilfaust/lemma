@@ -6,6 +6,7 @@ import {
 } from '../utils/stereo/genTasks';
 import { dist, sub, cross, dot, len } from '../utils/stereo/vec3';
 import { parseStereoBlock } from '../utils/stereo/dsl';
+import { revolutionMeasures } from '../utils/stereo/revolution';
 
 // Задачи первой части (база №13, профиль №3). Ответ пересчитывается
 // НЕЗАВИСИМО — по телу на чертеже движка: объём и площадь — по граням,
@@ -27,6 +28,11 @@ function bodyVolume(body) {
 
 function recompute(task) {
   const body = task.model.body;
+  if (body.revolution && (task.type === 'fVolume' || task.type === 'fSurface')) {
+    const m = revolutionMeasures(body.spec);
+    if (task.type === 'fVolume') return m.V / Math.PI;
+    return (/боковой/.test(task.statement) ? m.Sside : m.S) / Math.PI;
+  }
   switch (task.type) {
     case 'fVolume': return bodyVolume(body);
     case 'fSurface': {
@@ -48,7 +54,7 @@ const SEEDS = [11, 222, 3333, 44444, 555];
 describe('задачи первой части: генерация по всем телам и уровням', () => {
   for (const type of Object.keys(FORMULA_TYPES)) {
     it(`${type}: каждое тело, каждый уровень — ответ конечной дробью и сходится с чертежом`, () => {
-      for (const body of [...GEN_BODY_KEYS, 'steps']) {
+      for (const body of [...GEN_BODY_KEYS, 'steps', 'cylinder', 'cone', 'sphere']) {
         for (const level of [1, 2, 3]) {
           for (const seed of SEEDS) {
             const t = generateFormulaTask({ body, type, level, seed });

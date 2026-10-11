@@ -47,6 +47,9 @@ const BODY_WORDS = {
   многогранник: 'hull', hull: 'hull', polyhedron: 'hull',
   ступенчатый: 'blocks', ступенчатое: 'blocks', ступенчатая: 'blocks', блоки: 'blocks', blocks: 'blocks',
   пространство: 'space', space: 'space',
+  цилиндр: 'cylinder', cylinder: 'cylinder',
+  конус: 'cone', cone: 'cone',
+  шар: 'sphere', сфера: 'sphere', sphere: 'sphere',
 };
 
 // Слова-основания: «призма 4 4 5 трапеция», «пирамида 3 4 5 S прямоугольный».
@@ -128,8 +131,21 @@ export function parseBodyLine(line) {
   let kind = BODY_WORDS[words[i]?.toLowerCase()];
   if (!kind) return null;
   if (frustum) {
-    if (kind !== 'pyramid') return null;
-    kind = 'frustum';
+    if (kind !== 'pyramid' && kind !== 'cone') return null;
+    kind = kind === 'cone' ? 'tcone' : 'frustum';
+  }
+  // Тела вращения: «цилиндр 2 5» (r h), «конус 2 4», «усечённый конус 3 1,5 4»
+  // (r r2 h), «шар 2»; «с буквами» — подписать O, O1, S, A.
+  if (['cylinder', 'cone', 'tcone', 'sphere'].includes(kind)) {
+    const restR = words.slice(i + 1);
+    const vals = restR.filter(isNum).map(num);
+    const named = Object.fromEntries(restR.map((w) => /^(r2|r|h)=(-?\d+(?:[.,]\d+)?)$/i.exec(w)).filter(Boolean).map((mm) => [mm[1].toLowerCase(), num(mm[2])]));
+    const spec = { kind };
+    if (kind === 'sphere') spec.r = named.r ?? vals[0];
+    else if (kind === 'tcone') { spec.r = named.r ?? vals[0]; spec.r2 = named.r2 ?? vals[1]; spec.h = named.h ?? vals[2]; }
+    else { spec.r = named.r ?? vals[0]; spec.h = named.h ?? vals[1]; }
+    if (restR.some((w, j) => /^букв/i.test(w) && /^с$/i.test(restR[j - 1] || ''))) spec.letters = true;
+    return normalizeBodySpec(spec);
   }
   const rest = words.slice(i + 1);
   // Многогранник по точкам: «многогранник (0 0 0) (4 0 0) …», с именами —
@@ -308,6 +324,10 @@ function bodyShapeLine(s) {
     case 'frustum': return join(`усечённая пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${fmt(s.k)}`, baseWord(s), apexWords(s));
     case 'octa': return `октаэдр ${fmt(s.a)}`;
     case 'space': return 'пространство';
+    case 'cylinder': return `цилиндр ${fmt(s.r)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
+    case 'cone': return `конус ${fmt(s.r)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
+    case 'tcone': return `усечённый конус ${fmt(s.r)} ${fmt(s.r2)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
+    case 'sphere': return `шар ${fmt(s.r)}${s.letters ? ' с буквами' : ''}`;
     case 'blocks': return join(
       `ступенчатый многогранник ${s.boxes.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}`,
       s.minus ? `минус ${s.minus.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}` : '',

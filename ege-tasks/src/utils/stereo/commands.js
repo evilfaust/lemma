@@ -452,6 +452,12 @@ export function parseCommand(text, model) {
       return { op: { id: newOpId(), type: 'freePoint', name: m[1], at: [m[2], m[3], m[4]].map((x) => Number(x.replace(',', '.'))) } };
     }
 
+    // «K на окружности O 120» — точка окружности тела вращения по углу.
+    m = /^(?:точка\s+)?(?:([A-Z][0-9]*)\s+)?на\s+окружност[а-яё]*\s+(?:с\s+центром\s+)?([A-Z][0-9]*)\s+(-?\d+(?:[.,]\d+)?)\s*°?$/i.exec(src);
+    if (m) {
+      return { op: { id: newOpId(), type: 'pointOnCircle', name: auto(m[1]), center: m[2], angle: Number(m[3].replace(',', '.')) } };
+    }
+
     // «лист α ABC», «лист α через M», «лист α z=0» (+ «10 6» — размер).
     const sheet = parseSheet(text);
     if (sheet) return { op: sheet };
@@ -756,6 +762,7 @@ export function describeOp(op, opsById = {}) {
     case 'fill': return `Многоугольник ${names(op.pts)}`;
     case 'level': return `Уровень жидкости ${levelArg(op, P)}`;
     case 'freePoint': return `${P(op.name)} = (${(op.at || []).map(fmt).join('; ')})`;
+    case 'pointOnCircle': return `${P(op.name)} на окружности с центром ${P(op.center)}, ${fmt(op.angle)}°`;
     case 'sheet': return `Плоскость${op.label ? ` ${op.label}` : ''}${sheetArg(op, P)}`;
     default: return String(op?.type || '?');
   }
@@ -815,6 +822,7 @@ export function opToCommand(op, opsById = {}) {
     case 'fill': return `заливка ${n(op.pts)}`;
     case 'level': return `уровень ${levelArg(op, (x) => x)}`;
     case 'freePoint': return `${op.name} = (${(op.at || []).map(fmt).join('; ')})`;
+    case 'pointOnCircle': return `${op.name} на окружности ${op.center} ${fmt(op.angle)}`;
     case 'sheet': {
       const where = op.through ? `через ${op.through}` : Array.isArray(op.pts) ? n(op.pts) : `z=${fmtDot(op.z)}`;
       return `лист ${op.label ? `${op.label} ` : ''}${where}${op.size ? ` ${op.size.map(fmtDot).join(' ')}` : ''}`;

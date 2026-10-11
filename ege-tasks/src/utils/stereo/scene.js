@@ -20,6 +20,7 @@ import {
   affinePoint, clipPolygonBelow,
 } from './geometry';
 import { blocksSectionPieces } from './blocks';
+import { circlePoint } from './revolution';
 
 /** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
 export function isPlaneRefId(ref) {
@@ -28,7 +29,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet',
+  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'pointOnCircle',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -615,6 +616,16 @@ export function evaluateScene(scene, opts = {}) {
           created.note = `${ab} = ${text} (на чертеже ${created.value})`;
           break;
         }
+        case 'pointOnCircle': {
+          // Точка на окружности тела вращения (основание, экватор шара) по
+          // углу: 0° — вправо, против часовой, если смотреть сверху.
+          const circle = body.circles?.[op.center];
+          if (!circle) fail(`Нет окружности с центром ${prettyName(op.center || '?')}`);
+          const deg = Number(op.angle);
+          if (!Number.isFinite(deg)) fail('Угол точки на окружности: «K на окружности O 120»');
+          addPoint(op.name, circlePoint(circle, deg), stepIdx, created);
+          break;
+        }
         case 'freePoint': {
           // Точка по координатам (x; y; z), z — вверх. Чертёж без тела
           // начинается с таких точек.
@@ -734,7 +745,7 @@ export function evaluateScene(scene, opts = {}) {
           // на доле t высоты тела или через точку (уровень через W). Рисуется
           // поверхность (контур — как у сечения) и стенки ниже уровня —
           // render.js закрашивает только те, что смотрят на зрителя.
-          const zs = body.order.map((v) => body.vertices[v].z);
+          const zs = body.extent ? body.extent.map((p) => p.z) : body.order.map((v) => body.vertices[v].z);
           const zmin = Math.min(...zs);
           const zmax = Math.max(...zs);
           let z;
@@ -867,6 +878,7 @@ export function evaluateScene(scene, opts = {}) {
   const lo = { x: Infinity, y: Infinity, z: Infinity };
   const hi = { x: -Infinity, y: -Infinity, z: -Infinity };
   for (const sh of sheets) all.push(...sh.pts);
+  if (body.extent) all.push(...body.extent);
   if (!all.length) all.push({ x: -body.size / 2, y: 0, z: 0 }, { x: body.size / 2, y: 0, z: 0 });
   for (const P of all) {
     lo.x = Math.min(lo.x, P.x); lo.y = Math.min(lo.y, P.y); lo.z = Math.min(lo.z, P.z);
@@ -885,7 +897,10 @@ export function evaluateScene(scene, opts = {}) {
   // Тело «без букв» (срезанные вершины, bare) — вершины не подписываются;
   // у ступенчатого — вершины без имени (V1, V2…).
   if (body.spec?.bare || body.spec?.cut) for (const name of body.order) points[name].concealed = true;
-  for (const name of body.concealed || []) if (points[name]) points[name].concealed = true;
+  // «показать O» снимает скрытие телом (scene.shown).
+  const shown = new Set(Array.isArray(scene?.shown) ? scene.shown : []);
+  for (const name of body.concealed || []) if (points[name] && !shown.has(name)) points[name].concealed = true;
+  if (body.spec?.bare || body.spec?.cut) for (const name of shown) if (points[name] && !(scene.hidden || []).includes(name)) points[name].concealed = false;
 
   // Цвета точек — оформление, не шаг: scene.colors = { M: 'red' }.
   const colors = scene?.colors && typeof scene.colors === 'object' ? scene.colors : {};
@@ -968,6 +983,7 @@ export function opPointNames(op) {
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
     case 'level': if (op.through) out.push(op.through); break;
+    case 'pointOnCircle': if (op.center) out.push(op.center); break;
     case 'sheet': if (op.through) out.push(op.through); if (Array.isArray(op.pts)) out.push(...op.pts); break;
     default: break;
   }
@@ -1027,6 +1043,7 @@ export function renamePointInScene(scene, from, to) {
     const o = { ...op };
     if (o.name) o.name = swap(o.name);
     if (o.through) o.through = swap(o.through);
+    if (o.center) o.center = swap(o.center);
     if (o.from) o.from = swap(o.from);
     if (o.at) o.at = swap(o.at);
     if (o.foot) o.foot = swap(o.foot);
@@ -1045,6 +1062,7 @@ export function renamePointInScene(scene, from, to) {
     next.colors = Object.fromEntries(Object.entries(scene.colors).map(([k, v]) => [swap(k), v]));
   }
   if (scene?.hidden) next.hidden = scene.hidden.map(swap);
+  if (scene?.shown) next.shown = scene.shown.map(swap);
   for (const field of ['lineColors', 'segmentColors']) {
     if (!scene?.[field]) continue;
     next[field] = Object.fromEntries(Object.entries(scene[field]).map(([k, v]) => {
@@ -1107,11 +1125,20 @@ export function setPointColors(scene, names, color) {
  */
 export function setPointsHidden(scene, names, hidden = true) {
   const set = new Set(scene?.hidden || []);
+  // Точки, скрытые самим телом (вершины без имени, тела вращения), «показать»
+  // открывает списком shown.
+  const body = buildBody(scene?.body);
+  const byBody = new Set([...(body.concealed || []), ...(body.spec?.bare || body.spec?.cut ? body.order : [])]);
+  const shown = new Set(scene?.shown || []);
   for (const n of names) {
-    if (hidden) set.add(n); else set.delete(n);
+    if (hidden) { set.add(n); shown.delete(n); } else {
+      set.delete(n);
+      if (byBody.has(n)) shown.add(n);
+    }
   }
-  const next = { ...scene, hidden: [...set] };
+  const next = { ...scene, hidden: [...set], shown: [...shown] };
   if (!next.hidden.length) delete next.hidden;
+  if (!next.shown.length) delete next.shown;
   return next;
 }
 

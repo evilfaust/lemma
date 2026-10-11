@@ -254,8 +254,8 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   // Линии: каждая режется на видимые и скрытые куски.
   const strokes = [];
   const hitLines = [];
-  const pushSplit = (objId, kind, A, B, color, w, step) => {
-    for (const piece of splitByVisibility(body, A, B, toViewer)) {
+  const pushSplit = (objId, kind, A, B, color, w, step, occ = body) => {
+    for (const piece of splitByVisibility(occ, A, B, toViewer)) {
       const a = P(lerp(A, B, piece.t0));
       const b = P(lerp(A, B, piece.t1));
       strokes.push({
@@ -282,6 +282,22 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const b = P(o.b);
     hitLines.push({ id: o.id, kind: o.kind, ref: o.ref, x1: a.x, y1: a.y, x2: b.x, y2: b.y, a3: o.a, b3: o.b, p: o.p, u: o.u });
   }
+  // Тело вращения: окружности оснований (экватор) — по рёбрам многогранника,
+  // видимость как у рёбер; контур под ракурс — всегда виден своим телом.
+  if (body.curves) {
+    for (const cv of body.curves) {
+      cv.pts.forEach((A, i) => {
+        pushSplit(`curve:${cv.id}`, 'edge', A, cv.pts[(i + 1) % cv.pts.length], STEREO_COLORS.edge, WIDTH.edge, -1);
+      });
+    }
+  }
+  if (body.silhouette) {
+    const others = { ...body, faces: [], sphere: null, cells: null, curves: null };
+    body.silhouette(toViewer).forEach(([A, B], i) => {
+      pushSplit(`sil:${i}`, 'edge', A, B, STEREO_COLORS.edge, WIDTH.edge, -1, others);
+    });
+  }
+
   for (const pg of model.polys) {
     if (pg.kind !== 'section' && pg.kind !== 'water' && pg.kind !== 'sheet') continue;
     const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'sheet' ? STEREO_COLORS.edge : STEREO_COLORS.section);

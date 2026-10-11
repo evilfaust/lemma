@@ -6,6 +6,7 @@
 // Допуски считаются от размера тела (size), чтобы не зависеть от масштаба.
 
 import { add, sub, mul, dot, cross, len, norm, dist, centroid } from './vec3';
+import { sphereSection } from './revolution';
 
 const REL_EPS = 1e-7;
 
@@ -83,11 +84,12 @@ export function orderPolygon(pts, n) {
  * (касание по вершине или ребру — тоже пусто).
  */
 export function sectionPolygon(body, plane) {
+  if (body.sphere) return sphereSection(body.sphere, plane);
   const eps = REL_EPS * body.size * 10;
   const pts = [];
-  for (const [a, b] of body.edges) {
-    const A = body.vertices[a];
-    const B = body.vertices[b];
+  // У тела вращения рёбра многогранника-заменителя — meshEdges (точками)
+  const edges = body.meshEdges || body.edges.map(([a, b]) => [body.vertices[a], body.vertices[b]]);
+  for (const [A, B] of edges) {
     const da = dot(plane.n, A) - plane.d;
     const db = dot(plane.n, B) - plane.d;
     if (Math.abs(da) <= eps) pts.push(A);

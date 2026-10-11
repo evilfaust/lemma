@@ -17,6 +17,7 @@ import {
   GEN_BODIES, bodyNamesTex, texName, genBodyDef,
 } from './genBodies';
 import { stepsTask } from './stepsTasks';
+import { revTask } from './revTasks';
 
 export const FORMULA_TYPES = {
   fVolume: {
@@ -623,6 +624,8 @@ function reverseTask(key, rand, level) {
   }
 }
 
+const REV_KEYS = ['cylinder', 'cone', 'sphere'];
+
 const BUILDERS = {
   fVolume: volumeTask, fSurface: surfaceTask, fLength: lengthTask, fScale: scaleTask, fReverse: reverseTask,
 };
@@ -641,7 +644,9 @@ export function generateFormulaTask({
   if (!typeDef) return null;
   const rand = rng(seed);
   for (let i = 0; i < attempts; i += 1) {
-    const plan = key === 'steps' ? stepsTask(type, rand, DEFAULT_CAMERA) : BUILDERS[type](key, rand, level);
+    const plan = key === 'steps' ? stepsTask(type, rand, DEFAULT_CAMERA)
+      : REV_KEYS.includes(key) ? revTask(key, type, rand, level)
+        : BUILDERS[type](key, rand, level);
     if (!plan) continue;
     const answer = finiteDecimal(plan.answer);
     if (answer == null) continue;
@@ -657,8 +662,9 @@ export function generateFormulaTask({
  */
 function goodShape(spec) {
   const b = buildBody(spec);
+  const pts = b.extent || b.order.map((n) => b.vertices[n]);
   const ext = (k) => {
-    const v = b.order.map((n) => b.vertices[n][k]);
+    const v = pts.map((p) => p[k]);
     return Math.max(...v) - Math.min(...v);
   };
   const [ex, ey, ez] = ['x', 'y', 'z'].map(ext);
@@ -674,7 +680,7 @@ function buildFormulaTask(ctx, { type, typeDef, level, seed, answer }) {
   const ops = [...extra];
   labels.forEach((l, i) => ops.push({ id: `l${i}`, type: 'lengthMark', ref: [...l.ref], text: l.g.label }));
   const askOps = ask ? [{ id: 'ask', type: 'segment', ref: [...ask] }] : [];
-  const scene = { body: spec, ops: [...ops, ...askOps] };
+  const scene = { body: spec, ops: [...ops, ...askOps], ...(ctx.hide?.length ? { hidden: [...ctx.hide] } : {}) };
   const model = evaluateScene(scene);
   if (model.steps.some((s) => !s.ok)) return null;
   // 🚨 подпись = длина на чертеже

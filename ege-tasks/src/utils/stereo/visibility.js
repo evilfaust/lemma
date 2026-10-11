@@ -12,11 +12,13 @@ import {
   dot, lerp, add, mul, sub, cross,
 } from './vec3';
 import { isPointHiddenBlocks } from './blocks';
+import { rayThroughSphere } from './revolution';
 
 /** Точка скрыта телом при взгляде вдоль toViewer. */
 export function isPointHidden(body, P, toViewer) {
   if (body.sheets?.length && hiddenBySheet(body.sheets, P, toViewer, 1e-6 * body.size)) return true;
   if (body.cells) return isPointHiddenBlocks(body, P, toViewer);
+  if (body.sphere) return rayThroughSphere(body.sphere, P, toViewer, 1e-6 * body.size);
   if (!body.faces.length) return false; // чертёж без тела
   const epsLen = 1e-6 * body.size;
   let lo = 0;

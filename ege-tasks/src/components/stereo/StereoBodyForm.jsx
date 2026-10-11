@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import {
   Checkbox, Form, InputNumber, Select, Space,
 } from 'antd';
+import { REVOLUTION_KINDS } from '../../utils/stereo/revolution';
 import {
   BODY_KINDS, TILT_DIRS, DEFAULT_TILT_DIR, bodySpecFromForm, baseShapeOptions, apexPosOptions,
   evaluateScene, renderStereo, stereoSvgString, DEFAULT_CAMERA, bodyTitle, ROOF_KINDS,
@@ -50,6 +51,41 @@ export default function StereoBodyForm({ form, initialValues }) {
   const onKindChange = (k) => {
     form.setFieldsValue({ shape: KIND_DEFAULT_SHAPE[k], apexPos: 'center', oblique: false });
   };
+
+  if (REVOLUTION_KINDS.includes(kind)) {
+    return (
+      <div className="stereo-body-form">
+        <div className="stereo-body-form-fields">
+          <Form.Item name="kind" label="Тело">
+            <Select
+              onChange={onKindChange}
+              options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull' && value !== 'blocks').map(([value, v]) => ({ value, label: v.label }))}
+            />
+          </Form.Item>
+          <Space wrap align="start">
+            <Form.Item name="r" label={kind === 'tcone' ? 'Радиус нижнего основания' : 'Радиус'}><InputNumber {...SIZE} /></Form.Item>
+            {kind === 'tcone' && (
+              <Form.Item name="r2" label="Радиус верхнего"><InputNumber {...SIZE} /></Form.Item>
+            )}
+            {kind !== 'sphere' && (
+              <Form.Item name="h" label="Высота"><InputNumber {...SIZE} /></Form.Item>
+            )}
+          </Space>
+          <Form.Item
+            name="letters"
+            valuePropName="checked"
+            extra={kind === 'sphere' ? 'Центр O и точка A на экваторе.' : 'Центры оснований O, O₁ (вершина S), точки A, A₁ на окружностях. Без галочки точки есть, но не подписаны — как на рисунках задач.'}
+          >
+            <Checkbox>Подписать точки</Checkbox>
+          </Form.Item>
+        </div>
+        <div className="stereo-body-form-preview">
+          <div className="stereo-body-form-svg" dangerouslySetInnerHTML={{ __html: preview }} />
+          <div className="stereo-body-form-title">{bodyTitle(spec)}</div>
+        </div>
+      </div>
+    );
+  }
 
   if (kind === 'space') {
     return (
