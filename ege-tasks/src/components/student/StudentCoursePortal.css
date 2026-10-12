@@ -82,7 +82,7 @@
 
 .sc-card {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
   padding: 12px;
   border-radius: 12px;
   border: 1px solid #eee;
@@ -90,6 +90,9 @@
   margin-bottom: 8px;
 }
 .sc-card--dim { opacity: 0.6; }
+
+.sc-card-head { display: flex; gap: 12px; align-items: flex-start; }
+.sc-card-head + .sc-block, .sc-card-head + .sc-empty-note { margin-top: 10px; }
 
 .sc-date {
   flex: 0 0 46px;
@@ -133,21 +136,54 @@
 .sc-item {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 10px;
-  padding: 6px 8px;
-  border-radius: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 10px;
   background: #fafafa;
   margin-bottom: 4px;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
 }
+.sc-item--link { cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.sc-item--link:hover { background: #f3f0fa; color: inherit; }
+.sc-item--link:active { transform: scale(0.99); }
 .sc-item--text {
   display: block;
   background: #fbf8ff;
   font-size: 14px;
   line-height: 1.5;
 }
-.sc-item-title { font-size: 14px; color: #333; min-width: 0; }
+.sc-item-icon { flex: none; font-size: 16px; color: #8c8c8c; line-height: 1; }
+.sc-item-icon.is-done { color: #52c41a; }
+.sc-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sc-item-title { font-size: 14px; color: #333; line-height: 1.35; }
 .sc-item-muted { font-size: 12px; color: #bbb; }
+
+/* Метка действия справа в строке: вся строка — ссылка, метка лишь подсказывает. */
+.sc-act {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #722ed1;
+  white-space: nowrap;
+}
+.sc-act-arrow { font-size: 10px; opacity: 0.8; }
+.sc-act--primary {
+  padding: 5px 10px 5px 12px;
+  border-radius: 8px;
+  background: #722ed1;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(114, 46, 209, 0.25);
+}
+.sc-block--materials .sc-act { color: #1677ff; }
+.sc-block--results .sc-act { color: #08979c; }
 
 .sc-empty-note { color: #aaa; font-size: 13px; padding: 8px 2px; }
 
@@ -158,12 +194,13 @@
 .sc-block--required .sc-item { background: #f9f5ff; box-shadow: inset 3px 0 0 #722ed1; }
 .sc-block--materials .sc-item { box-shadow: inset 3px 0 0 #91caff; }
 .sc-block--results .sc-item { background: #f0fbfb; box-shadow: inset 3px 0 0 #13a8a8; }
-.sc-block-note { font-weight: 400; color: #999; }
 .sc-item-status {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 12px;
   color: #888;
-  margin-top: 1px;
+  margin-top: 3px;
 }
 .sc-item-status.is-hidden, .sc-item-status.is-none { color: #aaa; }
 .sc-item-status.is-started { color: #d46b08; }
@@ -290,6 +327,11 @@
 .student-theme-dark .sc-card-title { color: #eee; }
 .student-theme-dark .sc-item { background: #2a2a31; }
 .student-theme-dark .sc-item-title { color: #ddd; }
+.student-theme-dark .sc-item--link:hover { background: #33303d; }
+.student-theme-dark .sc-act { color: #b37feb; }
+.student-theme-dark .sc-act--primary { background: #722ed1; color: #fff; box-shadow: none; }
+.student-theme-dark .sc-block--materials .sc-act { color: #69b1ff; }
+.student-theme-dark .sc-block--results .sc-act { color: #5cdbd3; }
 .student-theme-dark .sc-item--text { background: #26222e; }
 .student-theme-dark .sc-block-head { color: #aaa; }
 .student-theme-dark .sc-date { background: rgba(146, 84, 222, 0.2); color: #d3adf7; }

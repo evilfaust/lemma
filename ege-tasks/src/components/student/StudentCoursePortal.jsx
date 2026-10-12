@@ -25,7 +25,7 @@ import './StudentCoursePortal.css';
  * загруженного окна догружается (`rangeToLoad`) и сливается с уже полученным.
  *
  * Карточка урока (v3.9.358) — три раздела: «Обязательно» (сделать, со
- * статусом сдачи), «Материалы» (для удобства) и «Результаты» (работы на
+ * статусом сдачи), «Материалы» и «Результаты» (работы на
  * бумаге). У работ — балл прямо в уроке и «Подробнее» → разбор в «Прогрессе»;
  * закрытые учителем — «результатов пока нет» (utils/lessonResults.js).
  */
@@ -82,81 +82,91 @@ const NO_RESULTS = { attempts: [], onOpenAttempt: null };
 
 function ResultBadge({ res }) {
   if (res.state !== 'done') return null;
-  return <span className={`sc-score is-${resultTone(res.pct)}`}>{res.total ? `${res.score}/${res.total}` : '✓'}</span>;
+  return <span className={`sc-score is-${resultTone(res.pct)}`}>{res.total ? `${res.pct}%` : '✓'}</span>;
+}
+
+/**
+ * Строка пункта: нажимается вся (на телефоне не надо целиться в кнопку),
+ * справа — метка действия «Решать ›». Без ссылки — просто строка.
+ */
+function ItemLine({ icon, title, status, action, primary, href, external, onClick, tone }) {
+  const body = (
+    <>
+      <span className={`sc-item-icon${tone ? ` is-${tone}` : ''}`}>{icon}</span>
+      <span className="sc-item-body">
+        <span className="sc-item-title">{title}</span>
+        {status}
+      </span>
+      {action && (
+        <span className={`sc-act${primary ? ' sc-act--primary' : ''}`}>
+          {action}<RightOutlined className="sc-act-arrow" />
+        </span>
+      )}
+    </>
+  );
+  if (href) {
+    return (
+      <a className="sc-item sc-item--link" href={href}
+        target={external ? '_blank' : undefined} rel={external ? 'noreferrer' : undefined}>
+        {body}
+      </a>
+    );
+  }
+  if (onClick) return <button type="button" className="sc-item sc-item--link" onClick={onClick}>{body}</button>;
+  return <div className="sc-item">{body}</div>;
 }
 
 function ItemRow({ item, meta, when, results = NO_RESULTS }) {
   const res = itemResult(item, results.attempts);
   const label = resultLabel(item, res);
-  const more = res.state === 'done' && results.onOpenAttempt && res.attempt
-    ? <Button size="small" className="sc-btn" onClick={() => results.onOpenAttempt(res.attempt.id)}>Подробнее</Button>
+  const openResult = res.state === 'done' && results.onOpenAttempt && res.attempt
+    ? () => results.onOpenAttempt(res.attempt.id) : null;
+  const status = label
+    ? <span className={`sc-item-status is-${res.state}`}><ResultBadge res={res} />{res.state === 'done' ? ' ' : ''}{label}</span>
     : null;
-  let body;
+  let line;
   if (item.kind === 'work') {
-    let action;
-    if (!item.session_id) action = <span className="sc-item-muted">ссылка не задана</span>;
-    else if (res.state === 'done') action = more || <ResultBadge res={res} />;
-    else if (res.state === 'hidden') action = null;
-    else {
-      action = (
-        <Button type="primary" size="small" className="sc-btn" href={`/student/${item.session_id}`}>
-          {res.state === 'started' ? 'Продолжить' : 'Решать'}
-        </Button>
+    const finished = res.state === 'done' || res.state === 'hidden';
+    if (finished) {
+      line = (
+        <ItemLine icon={<CheckCircleFilled />} tone="done" title={item.title || 'Работа'} status={status}
+          action={openResult ? 'Подробнее' : null} onClick={openResult} />
+      );
+    } else {
+      line = (
+        <ItemLine icon={<PlayCircleOutlined />} title={item.title || 'Работа'} status={status}
+          action={item.session_id ? (res.state === 'started' ? 'Продолжить' : 'Решать') : null} primary
+          href={item.session_id ? `/student/${item.session_id}` : null} />
       );
     }
-    body = (
-      <div className="sc-item">
-        <span className="sc-item-title">
-          {res.state === 'done' || res.state === 'hidden' ? <CheckCircleFilled className="sc-done-icon" /> : <PlayCircleOutlined />}
-          {' '}{item.title || 'Работа'}
-          {label && <span className={`sc-item-status is-${res.state}`}>{res.state === 'done' && <ResultBadge res={res} />} {label}</span>}
-        </span>
-        {action}
-      </div>
-    );
   } else if (item.kind === 'paper') {
     // Писали на бумаге (v3.9.358): решать нечего — только результат.
-    body = (
-      <div className="sc-item sc-item--paper">
-        <span className="sc-item-title">
-          <FormOutlined /> {item.title || 'Работа'}
-          <span className={`sc-item-status is-${res.state}`}>
-            {res.state === 'done' ? <><ResultBadge res={res} /> {label}</> : <><LockOutlined /> {label}</>}
-          </span>
-        </span>
-        {more}
-      </div>
+    line = (
+      <ItemLine icon={res.state === 'done' ? <FormOutlined /> : <LockOutlined />} title={item.title || 'Работа'}
+        status={status} action={openResult ? 'Подробнее' : null} onClick={openResult} />
     );
   } else if (item.kind === 'show') {
     // Работа в режиме показа (v3.9.306): только условия, решают в тетради.
     // geometry — работа по геометрии (/w/<id>, v3.9.308), иначе обычная (/r/<id>).
-    body = (
-      <div className="sc-item">
-        <span className="sc-item-title"><ReadOutlined /> {item.title || 'Задания'}</span>
-        {item.work_id
-          ? <Button size="small" className="sc-btn" href={`/student/${item.geometry ? 'w' : 'r'}/${item.work_id}`}>Открыть</Button>
-          : <span className="sc-item-muted">ссылка не задана</span>}
-      </div>
+    line = (
+      <ItemLine icon={<ReadOutlined />} title={item.title || 'Задания'} action={item.work_id ? 'Открыть' : null}
+        href={item.work_id ? `/student/${item.geometry ? 'w' : 'r'}/${item.work_id}` : null} />
     );
   } else if (item.kind === 'file') {
-    body = (
-      <div className="sc-item">
-        <span className="sc-item-title"><DownloadOutlined /> {item.title || 'Материал'}</span>
-        {item.file_url
-          ? <Button size="small" className="sc-btn" href={item.file_url} target="_blank">Открыть</Button>
-          : <span className="sc-item-muted">недоступно</span>}
-      </div>
+    line = (
+      <ItemLine icon={<DownloadOutlined />} title={item.title || 'Материал'} action={item.file_url ? 'Открыть' : null}
+        href={item.file_url || null} external />
     );
   } else {
-    body = (
+    line = (
       <div className="sc-item sc-item--text">
         <MathRenderer text={item.description || ''} inline={false} />
       </div>
     );
   }
   const sub = [when, meta].filter(Boolean).join(' · ');
-  if (!sub) return body;
-  return <div className="sc-item-wrap">{body}<div className="sc-item-meta">{sub}</div></div>;
+  if (!sub) return line;
+  return <div className="sc-item-wrap">{line}<div className="sc-item-meta">{sub}</div></div>;
 }
 
 function timeRange(pub, d) {
@@ -170,7 +180,7 @@ function timeRange(pub, d) {
 // подписью у пункта: на уроке / ДЗ к этому уроку / ДЗ к следующему.
 const SECTIONS = [
   { key: 'required', head: '✅ Обязательно', cls: 'sc-block--required' },
-  { key: 'materials', head: '📎 Материалы', note: 'для удобства — можно не печатать', cls: 'sc-block--materials' },
+  { key: 'materials', head: '📎 Материалы', cls: 'sc-block--materials' },
   { key: 'results', head: '📊 Результаты', cls: 'sc-block--results' },
 ];
 
@@ -210,7 +220,6 @@ function LessonBody({ lesson, hw, results }) {
           <div key={sec.key} className={`sc-block ${sec.cls}`}>
             <div className="sc-block-head">
               {sec.head}
-              {sec.note && <span className="sc-block-note"> · {sec.note}</span>}
             </div>
             {list.map((it, i) => <ItemRow key={`${sec.key}${i}`} item={it} when={whenOf(it)} results={results} />)}
           </div>
@@ -232,24 +241,27 @@ function LessonCard({ lesson, hw, dimmed, group, results }) {
   const until = dimmed || cancelled ? '' : untilLabel(lesson, d);
   return (
     <div className={`sc-card${dimmed ? ' sc-card--dim' : ''}${cancelled ? ' sc-card--cancel' : ''}`}>
-      <div className="sc-date">
-        <span className="sc-date-day">{d ? d.format('D') : '—'}</span>
-        <span className="sc-date-mon">{d ? d.format('MMM') : ''}</span>
-      </div>
-      <div className="sc-card-main">
-        <div className="sc-card-top">
-          <span className="sc-card-title">{lesson.title || 'Урок'}</span>
-          <span className="sc-card-time"><ClockCircleOutlined /> {timeRange(lesson, d)}</span>
+      {/* Дата — только в шапке: материалы ниже идут на всю ширину карточки. */}
+      <div className="sc-card-head">
+        <div className="sc-date">
+          <span className="sc-date-day">{d ? d.format('D') : '—'}</span>
+          <span className="sc-date-mon">{d ? d.format('MMM') : ''}</span>
         </div>
-        {(group || cancelled) && (
-          <div className="sc-card-sub">
-            <GroupChip group={group} />
-            {cancelled && <span className="sc-cancel-note">Урок отменён</span>}
+        <div className="sc-card-main">
+          <div className="sc-card-top">
+            <span className="sc-card-title">{lesson.title || 'Урок'}</span>
+            <span className="sc-card-time"><ClockCircleOutlined /> {timeRange(lesson, d)}</span>
           </div>
-        )}
-        {until && <div className="sc-card-until">{until}</div>}
-        <LessonBody lesson={lesson} hw={hw} results={results} />
+          {(group || cancelled) && (
+            <div className="sc-card-sub">
+              <GroupChip group={group} />
+              {cancelled && <span className="sc-cancel-note">Урок отменён</span>}
+            </div>
+          )}
+          {until && <div className="sc-card-until">{until}</div>}
+        </div>
       </div>
+      <LessonBody lesson={lesson} hw={hw} results={results} />
     </div>
   );
 }

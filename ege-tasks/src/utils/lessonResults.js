@@ -47,7 +47,7 @@ export function itemResult(item, attempts) {
 /** Подпись состояния для ученика. */
 export function resultLabel(item, res) {
   if (!res) return '';
-  if (res.state === 'done') return res.total ? `${res.score} из ${res.total} · ${res.pct}%` : 'Сдано';
+  if (res.state === 'done') return res.total ? `${res.score} из ${res.total}` : 'Сдано';
   if (res.state === 'hidden') return item?.kind === 'paper' ? 'Результатов пока нет' : 'Сдано · результатов пока нет';
   if (res.state === 'started') return 'Начато, не сдано';
   return item?.kind === 'paper' ? 'Результатов пока нет' : '';

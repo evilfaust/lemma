@@ -160,7 +160,7 @@ describe('ученик: результат у пункта урока', () => {
     ]);
     expect(res).toMatchObject({ state: 'done', score: 7, total: 10, pct: 70 });
     expect(res.attempt.id).toBe('b');
-    expect(resultLabel(online, res)).toBe('7 из 10 · 70%');
+    expect(resultLabel(online, res)).toBe('7 из 10');
   });
 
   it('закрытые учителем результаты — «результатов пока нет»', () => {
@@ -283,7 +283,8 @@ describe('ученик: карточка урока с разделами и р�
     expect(screen.getByText('📊 Результаты')).toBeTruthy();
     expect(screen.getByText('Решать')).toBeTruthy();
 
-    await waitFor(() => expect(screen.getByText(/15 из 20 · 75%/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/15 из 20/)).toBeTruthy());
+    expect(screen.getByText('75%')).toBeTruthy();
     expect(screen.getByText(/Результатов пока нет/)).toBeTruthy();
     fireEvent.click(screen.getByText('Подробнее'));
     expect(onOpenAttempt).toHaveBeenCalledWith('pa');
