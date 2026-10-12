@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert, App, Button, Checkbox, Dropdown, Input, Modal, Segmented, Select, Space, Spin, Typography,
+  Alert, App, Button, Checkbox, DatePicker, Dropdown, Input, Modal, Segmented, Select, Space, Spin, Typography,
 } from 'antd';
 import {
   CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
@@ -20,7 +20,7 @@ import {
   journalTable, markKey, mergeColumns, parseCellInput, parseClipboard, planPaste, SCALE_LABELS,
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
   ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
-  isExamBlock, blockKindLabel, retakeHistoryComment,
+  isExamBlock, blockKindLabel, retakeHistoryComment, rangePeriod, parsePeriodRange, monthRange,
 } from '../../../utils/classJournal';
 import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
@@ -38,6 +38,21 @@ const { Text } = Typography;
 const LS_GROUP = 'journal.groupId';
 const LS_MODE = 'journal.mode';
 const LS_COLLAPSED = 'journal.collapsedBlocks';
+const RANGE = 'range';
+
+// Готовые промежутки у выбора дат; «с 1 сентября» — начало учебного года.
+const rangePresets = [
+  { label: 'Последние 7 дней', value: () => [dayjs().subtract(6, 'day'), dayjs()] },
+  { label: 'Последние 14 дней', value: () => [dayjs().subtract(13, 'day'), dayjs()] },
+  { label: 'Этот месяц', value: () => [dayjs().startOf('month'), dayjs()] },
+  {
+    label: 'С 1 сентября',
+    value: () => {
+      const y = dayjs().month() >= 7 ? dayjs().year() : dayjs().year() - 1;
+      return [dayjs(`${y}-09-01`), dayjs()];
+    },
+  },
+];
 const readLS = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const writeLS = (k, v) => { try { localStorage.setItem(k, v); } catch { /* приватный режим */ } };
 
@@ -260,8 +275,16 @@ export default function ClassJournal() {
     [allColumns, showHidden],
   );
   useEffect(() => {
-    if (period !== 'all' && !months.some((m) => m.key === period)) setPeriod('all');
+    // Свой период живёт и без колонок в нём — сбрасываем только пропавший месяц.
+    if (period !== 'all' && !parsePeriodRange(period) && !months.some((m) => m.key === period)) setPeriod('all');
   }, [months, period]);
+  const periodRange = parsePeriodRange(period);
+  // «Свой период…»: открывается с выбранного месяца, иначе — с начала текущего.
+  const choosePeriod = useCallback((v) => {
+    if (v !== RANGE) { setPeriod(v); return; }
+    setPeriod((p) => (parsePeriodRange(p) ? p
+      : monthRange(p) || rangePeriod(dayjs().startOf('month').format('YYYY-MM-DD'), dayjs().format('YYYY-MM-DD'))));
+  }, []);
   const columns = useMemo(
     () => allColumns.filter((c) => (showHidden || !c.hidden) && inPeriod(c, period)
       && !(c.blockId && c.role === 'work' && collapsed.has(c.blockId))),
@@ -1234,11 +1257,28 @@ export default function ClassJournal() {
       />
       <Select
         style={{ minWidth: 130 }}
-        value={period}
-        onChange={setPeriod}
-        options={[{ value: 'all', label: 'Весь год' }, ...months.map((m) => ({ value: m.key, label: m.label }))]}
+        value={periodRange ? RANGE : period}
+        onChange={choosePeriod}
+        options={[
+          { value: 'all', label: 'Весь год' },
+          ...months.map((m) => ({ value: m.key, label: m.label })),
+          { value: RANGE, label: 'Свой период…' },
+        ]}
         aria-label="Период"
+        title="Какие колонки показывать; средний считается только по ним"
       />
+      {periodRange && (
+        <DatePicker.RangePicker
+          format="DD.MM.YYYY"
+          allowClear={false}
+          value={[dayjs(periodRange.from), dayjs(periodRange.to)]}
+          onChange={(v) => { if (v?.[0] && v?.[1]) setPeriod(rangePeriod(v[0].format('YYYY-MM-DD'), v[1].format('YYYY-MM-DD'))); }}
+          presets={rangePresets}
+          placeholder={['с', 'по']}
+          aria-label="Период: с даты по дату"
+          style={{ width: 230 }}
+        />
+      )}
       <Segmented
         value={mode}
         onChange={(v) => { setMode(v); writeLS(LS_MODE, v); }}
@@ -1345,8 +1385,8 @@ export default function ClassJournal() {
   } else if (!columns.length) {
     body = (
       <EmptyState
-        title="В этом месяце колонок нет"
-        description="Выберите другой месяц или весь год"
+        title={periodRange ? 'За этот период колонок нет' : 'В этом месяце колонок нет'}
+        description={periodRange ? 'Выберите другие даты или весь год' : 'Выберите другой месяц или весь год'}
         cta="Показать весь год"
         onCta={() => setPeriod('all')}
       />

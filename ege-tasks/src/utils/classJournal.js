@@ -747,8 +747,39 @@ export function columnMonths(columns = []) {
     .map(([key, count]) => ({ key, label: monthLabel(key), count }));
 }
 
+/**
+ * Период журнала — строка: 'all', месяц '2026-09' или свой промежуток
+ * '2026-09-01..2026-10-15' (концы включительно). Строкой — чтобы период
+ * сравнивался и хранился в состоянии так же просто, как месяц.
+ */
+export function rangePeriod(from, to) {
+  const a = dayOf(from);
+  const b = dayOf(to);
+  if (!a || !b) return 'all';
+  return a <= b ? `${a}..${b}` : `${b}..${a}`;
+}
+
+/** '2026-09-01..2026-10-15' → { from, to }; месяц и 'all' → null. */
+export function parsePeriodRange(period) {
+  const m = String(period || '').match(/^(\d{4}-\d{2}-\d{2})\.\.(\d{4}-\d{2}-\d{2})$/);
+  return m ? { from: m[1], to: m[2] } : null;
+}
+
+/** Границы месяца '2026-09' → свой период '2026-09-01..2026-09-30'. */
+export function monthRange(key) {
+  const m = String(key || '').match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  const last = new Date(Number(m[1]), Number(m[2]), 0).getDate();
+  return `${key}-01..${key}-${String(last).padStart(2, '0')}`;
+}
+
 export function inPeriod(col, period) {
   if (!period || period === 'all') return true;
+  const range = parsePeriodRange(period);
+  if (range) {
+    const d = dayOf(col.day);
+    return !!d && d >= range.from && d <= range.to;
+  }
   return monthKey(col.day) === period;
 }
 

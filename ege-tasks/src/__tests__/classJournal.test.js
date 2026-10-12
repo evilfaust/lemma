@@ -5,7 +5,8 @@ import {
   thresholdPoints, columnWeight, columnScale, dayOf, toStoredDate, shortDay, monthKey,
   monthLabel, localDay, yearWindow, collectOnline, onlineStatus, mergeColumns, resolveCell,
   summarizeRow, summarizeColumn, buildGrid, indexMarks, journalStudents, parseClipboard,
-  planPaste, suggestNextTitle, monthSpans, columnMonths, inPeriod, journalTable, toCsv, toTsv,
+  planPaste, suggestNextTitle, monthSpans, columnMonths, inPeriod, rangePeriod, parsePeriodRange, monthRange,
+  journalTable, toCsv, toTsv,
   formatAvg, indexAttendance, lessonDay, sheetColumnPreset, findSheetColumn,
   WAIT, SKIP, headerSpans, rangeLabel, intensiveDays, intensiveSummary, finalShareOf,
   startsBlockSection, formatGrade, columnViews, columnView, viewBadge,
@@ -386,6 +387,30 @@ describe('мелочи', () => {
     expect(inPeriod(cols[2], '2026-10')).toBe(true);
     expect(inPeriod(cols[0], '2026-10')).toBe(false);
     expect(inPeriod(cols[3], 'all')).toBe(true);
+  });
+  it('свой период: с даты по дату включительно, средний только по нему', () => {
+    expect(rangePeriod('2026-10-15', '2026-09-10')).toBe('2026-09-10..2026-10-15');
+    expect(rangePeriod('2026-09-10 12:00:00.000Z', null)).toBe('all');
+    expect(parsePeriodRange('2026-09-10..2026-10-15')).toEqual({ from: '2026-09-10', to: '2026-10-15' });
+    expect(parsePeriodRange('2026-09')).toBeNull();
+    expect(monthRange('2026-09')).toBe('2026-09-01..2026-09-30');
+    expect(monthRange('2028-02')).toBe('2028-02-01..2028-02-29');
+
+    const period = '2026-09-16..2026-10-02';
+    const cols = [
+      { id: 'a', key: 'm:a', scale: 'grade', title: 'A', day: '2026-09-09' },
+      { id: 'b', key: 'm:b', scale: 'grade', title: 'B', day: '2026-09-16 12:00:00.000Z' },
+      { id: 'c', key: 'm:c', scale: 'grade', title: 'C', day: '2026-10-02' },
+      { id: 'd', key: 'm:d', scale: 'grade', title: 'D', day: null },
+    ];
+    expect(cols.map((c) => inPeriod(c, period))).toEqual([false, true, true, false]);
+    const marks = indexMarks([
+      { col: 'a', student: 'st1', value: '2' },
+      { col: 'b', student: 'st1', value: '5' },
+      { col: 'c', student: 'st1', value: '4' },
+    ]);
+    const grid = buildGrid([{ id: 'st1', name: 'Иванов' }], cols.filter((c) => inPeriod(c, period)), marks, new Map());
+    expect(grid.rows[0].summary.avg).toBe(4.5);
   });
   it('выгрузка: TSV и CSV с кавычками', () => {
     const students = [{ id: 'st1', name: 'Иванов; Пётр' }];
