@@ -16,6 +16,10 @@ import {
   fixDecimalComma,
   fixLogBase,
   fixSpacesInParens,
+  fixArcShortcut,
+  fixMatrixShortcut,
+  fixAbsShortcut,
+  fixInfixOver,
   fixLatex,
 } from './latex-fixer.js';
 
@@ -220,5 +224,69 @@ test('fixLatex: уже корректные формулы не портятся
   for (const f of OK) {
     const fixed = fixLatex(f);
     assert.ok(rendersOk(fixed), `Сломали корректную формулу:\n  IN:    ${f}\n  FIXED: ${fixed}`);
+  }
+});
+
+// ─── TeX-сокращения из alt «Решу» (v3.9.354) ───
+
+test('дуга: \\overset\\smileBC → \\overset{\\smile}{BC}', () => {
+  assert.equal(fixArcShortcut('\\overset\\smileBC=2 \\alpha'), '\\overset{\\smile}{BC}=2 \\alpha');
+  assert.equal(fixArcShortcut('\\overset\\smileD_1B=3 \\alpha'), '\\overset{\\smile}{D_1B}=3 \\alpha');
+  assert.equal(fixArcShortcut('\\overset\\smile{AB}'), '\\overset{\\smile}{AB}');
+  assert.ok(rendersOk(fixLatex('\\frac{1}{2} \\overset\\smileBD')));
+});
+
+test('\\beginmatrix: система, совокупность, голая матрица', () => {
+  assert.equal(
+    fixMatrixShortcut('\\left\\{ \\beginmatrix (3 - a)^{2} - 16 < 0, (3 + a)^{2} - 64 < 0 \\endmatrix .'),
+    '\\begin{cases} (3 - a)^{2} - 16 < 0 \\\\ (3 + a)^{2} - 64 < 0 \\end{cases}',
+  );
+  assert.equal(
+    fixMatrixShortcut('\\left[ \\beginmatrix x \\leq - 4, - 1 \\leq x < 0. \\endmatrix'),
+    '\\left[\\begin{array}{l} x \\leq - 4 \\\\ - 1 \\leq x < 0. \\end{array}\\right.',
+  );
+  // десятичная запятая в {,} и запятая без пробела строку не делят
+  assert.equal(fixMatrixShortcut('\\beginmatrix x = 0{,}5, y=1,2 \\endmatrix'), '\\begin{matrix} x = 0{,}5 \\\\ y=1,2 \\end{matrix}');
+  assert.ok(rendersOk(fixLatex('\\left\\{ \\beginmatrix x > 1, x < 3 \\endmatrix . \\Leftrightarrow 1 < x < 3')));
+});
+
+test('\\abs: только однозначные случаи', () => {
+  assert.equal(
+    fixAbsShortcut('\\frac{\\abs0 + 0 + 0 - 6}{\\sqrt{1 + 1 + 1}} = \\frac{6}{\\sqrt{3}}'),
+    '\\frac{\\left|0 + 0 + 0 - 6\\right|}{\\sqrt{1 + 1 + 1}} = \\frac{6}{\\sqrt{3}}',
+  );
+  assert.equal(fixAbsShortcut('\\abs{x - 1} + 2'), '\\left|x - 1\\right| + 2');
+  assert.equal(fixAbsShortcut('9\\absx = 0'), '9\\left|x\\right| = 0');
+  assert.equal(fixAbsShortcut('\\frac{\\abs - 1}{\\sqrt{2}}'), '\\frac{\\left|- 1\\right|}{\\sqrt{2}}');
+  assert.equal(fixAbsShortcut('y = - t + \\absa'), 'y = - t + \\left|a\\right|');
+  // граница модуля неоднозначна — не трогаем (4|y| + … или 4|y + …|?)
+  assert.equal(fixAbsShortcut('4 \\absy + x^{2} + 8x = 0'), '4 \\absy + x^{2} + 8x = 0');
+  assert.equal(fixAbsShortcut('\\absx + 3a + 8 + \\absa - x - 4'), '\\absx + 3a + 8 + \\absa - x - 4');
+  assert.ok(rendersOk(fixLatex('\\rho = \\frac{\\abs8 - 20}{\\sqrt{16 + 4 + 25}}')));
+});
+
+test('\\over: числитель — произведение слева, знаменатель — атом справа', () => {
+  assert.equal(fixInfixOver('AB = AC \\over \\cos A = 4 \\over 0{,}5 = 8'), 'AB = \\frac{AC}{\\cos A} = \\frac{4}{0{,}5} = 8');
+  // \over связывает соседей, а не всю группу: √(1 − 20/25)
+  assert.equal(fixInfixOver('\\sqrt{1 - 20 \\over 25}'), '\\sqrt{1 - \\frac{20}{25}}');
+  assert.equal(fixInfixOver('AC \\sin A \\over \\sqrt{1 - \\sin^{2} A}'), '\\frac{AC \\sin A}{\\sqrt{1 - \\sin^{2} A}}');
+  // цепочка: (a/5)·(5/√5), а не a/(5·5)/√5
+  assert.equal(
+    fixInfixOver('17 \\cdot 2 \\cdot \\sqrt{5} \\over 5 \\cdot 5 \\over \\sqrt{5} = 34'),
+    '\\frac{\\frac{17 \\cdot 2 \\cdot \\sqrt{5}}{5} \\cdot 5}{\\sqrt{5}} = 34',
+  );
+  assert.ok(rendersOk(fixLatex('BC = 17 \\cdot 2 \\sqrt{5} \\over 5 \\over \\sqrt{1 - 20 \\over 25} = 34')));
+});
+
+test('новые правила идемпотентны и не трогают обычные формулы', () => {
+  const samples = [
+    'AB = AC \\over \\cos A = 4 \\over 0{,}5 = 8',
+    '\\frac{\\abs8 - 20}{3}',
+    '\\left\\{ \\beginmatrix x > 1, x < 3 \\endmatrix .',
+    '\\overset\\smileAB',
+  ];
+  for (const f of samples) { const once = fixLatex(f); assert.equal(fixLatex(once), once, f); }
+  for (const f of ['\\frac{a}{b}', '\\left|x\\right| < 3', '\\overline{AB}', '\\begin{cases} x \\\\ y \\end{cases}', '\\overrightarrow{AB}']) {
+    assert.equal(fixInfixOver(fixAbsShortcut(fixMatrixShortcut(fixArcShortcut(f)))), f);
   }
 });
