@@ -76,7 +76,7 @@ export const sessionsApi = {
   async getSessionsByWorks(workIds = []) {
     try {
       const records = await getFullListByOr('work_sessions', 'work', workIds, {
-        fields: 'id,work,created,is_open',
+        fields: 'id,work,created,is_open,results_hidden',
       });
       return records.sort((a, b) => new Date(b.created) - new Date(a.created));
     } catch (error) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Spin } from 'antd';
 import { LoadingOutlined, RightOutlined, DownOutlined, ArrowLeftOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
@@ -236,7 +236,7 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
-function StudentProgressPage({ studentSession }) {
+function StudentProgressPage({ studentSession, initialAttemptId = null }) {
   const [loading, setLoading] = useState(true);
   const [allAttempts, setAllAttempts] = useState([]);
   const [topicStats, setTopicStats] = useState(null);
@@ -342,6 +342,16 @@ function StudentProgressPage({ studentSession }) {
     }
     setAnswersLoading(false);
   }, []);
+
+  // «Подробнее» у результата в уроке (v3.9.358): сразу разбор этой попытки.
+  // Закрытой учителем попытки в списке нет — тогда просто история.
+  const openedInitialRef = useRef(false);
+  useEffect(() => {
+    if (!initialAttemptId || openedInitialRef.current || loading) return;
+    openedInitialRef.current = true;
+    const a = allAttempts.find((x) => x.id === initialAttemptId);
+    if (a) openAttemptDetail(a);
+  }, [initialAttemptId, loading, allAttempts, openAttemptDetail]);
 
   const closeAttemptDetail = useCallback(() => {
     setSelectedAttemptId(null);

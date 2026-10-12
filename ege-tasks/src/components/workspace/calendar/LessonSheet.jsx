@@ -14,7 +14,8 @@ import { extractNoteText } from '../notesText';
 import { api } from '../../../shared/services/pocketbase';
 import useIsMobile from '../../../hooks/useIsMobile';
 import useLessonHomework from './useLessonHomework';
-import { isNextDue } from '../../../utils/homework';
+import { isNextDue, studentFacing as groupFacesStudents } from '../../../utils/homework';
+import { deliveryBadge } from '../../../utils/lessonItems';
 import './mobile.css';
 import { OPENABLE_TYPES, materialPath } from '../../../utils/lessonMaterials';
 
@@ -95,6 +96,8 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
   const topic = l.expand?.ktp_entry?.title || '';
   const mats = (Array.isArray(l.materials) ? l.materials : [])
     .filter((m) => m.type === 'material' || OPENABLE_TYPES.has(m.type));
+  // Как пункт выдан ученикам (v3.9.358) — пометка у строки.
+  const matBadge = (m) => deliveryBadge(m, { isCourse, studentFacing: groupFacesStudents(group) });
   const slot = slotLabel(l.time_slot);
   const hex = lessonHex(l);
 
@@ -246,6 +249,7 @@ export default function LessonSheet({ lesson, onClose, onChange, onEdit, canEdit
               <div key={`${m.type}-${m.id}`} className="ls-mat" role="button" tabIndex={0} onClick={() => openMaterial(m)}>
                 {m.type === 'material' ? <FileTextOutlined /> : <PaperClipOutlined />}
                 <span className="ls-mat__title">{m.title || 'Работа'}</span>
+                {matBadge(m) && <span className="ls-mat__badge">{matBadge(m)}</span>}
                 <RightOutlined className="ls-mat__go" />
               </div>
             ))}

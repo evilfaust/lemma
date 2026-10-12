@@ -13,6 +13,8 @@ import { deadlineTitle } from './calendarUtils';
 import { KIND_LABELS, KIND_COLORS } from '../../../shared/services/pb/schoolEvents';
 import FilePreviewModal from '../FilePreviewModal';
 import { OPENABLE_TYPES } from '../../../utils/lessonMaterials';
+import { studentFacing as groupFacesStudents } from '../../../utils/homework';
+import { deliveryBadge } from '../../../utils/lessonItems';
 
 const TYPE_CHIP = {
   lesson: { tone: 'blue', label: 'Урок' },
@@ -76,6 +78,10 @@ export default function EventInspector({
               const l = r.raw;
               const { start, end } = lessonStartEnd(l);
               const mats = Array.isArray(l.materials) ? l.materials : [];
+              // Как пункт выдан ученикам (v3.9.358) — пометка у строки.
+              const matBadge = (m) => deliveryBadge(m, {
+                isCourse: l.expand?.group?.kind === 'course', studentFacing: groupFacesStudents(l.expand?.group),
+              });
               return (
                 <div className="ci-body">
                   <div className="ci-title">{l.title}</div>
@@ -133,6 +139,7 @@ export default function EventInspector({
                           onClick={() => openMaterial(m)}>
                           {m.type === 'material' ? <FileTextOutlined /> : <PaperClipOutlined />}
                           <span className="ci-mat-title">{m.title || 'Работа'}</span>
+                          {matBadge(m) && <span className="ci-mat-badge">{matBadge(m)}</span>}
                           {m.type === 'material' ? <EyeOutlined className="ci-mat-action" /> : <RightOutlined className="ci-mat-action" />}
                         </div>
                       ))}

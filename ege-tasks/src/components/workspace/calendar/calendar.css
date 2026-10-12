@@ -452,3 +452,5 @@
 @media (max-width: 520px) {
   .cal-sub-qr { flex-direction: column; align-items: flex-start; }
 }
+/* Как пункт выдан ученикам (v3.9.358) */
+.ci-mat-badge { flex: none; font-size: 11px; color: #9AA0AC; margin-right: 4px; }

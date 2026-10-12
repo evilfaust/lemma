@@ -17,10 +17,24 @@ import dayjs from 'dayjs';
 
 // 🚨 Копия правила из pocketbase/pb_hooks/lessons_feed_lib.js — учитель видит
 // в модалке ровно то, что уйдёт ученику. Сверяет тест studentLessons.test.js.
+// Работа, тест и геометрия (v3.9.358) видны, только когда выбран способ
+// выдачи (`deliver`), без него — «Только мне».
+const OWN_TYPES = new Set(['work', 'mc_test', 'geometry_work']);
+
 export function materialVisible(m, isCourse) {
   if (!m) return false;
   if (m.type === 'material') return isCourse ? m.visible !== false : m.visible === true;
+  if (OWN_TYPES.has(m.type)) return !!m.deliver && m.visible !== false;
   return m.visible !== false;
+}
+
+// 🚨 Копия requiredOf из lessons_feed_lib.js (v3.9.358): обязательно ли
+// сделать. Переключатель учителя, без него — ДЗ и онлайн-работы обязательны.
+export function requiredOf(m) {
+  if (!m) return false;
+  if (m.deliver === 'paper') return false;
+  if (typeof m.required === 'boolean') return m.required;
+  return m.role === 'homework' || m.type === 'session' || m.deliver === 'online';
 }
 
 /**

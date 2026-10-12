@@ -151,6 +151,35 @@
 
 .sc-empty-note { color: #aaa; font-size: 13px; padding: 8px 2px; }
 
+/* ── Разделы карточки урока (v3.9.358): обязательно / материалы / результаты ── */
+.sc-block--required .sc-block-head { color: #531dab; }
+.sc-block--materials .sc-block-head { color: #0958d9; }
+.sc-block--results .sc-block-head { color: #08979c; }
+.sc-block--required .sc-item { background: #f9f5ff; box-shadow: inset 3px 0 0 #722ed1; }
+.sc-block--materials .sc-item { box-shadow: inset 3px 0 0 #91caff; }
+.sc-block--results .sc-item { background: #f0fbfb; box-shadow: inset 3px 0 0 #13a8a8; }
+.sc-block-note { font-weight: 400; color: #999; }
+.sc-item-status {
+  display: block;
+  font-size: 12px;
+  color: #888;
+  margin-top: 1px;
+}
+.sc-item-status.is-hidden, .sc-item-status.is-none { color: #aaa; }
+.sc-item-status.is-started { color: #d46b08; }
+.sc-done-icon { color: #52c41a; }
+.sc-score {
+  display: inline-block;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #f6ffed;
+  color: #389e0d;
+}
+.sc-score.is-mid { background: #fffbe6; color: #d48806; }
+.sc-score.is-low { background: #fff1f0; color: #cf1322; }
+
 /* ── Лента ДЗ, дни, класс урока (v3.9.291) ── */
 .sc-hw-feed {
   margin: 4px 0 16px;
@@ -275,3 +304,11 @@
 .student-theme-dark .sw-day.is-today { border-color: #9254de; }
 .student-theme-dark .sw-day.is-selected { background: #722ed1; border-color: #722ed1; color: #fff; }
 .student-theme-dark .sw-day-title { color: #bbb; }
+.student-theme-dark .sc-block--required .sc-item { background: #2a2433; }
+.student-theme-dark .sc-block--results .sc-item { background: #1f2c2c; }
+.student-theme-dark .sc-block--required .sc-block-head { color: #b37feb; }
+.student-theme-dark .sc-block--materials .sc-block-head { color: #69b1ff; }
+.student-theme-dark .sc-block--results .sc-block-head { color: #5cdbd3; }
+.student-theme-dark .sc-score { background: rgba(82, 196, 26, 0.15); color: #95de64; }
+.student-theme-dark .sc-score.is-mid { background: rgba(250, 173, 20, 0.15); color: #ffd666; }
+.student-theme-dark .sc-score.is-low { background: rgba(255, 77, 79, 0.15); color: #ff7875; }

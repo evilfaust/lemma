@@ -94,6 +94,9 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
     return ['program', 'progress', 'gallery', 'courses'].includes(v) ? v : null;
   });
 
+  // «Подробнее» у результата в уроке (v3.9.358) открывает эту попытку в «Прогрессе».
+  const [progressAttempt, setProgressAttempt] = useState(null);
+
   // Минимальный псевдо-session для страниц прогресса/галереи
   const homeStudentSession = useMemo(() => ({ student, attempt: null, session: null }), [student]);
 
@@ -109,6 +112,7 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
   };
 
   const go = (k) => {
+    if (k !== 'progress') setProgressAttempt(null);
     setHomeView(k === 'home' ? null : k);
     window.scrollTo(0, 0);
   };
@@ -157,9 +161,14 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
 
   // ---- Разделы кабинета ----
   const SECTIONS = {
-    courses: () => <StudentCoursePortal student={student} />,
+    courses: () => (
+      <StudentCoursePortal
+        student={student}
+        onOpenAttempt={(id) => { setProgressAttempt(id); go('progress'); }}
+      />
+    ),
     program: () => <StudentSummerProgram student={student} />,
-    progress: () => <StudentProgressPage studentSession={homeStudentSession} />,
+    progress: () => <StudentProgressPage studentSession={homeStudentSession} initialAttemptId={progressAttempt} />,
     gallery: () => <AchievementGallery studentSession={homeStudentSession} />,
   };
   if (student && SECTIONS[homeView]) {

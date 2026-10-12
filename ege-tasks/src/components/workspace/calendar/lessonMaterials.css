@@ -1,0 +1,174 @@
+/* Материалы урока — единый список (v3.9.358). Цвет левой полосы строки =
+   раздел, в котором ученик увидит пункт: обязательно / материалы /
+   результаты; серая пунктирная — «только мне». */
+
+.lm {
+  margin: 4px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.lm-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.lm-title { font-size: 13px; }
+
+.lm-note {
+  font-size: 12px;
+  margin-bottom: 8px !important;
+}
+
+.lm-incoming {
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #fff7e6;
+}
+
+.lm-empty {
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #8c8c8c;
+  border: 1px dashed #e5e5e5;
+  border-radius: 8px;
+}
+
+.lm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lm-row {
+  padding: 6px 8px 6px 10px;
+  border: 1px solid #f0f0f0;
+  border-left: 3px solid #d9d9d9;
+  border-radius: 8px;
+  background: #fff;
+}
+.lm-row.is-required { border-left-color: #722ed1; }
+.lm-row.is-materials { border-left-color: #1677ff; }
+.lm-row.is-results { border-left-color: #13a8a8; }
+.lm-row.is-teacher { border-left-style: dashed; background: #fafafa; }
+
+.lm-row-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lm-icon { color: #8c8c8c; flex: none; }
+
+.lm-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lm-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.lm-link:hover { color: #1677ff; text-decoration: underline; }
+
+.lm-type {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #8c8c8c;
+}
+
+.lm-row-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-top: 4px;
+  padding-left: 22px;
+}
+
+.lm-deliver { width: 170px; }
+.lm-deliver-fixed { font-size: 12px; color: #595959; }
+.lm-session { width: 210px; }
+
+.lm-opt-hint {
+  font-size: 11px;
+  color: #8c8c8c;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+.lm-preview {
+  margin-top: 3px;
+  padding-left: 22px;
+  font-size: 11px;
+  color: #595959;
+}
+.lm-preview.is-hidden { color: #d46b08; }
+
+.lm-next { font-size: 12px; margin: 8px 0 0 !important; }
+
+.lm-add { margin-top: 8px; }
+
+.lm-notefiles {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lm-notefile {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* Окно «Как ученики получат…» */
+.lm-choice {
+  display: flex !important;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.lm-choice-item {
+  padding: 8px 10px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  margin-inline-end: 0 !important;
+}
+.lm-choice-item.ant-radio-wrapper-checked { border-color: #1677ff; background: #f0f7ff; }
+.lm-choice-label { font-weight: 500; }
+.lm-choice-hint { font-size: 12px; color: #8c8c8c; }
+.lm-choice-when {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@media (max-width: 767px) {
+  .lm-row-controls, .lm-preview { padding-left: 0; }
+  .lm-deliver { width: 100%; }
+}
+
+[data-theme='dark'] .lm-row, .dark .lm-row { background: transparent; border-color: #303030; }
+[data-theme='dark'] .lm-row.is-teacher, .dark .lm-row.is-teacher { background: rgba(255, 255, 255, 0.03); }
+[data-theme='dark'] .lm-incoming, .dark .lm-incoming { background: rgba(250, 173, 20, 0.12); }
+[data-theme='dark'] .lm-choice-item.ant-radio-wrapper-checked,
+.dark .lm-choice-item.ant-radio-wrapper-checked { background: rgba(22, 119, 255, 0.12); }

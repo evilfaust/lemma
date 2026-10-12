@@ -3,6 +3,7 @@ import 'dayjs/locale/ru';
 import { homeworkFeed } from './homework';
 import { slotRangeFromCode } from '../components/workspace/lessonTime';
 import { attemptResultsHidden } from './resultsVisibility';
+import { itemRequired } from './lessonResults';
 
 /**
  * Главная ученика (v3.9.316) — лента «что делать»: чистая логика без сети.
@@ -172,7 +173,9 @@ export function itemLink(item) {
 }
 
 /**
- * Список «Сделать»: ДЗ из ленты уроков, со сроком и отметкой «сдано».
+ * Список «Сделать»: обязательные ДЗ из ленты уроков (v3.9.358: ДЗ «для
+ * удобства» — справочный файл и т. п. — остаётся в карточке урока), со
+ * сроком и отметкой «сдано».
  * Сдано = есть сданная попытка по выдаче пункта-работы. Несданное — сверху
  * по сроку, сданное — в конце.
  * → [{ key, item, title, kind, link, due, dueLabel, done, groupId }]
@@ -182,7 +185,7 @@ export function todoList(lessons, attempts, now = dayjs()) {
     .filter((a) => a.status === 'submitted' || a.status === 'corrected')
     .map((a) => a.session));
   const t = dayjs(now);
-  const rows = homeworkFeed(lessons, t).map(({ item, from, due }, i) => {
+  const rows = homeworkFeed(lessons, t).filter(({ item }) => itemRequired(item)).map(({ item, from, due }, i) => {
     let dueLabel;
     if (!due) dueLabel = 'к следующему уроку';
     // ДЗ к самому уроку: урок впереди — это срок, урок начался — когда задано.

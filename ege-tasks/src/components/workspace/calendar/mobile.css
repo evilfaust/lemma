@@ -232,3 +232,5 @@
 .ls-hw__title { min-width: 0; overflow-wrap: anywhere; }
 .ls-hw__due { flex: none; font-size: 12px; color: #8c8c8c; white-space: nowrap; }
 [data-theme='dark'] .ls-hw--in, .dark .ls-hw--in { background: rgba(250, 140, 22, 0.12); }
+/* Как пункт выдан ученикам (v3.9.358) */
+.ls-mat__badge { flex: none; font-size: 11px; color: var(--ink-4, #9AA0AC); }

@@ -1,49 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  App, Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Switch, Tag, Tooltip, Typography,
+  Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Typography,
 } from 'antd';
-import {
-  FileTextOutlined, LinkOutlined, PaperClipOutlined, DeleteOutlined, DownloadOutlined,
-  EyeOutlined, EyeInvisibleOutlined, VideoCameraOutlined, PlusOutlined, ReadOutlined, RetweetOutlined,
-} from '@ant-design/icons';
+import { FileTextOutlined, VideoCameraOutlined, RetweetOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import MaterialPickerModal from '../MaterialPickerModal';
 import AttendanceRoster from '../AttendanceRoster';
 import LessonJournalBlock from './LessonJournalBlock';
+import LessonMaterialsEditor from './LessonMaterialsEditor';
 import { Chip, GroupColorPicker } from '../ui';
 import { PAIRS, guessSlot, slotRangeFromCode, lessonStart } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
 import DateTimeField from './DateTimeField';
-import LessonWorkPickerModal from './LessonWorkPickerModal';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
 import {
-  ITEM_MODES, itemMode, withMode, defaultItemTitle, materialVisible, isNextDue, nextLessonFor, incomingFor,
-  studentFacing as groupFacesStudents,
+  materialVisible, isNextDue, nextLessonFor, incomingFor, studentFacing as groupFacesStudents,
 } from '../../../utils/homework';
-import {
-  testOption, isTestOption, testIdOf, geoOption, isGeoOption, geoIdOf, parseStudentLink,
-} from '../../../utils/lessonMaterials';
-import { buildPickerItems } from '../../../utils/lessonWorkPicker';
-
-const dayLabel = (l) => (l?.date_plan ? dayjs(l.date_plan).format('D MMM, dd') : '');
-const itemTitle = (m) => m.title || m.text || 'Задание';
+import { parseStudentLink } from '../../../utils/lessonMaterials';
+import { normalizeLessonItems } from '../../../utils/lessonItems';
 
 /**
- * Полная форма урока (создание/правка) + посещаемость + материалы + заметка.
+ * Полная форма урока (создание/правка) + посещаемость + журнал + материалы + заметка.
  * Вынесена из TeacherCalendar без изменения поведения (редизайн календаря v3.9.108).
+ * Материалы с v3.9.358 — один список `LessonMaterialsEditor` (раньше работа
+ * добавлялась в «Материалы урока» для учителя и отдельно в «Задания-ссылки»).
  */
 export default function LessonModal({
   open, initial, groups, works, onSave, onDelete, onCancel, onOpenNote, onOpenMaterial, onRepeat, saving, canEdit,
 }) {
   const [form] = Form.useForm();
-  const { message } = App.useApp();
   const isMobile = useIsMobile();
-  const materialIds = Form.useWatch('materials', form) || [];
   const watchedGroup = Form.useWatch('group', form);
-  const worksMap = useMemo(() => new Map((works || []).map((w) => [w.id, w.title])), [works]);
   const selectedGroup = useMemo(
     // Группа прошлого года в списки пикеров не попадает — берём из самой записи.
     () => resolveGroup(groups, watchedGroup, initial?.expand?.group),
@@ -57,52 +46,10 @@ export default function LessonModal({
   const { teacher } = useAuth();
   const watchedDate = Form.useWatch('date_plan', form);
   const watchedStatus = Form.useWatch('status', form);
-  const [fileMaterials, setFileMaterials] = useState([]);
-  const [sessionItems, setSessionItems] = useState([]); // ДЗ/тесты: ссылки на выданные сессии
-  const [textItems, setTextItems] = useState([]);        // текстовые задания/объявления
-  const [geoItems, setGeoItems] = useState([]);          // работы раздела «Геометрия»
+  const [items, setItems] = useState([]);           // материалы урока (utils/lessonItems.js)
+  const [itemsLoading, setItemsLoading] = useState(false);
   const [visibleToStudents, setVisibleToStudents] = useState(true);
   const [neighbours, setNeighbours] = useState([]); // уроки класса вокруг — для ДЗ «к след.»
-  const [newText, setNewText] = useState('');
-  const [textMode, setTextMode] = useState('hw');
-  // Пикер ДЗ-работы: работы с выданными сессиями.
-  const [workSessions, setWorkSessions] = useState({}); // workId -> sessions[]
-  // Тесты (из генераторов и с выбором ответа, v3.9.299) — наравне с работами:
-  // материал урока для учителя и задание-ссылка для учеников
-  const [mcTests, setMcTests] = useState([]);
-  const [testSessions, setTestSessions] = useState({}); // testId -> sessions[]
-  // show — работа «только условия» (v3.9.306): пункт work_view, ссылка /r/<id>, без выдачи
-  // geo — работа по геометрии (v3.9.308): пункт geometry_view, ссылка /w/<id>
-  const EMPTY_HW = { work: undefined, test: undefined, geo: undefined, session: undefined, title: '', mode: 'hw', show: false };
-  const [hw, setHw] = useState(EMPTY_HW);
-  const [geoWorks, setGeoWorks] = useState([]);
-  const geoMap = useMemo(() => new Map(geoWorks.map((w) => [w.id, w.title || 'Работа по геометрии'])), [geoWorks]);
-  const testsMap = useMemo(() => new Map(mcTests.map((t) => [t.id, t.title || 'Тест'])), [mcTests]);
-  // Название теста, пока список тестов ещё грузится, — из самого урока
-  const savedTitle = (id) => (initial?.materials || []).find((m) => m.type === 'mc_test' && m.id === id)?.title || '';
-  const workAndTestOptions = useMemo(() => {
-    const workOpts = (works || []).map((w) => ({ value: w.id, label: w.title }));
-    if (!mcTests.length) return workOpts;
-    return [
-      { label: 'Работы', options: workOpts },
-      { label: 'Тесты', options: mcTests.map((t) => ({ value: testOption(t.id), label: t.title || 'Тест' })) },
-    ];
-  }, [works, mcTests]);
-  // Окно выбора работы (v3.9.320) вместо длинного селекта: 'hw' — задание
-  // ученикам (с работами по геометрии — только показ условий), 'materials' —
-  // материал урока (геометрии там нет: у неё свой тип geometry_work). Работы каникулярных программ
-  // (по одной на ученика) уходят в свой раздел — их id из самих программ.
-  const [picker, setPicker] = useState(null);
-  const [programWorkIds, setProgramWorkIds] = useState(() => new Set());
-  const pickerItems = useMemo(() => buildPickerItems({
-    works, tests: mcTests, geoWorks: picker === 'hw' ? geoWorks : [],
-    workSessions, testSessions, programWorkIds,
-  }), [works, mcTests, geoWorks, picker, workSessions, testSessions, programWorkIds]);
-  const [hwBusy, setHwBusy] = useState(false);
-  const [manualMode, setManualMode] = useState(false);
-  const [newLink, setNewLink] = useState({ title: '', code: '', mode: 'hw' });
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [noteFiles, setNoteFiles] = useState([]);
   const [mode, setMode] = useState('single');
   const [pair, setPair] = useState(null);
   const [part, setPart] = useState('full');
@@ -110,7 +57,6 @@ export default function LessonModal({
 
   useEffect(() => {
     if (open) {
-      const all = Array.isArray(initial?.materials) ? initial.materials : [];
       const startDate = initial?.date_plan ? dayjs(lessonStart(initial))
         : (initial?.slotDate ? dayjs(initial.slotDate) : dayjs());
       form.setFieldsValue({
@@ -120,26 +66,7 @@ export default function LessonModal({
         date_plan: startDate,
         status: initial?.status || 'planned',
         conference_url: initial?.conference_url || '',
-        materials: [
-          ...all.filter((m) => m.type === 'work').map((m) => m.id),
-          ...all.filter((m) => m.type === 'mc_test').map((m) => testOption(m.id)),
-        ],
       });
-      setFileMaterials(all.filter((m) => m.type === 'material'));
-      // Стандартное название — по режиму: до v3.9.300 классная работа
-      // сохранялась под названием «Домашняя работа».
-      // Задания-ссылки: выдачи и работы «только условия» (work_view, geometry_view)
-      // одним списком. Ссылка /w/… или /r/…, сохранённая до v3.9.308 как выдача,
-      // становится показом — при сохранении урок исправится.
-      setSessionItems(all
-        .filter((m) => m.type === 'session' || m.type === 'work_view' || m.type === 'geometry_view')
-        .map((m) => {
-          const link = m.type === 'session' ? parseStudentLink(m.id) : null;
-          return link && link.type !== 'session' ? { ...m, type: link.type, id: link.id } : m;
-        })
-        .map((m) => withMode(m, itemMode(m))));
-      setTextItems(all.filter((m) => m.type === 'text'));
-      setGeoItems(all.filter((m) => m.type === 'geometry_work'));
       const ts = initial?.time_slot || '';
       const inten = /^(\d)-(\d)$/.exec(ts);
       const half = /^(\d)([ab])$/.exec(ts);
@@ -151,44 +78,39 @@ export default function LessonModal({
     }
   }, [open, initial, form]);
 
+  // Материалы: старые записи приводятся к единому списку (utils/lessonItems.js).
+  // Выдача старого вида (`session`) узнаёт свою работу по записи выдачи —
+  // тогда учительская строка этой же работы не задваивается.
+  useEffect(() => {
+    let cancelled = false;
+    if (!open) return undefined;
+    const all = Array.isArray(initial?.materials) ? initial.materials : [];
+    const sessionIds = all
+      .filter((m) => m?.type === 'session' && m.id && parseStudentLink(m.id)?.type === 'session')
+      .map((m) => m.id);
+    if (!sessionIds.length) {
+      setItems(normalizeLessonItems(all));
+      setItemsLoading(false);
+      return undefined;
+    }
+    setItems([]);
+    setItemsLoading(true);
+    api.getSessionsByIds(sessionIds)
+      .then((list) => new Map((list || []).map((x) => [x.id, x])))
+      .catch(() => new Map())
+      .then((byId) => {
+        if (cancelled) return;
+        setItems(normalizeLessonItems(all, byId));
+        setItemsLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [open, initial]);
+
   // Флаг «показывать ученикам» живёт в самом уроке (до v3.9.291 — в витрине курса).
   useEffect(() => {
     if (!open) return;
     setVisibleToStudents(!initial?.hidden_from_students);
-    setNewLink({ title: '', code: '', mode: 'hw' });
-    setNewText('');
-    setTextMode('hw');
-    setHw(EMPTY_HW);
-    setManualMode(false);
   }, [open, initial]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!open) return undefined;
-    api.getProgramWorkIds()
-      .then((ids) => { if (!cancelled) setProgramWorkIds(ids); })
-      .catch(() => { /* без признака окно просто покажет их среди прочих */ });
-    return () => { cancelled = true; };
-  }, [open]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!open) return undefined;
-    api.getMCTestsLight()
-      .then((list) => { if (!cancelled) setMcTests(list); })
-      .catch(() => { if (!cancelled) setMcTests([]); });
-    return () => { cancelled = true; };
-  }, [open]);
-
-  // Работы по геометрии — для пикера заданий ученикам (только у групп, которые их видят)
-  useEffect(() => {
-    let cancelled = false;
-    if (!open || !studentFacing) return undefined;
-    api.getGeometryWorksLight()
-      .then((list) => { if (!cancelled) setGeoWorks(list || []); })
-      .catch(() => { if (!cancelled) setGeoWorks([]); });
-    return () => { cancelled = true; };
-  }, [open, studentFacing]);
 
   // Уроки того же класса вокруг этого: куда уйдёт ДЗ «к следующему» и что
   // задали к этому уроку раньше. Окно — от даты урока при открытии.
@@ -206,49 +128,6 @@ export default function LessonModal({
       .catch(() => { if (!cancelled) setNeighbours([]); });
     return () => { cancelled = true; };
   }, [open, groupId, studentFacing, initial?.date_plan]);
-
-  // Сессии работ — для пикера ДЗ (только работы с выданной сессией можно дать ученику).
-  useEffect(() => {
-    let cancelled = false;
-    if (!open || !studentFacing || !(works || []).length) { setWorkSessions({}); return undefined; }
-    api.getSessionsByWorks(works.map((w) => w.id))
-      .then((sess) => {
-        if (cancelled) return;
-        const map = {};
-        sess.forEach((s) => { (map[s.work] ||= []).push(s); });
-        setWorkSessions(map);
-      })
-      .catch(() => { if (!cancelled) setWorkSessions({}); });
-    return () => { cancelled = true; };
-  }, [open, studentFacing, works]);
-
-  // Выдачи тестов — для пикера задания ученикам (как сессии работ выше)
-  useEffect(() => {
-    let cancelled = false;
-    if (!open || !studentFacing || !mcTests.length) { setTestSessions({}); return undefined; }
-    api.getSessionsByMCTests(mcTests.map((t) => t.id))
-      .then((sess) => {
-        if (cancelled) return;
-        const map = {};
-        sess.forEach((x) => { (map[x.mc_test] ||= []).push(x); });
-        setTestSessions(map);
-      })
-      .catch(() => { if (!cancelled) setTestSessions({}); });
-    return () => { cancelled = true; };
-  }, [open, studentFacing, mcTests]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!open || !initial?.id) { setNoteFiles([]); return undefined; }
-    api.getLessonNote(initial.id)
-      .then((note) => {
-        if (cancelled) return;
-        const links = Array.isArray(note?.links) ? note.links : [];
-        setNoteFiles(links.filter((l) => l.type === 'material'));
-      })
-      .catch(() => { if (!cancelled) setNoteFiles([]); });
-    return () => { cancelled = true; };
-  }, [open, initial?.id]);
 
   const setStartTime = (str) => {
     const [h, m] = str.split(':').map(Number);
@@ -297,158 +176,16 @@ export default function LessonModal({
       time_slot: currentSlotCode(),
       conference_url: (v.conference_url || '').trim(),
       hidden_from_students: !visibleToStudents,
-      materials: [
-        ...(v.materials || []).map((id) => (isTestOption(id)
-          ? { type: 'mc_test', id: testIdOf(id), title: testsMap.get(testIdOf(id)) || savedTitle(testIdOf(id)) }
-          : { type: 'work', id, title: worksMap.get(id) || '' })),
-        ...fileMaterials,
-        ...sessionItems,
-        ...textItems,
-        ...geoItems,
-      ],
+      materials: items,
     });
   };
-
-  // Одна выдача в уроке — один пункт: дубль давал ученику две одинаковые кнопки «Решать».
-  const hasSession = (id, type = 'session') => {
-    if (!sessionItems.some((x) => x.id === id && (x.type || 'session') === type)) return false;
-    message.warning('Эта работа уже есть в уроке');
-    return true;
-  };
-  // Без введённого названия — название выдачи, которое ученик видит в самой
-  // работе, иначе стандартное по режиму («Классная работа» / «Домашняя работа»).
-  const addSessionItem = async () => {
-    const link = parseStudentLink(newLink.code);
-    if (!link) { message.warning('Не похоже на ссылку ученику или код выдачи'); return; }
-    // /r/<id> и /w/<id> — показ условий, а не выдача: без сессии
-    if (link.type !== 'session') {
-      const ok = await addViewItem({ type: link.type, id: link.id, title: (newLink.title || '').trim(), mode: newLink.mode });
-      if (ok) setNewLink({ title: '', code: '', mode: 'hw' });
-      return;
-    }
-    const { id } = link;
-    if (hasSession(id)) return;
-    let title = (newLink.title || '').trim();
-    if (!title) {
-      const sess = await api.getSession(id);
-      title = (sess?.student_title || sess?.expand?.work?.title || '').trim();
-    }
-    setSessionItems((prev) => (prev.some((x) => x.id === id) ? prev : [
-      ...prev,
-      withMode({ type: 'session', id, title: title || defaultItemTitle(newLink.mode), visible: true }, newLink.mode),
-    ]));
-    setNewLink({ title: '', code: '', mode: 'hw' });
-  };
-  const addTextItem = () => {
-    const text = (newText || '').trim();
-    if (!text) return;
-    setTextItems((prev) => [...prev, withMode({ type: 'text', text, visible: true }, textMode)]);
-    setNewText('');
-  };
-  // Выбор работы из списка. Если у работы уже есть сессия — берём её; иначе
-  // сессия будет выдана при нажатии «Добавить».
-  const selectHwWork = (value) => {
-    if (isGeoOption(value)) {
-      const id = geoIdOf(value);
-      setHw((s) => ({ ...s, work: undefined, test: undefined, geo: id, session: undefined, title: geoMap.get(id) || '', show: true }));
-      return;
-    }
-    if (isTestOption(value)) {
-      const testId = testIdOf(value);
-      const sess = testSessions[testId] || [];
-      setHw((s) => ({ ...s, work: undefined, test: testId, geo: undefined, session: sess[0]?.id, title: testsMap.get(testId) || '', show: false }));
-      return;
-    }
-    const sess = workSessions[value] || [];
-    setHw((s) => ({ ...s, work: value, test: undefined, geo: undefined, session: sess[0]?.id, title: worksMap.get(value) || '', show: s.geo ? false : s.show }));
-  };
-  const hwValue = hw.geo ? geoOption(hw.geo) : hw.test ? testOption(hw.test) : hw.work;
-  const hwSessions = hw.test ? (testSessions[hw.test] || []) : (workSessions[hw.work] || []);
-  const hwSourceTitle = hw.geo ? geoMap.get(hw.geo) : hw.test ? testsMap.get(hw.test) : worksMap.get(hw.work);
-  // «Только условия»: в урок кладётся сама работа — обычная (work_view, /r/)
-  // или по геометрии (geometry_view, /w/), выдача не создаётся. Закрытой
-  // работе показ открывается (иначе ученик увидит «Работа недоступна»),
-  // классы показа не трогаются. → false, если пункт уже есть.
-  const addViewItem = async ({ type, id, title, mode }) => {
-    if (hasSession(id, type)) return false;
-    const geo = type === 'geometry_view';
-    let name = title;
-    try {
-      const w = geo ? await api.getGeometryWork(id) : await api.getWork(id);
-      if (!name) name = (w?.title || '').trim();
-      if (w && geo && !w.public) {
-        await api.setGeometryWorkSharing(id, { public: true, groups: w.groups || [] });
-        message.info('Работа по геометрии открыта ученикам по ссылке');
-      } else if (w && !geo && !w.show_open) {
-        await api.setWorkShowSharing(id, { open: true, groups: w.show_groups || [] });
-        message.info('Условия работы открыты ученикам по ссылке');
-      }
-    } catch (e) {
-      message.warning(`Не удалось открыть работу ученикам: ${e?.message || 'ошибка'}. Откройте её вручную (${geo ? 'редактор работы → «Ученикам»' : '«Мои работы» → «Показ условий»'}).`);
-    }
-    setSessionItems((prev) => [
-      ...prev,
-      withMode({ type, id, title: name || (geo ? 'Работа по геометрии' : defaultItemTitle(mode)), visible: true }, mode),
-    ]);
-    return true;
-  };
-  const addShowItem = async () => {
-    const type = hw.geo ? 'geometry_view' : 'work_view';
-    const id = hw.geo || hw.work;
-    const title = (hw.title || '').trim() || hwSourceTitle || '';
-    if (await addViewItem({ type, id, title, mode: hw.mode })) setHw(EMPTY_HW);
-  };
-  const addHwFromWork = async () => {
-    if (!hw.work && !hw.test && !hw.geo) return;
-    if (hw.geo || (hw.show && hw.work)) {
-      setHwBusy(true);
-      try { await addShowItem(); } finally { setHwBusy(false); }
-      return;
-    }
-    if (hw.session && hasSession(hw.session)) return;
-    setHwBusy(true);
-    try {
-      let sessionId = hw.session;
-      // Нет выданной сессии → выдаём работу (тест) ученикам (открытая сессия).
-      if (!sessionId) {
-        const title = (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode);
-        if (hw.test) {
-          const rec = await api.createMCTestSession(hw.test, { student_title: title });
-          sessionId = rec.id;
-          setTestSessions((prev) => ({ ...prev, [hw.test]: [rec, ...(prev[hw.test] || [])] }));
-        } else {
-          const rec = await api.createSession({ work: hw.work, is_open: true, student_title: title });
-          sessionId = rec.id;
-          setWorkSessions((prev) => ({ ...prev, [hw.work]: [rec, ...(prev[hw.work] || [])] }));
-        }
-      }
-      setSessionItems((prev) => (prev.some((x) => x.id === sessionId) ? prev : [
-        ...prev,
-        withMode({ type: 'session', id: sessionId, title: (hw.title || '').trim() || hwSourceTitle || defaultItemTitle(hw.mode), visible: true }, hw.mode),
-      ]));
-      setHw(EMPTY_HW);
-    } catch (e) {
-      console.error('addHwFromWork', e?.message);
-    } finally {
-      setHwBusy(false);
-    }
-  };
-  // Перенести файл из заметки в «Файлы из Библиотеки» (там есть глаз/роль → публикуется).
-  const showNoteFileToStudents = (m) => {
-    setFileMaterials((prev) => (prev.some((x) => x.id === m.id)
-      ? prev
-      : [...prev, { type: 'material', id: m.id, title: m.title, url: m.url, visible: true, role: 'class' }]));
-  };
-  // Переключатели видимости/роли для файла из Библиотеки.
-  const patchFile = (id, patch) => setFileMaterials((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)));
-  const setFileMode = (id, mode) => setFileMaterials((prev) => prev.map((m) => (m.id === id ? withMode(m, mode) : m)));
 
   // ДЗ «к следующему уроку»: куда уйдёт и что пришло к этому уроку.
   const owner = initial?.owner || teacher?.id || '';
   const draft = watchedDate && groupId
     ? { id: initial?.id, group: groupId, owner, date_plan: dayjs(watchedDate).toISOString(), status: watchedStatus }
     : null;
-  const hasNextHw = [...fileMaterials, ...sessionItems, ...textItems].some(isNextDue);
+  const hasNextHw = items.some((m) => isNextDue(m) && materialVisible(m, isCourse));
   const nextLesson = studentFacing && draft && hasNextHw ? nextLessonFor(draft, neighbours) : null;
   const incoming = studentFacing && draft
     // Скрытый от учеников урок своих ДЗ ученикам не показывает — и здесь их нет.
@@ -467,7 +204,7 @@ export default function LessonModal({
       okText="Сохранить"
       cancelText="Отмена"
       okButtonProps={{ disabled: !canEdit }}
-      width={studentFacing ? 720 : 560}
+      width={studentFacing ? 760 : 600}
       destroyOnHidden
       style={isMobile ? { top: 12 } : undefined}
       footer={(_, { OkBtn, CancelBtn }) => (
@@ -558,38 +295,6 @@ export default function LessonModal({
           <DateTimeField
             onChange={(d) => { if (d) { const g = guessSlot(d.toDate()); setPair(g.pair); setPart(g.part); } }} />
         </Form.Item>
-        <Form.Item name="materials" label="Материалы урока (работы и тесты)">
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="Привязать работы и тесты к уроку"
-            optionFilterProp="label"
-            options={workAndTestOptions}
-          />
-        </Form.Item>
-        {canEdit && (
-          <Button type="link" size="small" style={{ margin: '-18px 0 12px', padding: 0 }} onClick={() => setPicker('materials')}>
-            Выбрать из списка: папки, недавние, поиск…
-          </Button>
-        )}
-        {geoItems.length > 0 && (
-          <Form.Item label="Работы по геометрии" tooltip="Прикрепляются из редактора геометрической работы">
-            <Space wrap size={4}>
-              {geoItems.map((m) => (
-                <Tag
-                  key={m.id}
-                  color="geekblue"
-                  closable={canEdit}
-                  onClose={(e) => { e.preventDefault(); setGeoItems((list) => list.filter((x) => x.id !== m.id)); }}
-                  style={{ cursor: 'pointer', margin: 0 }}
-                  onClick={() => onOpenMaterial?.(m.id, m.type)}
-                >
-                  {m.title || 'Работа по геометрии'}
-                </Tag>
-              ))}
-            </Space>
-          </Form.Item>
-        )}
         {isCourse && (
           <Form.Item
             name="conference_url"
@@ -605,6 +310,25 @@ export default function LessonModal({
           </Form.Item>
         )}
       </Form>
+
+      <LessonMaterialsEditor
+        items={items}
+        setItems={setItems}
+        loading={itemsLoading}
+        lessonId={initial?.id}
+        works={works}
+        canEdit={canEdit}
+        onOpenMaterial={onOpenMaterial}
+        studentFacing={studentFacing}
+        isCourse={isCourse}
+        courseDone={courseDone}
+        group={selectedGroup}
+        visibleToStudents={visibleToStudents}
+        onVisibleChange={setVisibleToStudents}
+        incoming={incoming}
+        nextLesson={nextLesson}
+        hasNextHw={hasNextHw}
+      />
 
       <div style={{ margin: '4px 0 12px', paddingTop: 12, borderTop: '1px solid #f0f0f0' }}>
         {editingExisting ? (
@@ -623,316 +347,6 @@ export default function LessonModal({
         </div>
       )}
 
-      <div style={{ marginBottom: 12 }}>
-        <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 4 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>
-            <PaperClipOutlined /> Файлы из Библиотеки
-          </Typography.Text>
-          {canEdit && (
-            <Button size="small" icon={<PaperClipOutlined />} onClick={() => setPickerOpen(true)}>
-              Прикрепить
-            </Button>
-          )}
-        </Space>
-        {fileMaterials.length === 0 ? (
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>Нет прикреплённых файлов</Typography.Text>
-        ) : (
-          <Space direction="vertical" size={2} style={{ width: '100%' }}>
-            {fileMaterials.map((m) => (
-              <Space key={m.id} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                <a href={m.url} target="_blank" rel="noreferrer">
-                  <DownloadOutlined /> {m.title}
-                </a>
-                <Space size={4}>
-                  {studentFacing && canEdit && (
-                    <>
-                      <Segmented
-                        size="small"
-                        value={itemMode(m)}
-                        onChange={(v) => setFileMode(m.id, v)}
-                        options={ITEM_MODES}
-                      />
-                      <Tooltip title={materialVisible(m, isCourse) ? 'Виден ученикам' : 'Скрыт от учеников'}>
-                        <Button
-                          size="small"
-                          type="text"
-                          icon={materialVisible(m, isCourse) ? <EyeOutlined style={{ color: '#52c41a' }} /> : <EyeInvisibleOutlined />}
-                          onClick={() => patchFile(m.id, { visible: !materialVisible(m, isCourse) })}
-                        />
-                      </Tooltip>
-                    </>
-                  )}
-                  {canEdit && (
-                    <Button size="small" type="text" danger icon={<DeleteOutlined />}
-                      onClick={() => setFileMaterials((prev) => prev.filter((x) => x.id !== m.id))} />
-                  )}
-                </Space>
-              </Space>
-            ))}
-          </Space>
-        )}
-      </div>
-
-      {courseDone && (
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '0 0 12px' }}>
-          <ReadOutlined /> Курс завершён — ученики больше не видят его уроки и ДЗ.
-        </Typography.Paragraph>
-      )}
-      {selectedGroup && !studentFacing && !courseDone && (
-        <Typography.Paragraph type="secondary" style={{ fontSize: 12, margin: '0 0 12px' }}>
-          <ReadOutlined /> Ученики этого класса не видят уроки и ДЗ. Включить — «Расписание и ДЗ
-          для учеников» в настройках класса (Мои классы → ✏️).
-        </Typography.Paragraph>
-      )}
-
-      {studentFacing && (
-        <div style={{ margin: '4px 0 12px', padding: '10px 12px', borderRadius: 8, background: 'rgba(114,46,209,0.06)', border: '1px solid rgba(114,46,209,0.18)' }}>
-          <Space style={{ width: '100%', justifyContent: 'space-between', marginBottom: 8 }} wrap>
-            <Typography.Text strong style={{ fontSize: 13 }}>
-              <ReadOutlined /> Для учеников {isCourse ? 'курса' : 'класса'}
-            </Typography.Text>
-            <Space size={6}>
-              <Typography.Text style={{ fontSize: 12 }}>Показывать ученикам</Typography.Text>
-              <Switch size="small" checked={visibleToStudents} onChange={setVisibleToStudents} disabled={!canEdit} />
-            </Space>
-          </Space>
-          <Typography.Paragraph type="secondary" style={{ fontSize: 12, marginBottom: 10 }}>
-            Ученики увидят тему, время{isCourse ? ', ссылку на конференцию' : ''} и отмеченные материалы.
-            Файлы из Библиотеки помечайте <EyeOutlined style={{ color: '#52c41a' }} /> (виден)
-            {isCourse ? '' : ' — в классе файл по умолчанию скрыт'}. «ДЗ» — к этому уроку,
-            «ДЗ к след.» — ученики увидят его у следующего урока, даже если его ещё нет в календаре.
-          </Typography.Paragraph>
-
-          {incoming.length > 0 && (
-            <div style={{ marginBottom: 10, padding: '6px 8px', borderRadius: 6, background: '#fff7e6' }}>
-              <Typography.Text strong style={{ fontSize: 12 }}>📌 К этому уроку задано</Typography.Text>
-              {incoming.map(({ item, from }, i) => (
-                <div key={i} style={{ fontSize: 13 }}>
-                  {itemTitle(item)}{' '}
-                  <Typography.Text type="secondary" style={{ fontSize: 11 }}>— на уроке {dayLabel(from)}</Typography.Text>
-                </div>
-              ))}
-            </div>
-          )}
-          {hasNextHw && (
-            <Typography.Paragraph style={{ fontSize: 12, marginBottom: 10 }}>
-              {nextLesson
-                ? <>→ «ДЗ к след.» ученики увидят у урока <b>{dayLabel(nextLesson)}</b>{nextLesson.title ? ` («${nextLesson.title}»)` : ''}.</>
-                : <>→ Следующего урока в календаре пока нет — «ДЗ к след.» прикрепится к нему, когда урок появится.</>}
-            </Typography.Paragraph>
-          )}
-
-          {/* ДЗ / тесты — ссылки на выданные сессии */}
-          <Typography.Text strong style={{ fontSize: 12 }}>Задания-ссылки (ДЗ / тесты)</Typography.Text>
-          {sessionItems.length > 0 && (
-            <Space direction="vertical" size={2} style={{ width: '100%', margin: '4px 0' }}>
-              {sessionItems.map((it, idx) => (
-                <Space key={`${it.id}-${idx}`} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                  {it.type === 'work_view' || it.type === 'geometry_view' ? (
-                    <span>
-                      <ReadOutlined /> {it.title}{' '}
-                      <Tag color="geekblue" style={{ margin: 0 }}>{it.type === 'geometry_view' ? 'геометрия · только условия' : 'только условия'}</Tag>{' '}
-                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>/{it.type === 'geometry_view' ? 'w' : 'r'}/{it.id}</Typography.Text>
-                    </span>
-                  ) : (
-                    <span>
-                      <LinkOutlined /> {it.title}{' '}
-                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>/student/{it.id}</Typography.Text>
-                    </span>
-                  )}
-                  <Space size={4}>
-                    <Segmented size="small" value={itemMode(it)} options={ITEM_MODES} disabled={!canEdit}
-                      onChange={(v) => setSessionItems((prev) => prev.map((x, i) => (i === idx ? withMode(x, v) : x)))} />
-                    {canEdit && (
-                      <Button size="small" type="text" danger icon={<DeleteOutlined />}
-                        onClick={() => setSessionItems((prev) => prev.filter((_, i) => i !== idx))} />
-                    )}
-                  </Space>
-                </Space>
-              ))}
-            </Space>
-          )}
-          {canEdit && !manualMode && (
-            <div style={{ marginTop: 6 }}>
-              <Space.Compact style={{ width: '100%' }}>
-                <Button
-                  className={`lwp-trigger${hwValue ? '' : ' lwp-trigger--empty'}`}
-                  icon={<FileTextOutlined />}
-                  title={hwSourceTitle || undefined}
-                  onClick={() => setPicker('hw')}
-                >
-                  {hwValue ? (hwSourceTitle || 'Работа') : 'Выберите работу или тест…'}
-                </Button>
-                <Select
-                  style={{ width: 120 }}
-                  value={hw.mode}
-                  onChange={(v) => setHw((s) => ({ ...s, mode: v }))}
-                  options={ITEM_MODES}
-                />
-                <Button type="primary" icon={<PlusOutlined />} onClick={addHwFromWork} disabled={!hw.work && !hw.test && !hw.geo} loading={hwBusy}>
-                  Добавить
-                </Button>
-              </Space.Compact>
-              {hw.work && (
-                <Segmented
-                  size="small"
-                  style={{ marginTop: 6 }}
-                  value={hw.show ? 'show' : 'solve'}
-                  onChange={(v) => setHw((s) => ({ ...s, show: v === 'show' }))}
-                  options={[
-                    { value: 'solve', label: 'Решать (ответы проверяются)' },
-                    { value: 'show', label: 'Только условия' },
-                  ]}
-                />
-              )}
-              {hw.geo && (
-                <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                  Работа по геометрии: ученик увидит условия и чертежи (объёмные можно крутить) —
-                  без ответов, решает в тетради. Выдача не создаётся.
-                </Typography.Text>
-              )}
-              {hw.work && hw.show && (
-                <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                  Ученик увидит только условия — без поля ответа и без результатов, решает в тетради.
-                  Выдача не создаётся.
-                </Typography.Text>
-              )}
-              {hwValue && !hw.show && !hw.geo && hwSessions.length > 1 && (
-                <Select
-                  size="small"
-                  style={{ width: '100%', marginTop: 6 }}
-                  value={hw.session}
-                  onChange={(v) => setHw((s) => ({ ...s, session: v }))}
-                  options={hwSessions.map((sess) => ({
-                    value: sess.id,
-                    label: `выдача от ${dayjs(sess.created).format('DD.MM.YYYY')}${sess.is_open ? ' · открыта' : ''}`,
-                  }))}
-                />
-              )}
-              {hwValue && !hw.show && !hw.geo && !hwSessions.length && (
-                <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                  {hw.test ? 'У этого теста' : 'У этой работы'} ещё нет выдачи — при добавлении она будет автоматически выдана (откроется доступ по ссылке).
-                </Typography.Text>
-              )}
-              <Typography.Link style={{ fontSize: 11 }} onClick={() => setManualMode(true)}>
-                или вставить ссылку вручную (выдача, /r/… или /w/…)
-              </Typography.Link>
-            </div>
-          )}
-          {canEdit && manualMode && (
-            <div style={{ marginTop: 6 }}>
-              <Space.Compact style={{ width: '100%' }}>
-                <Input
-                  style={{ width: '40%' }}
-                  placeholder="Название (напр. ДЗ №3)"
-                  value={newLink.title}
-                  onChange={(e) => setNewLink((s) => ({ ...s, title: e.target.value }))}
-                />
-                <Input
-                  style={{ width: '36%' }}
-                  placeholder="Ссылка ученику или код выдачи"
-                  value={newLink.code}
-                  onChange={(e) => setNewLink((s) => ({ ...s, code: e.target.value }))}
-                  onPressEnter={addSessionItem}
-                />
-                <Select
-                  style={{ width: 120 }}
-                  value={newLink.mode}
-                  onChange={(v) => setNewLink((s) => ({ ...s, mode: v }))}
-                  options={ITEM_MODES}
-                />
-                <Button icon={<PlusOutlined />} onClick={addSessionItem} disabled={!newLink.code.trim()} />
-              </Space.Compact>
-              <Typography.Link style={{ fontSize: 11 }} onClick={() => setManualMode(false)}>
-                ← выбрать работу из списка
-              </Typography.Link>
-            </div>
-          )}
-
-          {/* Текстовые задания / объявления */}
-          <div style={{ marginTop: 12 }}>
-            <Typography.Text strong style={{ fontSize: 12 }}>Текст для учеников</Typography.Text>
-            {textItems.length > 0 && (
-              <Space direction="vertical" size={2} style={{ width: '100%', margin: '4px 0' }}>
-                {textItems.map((it, idx) => (
-                  <Space key={idx} style={{ width: '100%', justifyContent: 'space-between' }} align="start">
-                    <span style={{ fontSize: 13 }}>📝 {it.text}</span>
-                    <Space size={4}>
-                      <Segmented size="small" value={itemMode(it)} options={ITEM_MODES} disabled={!canEdit}
-                        onChange={(v) => setTextItems((prev) => prev.map((x, i) => (i === idx ? withMode(x, v) : x)))} />
-                      {canEdit && (
-                        <Button size="small" type="text" danger icon={<DeleteOutlined />}
-                          onClick={() => setTextItems((prev) => prev.filter((_, i) => i !== idx))} />
-                      )}
-                    </Space>
-                  </Space>
-                ))}
-              </Space>
-            )}
-            {canEdit && (
-              <Space.Compact style={{ width: '100%', marginTop: 4 }}>
-                <Input
-                  placeholder="Напр.: повторить формулы сокращённого умножения"
-                  value={newText}
-                  onChange={(e) => setNewText(e.target.value)}
-                  onPressEnter={addTextItem}
-                />
-                <Select style={{ width: 120 }} value={textMode} onChange={setTextMode} options={ITEM_MODES} />
-                <Button icon={<PlusOutlined />} onClick={addTextItem} disabled={!newText.trim()} />
-              </Space.Compact>
-            )}
-          </div>
-        </div>
-      )}
-
-      {noteFiles.filter((m) => !fileMaterials.some((fm) => fm.id === m.id)).length > 0 && (
-        <div style={{ marginBottom: 12 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>
-            <FileTextOutlined /> Файлы заметки урока
-          </Typography.Text>
-          <Space direction="vertical" size={2} style={{ width: '100%', marginTop: 4 }}>
-            {noteFiles.filter((m) => !fileMaterials.some((fm) => fm.id === m.id)).map((m) => (
-              <Space key={m.id} style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-                <a href={m.url} target="_blank" rel="noreferrer">
-                  <DownloadOutlined /> {m.title}
-                </a>
-                <Space size={4}>
-                  {studentFacing && canEdit && (
-                    <Button size="small" icon={<EyeOutlined style={{ color: '#52c41a' }} />} onClick={() => showNoteFileToStudents(m)}>
-                      Показать ученикам
-                    </Button>
-                  )}
-                  <Chip tone="violet" dot={false}>из заметки</Chip>
-                </Space>
-              </Space>
-            ))}
-          </Space>
-        </div>
-      )}
-
-      <MaterialPickerModal
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        existingIds={fileMaterials.map((m) => m.id)}
-        onPick={(picked) => setFileMaterials((prev) => {
-          const seen = new Set(prev.map((x) => x.id));
-          return [...prev, ...picked.filter((p) => !seen.has(p.id))];
-        })}
-      />
-
-      {materialIds.length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>Открыть материал (выдача · результаты · работа над ошибками):</Typography.Text>
-          <div style={{ marginTop: 4 }}>
-            {materialIds.map((id) => (
-              <Button key={id} size="small" type="link" icon={<LinkOutlined />} style={{ paddingLeft: 0 }} onClick={() => onOpenMaterial(id)}>
-                {worksMap.get(id) || 'Работа'}
-              </Button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div style={{ marginTop: 8 }}>
         {editingExisting ? (
           <Button icon={<FileTextOutlined />} onClick={() => onOpenNote(initial)} block>
@@ -945,20 +359,6 @@ export default function LessonModal({
         )}
       </div>
 
-      <LessonWorkPickerModal
-        open={!!picker}
-        onClose={() => setPicker(null)}
-        items={pickerItems}
-        grade={selectedGroup?.grade || ''}
-        value={picker === 'hw' ? hwValue : undefined}
-        title={picker === 'hw' ? 'Задание ученикам: выбор работы' : 'Материал урока: выбор работы'}
-        onPick={(v) => {
-          if (picker === 'hw') { selectHwWork(v); return; }
-          const cur = form.getFieldValue('materials') || [];
-          if (cur.includes(v)) { message.info('Эта работа уже в материалах урока'); return; }
-          form.setFieldsValue({ materials: [...cur, v] });
-        }}
-      />
     </Modal>
   );
 }

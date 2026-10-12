@@ -575,7 +575,7 @@ export const worksheetsApi = {
     if (!mcTestIds.length) return [];
     try {
       const records = await getFullListByOr('work_sessions', 'mc_test', mcTestIds, {
-        fields: 'id,mc_test,created,is_open,deadline',
+        fields: 'id,mc_test,created,is_open,deadline,results_hidden',
       });
       return records.sort((a, b) => new Date(b.created) - new Date(a.created));
     } catch (error) {

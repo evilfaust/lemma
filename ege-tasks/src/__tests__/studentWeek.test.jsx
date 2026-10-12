@@ -102,7 +102,7 @@ describe('вкладка «Уроки»: неделя', () => {
 
     fireEvent.click(screen.getByLabelText(/понедельник, 5 октября/));
     expect(screen.getAllByText('Тема понедельника').length).toBeGreaterThan(0);
-    expect(screen.getByText(/К следующему уроку · 7 окт/)).toBeTruthy();
+    expect(screen.getByText(/ДЗ к следующему уроку · 7 окт/)).toBeTruthy();
 
     fireEvent.click(screen.getByLabelText('Следующая неделя'));
     expect(screen.getByText('12–18 октября')).toBeTruthy();

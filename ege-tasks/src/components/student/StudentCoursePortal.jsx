@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Empty, Segmented, Spin } from 'antd';
 import {
-  DownloadOutlined, LinkOutlined, PlayCircleOutlined, VideoCameraOutlined,
-  ClockCircleOutlined, ReadOutlined, RightOutlined, FundProjectionScreenOutlined,
+  DownloadOutlined, LinkOutlined, PlayCircleOutlined, VideoCameraOutlined, FormOutlined, CheckCircleFilled,
+  ClockCircleOutlined, ReadOutlined, RightOutlined, FundProjectionScreenOutlined, LockOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
@@ -10,6 +10,7 @@ import { api } from '../../shared/services/pocketbase';
 import { slotRangeFromCode } from '../workspace/lessonTime';
 import { homeworkFeed, isNextDue, resolveHomework } from '../../utils/homework';
 import { lessonsByDay, mergeRange, rangeToLoad } from '../../utils/studentWeek';
+import { itemResult, resultLabel, resultTone, itemRequired, itemSection } from '../../utils/lessonResults';
 import StudentWeekView from './StudentWeekView';
 import MathRenderer from '../MathRenderer';
 import './StudentCoursePortal.css';
@@ -22,6 +23,11 @@ import './StudentCoursePortal.css';
  * Два вида (v3.9.292): «Неделя» (StudentWeekView, по умолчанию; выбор помнится
  * в localStorage `student.lessons.view`) и «Списком». Неделя за пределами
  * загруженного окна догружается (`rangeToLoad`) и сливается с уже полученным.
+ *
+ * Карточка урока (v3.9.358) — три раздела: «Обязательно» (сделать, со
+ * статусом сдачи), «Материалы» (для удобства) и «Результаты» (работы на
+ * бумаге). У работ — балл прямо в уроке и «Подробнее» → разбор в «Прогрессе»;
+ * закрытые учителем — «результатов пока нет» (utils/lessonResults.js).
  */
 
 const AGENDA_DAYS = 14;  // столько дней вперёд показываем сразу
@@ -71,15 +77,54 @@ function untilLabel(pub, d) {
 const dateOf = (l) => (l?.date_plan ? dayjs(l.date_plan).locale('ru') : null);
 const shortDate = (l) => { const d = dateOf(l); return d ? d.format('D MMM, dd') : ''; };
 
-function ItemRow({ item, meta }) {
+// Контекст результатов: попытки ученика и переход к разбору в «Прогресс».
+const NO_RESULTS = { attempts: [], onOpenAttempt: null };
+
+function ResultBadge({ res }) {
+  if (res.state !== 'done') return null;
+  return <span className={`sc-score is-${resultTone(res.pct)}`}>{res.total ? `${res.score}/${res.total}` : '✓'}</span>;
+}
+
+function ItemRow({ item, meta, when, results = NO_RESULTS }) {
+  const res = itemResult(item, results.attempts);
+  const label = resultLabel(item, res);
+  const more = res.state === 'done' && results.onOpenAttempt && res.attempt
+    ? <Button size="small" className="sc-btn" onClick={() => results.onOpenAttempt(res.attempt.id)}>Подробнее</Button>
+    : null;
   let body;
   if (item.kind === 'work') {
+    let action;
+    if (!item.session_id) action = <span className="sc-item-muted">ссылка не задана</span>;
+    else if (res.state === 'done') action = more || <ResultBadge res={res} />;
+    else if (res.state === 'hidden') action = null;
+    else {
+      action = (
+        <Button type="primary" size="small" className="sc-btn" href={`/student/${item.session_id}`}>
+          {res.state === 'started' ? 'Продолжить' : 'Решать'}
+        </Button>
+      );
+    }
     body = (
       <div className="sc-item">
-        <span className="sc-item-title"><PlayCircleOutlined /> {item.title || 'Работа'}</span>
-        {item.session_id
-          ? <Button type="primary" size="small" className="sc-btn" href={`/student/${item.session_id}`}>Решать</Button>
-          : <span className="sc-item-muted">ссылка не задана</span>}
+        <span className="sc-item-title">
+          {res.state === 'done' || res.state === 'hidden' ? <CheckCircleFilled className="sc-done-icon" /> : <PlayCircleOutlined />}
+          {' '}{item.title || 'Работа'}
+          {label && <span className={`sc-item-status is-${res.state}`}>{res.state === 'done' && <ResultBadge res={res} />} {label}</span>}
+        </span>
+        {action}
+      </div>
+    );
+  } else if (item.kind === 'paper') {
+    // Писали на бумаге (v3.9.358): решать нечего — только результат.
+    body = (
+      <div className="sc-item sc-item--paper">
+        <span className="sc-item-title">
+          <FormOutlined /> {item.title || 'Работа'}
+          <span className={`sc-item-status is-${res.state}`}>
+            {res.state === 'done' ? <><ResultBadge res={res} /> {label}</> : <><LockOutlined /> {label}</>}
+          </span>
+        </span>
+        {more}
       </div>
     );
   } else if (item.kind === 'show') {
@@ -109,8 +154,9 @@ function ItemRow({ item, meta }) {
       </div>
     );
   }
-  if (!meta) return body;
-  return <div className="sc-item-wrap">{body}<div className="sc-item-meta">{meta}</div></div>;
+  const sub = [when, meta].filter(Boolean).join(' · ');
+  if (!sub) return body;
+  return <div className="sc-item-wrap">{body}<div className="sc-item-meta">{sub}</div></div>;
 }
 
 function timeRange(pub, d) {
@@ -119,47 +165,57 @@ function timeRange(pub, d) {
   return d ? d.format('HH:mm') : '';
 }
 
-// Тело урока: что задано к нему раньше, материалы, ДЗ к нему и к следующему.
-function LessonBody({ lesson, hw }) {
+// Тело урока: что задано к нему раньше, затем три раздела — обязательно,
+// материалы (для удобства), результаты (работы на бумаге). Когда сдавать —
+// подписью у пункта: на уроке / ДЗ к этому уроку / ДЗ к следующему.
+const SECTIONS = [
+  { key: 'required', head: '✅ Обязательно', cls: 'sc-block--required' },
+  { key: 'materials', head: '📎 Материалы', note: 'для удобства — можно не печатать', cls: 'sc-block--materials' },
+  { key: 'results', head: '📊 Результаты', cls: 'sc-block--results' },
+];
+
+function LessonBody({ lesson, hw, results }) {
   const items = Array.isArray(lesson.items) ? lesson.items : [];
   const incoming = hw.incoming.get(lesson.id) || [];
-  const classItems = items.filter((i) => i.role !== 'homework');
-  const hwHere = items.filter((i) => i.role === 'homework' && !isNextDue(i));
-  const hwNext = items.filter(isNextDue);
-  if (!incoming.length && !classItems.length && !hwHere.length && !hwNext.length) {
+  if (!incoming.length && !items.length) {
     return lesson.status === 'cancelled' ? null : <div className="sc-empty-note">Материалы появятся позже</div>;
   }
   const target = hw.targetOf.get(lesson.id);
+  const whenOf = (it) => {
+    if (it.kind === 'paper') return '';
+    if (isNextDue(it)) return `ДЗ к следующему уроку · ${target ? shortDate(target) : 'дата уточняется'}`;
+    if (it.role === 'homework') return 'ДЗ к этому уроку';
+    return 'на уроке';
+  };
   return (
     <>
       {incoming.length > 0 && (
         <div className="sc-block sc-block--due">
           <div className="sc-block-head">📌 Сделать к этому уроку</div>
           {incoming.map(({ item, from }, i) => (
-            <ItemRow key={`in${i}`} item={item} meta={`задано на уроке ${shortDate(from)}`} />
+            <ItemRow
+              key={`in${i}`}
+              item={item}
+              results={results}
+              when={itemRequired(item) ? '' : 'по желанию'}
+              meta={`задано на уроке ${shortDate(from)}`}
+            />
           ))}
         </div>
       )}
-      {classItems.length > 0 && (
-        <div className="sc-block">
-          <div className="sc-block-head">Материалы</div>
-          {classItems.map((it, i) => <ItemRow key={`c${i}`} item={it} />)}
-        </div>
-      )}
-      {hwHere.length > 0 && (
-        <div className="sc-block sc-block--hw">
-          <div className="sc-block-head">🏠 Домашнее задание</div>
-          {hwHere.map((it, i) => <ItemRow key={`h${i}`} item={it} />)}
-        </div>
-      )}
-      {hwNext.length > 0 && (
-        <div className="sc-block sc-block--hw">
-          <div className="sc-block-head">
-            🏠 К следующему уроку · {target ? shortDate(target) : 'дата уточняется'}
+      {SECTIONS.map((sec) => {
+        const list = items.filter((it) => itemSection(it) === sec.key);
+        if (!list.length) return null;
+        return (
+          <div key={sec.key} className={`sc-block ${sec.cls}`}>
+            <div className="sc-block-head">
+              {sec.head}
+              {sec.note && <span className="sc-block-note"> · {sec.note}</span>}
+            </div>
+            {list.map((it, i) => <ItemRow key={`${sec.key}${i}`} item={it} when={whenOf(it)} results={results} />)}
           </div>
-          {hwNext.map((it, i) => <ItemRow key={`n${i}`} item={it} />)}
-        </div>
-      )}
+        );
+      })}
     </>
   );
 }
@@ -170,7 +226,7 @@ function GroupChip({ group }) {
 }
 
 // Компактная карточка занятия (расписание/прошедшие).
-function LessonCard({ lesson, hw, dimmed, group }) {
+function LessonCard({ lesson, hw, dimmed, group, results }) {
   const d = dateOf(lesson);
   const cancelled = lesson.status === 'cancelled';
   const until = dimmed || cancelled ? '' : untilLabel(lesson, d);
@@ -192,14 +248,14 @@ function LessonCard({ lesson, hw, dimmed, group }) {
           </div>
         )}
         {until && <div className="sc-card-until">{until}</div>}
-        <LessonBody lesson={lesson} hw={hw} />
+        <LessonBody lesson={lesson} hw={hw} results={results} />
       </div>
     </div>
   );
 }
 
 // Крупная карточка ближайшего занятия.
-function NextLessonHero({ lesson, hw, group }) {
+function NextLessonHero({ lesson, hw, group, results }) {
   const d = dateOf(lesson);
   const boardUrl = group?.board_url;
   return (
@@ -228,13 +284,14 @@ function NextLessonHero({ lesson, hw, group }) {
           </div>
         )}
       </div>
-      <div className="sc-hero-body"><LessonBody lesson={lesson} hw={hw} /></div>
+      <div className="sc-hero-body"><LessonBody lesson={lesson} hw={hw} results={results} /></div>
     </div>
   );
 }
 
-// Лента «Домашнее задание»: всё, что сделать, по сроку.
-function HomeworkFeed({ feed, groupOf }) {
+// Лента «Домашнее задание»: всё обязательное, что сделать, по сроку.
+// ДЗ «для удобства» (справочный файл к ДЗ) остаётся в карточке урока.
+function HomeworkFeed({ feed, groupOf, results }) {
   if (!feed.length) return null;
   return (
     <section className="sc-hw-feed">
@@ -247,13 +304,13 @@ function HomeworkFeed({ feed, groupOf }) {
         }
         else when = `к уроку ${shortDate(due)}`;
         const g = groupOf(from);
-        return <ItemRow key={i} item={item} meta={g ? `${when} · ${g.name}` : when} />;
+        return <ItemRow key={i} item={item} results={results} meta={g ? `${when} · ${g.name}` : when} />;
       })}
     </section>
   );
 }
 
-export default function StudentCoursePortal({ student }) {
+export default function StudentCoursePortal({ student, onOpenAttempt = null }) {
   const [data, setData] = useState(undefined); // undefined — грузим, null — хук недоступен
   const [loaded, setLoaded] = useState(null);  // загруженное окно { from, to } в мс
   const [extending, setExtending] = useState(false);
@@ -261,6 +318,16 @@ export default function StudentCoursePortal({ student }) {
   const [showAll, setShowAll] = useState(false);
   const [view, setView] = useState(readView);
   const [day, setDay] = useState(() => dayjs().startOf('day'));
+  const [attempts, setAttempts] = useState([]); // попытки ученика — результаты у пунктов урока
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!api.getStudentLessonAttempts) return undefined;
+    api.getStudentLessonAttempts(student.id)
+      .then((list) => { if (!cancelled) setAttempts(list || []); })
+      .catch(() => { /* без попыток пункты просто без балла */ });
+    return () => { cancelled = true; };
+  }, [student.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -311,7 +378,8 @@ export default function StudentCoursePortal({ student }) {
   // Подписывать класс у урока — только когда их несколько.
   const groupOf = (l) => (groups.length > 1 ? groupsById.get(l.group) : null);
   const hw = useMemo(() => resolveHomework(lessons, (l) => l.items), [lessons]);
-  const feed = useMemo(() => homeworkFeed(lessons), [lessons]);
+  const feed = useMemo(() => homeworkFeed(lessons).filter(({ item }) => itemRequired(item)), [lessons]);
+  const results = useMemo(() => ({ attempts, onOpenAttempt }), [attempts, onOpenAttempt]);
   const byDay = useMemo(() => lessonsByDay(lessons), [lessons]);
 
   if (data === undefined) return <div style={{ textAlign: 'center', padding: 48 }}><Spin /></div>;
@@ -372,7 +440,7 @@ export default function StudentCoursePortal({ student }) {
         </div>
       ))}
 
-      <HomeworkFeed feed={feed} groupOf={groupOf} />
+      <HomeworkFeed feed={feed} groupOf={groupOf} results={results} />
 
       <Segmented
         className="sc-view-switch"
@@ -390,14 +458,14 @@ export default function StudentCoursePortal({ student }) {
           hw={hw}
           loading={extending}
           renderLesson={(l) => (
-            <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} dimmed={dayjs(l.date_plan).isBefore(today)} />
+            <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} results={results} dimmed={dayjs(l.date_plan).isBefore(today)} />
           )}
         />
       )}
 
       {view === 'list' && (
         <ListView
-          {...{ lessons, hw, hero, days, hidden, past, showPast, setShowPast, setShowAll, groupsById, groupOf }}
+          {...{ lessons, hw, hero, days, hidden, past, showPast, setShowPast, setShowAll, groupsById, groupOf, results }}
         />
       )}
     </div>
@@ -405,10 +473,10 @@ export default function StudentCoursePortal({ student }) {
 }
 
 // Вид «списком»: ближайший урок, расписание на две недели, прошедшие.
-function ListView({ lessons, hw, hero, days, hidden, past, showPast, setShowPast, setShowAll, groupsById, groupOf }) {
+function ListView({ lessons, hw, hero, days, hidden, past, showPast, setShowPast, setShowAll, groupsById, groupOf, results }) {
   return (
     <>
-      {hero && <NextLessonHero lesson={hero} hw={hw} group={groupsById.get(hero.group)} />}
+      {hero && <NextLessonHero lesson={hero} hw={hw} group={groupsById.get(hero.group)} results={results} />}
       {!hero && !lessons.length && <div className="sc-empty-note">Уроков пока нет</div>}
 
       {days.length > 0 && (
@@ -417,7 +485,7 @@ function ListView({ lessons, hw, hero, days, hidden, past, showPast, setShowPast
           {days.map(({ key, list }) => (
             <div key={key} className="sc-day">
               <div className="sc-day-head">{dayjs(key).locale('ru').format('dddd, D MMMM')}</div>
-              {list.map((l) => <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} />)}
+              {list.map((l) => <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} results={results} />)}
             </div>
           ))}
         </div>
@@ -434,7 +502,7 @@ function ListView({ lessons, hw, hero, days, hidden, past, showPast, setShowPast
             <RightOutlined className={`sc-past-caret${showPast ? ' is-open' : ''}`} />
             Прошедшие уроки ({past.length})
           </button>
-          {showPast && past.map((l) => <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} dimmed />)}
+          {showPast && past.map((l) => <LessonCard key={l.id} lesson={l} hw={hw} group={groupOf(l)} results={results} dimmed />)}
         </div>
       )}
     </>

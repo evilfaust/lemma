@@ -216,7 +216,7 @@ describe('кабинет ученика и уроки', () => {
       { type: 'work_view', id: WID, title: 'Разбор', role: 'homework', due: 'next' },
       { type: 'work', id: WID, title: 'Учительская' },
     ], false);
-    expect(out).toEqual([{ kind: 'show', role: 'homework', due: 'next', title: 'Разбор', work_id: WID }]);
+    expect(out).toEqual([{ kind: 'show', role: 'homework', due: 'next', required: true, title: 'Разбор', work_id: WID }]);
   });
 
   it('учителю work_view открывается в редакторе работы', () => {
@@ -252,7 +252,7 @@ describe('урок: работы по геометрии и вставленны
       { type: 'geometry_view', id: GID, title: 'Зачёт', role: 'class' },
       { type: 'geometry_work', id: GID, title: 'Учительская' },
     ], false);
-    expect(out).toEqual([{ kind: 'show', role: 'class', due: 'lesson', title: 'Зачёт', work_id: GID, geometry: true }]);
+    expect(out).toEqual([{ kind: 'show', role: 'class', due: 'lesson', required: false, title: 'Зачёт', work_id: GID, geometry: true }]);
   });
 
   it('старый пункт: ссылка /w/ и /r/, сохранённая как выдача, читается как показ', () => {
@@ -262,9 +262,9 @@ describe('урок: работы по геометрии и вставленны
       { type: 'session', id: 'abcdefghij12345', title: 'Тест' },
     ], false);
     expect(out).toEqual([
-      { kind: 'show', role: 'class', due: 'lesson', title: 'Классная работа', work_id: GID, geometry: true },
-      { kind: 'show', role: 'homework', due: 'lesson', title: 'ДЗ', work_id: WID },
-      { kind: 'work', role: 'class', due: 'lesson', title: 'Тест', session_id: 'abcdefghij12345' },
+      { kind: 'show', role: 'class', due: 'lesson', required: false, title: 'Классная работа', work_id: GID, geometry: true },
+      { kind: 'show', role: 'homework', due: 'lesson', required: true, title: 'ДЗ', work_id: WID },
+      { kind: 'work', role: 'class', due: 'lesson', required: true, title: 'Тест', session_id: 'abcdefghij12345' },
     ]);
   });
 });

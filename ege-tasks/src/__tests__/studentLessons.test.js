@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 import dayjs from 'dayjs';
 import {
-  materialVisible, itemMode, withMode, defaultItemTitle, nextLessonMap, resolveHomework,
+  materialVisible, requiredOf, itemMode, withMode, defaultItemTitle, nextLessonMap, resolveHomework,
   nextLessonFor, incomingFor, homeworkFeed,
 } from '../utils/homework';
 
@@ -33,10 +33,10 @@ describe('проекция урока для ученика (lessons_feed_lib)',
       { type: 'text', text: 'Объявление', due: 'next' },
     ], false);
     expect(out).toEqual([
-      { kind: 'work', role: 'homework', due: 'next', title: 'Тест', session_id: 's1' },
-      { kind: 'text', role: 'homework', due: 'lesson', title: '', description: 'Повторить' },
+      { kind: 'work', role: 'homework', due: 'next', required: true, title: 'Тест', session_id: 's1' },
+      { kind: 'text', role: 'homework', due: 'lesson', required: true, title: '', description: 'Повторить' },
       // «к след.» у не-ДЗ не бывает
-      { kind: 'text', role: 'class', due: 'lesson', title: '', description: 'Объявление' },
+      { kind: 'text', role: 'class', due: 'lesson', required: false, title: '', description: 'Объявление' },
     ]);
   });
 
@@ -44,12 +44,22 @@ describe('проекция урока для ученика (lessons_feed_lib)',
     const cases = [
       { type: 'material' }, { type: 'material', visible: true }, { type: 'material', visible: false },
       { type: 'session' }, { type: 'session', visible: false }, { type: 'text' }, null,
+      // единый список (v3.9.358): работа видна только со способом выдачи
+      { type: 'work' }, { type: 'work', deliver: 'online', session: 's' }, { type: 'work', deliver: 'paper' },
+      { type: 'mc_test', deliver: 'online' }, { type: 'geometry_work' }, { type: 'geometry_work', deliver: 'show' },
+      { type: 'work', deliver: 'show', visible: false },
     ];
     for (const m of cases) {
       for (const course of [true, false]) {
         expect(materialVisible(m, course)).toBe(lib.materialVisible(m, course));
       }
+      expect(requiredOf(m)).toBe(lib.requiredOf(m));
     }
+    for (const m of [
+      { type: 'work', deliver: 'online', required: false }, { type: 'material', role: 'homework' },
+      { type: 'material', required: true }, { type: 'work', deliver: 'paper', required: true },
+      { type: 'text', role: 'homework', required: false },
+    ]) expect(requiredOf(m)).toBe(lib.requiredOf(m));
   });
 
   it('pbDate — формат хранения PB (пробел вместо T)', () => {
