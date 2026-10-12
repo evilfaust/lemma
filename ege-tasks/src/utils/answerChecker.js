@@ -128,3 +128,25 @@ export function checkAnswer(studentRaw, correctRaw, epsilon = 1e-6) {
   const isCorrect = alternatives.some(alt => alt.trim().toLowerCase() === studentClean);
   return { isCorrect, normalized: NaN };
 }
+
+/**
+ * Поля attempt_answers после того, как учитель исправил ответ ученика
+ * (неверно распознанный бланк, описка при ручном вводе). Ответ проверяется
+ * заново тем же правилом, что у ученика; прежний ручной зачёт не переносится —
+ * засчитать новый ответ вручную можно отдельно.
+ *
+ * @param {string} raw — исправленный ответ
+ * @param {string} correctRaw — эталон задачи
+ * @returns {{ answer_raw: string, answer_normalized: number, is_correct: boolean }}
+ */
+export function regradeAnswer(raw, correctRaw) {
+  const answer = String(raw ?? '').trim();
+  const { isCorrect, normalized } = answer
+    ? checkAnswer(answer, correctRaw)
+    : { isCorrect: false, normalized: NaN };
+  return {
+    answer_raw: answer,
+    answer_normalized: Number.isNaN(normalized) ? 0 : normalized,
+    is_correct: isCorrect,
+  };
+}

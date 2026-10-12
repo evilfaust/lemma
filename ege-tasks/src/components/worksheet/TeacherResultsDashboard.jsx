@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover, Select, Switch, Tooltip, Alert } from 'antd';
-import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, DeleteOutlined, EyeOutlined, TrophyOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover, Select, Switch, Tooltip, Alert, Input } from 'antd';
+import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, TrophyOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { regradeAnswer } from '../../utils/answerChecker';
 import { api } from '../../services/pocketbase';
 import { shuffleArray } from '../../utils/shuffle';
 import MathRenderer from '../MathRenderer';
@@ -41,6 +42,8 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
   const [exportOpen, setExportOpen] = useState(false);
   const [sessionRecords, setSessionRecords] = useState([]); // выдачи: флаг results_hidden, название работы
   const [visibilitySaving, setVisibilitySaving] = useState(false);
+  const [answerEdit, setAnswerEdit] = useState(null); // { id, value } — правка ответа ученика
+  const [answerSaving, setAnswerSaving] = useState(false);
   const auth = useOptionalAuth();
   const canEdit = auth ? auth.canEdit : true;
 
@@ -214,6 +217,39 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
       console.error('Error accepting answer:', err);
       message.error('Ошибка при зачёте ответа');
     }
+  };
+
+  // Исправить сам ответ (неверно распознанный бланк, описка при вводе):
+  // ответ перепроверяется по эталону, балл попытки сдвигается на разницу.
+  const handleSaveAnswerEdit = async (answer, attemptId) => {
+    if (!answerEdit || answerEdit.id !== answer.id) return;
+    const patch = regradeAnswer(answerEdit.value, answer.expand?.task?.answer);
+    if (patch.answer_raw === (answer.answer_raw || '').trim()) {
+      setAnswerEdit(null);
+      return;
+    }
+    setAnswerSaving(true);
+    try {
+      await api.updateAttemptAnswer(answer.id, patch);
+
+      const delta = (patch.is_correct ? 1 : 0) - (answer.is_correct ? 1 : 0);
+      const attempt = attempts.find(a => a.id === attemptId);
+      if (attempt && delta !== 0) {
+        const newScore = Math.max(0, (attempt.score || 0) + delta);
+        await api.updateAttempt(attemptId, { score: newScore });
+        setAttempts(prev => prev.map(a =>
+          a.id === attemptId ? { ...a, score: newScore } : a
+        ));
+      }
+
+      await reloadAnswers(attemptId);
+      setAnswerEdit(null);
+      message.success(patch.is_correct ? 'Ответ исправлен — верно' : 'Ответ исправлен — неверно');
+    } catch (err) {
+      console.error('Error editing answer:', err);
+      message.error('Не удалось исправить ответ');
+    }
+    setAnswerSaving(false);
   };
 
   // Тренировка из генератора (v3.9.296): ответы лежат в самой попытке
@@ -722,16 +758,64 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
       {
         title: 'Ответ ученика',
         key: 'answer_raw',
-        width: 160,
+        width: 200,
         render: (_, a) => {
           const taskId = a.expand?.task?.id || a.task;
           const options = mcOptionsMap[taskId];
           if (options) {
+            // Тест с выбором: в ответе номер варианта — править как текст нельзя
             const idx = parseInt(a.answer_raw, 10);
             const optionText = !isNaN(idx) && options[idx] ? options[idx].text : null;
             if (optionText) return <MathRenderer text={`$${optionText}$`} />;
+            return a.answer_raw || <Text type="secondary">(пусто)</Text>;
           }
-          return a.answer_raw || <Text type="secondary">(пусто)</Text>;
+
+          if (answerEdit?.id === a.id) {
+            return (
+              <Space size={4}>
+                <Input
+                  size="small"
+                  autoFocus
+                  value={answerEdit.value}
+                  disabled={answerSaving}
+                  onChange={(e) => setAnswerEdit({ id: a.id, value: e.target.value })}
+                  onPressEnter={() => handleSaveAnswerEdit(a, record.id)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setAnswerEdit(null); }}
+                  style={{ width: 110 }}
+                  aria-label="Исправленный ответ"
+                />
+                <Button
+                  type="text" size="small" icon={<CheckOutlined />}
+                  loading={answerSaving}
+                  onClick={() => handleSaveAnswerEdit(a, record.id)}
+                  aria-label="Сохранить ответ"
+                  style={{ color: '#52c41a' }}
+                />
+                <Button
+                  type="text" size="small" icon={<CloseOutlined />}
+                  disabled={answerSaving}
+                  onClick={() => setAnswerEdit(null)}
+                  aria-label="Отменить правку"
+                />
+              </Space>
+            );
+          }
+
+          return (
+            <Space size={4}>
+              {a.answer_raw || <Text type="secondary">(пусто)</Text>}
+              {canEdit && (
+                <Tooltip title="Исправить ответ (например, бланк распознан неверно) — он будет проверен заново">
+                  <Button
+                    type="text" size="small" icon={<EditOutlined />}
+                    onClick={() => setAnswerEdit({ id: a.id, value: a.answer_raw || '' })}
+                    aria-label="Исправить ответ"
+                    style={{ padding: 0, color: '#8c8c8c' }}
+                  />
+                </Tooltip>
+              )}
+            </Space>
+          );
         },
       },
       {
