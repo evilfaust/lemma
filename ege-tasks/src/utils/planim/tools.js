@@ -7,7 +7,7 @@
 // кликнули: на пустом месте — свободную, на линии — точку на линии.
 
 import {
-  newOpId, segKey, segmentAt, segStyleError,
+  newOpId, segKey, segmentAt, segStyleError, HIDEABLE_OPS,
 } from './scene';
 import { nextFreeName } from './naming';
 import { prettyName } from './refs';
@@ -40,6 +40,8 @@ export const TOOLS = [
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F', group: 'Оформление' },
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'K', group: 'Оформление' },
   { key: 'dash', label: 'Пунктир', glyph: '┄', hot: 'X', group: 'Оформление' },
+  // Все буквы заняты — у «Скрыть» цифра.
+  { key: 'hide', label: 'Скрыть', glyph: '◌', hot: '0', group: 'Оформление' },
   { key: 'rename', label: 'Имя', glyph: 'Aa', hot: 'N', group: 'Оформление' },
   { key: 'edit', label: 'Правка', glyph: '✎', hot: 'Z', group: 'Оформление' },
 ];
@@ -123,6 +125,7 @@ export function toolHint(tool, pending = []) {
         : 'Выберите вершины многоугольника по порядку';
     case 'color': return 'Клик по точке, отрезку, окружности или заливке — окрасится выбранным цветом (повторный клик снимает)';
     case 'dash': return 'Клик по отрезку или окружности — пунктир (повторный клик — снова сплошная)';
+    case 'hide': return 'Клик по точке, куску линии, окружности, заливке или пометке — не видно на чертеже, построения на нём держатся. Shift — линия целиком. Скрытое бледное: повторный клик — показать';
     case 'rename': return 'Кликните по точке: имя, «скрыть точку». Или двойной клик по точке в любом инструменте';
     case 'edit': return 'Клик по точке, линии, окружности, заливке или подписи — её шаг откроется в журнале командой: поправьте и Enter';
     default: return 'Тяните точки, буквы и подписи; двойной клик по подписи — исправить; пустое место — сдвиг чертежа, колёсико — масштаб';
@@ -150,6 +153,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'tick': case 'measure': return pending.length ? ['point'] : ['point', 'line'];
     case 'color': return ['point', 'line', 'circle', 'poly'];
     case 'dash': return ['line', 'circle'];
+    case 'hide': return ['point', 'line', 'circle', 'poly'];
     case 'rename': return ['point'];
     case 'edit': return ['point', 'line', 'circle', 'poly'];
     case 'text': return ['empty'];
@@ -183,7 +187,8 @@ function pieceOf(model, target) {
  * @param hit  — { point?, line?: { id, ref, t, ratio?, pos, p, u }, line2?, circle?: { id, ref, angle },
  *                 poly?: { id }, pos: { x, y } (мир, с прилипанием), raw: { x, y }, shift? }
  * @param opts — { arcs, angleLabel, ticks, measureText } — настройки пометок
- * @returns {{ pending, ops?, error?, paint?, dash?, rename?, textAt? }}
+ * @returns {{ pending, ops?, error?, paint?, dash?, hide?, rename?, textAt? }}
+ *   hide — «Скрыть»: { name } точка · { segment } кусок линии · { opId } шаг целиком
  *   textAt — «Надпись»: где её поставить (мир, без прилипания); текст
  *   спрашивает редактор
  */
@@ -410,6 +415,19 @@ export function toolClick(tool, pending, hit, model, opts = {}) {
       const seg = (!hit.shift && segmentAt(model, target, target.pos)) || (Array.isArray(target.ref) ? target.ref : null);
       if (!seg) return { pending: [], error: 'На этой прямой нет двух точек — поставьте точки, между которыми её выделить' };
       return { pending: [], [key]: { segment: segKey(seg[0], seg[1]) } };
+    }
+    case 'hide': {
+      // Тоже оформление: скрыть / показать решает редактор.
+      if (target.kind === 'point') return { pending: [], hide: { name: target.name } };
+      const opId = stepOfTarget(model, target);
+      const own = opId && HIDEABLE_OPS.has(model.steps.find((st) => st.op.id === opId)?.op.type) ? opId : null;
+      if (target.kind !== 'line') return own ? { pending: [], hide: { opId: own } } : { pending: [] };
+      // Линия: кусок между соседними точками; Shift — вся линия (её шаг).
+      // Продолжение отрезка своего шага не имеет — скрывается кусок.
+      if (hit.shift && own) return { pending: [], hide: { opId: own } };
+      const seg = segmentAt(model, target, target.pos) || (Array.isArray(target.ref) ? target.ref : null);
+      if (seg) return { pending: [], hide: { segment: segKey(seg[0], seg[1]) } };
+      return own ? { pending: [], hide: { opId: own } } : { pending: [] };
     }
     case 'rename':
       return { pending: [], rename: { name: target.name } };

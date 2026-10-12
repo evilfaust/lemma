@@ -5,7 +5,7 @@ import {
 import {
   DeleteOutlined, DownloadOutlined, PlusOutlined, UndoOutlined, EditOutlined, LeftOutlined,
   RightOutlined, PlayCircleOutlined, FileTextOutlined, QuestionOutlined, ExpandOutlined,
-  BorderInnerOutlined, RadiusSettingOutlined, BookOutlined, CodeOutlined,
+  BorderInnerOutlined, RadiusSettingOutlined, BookOutlined, CodeOutlined, EyeOutlined, EyeInvisibleOutlined,
 } from '@ant-design/icons';
 import { WorkspacePageHeader } from '../workspace/ui';
 import PlanimCanvas from './PlanimCanvas';
@@ -20,10 +20,10 @@ import {
   evaluateScene, tryAppendOps, removeOpCascade, applyAction,
   parseCommand, describeOp, opToCommand, editStepCommand, stepOfTarget, freeOrigin, figureOps, figureVertexCount, nextFreeNames,
   TOOLS, toolHint, toolClick, finishPending, chooseHit,
-  pickPoint, pickLines, pickCircle, pickPoly, pickLabel, pickMarkText, gridStep,
+  pickPoint, pickLines, pickCircle, pickPoly, pickLabel, pickMarkText, pickMark, gridStep, HIDEABLE_OPS,
   setMarkTextPosition, setMarkText, markTextOf,
   draggableOp, dragTarget, dragPosition, setOpPosition, labelAngleAt, snapPosition, snapWorld,
-  setPointColors, setSegStyles, setOpStyle, setLabelAngle, newOpId,
+  setPointColors, setSegStyles, setOpStyle, setLabelAngle, setHidden, newOpId,
   POINT_COLORS, planimFrame, planimSvgString,
 } from '../../utils/planim';
 import '../stereo/stereo.css';
@@ -296,6 +296,14 @@ export default function PlanimEditor({
     }, 0);
   }, [showNotice]);
 
+  // Скрыть / показать всё, что нарисовал шаг (глаз в журнале, «Скрыть» по объекту).
+  const toggleStepHidden = useCallback((opId) => {
+    const sc = sceneRef.current;
+    const op = sc.ops.find((o) => o.id === opId);
+    if (!op || !HIDEABLE_OPS.has(op.type)) return;
+    setScene(setOpStyle(sc, [opId], { hidden: !op.hidden }));
+  }, [setScene]);
+
   const applyStepEdit = () => {
     if (!editCmd) return;
     const res = editStepCommand(sceneRef.current, editCmd.opId, editCmd.text);
@@ -317,6 +325,11 @@ export default function PlanimEditor({
       const mark = pickMarkText(frame, x, y);
       if (mark && tool === 'text') { setMarkTarget({ opId: mark.opId }); return; }
       if (mark) { startStepEdit(mark.opId); return; }
+    }
+    // «Скрыть» по пометке (подпись, дуга угла, штрихи) — её шаг целиком.
+    if (tool === 'hide' && !pickPoint(frame, x, y)) {
+      const mark = pickMarkText(frame, x, y) || pickMark(frame, x, y);
+      if (mark) { toggleStepHidden(mark.opId); return; }
     }
     const hit = buildHit(frame, x, y, { shift: shiftKey, alt: altKey });
     const r = toolClick(tool, pending, hit, model, toolOpts);
@@ -341,6 +354,15 @@ export default function PlanimEditor({
         setScene(setOpStyle(sc, [id], { color: cur === paintColor ? '' : paintColor }));
       }
     }
+    if (r.hide) {
+      if (r.hide.name) {
+        setScene(setHidden(sc, [r.hide.name], !(sc.hidden || []).includes(r.hide.name)));
+      } else if (r.hide.segment) {
+        setScene(setSegStyles(sc, [r.hide.segment], { hide: !sc.segStyles?.[r.hide.segment]?.hide }));
+      } else if (r.hide.opId) {
+        toggleStepHidden(r.hide.opId);
+      }
+    }
     if (r.dash) {
       if (r.dash.segment) {
         setScene(setSegStyles(sc, [r.dash.segment], { dash: !sc.segStyles?.[r.dash.segment]?.dash }));
@@ -348,7 +370,7 @@ export default function PlanimEditor({
         setScene(setOpStyle(sc, [r.dash.circle], { dash: !sc.ops.find((o) => o.id === r.dash.circle)?.dash }));
       }
     }
-  }, [tool, pending, model, toolOpts, commit, showNotice, replay, paintColor, setScene, startStepEdit]);
+  }, [tool, pending, model, toolOpts, commit, showNotice, replay, paintColor, setScene, startStepEdit, toggleStepHidden]);
 
   const hoverKey = useRef('');
   const handleHover = useCallback(({ x, y, frame }) => {
@@ -446,7 +468,7 @@ export default function PlanimEditor({
         if (r.ops) commit(r.ops);
         return;
       }
-      const t = TOOLS.find((x) => e.code === `Key${x.hot}`);
+      const t = TOOLS.find((x) => e.code === (/^\d$/.test(x.hot) ? `Digit${x.hot}` : `Key${x.hot}`));
       if (t) selectTool(t.key);
     };
     window.addEventListener('keydown', onKey);
@@ -638,6 +660,7 @@ export default function PlanimEditor({
           </div>
           <PlanimCanvas
             model={shownModel}
+            showHidden={!replay}
             view={view}
             onViewChange={setView}
             onClick={handleClick}
@@ -840,6 +863,7 @@ export default function PlanimEditor({
                     className={[
                       'stereo-step',
                       flashStep === st.index ? 'is-flash' : '',
+                      st.op.hidden ? 'is-hidden' : '',
                       replay && st.index >= viewStep ? 'is-future' : '',
                     ].filter(Boolean).join(' ')}
                     onClick={() => (replay ? goStep(st.index + 1) : setFlashStep(st.index))}
@@ -898,6 +922,19 @@ export default function PlanimEditor({
                         aria-label="Изменить построение"
                       />
                     </Tooltip>
+                    {HIDEABLE_OPS.has(st.op.type) && (
+                      <Tooltip title={st.op.hidden ? 'Показать на чертеже' : 'Скрыть на чертеже (построения на нём останутся)'}>
+                        <Button
+                          className={`stereo-step__del${st.op.hidden ? ' is-on' : ''}`}
+                          size="small"
+                          type="text"
+                          icon={st.op.hidden ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+                          onClick={(e) => { e.stopPropagation(); toggleStepHidden(st.op.id); }}
+                          aria-label={st.op.hidden ? 'Показать шаг' : 'Скрыть шаг'}
+                          aria-pressed={!!st.op.hidden}
+                        />
+                      </Tooltip>
+                    )}
                     <Tooltip title="Подпись к шагу">
                       <Button
                         className="stereo-step__del"

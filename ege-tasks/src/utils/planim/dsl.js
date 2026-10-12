@@ -36,6 +36,9 @@ export function parsePlanimBlock(text) {
   let color = false;
   let grid = false;
   const errors = [];
+  // «скрыть шаг» без номера — про шаг строкой выше; если та строка не
+  // построилась, скрывать нечего (иначе скрылся бы чужой шаг).
+  let lastFailed = false;
 
   lines.forEach((raw, i) => {
     const lineNo = i + 1;
@@ -57,9 +60,10 @@ export function parsePlanimBlock(text) {
     if (/^(сетка|клетка|клетки|grid)$/.test(low)) { grid = true; return; }
 
     const r = parseCommand(cmd, evaluateScene(scene));
-    if (r.error) { errors.push({ line: lineNo, message: r.error }); return; }
+    if (r.error) { errors.push({ line: lineNo, message: r.error }); lastFailed = true; return; }
     if (r.action === 'undo') { errors.push({ line: lineNo, message: 'Эта команда в блоке не работает' }); return; }
     if (r.action) {
+      if (r.step === 'last' && lastFailed) return;
       const res = applyAction(scene, r);
       if (res.error) errors.push({ line: lineNo, message: res.error });
       else scene = res.scene;
@@ -68,6 +72,7 @@ export function parsePlanimBlock(text) {
     const ops = r.ops || [r.op];
     if (note && ops.length) ops[0] = { ...ops[0], note };
     const res = tryAppendOps(scene, ops);
+    lastFailed = !res.ok;
     if (!res.ok) { errors.push({ line: lineNo, message: res.error }); return; }
     scene = res.scene;
   });
@@ -87,6 +92,8 @@ export function buildPlanimBlock(scene, { color = false, grid = false, size = nu
     const cmd = opToCommand(op);
     if (!cmd) { skipped += 1; out.push(`# шаг не выражается текстом: ${op.type}`); continue; }
     out.push(op.note ? `${cmd} // ${op.note}` : cmd);
+    // Скрытый шаг — строкой сразу за ним.
+    if (op.hidden) out.push('скрыть шаг');
     // Оформление самой окружности живёт в её шаге.
     if (op.type === 'circle') {
       const ref = circleRefText(op.circle);
@@ -103,15 +110,18 @@ export function buildPlanimBlock(scene, { color = false, grid = false, size = nu
   // Стиль отрезков: «цвет отрезков AB, CD красный», «пунктир CH, BK».
   const segByColor = {};
   const dashed = [];
+  const hiddenSegs = [];
   for (const [k, st] of Object.entries(scene?.segStyles || {})) {
     const seg = k.split('-').join('');
     if (st?.color) (segByColor[st.color] = segByColor[st.color] || []).push(seg);
     if (st?.dash) dashed.push(seg);
+    if (st?.hide) hiddenSegs.push(seg);
   }
   for (const [key, segs] of Object.entries(segByColor)) {
     out.push(`цвет ${segs.length > 1 ? 'отрезков' : 'отрезка'} ${segs.join(', ')} ${wordOf(key)}`);
   }
   if (dashed.length) out.push(`пунктир ${dashed.join(', ')}`);
+  if (hiddenSegs.length) out.push(`скрыть ${hiddenSegs.length > 1 ? 'отрезки' : 'отрезок'} ${hiddenSegs.join(', ')}`);
   if (scene?.hidden?.length) out.push(`скрыть ${scene.hidden.join('')}`);
   for (const [name, a] of Object.entries(scene?.labelAngles || {})) out.push(`метка ${name} ${Math.round(a)}`);
   if (size && (size.width !== DEFAULT_SIZE.width || size.height !== DEFAULT_SIZE.height)) {

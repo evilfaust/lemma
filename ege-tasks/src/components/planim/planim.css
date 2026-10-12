@@ -87,3 +87,7 @@
 @media (max-width: 600px) {
   .planim-figure-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Скрытый шаг: глаз виден всегда, строка — бледнее. */
+.stereo-step__del.is-on { opacity: 1; }
+.stereo-step.is-hidden .stereo-step__text { opacity: 0.55; }

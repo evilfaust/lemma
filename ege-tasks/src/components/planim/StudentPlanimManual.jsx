@@ -74,6 +74,7 @@ export default function StudentPlanimManual({ rec }) {
             onViewChange={setView}
             flashStep={flashStep}
             showGrid={false}
+            showHidden={false}
             cursor="grab"
             className="ssb__canvas"
             ariaLabel="Чертёж — его можно сдвигать и увеличивать"

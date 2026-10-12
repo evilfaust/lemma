@@ -168,7 +168,7 @@ function placeLabels(dots, obstacles, center, extraBoxes) {
   return out;
 }
 
-/** Куски линии [0; 1] со стилем отрезков (цвет, пунктир); позднее — главнее. */
+/** Куски линии [0; 1] со стилем отрезков (цвет, пунктир, скрыт); позднее — главнее. */
 export function stylePieces(ranges) {
   const cuts = [...new Set([0, 1, ...ranges.flatMap((r) => [r.t0, r.t1])])].sort((a, b) => a - b);
   const out = [];
@@ -179,15 +179,17 @@ export function stylePieces(ranges) {
     const mid = (t0 + t1) / 2;
     let color = null;
     let dash = false;
+    let hide = false;
     for (const r of ranges) {
       if (r.t0 <= mid && mid <= r.t1) {
         if (r.color) color = r.color;
         if (r.dash) dash = true;
+        if (r.hide) hide = true;
       }
     }
     const last = out[out.length - 1];
-    if (last && last.color === color && last.dash === dash) last.t1 = t1;
-    else out.push({ t0, t1, color, dash });
+    if (last && last.color === color && last.dash === dash && !!last.hide === hide) last.t1 = t1;
+    else out.push(hide ? { t0, t1, color, dash, hide } : { t0, t1, color, dash });
   }
   return out;
 }
@@ -204,19 +206,24 @@ const norm = (a) => {
  * @param view     — { cx, cy, scale }
  * @param viewport — { width, height }
  * @param [opts]   — { grid: boolean } — клетчатый фон (единичные клетки);
- *                   markSize — кегль подписей пометок (по умолчанию 15)
+ *                   markSize — кегль подписей пометок (по умолчанию 15);
+ *                   showHidden — скрытое рисуется бледным (ghost) и ловится
+ *                   кликом: так его видит редактор; без флага скрытого нет
  */
 export function renderPlanim(model, view, viewport, opts = {}) {
   const { width, height } = viewport;
   const { cx, cy, scale } = view;
+  const showHidden = !!opts.showHidden;
+  // Скрытое: без showHidden его в кадре нет, с ним — бледное (ghost).
+  const keep = (hidden) => !hidden || showHidden;
   const P = (v) => ({ x: width / 2 + (v.x - cx) * scale, y: height / 2 - (v.y - cy) * scale });
   const toWorld = (x, y) => ({ x: cx + (x - width / 2) / scale, y: cy - (y - height / 2) / scale });
 
   // Заливки.
-  const polys = model.polys.map((pg) => {
+  const polys = model.polys.filter((pg) => keep(pg.hidden)).map((pg) => {
     const pts = pg.pts.map(P);
     return {
-      id: pg.id, pts, step: pg.step,
+      id: pg.id, pts, step: pg.step, ghost: !!pg.hidden,
       points: pts.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '),
       fill: pointColorHex(pg.color) || PLANIM_COLORS.fill,
       opacity: 0.22,
@@ -227,17 +234,20 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   const strokes = [];
   const hitLines = [];
   for (const o of model.lines) {
+    if (!keep(o.hidden)) continue;
     const base = WIDTH[o.kind] || 1.5;
     const baseColor = o.kind === 'ext' ? PLANIM_COLORS.aux : PLANIM_COLORS.ink;
     const pieces = o.ranges?.length ? stylePieces(o.ranges) : [{ t0: 0, t1: 1, color: null, dash: false }];
     for (const pc of pieces) {
+      const ghost = !!o.hidden || !!pc.hide;
+      if (!keep(ghost)) continue;
       const a = P(lerp(o.a, o.b, pc.t0));
       const b = P(lerp(o.a, o.b, pc.t1));
       strokes.push({
         id: `${o.id}#${strokes.length}`, objId: o.id, kind: o.kind,
         x1: a.x, y1: a.y, x2: b.x, y2: b.y,
         color: pc.color ? pointColorHex(pc.color) || pc.color : baseColor,
-        width: base * (pc.color ? PAINTED : 1), dash: pc.dash, painted: !!pc.color, step: o.step,
+        width: base * (pc.color ? PAINTED : 1), dash: pc.dash, painted: !!pc.color, step: o.step, ghost,
       });
     }
     const a = P(o.a);
@@ -246,10 +256,10 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   }
 
   // Окружности.
-  const circles = model.circles.map((c) => {
+  const circles = model.circles.filter((c) => keep(c.hidden)).map((c) => {
     const s = P(c.c);
     return {
-      id: c.id, ref: c.ref, cx: s.x, cy: s.y, r: c.r * scale, step: c.step,
+      id: c.id, ref: c.ref, cx: s.x, cy: s.y, r: c.r * scale, step: c.step, ghost: !!c.hidden,
       color: pointColorHex(c.color) || PLANIM_COLORS.ink,
       width: WIDTH.circle * (c.color ? PAINTED : 1), dash: c.dash, painted: !!c.color,
       c: c.c, rw: c.r,
@@ -257,8 +267,10 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   });
 
   // Препятствия для подписей: линии и окружности (ломаной из 24 звеньев).
-  const obstacles = strokes.map((s) => ({ x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 }));
+  // Скрытое — не препятствие: буквы стоят так же, как на печати.
+  const obstacles = strokes.filter((s) => !s.ghost).map((s) => ({ x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 }));
   for (const c of circles) {
+    if (c.ghost) continue;
     for (let k = 0; k < 24; k++) {
       const a0 = (k * Math.PI) / 12;
       const a1 = ((k + 1) * Math.PI) / 12;
@@ -274,17 +286,19 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   const reserved = [];
   // opId — шаг, чья это подпись (её двигают и правят мышью, pickMarkText).
   const markSize = opts.markSize || 15;
-  const pushText = (id, x, y, raw, step, opId = id, size = markSize) => {
+  const pushText = (id, x, y, raw, step, opId = id, ghost = false, size = markSize) => {
     const text = formatMarkText(raw);
     const w = textWidth(text, size);
-    texts.push({ id, opId, x, y, text, italic: isItalic(text), size, step, w, h: size + 2 });
-    reserved.push({ x, y, w, h: size + 2 });
+    texts.push({ id, opId, x, y, text, italic: isItalic(text), size, step, w, h: size + 2, ghost });
+    if (!ghost) reserved.push({ x, y, w, h: size + 2 });
   };
 
   // Пометки углов: дуги (или квадратик прямого угла) и подпись.
   const arcs = [];
   const arcsAtVertex = {};
   for (const an of model.angles) {
+    if (!keep(an.hidden)) continue;
+    const ghost = !!an.hidden;
     const V = P(an.V);
     const va = sub(P(an.A), V);
     const vb = sub(P(an.B), V);
@@ -306,13 +320,13 @@ export function renderPlanim(model, view, viewport, opts = {}) {
       const p2 = { x: p1.x + ub.x * s, y: p1.y + ub.y * s };
       const p3 = { x: V.x + ub.x * s, y: V.y + ub.y * s };
       arcs.push({
-        id: an.id, step: an.step, right: true,
+        id: an.id, step: an.step, right: true, ghost, pts: [p1, p2, p3],
         d: `M${p1.x.toFixed(2)} ${p1.y.toFixed(2)}L${p2.x.toFixed(2)} ${p2.y.toFixed(2)}L${p3.x.toFixed(2)} ${p3.y.toFixed(2)}`,
         box: { x0: Math.min(p1.x, p2.x, p3.x, V.x), y0: Math.min(p1.y, p2.y, p3.y, V.y), x1: Math.max(p1.x, p2.x, p3.x, V.x), y1: Math.max(p1.y, p2.y, p3.y, V.y) },
       });
       if (an.label) {
         const at = an.at ? P(add(an.V, an.at)) : { x: V.x + Math.cos(midA) * (s + 16), y: V.y + Math.sin(midA) * (s + 16) };
-        pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id);
+        pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id, ghost);
       }
       continue;
     }
@@ -320,10 +334,12 @@ export function renderPlanim(model, view, viewport, opts = {}) {
     const sharp = Math.abs(delta) < 0.6 ? 1.5 : 1;
     const r0 = Math.max(9, Math.min(20 * sharp, short * 0.42)) + nth * 5;
     const parts = [];
+    const radii = [];
     let rMax = r0;
     for (let k = 0; k < an.arcs; k++) {
       const r = r0 + k * 3.6;
       rMax = r;
+      radii.push(r);
       const x1 = V.x + r * Math.cos(ta);
       const y1 = V.y + r * Math.sin(ta);
       const x2 = V.x + r * Math.cos(ta + delta);
@@ -331,20 +347,22 @@ export function renderPlanim(model, view, viewport, opts = {}) {
       parts.push(`M${x1.toFixed(2)} ${y1.toFixed(2)}A${r.toFixed(2)} ${r.toFixed(2)} 0 0 ${delta > 0 ? 1 : 0} ${x2.toFixed(2)} ${y2.toFixed(2)}`);
     }
     arcs.push({
-      id: an.id, step: an.step, right: false, d: parts.join(''),
+      id: an.id, step: an.step, right: false, ghost, d: parts.join(''),
+      vx: V.x, vy: V.y, radii, a0: ta, da: delta,
       box: { x0: V.x - rMax, y0: V.y - rMax, x1: V.x + rMax, y1: V.y + rMax },
     });
     if (an.label) {
       const text = formatMarkText(an.label);
       const rl = Math.min(64, Math.max(rMax + 11, 9 / Math.max(0.12, Math.sin(Math.abs(delta) / 2)))) + textWidth(text, markSize) * 0.18;
       const at = an.at ? P(add(an.V, an.at)) : { x: V.x + Math.cos(midA) * rl, y: V.y + Math.sin(midA) * rl };
-      pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id);
+      pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id, ghost);
     }
   }
 
   // Штрихи равных отрезков.
   const tickMarks = [];
   for (const t of model.ticks) {
+    if (!keep(t.hidden)) continue;
     const a = P(t.a);
     const b = P(t.b);
     const L = dist(a, b);
@@ -356,7 +374,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
       const off = (k - (t.n - 1) / 2) * 4;
       const c = { x: mid.x + d.x * off, y: mid.y + d.y * off };
       tickMarks.push({
-        id: `${t.id}:${k}`, opId: t.opId, step: t.step,
+        id: `${t.id}:${k}`, opId: t.opId, step: t.step, ghost: !!t.hidden,
         x1: c.x - n.x * 5, y1: c.y - n.y * 5, x2: c.x + n.x * 5, y2: c.y + n.y * 5,
       });
     }
@@ -365,6 +383,8 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   // Подписи отрезков — у середины. Сторона выбирается по занятости: где меньше
   // чужих линий; при равенстве — с внешней стороны фигуры.
   for (const ms of model.measures) {
+    if (!keep(ms.hidden)) continue;
+    const ghost = !!ms.hidden;
     const a = P(ms.a);
     const b = P(ms.b);
     const L = dist(a, b);
@@ -372,7 +392,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
     // Подпись, которую учитель поставил мышью, — на её месте.
     if (ms.at) {
       const at = P(add(mul(add(ms.a, ms.b), 0.5), ms.at));
-      pushText(ms.id, at.x, at.y + 5, ms.text, ms.step);
+      pushText(ms.id, at.x, at.y + 5, ms.text, ms.step, ms.id, ghost);
       continue;
     }
     const n0 = { x: -(b.y - a.y) / L, y: (b.x - a.x) / L };
@@ -401,12 +421,13 @@ export function renderPlanim(model, view, viewport, opts = {}) {
         if (!best || score < best.score - 1e-9) best = { score, x, y };
       }
     }
-    pushText(ms.id, best.x, best.y + 5, ms.text, ms.step);
+    pushText(ms.id, best.x, best.y + 5, ms.text, ms.step, ms.id, ghost);
   }
 
   for (const t of model.texts) {
+    if (!keep(t.hidden)) continue;
     const s = P(t.pos);
-    pushText(t.id, s.x, s.y + 5, t.text, t.step);
+    pushText(t.id, s.x, s.y + 5, t.text, t.step, t.id, !!t.hidden);
   }
 
   // Точки и их буквы.
@@ -421,7 +442,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
       color: pointColorHex(pt.color), labelAngle: pt.labelAngle,
     });
   }
-  for (const s of tickMarks) obstacles.push({ x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 });
+  for (const s of tickMarks) if (!s.ghost) obstacles.push({ x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2 });
   const labels = placeLabels(dots, obstacles, center, reserved);
 
   // Клетчатый фон.
@@ -440,7 +461,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   return {
     width, height, scale, view, project: P, toWorld,
     polys, strokes, circles, arcs, tickMarks, texts, dots, labels, grid,
-    hits: { lines: hitLines, circles, points: dots.filter((d) => !d.ghost || opts.showHidden), polys },
+    hits: { lines: hitLines, circles, points: dots.filter((d) => keep(d.ghost)), polys },
   };
 }
 
@@ -519,6 +540,32 @@ export function pickMarkText(frame, x, y) {
   return null;
 }
 
+/**
+ * Дуга угла или штрих равных отрезков под курсором — пометка без подписи.
+ * В ответе opId — шаг журнала.
+ */
+export function pickMark(frame, x, y, tol = 6) {
+  for (const s of frame.tickMarks) {
+    if (segDist(x, y, s.x1, s.y1, s.x2, s.y2) <= tol) return { opId: s.opId };
+  }
+  for (const a of frame.arcs) {
+    if (a.right) {
+      const [p1, p2, p3] = a.pts;
+      if (segDist(x, y, p1.x, p1.y, p2.x, p2.y) <= tol || segDist(x, y, p2.x, p2.y, p3.x, p3.y) <= tol) {
+        return { opId: a.id };
+      }
+      continue;
+    }
+    const d = Math.hypot(x - a.vx, y - a.vy);
+    if (!a.radii.some((r) => Math.abs(d - r) <= tol)) continue;
+    // Внутри сектора дуги: угол от её начала в сторону обхода — от 0 до |da|.
+    const rel = norm(Math.atan2(y - a.vy, x - a.vx) - a.a0) * Math.sign(a.da || 1);
+    const t = rel < 0 ? rel + 2 * Math.PI : rel;
+    if (t <= Math.abs(a.da) + 0.15 || t >= 2 * Math.PI - 0.15) return { opId: a.id };
+  }
+  return null;
+}
+
 /** Буква точки под курсором (её можно перетащить вокруг точки). */
 export function pickLabel(frame, x, y) {
   for (const l of frame.labels) {
@@ -538,18 +585,19 @@ const dotVisible = (d) => !d.ghost && (!d.corner || !!d.color);
 export function contentBox(frame, pad = 8) {
   let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
   const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
-  for (const s of frame.strokes) { add(s.x1, s.y1); add(s.x2, s.y2); }
-  for (const s of frame.tickMarks) { add(s.x1, s.y1); add(s.x2, s.y2); }
-  for (const c of frame.circles) { add(c.cx - c.r, c.cy - c.r); add(c.cx + c.r, c.cy + c.r); }
-  for (const a of frame.arcs) { add(a.box.x0, a.box.y0); add(a.box.x1, a.box.y1); }
-  for (const pg of frame.polys) for (const p of pg.pts) add(p.x, p.y);
+  const shown = (arr) => arr.filter((o) => !o.ghost);
+  for (const s of shown(frame.strokes)) { add(s.x1, s.y1); add(s.x2, s.y2); }
+  for (const s of shown(frame.tickMarks)) { add(s.x1, s.y1); add(s.x2, s.y2); }
+  for (const c of shown(frame.circles)) { add(c.cx - c.r, c.cy - c.r); add(c.cx + c.r, c.cy + c.r); }
+  for (const a of shown(frame.arcs)) { add(a.box.x0, a.box.y0); add(a.box.x1, a.box.y1); }
+  for (const pg of shown(frame.polys)) for (const p of pg.pts) add(p.x, p.y);
   for (const d of frame.dots) if (!d.ghost) { add(d.x - 4, d.y - 4); add(d.x + 4, d.y + 4); }
   for (const l of frame.labels) {
     if (l.ghost) continue;
     add(l.x - l.w / 2 - 2, l.y - 11);
     add(l.x + l.w / 2 + 2, l.y + 10);
   }
-  for (const t of frame.texts) { add(t.x - t.w / 2 - 2, t.y - t.h); add(t.x + t.w / 2 + 2, t.y + 5); }
+  for (const t of shown(frame.texts)) { add(t.x - t.w / 2 - 2, t.y - t.h); add(t.x + t.w / 2 + 2, t.y + 5); }
   if (!Number.isFinite(x0)) return null;
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
@@ -614,19 +662,24 @@ export function planimSvgString(frame, opts = {}) {
     }
   }
   for (const pg of frame.polys) {
+    if (pg.ghost) continue;
     parts.push(`<polygon points="${pg.points}" fill="${mono ? '#000000' : esc(pg.fill)}" fill-opacity="${mono ? 0.12 : pg.opacity}" stroke="none"/>`);
   }
   const dashAttr = (on) => (on ? ` stroke-dasharray="${DASH}"` : '');
   for (const c of frame.circles) {
+    if (c.ghost) continue;
     parts.push(`<circle cx="${c.cx.toFixed(2)}" cy="${c.cy.toFixed(2)}" r="${c.r.toFixed(2)}" fill="none" stroke="${esc(ink(c.color))}" stroke-width="${c.width.toFixed(2)}"${dashAttr(c.dash)}/>`);
   }
   for (const s of frame.strokes) {
+    if (s.ghost) continue;
     parts.push(`<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${s.width.toFixed(2)}" stroke-linecap="round"${dashAttr(s.dash)}/>`);
   }
   for (const a of frame.arcs) {
+    if (a.ghost) continue;
     parts.push(`<path d="${a.d}" fill="none" stroke="${ink(PLANIM_COLORS.ink)}" stroke-width="1.1" stroke-linejoin="miter"/>`);
   }
   for (const s of frame.tickMarks) {
+    if (s.ghost) continue;
     parts.push(`<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${ink(PLANIM_COLORS.ink)}" stroke-width="1.2" stroke-linecap="round"/>`);
   }
   for (const d of frame.dots) {
@@ -643,6 +696,7 @@ export function planimSvgString(frame, opts = {}) {
     );
   }
   for (const t of frame.texts) {
+    if (t.ghost) continue;
     parts.push(
       `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="middle" font-family="${t.italic ? LABEL_FONT : MARK_FONT}"${t.italic ? ' font-style="italic"' : ''} font-size="${t.size}" fill="${PLANIM_COLORS.label}"${halo}>${esc(t.text)}</text>`,
     );

@@ -6,6 +6,8 @@ import '../stereo/stereo.css';
 import './planim.css';
 
 const DRAG_START_PX = 4;
+/** Скрытое в редакторе — бледное: на печати его нет, но за него можно взяться. */
+const GHOST = 0.3;
 
 /**
  * Холст планиметрического чертежа.
@@ -22,6 +24,7 @@ const DRAG_START_PX = 4;
  * @param flashStep — номер шага, чьи объекты вспыхивают (новое на чертеже)
  * @param getDragTarget — (pt, frame) → цель или null
  * @param onDrag    — ({ phase: 'start'|'move'|'end', x, y, frame, target, altKey })
+ * @param showHidden — скрытое видно бледным (редактор); пособие ученика — false
  */
 export default function PlanimCanvas({
   model,
@@ -36,6 +39,7 @@ export default function PlanimCanvas({
   highlight = null,
   flashStep = null,
   showGrid = true,
+  showHidden = true,
   cursor = 'default',
   className = '',
   style,
@@ -76,9 +80,9 @@ export default function PlanimCanvas({
   const frame = useMemo(() => {
     if (!model || !effView || !ready) return null;
     return renderPlanim(model, effView, size, {
-      grid: showGrid, gridStep: gridLineStep(effView.scale), showHidden: true,
+      grid: showGrid, gridStep: gridLineStep(effView.scale), showHidden,
     });
-  }, [model, effView, size, ready, showGrid]);
+  }, [model, effView, size, ready, showGrid, showHidden]);
   const frameRef = useRef(frame);
   frameRef.current = frame;
 
@@ -224,7 +228,7 @@ export default function PlanimCanvas({
                 key={pg.id}
                 points={pg.points}
                 fill={pg.fill}
-                fillOpacity={highlight?.polys?.has(pg.id) ? 0.45 : pg.opacity}
+                fillOpacity={(highlight?.polys?.has(pg.id) ? 0.45 : pg.opacity) * (pg.ghost ? GHOST : 1)}
                 stroke="none"
                 className={isFlash(pg.step) ? 'stereo-flash-fill' : undefined}
               />
@@ -241,6 +245,7 @@ export default function PlanimCanvas({
                   stroke={hl ? PLANIM_COLORS.active : c.color}
                   strokeWidth={c.width + (hl ? 1.2 : 0)}
                   strokeDasharray={c.dash ? DASH : undefined}
+                  opacity={c.ghost && !hl ? GHOST : 1}
                   className={isFlash(c.step) ? 'stereo-flash' : undefined}
                 />
               );
@@ -255,6 +260,7 @@ export default function PlanimCanvas({
                   strokeWidth={s.width + (hl ? 1.3 : 0)}
                   strokeDasharray={s.dash ? DASH : undefined}
                   strokeLinecap="round"
+                  opacity={s.ghost && !hl ? GHOST : 1}
                   className={isFlash(s.step) ? 'stereo-flash' : undefined}
                 />
               );
@@ -266,6 +272,7 @@ export default function PlanimCanvas({
                 fill="none"
                 stroke={PLANIM_COLORS.ink}
                 strokeWidth={1.1}
+                opacity={a.ghost ? GHOST : 1}
                 className={isFlash(a.step) ? 'stereo-flash' : undefined}
               />
             ))}
@@ -276,6 +283,7 @@ export default function PlanimCanvas({
                 stroke={PLANIM_COLORS.ink}
                 strokeWidth={1.2}
                 strokeLinecap="round"
+                opacity={s.ghost ? GHOST : 1}
                 className={isFlash(s.step) ? 'stereo-flash' : undefined}
               />
             ))}
@@ -317,6 +325,7 @@ export default function PlanimCanvas({
                 y={t.y}
                 textAnchor="middle"
                 className="stereo-label planim-mark-text"
+                opacity={t.ghost ? GHOST : 1}
                 style={{ fontStyle: t.italic ? 'italic' : 'normal', fontSize: t.size }}
               >
                 {t.text}

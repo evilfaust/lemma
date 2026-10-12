@@ -250,6 +250,36 @@ describe('редактор', () => {
     expect(screen.getByText('Отрезок KB')).toBeTruthy();
   });
 
+  it('«Скрыть» (0): клик по отрезку прячет кусок, глаз в журнале — шаг целиком', async () => {
+    const scene = { ops: [
+      { id: 'a', type: 'point', name: 'A', x: 0, y: 0 },
+      { id: 'b', type: 'point', name: 'B', x: 4, y: 0 },
+      { id: 's', type: 'segment', ref: ['A', 'B'] },
+      { id: 'o', type: 'point', name: 'O', x: 2, y: 3 },
+      { id: 'c', type: 'circle', circle: { k: 'cr', o: 'O', r: 1 } },
+    ] };
+    localStorage.setItem('planim.editor.v1', JSON.stringify({ scene }));
+    mount();
+    const svg = document.querySelector('.planim-canvas svg');
+    const model = evaluateScene(scene);
+    const frame = renderPlanim(model, fitView(model, { width: W, height: H }, { padding: 56 }), { width: W, height: H });
+    const mid = frame.project({ x: 2, y: 0 });
+    const ghosts = () => svg.querySelectorAll('[opacity="0.3"]').length;
+    expect(ghosts()).toBe(0);
+    await act(async () => { fireEvent.keyDown(window, { key: '0', code: 'Digit0' }); });
+    await click(svg, mid.x, mid.y);
+    expect(svg.querySelector('line[opacity="0.3"]')).toBeTruthy(); // в редакторе — бледный
+    await click(svg, mid.x, mid.y);
+    expect(ghosts()).toBe(0); // повторный клик — снова виден
+
+    expect(screen.getAllByLabelText('Скрыть шаг')).toHaveLength(2); // отрезок и окружность
+    fireEvent.click(screen.getAllByLabelText('Скрыть шаг')[1]);
+    expect(svg.querySelector('circle[opacity="0.3"]')).toBeTruthy();
+    expect(screen.getByLabelText('Показать шаг')).toBeTruthy();
+    fireEvent.click(screen.getByLabelText('Показать шаг'));
+    expect(ghosts()).toBe(0);
+  });
+
   it('в окне задачи: «Вставить» отдаёт сцену и настройки вида', async () => {
     const onApply = vi.fn();
     mount({ embedded: true, onApply, initialScene: parsePlanimBlock('квадрат ABCD 4').scene, initialGrid: true });

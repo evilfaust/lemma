@@ -14,7 +14,7 @@ import {
   add, sub, mul, cross, len, dist, unit, rot90, paramOnLine, distToLine,
 } from './vec2';
 import {
-  isPairRef, refNames, mapRefNames, lineRefPretty, circleRefPretty, circleRefKey,
+  isPairRef, refNames, mapRefNames, lineRefPretty, lineRefText, circleRefPretty, circleRefKey,
   prettyName, NAME_RE,
 } from './refs';
 import {
@@ -27,6 +27,16 @@ export const OP_TYPES = [
   'segment', 'line', 'ray', 'parallel', 'perp', 'bisector', 'polygon',
   'circle', 'fill', 'angle', 'tick', 'measure', 'text',
 ];
+
+/**
+ * Шаги, которые рисуют объект (линию, окружность, заливку, пометку): такой шаг
+ * можно скрыть целиком — op.hidden. Точку скрывают отдельно (scene.hidden):
+ * шаг, поставивший точку, сам ничего не рисует.
+ */
+export const HIDEABLE_OPS = new Set([
+  'segment', 'line', 'ray', 'parallel', 'perp', 'bisector', 'polygon',
+  'circle', 'fill', 'angle', 'tick', 'measure', 'text',
+]);
 
 let idSeq = 0;
 /** Уникальный id операции. */
@@ -175,7 +185,7 @@ export function evaluateScene(scene, opts = {}) {
   // высоты тупоугольного треугольника) — отрезок дорисовывается до неё.
   // Если на этой прямой ничего не нарисовано, ничего и не появляется.
   const ensureCoverage = (L, ref, t, stepIdx, created) => {
-    const onLine = lines.filter((o) => sameLine(o.p, o.u, L.p, L.u, tol * 10));
+    const onLine = lines.filter((o) => !o.hidden && sameLine(o.p, o.u, L.p, L.u, tol * 10));
     if (!onLine.length || onLine.some((o) => o.kind === 'line')) return;
     let lo = Infinity;
     let hi = -Infinity;
@@ -408,6 +418,15 @@ export function evaluateScene(scene, opts = {}) {
         default:
           fail(`Неизвестная операция: ${op.type}`);
       }
+      // Скрытый шаг: всё, что он нарисовал, на чертеже не видно, но на его
+      // прямые и окружности по-прежнему можно опираться.
+      if (op.hidden && HIDEABLE_OPS.has(op.type)) {
+        const made = [
+          [lines, mark.lines], [circles, mark.circles], [polys, mark.polys], [angles, mark.angles],
+          [ticks, mark.ticks], [measures, mark.measures], [texts, mark.texts],
+        ];
+        for (const [arr, from] of made) for (let i = from; i < arr.length; i++) arr[i].hidden = true;
+      }
     } catch (e) {
       if (!(e instanceof StepError)) throw e;
       step.ok = false;
@@ -495,7 +514,9 @@ export function evaluateScene(scene, opts = {}) {
       t0 = Math.max(0, t0);
       t1 = Math.min(1, t1);
       if (t1 - t0 <= 1e-9) continue;
-      (o.ranges = o.ranges || []).push({ t0, t1, color: st.color || null, dash: !!st.dash });
+      const range = { t0, t1, color: st.color || null, dash: !!st.dash };
+      if (st.hide) range.hide = true;
+      (o.ranges = o.ranges || []).push(range);
     }
   }
 
@@ -507,6 +528,7 @@ export function evaluateScene(scene, opts = {}) {
     let inner = false;
     const dirs = [];
     for (const o of lines) {
+      if (o.hidden) continue;
       const d = sub(o.b, o.a);
       const dl = len(d);
       if (dl <= tol || distToLine(pt.pos, o.a, d) > tol * 10) continue;
@@ -521,13 +543,15 @@ export function evaluateScene(scene, opts = {}) {
     pt.corner = !inner && !isCenter && dirs.length >= 2;
   }
 
-  // Габариты всего нарисованного (без скрытых точек) — для вписывания в кадр.
+  // Габариты всего нарисованного (без скрытого) — для вписывания в кадр.
   const bbox = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
   for (const n of real) if (!points[n].hidden) grow(bbox, points[n].pos.x, points[n].pos.y);
-  for (const o of lines) { grow(bbox, o.a.x, o.a.y); grow(bbox, o.b.x, o.b.y); }
-  for (const c of circles) { grow(bbox, c.c.x - c.r, c.c.y - c.r); grow(bbox, c.c.x + c.r, c.c.y + c.r); }
-  for (const t of texts) grow(bbox, t.pos.x, t.pos.y);
-  for (const pg of polys) for (const q of pg.pts) grow(bbox, q.x, q.y);
+  for (const o of lines) if (!o.hidden) { grow(bbox, o.a.x, o.a.y); grow(bbox, o.b.x, o.b.y); }
+  for (const c of circles) {
+    if (!c.hidden) { grow(bbox, c.c.x - c.r, c.c.y - c.r); grow(bbox, c.c.x + c.r, c.c.y + c.r); }
+  }
+  for (const t of texts) if (!t.hidden) grow(bbox, t.pos.x, t.pos.y);
+  for (const pg of polys) if (!pg.hidden) for (const q of pg.pts) grow(bbox, q.x, q.y);
 
   let cx = 0;
   let cy = 0;
@@ -669,7 +693,8 @@ export function setPointColors(scene, names, color) {
 
 /**
  * Стиль отрезков (кусков прямых между двумя точками) по ключам «A-B».
- * patch: { color?: 'red' | '', dash?: boolean } — заданное меняется, остальное остаётся.
+ * patch: { color?: 'red' | '', dash?: boolean, hide?: boolean } — заданное
+ * меняется, остальное остаётся. hide — кусок не рисуется (скрытый отрезок).
  */
 export function setSegStyles(scene, keys, patch) {
   const segStyles = { ...(scene?.segStyles || {}) };
@@ -677,6 +702,7 @@ export function setSegStyles(scene, keys, patch) {
     const st = { ...(segStyles[k] || {}) };
     if ('color' in patch) { if (patch.color) st.color = patch.color; else delete st.color; }
     if ('dash' in patch) { if (patch.dash) st.dash = true; else delete st.dash; }
+    if ('hide' in patch) { if (patch.hide) st.hide = true; else delete st.hide; }
     if (Object.keys(st).length) segStyles[k] = st; else delete segStyles[k];
   }
   const next = { ...scene, segStyles };
@@ -684,7 +710,11 @@ export function setSegStyles(scene, keys, patch) {
   return next;
 }
 
-/** Стиль самой операции (окружность, заливка): цвет и пунктир живут в шаге. */
+/**
+ * Стиль самой операции (окружность, заливка): цвет и пунктир живут в шаге.
+ * hidden — шаг скрыт целиком (HIDEABLE_OPS): объект не рисуется, но
+ * построения на нём держатся.
+ */
 export function setOpStyle(scene, opIds, patch) {
   const ids = new Set(opIds);
   return {
@@ -694,6 +724,7 @@ export function setOpStyle(scene, opIds, patch) {
       const next = { ...o };
       if ('color' in patch) { if (patch.color) next.color = patch.color; else delete next.color; }
       if ('dash' in patch) { if (patch.dash) next.dash = true; else delete next.dash; }
+      if ('hidden' in patch) { if (patch.hidden) next.hidden = true; else delete next.hidden; }
       return next;
     }),
   };
@@ -829,11 +860,103 @@ export function segStyleError(model, a, b) {
   return drawn ? null : `Отрезок ${prettyName(a)}${prettyName(b)} не нарисован`;
 }
 
+// --- скрытие: точки, куски линий, шаги целиком -----------------------------------
+
+const lineKeyOf = (ref) => (isPairRef(ref) ? [...ref].sort().join('-') : lineRefText(ref));
+const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+
+/** Снять всё скрытое: точки, куски линий, скрытые шаги. */
+export function showAll(scene) {
+  const next = {
+    ...scene,
+    ops: (scene?.ops || []).map((o) => {
+      if (!o.hidden) return o;
+      const n = { ...o };
+      delete n.hidden;
+      return n;
+    }),
+  };
+  delete next.hidden;
+  const keys = Object.keys(scene?.segStyles || {}).filter((k) => scene.segStyles[k]?.hide);
+  return keys.length ? setSegStyles(next, keys, { hide: false }) : next;
+}
+
+/**
+ * Скрыть / показать объекты чертежа. Скрытое не рисуется (в редакторе видно
+ * бледным), но построения на нём держатся.
+ * r: { hide, all?, names?, segments?, circles?, lines?, angles?, fills?, polygons?, step? }
+ *   names — точки; segments — куски линий между двумя точками («скрыть отрезок AM»);
+ *   circles / lines / angles / fills / polygons — шаги, которые их нарисовали;
+ *   step — номер шага (с 1) или 'last'.
+ * @returns {{ scene } | { error }}
+ */
+export function hideObjects(scene, model, r) {
+  const hide = r.hide !== false;
+  if (r.all) return hide ? { error: 'Скрыть можно точку, отрезок, прямую, окружность, угол…' } : { scene: showAll(scene) };
+  const missing = (names) => names.filter((n) => !model.points[n]);
+  const segs = [...(r.segments || [])];
+  const bad = missing([...(r.names || []), ...segs.flat(), ...(r.lines || []).flatMap(refNames), ...(r.angles || []).flat(),
+    ...(r.fills || []).flat(), ...(r.polygons || []).flat()]);
+  if (bad.length) return { error: `Нет точки ${bad.map(prettyName).join(', ')}` };
+
+  const ops = scene?.ops || [];
+  const opIds = [];
+  const opOfStep = (step) => model.steps[step]?.op.id;
+
+  for (const cref of r.circles || []) {
+    const key = circleRefKey(cref);
+    const ids = model.circles.filter((c) => c.key === key).map((c) => c.id);
+    if (!ids.length) return { error: `Не нарисована: ${circleRefPretty(cref)}` };
+    opIds.push(...ids);
+  }
+  for (const ref of r.lines || []) {
+    const key = lineKeyOf(ref);
+    const own = model.lines.filter((l) => l.kind !== 'side' && l.kind !== 'ext' && lineKeyOf(l.ref) === key);
+    if (own.length) { opIds.push(...own.map((l) => opOfStep(l.step)).filter(Boolean)); continue; }
+    // Сторона многоугольника — своего шага у неё нет: скрывается кусок.
+    if (isPairRef(ref) && !segStyleError(model, ref[0], ref[1])) { segs.push(ref); continue; }
+    return { error: `Не нарисована прямая ${lineRefPretty(ref)}` };
+  }
+  const byPts = (type, list, match, what) => {
+    for (const pts of list || []) {
+      const ids = ops.filter((o) => o.type === type && Array.isArray(o.pts) && match(o.pts, pts)).map((o) => o.id);
+      if (!ids.length) return `${what} ${pts.map(prettyName).join('')}`;
+      opIds.push(...ids);
+    }
+    return null;
+  };
+  const sameAngle = (a, b) => a[1] === b[1] && sameSet([a[0], a[2]], [b[0], b[2]]);
+  const err = byPts('angle', r.angles, sameAngle, 'Нет пометки угла')
+    || byPts('fill', r.fills, sameSet, 'Нет заливки')
+    || byPts('polygon', r.polygons, sameSet, 'Нет многоугольника');
+  if (err) return { error: err };
+  if (r.step != null) {
+    const op = r.step === 'last' ? ops[ops.length - 1] : ops[Number(r.step) - 1];
+    if (!op) return { error: `Нет шага ${r.step === 'last' ? '' : r.step}`.trim() };
+    if (!HIDEABLE_OPS.has(op.type)) {
+      return { error: `Шаг «${op.type}» ничего не рисует — точку скрывают командой «скрыть ${op.name || 'O'}»` };
+    }
+    opIds.push(op.id);
+  }
+  if (hide) {
+    for (const [a, b] of segs) {
+      const e = segStyleError(model, a, b);
+      if (e) return { error: e };
+    }
+  }
+
+  let next = scene;
+  if (r.names?.length) next = setHidden(next, r.names, hide);
+  if (segs.length) next = setSegStyles(next, segs.map(([a, b]) => segKey(a, b)), { hide });
+  if (opIds.length) next = setOpStyle(next, opIds, { hidden: hide });
+  return { scene: next };
+}
+
 /**
  * Команда-оформление (не шаг журнала) → новая сцена. Общая для строки команд
  * и блока ```planim.
  * r: { action: 'style', names?, segments?, circles?, patch }
- *  | { action: 'hide', names, hide }
+ *  | { action: 'hide', hide, names?, segments?, circles?, lines?, … } — см. hideObjects
  *  | { action: 'label', name, angle }
  *  | { action: 'rename', from, to }
  * @returns {{ scene } | { error }}
@@ -842,11 +965,7 @@ export function applyAction(scene, r) {
   const model = evaluateScene(scene);
   const missing = (names) => names.filter((n) => !model.points[n]);
   if (r.action === 'rename') return renamePoint(scene, r.from, r.to);
-  if (r.action === 'hide') {
-    const bad = missing(r.names);
-    if (bad.length) return { error: `Нет точки ${bad.map(prettyName).join(', ')}` };
-    return { scene: setHidden(scene, r.names, r.hide) };
-  }
+  if (r.action === 'hide') return hideObjects(scene, model, r);
   if (r.action === 'label') {
     if (!model.points[r.name]) return { error: `Нет точки ${prettyName(r.name)}` };
     return { scene: setLabelAngle(scene, r.name, r.angle) };

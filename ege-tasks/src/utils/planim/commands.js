@@ -17,6 +17,7 @@
 //   X = AB ∩ окр(O,A)        пересечение с окружностью
 //   угол ABC 2 α · равны AB CD · длина AB 5   пометки
 //   пунктир CH · цвет отрезка AB красный · скрыть O   оформление (не шаги)
+//   скрыть отрезок AM · скрыть прямую AB · скрыть окр(O) · скрыть шаг 5 · показать всё
 
 import {
   prettyName, splitNames, parseLineRef, parseCircleRef, isCircleTok, lineRefText, circleRefText,
@@ -324,12 +325,8 @@ export function parseCommand(text, model) {
       return { action: 'style', segments, circles, patch: { dash } };
     }
 
-    m = /^(скрыть|спрятать|hide|показать|show)\s+(.+)$/i.exec(src);
-    if (m) {
-      const names = splitNames(m[2].replace(/[\s,]+/g, ''));
-      if (!names) throw new Error('Какие точки: «скрыть O» (точка не рисуется, но на неё можно ссылаться)');
-      return { action: 'hide', names, hide: /^(скрыть|спрятать|hide)/i.test(m[1]) };
-    }
+    m = /^(скрыть|спрятать|hide|показать|show)(?:\s+(.+))?$/i.exec(src);
+    if (m) return parseHide(/^(скрыть|спрятать|hide)/i.test(m[1]), (m[2] || '').trim(), model, pair);
 
     m = new RegExp(`^(?:метка|буква)\\s+(${NAME})\\s+(.+)$`, 'i').exec(src);
     if (m) {
@@ -608,6 +605,52 @@ export function bisectorOps(name, [a, v, b]) {
   ];
 }
 
+const HIDE_HINT = 'Что скрыть: «скрыть O» (точку), «скрыть отрезок AM», «скрыть прямую AB», '
+  + '«скрыть окр(O)», «скрыть угол ABC», «скрыть шаг 5»; вернуть — «показать …», «показать всё»';
+
+/**
+ * «скрыть …» / «показать …» → { action: 'hide', hide, … } (см. scene.hideObjects).
+ * Без слова-вида — точки («скрыть O») или окружности («скрыть окр(O)»).
+ */
+function parseHide(hide, rest, model, pair) {
+  const out = { action: 'hide', hide };
+  if (!rest) throw new Error(HIDE_HINT);
+  if (/^(вс[её]|all)$/i.test(rest)) {
+    if (hide) throw new Error(HIDE_HINT);
+    return { ...out, all: true };
+  }
+  let m = /^шаг[а-яё]*(?:\s+(\d+))?$/i.exec(rest);
+  if (m) return { ...out, step: m[1] ? Number(m[1]) : 'last' };
+  m = /^([а-яё]+)\s+(.+)$/i.exec(rest);
+  const word = m ? m[1].toLowerCase() : '';
+  const toks = (m ? m[2] : rest).split(/[\s,]+/).filter(Boolean);
+  const triples = (what) => toks.map((t) => {
+    const n = splitNames(t);
+    if (!n || n.length < 3) throw new Error(what);
+    return n;
+  });
+  if (/^(отрез|сторон)/.test(word)) {
+    return { ...out, segments: toks.map((t) => pair(t, 'Отрезок — двумя точками: «скрыть отрезок AM»')) };
+  }
+  if (/^(прям|луч|лини)/.test(word)) return { ...out, lines: toks.map((t) => parseLineRef(t)) };
+  if (/^окружн/.test(word) || (!word && toks.some(isCircleTok))) {
+    return { ...out, circles: toks.map((t) => parseCircleRef(isCircleTok(t) ? t : `окр(${t})`, model)) };
+  }
+  if (/^угл|^угол/.test(word)) {
+    const angles = triples('Угол — тремя точками, вершина посередине: «скрыть угол ABC»');
+    if (angles.some((a) => a.length !== 3)) throw new Error('Угол — тремя точками: «скрыть угол ABC»');
+    return { ...out, angles };
+  }
+  if (/^заливк/.test(word)) return { ...out, fills: triples('Заливка — вершинами: «скрыть заливку ABC»') };
+  if (/^(многоуг|треуг|четыр)/.test(word)) {
+    return { ...out, polygons: triples('Многоугольник — вершинами: «скрыть треугольник ABC»') };
+  }
+  if (word && !/^точ/.test(word)) throw new Error(HIDE_HINT);
+  const names = splitNames(toks.join(''));
+  if (!names) throw new Error(HIDE_HINT);
+  return { ...out, names };
+}
+
 /** Человеческое описание шага журнала. */
 export function describeOp(op) {
   const P = prettyName;
@@ -726,7 +769,7 @@ export function editStepCommand(scene, opId, text) {
   const first = repl[0];
   if (old.note) first.note = old.note;
   if (first.type === old.type) {
-    for (const f of ['color', 'dash', 'at']) if (old[f] != null && first[f] == null) first[f] = old[f];
+    for (const f of ['color', 'dash', 'at', 'hidden']) if (old[f] != null && first[f] == null) first[f] = old[f];
   }
 
   // Шаг, который ставит точку: прежнее имя остаётся, если другое не написано.
