@@ -517,7 +517,8 @@ export default function TaskImporter() {
                   Перетащите .md файл сюда или нажмите для выбора
                 </p>
                 <p className="ant-upload-hint">
-                  Поддерживаются форматы ЕГЭ и Мордкович
+                  Поддерживаются форматы ЕГЭ и Мордкович. Чертежи — блоками
+                  ```planim, ```stereo, ```plot, ```chart, ```numline прямо в условии
                 </p>
               </Dragger>
             ),
@@ -531,7 +532,7 @@ export default function TaskImporter() {
                   rows={12}
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
-                  placeholder={`---\ntopic: ЕГЭ-База №14 Вычисления\nsubtopic: Дроби\ndifficulty: 1\ntags: Вычисления\n---\n\n**1** [1] Найдите значение выражения $2^{10} \\cdot 3^{6} : 6^{5}$\nответ: 96\ntags: [База, Вычисления]`}
+                  placeholder={`---\ntopic: ЕГЭ-База №14 Вычисления\nsubtopic: Дроби\ndifficulty: 1\ntags: Вычисления\n---\n\n**1** [1] Найдите значение выражения $2^{10} \\cdot 3^{6} : 6^{5}$\nответ: 96\ntags: [База, Вычисления]\n\n**2** [2] В трапеции ABCD основания 10 и 4. Найдите отношение AO : OC.\n\n\`\`\`planim\nтрапеция ABCD 10 4 4\nAC\nBD\nO = AC ∩ BD\n\`\`\`\nответ: 2,5`}
                   style={{ fontFamily: 'monospace', fontSize: 13 }}
                 />
                 <Button
@@ -975,6 +976,11 @@ export default function TaskImporter() {
                           if (task.imageUrl) return <Tag color="cyan">Изображение</Tag>;
                           return null;
                         })()}
+                        {task.drawings?.length > 0 && (
+                          <Tag color="geekblue">
+                            чертёж текстом{task.drawings.length > 1 ? ` ×${task.drawings.length}` : ''}
+                          </Tag>
+                        )}
                         {task.latex_needs_review && (
                           <>
                             <Tag color="warning">⚠ Проверить LaTeX</Tag>

@@ -88,13 +88,34 @@ describe('extractDrawingBlocks / checkDrawingBlocks', () => {
       '```plot',
       'f x^2',
       '```',
+      '```js',
+      'const a = 1;',
+      '```',
       '~~~stereo',
       'куб 4',
       '~~~',
+      '```vectors',
+      'vec a 0 0 1 2',
+      '```',
     ].join('\n');
     expect(extractDrawingBlocks(md)).toEqual([
       { kind: 'planim', text: 'треугольник ABC' },
+      { kind: 'plot', text: 'f x^2' },
       { kind: 'stereo', text: 'куб 4' },
+      { kind: 'plot', text: 'vec a 0 0 1 2' },
+    ]);
+  });
+
+  it('график и диаграмма проверяются своими парсерами', () => {
+    expect(checkDrawingBlocks('```plot\nf x^2\n```').problems).toEqual([]);
+    const plot = checkDrawingBlocks('```plot\nderiv g\n```');
+    expect(plot.problems).toHaveLength(1);
+    expect(plot.problems[0]).toMatchObject({ kind: 'plot', line: 0 });
+
+    const chart = checkDrawingBlocks('```chart\nx 0 6 step 1\ny 0 10 step 2\nvalues 1 3 5 2\nчепуха 5\n```');
+    expect(chart.kinds).toEqual(['chart']);
+    expect(chart.problems).toEqual([
+      { kind: 'chart', line: 4, command: 'чепуха 5', message: 'команда не разобрана' },
     ]);
   });
 

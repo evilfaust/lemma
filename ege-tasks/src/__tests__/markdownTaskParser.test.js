@@ -5,6 +5,8 @@ import {
   parseYamlFrontmatter,
   detectFormat,
   parseEgeTasks,
+  parseMarkdownFile,
+  convertLegacyMath,
 } from '../utils/markdownTaskParser';
 
 describe('parseTags', () => {
@@ -176,5 +178,108 @@ describe('convertToLatex', () => {
     const result = convertToLatex('просто текст');
     expect(result).not.toContain('\\');
     expect(result).not.toContain('$');
+  });
+});
+
+describe('чертежи нашими редакторами в условии', () => {
+  const STEREO = [
+    '```stereo',
+    'пирамида 3 4 5 S',
+    '# точки на рёбрах',
+    'M = середина SA',
+    '',
+    'BM',
+    '```',
+  ];
+
+  it('блок ```stereo переносится как есть — с пустыми строками и комментариями #', () => {
+    const md = ['**1** [2] В правильной пирамиде SABC найдите угол.', '', ...STEREO, 'ответ: 30'].join('\n');
+    const [task] = parseEgeTasks(md, {});
+    expect(task.statement_md).toBe(['В правильной пирамиде SABC найдите угол.', '', ...STEREO].join('\n'));
+    expect(task.answer).toBe('30');
+  });
+
+  it('«ответ:», «tags:» и заголовок задачи внутри блока не ищутся', () => {
+    const md = [
+      '**1** [1] Найдите x.',
+      '```plot',
+      '  f x^2 - 4',
+      'label 2 0 ответ: здесь',
+      '```',
+      'ответ: 2',
+    ].join('\n');
+    const [task] = parseEgeTasks(md, {});
+    expect(task.statement_md).toContain('  f x^2 - 4');
+    expect(task.statement_md).toContain('label 2 0 ответ: здесь');
+    expect(task.answer).toBe('2');
+  });
+
+  it('абзацы условия не склеиваются', () => {
+    const md = '**1** [1] Решите уравнение.\n\nа) $x^2 = 4$\n\nб) $x^2 = 9$\nответ: 2';
+    expect(parseEgeTasks(md, {})[0].statement_md).toBe('Решите уравнение.\n\nа) $x^2 = 4$\n\nб) $x^2 = 9$');
+  });
+
+  it('условие может начинаться со следующей строки (сразу чертёж)', () => {
+    const md = '**3** [1]\n```planim\nтреугольник ABC 5 6 7\n```\nНайдите площадь.\nответ: 14,7';
+    const [task] = parseEgeTasks(md, {});
+    expect(task.number).toBe(3);
+    expect(task.statement_md).toBe('```planim\nтреугольник ABC 5 6 7\n```\nНайдите площадь.');
+  });
+
+  it('картинки в таблице-галерее остаются на месте', () => {
+    const md = [
+      '**1** [1] На каком рисунке изображено множество решений?',
+      '{галерея}',
+      '| ![](https://x.ru/a.png) | ![](https://x.ru/b.png) |',
+      'ответ: 2',
+    ].join('\n');
+    const [task] = parseEgeTasks(md, {});
+    expect(task.imageUrl).toBe('');
+    expect(task.statement_md).toContain('| ![](https://x.ru/a.png) | ![](https://x.ru/b.png) |');
+  });
+
+  it('картинка одной строкой уходит в поле картинки вместе с размером, вторая остаётся в тексте', () => {
+    const md = '**1** [1] Задача\n![](https://x.ru/a.png){M}\nТекст ![](https://x.ru/b.png) рядом\nответ: 1';
+    const [task] = parseEgeTasks(md, {});
+    expect(task.imageUrl).toBe('https://x.ru/a.png');
+    expect(task.statement_md).toBe('Задача\nТекст ![](https://x.ru/b.png) рядом');
+  });
+
+  it('незакрытый блок закрывается перед следующей задачей + предупреждение', () => {
+    const md = '---\ntopic: Т\n---\n**1** [1] А\n```planim\nтреугольник ABC\n**2** [1] Б\nответ: 2';
+    const r = parseMarkdownFile(md);
+    expect(r.tasks).toHaveLength(2);
+    expect(r.tasks[0].statement_md).toBe('А\n```planim\nтреугольник ABC\n```');
+    expect(r.tasks[1].statement_md).toBe('Б');
+    expect(r.warnings.some((w) => /не закрыт/.test(w))).toBe(true);
+  });
+
+  it('слова с «пи» не включают конвертацию «словесной» математики (она схлопывала строки)', () => {
+    const md = ['**1** [1] Пирамида: запишите ответ.', ...STEREO, 'ответ: 1'].join('\n');
+    const [task] = parseEgeTasks(md, {});
+    expect(task.statement_md).toBe(['Пирамида: запишите ответ.', ...STEREO].join('\n'));
+  });
+
+  it('конвертация РЕШУ идёт построчно и не трогает блоки', () => {
+    const out = convertLegacyMath('косинус альфа равен 0,6\n```planim\nтреугольник ABC\n```');
+    expect(out).toBe('$\\cos\\alpha$ равен 0,6\n```planim\nтреугольник ABC\n```');
+  });
+
+  it('parseMarkdownFile: метка чертежей и предупреждение о битой строке с номером', () => {
+    const md = [
+      '---', 'topic: Стерео', '---',
+      '**1** [2] Куб.',
+      '```stereo', 'куб 4', 'M на AA1 1:2', 'сечение M B1 D', '```',
+      'ответ: 1',
+      '**2** [1] Трапеция.',
+      '```planim', 'трапеция ABCD 10 4 4', 'AC', '```',
+      'ответ: 2',
+    ].join('\n');
+    const r = parseMarkdownFile(md);
+    expect(r.errors).toEqual([]);
+    expect(r.tasks.map((t) => t.drawings)).toEqual([['stereo'], ['planim']]);
+    const bad = r.warnings.filter((w) => /чертёж/.test(w));
+    expect(bad).toHaveLength(1);
+    expect(bad[0]).toMatch(/Задание #1, чертёж stereo: строка 3 «сечение M B1 D»/);
   });
 });

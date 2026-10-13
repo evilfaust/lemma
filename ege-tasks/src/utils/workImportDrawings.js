@@ -7,7 +7,9 @@
  * Сложное (графики, тела вращения, «на глаз» неясное) остаётся плейсхолдером
  * ![](рисN), как раньше.
  *
- * Здесь — шпаргалка для промпта и проверка блоков при разборе. Примеры
+ * Здесь — шпаргалка для промпта и проверка блоков при разборе. Проверка
+ * (checkDrawingBlocks) знает и ```plot/```vectors, ```chart — ею же пользуется
+ * «Импорт задач» (markdownTaskParser). Примеры
  * шпаргалки сверяет тест (workImportDrawings.test.js): каждый обязан
  * разбираться parsePlanimBlock / parseStereoBlock без ошибок, поэтому промпт
  * не отстанет от редакторов. Новую команду редактора, полезную при переносе
@@ -16,6 +18,8 @@
 
 import { parsePlanimBlock } from './planim/dsl';
 import { parseStereoBlock } from './stereo/dsl';
+import { parseCoordPlot } from './coordPlot';
+import { parseChartSpec } from './chartSpec';
 
 // ── Шпаргалка для промпта ────────────────────────────────────────────────────
 
@@ -192,14 +196,26 @@ export function buildDrawingsPromptSection() {
 
 // ── Проверка блоков при разборе ──────────────────────────────────────────────
 
+// Номер строки ошибки знают только планиметрия и стерео; у графика и
+// диаграммы — текст ошибки (диаграмма отдаёт саму неразобранную команду).
+const lineOf = (text, cmd) => String(text).split('\n').findIndex((l) => l.trim() === cmd.trim()) + 1;
+
 const DRAWING_PARSERS = {
   planim: parsePlanimBlock,
   stereo: parseStereoBlock,
+  plot: (text) => ({ errors: parseCoordPlot(text).errors.map((message) => ({ line: 0, message })) }),
+  chart: (text) => ({
+    errors: parseChartSpec(text).errors.map((cmd) => ({ line: lineOf(text, cmd), message: 'команда не разобрана' })),
+  }),
 };
 
+/** Языки блоков → вид чертежа (```vectors — тот же график). */
+const DRAWING_LANGS = { planim: 'planim', stereo: 'stereo', plot: 'plot', vectors: 'plot', chart: 'chart' };
+
 /**
- * Находит блоки ```planim / ```stereo в markdown.
- * @returns {{ kind: 'planim'|'stereo', text: string }[]}
+ * Находит блоки чертежей нашими редакторами в markdown:
+ * ```planim, ```stereo, ```plot (```vectors), ```chart.
+ * @returns {{ kind: 'planim'|'stereo'|'plot'|'chart', text: string }[]}
  */
 export function extractDrawingBlocks(md) {
   const blocks = [];
@@ -210,8 +226,8 @@ export function extractDrawingBlocks(md) {
     const m = line.match(/^\s*(`{3,}|~{3,})\s*([a-zа-яё-]*)/i);
     if (m && !fence) {
       fence = m[1];
-      const kind = m[2].toLowerCase();
-      current = DRAWING_PARSERS[kind] ? { kind, lines: [] } : null;
+      const kind = DRAWING_LANGS[m[2].toLowerCase()];
+      current = kind ? { kind, lines: [] } : null;
       continue;
     }
     if (m && fence && m[1][0] === fence[0] && m[1].length >= fence.length && !m[2]) {

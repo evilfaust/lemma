@@ -1,4 +1,5 @@
 import yaml from 'js-yaml';
+import { checkDrawingBlocks } from './workImportDrawings';
 
 const TAG_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -142,13 +143,15 @@ export function parseTags(tagsInput) {
 /**
  * Определяет, нужно ли применять legacy-конвертацию текста в LaTeX.
  * Если в тексте уже есть LaTeX/Markdown-разметка, конвертацию пропускаем.
+ * «пи» — только отдельным словом (или после цифры: «2Пи»): иначе срабатывали
+ * «пирамида», «запишите», «типа».
  */
 function shouldConvertLegacyMath(text) {
   if (!text) return false;
   if (/\\[a-zA-Z]+/.test(text) || /\$/.test(text) || /!\[[^\]]*]\([^)]+\)/.test(text) || /\|.*\|/.test(text)) {
     return false;
   }
-  return /(дробь:|числитель:|знаменатель:|корень\s+из|косинус|синус|тангенс|котангенс|альфа|бета|гамма|дельта|пи)/i.test(text);
+  return /(дробь:|числитель:|знаменатель:|корень\s+из|косинус|синус|тангенс|котангенс|альфа|бета|гамма|дельта|(?<![а-яё])пи(?![а-яё]))/i.test(text);
 }
 
 /**
@@ -183,111 +186,187 @@ export function detectFormat(content) {
   return 'ege';
 }
 
+// ── Нумерованные задачи (форматы ЕГЭ и Мордковича) ───────────────────────────
+
+/** Строка открывает/закрывает fenced-блок (```planim, ```stereo, ```plot…). */
+const FENCE_RE = /^\s*(`{3,}|~{3,})/;
+/** Картинка markdown с внешним адресом (+ необязательный размер {S|M|L|XL}). */
+const IMAGE_RE = /!\[[^\]]*]\((https?:\/\/[^)\s]+)\)(?:\{(?:S|M|L|XL)\})?/i;
+
+/**
+ * Legacy-конвертация «словесной» математики РЕШУ — только в обычном тексте:
+ * fenced-блоки (чертежи нашими редакторами) и `инлайн-код` не трогаются,
+ * переводы строк сохраняются (convertToLatex схлопывает пробелы в строке).
+ */
+export function convertLegacyMath(text) {
+  if (!text || typeof text !== 'string') return text;
+  const lines = text.split('\n');
+  const prose = [];
+  let fence = null;
+  for (const line of lines) {
+    const m = line.match(FENCE_RE);
+    if (m) {
+      if (!fence) fence = m[1];
+      else if (m[1][0] === fence[0] && m[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (!fence) prose.push(line.replace(/`[^`]*`/g, ''));
+  }
+  if (!shouldConvertLegacyMath(prose.join('\n'))) return text;
+
+  fence = null;
+  return lines.map((line) => {
+    const m = line.match(FENCE_RE);
+    if (m) {
+      if (!fence) fence = m[1];
+      else if (m[1][0] === fence[0] && m[1].length >= fence.length) fence = null;
+      return line;
+    }
+    if (fence || !line.trim() || /`/.test(line)) return line;
+    return convertToLatex(line);
+  }).join('\n');
+}
+
+/** Пустые строки по краям убираются, тройные переводы строк схлопываются. */
+function joinStatement(lines) {
+  const out = [...lines];
+  while (out.length && !out[0].trim()) out.shift();
+  while (out.length && !out[out.length - 1].trim()) out.pop();
+  return out.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * Общий разбор нумерованных задач: строка-заголовок задачи, строки условия,
+ * «ответ:», «tags:». Внутри fenced-блока (```planim, ```stereo, ```plot,
+ * ```chart, ```numline, ```grid…) строки идут в условие как есть — с отступами,
+ * пустыми строками и комментариями `#`: служебные строки там не ищутся.
+ * Пустые строки между абзацами условия сохраняются (иначе «а) …» и «б) …»
+ * склеивались в один абзац).
+ *
+ * Картинка уходит в поле imageUrl (её скачает импорт), только если это первая
+ * картинка задачи и она стоит в строке-заголовке или одна в своей строке;
+ * картинки в таблицах (галереи «на каком рисунке…») и в тексте остаются в
+ * условии — иначе таблица теряла первую клетку.
+ */
+function parseNumberedTasks(content, { header, makeTask }) {
+  const tasks = [];
+  let task = null;
+  let statement = [];
+  let inStatement = false;
+  let fence = null;
+
+  const flush = () => {
+    if (!task) return;
+    task.statement_md = joinStatement(statement);
+    if (task.statement_md) tasks.push(task);
+    task = null;
+  };
+
+  const takeImage = (line, wholeLine) => {
+    if (task.imageUrl || /^\s*\|/.test(line)) return line;
+    const m = line.match(IMAGE_RE);
+    if (!m) return line;
+    const rest = line.replace(IMAGE_RE, '').trim();
+    if (!wholeLine && rest) return line;
+    task.imageUrl = m[1];
+    return rest;
+  };
+
+  for (const rawLine of content.split(/\r?\n/)) {
+    const fenceMatch = rawLine.match(FENCE_RE);
+
+    if (fence) {
+      // Заголовок следующей задачи внутри блока — блок забыли закрыть:
+      // закрываем сами, иначе все дальнейшие задачи ушли бы в этот чертёж.
+      if (header.test(rawLine.trim())) {
+        if (task && inStatement) {
+          statement.push(fence);
+          task.unclosedFence = true;
+        }
+        fence = null;
+      } else {
+        if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) fence = null;
+        if (task && inStatement) statement.push(rawLine.replace(/\s+$/, ''));
+        continue;
+      }
+    }
+
+    if (fenceMatch) {
+      fence = fenceMatch[1];
+      if (task && inStatement) statement.push(rawLine.trim());
+      continue;
+    }
+
+    const line = rawLine.trim();
+
+    // Заголовки markdown («# Раздел») вне блоков — разметка файла, не условие
+    if (/^#/.test(line)) continue;
+
+    const head = line.match(header);
+    if (head) {
+      flush();
+      task = makeTask(head);
+      const first = takeImage((task.firstLine || '').trim(), true);
+      delete task.firstLine;
+      statement = first ? [first] : [];
+      inStatement = true;
+      continue;
+    }
+
+    if (!task) continue;
+
+    if (/^ответ:/i.test(line)) {
+      task.answer = line.replace(/^ответ:\s*/i, '').trim();
+      inStatement = false;
+      continue;
+    }
+
+    if (/^tags:/i.test(line)) {
+      task.tags = parseTags(line.replace(/^tags:\s*/i, '').trim());
+      continue;
+    }
+
+    if (!inStatement) continue;
+    if (!line) {
+      statement.push('');
+      continue;
+    }
+    const kept = takeImage(line, false);
+    if (kept) statement.push(kept);
+  }
+  if (fence && task && inStatement) {
+    statement.push(fence);
+    task.unclosedFence = true;
+  }
+  flush();
+
+  tasks.forEach((t) => {
+    t.statement_md = convertLegacyMath(t.statement_md);
+    t.answer = convertLegacyMath(t.answer);
+  });
+  return tasks;
+}
+
 /**
  * Парсит задачи в формате ЕГЭ (pb_parser.py).
  * Формат: **номер** [сложность] текст условия
  *         ответ: ответ
  *         tags: [тег1, тег2]
+ * Условие может начинаться со следующей строки и содержать блоки чертежей.
  */
 export function parseEgeTasks(content, metadata) {
-  // Убираем заголовки markdown
-  let cleaned = content.replace(/^#{1,3}.*$/gm, '');
-
-  const lines = cleaned.split('\n');
-  const tasks = [];
-  let currentTask = null;
-  let currentStatement = [];
-  let inStatement = false;
   const defaultDifficulty = String(metadata.difficulty || '1');
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-
-    // Пропускаем пустые строки вне условия
-    if (!line && !inStatement) continue;
-
-    // Начало нового задания: **номер** [сложность] текст
-    const match = line.match(/^\*\*(\d+)\*\*\s+\[(\d+)\]\s+(.*)$/);
-    if (match) {
-      // Сохраняем предыдущее задание
-      if (currentTask && currentStatement.length > 0) {
-        currentTask.statement_md = currentStatement.join('\n').trim();
-        tasks.push(currentTask);
-      }
-
-      const number = parseInt(match[1], 10);
-      const difficulty = match[2];
-      let firstLine = match[3].trim();
-      let imageUrl = '';
-
-      // Проверяем изображение в первой строке
-      const imgMatch = firstLine.match(/!\[[^\]]*]\((https?:\/\/[^)]+)\)/);
-      if (imgMatch) {
-        imageUrl = imgMatch[1];
-        firstLine = firstLine.replace(/!\[[^\]]*]\(https?:\/\/[^)]+\)/, '').trim();
-      }
-
-      currentTask = {
-        number,
-        difficulty: difficulty || defaultDifficulty,
-        answer: '',
-        tags: [],
-        imageUrl,
-      };
-      currentStatement = firstLine ? [firstLine] : [];
-      inStatement = true;
-      continue;
-    }
-
-    // Строка с ответом
-    if (line.toLowerCase().startsWith('ответ:')) {
-      if (currentTask) {
-        currentTask.answer = line.replace(/^ответ:\s*/i, '').trim();
-        inStatement = false;
-      }
-      continue;
-    }
-
-    // Строка с тегами задачи
-    if (line.toLowerCase().startsWith('tags:')) {
-      if (currentTask) {
-        const tagsStr = line.replace(/^tags:\s*/i, '').trim();
-        currentTask.tags = parseTags(tagsStr);
-      }
-      continue;
-    }
-
-    // Собираем строки условия
-    if (inStatement && line) {
-      // Проверяем изображение
-      const imgMatch = line.match(/!\[[^\]]*]\((https?:\/\/[^)]+)\)/);
-      if (imgMatch && currentTask) {
-        currentTask.imageUrl = imgMatch[1];
-        const cleanedLine = line.replace(/!\[[^\]]*]\(https?:\/\/[^)]+\)/, '').trim();
-        if (cleanedLine) currentStatement.push(cleanedLine);
-      } else {
-        currentStatement.push(line);
-      }
-    }
-  }
-
-  // Сохраняем последнее задание
-  if (currentTask && currentStatement.length > 0) {
-    currentTask.statement_md = currentStatement.join('\n').trim();
-    tasks.push(currentTask);
-  }
-
-  // Применяем преобразование в LaTeX
-  tasks.forEach(task => {
-    if (shouldConvertLegacyMath(task.statement_md)) {
-      task.statement_md = convertToLatex(task.statement_md);
-    }
-    if (shouldConvertLegacyMath(task.answer)) {
-      task.answer = convertToLatex(task.answer);
-    }
+  return parseNumberedTasks(content, {
+    header: /^\*\*(\d+)\*\*\s*\[(\d+)\]\s*(.*)$/,
+    makeTask: (m) => ({
+      number: parseInt(m[1], 10),
+      difficulty: m[2] || defaultDifficulty,
+      answer: '',
+      tags: [],
+      imageUrl: '',
+      firstLine: m[3],
+    }),
   });
-
-  return tasks;
 }
 
 /**
@@ -298,102 +377,22 @@ export function parseEgeTasks(content, metadata) {
  *         tags: [тег1, тег2]
  */
 export function parseMordkovichTasks(content, metadata) {
-  // Убираем заголовки markdown
-  let cleaned = content.replace(/^#{1,3}.*$/gm, '');
-
-  const lines = cleaned.split('\n');
-  const tasks = [];
-  let currentTask = null;
-  let currentStatement = [];
-  let inStatement = false;
   const defaultDifficulty = String(metadata.difficulty || '1');
-
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-
-    if (!line && !inStatement) continue;
-
+  return parseNumberedTasks(content, {
     // Начало задания: **043.9a** [2] или **043.9a** (без сложности)
-    const match = line.match(/^\*\*(\d{2,3})\.(\d+)([a-zа-я]?)\*\*\s*(?:\[(\d+)\])?\s*(.*)$/);
-    if (match) {
-      // Сохраняем предыдущее задание
-      if (currentTask && currentStatement.length > 0) {
-        currentTask.statement_md = currentStatement.join('\n').trim();
-        tasks.push(currentTask);
-      }
-
-      const paragraph = match[1];
-      const taskNumber = match[2];
-      const letter = match[3] || '';
-      const difficulty = match[4] || defaultDifficulty;
-      let firstLine = (match[5] || '').trim();
-
-      const fullNumber = `${paragraph}.${taskNumber}${letter}`;
-
-      currentTask = {
-        number: fullNumber,
-        paragraphNum: paragraph,
-        taskNumber,
-        letter,
-        difficulty,
-        answer: '',
-        tags: [],
-        imageUrl: '',
-      };
-
-      currentStatement = firstLine ? [firstLine] : [];
-      inStatement = true;
-      continue;
-    }
-
-    // Строка с ответом (Ответ: или ответ:)
-    if (/^ответ:\s*/i.test(line)) {
-      if (currentTask) {
-        currentTask.answer = line.replace(/^ответ:\s*/i, '').trim();
-        inStatement = false;
-      }
-      continue;
-    }
-
-    // Строка с тегами
-    if (line.toLowerCase().startsWith('tags:')) {
-      if (currentTask) {
-        const tagsStr = line.replace(/^tags:\s*/i, '').trim();
-        currentTask.tags = parseTags(tagsStr);
-      }
-      continue;
-    }
-
-    // Собираем строки условия
-    if (inStatement && line) {
-      const imgMatch = line.match(/!\[[^\]]*]\((https?:\/\/[^)]+)\)/);
-      if (imgMatch && currentTask) {
-        currentTask.imageUrl = imgMatch[1];
-        const cleanedLine = line.replace(/!\[[^\]]*]\(https?:\/\/[^)]+\)/, '').trim();
-        if (cleanedLine) currentStatement.push(cleanedLine);
-      } else {
-        currentStatement.push(line);
-      }
-    }
-  }
-
-  // Сохраняем последнее задание
-  if (currentTask && currentStatement.length > 0) {
-    currentTask.statement_md = currentStatement.join('\n').trim();
-    tasks.push(currentTask);
-  }
-
-  // Применяем преобразование в LaTeX
-  tasks.forEach(task => {
-    if (shouldConvertLegacyMath(task.statement_md)) {
-      task.statement_md = convertToLatex(task.statement_md);
-    }
-    if (shouldConvertLegacyMath(task.answer)) {
-      task.answer = convertToLatex(task.answer);
-    }
+    header: /^\*\*(\d{2,3})\.(\d+)([a-zа-я]?)\*\*\s*(?:\[(\d+)\])?\s*(.*)$/,
+    makeTask: (m) => ({
+      number: `${m[1]}.${m[2]}${m[3] || ''}`,
+      paragraphNum: m[1],
+      taskNumber: m[2],
+      letter: m[3] || '',
+      difficulty: m[4] || defaultDifficulty,
+      answer: '',
+      tags: [],
+      imageUrl: '',
+      firstLine: m[5] || '',
+    }),
   });
-
-  return tasks;
 }
 
 /**
@@ -542,6 +541,30 @@ export function parseSdamgiaMd(content, metadata) {
 }
 
 /**
+ * Чертежи нашими редакторами в условии и решении (```planim, ```stereo,
+ * ```plot, ```chart) разбираются теми же парсерами, что рисуют их на сайте:
+ * битая строка молча выпала бы из чертежа — учитель узнаёт о ней до импорта.
+ * В задачу кладётся `drawings` — виды чертежей (метка в превью).
+ */
+function annotateDrawings(tasks, warnings) {
+  tasks.forEach((task) => {
+    task.drawings = [];
+    for (const [field, label] of [['statement_md', ''], ['solution_md', ' в решении']]) {
+      const { kinds, problems } = checkDrawingBlocks(task[field]);
+      task.drawings.push(...kinds);
+      for (const p of problems) {
+        const at = p.line ? `строка ${p.line} «${p.command}»: ` : '';
+        warnings.push(`Задание #${task.number}, чертёж ${p.kind}${label}: ${at}${p.message} — строка будет пропущена`);
+      }
+    }
+    if (task.unclosedFence) {
+      warnings.push(`Задание #${task.number}: блок \`\`\` не закрыт — закрыт автоматически перед следующей задачей`);
+      delete task.unclosedFence;
+    }
+  });
+}
+
+/**
  * Главная точка входа парсинга.
  * Принимает текст markdown файла, возвращает структурированные данные.
  */
@@ -573,6 +596,7 @@ export function parseMarkdownFile(text) {
     const { tasks, errors: e, warnings: w } = parseSdamgiaMd(content, metadata);
     errors.push(...e);
     warnings.push(...w);
+    annotateDrawings(tasks, warnings);
     return {
       metadata: {
         topic: metadata.topic || '',
@@ -620,6 +644,8 @@ export function parseMarkdownFile(text) {
       warnings.push(`Задание #${task.number}: нет ответа`);
     }
   });
+
+  annotateDrawings(tasks, warnings);
 
   if (tasks.length === 0 && errors.length === 0) {
     errors.push('Задания не найдены в файле. Проверьте формат: **номер** [сложность] текст');
