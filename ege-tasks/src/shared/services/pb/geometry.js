@@ -5,6 +5,10 @@ import { escapeFilter } from '../../utils/escapeFilter';
 import { searchCaseVariants, MIN_SEARCH_LENGTH } from '../../utils/searchVariants';
 import { getFullListByOr } from './chunked.js';
 import { normalizeStructure, structureTaskIds } from '../../../utils/geometryWork';
+import {
+  taskToGeometryRecord, findAlreadyTransferred, geometryCodeSequence, transferKey,
+} from '../../../utils/taskToGeometry';
+import { tasksApi } from './tasks.js';
 
 // Поля задачи для списков и работ: без тяжёлых geogebra_base64 (XML состояния
 // апплета, 30–100 КБ) и solution_md — они нужны редактору и карточке задачи
@@ -428,6 +432,145 @@ export const geometryApi = {
       console.error('Error creating geometry task:', error);
       throw error;
     }
+  },
+
+  /**
+   * Массовый перенос задач обычного банка в раздел «Геометрия».
+   * Логика записи — `utils/taskToGeometry.js`. Задача, условие которой уже
+   * есть среди своих геометрических, второй раз не создаётся.
+   *
+   * deleteSource — после копирования удалить исходные задачи, но только те,
+   * что нигде не используются (`getTasksUsage`) и не держат ссылок на свои
+   * картинки (`keepsSourceLinks`). Удаление — обычное, без force.
+   *
+   * @returns {{ created, skipped, failed, deleted, kept }}
+   */
+  async copyTasksToGeometry(taskIds = [], { topic, subtopic, deleteSource = false, onProgress } = {}) {
+    const ids = [...new Set(taskIds.filter(Boolean))];
+    const report = { created: [], skipped: [], failed: [], deleted: [], kept: [] };
+    const keep = (taskCode, reason) => { if (deleteSource) report.kept.push({ taskCode, reason }); };
+    if (!ids.length) return report;
+
+    const [rows, images, mine] = await Promise.all([
+      getFullListByOr('tasks', 'id', ids, { expand: 'topic' }),
+      getFullListByOr('task_images', 'task', ids, {}),
+      pb.collection('geometry_tasks').getFullList({
+        filter: '(origin = "" || origin = "manual")',
+        fields: 'id,code,statement_md',
+        requestKey: null,
+      }),
+    ]);
+    const byId = new Map(rows.map((t) => [t.id, t]));
+    const tasks = ids.map((id) => byId.get(id)).filter(Boolean);
+    const imagesOf = new Map();
+    for (const rec of images) {
+      if (!imagesOf.has(rec.task)) imagesOf.set(rec.task, []);
+      imagesOf.get(rec.task).push(rec);
+    }
+
+    const recordOf = (task, code) => taskToGeometryRecord(task, {
+      code,
+      note: task.code ? `*Из банка задач: ${task.code}.*` : '',
+      topic,
+      subtopic,
+      topicTitle: task.expand?.topic?.title || '',
+      legacyImageUrl: tasksApi.getTaskImageUrl(task),
+      images: imagesOf.get(task.id) || [],
+      imageUrlOf: (rec) => tasksApi.getTaskImageRecordUrl(rec),
+    });
+
+    // Уже перенесённую задачу удалить можно — если её текст не ссылается
+    // на картинки исходника (иначе ссылки в геометрии оборвутся).
+    const transferable = new Set();
+    const markSkipped = (t, geoCode) => {
+      report.skipped.push({ taskId: t.id, taskCode: t.code, geoCode });
+      if (recordOf(t, '').keepsSourceLinks) keep(t.code, 'в тексте ссылки на её картинки');
+      else transferable.add(t.id);
+    };
+
+    const already = findAlreadyTransferred(tasks, mine);
+    // Одинаковые условия внутри выборки: в геометрию идёт первая задача,
+    // остальные считаются уже перенесёнными (если первая создалась).
+    const todo = [];
+    const dupsOf = new Map(); // id первой задачи → задачи с тем же условием
+    const firstOfKey = new Map();
+    for (const t of tasks) {
+      if (already.has(t.id)) { markSkipped(t, already.get(t.id)); continue; }
+      const key = transferKey(t.statement_md);
+      const first = key ? firstOfKey.get(key) : null;
+      if (first) { dupsOf.get(first).push(t); continue; }
+      if (key) { firstOfKey.set(key, t.id); dupsOf.set(t.id, []); }
+      todo.push(t);
+    }
+
+    const firstCode = todo.length ? await geometryApi.getNextGeometryCode() : null;
+    if (todo.length && !firstCode) throw new Error('Не удалось получить код геометрической задачи');
+    const codes = geometryCodeSequence(firstCode, todo.length);
+
+    for (let i = 0; i < todo.length; i += 1) {
+      const task = todo[i];
+      try {
+        const { record, drawingUrl, keepsSourceLinks } = recordOf(task, codes[i]);
+        let noDrawing = false;
+        if (drawingUrl) {
+          try {
+            const resp = await fetch(drawingUrl);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const blob = await resp.blob();
+            const ext = blob.type.includes('png') ? 'png' : blob.type.includes('svg') ? 'svg' : 'jpg';
+            record.geogebra_image_base64 = new File([blob], `${record.code}.${ext}`, { type: blob.type });
+            record.drawing_view = 'image';
+          } catch {
+            noDrawing = true;
+          }
+        }
+        const created = await geometryApi.createGeometryTask(record);
+        report.created.push({
+          taskId: task.id, taskCode: task.code, geoCode: created.code, id: created.id, noDrawing,
+        });
+        if (keepsSourceLinks) {
+          keep(task.code, 'в тексте ссылки на её картинки');
+        } else if (!noDrawing) {
+          transferable.add(task.id);
+        } else {
+          keep(task.code, 'чертёж не скопировался');
+        }
+        for (const dup of dupsOf.get(task.id) || []) markSkipped(dup, created.code);
+      } catch (error) {
+        console.error('Error copying task to geometry:', task.code, error);
+        for (const t of [task, ...(dupsOf.get(task.id) || [])]) {
+          report.failed.push({ taskId: t.id, taskCode: t.code, error: error?.message || String(error) });
+        }
+      }
+      onProgress?.(i + 1, todo.length);
+    }
+
+    if (deleteSource && transferable.size) {
+      const codeOf = new Map(tasks.map((t) => [t.id, t.code]));
+      let usage;
+      try {
+        usage = await tasksApi.getTasksUsage([...transferable]);
+      } catch (error) {
+        // Копии уже созданы — не знаем, где задачи стоят, значит не удаляем.
+        console.error('Error checking task usage:', error);
+        for (const id of transferable) keep(codeOf.get(id), 'не удалось проверить, где используется');
+        return report;
+      }
+      for (const id of transferable) {
+        const places = usage.get(id);
+        if (places?.length) {
+          keep(codeOf.get(id), places.join(', '));
+          continue;
+        }
+        try {
+          await tasksApi.deleteTask(id);
+          report.deleted.push(codeOf.get(id));
+        } catch {
+          keep(codeOf.get(id), 'не удалось удалить');
+        }
+      }
+    }
+    return report;
   },
 
   // Следующий свободный код своей задачи: GEO-NNN по максимуму среди всех

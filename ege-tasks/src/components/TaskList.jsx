@@ -13,6 +13,7 @@ import {
 import TaskFilters from './TaskFilters';
 import TaskCard from './TaskCard';
 import TaskEditModal from './TaskEditModal';
+import BulkToGeometry from './geometry/BulkToGeometry';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -25,7 +26,7 @@ const TaskList = ({
   onOpenWorkEditor = null,
 }) => {
   const { topics, tags, years, sources, subtopics, loading: initialLoading } = useReferenceData();
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, hasSection } = useAuth();
   const { message } = App.useApp();
   const [tasks, setTasks] = useState([]);
   const [totalTasks, setTotalTasks] = useState(0);
@@ -662,6 +663,23 @@ const TaskList = ({
             всегда согласованы. Без подтем задачи переносятся в тему, подтемы очищаются.
           </Text>
         </Space>
+
+        {hasSection('geometry') && (
+          <>
+            <Divider />
+            {/* Перенос в раздел «Геометрия» — копии (опционально с удалением исходных) */}
+            <BulkToGeometry
+              taskIds={[...selectedTaskIds]}
+              canDelete={canDelete}
+              busy={bulkLoading}
+              onDone={(res) => {
+                if (!res.created.length && !res.deleted.length) return;
+                setSelectedTaskIds(new Set());
+                loadTasks(filtersRef.current, { page: currentPage, perPage: pageSize });
+              }}
+            />
+          </>
+        )}
 
         <Divider style={{ borderColor: '#ff4d4f' }} />
 

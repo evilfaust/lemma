@@ -16,7 +16,7 @@ import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
 import { useImageUpload } from '../hooks';
 import { parseMatchingTask } from '../utils/parseMatchingTask';
-import { guessGeometrySection } from '../utils/geometrySection';
+import { taskToGeometryRecord } from '../utils/taskToGeometry';
 
 const DEFINE_API_BASE = import.meta.env.VITE_DEFINE_API_URL?.replace('/define', '') || 'https://l.oipav.ru';
 
@@ -513,49 +513,46 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     setCopyingToGeo(true);
     try {
       const values = form.getFieldsValue();
-      const statement = values.statement_md || task.statement_md || '';
-      const solution = values.solution_md || task.solution_md || '';
-      const solutionWithRef = [`*Аналогична задаче ${task.code}.*`, solution].filter(Boolean).join('\n\n');
-
-      const sourceVal = values.source;
-      const source = Array.isArray(sourceVal) ? (sourceVal[0] || '') : (sourceVal || task.source || '');
-
-      const titleRaw = statement.replace(/\$\$[\s\S]*?\$\$/g, '…').replace(/\$[^$]*\$/g, '…').replace(/[*_#]/g, '').trim();
-      const title = titleRaw.slice(0, 80) || task.code;
+      // Свежие значения формы поверх записи: копируется то, что видит учитель.
+      const merged = {
+        ...task,
+        statement_md: values.statement_md || task.statement_md || '',
+        solution_md: values.solution_md || task.solution_md || '',
+        answer: values.answer || task.answer || '',
+        source: values.source ?? task.source,
+        difficulty: values.difficulty || task.difficulty,
+        year: values.year || task.year,
+      };
 
       // Следующий свободный GEO-код (раньше — «число задач + 1»: грузило весь
       // банк МЦНМО и давало код, которого нет в нумерации своих задач)
       const code = await api.getNextGeometryCode();
       if (!code) throw new Error('Не удалось получить код геометрической задачи');
 
-      const payload = {
+      const grouped = await api.getTaskImages(task.id);
+      const { record, drawingUrl } = taskToGeometryRecord(merged, {
         code,
-        origin: 'manual',
-        section: guessGeometrySection({ statement }),
-        title,
-        difficulty: values.difficulty || task.difficulty,
-        statement_md: statement,
-        answer: values.answer || task.answer || '',
-        solution_md: solutionWithRef,
-        source,
-        year: values.year || task.year || null,
-      };
+        note: `*Аналогична задаче ${task.code}.*`,
+        topicTitle: task.expand?.topic?.title || '',
+        legacyImageUrl: api.getTaskImageUrl(task),
+        images: Object.values(grouped).flat(),
+        imageUrlOf: (rec) => api.getTaskImageRecordUrl(rec),
+      });
 
-      // Копируем изображение из задачи, если оно есть
-      const imageUrl = api.getTaskImageUrl(task);
-      if (imageUrl) {
+      // Копируем чертёж задачи, если он есть
+      if (drawingUrl) {
         try {
-          const resp = await fetch(imageUrl);
+          const resp = await fetch(drawingUrl);
           const blob = await resp.blob();
           const ext = blob.type.includes('png') ? 'png' : 'jpg';
-          payload.geogebra_image_base64 = new File([blob], `${code}.${ext}`, { type: blob.type });
-          payload.drawing_view = 'image';
+          record.geogebra_image_base64 = new File([blob], `${code}.${ext}`, { type: blob.type });
+          record.drawing_view = 'image';
         } catch {
           message.warning('Не удалось скопировать изображение — задача создана без чертежа');
         }
       }
 
-      const created = await api.createGeometryTask(payload);
+      const created = await api.createGeometryTask(record);
       message.success(`Задача скопирована в геометрию как ${created.code}`);
     } catch (error) {
       console.error('Error copying to geometry:', error);

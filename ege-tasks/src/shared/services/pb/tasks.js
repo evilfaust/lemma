@@ -400,6 +400,48 @@ export const tasksApi = {
     }
   },
 
+  /**
+   * Где используются задачи: id задачи → список мест («работы», «листки»…).
+   * Нужна, чтобы НЕ удалять задачу, которая где-то стоит: необязательные
+   * relation PocketBase при удалении молча чистит (задача пропала бы из
+   * работы), а `listok_items` удаляет каскадом вместе с задачей.
+   * Ошибка любого запроса — исключение: «не знаем» ≠ «не используется».
+   */
+  async getTasksUsage(taskIds = []) {
+    const ids = [...new Set(taskIds.filter(Boolean))];
+    const usage = new Map();
+    if (!ids.length) return usage;
+    const refs = [
+      ['variants', 'tasks', '~', 'работы'],
+      ['cards', 'tasks', '~', 'карточки'],
+      ['attempt_answers', 'task', '=', 'ответы учеников'],
+      ['listok_items', 'task', '=', 'листки'],
+      ['marathons', 'tasks', '~', 'марафоны'],
+      ['route_sheets', 'tasks', '~', 'маршрутные листы'],
+      ['cryptograms', 'tasks', '~', 'шифровки'],
+      ['qr_worksheets', 'tasks', '~', 'QR-листы'],
+      ['pixel_art_worksheets', 'tasks', '~', 'пиксель-арты'],
+      ['pixel_art_team_sets', 'shared_tasks', '~', 'командные раскраски'],
+      ['mc_tests', 'variants', '~', 'тесты A/B/C/D'],
+    ];
+    const lists = await Promise.all(refs.map(([col, field, op]) => getFullListByOr(
+      col, field, ids, { fields: `id,${field}` }, { op },
+    )));
+    refs.forEach(([, field, , label], i) => {
+      for (const rec of lists[i]) {
+        const raw = rec[field];
+        const text = typeof raw === 'string' ? raw : JSON.stringify(raw ?? '');
+        for (const id of ids) {
+          if (!text.includes(id)) continue;
+          const places = usage.get(id) || [];
+          if (!places.includes(label)) places.push(label);
+          usage.set(id, places);
+        }
+      }
+    });
+    return usage;
+  },
+
   // Удалить задачу принудительно: сначала убрать из всех связанных записей
   async forceDeleteTask(taskId) {
     const refs = [
