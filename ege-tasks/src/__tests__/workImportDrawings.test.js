@@ -8,6 +8,7 @@ import {
 } from '../utils/workImportDrawings';
 import { parseCoordPlot } from '../utils/coordPlot';
 import { parseChartSpec } from '../utils/chartSpec';
+import { parseNumberLine } from '../utils/numberLine';
 import { parsePlanimBlock } from '../utils/planim/dsl';
 import { parseStereoBlock } from '../utils/stereo/dsl';
 import { buildBody } from '../utils/stereo/bodies';
@@ -84,12 +85,31 @@ describe('шпаргалка промпта — каждая команда по
     expect(doc.series.length + doc.bars.length).toBeGreaterThan(0);
   });
 
+  const { numline } = promptExampleBlocks();
+
+  it.each(numline)('numline: %s', (block) => {
+    expect(checkDrawingBlocks(`\`\`\`numline\n${block}\n\`\`\``).problems).toEqual([]);
+    const m = parseNumberLine(block);
+    expect(JSON.stringify(m)).not.toBe(JSON.stringify(parseNumberLine('point 1 fill')));
+  });
+
+  it('numline: формы из пояснений и галереи работают', () => {
+    const forms = ['ray left -1 fill', 'point 1 open', 'tick 0.5 1/2', 'tick 3.14 \\pi', 'domain -4 4; seg -1 2 fill fill'];
+    for (const f of forms) expect(checkDrawingBlocks(`\`numline: ${f}\``).problems).toEqual([]);
+    const text = buildDrawingsPromptSection().join('\n');
+    const gallery = text.split('\n').filter((l) => /^\s+\|/.test(l)).join('\n');
+    const r = checkDrawingBlocks(gallery);
+    expect(r.kinds).toEqual(['numline', 'numline', 'numline', 'numline']);
+    expect(r.problems).toEqual([]);
+  });
+
   it('примеры в промпте — те же, что проверены', () => {
     const text = buildDrawingsPromptSection().join('\n');
     expect(text).toContain('```planim\nтрапеция ABCD 10 4 4');
     expect(text).toContain('```stereo\nкуб 4');
     expect(text).toContain('```plot\nx -5 6');
     expect(text).toContain('```chart\nx 0 24 step 3');
+    expect(text).toContain('```numline\ndomain -4 6');
     expect(text).toContain('![](рисN)');
   });
 });
@@ -146,6 +166,19 @@ describe('extractDrawingBlocks / checkDrawingBlocks', () => {
     const plot = checkDrawingBlocks('```plot\nderiv g\n```');
     expect(plot.problems).toHaveLength(1);
     expect(plot.problems[0]).toMatchObject({ kind: 'plot', line: 0 });
+
+    const nl = checkDrawingBlocks('```numline\ndomain -3 5\nray up 2 open\nseg a 3\nкривая 1\n```');
+    expect(nl.problems.map((p) => [p.line, p.command, p.message])).toEqual([
+      [2, 'ray up 2 open', 'луч — «ray left …» или «ray right …»'],
+      [3, 'seg a 3', 'ожидалось число'],
+      [4, 'кривая 1', 'неизвестная команда «кривая»'],
+    ]);
+    const inline = checkDrawingBlocks('| 1) `numline: domain -4 4; rey left 1` | `plot: x -3 3; y -3 3; f (x+` |');
+    expect(inline.kinds).toEqual(['numline', 'plot']);
+    expect(inline.problems.map((p) => [p.kind, p.line, p.message])).toEqual([
+      ['numline', 0, '«rey left 1»: неизвестная команда «rey»'],
+      ['plot', 0, expect.stringMatching(/^«f \(x\+»: формула/)],
+    ]);
 
     const formula = checkDrawingBlocks('```plot\nx -5 5\ny -4 4\nf foo(x\n```');
     expect(formula.problems).toHaveLength(1);

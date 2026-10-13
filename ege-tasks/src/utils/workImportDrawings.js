@@ -1,20 +1,18 @@
 /**
- * Чертежи в импорте работы: блоки ```planim, ```stereo, ```plot и ```chart
- * вместо картинок.
+ * Чертежи в импорте работы: блоки ```planim, ```stereo, ```plot, ```chart и
+ * ```numline вместо картинок.
  *
  * Внешняя ИИ, переводящая листок в `.md`, может перерисовать простой чертёж
  * текстом — командами наших редакторов (utils/planim, utils/stereo,
- * utils/coordPlot, utils/chartSpec). Такой чертёж векторный, правится в
- * редакторе и не требует прикреплять файл. Сюжетные рисунки и «на глаз»
- * неясное остаётся плейсхолдером ![](рисN), как раньше.
+ * utils/coordPlot, utils/chartSpec, utils/numberLine). Такой чертёж векторный,
+ * правится в редакторе и не требует прикреплять файл. Сюжетные рисунки и
+ * «на глаз» неясное остаётся плейсхолдером ![](рисN), как раньше.
  *
- * Здесь — шпаргалка для промпта и проверка блоков при разборе. Проверка
- * (checkDrawingBlocks) знает и ```plot/```vectors, ```chart — ею же пользуется
- * «Импорт задач» (markdownTaskParser). Примеры
- * шпаргалки сверяет тест (workImportDrawings.test.js): каждый обязан
- * разбираться своим парсером (planim, stereo, coordPlot, chartSpec) без
- * ошибок, поэтому промпт
- * не отстанет от редакторов. Новую команду редактора, полезную при переносе
+ * Здесь — шпаргалка для промпта и проверка чертежей при разборе (её же зовёт
+ * «Импорт задач», markdownTaskParser; ловит и однострочные `numline: …` в
+ * таблицах). Примеры шпаргалки сверяет тест (workImportDrawings.test.js):
+ * каждый обязан разбираться своим парсером без ошибок, поэтому промпт не
+ * отстанет от редакторов. Новую команду редактора, полезную при переносе
  * листка, — сюда же.
  */
 
@@ -22,6 +20,8 @@ import { parsePlanimBlock } from './planim/dsl';
 import { parseStereoBlock } from './stereo/dsl';
 import { parseCoordPlot } from './coordPlot';
 import { parseChartSpec } from './chartSpec';
+import { stereoSpecFromInline } from './stereo/inline';
+import { planimSpecFromInline } from './planim/inline';
 
 // ── Шпаргалка для промпта ────────────────────────────────────────────────────
 
@@ -163,6 +163,25 @@ const CHART_EXAMPLE = [
   'line (0; -4) (3; -6) (6; -2) (9; 2) (12; 6) (15; 4) (18; 0) (21; -2) (24; -4)',
 ];
 
+/** Команды числовой прямой (```numline или строкой `numline: …`). */
+export const NUMLINE_PROMPT_COMMANDS = [
+  ['domain -3 5', 'какой отрезок оси виден (по умолчанию 0…5)'],
+  ['seg -1 3 fill open', 'заштрихованный промежуток [−1; 3): fill — точка закрашена, open — выколота'],
+  ['ray right 2 open', 'луч вправо от 2 с выколотой точкой; «ray left -1 fill» — влево'],
+  ['point 4 fill', 'отдельная точка (fill или open)'],
+  ['all', 'вся прямая заштрихована (решение — любое число)'],
+  ['tick 1.41 \\sqrt{2}', 'подпись под осью в точке 1.41 — формулой: \\sqrt{2}, 1/2, \\pi'],
+  ['mark A -2', 'буква над точкой −2 («на прямой отмечены точки A, B…»)'],
+  ['nolabels', 'не подписывать координаты под осью (точки без чисел)'],
+  ['axis t', 'буква оси (по умолчанию x)'],
+];
+
+const NUMLINE_EXAMPLE = [
+  'domain -4 6',
+  'ray left -2 fill',
+  'seg 1 4 open fill',
+];
+
 /** Все блоки-примеры промпта — для теста, что они разбираются без ошибок. */
 export function promptExampleBlocks() {
   return {
@@ -182,6 +201,10 @@ export function promptExampleBlocks() {
     chart: [
       ...CHART_PROMPT_COMMANDS.map(([cmd]) => chartSample(cmd)),
       CHART_EXAMPLE.join('\n'),
+    ],
+    numline: [
+      ...NUMLINE_PROMPT_COMMANDS.map(([cmd]) => (/^(domain|seg|ray|point|all)/.test(cmd) ? cmd : `point 1 fill\n${cmd}`)),
+      NUMLINE_EXAMPLE.join('\n'),
     ],
   };
 }
@@ -237,7 +260,7 @@ export function buildDrawingsPromptSection() {
     '',
     'Чертёж с листка переносится одним из двух способов — на том месте условия, где он стоит.',
     '',
-    'А) ТЕКСТОМ — блоком ```planim (плоская фигура: треугольник, четырёхугольник, окружность, клетчатая бумага), ```stereo (куб, параллелепипед — прямоугольный и наклонный, призма — прямая и наклонная, пирамида — правильная и с вершиной над вершиной/серединой ребра основания, усечённая пирамида, тетраэдр, цилиндр, конус, шар; основание — правильное, произвольное, трапеция, параллелограмм…), ```plot (координатная плоскость: график функции по формуле или по точкам, график производной, касательная, точки, векторы) или ```chart (график или диаграмма «из жизни» по таблице значений: температура по часам, осадки по дням, столбики по месяцам — у осей свой масштаб и подписи словами). Блок рисуется на сайте сам — файл прикладывать не нужно.',
+    'А) ТЕКСТОМ — блоком ```planim (плоская фигура: треугольник, четырёхугольник, окружность, клетчатая бумага), ```stereo (куб, параллелепипед — прямоугольный и наклонный, призма — прямая и наклонная, пирамида — правильная и с вершиной над вершиной/серединой ребра основания, усечённая пирамида, тетраэдр, цилиндр, конус, шар; основание — правильное, произвольное, трапеция, параллелограмм…), ```plot (координатная плоскость: график функции по формуле или по точкам, график производной, касательная, точки, векторы), ```chart (график или диаграмма «из жизни» по таблице значений: температура по часам, осадки по дням, столбики по месяцам — у осей свой масштаб и подписи словами) или ```numline (числовая прямая: промежутки, лучи, точки). Блок рисуется на сайте сам — файл прикладывать не нужно.',
     'Б) ПЛЕЙСХОЛДЕРОМ ![](рисN) — всё остальное: рисунки-сюжеты (предметы, план местности, фото), круговые диаграммы, графики с десятками точек, которые не прочитать по клеткам, а также любой чертёж, который ты не уверен, что перенесёшь верно.',
     '',
     'Правила блоков ```planim и ```stereo:',
@@ -288,6 +311,21 @@ export function buildDrawingsPromptSection() {
     '```chart',
     ...CHART_EXAMPLE,
     '```',
+    '',
+    'ЧИСЛОВЫЕ ПРЯМЫЕ — блок ```numline (множество решений неравенства, точки на прямой), команды:',
+    ...fmtCommands(NUMLINE_PROMPT_COMMANDS),
+    'Правила числовых прямых:',
+    '- координаты под точками подписываются сами — отдельный tick нужен только для подписи-формулы (√2, π) или числа без точки;',
+    '- если на рисунке точки без чисел (задачи «какое из чисел отмечено…», знаки a и b) — пиши nolabels и mark с буквами;',
+    '- несколько прямых в задании «на каком рисунке изображено множество решений» — таблицей-галереей, в клетке прямая ОДНОЙ строкой, команды через «;»:',
+    '  {галерея}',
+    '  | 1) `numline: domain -4 4; ray left -1 open` | 2) `numline: domain -4 4; seg -1 2 fill fill` |',
+    '  | 3) `numline: domain -4 4; ray right 2 fill` | 4) `numline: domain -4 4; all` |',
+    '',
+    'Пример (объединение луча и промежутка):',
+    '```numline',
+    ...NUMLINE_EXAMPLE,
+    '```',
   ];
 }
 
@@ -312,15 +350,53 @@ const DRAWING_PARSERS = {
   chart: (text) => ({
     errors: parseChartSpec(text).errors.map((cmd) => ({ line: lineOf(text, cmd), message: 'команда не разобрана' })),
   }),
+  numline: checkNumberLine,
 };
 
+// Числовая прямая незнакомую команду и нечисло молча пропускает — проверяем
+// сами: команда из списка parseNumberLine и координаты-числа на своих местах.
+const NUM_TOKEN = /^(?:[-−]?(?:\d+(?:[.,]\d+)?|\d+\/\d+)|[-+]?(?:inf|∞))$/i;
+const NUMLINE_ARGS = {
+  domain: [1, 2], scale: [1, 2], seg: [1, 2], segment: [1, 2], point: [1], tick: [1], ray: [2], mark: [2],
+  all: [], nolabels: [], labels: [], axis: [], label: [],
+};
+
+function checkNumberLine(text) {
+  const errors = [];
+  String(text).split('\n').forEach((raw, i) => {
+    for (const cmdText of raw.split(';')) {
+      const cmd = cmdText.trim();
+      if (!cmd || cmd.startsWith('#')) continue;
+      const p = cmd.split(/\s+/);
+      const name = p[0].toLowerCase();
+      const args = NUMLINE_ARGS[name];
+      if (!args) {
+        errors.push({ line: i + 1, message: `неизвестная команда «${p[0]}»` });
+      } else if (args.some((k) => !NUM_TOKEN.test(p[k] || ''))) {
+        errors.push({ line: i + 1, message: 'ожидалось число' });
+      } else if (name === 'ray' && !/^(left|right)$/i.test(p[1] || '')) {
+        errors.push({ line: i + 1, message: 'луч — «ray left …» или «ray right …»' });
+      }
+    }
+  });
+  return { errors };
+}
+
 /** Языки блоков → вид чертежа (```vectors — тот же график). */
-const DRAWING_LANGS = { planim: 'planim', stereo: 'stereo', plot: 'plot', vectors: 'plot', chart: 'chart' };
+const DRAWING_LANGS = {
+  planim: 'planim', stereo: 'stereo', plot: 'plot', vectors: 'plot', chart: 'chart', numline: 'numline',
+};
+
+// Однострочная форма `numline: …` (в ячейках таблиц) — команды через «;»;
+// у стерео «;» режется везде, у остальных — вне скобок («(0; -4)» — точка).
+const INLINE_RE = /`(planim|stereo|plot|vectors|chart|numline):\s*([^`]*)`/gi;
+const inlineToBlock = (kind, body) => (kind === 'stereo' ? stereoSpecFromInline(body) : planimSpecFromInline(body));
 
 /**
- * Находит блоки чертежей нашими редакторами в markdown:
- * ```planim, ```stereo, ```plot (```vectors), ```chart.
- * @returns {{ kind: 'planim'|'stereo'|'plot'|'chart', text: string }[]}
+ * Находит чертежи нашими редакторами в markdown: блоки ```planim, ```stereo,
+ * ```plot (```vectors), ```chart, ```numline и однострочные `numline: …`
+ * (у них `inline: true`, текст — уже по команде на строку).
+ * @returns {{ kind: 'planim'|'stereo'|'plot'|'chart'|'numline', text: string, inline?: true }[]}
  */
 export function extractDrawingBlocks(md) {
   const blocks = [];
@@ -342,6 +418,12 @@ export function extractDrawingBlocks(md) {
       continue;
     }
     if (current) current.lines.push(line);
+    else if (!fence) {
+      for (const im of line.matchAll(INLINE_RE)) {
+        const kind = DRAWING_LANGS[im[1].toLowerCase()];
+        blocks.push({ kind, text: inlineToBlock(kind, im[2]), inline: true });
+      }
+    }
   }
   // Незакрытый блок markdown дочитывает до конца — проверяем так же.
   if (current) blocks.push({ kind: current.kind, text: current.lines.join('\n') });
@@ -366,12 +448,11 @@ export function checkDrawingBlocks(md) {
       continue;
     }
     for (const err of errors) {
-      problems.push({
-        kind: block.kind,
-        line: err.line,
-        command: (src[err.line - 1] || '').trim(),
-        message: err.message,
-      });
+      const command = (src[err.line - 1] || '').trim();
+      // У строки `numline: …` номера строк нет — команду называем в сообщении.
+      problems.push(block.inline
+        ? { kind: block.kind, line: 0, command: '', message: command ? `«${command}»: ${err.message}` : err.message }
+        : { kind: block.kind, line: err.line, command, message: err.message });
     }
   }
   return { count: blocks.length, kinds: blocks.map((b) => b.kind), problems };
