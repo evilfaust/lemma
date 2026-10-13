@@ -3,10 +3,11 @@ import { Card, Upload, Button, Steps, Select, Space, Alert, Progress, Statistic,
 import {
   InboxOutlined, CheckCircleOutlined,
   WarningOutlined, CloseCircleOutlined, ReloadOutlined,
-  FileTextOutlined, GlobalOutlined, DownloadOutlined, PlusOutlined,
+  FileTextOutlined, GlobalOutlined, DownloadOutlined, PlusOutlined, RobotOutlined,
 } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import ImportStep from './task-importer/ImportStep';
+import AiPromptTab from './task-importer/AiPromptTab';
 import { useTaskImport } from '../hooks/useTaskImport';
 import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
@@ -80,7 +81,7 @@ export default function TaskImporter() {
   const { aiEnabled } = useAuth(); // ИИ-тумблер: гейт LLM-контролов импорта
   const { topics: ctxTopics, tags, subtopics: ctxSubtopics, reloadData } = useReferenceData();
   const [currentStep, setCurrentStep] = useState(0);
-  const [inputMode, setInputMode] = useState('file'); // 'file' | 'text' | 'sdamgia'
+  const [inputMode, setInputMode] = useState('file'); // 'file' | 'text' | 'ai' | 'sdamgia'
   const [textInput, setTextInput] = useState('');
   const [fileName, setFileName] = useState('');
 
@@ -544,6 +545,22 @@ export default function TaskImporter() {
                   Разобрать
                 </Button>
               </div>
+            ),
+          },
+          {
+            key: 'ai',
+            label: (
+              <span>
+                <RobotOutlined style={{ marginRight: 4 }} />
+                Промпт для ИИ
+              </span>
+            ),
+            children: (
+              <AiPromptTab
+                topics={localTopics}
+                examTypeOptions={EXAM_TYPE_OPTIONS}
+                onGoToText={() => setInputMode('text')}
+              />
             ),
           },
           {
