@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   getRandomAchievement,
+  checkUnlockedAchievements,
+  drawAchievement,
+  isDrawAchievement,
   getPreviouslyUnlockedIds,
   getPreviouslyEarnedBadgeIds,
 } from '../utils/achievementEngine';
@@ -122,5 +125,76 @@ describe('getPreviouslyEarnedBadgeIds', () => {
 
   it('возвращает [] для пустого массива попыток', () => {
     expect(getPreviouslyEarnedBadgeIds([])).toEqual([]);
+  });
+});
+
+describe('условные ачивки за процент: «ровно» и розыгрыш', () => {
+  const score = (id, cv, rarity = 'common') => ({
+    id, code: id, type: 'condition', rarity, condition_type: 'score', condition_value: cv,
+  });
+  const check = (list, percentage, prev = [], random) =>
+    checkUnlockedAchievements(list, { percentage }, [{ id: 'a' }], prev, random).map((a) => a.id);
+
+  it('exact сравнивает округлённый процент: 2 из 3 = 67%', () => {
+    const list = [score('six7', { exact: 67 })];
+    expect(check(list, (2 / 3) * 100)).toEqual(['six7']);
+    expect(check(list, 66.4)).toEqual([]);
+    expect(check(list, 67.5)).toEqual([]);
+  });
+
+  it('exact главнее min/max', () => {
+    const list = [score('x', { exact: 52, min: 90 })];
+    expect(check(list, 52)).toEqual(['x']);
+  });
+
+  it('isDrawAchievement — только условные с pick: true', () => {
+    expect(isDrawAchievement(score('a', { min: 0, max: 40, pick: true }))).toBe(true);
+    expect(isDrawAchievement(score('b', { min: 0, max: 40 }))).toBe(false);
+    expect(isDrawAchievement({ id: 'c', type: 'random', condition_value: { pick: true } })).toBe(false);
+  });
+
+  it('из подошедших ачивок розыгрыша выпадает ровно одна', () => {
+    const list = [
+      score('p1', { min: 0, max: 40, pick: true }),
+      score('p2', { min: 0, max: 50, pick: true }),
+      score('p3', { min: 10, max: 50, pick: true }, 'legendary'),
+      score('far', { min: 90, max: 100, pick: true }),
+    ];
+    for (const r of [0, 0.3, 0.6, 0.99]) {
+      const got = check(list, 30, [], () => r);
+      expect(got).toHaveLength(1);
+      expect(['p1', 'p2', 'p3']).toContain(got[0]);
+    }
+  });
+
+  it('обычные условные открываются как раньше, рядом с розыгрышем', () => {
+    const list = [
+      score('plain', { min: 0, max: 40 }),
+      score('p1', { min: 0, max: 40, pick: true }),
+      score('p2', { min: 0, max: 40, pick: true }),
+    ];
+    const got = check(list, 20, [], () => 0);
+    expect(got).toContain('plain');
+    expect(got.filter((id) => id.startsWith('p') && id !== 'plain')).toHaveLength(1);
+  });
+
+  it('полученные в розыгрыш не выпадают снова; все собраны — ничего', () => {
+    const list = [
+      score('p1', { min: 0, max: 40, pick: true }),
+      score('p2', { min: 0, max: 40, pick: true }),
+    ];
+    expect(check(list, 20, ['p1'], () => 0)).toEqual(['p2']);
+    expect(check(list, 20, ['p1', 'p2'], () => 0)).toEqual([]);
+  });
+
+  it('вес по редкости: обычная выпадает чаще легендарной', () => {
+    const pool = [
+      { id: 'c', rarity: 'common' },
+      { id: 'l', rarity: 'legendary' },
+    ];
+    // веса 6 и 1: [0; 6/7) — обычная, [6/7; 1) — легендарная
+    expect(drawAchievement(pool, () => 0.85).id).toBe('c');
+    expect(drawAchievement(pool, () => 0.9).id).toBe('l');
+    expect(drawAchievement([], () => 0.5)).toBeNull();
   });
 });

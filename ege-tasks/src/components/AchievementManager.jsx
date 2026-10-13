@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Table, Button, Modal, Form, Input, InputNumber, Select, Space, Tag,
-  Popconfirm, Segmented, Statistic, Row, Col, Tooltip, App,
+  Popconfirm, Segmented, Statistic, Row, Col, Tooltip, App, Checkbox,
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined,
@@ -35,6 +35,7 @@ const CONDITION_TYPE_LABELS = {
   score: 'Процент',
   speed: 'Скорость',
   count: 'Кол-во попыток',
+  streak: 'Серия',
   special: 'Специальное',
 };
 
@@ -68,8 +69,17 @@ function normalizeUnlockedIds(value) {
 function describeCondition(achievement) {
   if (achievement.type !== 'condition') return '';
   const cv = achievement.condition_value || {};
+  const draw = cv.pick ? ' · розыгрыш' : '';
   switch (achievement.condition_type) {
-    case 'score': return `≥ ${cv.min}%`;
+    case 'score': {
+      if (cv.exact != null) return `ровно ${cv.exact}%${draw}`;
+      if (cv.min != null && cv.max != null) {
+        return (cv.min === cv.max ? `${cv.min}%` : `${cv.min}–${cv.max}%`) + draw;
+      }
+      if (cv.max != null) return `≤ ${cv.max}%${draw}`;
+      return `≥ ${cv.min ?? 0}%${draw}`;
+    }
+    case 'streak': return `${cv.count ?? 3} подряд ≥ ${cv.min_score ?? 100}%`;
     case 'speed': return `≤ ${cv.max_minutes} мин`;
     case 'count': return `${cv.attempts} попыток`;
     case 'special': {
@@ -85,6 +95,19 @@ function describeCondition(achievement) {
     }
     default: return '';
   }
+}
+
+// Пустые поля формы (null) в json не пишем; флаг розыгрыша — только когда включён
+function cleanConditionValue(conditionType, value) {
+  const cv = Object.fromEntries(
+    Object.entries(value || {}).filter(([, v]) => v !== null && v !== undefined && v !== ''),
+  );
+  if (!cv.pick) delete cv.pick;
+  if (conditionType === 'score' && cv.exact != null) {
+    delete cv.min;
+    delete cv.max;
+  }
+  return cv;
 }
 
 // ==================== ICON PICKER ====================
@@ -264,9 +287,8 @@ export default function AchievementManager() {
       icon: record.icon,
       order: record.order,
     };
-    if (record.type === 'random') {
-      values.rarity = record.rarity;
-    } else if (record.type === 'condition') {
+    values.rarity = record.rarity || undefined;
+    if (record.type === 'condition') {
       values.condition_type = record.condition_type;
       // Flatten condition_value for form
       const cv = record.condition_value || {};
@@ -293,9 +315,10 @@ export default function AchievementManager() {
         data.condition_type = '';
         data.condition_value = null;
       } else {
-        data.rarity = '';
+        // У условной редкость необязательна: рамка значка и вес в розыгрыше
+        data.rarity = values.rarity || '';
         data.condition_type = values.condition_type;
-        data.condition_value = values.condition_value || {};
+        data.condition_value = cleanConditionValue(values.condition_type, values.condition_value);
       }
 
       if (editing) {
@@ -672,15 +695,52 @@ export default function AchievementManager() {
             </Col>
           </Row>
 
+          {formType === 'condition' && (
+            <Form.Item
+              name="rarity"
+              label="Редкость"
+              tooltip="Цвет рамки значка; у ачивок «в розыгрыше» — ещё и как часто выпадает"
+            >
+              <Select allowClear placeholder="Без редкости" options={[
+                { value: 'common', label: 'Обычный' },
+                { value: 'rare', label: 'Редкий' },
+                { value: 'legendary', label: 'Легендарный' },
+              ]} />
+            </Form.Item>
+          )}
+
           {/* Condition value fields */}
           {formType === 'condition' && formConditionType === 'score' && (
-            <Form.Item
-              name={['condition_value', 'min']}
-              label="Минимальный процент"
-              rules={[{ required: true, message: 'Укажите процент' }]}
-            >
-              <InputNumber min={0} max={100} addonAfter="%" style={{ width: '100%' }} />
-            </Form.Item>
+            <>
+              <Row gutter={16}>
+                <Col span={8}>
+                  <Form.Item name={['condition_value', 'min']} label="От (включительно)">
+                    <InputNumber min={0} max={100} addonAfter="%" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name={['condition_value', 'max']} label="До (включительно)">
+                    <InputNumber min={0} max={100} addonAfter="%" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item
+                    name={['condition_value', 'exact']}
+                    label="Ровно"
+                    tooltip="Процент округляется: 2 из 3 = 66,67% → 67. Если задано, «от/до» не учитываются"
+                  >
+                    <InputNumber min={0} max={100} addonAfter="%" style={{ width: '100%' }} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item
+                name={['condition_value', 'pick']}
+                valuePropName="checked"
+                tooltip="Из всех подошедших по проценту ачивок с этой галочкой за попытку выпадает одна: обычная — чаще, легендарная — реже"
+              >
+                <Checkbox>Розыгрыш: одна за попытку</Checkbox>
+              </Form.Item>
+            </>
           )}
 
           {formType === 'condition' && formConditionType === 'speed' && (

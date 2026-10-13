@@ -69,16 +69,24 @@ export function getRandomAchievement(achievements, percentage, excludedIds = [])
  * @param {Array} achievements - массив всех достижений
  * @param {object} attemptData - данные текущей попытки {percentage, durationMinutes, submittedAt}
  * @param {Array} allAttempts - все попытки студента (для подсчета количества)
+ * РОЗЫГРЫШ (condition_value.pick = true):
+ * - Такие ачивки не открываются все разом: из подошедших и ещё не полученных
+ *   за попытку выпадает ОДНА, с весом по редкости (DRAW_WEIGHTS)
+ * - Обычные условные открываются, как раньше, независимо от розыгрыша
+ *
  * @param {Array} previouslyUnlocked - ID уже разблокированных достижений (из unlocked_achievements)
+ * @param {Function} random - источник случайности [0, 1) (для тестов)
  * @returns {Array} - массив новых разблокированных достижений
  */
 export function checkUnlockedAchievements(
   achievements,
   attemptData,
   allAttempts,
-  previouslyUnlocked = []
+  previouslyUnlocked = [],
+  random = Math.random
 ) {
   const unlocked = [];
+  const drawPool = [];
 
   // Фильтровать только достижения за условия
   const conditionAchievements = achievements.filter((a) => a.type === 'condition');
@@ -98,13 +106,50 @@ export function checkUnlockedAchievements(
 
     // Проверить условие
     if (isAchievementUnlocked(achievement, attemptData, allAttempts)) {
+      if (isDrawAchievement(achievement)) {
+        drawPool.push(achievement);
+        continue;
+      }
       unlocked.push(achievement);
       console.log('[AchievementEngine] Разблокировано достижение:', achievement.code, achievement.condition_type);
     }
   }
 
+  // Ачивки «в розыгрыш» (condition_value.pick): из подошедших выпадает одна
+  const drawn = drawAchievement(drawPool, random);
+  if (drawn) {
+    unlocked.push(drawn);
+    console.log('[AchievementEngine] Выпала ачивка из розыгрыша:', drawn.code, `(из ${drawPool.length})`);
+  }
+
   console.log('[AchievementEngine] Новых разблокировок:', unlocked.length);
   return unlocked;
+}
+
+/** Вес редкости в розыгрыше: обычная выпадает в 6 раз чаще легендарной */
+export const DRAW_WEIGHTS = { common: 6, rare: 3, legendary: 1 };
+
+/** Ачивка разыгрывается (одна за попытку), а не открывается вместе с остальными */
+export function isDrawAchievement(achievement) {
+  return achievement?.type === 'condition' && achievement.condition_value?.pick === true;
+}
+
+/**
+ * Выбрать одну ачивку из подошедших с весом по редкости
+ * @param {Array} pool - подошедшие и ещё не полученные ачивки розыгрыша
+ * @param {Function} random - источник случайности [0, 1)
+ * @returns {object|null}
+ */
+export function drawAchievement(pool, random = Math.random) {
+  if (!pool.length) return null;
+  const weightOf = (a) => DRAW_WEIGHTS[a.rarity] ?? DRAW_WEIGHTS.common;
+  const total = pool.reduce((sum, a) => sum + weightOf(a), 0);
+  let r = random() * total;
+  for (const a of pool) {
+    r -= weightOf(a);
+    if (r < 0) return a;
+  }
+  return pool[pool.length - 1];
 }
 
 /**
@@ -124,7 +169,11 @@ function isAchievementUnlocked(achievement, attemptData, allAttempts) {
   switch (condition_type) {
     case 'score': {
       // min — нижняя граница (включительно), max — верхняя граница (включительно)
+      // exact — ровно столько процентов после округления (2 из 3 = 66,67% → 67)
       const pct = attemptData.percentage;
+      if (condition_value.exact !== undefined) {
+        return Math.round(pct) === condition_value.exact;
+      }
       if (condition_value.min !== undefined && pct < condition_value.min) return false;
       if (condition_value.max !== undefined && pct > condition_value.max) return false;
       return true;
