@@ -69,8 +69,8 @@ describe('planimPrintFrame — чертёж под место на бумаге'
 
   it('подписи пометок — того же кегля, что буквы; шрифты KaTeX', () => {
     const svg = planimPrintSvgFromSpec(SPEC, { widthMm: 87, heightMm: 35, letterMm: 4 });
-    expect(svg).toMatch(/font-family="KaTeX_Main[^"]*" font-size="17"[^>]*>6</);
-    expect(svg).toMatch(/font-family="KaTeX_Main[^"]*" font-size="17"[^>]*>60°</);
+    expect(svg).toMatch(/font-size="17" font-family="KaTeX_Main[^"]*"[^>]*>6</);
+    expect(svg).toMatch(/font-size="17" font-family="KaTeX_Main[^"]*"[^>]*>60°</);
     expect(svg).toMatch(/font-family="KaTeX_Math, 'Times New Roman', Times, serif" font-style="italic"/);
   });
 });

@@ -16,16 +16,17 @@
 // Текстом: «AB», «(P||AB)», «(P⊥AB)», «(бис AVB)», «окр(O,A)», «окр(O,3)»,
 // «окр(ABC)», «впис(ABC)»; «окр(O)» — уже нарисованная окружность с центром O.
 
-export const NAME_RE = /^[A-Z][0-9]*$/;
-const NAME = '[A-Z][0-9]*';
+// Имя точки: латинская буква, цифры индекса и штрихи (A, A1, A', A1'').
+export const NAME_RE = /^[A-Z][0-9]*'{0,3}$/;
+const NAME = "[A-Z][0-9]*'{0,3}";
 
 export const isPairRef = (r) => Array.isArray(r) && r.length === 2;
 export const isCircleRef = (r) => !!r && !Array.isArray(r) && ['cp', 'cr', 'circum', 'in'].includes(r.k);
 
-/** «A1» → «A₁» */
+/** «A1» → «A₁», «A'» → «A′» */
 export function prettyName(name) {
   const SUB = '₀₁₂₃₄₅₆₇₈₉';
-  return String(name).replace(/\d/g, (d) => SUB[Number(d)]);
+  return String(name).replace(/\d/g, (d) => SUB[Number(d)]).replace(/'/g, '′');
 }
 
 /** «AA1C1C» → ['A','A1','C1','C']; null — это не список имён. */

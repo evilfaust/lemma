@@ -45,7 +45,7 @@ const LATIN_WORDS = new Set([
   'hide', 'show', 'tick', 'auto', 'circumcircle', 'incircle',
 ]);
 
-const NAME = '[A-Z][0-9]*';
+const NAME = "[A-Z][0-9]*'{0,3}";
 const NUM = '-?\\d+(?:[.,]\\d+)?';
 const toNum = (s) => Number(String(s).replace(',', '.'));
 
@@ -72,6 +72,8 @@ export function normalizeCommand(text) {
     .replace(/−/g, '-')
     .replace(/[АВСЕНКМОРТХУ](?![а-яё])/g, (c) => CYR_TO_LAT[c])
     .replace(/[₀-₉]/g, (c) => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(c)))
+    .replace(/[′’ʹ]/g, "'")
+    .replace(/″/g, "''")
     .replace(/\b[a-z][a-z0-9]*\b/g, (w) => (LATIN_WORDS.has(w) ? w : w.toUpperCase()))
     .replace(/^\s*x(?=\s*=)/, 'X') // «x = …» — имя точки, а не знак пересечения
     .replace(/∥/g, '||')
@@ -93,14 +95,16 @@ export function normalizePointName(text) {
     .trim()
     .toUpperCase()
     .replace(/[АВСЕНКМОРТХУ]/g, (c) => CYR_TO_LAT[c])
-    .replace(/[₀-₉]/g, (c) => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(c)));
+    .replace(/[₀-₉]/g, (c) => String('₀₁₂₃₄₅₆₇₈₉'.indexOf(c)))
+    .replace(/[′’ʹ]/g, "'")
+    .replace(/″/g, "''");
 }
 
 const fmt = (x) => String(Math.round(Number(x) * 10000) / 10000).replace('.', ',');
 const fmt2 = (x) => String(Math.round(Number(x) * 100) / 100).replace('.', ',');
 
 const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч[а-яё]*(?:\\s+с)?)';
-const OPERAND = '((?:окр|впис)[а-яё]*\\([^\\s]*\\)|\\([^\\s]+\\)|[A-Z0-9]+)';
+const OPERAND = '((?:окр|впис)[а-яё]*\\([^\\s]*\\)|\\([^\\s]+\\)|[A-Z0-9\']+)';
 
 const COLOR_HINT = 'Цвета: красный, синий, зелёный, оранжевый, фиолетовый; «нет» — снять';
 
@@ -777,7 +781,7 @@ export function editStepCommand(scene, opId, text) {
   const main = old.name ? repl.find((o) => o.name) : null;
   if (main && main.name !== old.name) {
     const typed = normalizeCommand(text);
-    const written = new RegExp(`(^|[^A-Z0-9])${main.name}(?![0-9])`).test(typed);
+    const written = new RegExp(`(^|[^A-Z0-9])${main.name}(?![0-9'])`).test(typed);
     if (written) renameTo = main.name;
     main.name = old.name;
   }

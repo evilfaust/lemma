@@ -328,17 +328,19 @@ function parseAngleMark(text, model) {
  * → «√17», «\\pi» → «π», «\\frac{a}{2}» → «a/2».
  */
 export function lengthLabelText(raw) {
+  // LaTeX остаётся LaTeX'ом (\frac — дробью столбиком, utils/drawingLabel);
+  // словами набранное — в знаки: «корень из 17» → √17, «пи» → π.
   return String(raw || '').trim()
-    .replace(/\\frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, '$1/$2')
-    .replace(/\\?sqrt\s*\{([^{}]*)\}/gi, '√$1')
-    .replace(/\\?sqrt\s*\(([^()]*)\)/gi, '√$1')
-    .replace(/\\?sqrt\s*/gi, '√')
+    .replace(/\$/g, '')
+    .replace(/(?<!\\)sqrt\s*\{([^{}]*)\}/gi, '√$1')
+    .replace(/\\sqrt\s*\{([^{}]*)\}/g, (m, x) => (/^[0-9A-Za-z.,]+$/.test(x) ? `√${x}` : m))
+    .replace(/(?<!\\)sqrt\s*\(([^()]*)\)/gi, '√$1')
+    .replace(/(?<![\\A-Za-z])sqrt\s*/gi, '√')
     .replace(/корень\s+(?:из\s+)?/gi, '√')
-    .replace(/\\pi\b|(?<![A-Za-zА-Яа-яЁё])пи(?![А-Яа-яЁё])/g, 'π')
+    .replace(/\\pi\b(?!\s*\{)|(?<![A-Za-zА-Яа-яЁё])пи(?![А-Яа-яЁё])/g, 'π')
     .replace(/\\cdot/g, '·')
-    .replace(/\\/g, '')
     .replace(/\s+/g, ' ')
-    .slice(0, 16);
+    .slice(0, 80);
 }
 
 /**
@@ -370,6 +372,30 @@ function parseLengthMark(text) {
   const op = { id: newOpId(), type: 'lengthMark', ref, text: t };
   if (dim) op.dim = true;
   return op;
+}
+
+/**
+ * «текст (1; 2; 3) \frac{a}{2}», «текст у M h», «надпись у S вершина» —
+ * надпись на чертеже: в точке пространства (z — вверх) или рядом с точкой.
+ * Текст — как в формулах (LaTeX: дробь, корень, индексы; доллары не нужны).
+ * Разбирается по исходному тексту. null — это не надпись.
+ */
+function parseText(text) {
+  const mm = /^\s*(?:текст|надпись|text|label)\s+(.+)$/i.exec(String(text || ''));
+  if (!mm) return null;
+  const rest = mm[1].replace(/−/g, '-').trim();
+  const NUMS = '(-?\\d+(?:[.,]\\d+)?)';
+  let r = new RegExp(`^\\(\\s*${NUMS}\\s*[;\\s]\\s*${NUMS}\\s*[;\\s]\\s*${NUMS}\\s*\\)\\s+(.+)$`).exec(rest);
+  if (r) {
+    return { id: newOpId(), type: 'text', at: [r[1], r[2], r[3]].map((x) => Number(x.replace(',', '.'))), text: r[4].trim() };
+  }
+  r = /^(?:у|около|возле|near|at)\s+(\S+)\s+(.+)$/i.exec(rest);
+  if (r) {
+    const n = splitNames(normalizeCommand(r[1]));
+    if (!n || n.length !== 1) throw new Error('Надпись у точки: «текст у M h»');
+    return { id: newOpId(), type: 'text', near: n[0], text: r[2].trim() };
+  }
+  throw new Error('Надпись: «текст у M h» (рядом с точкой) или «текст (0; 0; 3) \\frac{a}{2}» (в точке пространства)');
 }
 
 /**
@@ -457,6 +483,10 @@ export function parseCommand(text, model) {
     // «подпись AB 4», «AB = 4», «стрелка AA1 h» — по исходному тексту.
     const lengthMark = parseLengthMark(text);
     if (lengthMark) return { op: lengthMark };
+
+    // «текст у M h», «текст (0; 0; 3) a» — надпись (по исходному тексту).
+    const textOp = parseText(text);
+    if (textOp) return { op: textOp };
 
     // «A = (0; 0; 0)», «точка A (0 0 0)» — точка по координатам (z — вверх).
     m = /^(?:точка\s+)?([A-Z][0-9]*)\s*=?\s*\(\s*(-?\d+(?:[.,]\d+)?)\s*[;\s]\s*(-?\d+(?:[.,]\d+)?)\s*[;\s]\s*(-?\d+(?:[.,]\d+)?)\s*\)$/.exec(src);
@@ -773,6 +803,7 @@ export function describeOp(op, opsById = {}) {
       return `Угол между ${refName(op.l1, opsById)} и ${refName(op.l2, opsById)}${tail}`;
     }
     case 'lengthMark': return `${op.dim ? 'Размер' : 'Подпись'} ${names(op.ref)} = ${op.text}`;
+    case 'text': return op.near ? `Надпись у ${P(op.near)}: ${op.text}` : `Надпись (${(op.at || []).map(fmt).join('; ')}): ${op.text}`;
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'Плоскость' : 'Сечение';
       return op.from
@@ -833,6 +864,7 @@ export function opToCommand(op, opsById = {}) {
       return r(op.l1) && r(op.l2) ? `угол ${r(op.l1)} ${r(op.l2)}${tail}` : '';
     }
     case 'lengthMark': return Array.isArray(op.ref) ? `${op.dim ? 'стрелка' : 'подпись'} ${n(op.ref)} ${op.text}` : '';
+    case 'text': return op.near ? `текст у ${op.near} ${op.text}` : `текст (${(op.at || []).map(fmt).join('; ')}) ${op.text}`;
     case 'perpPlane': {
       const what = op.style === 'plane' ? 'плоскость' : 'сечение';
       if (op.from) return r(op.ref) ? `${what} ${op.from} ⊥ ${r(op.ref)}` : '';

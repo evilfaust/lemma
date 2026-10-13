@@ -6,6 +6,7 @@ import {
   add as addVec, sub, mul, dot, norm, lerp, len,
 } from './vec3';
 import { makeProjector } from './camera';
+import { measureDrawingLabel, drawingLabelSvg } from '../drawingLabel';
 import { splitByVisibility, isPointHidden, isFaceFront } from './visibility';
 import { groupOccluder } from './group';
 
@@ -152,15 +153,25 @@ export function colorPieces(ranges) {
   return out;
 }
 
-/** «A1» → { base: 'A', sub: '1' } */
+/**
+ * Подпись-формула (LaTeX, utils/drawingLabel) с серединой в (x, y):
+ * ширина, высота и базовая линия by.
+ */
+function texBox(raw, x, y, size) {
+  const m = measureDrawingLabel(raw, size);
+  return { x, y, w: Math.max(6, m.width), h: Math.max(size, m.ascent + m.descent), by: y + (m.ascent - m.descent) / 2, size };
+}
+
+/** «A1» → { base: 'A', sub: '1' }; «A1'» → { base: 'A′', sub: '1' } (штрих — у буквы). */
 export function splitLabel(name) {
-  const m = /^([A-Z]+)([0-9]*)$/.exec(String(name));
-  return m ? { base: m[1], sub: m[2] } : { base: String(name), sub: '' };
+  const m = /^([A-Z]+)([0-9]*)('*)$/.exec(String(name));
+  return m ? { base: m[1] + '′'.repeat(m[3].length), sub: m[2] } : { base: String(name), sub: '' };
 }
 
 function labelBox(name) {
   const { base, sub: s } = splitLabel(name);
-  return { w: 10 * base.length + 7 * s.length + 2, h: 16 };
+  const primes = (base.match(/′/g) || []).length;
+  return { w: 10 * (base.length - primes) + 4 * primes + 7 * s.length + 2, h: 16 };
 }
 
 function segDist(px, py, x1, y1, x2, y2) {
@@ -383,9 +394,11 @@ export function renderStereo(model, camera, viewport, opts = {}) {
       const dx = v1.x - v0.x;
       const dy = v1.y - v0.y;
       const dl = Math.hypot(dx, dy) || 1;
-      const gap = 11;
+      // высокой подписи (дробь) — дальше от дуги
+      const tb = texBox(ar.label, 0, 0, LABEL_SIZE - 1);
+      const gap = 11 + Math.max(0, tb.h - 18) / 2 + Math.max(0, tb.w - 14) * 0.25;
       angleTexts.push({
-        id: `${ar.id}:t`, x: v1.x + (dx / dl) * gap, y: v1.y + (dy / dl) * gap,
+        id: `${ar.id}:t`, ...texBox(ar.label, v1.x + (dx / dl) * gap, v1.y + (dy / dl) * gap, LABEL_SIZE - 1),
         text: ar.label, step: ar.step, color: pointColorHex(ar.color) || ar.color || null,
       });
     }
@@ -468,9 +481,19 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     const c = P(pg.pts.reduce((acc, q) => addVec(acc, mul(q, 1 / pg.pts.length)), { x: 0, y: 0, z: 0 }));
     const corner = P(pg.pts[1]);
     angleTexts.push({
-      id: `${pg.id}:t`, x: corner.x + (c.x - corner.x) * 0.12, y: corner.y + (c.y - corner.y) * 0.12,
+      id: `${pg.id}:t`, ...texBox(pg.label, corner.x + (c.x - corner.x) * 0.12, corner.y + (c.y - corner.y) * 0.12, LABEL_SIZE - 1),
       text: pg.label, step: pg.step, color: pointColorHex(pg.color) || null,
     });
+  }
+
+  // Надписи (шаг «текст») в точке пространства — сразу; «у точки» — после
+  // букв (placeNearTexts), чтобы не налезть на них.
+  const nearTexts = [];
+  for (const t of model.texts || []) {
+    const color = pointColorHex(t.color) || t.color || null;
+    if (t.near) { nearTexts.push({ t, color }); continue; }
+    const p = P(t.pos);
+    angleTexts.push({ id: `${t.id}:txt`, ...texBox(t.text, p.x, p.y, LENGTH_SIZE), text: t.text, step: t.step, color });
   }
 
   // Точки.
@@ -488,14 +511,45 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   }
   const labels = placeLabels(dots, strokes, c2);
 
+  // Надпись у точки: 8 сторон, как у буквы; штраф — чужие буквы, линии и
+  // точки, поощрение — сторона от центра чертежа.
+  for (const { t, color } of nearTexts) {
+    const p = P(t.pos);
+    const b0 = texBox(t.text, 0, 0, LENGTH_SIZE);
+    const away = { x: p.x - c2.x, y: p.y - c2.y };
+    const al = Math.hypot(away.x, away.y) || 1;
+    const boxes = [
+      ...labels.map((l) => { const b = labelBox(l.name); return { x: l.x, y: l.y, w: b.w, h: b.h }; }),
+      ...angleTexts.map((a) => ({ x: a.x, y: a.y, w: a.w, h: a.h })),
+    ];
+    let best = null;
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      const dir = { x: Math.cos(a), y: -Math.sin(a) };
+      const r = 10 + Math.abs(dir.x) * b0.w / 2 + Math.abs(dir.y) * b0.h / 2;
+      const cx = p.x + dir.x * r;
+      const cy = p.y + dir.y * r;
+      let score = -3 * ((dir.x * away.x + dir.y * away.y) / al);
+      for (const q of boxes) {
+        const ox = Math.max(0, Math.min(cx + b0.w / 2, q.x + q.w / 2) - Math.max(cx - b0.w / 2, q.x - q.w / 2));
+        const oy = Math.max(0, Math.min(cy + b0.h / 2, q.y + q.h / 2) - Math.max(cy - b0.h / 2, q.y - q.h / 2));
+        if (ox > 0 && oy > 0) score += 20 + (ox * oy) / 10;
+      }
+      score += nearStroke(cx, cy, Math.min(b0.w, b0.h) / 2 + 2);
+      if (!best || score < best.score) best = { score, cx, cy };
+    }
+    angleTexts.push({ id: `${t.id}:txt`, ...texBox(t.text, best.cx, best.cy, LENGTH_SIZE), text: t.text, step: t.step, color });
+  }
+
   const lengthTexts = [];
   const taken = [
     ...labels.map((l) => { const b = labelBox(l.name); return { x: l.x, y: l.y, w: b.w, h: b.h }; }),
-    ...angleTexts.map((t) => ({ x: t.x, y: t.y, w: 9 * String(t.text).length, h: 16 })),
+    ...angleTexts.map((t) => ({ x: t.x, y: t.y, w: t.w, h: t.h })),
   ];
   for (const pl of lengthPlans) {
-    const w = lengthTextWidth(pl.lm.text);
-    const h = 15;
+    const mb = texBox(pl.lm.text, 0, 0, LENGTH_SIZE);
+    const w = mb.w + 2;
+    const h = Math.max(15, mb.h);
     const ext = Math.abs(pl.n.x) * (w / 2) + Math.abs(pl.n.y) * (h / 2);
     const sides = pl.side ? [pl.side] : [1, -1];
     const shiftMax = Math.min(0.3 * pl.L, 40);
@@ -522,7 +576,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     }
     taken.push({ x: best.cx, y: best.cy, w, h });
     lengthTexts.push({
-      id: `${pl.lm.id}:len`, x: best.cx, y: best.cy, w, text: pl.lm.text,
+      id: `${pl.lm.id}:len`, ...texBox(pl.lm.text, best.cx, best.cy, LENGTH_SIZE), text: pl.lm.text,
       runs: lengthTextRuns(pl.lm.text), step: pl.lm.step, color: pl.color,
     });
   }
@@ -610,6 +664,12 @@ export function pickFace(frame, x, y, { back = false } = {}) {
 
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+/** Подпись кадра (угол, длина, надпись) — SVG формулы; её же рисует холст. */
+export function stereoTexSvg(t, { mono = false, halo = false } = {}) {
+  const color = t.color && !mono ? t.color : STEREO_COLORS.label;
+  return drawingLabelSvg(t.text, t.x, t.by ?? t.y + 5, { size: t.size || LENGTH_SIZE, color, halo });
+}
+
 /** Габариты нарисованного (линии, точки, подписи) с полем 8 px. */
 export function contentBox(frame, pad = 8) {
   let x0 = Infinity; let y0 = Infinity; let x1 = -Infinity; let y1 = -Infinity;
@@ -621,14 +681,11 @@ export function contentBox(frame, pad = 8) {
     add(l.x - w / 2 - 2, l.y - 11);
     add(l.x + w / 2 + 2, l.y + 10);
   }
-  for (const t of frame.angleTexts || []) {
-    const w = 9 * String(t.text).length;
-    add(t.x - w / 2 - 2, t.y - 11);
-    add(t.x + w / 2 + 2, t.y + 10);
-  }
-  for (const t of frame.lengthTexts || []) {
-    add(t.x - t.w / 2 - 2, t.y - 11);
-    add(t.x + t.w / 2 + 2, t.y + 9);
+  for (const t of [...(frame.angleTexts || []), ...(frame.lengthTexts || [])]) {
+    const w = t.w ?? 9 * String(t.text).length;
+    const h = t.h ?? 16;
+    add(t.x - w / 2 - 2, t.y - h / 2 - 3);
+    add(t.x + w / 2 + 2, t.y + h / 2 + 3);
   }
   if (!Number.isFinite(x0)) return null;
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
@@ -681,15 +738,8 @@ export function stereoSvgString(frame, opts = {}) {
     const ring = d.color ? ' stroke="#ffffff" stroke-width="1.2"' : '';
     parts.push(`<circle cx="${d.x.toFixed(2)}" cy="${d.y.toFixed(2)}" r="${r}" fill="${fill}"${ring}/>`);
   }
-  for (const t of frame.angleTexts || []) {
-    parts.push(
-      `<text x="${t.x.toFixed(2)}" y="${(t.y + 5).toFixed(2)}" text-anchor="middle" font-family="${LABEL_FONT}" font-style="italic" font-size="${LABEL_SIZE - 1}" fill="${t.color && !mono ? t.color : STEREO_COLORS.label}">${esc(t.text)}</text>`,
-    );
-  }
-  for (const t of frame.lengthTexts || []) {
-    const fill = t.color && !mono ? t.color : STEREO_COLORS.label;
-    const spans = t.runs.map((r) => `<tspan font-family="${r.italic ? LABEL_FONT : MAIN_FONT}" font-style="${r.italic ? 'italic' : 'normal'}"${r.over ? ' text-decoration="overline"' : ''}>${esc(r.text)}</tspan>`).join('');
-    parts.push(`<text x="${t.x.toFixed(2)}" y="${(t.y + 5).toFixed(2)}" text-anchor="middle" font-size="${LENGTH_SIZE}" fill="${fill}">${spans}</text>`);
+  for (const t of [...(frame.angleTexts || []), ...(frame.lengthTexts || [])]) {
+    parts.push(stereoTexSvg(t, { mono }));
   }
   for (const l of frame.labels) {
     if (l.ghost) continue;

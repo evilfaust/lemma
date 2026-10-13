@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  renderStereo, DASH, STEREO_COLORS, LABEL_FONT, MAIN_FONT,
+  renderStereo, DASH, STEREO_COLORS, stereoTexSvg,
 } from '../../utils/stereo/render';
 import { clampCamera } from '../../utils/stereo/camera';
 import './stereo.css';
@@ -276,38 +276,13 @@ export default function StereoCanvas({
                 {l.sub && <tspan dy="4" fontSize="11">{l.sub}</tspan>}
               </text>
             ))}
-            {(frame.angleTexts || []).map((t) => (
-              <text
+            {[...(frame.angleTexts || []), ...(frame.lengthTexts || [])].map((t) => (
+              <g
                 key={t.id}
-                x={t.x}
-                y={t.y + 5}
-                textAnchor="middle"
-                className={`stereo-label${isFlash(t.step) ? ' stereo-flash' : ''}`}
-                style={t.color ? { fill: t.color } : undefined}
-              >
-                {t.text}
-              </text>
-            ))}
-            {(frame.lengthTexts || []).map((t) => (
-              <text
-                key={t.id}
-                x={t.x}
-                y={t.y + 5}
-                textAnchor="middle"
-                className={`stereo-length${isFlash(t.step) ? ' stereo-flash' : ''}`}
-                style={t.color ? { fill: t.color } : undefined}
-              >
-                {t.runs.map((r, i) => (
-                  <tspan
-                    key={i}
-                    fontFamily={r.italic ? LABEL_FONT : MAIN_FONT}
-                    fontStyle={r.italic ? 'italic' : 'normal'}
-                    textDecoration={r.over ? 'overline' : undefined}
-                  >
-                    {r.text}
-                  </tspan>
-                ))}
-              </text>
+                className={`stereo-tex${isFlash(t.step) ? ' stereo-flash' : ''}`}
+                // подпись — формулой (дробь, корень…): utils/drawingLabel
+                dangerouslySetInnerHTML={{ __html: stereoTexSvg(t, { halo: true }) }}
+              />
             ))}
           </>
         )}

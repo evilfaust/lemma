@@ -8,6 +8,7 @@
 
 import { add, sub, mul, len, lerp, dist } from './vec2';
 import { POINT_COLORS, pointColorHex, colorKeyFromWord, splitLabel } from '../stereo/render';
+import { measureDrawingLabel, drawingLabelSvg } from '../drawingLabel';
 
 export { POINT_COLORS, pointColorHex, colorKeyFromWord, splitLabel };
 
@@ -55,8 +56,6 @@ export function formatMarkText(text) {
 
 /** Курсивом — если в подписи есть буквы (x, a, α); число и градусы — прямым. */
 const isItalic = (text) => /[A-Za-zα-ω]/.test(text);
-
-const textWidth = (text, size = 15) => Math.max(6, String(text).length * size * 0.56);
 
 /** Вид, в который чертёж вписан целиком. */
 export function fitView(model, viewport, { padding = 40, maxScale = 120, minScale = 2 } = {}) {
@@ -107,7 +106,8 @@ function segDist(px, py, x1, y1, x2, y2) {
 
 function labelBox(name) {
   const { base, sub: s } = splitLabel(name);
-  return { w: 10 * base.length + 7 * s.length + 2, h: 16 };
+  const primes = (base.match(/′/g) || []).length;
+  return { w: 10 * (base.length - primes) + 4 * primes + 7 * s.length + 2, h: 16 };
 }
 
 const DIRS = Array.from({ length: 8 }, (_, k) => {
@@ -286,11 +286,17 @@ export function renderPlanim(model, view, viewport, opts = {}) {
   const reserved = [];
   // opId — шаг, чья это подпись (её двигают и правят мышью, pickMarkText).
   const markSize = opts.markSize || 15;
+  // Подпись — формулой (LaTeX: дробь, корень, индексы; см. utils/drawingLabel).
+  // (x, y): y — «строка» как у <text> обычной высоты, середина подписи — y − 5;
+  // by — настоящая базовая линия формулы (у дроби она выше).
   const pushText = (id, x, y, raw, step, opId = id, ghost = false, size = markSize) => {
     const text = formatMarkText(raw);
-    const w = textWidth(text, size);
-    texts.push({ id, opId, x, y, text, italic: isItalic(text), size, step, w, h: size + 2, ghost });
-    if (!ghost) reserved.push({ x, y, w, h: size + 2 });
+    const m = measureDrawingLabel(raw, size);
+    const w = Math.max(6, m.width);
+    const h = Math.max(size + 2, m.ascent + m.descent + 2);
+    const by = y - 5 + (m.ascent - m.descent) / 2;
+    texts.push({ id, opId, x, y, by, raw: String(raw ?? ''), text, italic: isItalic(text), size, step, w, h, ghost });
+    if (!ghost) reserved.push({ x, y, w, h });
   };
 
   // Пометки углов: дуги (или квадратик прямого угла) и подпись.
@@ -352,8 +358,9 @@ export function renderPlanim(model, view, viewport, opts = {}) {
       box: { x0: V.x - rMax, y0: V.y - rMax, x1: V.x + rMax, y1: V.y + rMax },
     });
     if (an.label) {
-      const text = formatMarkText(an.label);
-      const rl = Math.min(64, Math.max(rMax + 11, 9 / Math.max(0.12, Math.sin(Math.abs(delta) / 2)))) + textWidth(text, markSize) * 0.18;
+      const lm = measureDrawingLabel(an.label, markSize);
+      const rl = Math.min(64, Math.max(rMax + 11, 9 / Math.max(0.12, Math.sin(Math.abs(delta) / 2))))
+        + lm.width * 0.18 + Math.max(0, lm.ascent + lm.descent - 17) / 2;
       const at = an.at ? P(add(an.V, an.at)) : { x: V.x + Math.cos(midA) * rl, y: V.y + Math.sin(midA) * rl };
       pushText(`${an.id}:t`, at.x, at.y + 5, an.label, an.step, an.id, ghost);
     }
@@ -396,8 +403,7 @@ export function renderPlanim(model, view, viewport, opts = {}) {
       continue;
     }
     const n0 = { x: -(b.y - a.y) / L, y: (b.x - a.x) / L };
-    const text = formatMarkText(ms.text);
-    const w = textWidth(text, markSize);
+    const w = measureDrawingLabel(ms.text, markSize).width;
     const lim = Math.max(w, 17) / 2 + 1;
     let best = null;
     // Сначала середина; если там тесно — подпись съезжает вдоль отрезка.
@@ -597,7 +603,7 @@ export function contentBox(frame, pad = 8) {
     add(l.x - l.w / 2 - 2, l.y - 11);
     add(l.x + l.w / 2 + 2, l.y + 10);
   }
-  for (const t of shown(frame.texts)) { add(t.x - t.w / 2 - 2, t.y - t.h); add(t.x + t.w / 2 + 2, t.y + 5); }
+  for (const t of shown(frame.texts)) { add(t.x - t.w / 2 - 2, t.y - 5 - t.h / 2); add(t.x + t.w / 2 + 2, t.y - 5 + t.h / 2); }
   if (!Number.isFinite(x0)) return null;
   return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad };
 }
@@ -697,9 +703,7 @@ export function planimSvgString(frame, opts = {}) {
   }
   for (const t of frame.texts) {
     if (t.ghost) continue;
-    parts.push(
-      `<text x="${t.x.toFixed(2)}" y="${t.y.toFixed(2)}" text-anchor="middle" font-family="${t.italic ? LABEL_FONT : MARK_FONT}"${t.italic ? ' font-style="italic"' : ''} font-size="${t.size}" fill="${PLANIM_COLORS.label}"${halo}>${esc(t.text)}</text>`,
-    );
+    parts.push(drawingLabelSvg(t.raw, t.x, t.by, { size: t.size, color: PLANIM_COLORS.label, halo: true }));
   }
   parts.push('</svg>');
   return parts.join('');

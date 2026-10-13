@@ -29,7 +29,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'angleMark', 'lengthMark', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'pointOnCircle', 'pointOnBody',
+  'angle', 'angleMark', 'lengthMark', 'text', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'pointOnCircle', 'pointOnBody',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -182,6 +182,7 @@ export function evaluateScene(scene, opts = {}) {
   const arcs = []; // дуги углов: { id, at, u, v, step, color, count?, label?, right? }
   const lengthMarks = []; // подписи длин: { id, a, b, text, dim, step, color }
   const sheets = []; // непрозрачные плоскости-листы: { id, pts, n, d }
+  const texts = []; // надписи: { id, pos, near, text, step, color }
   const lineDefs = {};
   const planeDefs = {}; // плоскости-шаги («перпендикулярная плоскость»): id → { n, d }
   const opsById = {};
@@ -566,7 +567,7 @@ export function evaluateScene(scene, opts = {}) {
           // — равные углы), подпись (α), при 90° — знак прямого угла.
           // Величина — только учителю (created.value).
           const count = Math.min(3, Math.max(1, Math.round(Number(op.arcs) || 1)));
-          const label = op.label ? String(op.label).slice(0, 12) : '';
+          const label = op.label ? String(op.label).slice(0, 60) : '';
           let X;
           let u;
           let v;
@@ -659,6 +660,22 @@ export function evaluateScene(scene, opts = {}) {
           lengthMarks.push({ id: opId, a: A, b: B, text, dim: !!op.dim, step: stepIdx, color: op.color });
           created.value = `≈ ${String(Math.round(dist(A, B) * 100) / 100).replace('.', ',')}`;
           created.note = `${ab} = ${text} (на чертеже ${created.value})`;
+          break;
+        }
+        case 'text': {
+          // Надпись (LaTeX) в точке пространства или рядом с точкой чертежа;
+          // ставит её render.js (у точки — в сторону от центра, как букву).
+          const text = String(op.text || '').trim().slice(0, 120);
+          if (!text) fail('Нет текста: «текст у M h»');
+          let pos;
+          if (op.near) pos = pointPos(op.near);
+          else {
+            const at = Array.isArray(op.at) ? op.at.map(Number) : [];
+            if (at.length !== 3 || !at.every(Number.isFinite)) fail('Надпись: «текст (0; 0; 3) a» или «текст у M a»');
+            pos = { x: at[0], y: at[1], z: at[2] };
+          }
+          texts.push({ id: opId, pos, near: op.near || null, text, step: stepIdx, color: op.color });
+          created.note = `Надпись: ${text}`;
           break;
         }
         case 'pointOnCircle': {
@@ -997,7 +1014,7 @@ export function evaluateScene(scene, opts = {}) {
   }
 
   return {
-    body, points, pointOrder, lines, polys, marks, arcs: angleArcs, lengthMarks, sheets, steps, opsById, planes: planeDefs,
+    body, points, pointOrder, lines, polys, marks, arcs: angleArcs, lengthMarks, texts, sheets, steps, opsById, planes: planeDefs,
     radius, viewCenter, center: body.center,
   };
 }
@@ -1027,6 +1044,7 @@ export function opPointNames(op) {
     case 'angle': fromRef(op.ref); fromPlane(op.plane); break;
     case 'angleMark': fromRef(op.l1); fromRef(op.l2); out.push(...(op.pts || [])); break;
     case 'lengthMark': fromRef(op.ref); break;
+    case 'text': if (op.near) out.push(op.near); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
@@ -1103,6 +1121,7 @@ export function renamePointInScene(scene, from, to) {
     if (o.from) o.from = swap(o.from);
     if (o.at) o.at = swap(o.at);
     if (o.foot) o.foot = swap(o.foot);
+    if (o.near) o.near = swap(o.near);
     if (o.ref) o.ref = swapRef(o.ref);
     if (o.l1) o.l1 = swapRef(o.l1);
     if (o.l2) o.l2 = swapRef(o.l2);

@@ -432,7 +432,7 @@ function layoutBase(node, size, ctx) {
     }
 
     case 'frac': {
-      const fs = size * FRAC;
+      const fs = size * (ctx.frac || FRAC);
       const num = layoutRow(node.num, fs, ctx);
       const den = layoutRow(node.den, fs, ctx);
       const pad = 0.12 * size;
@@ -587,7 +587,7 @@ function emit(prims, color) {
 
 function build(src, opts = {}) {
   const size = opts.size || 12;
-  const ctx = { bold: !!opts.bold };
+  const ctx = { bold: !!opts.bold, frac: opts.fracScale || null };
   const nodes = parseMath(src, { bold: !!opts.bold, rm: !!opts.upright });
   const row = layoutRow(opts.upright ? uprightify(nodes) : nodes, size, ctx);
   return {
@@ -602,7 +602,8 @@ function build(src, opts = {}) {
 /**
  * Габариты формулы (px) — для выключки подписи и для разметки вокруг неё.
  * @param {string} src — подпись в подмножестве LaTeX
- * @param {{size?:number, bold?:boolean, upright?:boolean}} opts
+ * @param {{size?:number, bold?:boolean, upright?:boolean, fracScale?:number}} opts
+ *   fracScale — кегль числителя/знаменателя (по умолчанию 0,8)
  */
 export function measureMathSvg(src, opts = {}) {
   const b = build(src, opts);

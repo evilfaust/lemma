@@ -4,6 +4,7 @@ import {
 } from '../../utils/planim/render';
 import '../stereo/stereo.css';
 import './planim.css';
+import { drawingLabelSvg } from '../../utils/drawingLabel';
 
 const DRAG_START_PX = 4;
 /** Скрытое в редакторе — бледное: на печати его нет, но за него можно взяться. */
@@ -319,17 +320,15 @@ export default function PlanimCanvas({
               </text>
             ))}
             {frame.texts.map((t) => (
-              <text
+              <g
                 key={`t-${t.id}`}
-                x={t.x}
-                y={t.y}
-                textAnchor="middle"
-                className="stereo-label planim-mark-text"
+                className="planim-mark-tex"
+                data-x={t.x}
+                data-y={t.y}
                 opacity={t.ghost ? GHOST : 1}
-                style={{ fontStyle: t.italic ? 'italic' : 'normal', fontSize: t.size }}
-              >
-                {t.text}
-              </text>
+                // подпись — формулой (дробь, корень…): utils/drawingLabel
+                dangerouslySetInnerHTML={{ __html: drawingLabelSvg(t.raw, t.x, t.by, { size: t.size, color: PLANIM_COLORS.label, halo: true }) }}
+              />
             ))}
           </>
         )}

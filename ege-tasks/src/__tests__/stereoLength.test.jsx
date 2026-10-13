@@ -43,7 +43,7 @@ describe('подпись длины: разбор', () => {
     expect(lengthLabelText('sqrt17')).toBe('√17');
     expect(lengthLabelText('корень из 17')).toBe('√17');
     expect(lengthLabelText('2\\sqrt{3}')).toBe('2√3');
-    expect(lengthLabelText('\\frac{a}{2}')).toBe('a/2');
+    expect(lengthLabelText('\\frac{a}{2}')).toBe('\\frac{a}{2}'); // дробь — столбиком, формулой
     expect(lengthLabelText('\\pi')).toBe('π');
   });
 
@@ -117,7 +117,7 @@ describe('подпись длины: чертёж', () => {
     // от центра тела подпись дальше, чем середина ребра
     expect(Math.hypot(t.x - c.x, t.y - c.y)).toBeGreaterThan(Math.hypot(mid.x - c.x, mid.y - c.y));
     const svg = stereoSvgString(fr, { mono: true });
-    expect(svg).toContain('>4</tspan>');
+    expect(svg).toMatch(/font-family="KaTeX_Main[^"]*"[^>]*>4<\/text>/);
     expect(contentBox(fr).w).toBeGreaterThan(0);
   });
 
@@ -132,7 +132,9 @@ describe('подпись длины: чертёж', () => {
       { text: '3', italic: false, over: true },
     ]);
     const svg = stereoSvgString(renderStereo(evaluateScene(build(['подпись AC 4√2'])), DEFAULT_CAMERA, VP));
-    expect(svg).toContain('text-decoration="overline"');
+    // знак корня с чертой — линией (<path>), а не символом с подчёркиванием
+    expect(svg).toMatch(/<path d="M[^"]*" fill="none"[^>]*\/>/);
+    expect(svg).toMatch(/>2<\/text>/);
   });
 
   it('стрелка — выносные линии, размерная и стрелки; в клик не попадают', () => {

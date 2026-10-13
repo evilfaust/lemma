@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Input, Modal, Space } from 'antd';
-import { formatMarkText } from '../../utils/planim';
+import { measureDrawingLabel, drawingLabelSvg } from '../../utils/drawingLabel';
 
 const KIND_TITLE = {
   text: 'Надпись',
@@ -8,7 +8,7 @@ const KIND_TITLE = {
   angle: 'Подпись угла',
 };
 
-const QUICK = ['°', 'α', 'β', 'γ', 'φ', '√', '∥', '⊥', '?'];
+const QUICK = ['°', 'α', 'β', 'γ', 'φ', '√', '∥', '⊥', '?', '\\frac{}{}', '_{}', '^{}'];
 
 /**
  * Подпись на чертеже: новая надпись или правка готовой (надпись, «длина»,
@@ -27,7 +27,6 @@ export default function PlanimMarkTextModal({
 
   const kind = target?.kind || 'text';
   const create = !!target?.create;
-  const preview = formatMarkText(value);
   // Пустая подпись у угла — просто дуга без текста; у надписи и «длины» —
   // такого шага нет, поэтому пустое поле при правке означает «удалить».
   const emptyRemoves = !create && kind !== 'angle';
@@ -67,8 +66,8 @@ export default function PlanimMarkTextModal({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onPressEnter={apply}
-        maxLength={40}
-        placeholder={kind === 'angle' ? '60, α, ?' : '6, x, sqrt(3), 60°, a ∥ b'}
+        maxLength={120}
+        placeholder={kind === 'angle' ? '60, α, \\frac{\\pi}{3}, ?' : '6, x, a/2, \\sqrt{3}, a_1, a ∥ b'}
         aria-label="Текст подписи"
         style={{ fontFamily: "'Times New Roman', serif", fontSize: 18 }}
         onFocus={(e) => e.target.select()}
@@ -80,14 +79,30 @@ export default function PlanimMarkTextModal({
       </Space>
       <div className="stereo-cmd-help" style={{ marginTop: 8 }}>
         {value.trim()
-          ? <>На чертеже: <b style={{ fontFamily: "'Times New Roman', serif", fontSize: 16 }}>{preview}</b></>
+          ? <>На чертеже: <LabelPreview text={value} /></>
           : emptyRemoves
             ? 'Пустая подпись — шаг удалится'
-            : '«sqrt(3)» станет √3, «альфа» — α; число у угла получит знак градуса.'}
+            : 'Формулой, как в условии: \\frac{a}{2} или a/2 — дробь, \\sqrt{3} или sqrt(3) — корень, a_1, \\alpha или «альфа»; число у угла получит знак градуса.'}
       </div>
       <div className="stereo-cmd-help" style={{ marginTop: 4 }}>
         Подпись на чертеже можно перетащить мышью.
       </div>
     </Modal>
+  );
+}
+
+/** Подпись так, как она встанет на чертёж (формулой). */
+function LabelPreview({ text }) {
+  const m = measureDrawingLabel(text, 18);
+  const w = Math.ceil(m.width) + 8;
+  const h = Math.ceil(m.ascent + m.descent) + 6;
+  return (
+    <svg
+      className="planim-label-preview"
+      width={w}
+      height={h}
+      style={{ verticalAlign: 'middle' }}
+      dangerouslySetInnerHTML={{ __html: drawingLabelSvg(text, w / 2, 3 + m.ascent, { size: 18 }) }}
+    />
   );
 }

@@ -144,10 +144,13 @@ describe('подписи пометок: редактор', () => {
       fireEvent.pointerUp(svg, ev(500, 80));
     });
     fireEvent.change(await screen.findByLabelText('Текст подписи'), { target: { value: 'sqrt(3)' } });
-    expect(screen.getByText('√3')).toBeTruthy(); // предпросмотр
+    expect(document.querySelector('.planim-label-preview path')).toBeTruthy(); // предпросмотр: корень формулой
     await act(async () => { fireEvent.click(screen.getByText('Поставить')); });
     expect(screen.getByText('Надпись «sqrt(3)»')).toBeTruthy();
-    expect([...svg.querySelectorAll('.planim-mark-text')].map((t) => t.textContent)).toContain('√3');
+    // √3 — формулой: знак корня линией, под ним «3»
+    const tex = [...svg.querySelectorAll('.planim-mark-tex')];
+    // (подложка — тот же текст белым, поэтому «33»)
+    expect(tex.some((g) => /^3+$/.test(g.textContent) && g.querySelector('path'))).toBe(true);
   });
 
   it('подпись тянется мышью в любом инструменте, двойной клик — правка', async () => {
@@ -163,9 +166,9 @@ describe('подписи пометок: редактор', () => {
       fireEvent.pointerMove(svg, ev(to.x, to.y));
       fireEvent.pointerUp(svg, ev(to.x, to.y));
     });
-    const moved = [...svg.querySelectorAll('.planim-mark-text')].find((n) => n.textContent === '2');
-    expect(Number(moved.getAttribute('x'))).toBeCloseTo(to.x, 0);
-    expect(Number(moved.getAttribute('y')) - 5).toBeCloseTo(to.y, 0);
+    const moved = [...svg.querySelectorAll('.planim-mark-tex')].find((n) => /^2+$/.test(n.textContent));
+    expect(Number(moved.getAttribute('data-x'))).toBeCloseTo(to.x, 0);
+    expect(Number(moved.getAttribute('data-y')) - 5).toBeCloseTo(to.y, 0);
 
     await act(async () => { fireEvent.doubleClick(svg, { clientX: to.x, clientY: to.y }); });
     const input = await screen.findByLabelText('Текст подписи');
