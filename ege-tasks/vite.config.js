@@ -1,13 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
-import { readFileSync } from 'fs'
+import { buildMeta, defineFromMeta, versionJsonPlugin } from './scripts/buildMeta.mjs'
 
-const rootPkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf-8'))
-const localPkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf-8'))
-const appVersion = rootPkg.version || localPkg.version || '0.0.0'
-const buildId = process.env.EGE_BUILD_ID || new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
-const buildDate = new Date().toISOString()
+// Номер сборки один на код и version.json — см. scripts/buildMeta.mjs.
+const meta = buildMeta({ appDir: __dirname })
 
 // https://vitejs.dev/config/
 // Dev-only: SPA fallback rewrites
@@ -28,12 +25,8 @@ const spaRewritePlugin = {
 };
 
 export default defineConfig({
-  plugins: [react(), spaRewritePlugin],
-  define: {
-    __APP_VERSION__: JSON.stringify(appVersion),
-    __BUILD_ID__: JSON.stringify(buildId),
-    __BUILD_DATE__: JSON.stringify(buildDate),
-  },
+  plugins: [react(), spaRewritePlugin, versionJsonPlugin(meta)],
+  define: defineFromMeta(meta),
   resolve: {
     alias: {
       '@shared': resolve(__dirname, 'src/shared'),

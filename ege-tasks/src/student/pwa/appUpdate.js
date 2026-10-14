@@ -6,7 +6,8 @@
  * всегда приходит с сервера, поэтому ЛЮБОЙ перезапуск страницы даёт свежую
  * версию. Остаётся одна беда установленного приложения: его не перезапускают
  * неделями — телефон держит открытую страницу в памяти. Поэтому страница сама
- * спрашивает `/version.json` (его пишет `scripts/write-version-json.mjs`) и
+ * спрашивает `/version.json` (его кладёт в сборку `scripts/buildMeta.mjs` — с тем
+ * же номером сборки, что зашит в код) и
  * перезапускается в момент, когда это никому не мешает:
  *  • вернулись в приложение (оно было свёрнуто) — перезапуск сразу, человек
  *    только что открыл его и ещё ничего не начал;
@@ -26,10 +27,26 @@ export const STALE_AFTER_MS = 30 * 60 * 1000;
 /** Ключ sessionStorage: под какую версию уже перезапускались (защита от петли). */
 export const RELOADED_FOR_KEY = 'lemma.pwa.reloadedFor';
 
-/** На сервере лежит другая сборка, чем та, что работает сейчас. */
+/** Номер сборки из releaseId «3.9.374-20261014181449» → «20261014181449». */
+const stampOf = (releaseId) => {
+  const m = /-(\d{14})$/.exec(String(releaseId || ''));
+  return m ? m[1] : null;
+};
+
+/**
+ * На сервере сборка НОВЕЕ той, что работает сейчас. Только «другая» — мало
+ * (v3.9.375): устаревший или откатанный version.json (кэш по дороге, деплой
+ * назад) не должен звать ученика «обновиться». Номера сборок — время
+ * ГГГГММДДччммсс, сравниваются как строки; нестандартный номер (EGE_BUILD_ID)
+ * — по-старому, просто «другой».
+ */
 export function isNewRelease(remote, currentReleaseId) {
   const id = remote?.releaseId;
-  return typeof id === 'string' && id !== '' && id !== currentReleaseId;
+  if (typeof id !== 'string' || id === '' || id === currentReleaseId) return false;
+  const remoteStamp = stampOf(id);
+  const currentStamp = stampOf(currentReleaseId);
+  if (remoteStamp && currentStamp) return remoteStamp > currentStamp;
+  return true;
 }
 
 /**

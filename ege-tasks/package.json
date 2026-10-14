@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/write-version-json.mjs",
+    "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
