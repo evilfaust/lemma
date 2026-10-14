@@ -7,6 +7,7 @@ import TdfText from './TdfText';
 import MathText from '../shared/MathText';
 import PrintFill from '../shared/PrintFill';
 import TDFSheetSettings from './TDFSheetSettings';
+import HeadEditable from './HeadEditable';
 import { tdfTypeShort } from './tdfTypes';
 import { printPaged } from '../../utils/printPage';
 import {
@@ -15,11 +16,20 @@ import {
   normalizeTdfSheetSettings, pluralRu, paginateRows, parseFormulas,
   readTdfSheetSettings, splitIntoPages, stretchRowHeights, writeTdfSheetSettings,
 } from '../../utils/tdfSheet';
+import {
+  defaultSheetHead, hasHeadOverrides, isHeadFieldEdited, patchSheetHead,
+  readSheetHead, resetSheetHead, resolveSheetHead, writeSheetHead,
+} from '../../utils/tdfSheetHead';
 import './TDFPrintView.css';
 
 const FOOT_MM = 7;          // резерв под колонтитул и поле оценки
 const CELL_PAD_MM = 3;      // вертикальные поля ячейки (1.5 мм сверху и снизу)
 const FORMULA_WORDS = ['формулу', 'формулы', 'формул'];
+// Подписи для кнопок «Вернуть: …» у строк шапки, которые учитель стёр.
+const HEAD_FIELD_NAMES = {
+  kind: 'надзаголовок', title: 'название', variant: 'вариант',
+  fioLabel: '«Фамилия, имя»', dateLabel: '«Дата»', note: 'инструкцию',
+};
 
 /**
  * Печатный лист ТДФ: эталонный конспект (`mode="etalon"`) и бланк устного
@@ -51,6 +61,41 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
       return next;
     });
   }, []);
+
+  // Шапка листа правится прямо на листе; правки — по набору и виду листа.
+  const setId = tdfSet?.id;
+  const [headEdits, setHeadEdits] = useState(() => readSheetHead(setId, mode));
+  useEffect(() => { setHeadEdits(readSheetHead(setId, mode)); }, [setId, mode]);
+  const headDefaults = defaultSheetHead({
+    mode, tdfSet, variantNumber, variantTitle,
+    columns: {
+      formulation: settings.showFormulation,
+      drawing: settings.showDrawing,
+      notation: settings.showNotation,
+    },
+  });
+  const head = resolveSheetHead(headDefaults, headEdits, variantNumber);
+  const commitHead = (field) => (value) => {
+    setHeadEdits(prev => {
+      const next = patchSheetHead(prev, field, value, headDefaults, variantNumber);
+      writeSheetHead(setId, mode, next);
+      return next;
+    });
+  };
+  const resetHead = () => {
+    const next = resetSheetHead(headEdits, variantNumber);
+    writeSheetHead(setId, mode, next);
+    setHeadEdits(next);
+  };
+  const restoreHeadField = (field) => commitHead(field)(headDefaults[field]);
+  const showsField = (f) => {
+    if (f === 'variant') return isBlank || isKey;
+    if (f === 'fioLabel' || f === 'dateLabel') return isBlank && settings.showFio;
+    if (f === 'note') return isBlank;
+    return true;
+  };
+  const hiddenHeadFields = Object.keys(HEAD_FIELD_NAMES)
+    .filter(f => showsField(f) && !head[f] && headDefaults[f]);
 
   const measureRef = useRef(null);
   const headRef = useRef(null);
@@ -87,7 +132,8 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
     settings.showFooter,
     settings.showScore,
     settings.pages,
-  ].join('|'), [items, mode, orientation, settings]);
+    JSON.stringify(head),
+  ].join('|'), [items, mode, orientation, settings, head]);
 
   // Перемер после загрузки шрифтов и чертежей.
   useEffect(() => {
@@ -174,49 +220,51 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
 
   const colCount = 1 + [sheet.showFormulation, sheet.showDrawing, sheet.showNotation].filter(Boolean).length;
 
-  const sheetHead = (refCb) => (
-    <div className="tdfp-head" ref={refCb}>
-      <div className="tdfp-head__top">
-        <div>
-          <div className="tdfp-head__kind">
-            {isBlank ? 'Устный опрос' : isKey ? 'Ключ учителя' : 'Эталонный конспект'}
+  /** `editable` — шапка на листе (щелчок правит); в measure-зоне — просто текст. */
+  const sheetHead = (refCb, editable = false) => {
+    const ed = (field, opts = {}) => (
+      <HeadEditable
+        value={head[field]}
+        onCommit={editable ? commitHead(field) : undefined}
+        edited={isHeadFieldEdited(headEdits, field, variantNumber)}
+        {...opts}
+      />
+    );
+    return (
+      <div className="tdfp-head" ref={refCb}>
+        <div className="tdfp-head__top">
+          <div className="tdfp-head__main">
+            {head.kind && <div className="tdfp-head__kind">{ed('kind')}</div>}
+            {head.title && <div className="tdfp-head__title">{ed('title')}</div>}
           </div>
-          <div className="tdfp-head__title">
-            {tdfSet?.title}
-            {tdfSet?.class_number ? ` · ${tdfSet.class_number} класс` : ''}
-          </div>
+          {(isBlank || isKey) && head.variant && (
+            <div className="tdfp-head__variant">{ed('variant')}</div>
+          )}
         </div>
-        {(isBlank || isKey) && (
-          <div className="tdfp-head__variant">
-            Вариант {variantNumber}{variantTitle ? ` — ${variantTitle}` : ''}
+
+        {isBlank && settings.showFio && (head.fioLabel || head.dateLabel) && (
+          <div className="tdfp-head__fields">
+            {head.fioLabel && (
+              <div className="tdfp-head__field">
+                <span>{ed('fioLabel')}</span>
+                <span className="tdfp-head__field-line" />
+              </div>
+            )}
+            {head.dateLabel && (
+              <div className="tdfp-head__field tdfp-head__field--date">
+                <span>{ed('dateLabel')}</span>
+                <span className="tdfp-head__field-line" />
+              </div>
+            )}
           </div>
         )}
+
+        {isBlank && head.note && (
+          <div className="tdfp-head__note">{ed('note', { multiline: true })}</div>
+        )}
       </div>
-
-      {isBlank && settings.showFio && (
-        <div className="tdfp-head__fields">
-          <div className="tdfp-head__field">
-            <span>Фамилия, имя</span>
-            <span className="tdfp-head__field-line" />
-          </div>
-          <div className="tdfp-head__field tdfp-head__field--date">
-            <span>Дата</span>
-            <span className="tdfp-head__field-line" />
-          </div>
-        </div>
-      )}
-
-      {isBlank && (
-        <div className="tdfp-head__note">
-          Заполните таблицу по памяти: {[
-            sheet.showFormulation && 'формулировка',
-            sheet.showDrawing && 'чертёж',
-            sheet.showNotation && 'краткая запись',
-          ].filter(Boolean).join(', ')}.
-        </div>
-      )}
-    </div>
-  );
+    );
+  };
 
   const tableHead = (
     <thead className="tdfp-thead">
@@ -434,6 +482,26 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
         <div className="tdfp-toolbar__row">
           <TDFSheetSettings settings={settings} patch={patch} isBlank={isBlank} geoMode={geoMode} />
         </div>
+        {!geoMode && (
+          <div className="tdfp-toolbar__row tdfp-toolbar__head">
+            <span className="tdfp-toolbar__hint">
+              Шапку можно править прямо на листе — щёлкните по тексту. Пустая строка не печатается.
+            </span>
+            {hiddenHeadFields.length > 0 && (
+              <span className="tdfp-toolbar__hint">
+                Вернуть:{' '}
+                {hiddenHeadFields.map(f => (
+                  <Button key={f} size="small" type="link" onClick={() => restoreHeadField(f)}>
+                    {HEAD_FIELD_NAMES[f]}
+                  </Button>
+                ))}
+              </span>
+            )}
+            {hasHeadOverrides(headEdits) && (
+              <Button size="small" onClick={resetHead}>Сбросить шапку</Button>
+            )}
+          </div>
+        )}
         {geoMode && (
           <div className="tdfp-toolbar__hint">
             Вариант целиком из геометрических формул — печатается компактными полосками: чертёж и место для формулы.
@@ -463,7 +531,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
         ) : pages ? (
           pages.map((pageItems, pageIdx) => (
             <div key={pageIdx} className={pageClass}>
-              {pageIdx === 0 && sheetHead()}
+              {pageIdx === 0 && sheetHead(undefined, true)}
               <table className="tdfp-table">
                 {colgroup}
                 {tableHead}

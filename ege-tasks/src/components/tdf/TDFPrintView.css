@@ -120,6 +120,7 @@
   justify-content: space-between;
   gap: 4mm;
 }
+.tdfp-head__main { flex: 1; min-width: 0; }
 .tdfp-head__title {
   font-size: 12pt;
   font-weight: 700;
@@ -155,7 +156,39 @@
   margin-top: 2.5mm;
   font-size: 8.5pt;
   line-height: 1.35;
+  white-space: pre-line;
 }
+
+/* Правка шапки на листе: подсказка только на экране, в печати — просто текст. */
+.tdfp-edit {
+  cursor: text;
+  border-radius: 1mm;
+  outline: 1px dashed transparent;
+  outline-offset: 0.6mm;
+  transition: outline-color 0.15s, background-color 0.15s;
+}
+.tdfp-edit:hover,
+.tdfp-edit:focus-visible { outline-color: #9AA3B2; background: #F3F5F8; }
+.tdfp-edit--edited { outline-color: #C7CDD8; }
+.tdfp-edit-input {
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 0.6mm;
+  border: 1px solid #3B6FE0;
+  border-radius: 1mm;
+  background: #fff;
+  outline: none;
+  resize: none;
+  line-height: inherit;
+}
+.tdfp-head__variant .tdfp-edit-input { width: 40mm; text-align: right; }
+.tdfp-head__field > span:first-child .tdfp-edit-input { width: 32mm; }
+.tdfp-toolbar__head { gap: 8px; flex-wrap: wrap; }
 
 /* ── Таблица пунктов ──────────────────────────────────────────────────────── */
 
@@ -320,6 +353,9 @@
 /* ── Печать ───────────────────────────────────────────────────────────────── */
 
 @media print {
+  .tdfp-edit,
+  .tdfp-edit--edited { outline: none !important; background: none !important; }
+
   /* Поля задаёт printPaged; :left/:right нужны отдельно — иначе Chrome
      добавляет собственные поля чётным и нечётным страницам. */
   @page { margin: 0; }
