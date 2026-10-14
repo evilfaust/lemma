@@ -337,6 +337,8 @@ export const worksApi = {
 
   // Получить все варианты работы
   async getVariantsByWork(workId) {
+    // Пустой id нашёл бы варианты без работы — остатки удалённых работ
+    if (!workId) return [];
     try {
       const records = await pb.collection('variants').getFullList({
         filter: `work = "${escapeFilter(workId)}"`,

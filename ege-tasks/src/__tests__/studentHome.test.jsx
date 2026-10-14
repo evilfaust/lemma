@@ -92,6 +92,20 @@ describe('попытки', () => {
     expect(unfinishedAttempts(list, NOW)).toHaveLength(1);
   });
 
+  it('попытка, выданная учителем после сдачи, — в «недорешённых» и без «Нескольких попыток»', () => {
+    const list = [
+      attempt('old', 's1', 'submitted', { ...session('Тест'), created: at('2026-10-05T10:00:00') }),
+      attempt('new', 's1', 'started', { ...session('Тест'), created: at('2026-10-06T10:00:00') }),
+    ];
+    expect(unfinishedAttempts(list, NOW).map((u) => u.sessionId)).toEqual(['s1']);
+    // А висящая старая попытка при более поздней сдаче — по-прежнему мимо
+    const stale = [
+      attempt('hang', 's2', 'started', { ...session('Тест'), created: at('2026-10-05T10:00:00') }),
+      attempt('done', 's2', 'submitted', { ...session('Тест'), created: at('2026-10-06T10:00:00') }),
+    ];
+    expect(unfinishedAttempts(stale, NOW)).toHaveLength(0);
+  });
+
   it('последние результаты: свежие сверху, одна на выдачу, с процентом', () => {
     const list = [
       attempt('a1', 's1', 'submitted', { ...session('Старая'), score: 3, total: 10, submitted_at: at('2026-10-01T10:00:00') }),
@@ -131,6 +145,22 @@ describe('Сделать', () => {
     expect(rows.map((r) => r.title)).toEqual(['Производная', 'Уже сдал']);
     expect(rows[0]).toMatchObject({ done: false, dueLabel: 'к уроку пт, 9 окт.' });
     expect(rows[1]).toMatchObject({ done: true, dueLabel: 'задано вчера' });
+  });
+
+  it('учитель выдал новую попытку — ДЗ снова не сдано', () => {
+    const list = [
+      lesson('l1', '2026-10-06T10:15:00', {
+        items: [{ role: 'homework', kind: 'work', title: 'Тест', session_id: 's1' }],
+      }),
+    ];
+    const atts = [
+      attempt('a1', 's1', 'submitted', { created: at('2026-10-06T10:00:00') }),
+      attempt('a2', 's1', 'started', { created: at('2026-10-06T11:00:00') }),
+    ];
+    expect(todoList(list, atts, NOW)[0].done).toBe(false);
+    // Новая попытка сдана — снова сделано
+    atts[1].status = 'submitted';
+    expect(todoList(list, atts, NOW)[0].done).toBe(true);
   });
 
   it('ДЗ к будущему уроку видно сразу — со сроком «к уроку»', () => {

@@ -116,6 +116,40 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
   const hasAchievement = achievementsEnabled && !!resolvedAchievement;
   const hasUnlockedAchievements = achievementsEnabled && resolvedUnlocked.length > 0;
 
+  // Попытки и «Пройти ещё раз» — общие для обычного результата и закрытого.
+  const attemptsBlock = retryEnabled && (
+    <div className="srp-attempts">
+      <div className="srp-attempts-row">
+        <span className="srp-attempts-label">
+          Попытка <b>{attemptsUsed}</b> из {maxAttempts}
+        </span>
+        <span className={`srp-attempts-left ${attemptsLeft > 0 ? '' : 'srp-attempts-left--empty'}`}>
+          {attemptsLeft > 0 ? `осталось ${attemptsLeft}` : 'попытки закончились'}
+        </span>
+      </div>
+      <div className="srp-dots">
+        {Array.from({ length: maxAttempts }, (_, i) => (
+          <span
+            key={i}
+            className={`srp-dot ${i < attemptsUsed ? 'srp-dot--used' : 'srp-dot--free'}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+  const retryButton = canRetry && (
+    <Button
+      type="primary"
+      size="large"
+      block
+      loading={retrying}
+      onClick={handleRetry}
+      className="srp-retry-btn"
+    >
+      Пройти ещё раз
+    </Button>
+  );
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: 60 }}>
@@ -139,6 +173,14 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
             Ответы приняты. {HIDDEN_RESULTS_NOTE}
           </div>
         </div>
+        {/* Попытки — и при закрытых результатах (без баллов и зачёта):
+            до v3.9.368 здесь пропадала кнопка «Пройти ещё раз». */}
+        {retryEnabled && (
+          <div className="srp-status srp-status--neutral">
+            {attemptsBlock}
+            {retryButton}
+          </div>
+        )}
       </div>
     );
   }
@@ -209,40 +251,9 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
               </div>
             )}
 
-            {/* Попытки */}
-            {retryEnabled && (
-              <div className="srp-attempts">
-                <div className="srp-attempts-row">
-                  <span className="srp-attempts-label">
-                    Попытка <b>{attemptsUsed}</b> из {maxAttempts}
-                  </span>
-                  <span className={`srp-attempts-left ${attemptsLeft > 0 ? '' : 'srp-attempts-left--empty'}`}>
-                    {attemptsLeft > 0 ? `осталось ${attemptsLeft}` : 'попытки закончились'}
-                  </span>
-                </div>
-                <div className="srp-dots">
-                  {Array.from({ length: maxAttempts }, (_, i) => (
-                    <span
-                      key={i}
-                      className={`srp-dot ${i < attemptsUsed ? 'srp-dot--used' : 'srp-dot--free'}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            {attemptsBlock}
 
-            {canRetry && (
-              <Button
-                type="primary"
-                size="large"
-                block
-                loading={retrying}
-                onClick={handleRetry}
-                className="srp-retry-btn"
-              >
-                Пройти ещё раз
-              </Button>
-            )}
+            {retryButton}
           </div>
         );
       })()}

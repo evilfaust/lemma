@@ -97,11 +97,32 @@ const attemptDate = (a) => a?.submitted_at || a?.updated || a?.created;
  * Недорешённые тесты: попытка начата, выдача ещё открыта, не старше двух недель.
  * → [{ sessionId, title, started }] — по одной на выдачу, свежие сверху.
  */
+const isSubmitted = (a) => a.status === 'submitted' || a.status === 'corrected';
+
+/** Выдача → время последней сданной попытки (мс). */
+function lastSubmittedBySession(attempts) {
+  const map = new Map();
+  for (const a of attempts || []) {
+    if (!isSubmitted(a) || !a.session) continue;
+    const t = new Date(a.created).getTime();
+    if (!(map.get(a.session) >= t)) map.set(a.session, t);
+  }
+  return map;
+}
+
+/**
+ * Начатая попытка новее последней сданной — это новая попытка (учитель выдал
+ * вручную «Другой вариант» или ученик нажал «Пройти ещё раз»), а не висящая
+ * старая. По ссылке выдачи ученик попадёт именно в неё.
+ */
+function startedAfterSubmit(a, lastSubmitted) {
+  const t = lastSubmitted.get(a.session);
+  return t === undefined || new Date(a.created).getTime() > t;
+}
+
 export function unfinishedAttempts(attempts, now = dayjs()) {
   const edge = dayjs(now).subtract(UNFINISHED_DAYS, 'day');
-  const done = new Set((attempts || [])
-    .filter((a) => a.status === 'submitted' || a.status === 'corrected')
-    .map((a) => a.session));
+  const lastSubmitted = lastSubmittedBySession(attempts);
   const seen = new Set();
   const out = [];
   const list = [...(attempts || [])].sort((a, b) => new Date(b.created) - new Date(a.created));
@@ -109,8 +130,10 @@ export function unfinishedAttempts(attempts, now = dayjs()) {
     if (a.status !== 'started' || !a.session || seen.has(a.session)) continue;
     if (a.expand?.session?.is_open === false) continue;
     if (dayjs(a.created).isBefore(edge)) continue;
-    // Уже сдал эту выдачу другой попыткой — висящая попытка не дело.
-    if (done.has(a.session) && !(a.expand?.session?.max_attempts > 1)) continue;
+    // Уже сдал эту выдачу позже — висящая старая попытка не дело. Попытка,
+    // начатая ПОСЛЕ сдачи, — новая (до v3.9.368 её прятали, если у выдачи не
+    // было «Нескольких попыток», и выданную учителем попытку было не найти).
+    if (!startedAfterSubmit(a, lastSubmitted) && !(a.expand?.session?.max_attempts > 1)) continue;
     seen.add(a.session);
     out.push({ sessionId: a.session, title: attemptTitle(a), started: a.created });
   }
@@ -181,9 +204,13 @@ export function itemLink(item) {
  * → [{ key, item, title, kind, link, due, dueLabel, done, groupId }]
  */
 export function todoList(lessons, attempts, now = dayjs()) {
-  const submitted = new Set((attempts || [])
-    .filter((a) => a.status === 'submitted' || a.status === 'corrected')
+  const lastSubmitted = lastSubmittedBySession(attempts);
+  // Сдал, но учитель выдал новую попытку — пункт снова «сделать».
+  const reopened = new Set((attempts || [])
+    .filter((a) => a.status === 'started' && a.session && lastSubmitted.has(a.session)
+      && startedAfterSubmit(a, lastSubmitted))
     .map((a) => a.session));
+  const submitted = new Set([...lastSubmitted.keys()].filter((id) => !reopened.has(id)));
   const t = dayjs(now);
   const rows = homeworkFeed(lessons, t).filter(({ item }) => itemRequired(item)).map(({ item, from, due }, i) => {
     let dueLabel;

@@ -4,6 +4,8 @@ import { shuffleArray } from '../utils/shuffle';
 import { shuffleOptionsWithSeed, hashStringToSeed } from '../utils/distractorGenerator';
 import { isDrillTest, drillStudentTasks, answerModeOf } from '../utils/drillTest';
 
+const MC_VARIANT_MISSING = 'Не удалось открыть вариант теста. Скажи учителю — он выдаст попытку заново.';
+
 // Загрузка задач варианта MC-теста: getTasksByIds + прикрепляем mc_options
 async function loadMCVariantTasks(mcTest, variantNumber, attemptId, deviceId, authStudentId) {
   const variantData = mcTest.variants.find(v => String(v.number) === String(variantNumber));
@@ -68,6 +70,9 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
   // Все попытки текущего ученика/устройства в этой сессии — для подсчёта
   // оставшихся попыток и лучшей попытки (проходной балл).
   const [myAttempts, setMyAttempts] = useState([]);
+  // Вариант попытки теста не найден в самом тесте (попытка выдана с чужим
+  // вариантом) — ученику сообщение вместо вечной загрузки.
+  const [variantError, setVariantError] = useState(null);
 
   const getIssueNumber = useCallback((attemptRecord, attempts = []) => {
     if (!attemptRecord?.id) return 1;
@@ -118,6 +123,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
         setAttempt(null);
         setVariant(null);
         setTasks([]);
+        setVariantError(null);
 
         // Проверить существующую попытку для ЭТОЙ сессии.
         // Для авторизованного студента учитываем и student_id, и device_id
@@ -158,6 +164,8 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
             if (mcVariant) {
               setVariant(mcVariant);
               setTasks(mcTasks);
+            } else {
+              setVariantError(MC_VARIANT_MISSING);
             }
           } else {
             // Обычная работа
@@ -232,7 +240,8 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           const { variant: mcVariant, tasks: mcTasks } = await loadMCVariantTasks(
             mcTest, resolvedAttempt.mc_variant ?? resolvedAttempt.variant, resolvedAttempt.id, deviceId, authStudentId
           );
-          if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); }
+          if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); setVariantError(null); }
+          else setVariantError(MC_VARIANT_MISSING);
         } else {
           const existingVariant = await api.getVariant(resolvedAttempt.variant);
           if (existingVariant) {
@@ -280,7 +289,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           ...newAttempt,
           issueNumber: getIssueNumber(newAttempt, [...allAttemptsAll, newAttempt]),
         });
-        if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); }
+        if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); setVariantError(null); }
         return newAttempt;
       }
 
@@ -423,6 +432,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     tasks,
     loading,
     error,
+    variantError,
     startAttempt,
     startRetry,
     // Попытки и проходной балл

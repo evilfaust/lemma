@@ -3,7 +3,7 @@ import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, 
 import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, TrophyOutlined, FileExcelOutlined } from '@ant-design/icons';
 import { regradeAnswer } from '../../utils/answerChecker';
 import { api } from '../../services/pocketbase';
-import { shuffleArray } from '../../utils/shuffle';
+import { pickRetakeVariant, mcVariantKey } from '../../utils/retakeVariant';
 import MathRenderer from '../MathRenderer';
 import ClassRemediationModal from './ClassRemediationModal';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
@@ -303,69 +303,57 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
           const session = await api.getSession(attemptSessionId);
           if (!session) return;
 
+          const allAttempts = await api.getAttemptsBySession(attemptSessionId);
+          const base = {
+            session: attemptSessionId,
+            student_name: attempt.student_name,
+            device_id: attempt.device_id,
+            student: attempt.student || null, // Копируем student из предыдущей попытки
+            status: 'started',
+            score: 0,
+          };
+
+          // Тест A/B/C/D: записей `variants` у него нет — варианты лежат в
+          // самом тесте, попытка хранит номер в `mc_variant`. Раньше ветки не
+          // было: по пустому `session.work` находились варианты без работы
+          // (остатки удалённых работ), попытка уходила с чужим вариантом, и
+          // ученик вместо теста видел вечную загрузку.
+          if (session.mc_test) {
+            const mcTest = await api.getMCTest(session.mc_test);
+            const mcVariants = mcTest?.variants || [];
+            const number = pickRetakeVariant(
+              mcVariants.map((v) => String(v.number)), allAttempts, attempt, mcVariantKey,
+            );
+            const chosen = mcVariants.find((v) => String(v.number) === number);
+            if (!chosen) {
+              message.error('В тесте нет вариантов');
+              return;
+            }
+            await api.createAttempt({
+              ...base,
+              mc_variant: Number(chosen.number),
+              total: (chosen.tasks || []).length,
+            });
+            message.success(`Ученику ${attempt.student_name} назначен Вариант ${chosen.number}`);
+            loadAttempts();
+            return;
+          }
+
           const allVariants = await api.getVariantsByWork(session.work);
           if (allVariants.length === 0) {
             message.error('В работе нет вариантов');
             return;
           }
 
-          const allAttempts = await api.getAttemptsBySession(attemptSessionId);
-          const assignmentCount = {};
-          allVariants.forEach(v => { assignmentCount[v.id] = 0; });
-          allAttempts.forEach(a => {
-            if (assignmentCount[a.variant] !== undefined) {
-              assignmentCount[a.variant]++;
-            }
-          });
-
-          const variantIds = allVariants.map((v) => v.id);
-          const usedByStudent = new Set(
-            allAttempts
-              .filter((a) => {
-                if (attempt.student) return a.student === attempt.student;
-                if (attempt.device_id) return a.device_id === attempt.device_id;
-                return false;
-              })
-              .map((a) => a.variant)
-              .filter(Boolean)
+          const chosenVariantId = pickRetakeVariant(
+            allVariants.map((v) => v.id), allAttempts, attempt, (a) => a.variant,
           );
-
-          const selectMinAssigned = (ids) => {
-            if (!ids.length) return [];
-            const minCount = Math.min(...ids.map((id) => assignmentCount[id] ?? 0));
-            return ids.filter((id) => (assignmentCount[id] ?? 0) === minCount);
-          };
-
-          // Приоритет:
-          // 1) варианты, которых у ученика еще не было;
-          // 2) если таких нет — любые варианты;
-          // Внутри группы выбираем наименее выданные, затем случайно.
-          let candidates = selectMinAssigned(variantIds.filter((id) => !usedByStudent.has(id)));
-          if (candidates.length === 0) {
-            candidates = selectMinAssigned(variantIds);
-          }
-
-          // Не повторяем текущий вариант, если есть альтернатива.
-          if (candidates.length > 1) {
-            const withoutCurrent = candidates.filter((id) => id !== attempt.variant);
-            if (withoutCurrent.length > 0) {
-              candidates = withoutCurrent;
-            }
-          }
-
-          const shuffled = shuffleArray([...candidates]);
-          const chosenVariantId = shuffled[0];
           const chosenVariant = allVariants.find(v => v.id === chosenVariantId);
 
           const taskList = chosenVariant.expand?.tasks || [];
           await api.createAttempt({
-            session: attemptSessionId,
-            student_name: attempt.student_name,
-            device_id: attempt.device_id,
-            student: attempt.student || null, // Копируем student из предыдущей попытки
+            ...base,
             variant: chosenVariantId,
-            status: 'started',
-            score: 0,
             total: taskList.length,
           });
 

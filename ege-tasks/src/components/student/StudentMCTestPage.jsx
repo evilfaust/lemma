@@ -26,7 +26,7 @@ function wrapOptionText(text) {
  */
 const StudentMCTestPage = ({ studentSession }) => {
   const { message } = App.useApp();
-  const { attempt, setAttempt, variant, tasks, session } = studentSession;
+  const { attempt, setAttempt, variant, tasks, session, variantError } = studentSession;
   const [answers, setAnswers] = useState({}); // { taskId: optionIndex | текст ответа }
   // Тренировка из генератора (v3.9.296): ответы — в attempts.drill_answers;
   // в режиме «Вписать ответ» вместо вариантов — поле ввода
@@ -189,6 +189,14 @@ const StudentMCTestPage = ({ studentSession }) => {
     }
     setSubmitting(false);
   };
+
+  if (variantError && !variant) {
+    return (
+      <div className="student-test">
+        <Text type="danger">{variantError}</Text>
+      </div>
+    );
+  }
 
   if (!variant || !tasks.length) {
     return (
