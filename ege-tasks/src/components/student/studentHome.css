@@ -395,3 +395,15 @@
   color: #4a4f63;
 }
 .student-theme-dark .student-home-guest-code-label { color: #ccc; }
+
+/* Лента ещё грузится (v3.9.373); сама крутилка — `.boot-spinner` из student.html */
+.sh-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+.student-theme-dark .sh-loading { color: #9ca3af; }

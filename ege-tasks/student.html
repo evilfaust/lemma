@@ -25,9 +25,54 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <!--
+      Заставка запуска (v3.9.373): пока грузятся скрипты, у установленного
+      приложения был белый экран — казалось, что оно зависло. Стили и разметка
+      лежат прямо здесь, без бандла: React заменит содержимое #root первым же
+      рендером. Те же классы рисует BootSpinner (src/student/pwa/BootSpinner.jsx)
+      на время загрузки отдельных экранов.
+    -->
+    <style>
+      body { margin: 0; background: #f8f9ff; }
+      html.boot-dark, html.boot-dark body { background: #0d0d1a; }
+      .boot {
+        min-height: 100vh; min-height: 100dvh;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 18px; padding: 24px;
+        background: #f8f9ff;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        color: #6b7280; font-size: 15px;
+      }
+      html.boot-dark .boot { background: #0d0d1a; color: #9ca3af; }
+      .boot--inline { min-height: 50vh; background: transparent !important; }
+      .boot-logo { width: 72px; height: 72px; border-radius: 18px; box-shadow: 0 6px 20px rgba(67, 97, 238, 0.18); }
+      .boot-spinner {
+        width: 34px; height: 34px; border-radius: 50%;
+        border: 3px solid rgba(67, 97, 238, 0.18); border-top-color: #4361ee;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      .boot-spinner--sm { width: 18px; height: 18px; border-width: 2px; }
+      @keyframes boot-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot-spinner { animation-duration: 2.4s; } }
+    </style>
+    <script>
+      // Тёмная тема ученика — до первой отрисовки, иначе заставка мигнёт белым.
+      try {
+        if (localStorage.getItem('student-theme') === 'dark') {
+          document.documentElement.classList.add('boot-dark');
+          document.querySelector('meta[name=theme-color]').content = '#0d0d1a';
+        }
+      } catch (e) { /* приватный режим */ }
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot" role="status" aria-label="Загрузка">
+        <img class="boot-logo" src="/pwa/icon-192.png" alt="" />
+        <div class="boot-spinner"></div>
+        <div>Загружаем Lemma…</div>
+      </div>
+    </div>
     <script type="module" src="/src/student/main.jsx"></script>
   </body>
 </html>

@@ -7,6 +7,7 @@ import { describeOp } from '../../utils/stereo/commands';
 import { sceneOfRoom } from '../../utils/stereo/room';
 import './stereo.css';
 import { CabinetLink } from '../../student/pwa/InstallApp';
+import BootSpinner from '../../student/pwa/BootSpinner';
 
 // Планиметрический чертёж лежит в той же коллекции (kind = 'planim') и
 // открывается по той же ссылке — у него свой холст, грузится только по нужде.
@@ -70,7 +71,7 @@ export default function StudentStereoManual({ id }) {
   const current = step > 0 && model ? model.steps[step - 1] : null;
 
   if (rec?.kind === 'planim') {
-    return <Suspense fallback={null}><StudentPlanimManual rec={rec} /></Suspense>;
+    return <Suspense fallback={<BootSpinner />}><StudentPlanimManual rec={rec} /></Suspense>;
   }
 
   return (

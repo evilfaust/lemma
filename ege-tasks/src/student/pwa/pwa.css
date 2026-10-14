@@ -154,3 +154,36 @@
 }
 .pwa-cabinet-link span { font-size: 18px; line-height: 1; margin-top: -2px; }
 .pwa-cabinet-link--block { margin-bottom: 10px; }
+
+/* ── «Потяни вниз — обновить» (v3.9.373) ─────────────────────────────── */
+.pwa-ptr {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  z-index: 1100;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: #4361ee;
+  font-size: 18px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
+  pointer-events: none;
+}
+.pwa-ptr .anticon { transition: transform 0.15s ease; }
+.pwa-ptr.is-ready { background: #4361ee; color: #fff; }
+.pwa-ptr.is-refreshing { transition: transform 0.2s ease; }
+.pwa-ptr-spin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: pwa-ptr-spin 0.8s linear infinite;
+}
+@keyframes pwa-ptr-spin { to { transform: rotate(360deg); } }
+.student-theme-dark ~ .pwa-ptr,
+html.boot-dark .pwa-ptr:not(.is-ready) { background: #1f2937; color: #8ea2ff; }

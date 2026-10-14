@@ -16,6 +16,8 @@ const blockListeners = new Set();
 const emitBlock = () => blockListeners.forEach((fn) => fn());
 const subscribeBlock = (fn) => { blockListeners.add(fn); return () => blockListeners.delete(fn); };
 const isBlocked = () => blockers > 0;
+/** Сейчас перезапускать нельзя (тест, пароль) — его спрашивает и «потяни — обнови». */
+export const isAppReloadBlocked = isBlocked;
 
 /** Пока компонент на экране (и `active`), приложение само не перезапускается. */
 export function useBlockAppReload(active = true) {

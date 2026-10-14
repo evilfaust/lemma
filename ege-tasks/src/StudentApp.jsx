@@ -70,6 +70,8 @@ import { api } from './services/pocketbase';
 import { useAppUpdate, AppUpdateBanner } from './student/pwa/useAppUpdate';
 import { isCabinetPath } from './student/pwa/appUpdate';
 import { InstallAppCard } from './student/pwa/InstallApp';
+import BootSpinner from './student/pwa/BootSpinner';
+import PullToRefresh from './student/pwa/PullToRefresh';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import StudentHome from './components/student/StudentHome';
 import { summerSeason } from './utils/studentHome';
@@ -352,6 +354,9 @@ function StudentScreens() {
   useEffect(() => {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.content = isDark ? THEME_COLOR.dark : THEME_COLOR.light;
+    // Фон под страницей (видно при оттягивании) — в тон теме; класс ставит
+    // ещё заставка в student.html.
+    document.documentElement.classList.toggle('boot-dark', isDark);
   }, [isDark]);
 
   // Проверить авторизацию при загрузке
@@ -408,7 +413,7 @@ function StudentScreens() {
 
   if (theoryArticleId) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BootSpinner />}>
         <StudentTheoryArticle id={theoryArticleId} />
       </Suspense>
     );
@@ -416,7 +421,7 @@ function StudentScreens() {
 
   if (geoWork) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BootSpinner />}>
         <StudentGeometryWork id={geoWork.id} variant={geoWork.variant} />
       </Suspense>
     );
@@ -424,7 +429,7 @@ function StudentScreens() {
 
   if (shownWork) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BootSpinner />}>
         <StudentWorkShow id={shownWork.id} variant={shownWork.variant} />
       </Suspense>
     );
@@ -432,7 +437,7 @@ function StudentScreens() {
 
   if (manualId) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BootSpinner />}>
         <StudentStereoManual id={manualId} />
       </Suspense>
     );
@@ -440,14 +445,14 @@ function StudentScreens() {
 
   if (stereoCode) {
     return (
-      <Suspense fallback={null}>
+      <Suspense fallback={<BootSpinner />}>
         <StudentStereoBoard code={stereoCode} />
       </Suspense>
     );
   }
 
   if (currentView === 'loading') {
-    return null; // Или спиннер
+    return <BootSpinner />;
   }
 
   const antdTheme = {
@@ -606,6 +611,7 @@ function StudentApp() {
     <>
       <StudentScreens />
       <AppUpdateBanner update={update} />
+      <PullToRefresh />
     </>
   );
 }

@@ -234,6 +234,15 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
 
       <InstallAppCard />
 
+      {/* Пока едут уроки и попытки, лента пуста — без крутилки казалось, что
+          у ученика ничего нет или приложение зависло (v3.9.373). */}
+      {loading && (
+        <div className="sh-loading" role="status">
+          <span className="boot-spinner boot-spinner--sm" aria-hidden />
+          Загружаем уроки и результаты…
+        </div>
+      )}
+
       {hasNow && (
         <Section title="Сейчас">
           <div className="sh-now">
