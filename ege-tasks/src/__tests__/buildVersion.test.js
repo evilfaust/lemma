@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
-import { buildMeta, defineFromMeta, versionJson, versionJsonPlugin } from '../../scripts/buildMeta.mjs';
+import { buildMeta, defineFromMeta, versionJson, versionJsonPlugin } from '../../buildMeta.mjs';
 import { isNewRelease } from '../student/pwa/appUpdate';
 
 const appDir = resolve(__dirname, '../..');

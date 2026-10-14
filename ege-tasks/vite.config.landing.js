@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
-import { buildMeta, defineFromMeta, versionJsonPlugin } from './scripts/buildMeta.mjs'
+import { buildMeta, defineFromMeta, versionJsonPlugin } from './buildMeta.mjs'
 
-// Номер сборки один на код и version.json — см. scripts/buildMeta.mjs.
+// Номер сборки один на код и version.json — см. buildMeta.mjs.
 const meta = buildMeta({ appDir: __dirname })
 
 // Конфиг только для лендинга — лёгкая сборка без Monaco/antd/student/teacher
