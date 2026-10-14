@@ -20,3 +20,12 @@
   border-left: 0.2pt solid #000;
   pointer-events: none;
 }
+
+/* Светлая: та же волосяная линия, но серым — растр лазерника печатает её
+   вдвое бледнее. Светлее #8a8a8a не делать: на ч/б принтере линия пропадает. */
+.pfill--light .pfill-h { border-top-color: #8a8a8a; }
+.pfill--light .pfill-v { border-left-color: #8a8a8a; }
+
+/* Точки: пунктир из мелких серых точек — клетка видна, но не спорит с почерком. */
+.pfill--dots .pfill-h { border-top: 0.6pt dotted #8a8a8a; }
+.pfill--dots .pfill-v { border-left: 0.6pt dotted #8a8a8a; }

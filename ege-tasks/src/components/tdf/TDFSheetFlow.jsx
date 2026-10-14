@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Button, Segmented, Space, Switch, Tooltip, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
-import PrintFill from '../shared/PrintFill';
+import PrintFill, { PRINT_FILL_TONE_OPTIONS } from '../shared/PrintFill';
 import MathText from '../shared/MathText';
 import TdfText from './TdfText';
 import { tdfTypeLabel } from './tdfTypes';
@@ -212,7 +212,7 @@ export default function TDFSheetFlow({ tdfSet, items, variantNumber, variantTitl
       const h = spaceMm || 20;
       body = (
         <div className="tdfs-space" style={{ height: `${h}mm` }}>
-          <PrintFill fill={settings.fill} heightMm={h} widthMm={widthMm - 10} />
+          <PrintFill fill={settings.fill} tone={settings.fillTone} heightMm={h} widthMm={widthMm - 10} />
         </div>
       );
     } else {
@@ -303,6 +303,11 @@ export default function TDFSheetFlow({ tdfSet, items, variantNumber, variantTitl
               <Row label="Разлиновка:">
                 <Segmented size="small" value={settings.fill} onChange={v => patch({ fill: v })} options={FILL_OPTIONS} />
               </Row>
+              {settings.fill !== 'blank' && (
+                <Row label="Линии:" hint="Насколько заметна клетка/линейка при печати. Светлая и точки не спорят с почерком.">
+                  <Segmented size="small" value={settings.fillTone} onChange={v => patch({ fillTone: v })} options={PRINT_FILL_TONE_OPTIONS} />
+                </Row>
+              )}
             </>
           )}
         </div>

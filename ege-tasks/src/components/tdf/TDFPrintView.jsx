@@ -282,6 +282,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
     <div className="tdfp-field" style={heightMm ? { height: `${heightMm}mm` } : undefined}>
       <PrintFill
         fill={settings.fill}
+        tone={settings.fillTone}
         heightMm={heightMm || 12}
         widthMm={Math.max(0, columnWidthMm(sheet, column) - 4)}
       />
@@ -329,6 +330,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
               <div className="tdfp-field" style={fieldMm ? { height: `${fieldMm}mm` } : undefined}>
                 <PrintFill
                   fill={settings.fill}
+                  tone={settings.fillTone}
                   heightMm={fieldMm || 12}
                   widthMm={Math.max(0, columnWidthMm(sheet, 'formulation') - 4)}
                 />

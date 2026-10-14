@@ -22,6 +22,7 @@ export const FLOW_DEFAULTS = {
   mode: 'gaps',
   plainItems: 'full',     // пункт без пропусков в бланке: full — целиком, header — место для записи
   fill: 'grid',           // grid | lines | blank — разлиновка места для записи
+  fillTone: 'light',      // light | dots | dark — яркость клетки/линейки (PrintFill)
   spaceFactor: 1.5,       // место для записи = высота эталона × множитель
   font: 'sans',           // sans | serif
   textPt: 12,
@@ -52,6 +53,7 @@ export function normalizeFlowSettings(raw = {}) {
     mode: oneOf(raw.mode, FLOW_MODES, d.mode),
     plainItems: oneOf(raw.plainItems, ['full', 'header'], d.plainItems),
     fill: oneOf(raw.fill, ['grid', 'lines', 'blank'], d.fill),
+    fillTone: oneOf(raw.fillTone, ['light', 'dots', 'dark'], d.fillTone),
     spaceFactor: oneOf(raw.spaceFactor, SPACE_FACTORS, d.spaceFactor),
     font: oneOf(raw.font, ['sans', 'serif'], d.font),
     textPt: oneOf(raw.textPt, TEXT_PT_OPTIONS, d.textPt),

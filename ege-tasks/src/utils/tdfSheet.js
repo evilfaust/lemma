@@ -49,6 +49,7 @@ export const TDF_SHEET_DEFAULTS = {
   showDrawing: true,
   showNotation: true,
   fill: 'grid',            // grid | lines | blank — чем разлинованы поля бланка
+  fillTone: 'light',       // light | dots | dark — яркость клетки/линейки (PrintFill)
   pages: 1,                // бланк: растянуть состав на 1 или 2 листа
   showFio: true,           // строка ФИО/дата (бланк)
   showScore: true,         // «Оценка: ____» в подвале (бланк)
@@ -58,6 +59,7 @@ export const TDF_SHEET_DEFAULTS = {
 
 const ORIENTATIONS = ['landscape', 'portrait'];
 const FILLS = ['grid', 'lines', 'blank'];
+const FILL_TONES = ['light', 'dots', 'dark'];
 
 const bool = (v, fallback) => (typeof v === 'boolean' ? v : fallback);
 const oneOf = (v, list, fallback) => (list.includes(v) ? v : fallback);
@@ -72,6 +74,7 @@ export function normalizeTdfSheetSettings(raw = {}) {
     drawingSize: oneOf(raw.drawingSize, DRAWING_SIZES, d.drawingSize),
     font: oneOf(raw.font, ['sans', 'serif'], d.font),
     fill: oneOf(raw.fill, FILLS, d.fill),
+    fillTone: oneOf(raw.fillTone, FILL_TONES, d.fillTone),
     pages: raw.pages === 2 ? 2 : 1,
     showType: bool(raw.showType, d.showType),
     showFormulation: bool(raw.showFormulation, d.showFormulation),

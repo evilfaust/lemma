@@ -16,6 +16,20 @@ import './printFill.css';
  * вне того движка.
  */
 /**
+ * Яркость линий. По умолчанию — чёткая чёрная волосяная (канон печатного
+ * стека). «Светлая» и «Точки» — для листов, на которых пишут поверх клетки
+ * (бланк ТДФ): чёрная клетка 5 мм под синей ручкой рябит. Серый взят не
+ * светлее #8a8a8a — бледнее ч/б лазерник растром уже не печатает
+ * (#CFCFCF пропадал, см. «Краска только чёрная» в ege-tasks/CLAUDE.md).
+ */
+export const PRINT_FILL_TONES = ['dark', 'light', 'dots'];
+export const PRINT_FILL_TONE_OPTIONS = [
+  { value: 'light', label: 'Светлая' },
+  { value: 'dots', label: 'Точки' },
+  { value: 'dark', label: 'Чёткая' },
+];
+
+/**
  * Сколько линий рисовать. Вынесено чистой функцией: именно счётчики — то
  * место, где ошибка ломает масштаб печати, и именно они покрыты тестами.
  */
@@ -28,13 +42,14 @@ export function fillLineCounts({ fill = 'grid', heightMm = 0, widthMm = 0, cellM
   };
 }
 
-export function PrintFill({ fill = 'grid', heightMm, widthMm, cellMm = 5, lineMm = 8 }) {
+export function PrintFill({ fill = 'grid', heightMm, widthMm, cellMm = 5, lineMm = 8, tone = 'dark' }) {
   if (fill === 'blank' || !heightMm) return null;
+  const cls = `pfill${PRINT_FILL_TONES.includes(tone) && tone !== 'dark' ? ` pfill--${tone}` : ''}`;
 
   if (fill === 'lines') {
     const { h: n } = fillLineCounts({ fill, heightMm, lineMm });
     return (
-      <div className="pfill" aria-hidden="true">
+      <div className={cls} aria-hidden="true">
         {Array.from({ length: n }, (_, i) => (
           <div key={`l${i}`} className="pfill-h" style={{ top: `${(i + 1) * lineMm}mm` }} />
         ))}
@@ -44,7 +59,7 @@ export function PrintFill({ fill = 'grid', heightMm, widthMm, cellMm = 5, lineMm
 
   const { h, v } = fillLineCounts({ fill, heightMm, widthMm: widthMm || 0, cellMm });
   return (
-    <div className="pfill" aria-hidden="true">
+    <div className={cls} aria-hidden="true">
       {Array.from({ length: h }, (_, i) => (
         <div key={`h${i}`} className="pfill-h" style={{ top: `${(i + 1) * cellMm}mm` }} />
       ))}

@@ -1,4 +1,5 @@
 import { Segmented, Space, Switch, Tooltip, Typography } from 'antd';
+import { PRINT_FILL_TONE_OPTIONS } from '../shared/PrintFill';
 
 const { Text } = Typography;
 
@@ -75,6 +76,11 @@ export default function TDFSheetSettings({ settings, patch, isBlank, geoMode }) 
         {isBlank && (
           <Row label="Поле для записи:" hint="Чем разлиновано место, которое заполняет ученик.">
             <Segmented size="small" value={s.fill} onChange={v => patch({ fill: v })} options={FILL_OPTIONS} />
+          </Row>
+        )}
+        {isBlank && s.fill !== 'blank' && (
+          <Row label="Линии:" hint="Насколько заметна клетка/линейка при печати. Светлая и точки не спорят с почерком.">
+            <Segmented size="small" value={s.fillTone} onChange={v => patch({ fillTone: v })} options={PRINT_FILL_TONE_OPTIONS} />
           </Row>
         )}
         {isBlank && (
