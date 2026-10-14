@@ -6,6 +6,7 @@ import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { checkAnswer } from '../../utils/answerChecker';
 import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds, getPreviouslyEarnedBadgeIds } from '../../utils/achievementEngine';
+import { useBlockAppReload } from '../../student/pwa/useAppUpdate';
 
 const { Title, Text } = Typography;
 
@@ -18,6 +19,8 @@ const PB_URL = PB_BASE_URL;
 const StudentTestPage = ({ studentSession }) => {
   const { message } = App.useApp();
   const { attempt, setAttempt, variant, tasks, session } = studentSession;
+  // Идёт тест — установленное приложение само не перезапускается (v3.9.369).
+  useBlockAppReload(attempt?.status === 'started');
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [startTime] = useState(Date.now());

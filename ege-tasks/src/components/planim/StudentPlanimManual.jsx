@@ -3,6 +3,7 @@ import PlanimCanvas from './PlanimCanvas';
 import { evaluateScene } from '../../utils/planim/scene';
 import { describeOp } from '../../utils/planim/commands';
 import '../stereo/stereo.css';
+import { CabinetLink } from '../../student/pwa/InstallApp';
 
 // С какого шага начинать: сама фигура (свободные точки и её контур) видна
 // сразу, листать — построения.
@@ -61,6 +62,7 @@ export default function StudentPlanimManual({ rec }) {
   return (
     <div className="ssb">
       <header className="ssb__head">
+        <CabinetLink />
         <span className="ssb__brand">{rec?.title || 'Lemma · Планиметрия'}</span>
         {total > 0 && <span className="ssb__off">шаг {step} из {total}</span>}
       </header>

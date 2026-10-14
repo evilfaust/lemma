@@ -8,6 +8,7 @@ import {
   roomChanges, interpolateCamera, chaseCamera, sceneOfRoom, isRoomLead,
 } from '../../utils/stereo/room';
 import './stereo.css';
+import { CabinetLink } from '../../student/pwa/InstallApp';
 
 const SEARCH_MS = 4000;
 const POLL_MS = 8000;
@@ -192,6 +193,7 @@ export default function StudentStereoBoard({ code }) {
   return (
     <div className="ssb">
       <header className="ssb__head">
+        <CabinetLink />
         <span className="ssb__brand">Lemma · Стереометрия</span>
         {phase === 'live'
           ? <span className="ssb__live">в эфире</span>

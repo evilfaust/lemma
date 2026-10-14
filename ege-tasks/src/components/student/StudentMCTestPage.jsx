@@ -6,6 +6,7 @@ import { api } from '../../services/pocketbase';
 import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds, getPreviouslyEarnedBadgeIds } from '../../utils/achievementEngine';
 import { gradeDrill } from '../../utils/drillTest';
+import { useBlockAppReload } from '../../student/pwa/useAppUpdate';
 
 const { Title, Text } = Typography;
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -27,6 +28,8 @@ function wrapOptionText(text) {
 const StudentMCTestPage = ({ studentSession }) => {
   const { message } = App.useApp();
   const { attempt, setAttempt, variant, tasks, session, variantError } = studentSession;
+  // Идёт тест — установленное приложение само не перезапускается (v3.9.369).
+  useBlockAppReload(attempt?.status === 'started');
   const [answers, setAnswers] = useState({}); // { taskId: optionIndex | текст ответа }
   // Тренировка из генератора (v3.9.296): ответы — в attempts.drill_answers;
   // в режиме «Вписать ответ» вместо вариантов — поле ввода

@@ -7,6 +7,7 @@ import { stereoSpecFromSvg } from '../../../utils/stereo/dsl';
 import { normalizeStructure, structureTaskIds, variantLabel } from '../../../utils/geometryWork';
 import { variantItems, variantCount } from '../../../utils/geometryWorkLink';
 import './studentGeometryWork.css';
+import { CabinetLink } from '../../../student/pwa/InstallApp';
 
 const pickKey = (id) => `gwork.variant.${id}`;
 const readPick = (id) => {
@@ -99,6 +100,7 @@ export default function StudentGeometryWork({ id, variant: fixed = null }) {
   return (
     <div className="sgw">
       <header className="sgw-head">
+        <CabinetLink className="pwa-cabinet-link--block" />
         <div className="sgw-head__brand">Lemma · Геометрия</div>
         <h1 className="sgw-head__title">{work.title}</h1>
         <div className="sgw-head__meta">

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Dropdown } from 'antd';
 import {
   CheckCircleFilled, ClockCircleOutlined, DownloadOutlined, FileTextOutlined, LinkOutlined,
-  LockOutlined, LogoutOutlined, MoonOutlined, PlayCircleOutlined, ReadOutlined, RightOutlined,
+  LockOutlined, LogoutOutlined, MobileOutlined, MoonOutlined, PlayCircleOutlined, ReadOutlined, RightOutlined,
   SunOutlined, CalendarOutlined, VideoCameraOutlined, FundProjectionScreenOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -14,6 +14,7 @@ import {
 } from '../../utils/studentHome';
 import { useStereoFeed, LiveRoomCards, TeacherMaterials, hasTeacherMaterials } from './StudentStereoFeed';
 import MathRenderer from '../MathRenderer';
+import { InstallAppCard, useInstallAction } from '../../student/pwa/InstallApp';
 import './studentHome.css';
 
 /**
@@ -143,6 +144,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
   const [attempts, setAttempts] = useState(undefined);
   const [now, setNow] = useState(() => dayjs());
   const feed = useStereoFeed();
+  const install = useInstallAction();
 
   useEffect(() => {
     let cancelled = false;
@@ -193,11 +195,13 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
       { key: 'who', label: <span className="sh-menu-who">{student.name}<br /><small>{student.username}</small></span>, disabled: true },
       { type: 'divider' },
       { key: 'password', icon: <LockOutlined />, label: 'Сменить пароль' },
+      ...(install.platform ? [{ key: 'install', icon: <MobileOutlined />, label: 'Установить на телефон' }] : []),
       { key: 'logout', icon: <LogoutOutlined />, label: 'Выйти', danger: true },
     ],
     onClick: ({ key }) => {
       if (key === 'logout') onLogout();
       if (key === 'password') onChangePassword();
+      if (key === 'install') install.start();
     },
   };
 
@@ -227,6 +231,8 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
           </Dropdown>
         </div>
       </header>
+
+      <InstallAppCard />
 
       {hasNow && (
         <Section title="Сейчас">
@@ -342,6 +348,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
       )}
 
       <CodeEntry />
+      {install.modal}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { DEFAULT_CAMERA, clampCamera } from '../../utils/stereo/camera';
 import { describeOp } from '../../utils/stereo/commands';
 import { sceneOfRoom } from '../../utils/stereo/room';
 import './stereo.css';
+import { CabinetLink } from '../../student/pwa/InstallApp';
 
 // Планиметрический чертёж лежит в той же коллекции (kind = 'planim') и
 // открывается по той же ссылке — у него свой холст, грузится только по нужде.
@@ -75,6 +76,7 @@ export default function StudentStereoManual({ id }) {
   return (
     <div className="ssb">
       <header className="ssb__head">
+        <CabinetLink />
         <span className="ssb__brand">{rec?.title || 'Lemma · Стереометрия'}</span>
         {total > 0 && <span className="ssb__off">шаг {step} из {total}</span>}
       </header>

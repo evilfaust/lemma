@@ -1,0 +1,19 @@
+{
+  "id": "/student/",
+  "name": "Lemma — кабинет ученика",
+  "short_name": "Lemma",
+  "description": "Уроки, домашние задания и тесты по математике",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "/student/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f9ff",
+  "theme_color": "#f8f9ff",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

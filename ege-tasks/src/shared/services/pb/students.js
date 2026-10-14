@@ -37,6 +37,23 @@ export const studentsApi = {
     return pb.authStore.isValid && pb.authStore.model?.collectionName === 'students';
   },
 
+  /**
+   * Продлить вход ученика (свежий токен + свежая запись). → запись; null —
+   * вход больше не действует (сброшен); undefined — нет связи, оставляем как есть.
+   */
+  async refreshStudentAuth() {
+    try {
+      const { record } = await pb.collection('students').authRefresh({ requestKey: null });
+      return record;
+    } catch (error) {
+      if ([401, 403, 404].includes(error?.status)) {
+        pb.authStore.clear();
+        return null;
+      }
+      return undefined;
+    }
+  },
+
   // ── Teachers (auth collection, только для superadmin) ─────────────────────
   async getTeachers() {
     try {

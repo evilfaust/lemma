@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Card, Form, Input, Button, Typography, Tabs, App } from 'antd';
 import { UserOutlined, LockOutlined, UserAddOutlined, LoginOutlined, BookOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
+import { useBlockAppReload } from '../../student/pwa/useAppUpdate';
 
 const { Title, Text } = Typography;
 
@@ -13,6 +14,7 @@ const StudentAuthPage = ({ onAuthSuccess, sessionTitle, initialTab = 'login', ca
   const { message } = App.useApp();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
+  useBlockAppReload(); // не терять набранный логин при обновлении
   const [loginForm] = Form.useForm();
   const [registerForm] = Form.useForm();
 

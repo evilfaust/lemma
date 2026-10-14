@@ -46,7 +46,7 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 18px 0 6px;
+  padding: calc(18px + env(safe-area-inset-top)) 0 6px;
 }
 .sh-head-text { min-width: 0; }
 .sh-hello {

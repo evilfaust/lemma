@@ -5,6 +5,7 @@ import { variantTaskIds, pickVariant } from '../../utils/workShowLink';
 // Вёрстка общая со ссылкой на геометрическую работу (/w/<id>) — оба экрана
 // ученик видит одинаково.
 import '../geometry/student/studentGeometryWork.css';
+import { CabinetLink } from '../../student/pwa/InstallApp';
 
 const pickKey = (id) => `workshow.variant.${id}`;
 const readPick = (id) => {
@@ -96,6 +97,7 @@ export default function StudentWorkShow({ id, variant: fixed = null }) {
   return (
     <div className="sgw">
       <header className="sgw-head">
+        <CabinetLink className="pwa-cabinet-link--block" />
         <div className="sgw-head__brand">Lemma · Задания</div>
         <h1 className="sgw-head__title">{work.title}</h1>
         <div className="sgw-head__meta">

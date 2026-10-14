@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { App, Button, Card, Form, Input, Typography } from 'antd';
 import { LockOutlined, SafetyOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
+import { useBlockAppReload } from '../../student/pwa/useAppUpdate';
 
 const { Title, Text } = Typography;
 
@@ -15,6 +16,7 @@ export default function StudentPasswordChange({ student, onDone, onLater, volunt
   const { message } = App.useApp();
   const [form] = Form.useForm();
   const [busy, setBusy] = useState(false);
+  useBlockAppReload(); // не терять набранный пароль при обновлении
 
   const submit = async ({ oldPassword, password }) => {
     setBusy(true);

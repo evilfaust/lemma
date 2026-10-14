@@ -67,7 +67,10 @@ import StudentProgressPage from './components/student/StudentProgressPage';
 import StudentSummerProgram from './components/student/StudentSummerProgram';
 import StudentCoursePortal from './components/student/StudentCoursePortal';
 import { api } from './services/pocketbase';
-import { useVersionSync } from './shared/version/useVersionSync';
+import { useAppUpdate, AppUpdateBanner } from './student/pwa/useAppUpdate';
+import { isCabinetPath } from './student/pwa/appUpdate';
+import { InstallAppCard } from './student/pwa/InstallApp';
+import { isStandalone } from './student/pwa/install';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import StudentHome from './components/student/StudentHome';
 import { summerSeason } from './utils/studentHome';
@@ -270,12 +273,16 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
           На телефоне удобнее навести камеру на QR-код с доски.
         </div>
       </div>
+      <InstallAppCard className="pwa-install--guest" />
       {legal}
     </div>
   );
 }
 
-function StudentApp() {
+// Цвет строки состояния телефона — под тему (в установленном приложении она видна).
+const THEME_COLOR = { light: '#f8f9ff', dark: '#0d0d1a' };
+
+function StudentScreens() {
   // Detect marathon-live route: /student/marathon-live/{marathonId}
   const marathonLiveMatch = useMemo(
     () => window.location.pathname.match(/\/student\/marathon-live\/([^/]+)/),
@@ -341,12 +348,21 @@ function StudentApp() {
     });
   };
 
-  useVersionSync();
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = isDark ? THEME_COLOR.dark : THEME_COLOR.light;
+  }, [isDark]);
 
   // Проверить авторизацию при загрузке
   useEffect(() => {
     if (api.isStudentAuthenticated()) {
       setStudent(api.getAuthStudent());
+      // Продлить вход: установленное приложение открывают неделями без входа,
+      // и без продления токен однажды истёк бы посреди недели (v3.9.369).
+      api.refreshStudentAuth().then((rec) => {
+        if (rec === null) setStudent(null);
+        else if (rec) setStudent(rec);
+      });
     }
     setAuthChecked(true);
   }, []);
@@ -481,6 +497,12 @@ function StudentApp() {
         {currentView !== 'auth' && (
           <div className="student-top-bar">
             <div className="student-top-bar-left">
+              {!showSessionNav && currentView !== 'test' && isStandalone() && (
+                <a className="student-theme-toggle student-top-bar-back" href="/student/" title="Главная">
+                  <HomeOutlined />
+                  <span className="student-top-bar-back-label">Главная</span>
+                </a>
+              )}
               {(currentView === 'gallery' || currentView === 'progress') && (
                 <button
                   className="student-theme-toggle student-top-bar-back"
@@ -551,6 +573,21 @@ function StudentApp() {
         )}
       </div>
     </ConfigProvider>
+  );
+}
+
+/**
+ * Ученическое приложение целиком. Обёртка над экранами — ради обновления на
+ * телефоне (PWA, v3.9.369): проверка версии работает на любом экране, а
+ * плашка «Вышло обновление» не зависит от того, какой экран сейчас открыт.
+ */
+function StudentApp() {
+  const update = useAppUpdate({ refreshOnResume: isCabinetPath(window.location.pathname) });
+  return (
+    <>
+      <StudentScreens />
+      <AppUpdateBanner update={update} />
+    </>
   );
 }
 

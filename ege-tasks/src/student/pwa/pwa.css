@@ -1,0 +1,156 @@
+/* Установленное ученическое приложение (PWA, v3.9.369): плашка обновления,
+   карточка «Установить», инструкция, ссылка «Кабинет». Классы pwa-*. */
+
+/* ── Плашка «Вышло обновление» ── */
+.pwa-update {
+  position: fixed;
+  left: 50%;
+  top: calc(10px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 6px 6px 16px;
+  border-radius: 999px;
+  background: #1a1a2e;
+  color: #fff;
+  font: 500 14px/1.2 Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+  box-shadow: 0 8px 24px rgba(20, 20, 46, 0.28);
+  animation: pwa-drop 0.3s ease-out;
+}
+.pwa-update-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pwa-update-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 14px;
+  background: #4361ee;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pwa-update-close {
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 8px 2px 2px;
+  cursor: pointer;
+}
+@keyframes pwa-drop {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* ── Карточка «Установить» на главной ── */
+.pwa-install {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 10px 0 4px;
+  padding: 10px 8px 10px 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid #e8eaf2;
+  box-shadow: 0 6px 20px rgba(24, 32, 79, 0.07);
+  color: #1a1a2e;
+  text-align: left;
+}
+.pwa-install-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex: none;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.pwa-install-text { flex: 1; min-width: 0; }
+.pwa-install-title { font-weight: 600; font-size: 15px; }
+.pwa-install-sub { font-size: 12.5px; color: #5d6275; margin-top: 1px; }
+.pwa-install-btn {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  background: #4361ee;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.pwa-install-close {
+  flex: none;
+  border: 0;
+  background: none;
+  color: #8b90a3;
+  padding: 6px;
+  cursor: pointer;
+}
+.student-theme-dark .pwa-install {
+  background: rgba(28, 28, 44, 0.92);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  color: #eceef5;
+}
+.student-theme-dark .pwa-install-sub { color: #a9aec0; }
+.student-theme-dark .pwa-install-btn { background: #5b6cf0; }
+
+/* Карточка на странице гостя — под карточкой входа, той же ширины. */
+.pwa-install--guest { width: 100%; max-width: 420px; margin: 16px auto 0; }
+
+/* ── Окно с инструкцией ── */
+.pwa-guide-steps { list-style: none; margin: 4px 0 14px; padding: 0; }
+.pwa-guide-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 8px 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.pwa-guide-num {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(67, 97, 238, 0.12);
+  color: #4361ee;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pwa-guide-share { width: 18px; height: 18px; vertical-align: -3px; color: #2f7bf6; }
+.pwa-guide-note { margin: 0; font-size: 13.5px; color: #5d6275; line-height: 1.45; }
+.pwa-guide-warn {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff7e6;
+  color: #874d00;
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+
+/* ── «‹ Кабинет» в шапках отдельных страниц (только установленное приложение) ── */
+.pwa-cabinet-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 6px;
+  border-radius: 999px;
+  background: rgba(67, 97, 238, 0.1);
+  color: #4361ee;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.pwa-cabinet-link span { font-size: 18px; line-height: 1; margin-top: -2px; }
+.pwa-cabinet-link--block { margin-bottom: 10px; }

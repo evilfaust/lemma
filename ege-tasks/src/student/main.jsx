@@ -5,8 +5,13 @@ import '../App.css'
 import StudentApp from '../StudentApp.jsx'
 import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import { installGlobalErrorHandlers } from '../shared/reportError'
+// Ловит beforeinstallprompt Android — до React, иначе событие можно пропустить.
+import './pwa/install'
+import { registerStudentServiceWorker, installChunkRecovery } from './pwa/register'
 
 installGlobalErrorHandlers()
+installChunkRecovery()
+registerStudentServiceWorker()
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

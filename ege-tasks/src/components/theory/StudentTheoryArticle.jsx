@@ -7,6 +7,7 @@ import './themes.css';
 import './themeSheet.css';
 import './TheoryGeoGebraEmbed.css';
 import './studentTheoryArticle.css';
+import { CabinetLink } from '../../student/pwa/InstallApp';
 
 const formatDate = (iso) => (iso
   ? new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -91,6 +92,7 @@ export default function StudentTheoryArticle({ id }) {
     <div className="sta">
       <article className="sta-article">
         <header className="sta-head">
+          <CabinetLink className="pwa-cabinet-link--block" />
           {cat?.title && (
             <div className="sta-eyebrow" style={cat.color ? { color: cat.color } : undefined}>{cat.title}</div>
           )}
