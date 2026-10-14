@@ -78,6 +78,7 @@ export default function StudentTheoryArticle({ id }) {
     return (
       <div className="sta sta--state">
         <div className="sta-state">
+          <CabinetLink className="pwa-cabinet-link--block" />
           <h1>Статья недоступна</h1>
           <p>Её закрыли или в ссылке ошибка. Попросите у автора ссылку ещё раз.</p>
         </div>

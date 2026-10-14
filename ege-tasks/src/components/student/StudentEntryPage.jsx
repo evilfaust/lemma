@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Button, Result, Spin, Typography } from 'antd';
 import { LoadingOutlined, StopOutlined, UserOutlined, RocketOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
+import { studentWorkTitle } from '../../utils/studentWorkTitle';
 
 const { Title, Text } = Typography;
 
@@ -58,7 +59,7 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
     );
   }
 
-  const studentTitle = session.student_title?.trim() || 'Самостоятельная работа';
+  const studentTitle = studentWorkTitle(session, 'Самостоятельная работа');
 
   return (
     <div className="student-entry">

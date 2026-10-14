@@ -7,6 +7,7 @@ import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import { getRandomAchievement, checkUnlockedAchievements, getPreviouslyUnlockedIds, getPreviouslyEarnedBadgeIds } from '../../utils/achievementEngine';
 import { gradeDrill } from '../../utils/drillTest';
 import { useBlockAppReload } from '../../student/pwa/useAppUpdate';
+import { studentWorkTitle } from '../../utils/studentWorkTitle';
 
 const { Title, Text } = Typography;
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -79,7 +80,7 @@ const StudentMCTestPage = ({ studentSession }) => {
   const answeredCount = Object.values(answers)
     .filter(v => (typeof v === 'string' ? v.trim() !== '' : v !== undefined)).length;
   const progressPercent = tasks.length > 0 ? (answeredCount / tasks.length) * 100 : 0;
-  const testTitle = session?.student_title?.trim() || 'Тест';
+  const testTitle = studentWorkTitle(session);
 
   const handleSubmit = () => {
     Modal.confirm({

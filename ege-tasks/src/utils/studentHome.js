@@ -4,6 +4,7 @@ import { homeworkFeed } from './homework';
 import { slotRangeFromCode } from '../components/workspace/lessonTime';
 import { attemptResultsHidden } from './resultsVisibility';
 import { itemRequired } from './lessonResults';
+import { studentWorkTitle } from './studentWorkTitle';
 
 /**
  * Главная ученика (v3.9.316) — лента «что делать»: чистая логика без сети.
@@ -87,8 +88,7 @@ export function untilLabel(lesson, now = dayjs()) {
 
 /** Название работы попытки: как его видел ученик при выдаче. */
 export function attemptTitle(a) {
-  const s = a?.expand?.session;
-  return s?.student_title || s?.expand?.work?.title || s?.expand?.mc_test?.title || 'Тест';
+  return studentWorkTitle(a?.expand?.session);
 }
 
 const attemptDate = (a) => a?.submitted_at || a?.updated || a?.created;

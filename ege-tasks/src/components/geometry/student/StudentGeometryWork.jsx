@@ -90,6 +90,7 @@ export default function StudentGeometryWork({ id, variant: fixed = null }) {
     return (
       <div className="sgw">
         <div className="sgw-empty">
+          <CabinetLink className="pwa-cabinet-link--block" />
           <p><b>Работа недоступна</b></p>
           <p>Учитель закрыл ссылку или удалил работу.</p>
         </div>

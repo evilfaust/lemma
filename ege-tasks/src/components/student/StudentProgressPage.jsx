@@ -6,6 +6,7 @@ import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import MathRenderer from '../MathRenderer';
 import { drillAttemptRows } from '../../utils/drillTest';
 import { visibleResultAttempts } from '../../utils/resultsVisibility';
+import { studentWorkTitle } from '../../utils/studentWorkTitle';
 
 const PB_URL = PB_BASE_URL;
 
@@ -131,7 +132,7 @@ const formatDurationShort = (seconds) => {
 const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
   const pct = attempt.total ? Math.round((attempt.score / attempt.total) * 100) : 0;
   const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
-  const workTitle = attempt.expand?.session?.expand?.work?.title || attempt.expand?.session?.expand?.mc_test?.title || 'Тест';
+  const workTitle = studentWorkTitle(attempt.expand?.session);
   const date = new Date(attempt.submitted_at || attempt.created);
   const correctCount = answers.filter(a => a.is_correct).length;
   const wrongCount = answers.filter(a => !a.is_correct).length;
@@ -409,7 +410,7 @@ function StudentProgressPage({ studentSession, initialAttemptId = null }) {
       .map(a => ({
         date: new Date(a.submitted_at || a.created),
         percent: Math.round((a.score / a.total) * 100),
-        title: a.expand?.session?.expand?.work?.title || a.expand?.session?.expand?.mc_test?.title || 'Тест',
+        title: studentWorkTitle(a.expand?.session),
       }))
       .sort((a, b) => a.date - b.date);
   }, [allAttempts]);
@@ -592,7 +593,7 @@ function StudentProgressPage({ studentSession, initialAttemptId = null }) {
           {allAttempts.map((a, idx) => {
             const pct = a.total ? Math.round((a.score / a.total) * 100) : 0;
             const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
-            const workTitle = a.expand?.session?.expand?.work?.title || a.expand?.session?.expand?.mc_test?.title || 'Тест';
+            const workTitle = studentWorkTitle(a.expand?.session);
             const date = new Date(a.submitted_at || a.created);
             const duration = a.duration_seconds;
 

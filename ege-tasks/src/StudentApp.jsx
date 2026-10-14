@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
-import { ConfigProvider, Button, notification, theme } from 'antd';
+import { App, ConfigProvider, Button, notification, theme } from 'antd';
 import { ArrowLeftOutlined, TrophyOutlined, LinkOutlined, BarChartOutlined, CalendarOutlined, HomeOutlined, SunOutlined, MoonOutlined, LoginOutlined, ReadOutlined } from '@ant-design/icons';
 
 // Нижнее меню кабинета ученика (показывается залогиненному на всех экранах, кроме теста).
@@ -70,7 +70,6 @@ import { api } from './services/pocketbase';
 import { useAppUpdate, AppUpdateBanner } from './student/pwa/useAppUpdate';
 import { isCabinetPath } from './student/pwa/appUpdate';
 import { InstallAppCard } from './student/pwa/InstallApp';
-import { isStandalone } from './student/pwa/install';
 import MarathonLiveBoard from './components/marathon/MarathonLiveBoard';
 import StudentHome from './components/student/StudentHome';
 import { summerSeason } from './utils/studentHome';
@@ -78,6 +77,7 @@ import { roomCodeFromPath, manualIdFromPath } from './utils/stereo/room';
 import { workFromLocation } from './utils/geometryWorkLink';
 import { showFromLocation } from './utils/workShowLink';
 import { articleIdFromPath } from './utils/theoryLink';
+import { studentWorkTitle } from './utils/studentWorkTitle';
 
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
 const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
@@ -337,6 +337,7 @@ function StudentScreens() {
 
   const [student, setStudent] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const { modal } = App.useApp();
 
   // Тема: светлая / тёмная
   const [isDark, setIsDark] = useState(() => localStorage.getItem('student-theme') === 'dark');
@@ -489,47 +490,65 @@ function StudentScreens() {
     };
     window.location.href = map[k] || '/student/';
   };
+  // Уйти посреди теста: ответы уже лежат на устройстве (localStorage попытки),
+  // а недорешённый тест главная показывает в «Сейчас» — к нему можно вернуться.
+  const confirmLeaveTest = (e) => {
+    e.preventDefault();
+    modal.confirm({
+      title: 'Выйти на главную?',
+      content: 'Ответы сохранятся на этом телефоне — тест можно будет продолжить с главной.',
+      okText: 'На главную',
+      cancelText: 'Остаться',
+      onOk: () => { window.location.href = '/student/'; },
+    });
+  };
 
   return (
     <ConfigProvider theme={antdTheme}>
       <div className={`student-app${showSessionNav ? ' student-has-bnav' : ''}${isDark ? ' student-theme-dark' : ''}`}>
-        {/* Верхняя панель: «Назад» (для прогресса/галереи) + тема в углу */}
-        {currentView !== 'auth' && (
-          <div className="student-top-bar">
-            <div className="student-top-bar-left">
-              {!showSessionNav && currentView !== 'test' && isStandalone() && (
-                <a className="student-theme-toggle student-top-bar-back" href="/student/" title="Главная">
-                  <HomeOutlined />
-                  <span className="student-top-bar-back-label">Главная</span>
-                </a>
-              )}
-              {(currentView === 'gallery' || currentView === 'progress') && (
-                <button
-                  className="student-theme-toggle student-top-bar-back"
-                  onClick={() => setViewOverride(null)}
-                  title="Назад"
-                >
-                  <ArrowLeftOutlined />
-                  <span className="student-top-bar-back-label">Назад</span>
-                </button>
-              )}
-            </div>
-            <div className="student-top-bar-right">
-              <button
-                className="student-theme-toggle"
-                onClick={toggleTheme}
-                title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+        {/* Верхняя панель: «Главная» (где нет нижнего меню), «Назад» (для
+            прогресса/галереи) + тема в углу. С v3.9.372 — на каждом экране
+            выдачи, и на входе тоже: в установленном приложении нет кнопки
+            «назад», а без входа нет и нижнего меню. */}
+        <div className="student-top-bar">
+          <div className="student-top-bar-left">
+            {!showSessionNav && (
+              <a
+                className="student-theme-toggle student-top-bar-back"
+                href="/student/"
+                title="Главная"
+                onClick={currentView === 'test' ? confirmLeaveTest : undefined}
               >
-                {isDark ? <SunOutlined /> : <MoonOutlined />}
+                <HomeOutlined />
+                <span className="student-top-bar-back-label">Главная</span>
+              </a>
+            )}
+            {(currentView === 'gallery' || currentView === 'progress') && (
+              <button
+                className="student-theme-toggle student-top-bar-back"
+                onClick={() => setViewOverride(null)}
+                title="Назад"
+              >
+                <ArrowLeftOutlined />
+                <span className="student-top-bar-back-label">Назад</span>
               </button>
-            </div>
+            )}
           </div>
-        )}
+          <div className="student-top-bar-right">
+            <button
+              className="student-theme-toggle"
+              onClick={toggleTheme}
+              title={isDark ? 'Светлая тема' : 'Тёмная тема'}
+            >
+              {isDark ? <SunOutlined /> : <MoonOutlined />}
+            </button>
+          </div>
+        </div>
 
         {currentView === 'auth' && (
           <StudentAuthPage
             onAuthSuccess={handleAuthSuccess}
-            sessionTitle={session?.student_title}
+            sessionTitle={studentWorkTitle(session, '')}
           />
         )}
 

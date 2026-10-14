@@ -15,6 +15,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/pocketbase';
 import TeacherResultsDashboard from './TeacherResultsDashboard';
 import './SessionPanel.css';
+import { isGenericTitle } from '../../utils/studentWorkTitle';
 
 const { Text, Title } = Typography;
 
@@ -54,13 +55,17 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
         } else {
           existing = await api.getSessionByWork(workId);
           if (!existing) {
+            // Ученик видит название работы, а не безликое «Самостоятельная
+            // работа»: таких в его ленте результатов набиралось по три подряд.
+            const work = await api.getWork(workId);
+            const title = work?.title?.trim() || 'Самостоятельная работа';
             existing = await api.createSession({
               work: workId,
               is_open: true,
               achievements_enabled: false,
-              student_title: 'Самостоятельная работа',
+              student_title: title,
             });
-            setStudentTitle('Самостоятельная работа');
+            setStudentTitle(title);
           } else {
             setStudentTitle(existing.student_title || 'Самостоятельная работа');
           }
@@ -256,13 +261,20 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
         <div className="session-panel__fields">
           <div className="session-panel__field-row">
             <Text type="secondary" className="session-panel__field-label">Заголовок для учеников</Text>
-            <Input
-              value={studentTitle}
-              onChange={handleStudentTitleChange}
-              onBlur={handleStudentTitleBlur}
-              onPressEnter={(e) => e.target.blur()}
-              placeholder="Самостоятельная работа"
-            />
+            <div style={{ minWidth: 0 }}>
+              <Input
+                value={studentTitle}
+                onChange={handleStudentTitleChange}
+                onBlur={handleStudentTitleBlur}
+                onPressEnter={(e) => e.target.blur()}
+                placeholder="Название работы"
+              />
+              {isGenericTitle(studentTitle) && (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  Такой заголовок ученику ничего не скажет — он увидит название работы.
+                </Text>
+              )}
+            </div>
           </div>
 
           {/* Несколько попыток */}

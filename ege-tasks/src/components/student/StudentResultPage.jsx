@@ -7,6 +7,7 @@ import { PB_BASE_URL } from '../../services/pocketbaseUrl';
 import AchievementBadge from './AchievementBadge';
 import { drillResultAnswers, drillGivenOption } from '../../utils/drillTest';
 import { sessionResultsHidden, HIDDEN_RESULTS_NOTE } from '../../utils/resultsVisibility';
+import { studentWorkTitle } from '../../utils/studentWorkTitle';
 
 const { Title, Text } = Typography;
 
@@ -64,7 +65,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
   const percentage = total > 0 ? (score / total) * 100 : 0;
   const scoreClass = percentage >= 70 ? 'good' : percentage >= 40 ? 'ok' : 'bad';
   const achievementsEnabled = session?.achievements_enabled || false;
-  const testTitle = session?.expand?.work?.title?.trim() || 'Тест';
+  const testTitle = studentWorkTitle(session);
 
   useEffect(() => {
     let cancelled = false;
