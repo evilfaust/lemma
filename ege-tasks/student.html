@@ -24,7 +24,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <!-- Шрифт не блокирует первую отрисовку (v3.9.374): пока таблица стилей
+         едет с Google, страница рисуется системным шрифтом (display=swap). -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" /></noscript>
     <!--
       Заставка запуска (v3.9.373): пока грузятся скрипты, у установленного
       приложения был белый экран — казалось, что оно зависло. Стили и разметка

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Button, Dropdown } from 'antd';
 import {
   CheckCircleFilled, ClockCircleOutlined, DownloadOutlined, FileTextOutlined, LinkOutlined,
@@ -13,9 +13,13 @@ import {
   todoList, todayLabel, relDayLabel,
 } from '../../utils/studentHome';
 import { useStereoFeed, LiveRoomCards, TeacherMaterials, hasTeacherMaterials } from './StudentStereoFeed';
-import MathRenderer from '../MathRenderer';
 import { InstallAppCard, useInstallAction } from '../../student/pwa/InstallApp';
 import './studentHome.css';
+
+// Формулы в тексте задания — отдельным чанком (v3.9.374): ради одного
+// описания главная тянула markdown, KaTeX и движки чертежей (~250 КБ сжатых).
+// Пока чанк едет, текст виден как есть.
+const MathRenderer = lazy(() => import('../MathRenderer'));
 
 /**
  * Главная вошедшего ученика (v3.9.316) — лента «что делать», блоки по
@@ -61,7 +65,11 @@ function TodoRow({ row }) {
       <span className="sh-todo-icon">{row.done ? <CheckCircleFilled /> : KIND_ICON[row.kind] || KIND_ICON.text}</span>
       <div className="sh-todo-main">
         {row.kind === 'text' && row.item.description
-          ? <div className="sh-todo-text"><MathRenderer text={row.item.description} inline={false} /></div>
+          ? <div className="sh-todo-text">
+              <Suspense fallback={row.item.description}>
+                <MathRenderer text={row.item.description} inline={false} />
+              </Suspense>
+            </div>
           : <div className="sh-todo-title">{row.title}</div>}
         <div className="sh-todo-due">{row.done ? 'сдано' : row.dueLabel}</div>
       </div>

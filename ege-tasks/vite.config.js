@@ -64,12 +64,11 @@ export default defineConfig({
         landing: resolve(__dirname, 'landing.html'),
         howItWorks: resolve(__dirname, 'how-it-works.html'),
       },
-      output: {
-        manualChunks: {
-          'markdown': ['unified', 'remark-parse', 'remark-math', 'remark-rehype', 'rehype-katex', 'rehype-stringify'],
-          'antd': ['antd', '@ant-design/icons'],
-        },
-      },
+      // Ручных кусков (manualChunks) нет намеренно (v3.9.374): общий кусок
+      // 'antd' собирал всё, чем пользуется учительский интерфейс, и ученик
+      // качал 480 КБ (сжатых) ради пары кнопок, а 'markdown' прихватывал
+      // общие зависимости — его тянуло даже ядро. Rollup сам делит общий код
+      // между приложениями: старт ученика 857 → ~350 КБ, учителя 581 → ~384 КБ.
     },
   },
 })

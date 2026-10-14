@@ -59,13 +59,6 @@ import { useStudentSession } from './hooks/useStudentSession';
 import StudentAuthPage from './components/student/StudentAuthPage';
 import StudentPasswordChange from './components/student/StudentPasswordChange';
 import StudentEntryPage from './components/student/StudentEntryPage';
-import StudentTestPage from './components/student/StudentTestPage';
-import StudentMCTestPage from './components/student/StudentMCTestPage';
-import StudentResultPage from './components/student/StudentResultPage';
-import AchievementGallery from './components/student/AchievementGallery';
-import StudentProgressPage from './components/student/StudentProgressPage';
-import StudentSummerProgram from './components/student/StudentSummerProgram';
-import StudentCoursePortal from './components/student/StudentCoursePortal';
 import { api } from './services/pocketbase';
 import { useAppUpdate, AppUpdateBanner } from './student/pwa/useAppUpdate';
 import { isCabinetPath } from './student/pwa/appUpdate';
@@ -81,6 +74,16 @@ import { showFromLocation } from './utils/workShowLink';
 import { articleIdFromPath } from './utils/theoryLink';
 import { studentWorkTitle } from './utils/studentWorkTitle';
 
+// Экраны выдачи и разделы кабинета — отдельными чанками (v3.9.374): с ними
+// в старт уезжали markdown, KaTeX и движок стереометрии, а на главной они не
+// нужны. Старт ученика 857 → ~350 КБ сжатых скриптов.
+const StudentTestPage = lazy(() => import('./components/student/StudentTestPage'));
+const StudentMCTestPage = lazy(() => import('./components/student/StudentMCTestPage'));
+const StudentResultPage = lazy(() => import('./components/student/StudentResultPage'));
+const AchievementGallery = lazy(() => import('./components/student/AchievementGallery'));
+const StudentProgressPage = lazy(() => import('./components/student/StudentProgressPage'));
+const StudentSummerProgram = lazy(() => import('./components/student/StudentSummerProgram'));
+const StudentCoursePortal = lazy(() => import('./components/student/StudentCoursePortal'));
 // Эфир стереочертежа — отдельный чанк: у остальных учеников он не грузится.
 const StudentStereoBoard = lazy(() => import('./components/stereo/StudentStereoBoard'));
 const StudentStereoManual = lazy(() => import('./components/stereo/StudentStereoManual'));
@@ -180,7 +183,9 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
     return (
       <div className={`student-app student-has-bnav${isDark ? ' student-theme-dark' : ''}`}>
         {themeCorner}
-        {SECTIONS[homeView]()}
+        <Suspense fallback={<BootSpinner inline />}>
+          {SECTIONS[homeView]()}
+        </Suspense>
         {navBar}
       </div>
     );
@@ -407,6 +412,12 @@ function StudentScreens() {
     return 'result'; // submitted или corrected
   }, [authChecked, student, attempt, viewOverride]);
 
+  // Пока ученик решает, заранее тянем экран результата: после «Отправить»
+  // он нужен сразу, а сеть у ученика может быть плохой (v3.9.374).
+  useEffect(() => {
+    if (currentView === 'test') import('./components/student/StudentResultPage').catch(() => {});
+  }, [currentView]);
+
   if (marathonLiveMatch) {
     return <MarathonLiveBoard marathonId={marathonLiveMatch[1]} />;
   }
@@ -565,32 +576,34 @@ function StudentScreens() {
           />
         )}
 
-        {currentView === 'test' && (
-          session?.mc_test
-            ? <StudentMCTestPage studentSession={studentSession} />
-            : <StudentTestPage studentSession={studentSession} />
-        )}
+        <Suspense fallback={<BootSpinner inline />}>
+          {currentView === 'test' && (
+            session?.mc_test
+              ? <StudentMCTestPage studentSession={studentSession} />
+              : <StudentTestPage studentSession={studentSession} />
+          )}
 
-        {currentView === 'result' && (
-          <StudentResultPage
-            studentSession={studentSession}
-            sessionId={sessionId}
-            deviceId={deviceId}
-            onNavigateToGallery={() => setViewOverride('gallery')}
-          />
-        )}
+          {currentView === 'result' && (
+            <StudentResultPage
+              studentSession={studentSession}
+              sessionId={sessionId}
+              deviceId={deviceId}
+              onNavigateToGallery={() => setViewOverride('gallery')}
+            />
+          )}
 
-        {currentView === 'gallery' && (
-          <AchievementGallery
-            studentSession={studentSession}
-          />
-        )}
+          {currentView === 'gallery' && (
+            <AchievementGallery
+              studentSession={studentSession}
+            />
+          )}
 
-        {currentView === 'progress' && (
-          <StudentProgressPage
-            studentSession={studentSession}
-          />
-        )}
+          {currentView === 'progress' && (
+            <StudentProgressPage
+              studentSession={studentSession}
+            />
+          )}
+        </Suspense>
 
         {showSessionNav && (
           <StudentBottomNav active={sessionNavActive} go={goCabinet} hasSummer={hasSummer} />
