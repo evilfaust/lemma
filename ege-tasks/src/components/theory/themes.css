@@ -42,19 +42,17 @@
     margin: 1.5em 0 0.4em;
     padding-left: 0.8em;
     color: #1a1a1a;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     border-left: 3px solid #1a1a1a;
 }
 
 .theory-preview-content h3 {
     font-family: 'DM Sans', sans-serif;
-    font-size: 0.88em;
+    font-size: 0.95em;
     font-weight: 600;
     margin: 1em 0 0.3em;
     color: #444;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
 }
 
 /* ── Текст ── */
@@ -129,9 +127,8 @@
     padding: 5px 10px;
     border: 1px solid #333;
     color: #f0f0f0;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
     font-size: 0.85em;
-    text-transform: uppercase;
     white-space: nowrap;
 }
 .theory-preview-content td {
@@ -168,6 +165,9 @@
 /* ── Формулы (KaTeX) ── */
 .theory-preview-content .katex {
     font-size: 1.05em;
+    /* Регистр в формуле — смысл (f и F, x и X), трекинг заголовка её не касается. */
+    text-transform: none;
+    letter-spacing: normal;
 }
 .theory-preview-content .katex-display {
     margin: 0.9em 0;
@@ -210,9 +210,8 @@
 .theory-preview-content .theory-callout__label {
     font-family: 'IBM Plex Mono', 'Courier New', monospace;
     font-weight: 600;
-    font-size: 0.8em;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 0.85em;
+    letter-spacing: 0.02em;
     margin-bottom: 0.3em;
     color: #646a76;
 }

@@ -134,8 +134,8 @@ describe('страница статьи для читателя', () => {
 
   it('tocFromHtml — только h2/h3, пустые пропускаются', () => {
     expect(tocFromHtml('<h1>A</h1><h2>B</h2><h3>C</h3><h2> </h2>')).toEqual([
-      { id: 't-sec-0', text: 'B', level: 2 },
-      { id: 't-sec-1', text: 'C', level: 3 },
+      { id: 't-sec-0', text: 'B', html: 'B', level: 2 },
+      { id: 't-sec-1', text: 'C', html: 'C', level: 3 },
     ]);
     expect(tocFromHtml('')).toEqual([]);
   });

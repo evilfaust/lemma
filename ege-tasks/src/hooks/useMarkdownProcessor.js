@@ -152,7 +152,9 @@ function preprocess(md) {
         bodyLines.push(lines[i])
       }
       // Маркеры окружаем пустыми строками → становятся отдельными <p>.
-      outLines.push('', marker, '', ...bodyLines, '', MARKERS.calloutClose, '')
+      // Заголовок идёт в одном абзаце с маркером: его разбирает тот же
+      // markdown, поэтому $…$ в заголовке — формула, как и в теле блока.
+      outLines.push('', `${marker} ${title}`, '', ...bodyLines, '', MARKERS.calloutClose, '')
       continue
     }
 
@@ -235,9 +237,12 @@ function postprocess(html, columns, geogebraBlocks = [], callouts = []) {
     .replace(new RegExp(MARKERS.vspace, 'g'), '<div class="vspace"></div>')
 
   // Каллауты: маркер-открытие → стилизованный div + лейбл, маркер-закрытие → </div>
+  // Заголовок уже прошёл markdown (формулы — KaTeX), берём его HTML из абзаца.
   callouts.forEach((c) => {
-    const openHtml = `<div class="theory-callout theory-callout--${c.type}"><div class="theory-callout__label">${escapeAttr(c.title)}</div>`
-    result = result.replace(new RegExp(`<p>\\s*${c.marker}\\s*</p>|${c.marker}`, 'g'), openHtml)
+    const open = (label) => `<div class="theory-callout theory-callout--${c.type}"><div class="theory-callout__label">${label}</div>`
+    result = result
+      .replace(new RegExp(`<p>\\s*${c.marker}\\s*([\\s\\S]*?)</p>`, 'g'), (_, label) => open(label.trim()))
+      .replace(new RegExp(`${c.marker}[^<]*`, 'g'), () => open(escapeAttr(c.title)))
   })
   result = result.replace(
     new RegExp(`<p>\\s*${MARKERS.calloutClose}\\s*</p>|${MARKERS.calloutClose}`, 'g'),

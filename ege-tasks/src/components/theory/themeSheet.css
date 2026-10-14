@@ -115,10 +115,9 @@
 /* H2 — надзаголовок .ps-eyebrow, посаженный на линейку 0.35 мм. */
 .theory-preview-content.theory-sheet h2 {
     font-family: inherit;
-    font-size: 0.74em;
+    font-size: 0.95em;
     font-weight: 600;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
+    letter-spacing: 0.01em;
     color: var(--ths-ink);
     margin: 5.5mm 0 2mm;
     padding: 0 0 1.2mm;
@@ -204,8 +203,7 @@
     font-family: inherit;
     font-size: 0.82em;
     font-weight: 650;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     text-align: left;
     color: var(--ths-ink);
     background: none;
@@ -272,10 +270,9 @@
 
 .theory-preview-content.theory-sheet .theory-callout__label {
     font-family: inherit;
-    font-size: 0.72em;
+    font-size: 0.85em;
     font-weight: 650;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
+    letter-spacing: 0.02em;
     color: var(--ths-ink);
     margin-bottom: 1.2mm;
 }

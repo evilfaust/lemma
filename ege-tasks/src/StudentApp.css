@@ -1204,6 +1204,12 @@
 }
 
 /* KaTeX */
+/* Формула не наследует капслок подписи: f(x) ≠ F(X), const ≠ CONST. */
+.katex {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 .student-app .katex {
   font-size: 1.05em;
 }

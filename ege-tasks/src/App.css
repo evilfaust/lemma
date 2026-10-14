@@ -17,6 +17,9 @@ code {
 /* Стили для KaTeX формул */
 .katex {
   font-size: 1.1em;
+  /* Формула не наследует капслок подписи: f(x) ≠ F(X), const ≠ CONST. */
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .katex-display {

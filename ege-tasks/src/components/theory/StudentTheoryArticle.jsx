@@ -8,6 +8,7 @@ import './themeSheet.css';
 import './TheoryGeoGebraEmbed.css';
 import './studentTheoryArticle.css';
 import { CabinetLink } from '../../student/pwa/InstallApp';
+import { headingTocEntry } from '../../utils/headingToc';
 
 const formatDate = (iso) => (iso
   ? new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -20,7 +21,7 @@ export function tocFromHtml(html) {
   div.innerHTML = html;
   return [...div.querySelectorAll('h2, h3')].map((h, i) => ({
     id: `t-sec-${i}`,
-    text: h.textContent.trim(),
+    ...headingTocEntry(h),
     level: Number(h.tagName[1]),
   })).filter((t) => t.text);
 }
@@ -108,7 +109,7 @@ export default function StudentTheoryArticle({ id }) {
             <ol>
               {toc.map((t) => (
                 <li key={t.id} className={`sta-toc__item sta-toc__item--h${t.level}`}>
-                  <a href={`#${t.id}`}>{t.text}</a>
+                  <a href={`#${t.id}`} dangerouslySetInnerHTML={{ __html: t.html }} />
                 </li>
               ))}
             </ol>

@@ -20,6 +20,7 @@ import './theory/themes.css';
 import './theory/themeSheet.css';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { headingTocEntry } from '../utils/headingToc';
 import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryArticleView.css';
 
@@ -123,7 +124,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     const headings = tempDiv.querySelectorAll('h1, h2, h3');
     const tocItems = Array.from(headings).map((h, i) => ({
       id: `heading-${i}`,
-      text: h.textContent,
+      ...headingTocEntry(h),
       level: parseInt(h.tagName[1]),
     }));
     setToc(tocItems);
@@ -305,9 +306,10 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
                 key={i}
                 className={`toc-item toc-level-${item.level} ${activeHeading === i ? 'active' : ''}`}
                 onClick={() => scrollToHeading(item.id)}
-              >
-                {item.text}
-              </a>
+                title={item.text}
+                // HTML заголовка уже прошёл DOMPurify; формулы — KaTeX.
+                dangerouslySetInnerHTML={{ __html: item.html }}
+              />
             ))}
           </aside>
         )}
