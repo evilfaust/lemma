@@ -3,7 +3,7 @@ import {
   TDF_SHEET_DEFAULTS, PAGE, PAD, NUM_COL_TOTAL_MM,
   normalizeTdfSheetSettings, contentWidthMm, contentHeightMm,
   columnPercents, columnWidthMm, drawingHeightMm,
-  paginateRows, splitIntoPages, stretchRowHeights, parseFormulas, pluralRu,
+  paginateRows, planBlankPages, parseFormulas, pluralRu,
 } from '../utils/tdfSheet';
 
 const S = (patch = {}) => normalizeTdfSheetSettings({ ...TDF_SHEET_DEFAULTS, ...patch });
@@ -111,29 +111,70 @@ describe('paginateRows', () => {
   });
 });
 
-describe('splitIntoPages', () => {
-  it('делит состав пополам при двух листах', () => {
-    const items = [1, 2, 3, 4, 5].map(n => ({ id: String(n) }));
-    const pages = splitIntoPages(items, 2);
-    expect(pages.map(p => p.length)).toEqual([3, 2]);
+describe('planBlankPages', () => {
+  const items = (n, headers = []) => Array.from({ length: n }, (_, i) => ({
+    id: String(i), is_section_header: headers.includes(i),
+  }));
+  const base = (list, h) => Object.fromEntries(list.map(it => [it.id, h]));
+  const opts = (p = {}) => ({ pageCount: 1, firstCapPx: 400, restCapPx: 500, writeMinPx: 20, safetyPx: 0, ...p });
+  const sumPage = (plan, idx) => plan.pages[idx].reduce((s, it) => s + plan.rowHeights[it.id], 0);
+
+  it('влезает на один лист — свободное место раздаётся пунктам поровну', () => {
+    const list = items(4);
+    const plan = planBlankPages(list, base(list, 50), opts());
+    expect(plan.pages).toHaveLength(1);
+    expect(plan.grew).toBe(false);
+    list.forEach(it => expect(plan.rowHeights[it.id]).toBe(100));
+    expect(sumPage(plan, 0)).toBeLessThanOrEqual(400);
   });
 
-  it('один лист — всё на нём', () => {
-    const items = [{ id: 'a' }, { id: 'b' }];
-    expect(splitIntoPages(items, 1)).toEqual([items]);
-  });
-});
-
-describe('stretchRowHeights', () => {
-  it('строки делят страницу поровну и оставляют запас на печать', () => {
-    const pages = [[{}, {}], [{}]];
-    const [first, second] = stretchRowHeights(pages, 400, 500, 4);
-    expect(first).toBe(Math.floor((400 - 8) / 2));
-    expect(second).toBe(500 - 8);
+  it('заголовок раздела остаётся своей высоты, место получают только пункты', () => {
+    const list = items(4, [0]);
+    const plan = planBlankPages(list, base(list, 40), opts());
+    expect(plan.rowHeights['0']).toBe(40);
+    expect(plan.rowHeights['1']).toBe(Math.floor(40 + (400 - 160) / 3));
   });
 
-  it('пустая страница не делит на ноль', () => {
-    expect(stretchRowHeights([[]], 300, 300, 4)[0]).toBe(292);
+  it('не влезает на 1 лист — сам уходит на 2, и каждый лист в своей ёмкости', () => {
+    const list = items(12);
+    const plan = planBlankPages(list, base(list, 40), opts());
+    expect(plan.grew).toBe(true);
+    expect(plan.pages).toHaveLength(2);
+    expect(sumPage(plan, 0)).toBeLessThanOrEqual(400);
+    expect(sumPage(plan, 1)).toBeLessThanOrEqual(500);
+    expect(plan.tight).toBe(false);
+  });
+
+  it('два листа делятся по нагрузке: второй (без шапки) берёт больше', () => {
+    const list = items(10);
+    const plan = planBlankPages(list, base(list, 30), opts({ pageCount: 2 }));
+    expect(plan.pages[1].length).toBeGreaterThan(plan.pages[0].length);
+  });
+
+  it('лист не кончается заголовком раздела', () => {
+    const list = items(9, [4]);
+    const plan = planBlankPages(list, base(list, 40), opts({ pageCount: 2, firstCapPx: 450, restCapPx: 450 }));
+    expect(plan.pages[0].at(-1).is_section_header).toBe(false);
+  });
+
+  it('тесно даже на двух — строки сжимаются до своей высоты, флаги честные', () => {
+    const list = items(20);
+    const plan = planBlankPages(list, base(list, 40), opts());
+    expect(plan.pages).toHaveLength(2);
+    expect(plan.tight).toBe(true);
+    expect(plan.overflow).toBe(false);
+    expect(sumPage(plan, 0)).toBeLessThanOrEqual(400);
+  });
+
+  it('названия не влезают совсем — overflow', () => {
+    const list = items(30);
+    expect(planBlankPages(list, base(list, 40), opts()).overflow).toBe(true);
+  });
+
+  it('запас на печать вычитается из ёмкости', () => {
+    const list = items(2);
+    const plan = planBlankPages(list, base(list, 50), opts({ safetyPx: 8 }));
+    expect(sumPage(plan, 0)).toBeLessThanOrEqual(392);
   });
 });
 

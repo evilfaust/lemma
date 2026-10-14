@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Button, Space } from 'antd';
+import { Alert, Button, Space } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import MathRenderer from '../../shared/components/MathRenderer';
@@ -14,7 +14,7 @@ import {
   MM_PX, PAD, PAGE,
   columnPercents, columnWidthMm, contentHeightMm, contentWidthMm, drawingHeightMm,
   normalizeTdfSheetSettings, pluralRu, paginateRows, parseFormulas,
-  readTdfSheetSettings, splitIntoPages, stretchRowHeights, writeTdfSheetSettings,
+  planBlankPages, readTdfSheetSettings, writeTdfSheetSettings,
 } from '../../utils/tdfSheet';
 import {
   defaultSheetHead, hasHeadOverrides, isHeadFieldEdited, patchSheetHead,
@@ -22,8 +22,9 @@ import {
 } from '../../utils/tdfSheetHead';
 import './TDFPrintView.css';
 
-const FOOT_MM = 7;          // резерв под колонтитул и поле оценки
+const FOOT_MM = 8;          // резерв под колонтитул и поле оценки (отступ 2.5 + строка ~5.1, замер)
 const CELL_PAD_MM = 3;      // вертикальные поля ячейки (1.5 мм сверху и снизу)
+const WRITE_MIN_MM = 8;     // бланк: сколько места для записи пункт получает сверх своей строки
 const FORMULA_WORDS = ['формулу', 'формулы', 'формул'];
 // Подписи для кнопок «Вернуть: …» у строк шапки, которые учитель стёр.
 const HEAD_FIELD_NAMES = {
@@ -99,8 +100,9 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
 
   const measureRef = useRef(null);
   const headRef = useRef(null);
+  const theadRef = useRef(null);
   const rowRefs = useRef({});
-  const [layout, setLayout] = useState({ key: null, pages: [[]], rowHeights: null });
+  const [layout, setLayout] = useState({ key: null, pages: [[]], rowHeights: null, fit: null });
   const [bump, setBump] = useState(0);
 
   const nonHeaderItems = useMemo(() => items.filter(i => !i.is_section_header), [items]);
@@ -167,24 +169,41 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
     const pxPerMm = root.offsetWidth ? root.offsetWidth / widthMm : MM_PX;
     const footMm = (settings.showFooter || (isBlank && settings.showScore)) ? FOOT_MM : 0;
     const bodyPx = (contentHeightMm(sheet) - footMm) * pxPerMm;
-    const headPx = headRef.current ? headRef.current.offsetHeight : 0;
-    const firstCap = bodyPx - headPx;
-    const restCap = bodyPx;
+    // Высота шапки — вместе с нижним отступом: offsetHeight его не видит, и
+    // первая страница переливалась на 3 мм.
+    const headEl = headRef.current;
+    const headPx = headEl
+      ? headEl.offsetHeight + (parseFloat(getComputedStyle(headEl).marginBottom) || 0)
+      : 0;
+    // Шапка таблицы повторяется на каждом листе — её высота не достаётся строкам.
+    const theadPx = theadRef.current ? theadRef.current.offsetHeight : 0;
+    const firstCap = bodyPx - headPx - theadPx;
+    const restCap = bodyPx - theadPx;
+
+    const heights = {};
+    items.forEach(item => {
+      const el = rowRefs.current[item.id];
+      if (el) heights[item.id] = el.offsetHeight;
+    });
 
     let pages;
     let rowHeights = null;
+    let fit = null;
 
     if (isBlank) {
-      // Бланк: состав делится на заданное число листов и растягивается на всю
-      // высоту — место для записи важнее «естественной» высоты строки.
-      pages = splitIntoPages(items, settings.pages);
-      rowHeights = stretchRowHeights(pages, firstCap, restCap, pxPerMm);
-    } else {
-      const heights = {};
-      items.forEach(item => {
-        const el = rowRefs.current[item.id];
-        if (el) heights[item.id] = el.offsetHeight;
+      // Бланк: строки измерены без места для записи; свободное место листа
+      // раздаётся пунктам поровну. Не влезает на 1 лист — уходит на 2.
+      const plan = planBlankPages(items, heights, {
+        pageCount: settings.pages,
+        firstCapPx: firstCap,
+        restCapPx: restCap,
+        writeMinPx: WRITE_MIN_MM * pxPerMm,
+        safetyPx: Math.ceil(2 * pxPerMm),
       });
+      pages = plan.pages;
+      rowHeights = plan.rowHeights;
+      fit = { grew: plan.grew, tight: plan.tight, overflow: plan.overflow };
+    } else {
       pages = paginateRows(items, heights, firstCap, restCap);
     }
 
@@ -192,8 +211,9 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
       const same = prev.key === measureKey
         && prev.pages.length === pages.length
         && prev.pages.every((p, i) => p.length === pages[i].length)
-        && JSON.stringify(prev.rowHeights) === JSON.stringify(rowHeights);
-      return same ? prev : { key: measureKey, pages, rowHeights, pxPerMm };
+        && JSON.stringify(prev.rowHeights) === JSON.stringify(rowHeights)
+        && JSON.stringify(prev.fit) === JSON.stringify(fit);
+      return same ? prev : { key: measureKey, pages, rowHeights, pxPerMm, fit };
     });
     // settings/sheet намеренно вне зависимостей: всё, что меняет раскладку,
     // входит в measureKey, а объект настроек пересоздаётся каждый рендер и
@@ -266,8 +286,8 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
     );
   };
 
-  const tableHead = (
-    <thead className="tdfp-thead">
+  const tableHead = (ref) => (
+    <thead className="tdfp-thead" ref={ref}>
       <tr>
         <th>№</th>
         {sheet.showFormulation && <th>{isBlank ? 'Пункт и формулировка' : 'Формулировка'}</th>}
@@ -277,21 +297,33 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
     </thead>
   );
 
+  /**
+   * Высота поля для записи. `null` — зона измерения бланка: строка меряется
+   * без места для записи (его потом раздаёт planBlankPages), поэтому поле
+   * схлопывается до содержимого.
+   */
+  const fieldStyle = (heightMm) => {
+    if (heightMm) return { height: `${heightMm}mm`, minHeight: 0 };
+    return isBlank ? { minHeight: 0 } : undefined;
+  };
+
   /** Поле для записи: разлиновка считается точно под размер ячейки. */
   const writeField = (column, heightMm) => (
-    <div className="tdfp-field" style={heightMm ? { height: `${heightMm}mm` } : undefined}>
-      <PrintFill
-        fill={settings.fill}
-        tone={settings.fillTone}
-        heightMm={heightMm || 12}
-        widthMm={Math.max(0, columnWidthMm(sheet, column) - 4)}
-      />
+    <div className="tdfp-field" style={fieldStyle(heightMm)}>
+      {(heightMm || !isBlank) && (
+        <PrintFill
+          fill={settings.fill}
+          tone={settings.fillTone}
+          heightMm={heightMm || 12}
+          widthMm={Math.max(0, columnWidthMm(sheet, column) - 4)}
+        />
+      )}
     </div>
   );
 
   const renderRow = (item, num, refCb, rowHeightPx) => {
     const rowStyle = rowHeightPx ? { height: `${rowHeightPx}px` } : undefined;
-    const fieldMm = rowHeightPx ? Math.max(8, rowHeightPx / pxPerMm - CELL_PAD_MM) : 0;
+    const fieldMm = rowHeightPx ? Math.max(0, rowHeightPx / pxPerMm - CELL_PAD_MM) : 0;
 
     if (item.is_section_header) {
       return (
@@ -317,7 +349,7 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
       <tr key={item.id} ref={refCb} className="tdfp-row" style={rowStyle}>
         <td className="tdfp-cell tdfp-cell--num">
           <span className="tdfp-num">{num}</span>
-          {settings.showType && item.type && (
+          {!isBlank && settings.showType && item.type && (
             // Короткая подпись: полное слово «Определение» в колонке 10 мм
             // разваливается переносом на три строки.
             <span className="tdfp-type">{tdfTypeShort(item.type)}</span>
@@ -327,14 +359,24 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
         {sheet.showFormulation && (
           <td className="tdfp-cell">
             {isBlank ? (
-              <div className="tdfp-field" style={fieldMm ? { height: `${fieldMm}mm` } : undefined}>
-                <PrintFill
-                  fill={settings.fill}
-                  tone={settings.fillTone}
-                  heightMm={fieldMm || 12}
-                  widthMm={Math.max(0, columnWidthMm(sheet, 'formulation') - 4)}
-                />
-                <div className="tdfp-name"><MathText text={item.name || '—'} /></div>
+              <div className="tdfp-field" style={fieldStyle(fieldMm)}>
+                {fieldMm > 0 && (
+                  <PrintFill
+                    fill={settings.fill}
+                    tone={settings.fillTone}
+                    heightMm={fieldMm}
+                    widthMm={Math.max(0, columnWidthMm(sheet, 'formulation') - 4)}
+                  />
+                )}
+                <div className="tdfp-name">
+                  {/* В бланке тип пункта — в строке названия, а не под номером:
+                      там он делал каждую строку выше на 4 мм, и на альбомный
+                      лист помещалось вдвое меньше пунктов. */}
+                  {settings.showType && item.type && (
+                    <span className="tdfp-type tdfp-type--inline">{tdfTypeShort(item.type)}</span>
+                  )}
+                  <MathText text={item.name || '—'} />
+                </div>
               </div>
             ) : (
               <>
@@ -484,6 +526,24 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
         <div className="tdfp-toolbar__row">
           <TDFSheetSettings settings={settings} patch={patch} isBlank={isBlank} geoMode={geoMode} />
         </div>
+        {isBlank && !geoMode && layout.key === measureKey && layout.fit && (
+          layout.fit.overflow ? (
+            <Alert
+              type="error" showIcon
+              message="Не влезает даже на 2 листа: названия пунктов занимают всё место. Выключите лишние колонки, уменьшите чертёж или разделите вариант."
+            />
+          ) : layout.fit.tight ? (
+            <Alert
+              type="warning" showIcon
+              message="Влезает впритык: места для записи мало. Попробуйте книжный лист, меньший чертёж или меньше пунктов в варианте."
+            />
+          ) : layout.fit.grew ? (
+            <Alert
+              type="info" showIcon
+              message="На один лист пункты не помещаются с местом для записи — бланк разложен на 2 листа. Хотите на один — попробуйте книжный лист или меньше пунктов."
+            />
+          ) : null
+        )}
         {!geoMode && (
           <div className="tdfp-toolbar__row tdfp-toolbar__head">
             <span className="tdfp-toolbar__hint">
@@ -515,15 +575,13 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
       {!geoMode && (
         <div className="tdfp-measure" ref={measureRef} style={{ width: `${widthMm}mm` }}>
           {sheetHead(headRef)}
-          {!isBlank && (
-            <table className="tdfp-table">
-              {colgroup}
-              {tableHead}
-              <tbody>
-                {items.map(item => renderRow(item, 0, el => { rowRefs.current[item.id] = el; }))}
-              </tbody>
-            </table>
-          )}
+          <table className="tdfp-table">
+            {colgroup}
+            {tableHead(theadRef)}
+            <tbody>
+              {items.map(item => renderRow(item, 0, el => { rowRefs.current[item.id] = el; }))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -536,11 +594,11 @@ export default function TDFPrintView({ tdfSet, items, mode, variantNumber, varia
               {pageIdx === 0 && sheetHead(undefined, true)}
               <table className="tdfp-table">
                 {colgroup}
-                {tableHead}
+                {tableHead()}
                 <tbody>
                   {pageItems.map(item => {
                     if (!item.is_section_header) globalNum++;
-                    const rowH = layout.rowHeights ? layout.rowHeights[pageIdx] : undefined;
+                    const rowH = layout.rowHeights ? layout.rowHeights[item.id] : undefined;
                     return renderRow(item, globalNum, undefined, rowH);
                   })}
                 </tbody>

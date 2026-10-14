@@ -181,31 +181,76 @@ export function paginateRows(items, heights, firstCapPx, restCapPx) {
   return pages;
 }
 
-/** Бланк: ровно N страниц, состав делится поровну. */
-export function splitIntoPages(items, pageCount) {
-  if (!items.length) return [[]];
-  const n = Math.max(1, pageCount);
-  if (n === 1) return [items];
-  const per = Math.ceil(items.length / n);
-  const pages = [];
-  for (let i = 0; i < items.length; i += per) pages.push(items.slice(i, i + per));
-  return pages.length ? pages : [[]];
-}
-
 /**
- * Высота строки бланка на каждой странице: свободное место делится поровну,
- * чтобы поля для записи заполнили лист.
+ * Раскладка бланка опроса на 1 или 2 листа A4 по ИЗМЕРЕННЫМ строкам.
  *
- * 🚨 Из ёмкости вычитается запас ~2 мм: при печати строки чуть выше, чем на
- * экране, и без запаса последняя строка обрезается.
+ * `baseHeights` — естественная высота строки без места для записи (название
+ * пункта, контрольный чертёж гео-формулы, отступы). Свободное место страницы
+ * раздаётся строкам пунктов поровну — это и есть поле для записи; заголовки
+ * разделов остаются своей высоты.
+ *
+ * До v3.9.371 строки делили страницу поровну по счёту: заголовок раздела
+ * получал столько же места, сколько пункт, шапка таблицы не вычиталась, а
+ * минимальная высота поля (12 мм) молча выталкивала хвост на лишний лист.
+ *
+ * Не влезает на выбранный 1 лист (на каждый пункт не остаётся `writeMinPx`) —
+ * бланк сам уходит на 2 листа (`grew`). Не влезает и на 2 — `tight`: места
+ * для записи меньше желаемого; `overflow` — не влезают даже сами названия.
+ *
+ * @param {Array}  items       — пункты варианта (с заголовками разделов)
+ * @param {Object} baseHeights — id → px
+ * @param {{pageCount:1|2, firstCapPx:number, restCapPx:number, writeMinPx:number, safetyPx?:number}} opts
+ * @returns {{pages: Array[], rowHeights: Object, grew: boolean, tight: boolean, overflow: boolean}}
  */
-export function stretchRowHeights(pages, firstCapPx, restCapPx, pxPerMm = MM_PX) {
-  const safety = Math.ceil(2 * pxPerMm);
-  return pages.map((pageItems, idx) => {
-    const n = Math.max(pageItems.length, 1);
-    const avail = (idx === 0 ? firstCapPx : restCapPx) - safety;
-    return Math.floor(avail / n);
+export function planBlankPages(items, baseHeights, opts) {
+  const { pageCount = 1, firstCapPx, restCapPx, writeMinPx, safetyPx = 0 } = opts;
+  if (!items.length) return { pages: [[]], rowHeights: {}, grew: false, tight: false, overflow: false };
+
+  const base = id => baseHeights[id] ?? 30;
+  const need = it => base(it.id) + (it.is_section_header ? 0 : writeMinPx);
+  const caps = [firstCapPx - safetyPx, restCapPx - safetyPx];
+  const total = items.reduce((sum, it) => sum + need(it), 0);
+
+  // Два листа: точка разреза, при которой загрузка самой полной страницы
+  // минимальна. Лист не кончается заголовком раздела — он уходит к своим пунктам.
+  const splitTwo = () => {
+    let best = null;
+    let acc = 0;
+    for (let k = 1; k < items.length; k++) {
+      acc += need(items[k - 1]);
+      if (items[k - 1].is_section_header) continue;
+      const load = Math.max(acc / caps[0], (total - acc) / caps[1]);
+      if (!best || load < best.load) best = { k, load };
+    }
+    if (!best) return [items];
+    return [items.slice(0, best.k), items.slice(best.k)];
+  };
+
+  let pages = [items];
+  let grew = false;
+  if (pageCount >= 2 && items.length > 1) {
+    pages = splitTwo();
+  } else if (total > caps[0] && items.length > 1) {
+    pages = splitTwo();
+    grew = pages.length > 1;
+  }
+
+  const rowHeights = {};
+  let tight = false;
+  let overflow = false;
+  pages.forEach((pageItems, idx) => {
+    const cap = caps[idx === 0 ? 0 : 1];
+    const baseSum = pageItems.reduce((sum, it) => sum + base(it.id), 0);
+    const writers = pageItems.filter(it => !it.is_section_header).length || 1;
+    const extra = (cap - baseSum) / writers;
+    if (extra < writeMinPx) tight = true;
+    if (extra < 0) overflow = true;
+    pageItems.forEach(it => {
+      rowHeights[it.id] = Math.floor(base(it.id) + (it.is_section_header ? 0 : Math.max(0, extra)));
+    });
   });
+
+  return { pages, rowHeights, grew, tight, overflow };
 }
 
 /**

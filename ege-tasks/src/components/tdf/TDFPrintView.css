@@ -246,6 +246,12 @@
   white-space: nowrap;
 }
 
+.tdfp-type--inline {
+  display: inline;
+  margin: 0 1.5mm 0 0;
+  vertical-align: 0.1em;
+}
+
 .tdfp-name {
   font-size: 10pt;
   font-weight: 700;
