@@ -786,14 +786,19 @@
 
 .student-drawings__item .anticon {
   color: #4361ee;
+  flex-shrink: 0;
 }
 
 .student-drawings__title {
   flex: 1;
   min-width: 0;
+  line-height: 1.35;
+  /* длинное название — в две строки, дальше «…» */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .student-drawings__item .student-drawings__arrow {

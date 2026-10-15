@@ -169,9 +169,11 @@
 .sh-now-title {
   font-size: 15px;
   font-weight: 600;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .sh-now-sub { font-size: 12.5px; color: var(--sh-ink-2); margin-top: 1px; }
 .sh-now-go {
@@ -276,7 +278,12 @@
 }
 
 /* ── От учителя: блоки StudentStereoFeed в общих карточках ── */
-.sh-materials { display: grid; gap: 8px; }
+.sh-materials {
+  display: grid;
+  /* minmax(0, …): иначе длинное название растягивает колонку шире экрана */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
 .sh-materials .student-drawings {
   background: var(--sh-card);
   border-color: var(--sh-line);
@@ -296,9 +303,12 @@
 .sh-result-title {
   font-size: 14.5px;
   font-weight: 600;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .sh-result-bar {
   height: 6px;
