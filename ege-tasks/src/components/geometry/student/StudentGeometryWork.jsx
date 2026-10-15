@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../../shared/services/pocketbase';
 import MathRenderer from '../../MathRenderer';
 import TheoryStereoBlock from '../../stereo/TheoryStereoBlock';
+import PlanimLiveBlock from '../../planim/PlanimLiveBlock';
 import { sanitizeSvg } from '../../../utils/sanitizeSvg';
 import { stereoSpecFromSvg } from '../../../utils/stereo/dsl';
-import { normalizeStructure, structureTaskIds, variantLabel } from '../../../utils/geometryWork';
+import { planimSpecFromSvg } from '../../../utils/planim/dsl';
+import { variantLabel } from '../../../utils/geometryWork';
 import { variantItems, variantCount } from '../../../utils/geometryWorkLink';
 import './studentGeometryWork.css';
 import { CabinetLink } from '../../../student/pwa/InstallApp';
@@ -24,11 +26,40 @@ const savePick = (id, v) => {
   } catch { /* приватное окно — выбор просто не запомнится */ }
 };
 
-/** Чертёж условия: стереочертёж крутится, остальное — картинкой. Чертёж решения не показываем. */
+/**
+ * Чертёж условия по уровню показа, который выбрал учитель (v3.9.377,
+ * utils/geometryDrawings.js). Уровень и сам чертёж приходят с сервера уже
+ * отрезанными (хук geometry_work.pb.js): скрытого чертежа здесь просто нет.
+ *   none  — только условие; если чертёж у задачи есть — «сделайте его сами»;
+ *   image — картинка (SVG без исходника или PNG);
+ *   live  — объёмный крутится, плоский сдвигается и увеличивается;
+ *   steps — то же + построение по шагам с самого начала.
+ * Чертёж решения (image_role = solution) сервер не отдаёт никогда.
+ */
 function TaskFigure({ task }) {
-  if (task.drawing_view === 'svg' && task.drawing_svg) {
-    const spec = stereoSpecFromSvg(task.drawing_svg);
-    if (spec) return <div className="sgw-figure sgw-figure--live"><TheoryStereoBlock spec={spec} steps={false} /></div>;
+  const level = task.level || 'image';
+  if (level === 'none') {
+    return task.has_drawing ? <p className="sgw-selfdraw">Чертёж к задаче сделайте сами.</p> : null;
+  }
+  if (task.drawing_svg) {
+    if (level === 'live' || level === 'steps') {
+      const stereo = stereoSpecFromSvg(task.drawing_svg);
+      if (stereo) {
+        return (
+          <div className="sgw-figure sgw-figure--live">
+            <TheoryStereoBlock spec={stereo} steps={level === 'steps'} startAt="start" />
+          </div>
+        );
+      }
+      const planim = planimSpecFromSvg(task.drawing_svg);
+      if (planim) {
+        return (
+          <div className="sgw-figure sgw-figure--live">
+            <PlanimLiveBlock spec={planim} steps={level === 'steps'} />
+          </div>
+        );
+      }
+    }
     return (
       <div
         className="sgw-figure sgw-figure--svg"
@@ -37,16 +68,31 @@ function TaskFigure({ task }) {
       />
     );
   }
-  if (task.image_role === 'solution') return null;
   const url = api.getGeometryImageUrl(task);
   return url ? <div className="sgw-figure"><img src={url} alt="Чертёж к задаче" loading="lazy" /></div> : null;
+}
+
+/** Работа с сервера → структура для variantItems: { variants: [{ items: [{task}|null] }] }. */
+const structureOf = (w) => ({
+  variants: (w?.variants || [[]]).map((v) => ({ items: (v || []).map((t) => (t ? { task: t } : null)) })),
+});
+
+/** Подсказка внизу: про живые чертежи говорим, только если они есть. */
+function footNote(tasks) {
+  const levels = new Set(tasks.map((t) => t?.level));
+  const kinds = new Set(tasks.filter((t) => t?.level === 'live' || t?.level === 'steps').map((t) => t.kind));
+  const parts = ['Решайте в тетради.'];
+  if (kinds.has('stereo')) parts.push('Объёмный чертёж можно поворачивать пальцем или мышью.');
+  if (kinds.has('planim')) parts.push('Плоский чертёж можно сдвигать и увеличивать.');
+  if (levels.has('steps')) parts.push('Построение листается по шагам ◀ ▶.');
+  return parts.join(' ');
 }
 
 /**
  * Работа по геометрии для ученика: student.oipav.ru/w/<id> (выбор варианта)
  * или /w/<id>?v=N (свой вариант). Без входа, только условия и чертежи —
- * ответов и решений страница не запрашивает: ученик решает в тетради.
- * Стереочертёж условия можно поворачивать.
+ * ответов и решений сервер не отдаёт: ученик решает в тетради. Какие чертежи
+ * видны и как (картинка / живой / по шагам) — решает учитель (v3.9.377).
  */
 export default function StudentGeometryWork({ id, variant: fixed = null }) {
   const [work, setWork] = useState(undefined); // undefined — грузим, null — закрыта
@@ -57,12 +103,10 @@ export default function StudentGeometryWork({ id, variant: fixed = null }) {
     let alive = true;
     (async () => {
       try {
-        const w = await api.getPublicGeometryWork(id);
+        const w = await api.getStudentGeometryWork(id);
         if (!alive) return;
-        setWork(w);
-        if (!w) return;
-        const list = await api.getStudentGeometryTasks(structureTaskIds(normalizeStructure(w.structure)));
-        if (alive) setTasks(new Map(list.map((t) => [t.id, t])));
+        setWork(w ? { ...w, structure: structureOf(w) } : null);
+        if (w) setTasks(new Map((w.tasks || []).map((t) => [t.id, t])));
       } catch {
         if (alive) { setWork((w) => (w === undefined ? null : w)); setTasks((t) => t || new Map()); }
       }
@@ -146,7 +190,7 @@ export default function StudentGeometryWork({ id, variant: fixed = null }) {
               </section>
             );
           })}
-          <p className="sgw-foot">Решайте в тетради. Объёмный чертёж можно поворачивать пальцем или мышью.</p>
+          <p className="sgw-foot">{footNote(items.map(({ taskId }) => tasks?.get(taskId)))}</p>
         </main>
       )}
     </div>

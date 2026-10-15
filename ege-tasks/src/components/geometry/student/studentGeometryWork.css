@@ -150,6 +150,14 @@
 .sgw-figure img { max-height: 360px; }
 .sgw-figure--svg svg { width: 100%; max-width: 420px; height: auto; }
 .sgw-figure--live .theory-stereo { max-width: 420px; }
+.sgw-figure--live .planim-live { margin: 0 auto; }
+/* Учитель скрыл чертёж — ученик чертит сам (v3.9.377). */
+.sgw-selfdraw {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #6b7280;
+  font-style: italic;
+}
 
 .sgw-empty {
   max-width: 760px;

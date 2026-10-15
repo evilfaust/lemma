@@ -62,6 +62,7 @@ export default function GeometryWorkEditor() {
   const [structure, setStructure] = useState(() => emptyStructure(1));
   // Ссылка ученику: открыта ли работа и каким классам (сохраняется сразу, мимо «Сохранить»)
   const [sharing, setSharing] = useState({ public: false, groups: [] });
+  const [drawings, setDrawings] = useState(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [byId, setById] = useState(() => new Map());
   const [dirty, setDirty] = useState(false);
@@ -110,6 +111,7 @@ export default function GeometryWorkEditor() {
         setTitle(rec.title || '');
         setKlass(rec.class || null);
         setSharing({ public: !!rec.public, groups: Array.isArray(rec.groups) ? rec.groups : [] });
+        setDrawings(rec.drawings || null);
         setStructure(s);
         const recs = await api.getGeometryTasksByIds(structureTaskIds(s));
         if (!alive) return;
@@ -665,6 +667,10 @@ export default function GeometryWorkEditor() {
         sharing={sharing}
         onChange={setSharing}
         dirty={dirty}
+        structure={structure}
+        tasksById={byId}
+        drawings={drawings}
+        onDrawingsChange={setDrawings}
       />
 
       <SheetToJournalModal

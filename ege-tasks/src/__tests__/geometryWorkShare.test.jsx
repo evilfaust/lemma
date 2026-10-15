@@ -5,15 +5,15 @@ import {
 import { App as AntApp } from 'antd';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { stereoDrawingSvg } from '../utils/stereo/dsl';
+import { stereoDrawingSvg, parseStereoBlock } from '../utils/stereo/dsl';
 import { DEFAULT_CAMERA } from '../utils/stereo/camera';
 
 // Ссылка ученику на геометрическую работу (v3.9.284): /w/<id> без входа,
 // только условия и чертежи; классам — в кабинет.
 
 const mockApi = vi.hoisted(() => ({
-  getPublicGeometryWork: vi.fn(),
-  getStudentGeometryTasks: vi.fn(),
+  getStudentGeometryWork: vi.fn(),
+  setGeometryWorkDrawings: vi.fn(),
   getGeometryImageUrl: vi.fn((t) => (t.geogebra_image_base64 ? `https://pb/files/${t.id}/${t.geogebra_image_base64}` : '')),
   setGeometryWorkSharing: vi.fn(),
   getTeachingGroups: vi.fn(),
@@ -36,6 +36,10 @@ import StudentStereoFeed from '../components/student/StudentStereoFeed';
 import { _resetStereoGroups } from '../components/stereo/StereoGroupsSelect';
 // eslint-disable-next-line import/first
 import { geometryApi } from '../shared/services/pb/geometry';
+// eslint-disable-next-line import/first
+import { pb } from '../shared/services/pb/client.js';
+// eslint-disable-next-line import/first
+import { planimDrawingSvg, parsePlanimBlock } from '../utils/planim/dsl';
 
 const WID = 'abcdefghijklmno';
 const STRUCTURE = {
@@ -46,27 +50,31 @@ const STRUCTURE = {
   layouts: {},
 };
 const CUBE_SVG = stereoDrawingSvg({ body: { kind: 'cube', a: 4 }, ops: [] }, DEFAULT_CAMERA);
+const PLANIM_SVG = planimDrawingSvg(parsePlanimBlock('треугольник ABC 5 6 7\nH = высота C AB').scene);
+// Так задачи приходят с сервера (хук geometry_work.pb.js): уровень уже посчитан,
+// чертёж решения t3 сервер не отдал (has_drawing: false).
 const TASKS = [
-  { id: 't1', statement_md: 'Найдите длину $AC_1$.', drawing_view: 'svg', drawing_svg: CUBE_SVG },
-  { id: 't2', statement_md: 'Задача про пирамиду.', geogebra_image_base64: 'pic.png' },
-  { id: 't3', statement_md: 'Задача три.', geogebra_image_base64: 'sol.png', image_role: 'solution' },
-  { id: 't4', statement_md: 'Вторая: первая задача.' },
-  { id: 't5', statement_md: 'Вторая: третья задача.' },
+  { id: 't1', statement_md: 'Найдите длину $AC_1$.', level: 'live', kind: 'stereo', has_drawing: true, drawing_view: 'svg', drawing_svg: CUBE_SVG },
+  { id: 't2', statement_md: 'Задача про пирамиду.', level: 'image', kind: 'image', has_drawing: true, geogebra_image_base64: 'pic.png' },
+  { id: 't3', statement_md: 'Задача три.', level: 'none', kind: null, has_drawing: false },
+  { id: 't4', statement_md: 'Вторая: первая задача.', level: 'none', kind: null, has_drawing: false },
+  { id: 't5', statement_md: 'Вторая: третья задача.', level: 'none', kind: null, has_drawing: false },
 ];
+const VARIANTS = [['t1', 't2', 't3'], ['t4', null, 't5']];
+const serverWork = (tasks = TASKS) => ({ id: WID, title: 'Сечения куба', class: 10, variants: VARIANTS, tasks });
 
 afterEach(cleanup);
 beforeEach(() => {
   Object.values(mockApi).forEach((f) => f.mockClear?.());
-  mockApi.getPublicGeometryWork.mockReset();
-  mockApi.getStudentGeometryTasks.mockReset();
+  mockApi.getStudentGeometryWork.mockReset();
+  mockApi.setGeometryWorkDrawings.mockReset();
   mockApi.setGeometryWorkSharing.mockReset();
   mockApi.getTeachingGroups.mockReset();
   mockApi.getMyStereoFeed.mockReset();
   _resetStereoGroups();
   localStorage.clear();
   mockApi.getTeachingGroups.mockResolvedValue([{ id: 'g7', name: '7 Б' }]);
-  mockApi.getPublicGeometryWork.mockResolvedValue({ id: WID, title: 'Сечения куба', class: 10, structure: STRUCTURE });
-  mockApi.getStudentGeometryTasks.mockResolvedValue(TASKS);
+  mockApi.getStudentGeometryWork.mockResolvedValue(serverWork());
 });
 
 describe('ссылки и состав варианта', () => {
@@ -85,12 +93,13 @@ describe('ссылки и состав варианта', () => {
     expect(variantCount(STRUCTURE)).toBe(2);
   });
 
-  it('ученику задачи запрашиваются без ответа и решения', async () => {
-    mockChunked.getFullListByOr.mockResolvedValue([]);
-    await geometryApi.getStudentGeometryTasks(['t1', 't2']);
-    const { fields } = mockChunked.getFullListByOr.mock.calls[0][3];
-    expect(fields).toContain('statement_md');
-    for (const f of ['answer', 'solution_md', 'hints', 'solution_files']) expect(fields.split(',')).not.toContain(f);
+  it('ученику работа приходит хуком сервера (он и режет ответы и скрытые чертежи)', async () => {
+    const send = vi.spyOn(pb, 'send').mockResolvedValue({ id: WID, variants: [[]], tasks: [] });
+    await geometryApi.getStudentGeometryWork(WID);
+    expect(send.mock.calls[0][0]).toBe(`/api/geometry/work/${WID}`);
+    send.mockRejectedValue(Object.assign(new Error('nf'), { status: 404 }));
+    expect(await geometryApi.getStudentGeometryWork(WID)).toBeNull();
+    send.mockRestore();
   });
 });
 
@@ -122,10 +131,47 @@ describe('страница ученика /w/<id>', () => {
   });
 
   it('закрытая работа — понятное сообщение', async () => {
-    mockApi.getPublicGeometryWork.mockResolvedValue(null);
+    mockApi.getStudentGeometryWork.mockResolvedValue(null);
     render(<StudentGeometryWork id={WID} />);
     expect(await screen.findByText('Работа недоступна')).toBeInTheDocument();
-    expect(mockApi.getStudentGeometryTasks).not.toHaveBeenCalled();
+  });
+
+  it('учитель скрыл чертёж — ученику «сделайте сами», ни картинки, ни холста', async () => {
+    mockApi.getStudentGeometryWork.mockResolvedValue(serverWork([
+      { id: 't1', statement_md: 'Скрытый чертёж.', level: 'none', kind: null, has_drawing: true },
+      { id: 't2', statement_md: 'Без чертежа вовсе.', level: 'none', kind: null, has_drawing: false },
+    ]));
+    const { container } = render(<StudentGeometryWork id={WID} variant={0} />);
+    expect(await screen.findByText('Скрытый чертёж.')).toBeInTheDocument();
+    expect(screen.getAllByText('Чертёж к задаче сделайте сами.')).toHaveLength(1);
+    expect(container.querySelector('.sgw-figure')).toBeNull();
+  });
+
+  it('картинка: SVG без холста; шаги: листание построения с начала', async () => {
+    mockApi.getStudentGeometryWork.mockResolvedValue(serverWork([
+      { id: 't1', statement_md: 'Картинкой.', level: 'image', kind: 'stereo', has_drawing: true, drawing_view: 'svg', drawing_svg: CUBE_SVG.replace(/<!--stereo:[^>]*-->/, '') },
+      { id: 't2', statement_md: 'По шагам.', level: 'steps', kind: 'planim', has_drawing: true, drawing_view: 'svg', drawing_svg: PLANIM_SVG },
+    ]));
+    const { container } = render(<StudentGeometryWork id={WID} variant={0} />);
+    expect(await screen.findByText('Картинкой.')).toBeInTheDocument();
+    expect(container.querySelectorAll('.sgw-figure--svg svg')).toHaveLength(1);
+    expect(container.querySelector('.sgw-figure--live .planim-live')).not.toBeNull();
+    expect(screen.getByText(/Сначала — сама фигура/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Следующий шаг')).toBeInTheDocument();
+    expect(screen.getByText(/Построение листается по шагам/)).toBeInTheDocument();
+  });
+
+  it('стереочертёж по шагам начинается с самого тела', async () => {
+    const parsed = parseStereoBlock('куб 4\nM на AB 1:1');
+    expect(parsed.scene.ops).toHaveLength(1);
+    const svg = stereoDrawingSvg(parsed.scene, DEFAULT_CAMERA);
+    mockApi.getStudentGeometryWork.mockResolvedValue(serverWork([
+      { id: 't1', statement_md: 'Куб по шагам.', level: 'steps', kind: 'stereo', has_drawing: true, drawing_view: 'svg', drawing_svg: svg },
+    ]));
+    render(<StudentGeometryWork id={WID} variant={0} />);
+    expect(await screen.findByText('Само тело')).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText('Следующий шаг'));
+    expect(screen.getByText(/Всё построение/)).toBeInTheDocument();
   });
 });
 
@@ -145,6 +191,64 @@ describe('окно «Ученикам» у учителя', () => {
     expect(onChange).toHaveBeenCalledWith({ public: true, groups: [] });
     expect(screen.getByText(`student.oipav.ru/w/${WID}?v=2`)).toBeInTheDocument();
     expect(screen.getByLabelText('Скопировать: Вариант 2')).not.toBeDisabled();
+  });
+});
+
+describe('чертежи ученикам — окно учителя', () => {
+  const structure = {
+    variants: [
+      { items: [{ task: 't1' }, { task: 't2' }] },
+      { items: [{ task: 't4' }, { task: 't5' }] },
+    ],
+    layouts: {},
+  };
+  const byId = new Map([
+    ['t1', { id: 't1', code: 'GEO-303', drawing_view: 'svg', drawing_svg: CUBE_SVG }],
+    ['t2', { id: 't2', code: 'GEO-304', geogebra_image_base64: 'pic.png' }],
+    ['t4', { id: 't4', code: 'GEO-305', drawing_view: 'svg', drawing_svg: CUBE_SVG }],
+    ['t5', { id: 't5', code: 'GEO-306' }],
+  ]);
+  const renderModal = (props = {}) => render(
+    <AntApp>
+      <GeometryWorkShareModal
+        open
+        workId={WID}
+        variants={2}
+        sharing={{ public: true, groups: [] }}
+        structure={structure}
+        tasksById={byId}
+        drawings={null}
+        {...props}
+      />
+    </AntApp>,
+  );
+
+  it('по каждой позиции видно, что получит ученик, с учётом вида чертежа', () => {
+    renderModal();
+    expect(screen.getByText('Чертежи ученикам')).toBeInTheDocument();
+    expect(screen.getByText('Ученик увидит: интерактивный чертёж')).toBeInTheDocument();
+    expect(screen.getByText(/Вариант 1: чертёж-картинка — у задачи картинка \(GeoGebra\/PNG\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Вариант 2: только условие \(чертежа нет\)/)).toBeInTheDocument();
+  });
+
+  it('уровень позиции сохраняется сразу — всем задачам позиции во всех вариантах', async () => {
+    mockApi.setGeometryWorkDrawings.mockResolvedValue({});
+    const onDrawingsChange = vi.fn();
+    renderModal({ onDrawingsChange });
+    const select = screen.getAllByLabelText('Задание 1')[0].closest('.ant-select');
+    fireEvent.mouseDown(select.querySelector('.ant-select-selector'));
+    const option = await waitFor(() => {
+      const el = [...document.querySelectorAll('.ant-select-item-option-content')]
+        .find((n) => n.textContent === 'Чертёж + шаги построения');
+      if (!el) throw new Error('нет варианта');
+      return el;
+    });
+    fireEvent.click(option);
+    await waitFor(() => expect(mockApi.setGeometryWorkDrawings).toHaveBeenCalledWith(
+      WID, { default: 'live', tasks: { t1: 'steps', t4: 'steps' } },
+    ));
+    expect(onDrawingsChange).toHaveBeenCalled();
+    expect(screen.getByText('Ученик увидит: чертёж + шаги построения')).toBeInTheDocument();
   });
 });
 

@@ -271,29 +271,26 @@ export const geometryApi = {
     return rec;
   },
 
-  // Работа для ученика по ссылке (без входа): только то, что нужно странице.
-  // null — работы нет или она закрыта (аноним этого не различит, и так нарочно).
-  async getPublicGeometryWork(id) {
+  // Что видит ученик к задачам (v3.9.377): { default, tasks: { [taskId]: уровень } },
+  // уровни — utils/geometryDrawings.js. Сохраняется сразу, как и доступ.
+  async setGeometryWorkDrawings(id, drawings) {
+    const rec = await pb.collection('geometry_works').update(id, { drawings });
+    _logAudit('update', 'geometry_works', id, `${rec.title}: чертежи ученикам`);
+    return rec;
+  },
+
+  // Работа для ученика по ссылке (без входа) — хуком pb_hooks/geometry_work.pb.js:
+  // условия и чертежи по уровню показа, ответов и решений сервер не отдаёт,
+  // скрытый учителем чертёж — тоже. null — работы нет или она закрыта (аноним
+  // этого не различит, и так нарочно).
+  // → { id, title, class, variants: [[taskId|null]], tasks: [{ id, statement_md, level, kind, … }] }
+  async getStudentGeometryWork(id) {
     try {
-      return await pb.collection('geometry_works').getOne(id, {
-        fields: 'id,title,class,structure,public,updated',
-        requestKey: null,
-      });
+      return await pb.send(`/api/geometry/work/${encodeURIComponent(id)}`, { method: 'GET', requestKey: null });
     } catch (error) {
       if ([403, 404].includes(error?.status)) return null;
       throw error;
     }
-  },
-
-  // Задачи для ученика: условие и чертёж. Ответ, решение, указания и
-  // критерии НЕ запрашиваются — ученик решает сам.
-  async getStudentGeometryTasks(ids) {
-    const uniq = [...new Set((ids || []).filter(Boolean))];
-    if (!uniq.length) return [];
-    return getFullListByOr('geometry_tasks', 'id', uniq, {
-      fields: 'id,code,statement_md,drawing_view,drawing_svg,image_role,geogebra_image_base64,drawing_image',
-      requestKey: null,
-    });
   },
 
   async deleteGeometryWork(id) {

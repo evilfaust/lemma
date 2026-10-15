@@ -22,17 +22,20 @@ const ZOOM_STEP = 1.25;
  *
  * steps={false} — без листания шагов (чертёж условия задачи: шаги там — это
  * данные точки, показываются сразу все).
+ * startAt="start" — листать с самого тела, а не с готового чертежа (шаги
+ * построения в работе ученика, v3.9.377: ученик сверяет свой чертёж по шагам).
  */
-export default function TheoryStereoBlock({ spec, steps: withSteps = true }) {
+export default function TheoryStereoBlock({ spec, steps: withSteps = true, startAt = 'end' }) {
   const parsed = useMemo(() => parseStereoBlock(spec), [spec]);
   const { scene, size } = parsed;
   const camera0 = parsed.camera;
   const total = scene.ops.length;
   const [camera, setCamera] = useState(camera0);
-  const [step, setStep] = useState(total);
+  const first = withSteps && startAt === 'start' ? 0 : total;
+  const [step, setStep] = useState(first);
   const [flash, setFlash] = useState(null);
 
-  useEffect(() => { setCamera(camera0); setStep(total); }, [camera0, total]);
+  useEffect(() => { setCamera(camera0); setStep(first); }, [camera0, first]);
 
   useEffect(() => {
     if (flash == null) return undefined;
