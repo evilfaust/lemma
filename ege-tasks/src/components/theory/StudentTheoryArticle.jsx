@@ -125,8 +125,7 @@ export default function StudentTheoryArticle({ id }) {
       </article>
 
       <footer className="sta-foot">
-        Lemma — платформа для учителей математики ·{' '}
-        <a href="https://github.com/evilfaust/lemma" target="_blank" rel="noopener noreferrer">исходный код открыт (AGPL-3.0)</a>
+        Lemma — платформа для учителей математики · автор — Олег Павлюченко
       </footer>
     </div>
   );
