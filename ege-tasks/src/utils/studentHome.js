@@ -5,6 +5,7 @@ import { slotRangeFromCode } from '../components/workspace/lessonTime';
 import { attemptResultsHidden } from './resultsVisibility';
 import { itemRequired } from './lessonResults';
 import { studentWorkTitle } from './studentWorkTitle';
+import { retakeOf } from './attemptRetake';
 
 /**
  * Главная ученика (v3.9.316) — лента «что делать»: чистая логика без сети.
@@ -135,7 +136,44 @@ export function unfinishedAttempts(attempts, now = dayjs()) {
     // было «Нескольких попыток», и выданную учителем попытку было не найти).
     if (!startedAfterSubmit(a, lastSubmitted) && !(a.expand?.session?.max_attempts > 1)) continue;
     seen.add(a.session);
-    out.push({ sessionId: a.session, title: attemptTitle(a), started: a.created });
+    // Начата после сдачи — это выданная ещё попытка, а не брошенный тест
+    const issued = lastSubmitted.has(a.session) && startedAfterSubmit(a, lastSubmitted);
+    out.push({ sessionId: a.session, title: attemptTitle(a), started: a.created, issued });
+  }
+  return out;
+}
+
+/** Лучший процент сданных попыток выдачи (null — баллов не видно). */
+function bestPctOf(attempts, sessionId) {
+  const done = (attempts || []).filter((a) => a.session === sessionId && isSubmitted(a)
+    && Number(a.total) > 0 && !attemptResultsHidden(a));
+  if (!done.length) return null;
+  return Math.round(Math.max(...done.map((a) => (Number(a.score) || 0) / Number(a.total))) * 100);
+}
+
+/**
+ * «Можно пересдать» (v3.9.380): у выдачи «Несколько попыток», лимит не
+ * исчерпан, приём открыт, сдавал не позже двух недель назад и написал не на
+ * 100 % (отличнику пересдача не напоминается). Попытку, которую выдал
+ * учитель вручную, показывает `unfinishedAttempts` («новая попытка»).
+ * → [{ sessionId, title, left, limit, pct, date }] — свежие сверху.
+ */
+export function retakeOffers(attempts, now = dayjs()) {
+  const edge = dayjs(now).subtract(UNFINISHED_DAYS, 'day');
+  const seen = new Set();
+  const out = [];
+  const list = [...(attempts || [])]
+    .filter(isSubmitted)
+    .sort((a, b) => new Date(attemptDate(b)) - new Date(attemptDate(a)));
+  for (const a of list) {
+    if (!a.session || seen.has(a.session)) continue;
+    seen.add(a.session);
+    if (dayjs(attemptDate(a)).isBefore(edge)) continue;
+    const r = retakeOf(a.session, attempts);
+    if (r?.kind !== 'more') continue;
+    const pct = bestPctOf(attempts, a.session);
+    if (pct === 100) continue;
+    out.push({ sessionId: a.session, title: attemptTitle(a), left: r.left, limit: r.limit, pct, date: attemptDate(a) });
   }
   return out;
 }
@@ -146,6 +184,11 @@ export function unfinishedAttempts(attempts, now = dayjs()) {
  * Учитель закрыл результаты выдачи (v3.9.321) → `hidden: true`, без баллов:
  * ученик видит, что работа сдана, а результат появится позже.
  */
+const moreRetake = (sessionId, attempts) => {
+  const r = retakeOf(sessionId, attempts);
+  return r?.kind === 'more' ? r : null;
+};
+
 export function recentResults(attempts, limit = 3) {
   const seen = new Set();
   const out = [];
@@ -159,6 +202,7 @@ export function recentResults(attempts, limit = 3) {
       out.push({
         sessionId: a.session, title: attemptTitle(a), hidden: true,
         score: null, total: null, pct: null, date: attemptDate(a),
+        retake: moreRetake(a.session, attempts),
       });
       if (out.length >= limit) break;
       continue;
@@ -172,6 +216,7 @@ export function recentResults(attempts, limit = 3) {
       total,
       pct: Math.round((score / total) * 100),
       date: attemptDate(a),
+      retake: bestPctOf(attempts, a.session) === 100 ? null : moreRetake(a.session, attempts),
     });
     if (out.length >= limit) break;
   }
@@ -221,6 +266,9 @@ export function todoList(lessons, attempts, now = dayjs()) {
     }
     else dueLabel = `к уроку ${relDayLabel(due.date_plan, t)}`;
     const done = item.kind === 'work' && !!item.session_id && submitted.has(item.session_id);
+    // Сдано, но у выдачи ещё есть попытки — «сдано · можно пересдать»
+    const retake = done && bestPctOf(attempts, item.session_id) !== 100
+      ? moreRetake(item.session_id, attempts) : null;
     return {
       key: `${from.id}:${i}`,
       item,
@@ -230,6 +278,7 @@ export function todoList(lessons, attempts, now = dayjs()) {
       due,
       dueLabel,
       done,
+      retake,
       groupId: from.group,
     };
   });

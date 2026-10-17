@@ -11,6 +11,7 @@ import { slotRangeFromCode } from '../workspace/lessonTime';
 import { homeworkFeed, isNextDue, resolveHomework } from '../../utils/homework';
 import { lessonsByDay, mergeRange, rangeToLoad } from '../../utils/studentWeek';
 import { itemResult, resultLabel, resultTone, itemRequired, itemSection } from '../../utils/lessonResults';
+import { retakeLabel } from '../../utils/attemptRetake';
 import StudentWeekView from './StudentWeekView';
 import MathRenderer from '../MathRenderer';
 import './StudentCoursePortal.css';
@@ -122,12 +123,24 @@ function ItemRow({ item, meta, when, results = NO_RESULTS }) {
   const openResult = res.state === 'done' && results.onOpenAttempt && res.attempt
     ? () => results.onOpenAttempt(res.attempt.id) : null;
   const status = label
-    ? <span className={`sc-item-status is-${res.state}`}><ResultBadge res={res} />{res.state === 'done' ? ' ' : ''}{label}</span>
+    ? (
+      <span className={`sc-item-status is-${res.state}`}>
+        <ResultBadge res={res} />{res.state === 'done' ? ' ' : ''}{label}
+        {res.retake && <span className="sc-retake"> · {retakeLabel(res.retake)}</span>}
+      </span>
+    )
     : null;
   let line;
   if (item.kind === 'work') {
     const finished = res.state === 'done' || res.state === 'hidden';
-    if (finished) {
+    if (finished && res.retake && item.session_id) {
+      // Ещё попытка (v3.9.380): строка ведёт в выдачу, разбор — там же
+      line = (
+        <ItemLine icon={<CheckCircleFilled />} tone="done" title={item.title || 'Работа'} status={status}
+          action={res.retake.kind === 'issued' ? 'Начать попытку' : 'Пересдать'} primary
+          href={`/student/${item.session_id}`} />
+      );
+    } else if (finished) {
       line = (
         <ItemLine icon={<CheckCircleFilled />} tone="done" title={item.title || 'Работа'} status={status}
           action={openResult ? 'Подробнее' : null} onClick={openResult} />

@@ -8,8 +8,9 @@ import {
 import dayjs from 'dayjs';
 import { api } from '../../shared/services/pocketbase';
 import { addressOf } from '../../utils/studentAddress';
+import { retakeLabel } from '../../utils/attemptRetake';
 import {
-  currentLesson, nextLesson, lessonTimeLabel, untilLabel, unfinishedAttempts, recentResults,
+  currentLesson, nextLesson, lessonTimeLabel, untilLabel, unfinishedAttempts, recentResults, retakeOffers,
   todoList, todayLabel, relDayLabel,
 } from '../../utils/studentHome';
 import { useStereoFeed, LiveRoomCards, TeacherMaterials, hasTeacherMaterials } from './StudentStereoFeed';
@@ -71,8 +72,14 @@ function TodoRow({ row }) {
               </Suspense>
             </div>
           : <div className="sh-todo-title">{row.title}</div>}
-        <div className="sh-todo-due">{row.done ? 'сдано' : row.dueLabel}</div>
+        <div className="sh-todo-due">
+          {row.done ? 'сдано' : row.dueLabel}
+          {row.retake && <span className="sh-retake-note"> · можно пересдать</span>}
+        </div>
       </div>
+      {link && row.retake && (
+        <Button size="small" className="sh-btn" href={link.href}>Пересдать</Button>
+      )}
       {link && !row.done && (
         <Button
           size="small"
@@ -95,6 +102,7 @@ function ResultRow({ r }) {
         <div className="sh-result-main">
           <div className="sh-result-title">{r.title}</div>
           <div className="sh-result-note">Сдано · результат появится позже</div>
+          {r.retake && <div className="sh-retake-note">{retakeLabel(r.retake)}</div>}
         </div>
         <div className="sh-result-score">
           <span>{relDayLabel(r.date)}</span>
@@ -108,6 +116,7 @@ function ResultRow({ r }) {
       <div className="sh-result-main">
         <div className="sh-result-title">{r.title}</div>
         <div className="sh-result-bar"><span className={`is-${tone}`} style={{ width: `${r.pct}%` }} /></div>
+        {r.retake && <div className="sh-retake-note">{retakeLabel(r.retake)}</div>}
       </div>
       <div className="sh-result-score">
         <b>{r.score}</b>/{r.total}
@@ -184,6 +193,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
   const todos = useMemo(() => todoList(lessons, attempts || [], now), [lessons, attempts, now]);
   const unfinished = useMemo(() => unfinishedAttempts(attempts || [], now), [attempts, now]);
   const results = useMemo(() => recentResults(attempts || []), [attempts]);
+  const retakes = useMemo(() => retakeOffers(attempts || [], now), [attempts, now]);
 
   const loading = lessonsData === undefined || attempts === undefined;
   const name = addressOf(student) || student.name;
@@ -191,7 +201,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
   const groupLabel = (id) => (groups.length > 1 ? groupsById.get(id)?.name : '');
 
   const rooms = feed?.rooms || [];
-  const hasNow = rooms.length > 0 || unfinished.length > 0 || !!nowLesson;
+  const hasNow = rooms.length > 0 || unfinished.length > 0 || retakes.length > 0 || !!nowLesson;
   const openTodos = todos.filter((r) => !r.done);
   const shownTodos = todos.slice(0, TODO_SHOW);
   const hiddenTodos = todos.length - shownTodos.length;
@@ -274,12 +284,28 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
             )}
             {unfinished.map((u) => (
               <a key={u.sessionId} className="sh-now-card" href={`/student/${u.sessionId}`}>
-                <span className="sh-now-badge sh-now-badge--test">не закончен</span>
+                <span className={`sh-now-badge ${u.issued ? 'sh-now-badge--retake' : 'sh-now-badge--test'}`}>
+                  {u.issued ? 'новая попытка' : 'не закончен'}
+                </span>
                 <div className="sh-now-main">
                   <div className="sh-now-title">{u.title}</div>
-                  <div className="sh-now-sub">начат {relDayLabel(u.started, now)}</div>
+                  <div className="sh-now-sub">
+                    {u.issued ? `учитель дал ещё попытку · ${relDayLabel(u.started, now)}` : `начат ${relDayLabel(u.started, now)}`}
+                  </div>
                 </div>
-                <span className="sh-now-go">Продолжить <RightOutlined /></span>
+                <span className="sh-now-go">{u.issued ? 'Начать' : 'Продолжить'} <RightOutlined /></span>
+              </a>
+            ))}
+            {retakes.map((r) => (
+              <a key={`retake-${r.sessionId}`} className="sh-now-card" href={`/student/${r.sessionId}`}>
+                <span className="sh-now-badge sh-now-badge--retake">можно пересдать</span>
+                <div className="sh-now-main">
+                  <div className="sh-now-title">{r.title}</div>
+                  <div className="sh-now-sub">
+                    {r.pct != null ? `лучший результат ${r.pct}% · ` : ''}{retakeLabel(r).replace('Можно пересдать · ', '')}
+                  </div>
+                </div>
+                <span className="sh-now-go">Пересдать <RightOutlined /></span>
               </a>
             ))}
           </div>

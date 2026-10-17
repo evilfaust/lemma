@@ -232,7 +232,8 @@ export const studentsApi = {
       return await pb.collection('attempts').getFullList({
         filter: `student = "${escapeFilter(studentId)}"`,
         fields: 'id,session,status,score,total,created,submitted_at,'
-          + 'expand.session.id,expand.session.work,expand.session.mc_test,expand.session.results_hidden',
+          + 'expand.session.id,expand.session.work,expand.session.mc_test,expand.session.results_hidden,'
+          + 'expand.session.max_attempts,expand.session.is_open',
         expand: 'session',
         sort: '-created',
         requestKey: null,

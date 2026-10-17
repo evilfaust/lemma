@@ -9,6 +9,7 @@ import {
 import dayjs from 'dayjs';
 import MaterialPickerModal from '../MaterialPickerModal';
 import LessonWorkPickerModal from './LessonWorkPickerModal';
+import AttemptsSetting from '../../worksheet/AttemptsSetting';
 import { api } from '../../../shared/services/pocketbase';
 import {
   ITEM_MODES, itemMode, withMode, defaultItemTitle, requiredOf,
@@ -290,6 +291,14 @@ export default function LessonMaterialsEditor({
     }
   };
 
+  // «Несколько попыток» у онлайн-выдачи пункта (v3.9.380) — прямо в уроке
+  const attemptsSaved = (item, updated) => {
+    const byId = new Map((updated || []).map((x) => [x.id, x]));
+    const upd = (list) => (list || []).map((x) => (byId.has(x.id) ? { ...x, max_attempts: byId.get(x.id).max_attempts } : x));
+    if (item.type === 'mc_test') setTestSessions((p) => ({ ...p, [item.id]: upd(p[item.id]) }));
+    else setWorkSessions((p) => ({ ...p, [item.id]: upd(p[item.id]) }));
+  };
+
   const extraNoteFiles = noteFiles.filter((m) => !hasItem(items, 'material', m.id));
 
   return (
@@ -355,6 +364,7 @@ export default function LessonMaterialsEditor({
               onRequired={(v) => patch(idx, (x) => ({ ...x, required: v }))}
               onSession={(sid) => patch(idx, (x) => ({ ...x, session: sid }))}
               onToggleResults={(ids, hidden) => toggleResults(idx, item, ids, hidden)}
+              onAttemptsSaved={(updated) => attemptsSaved(item, updated)}
             />
           ))}
         </div>
@@ -455,7 +465,7 @@ export default function LessonMaterialsEditor({
 /** Строка списка: что за пункт, как выдан, что увидит ученик. */
 function MaterialRow({
   item, studentFacing, isCourse, canEdit, busy, sessions,
-  onOpen, onRemove, onDelivery, onMode, onRequired, onSession, onToggleResults,
+  onOpen, onRemove, onDelivery, onMode, onRequired, onSession, onToggleResults, onAttemptsSaved,
 }) {
   const meta = TYPE_META[item.type] || TYPE_META.work;
   const d = deliveryOf(item, isCourse);
@@ -547,6 +557,12 @@ function MaterialRow({
                 disabled={!canEdit || busy}
                 onChange={(on) => onToggleResults(resultIds, !on)}
               />
+            </Space>
+          )}
+          {d === 'online' && resultSessions.length > 0 && (
+            <Space size={4} className="lm-results">
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>попытки</Typography.Text>
+              <AttemptsSetting compact sessions={resultSessions} onSaved={onAttemptsSaved} disabled={!canEdit || busy} />
             </Space>
           )}
           {d === 'paper' && resultSessions.length === 0 && (

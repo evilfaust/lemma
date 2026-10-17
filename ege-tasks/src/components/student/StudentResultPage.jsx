@@ -21,7 +21,7 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     attempt, tasks, session,
     passingScore = 0, retryEnabled = false, maxAttempts = 0,
     attemptsUsed = 0, attemptsLeft = 0, bestAttempt = null,
-    canRetry = false, startRetry,
+    canRetry = false, startRetry, issuedAttempt = null,
   } = studentSession;
   const [attemptAnswers, setAttemptAnswers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -151,6 +151,18 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
     </Button>
   );
 
+  // Попытку выдал учитель — она уже создана и ждёт ученика (v3.9.380);
+  // показывается и без «Нескольких попыток».
+  const issuedBlock = issuedAttempt && (
+    <div className="srp-status srp-status--neutral srp-issued">
+      <div className="srp-issued-title">Учитель дал тебе ещё одну попытку</div>
+      <div className="srp-issued-sub">Вариант будет другой. В зачёт пойдёт лучший результат.</div>
+      <Button type="primary" size="large" block loading={retrying} onClick={handleRetry} className="srp-retry-btn">
+        Начать попытку
+      </Button>
+    </div>
+  );
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: 60 }}>
@@ -176,7 +188,8 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
         </div>
         {/* Попытки — и при закрытых результатах (без баллов и зачёта):
             до v3.9.368 здесь пропадала кнопка «Пройти ещё раз». */}
-        {retryEnabled && (
+        {issuedBlock}
+        {retryEnabled && !issuedAttempt && (
           <div className="srp-status srp-status--neutral">
             {attemptsBlock}
             {retryButton}
@@ -210,8 +223,10 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
         </div>
       </div>
 
+      {issuedBlock}
+
       {/* Зачёт / попытки */}
-      {(passingScore > 0 || retryEnabled) && (() => {
+      {(passingScore > 0 || (retryEnabled && !issuedAttempt)) && (() => {
         const bestScore = bestAttempt?.score ?? score;
         const bestTotal = bestAttempt?.total ?? total;
         const passed = passingScore > 0 && bestScore >= passingScore;
@@ -252,9 +267,9 @@ const StudentResultPage = ({ studentSession, onNavigateToGallery }) => {
               </div>
             )}
 
-            {attemptsBlock}
+            {!issuedAttempt && attemptsBlock}
 
-            {retryButton}
+            {!issuedAttempt && retryButton}
           </div>
         );
       })()}

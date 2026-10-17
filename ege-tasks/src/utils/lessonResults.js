@@ -11,9 +11,14 @@
  *   'started' — начал и не сдал (только онлайн, «Продолжить»);
  *   'hidden'  — сдано, но учитель закрыл результаты (utils/resultsVisibility);
  *   'done'    — сдано, балл виден: лучшая попытка по проценту (как в журнале).
+ *
+ * У сданной онлайн-работы — `retake` (v3.9.380, utils/attemptRetake.retakeOf):
+ * учитель выдал ещё попытку (`issued`) или у выдачи остались попытки
+ * (`more`; при 100 % не предлагается).
  */
 
 import { attemptResultsHidden } from './resultsVisibility';
+import { retakeOf } from './attemptRetake';
 
 const submitted = (a) => a && (a.status === 'submitted' || a.status === 'corrected');
 const pctOf = (a) => (Number(a.total) > 0 ? (Number(a.score) || 0) / Number(a.total) : 0);
@@ -33,13 +38,19 @@ export function itemResult(item, attempts) {
     : a.session === item.session_id));
   const done = mine.filter(submitted);
   const open = done.filter((a) => !attemptResultsHidden(a));
+  const retakeFor = (pct) => {
+    if (item.kind !== 'work' || !done.length) return null;
+    const r = retakeOf(item.session_id, mine);
+    return r && (r.kind === 'issued' || pct !== 100) ? r : null;
+  };
   if (open.length) {
     const best = open.reduce((b, a) => (pctOf(a) > pctOf(b) ? a : b));
     const total = Number(best.total) || 0;
     const score = Number(best.score) || 0;
-    return { state: 'done', attempt: best, score, total, pct: total ? Math.round((score / total) * 100) : 0 };
+    const pct = total ? Math.round((score / total) * 100) : 0;
+    return { state: 'done', attempt: best, score, total, pct, retake: retakeFor(pct) };
   }
-  if (done.length) return { state: 'hidden', attempt: done[0] };
+  if (done.length) return { state: 'hidden', attempt: done[0], retake: retakeFor(null) };
   if (item.kind === 'work' && mine.some((a) => a.status === 'started')) return { state: 'started' };
   return { state: 'none' };
 }

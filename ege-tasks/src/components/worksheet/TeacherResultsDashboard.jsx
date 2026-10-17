@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, Tag, Button, Space, Typography, Spin, Empty, Modal, Popconfirm, App, Popover, Select, Switch, Tooltip, Alert, Input } from 'antd';
-import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, TrophyOutlined, FileExcelOutlined } from '@ant-design/icons';
+import { ReloadOutlined, SwapOutlined, CheckCircleOutlined, CloseCircleOutlined, CheckOutlined, CloseOutlined, DeleteOutlined, EditOutlined, EyeOutlined, TrophyOutlined, FileExcelOutlined, RedoOutlined } from '@ant-design/icons';
 import { regradeAnswer } from '../../utils/answerChecker';
 import { api } from '../../services/pocketbase';
 import { pickRetakeVariant, mcVariantKey } from '../../utils/retakeVariant';
@@ -11,6 +11,9 @@ import { drillAnswerRows, setDrillAnswerCorrect } from '../../utils/drillTest';
 import { hiddenState } from '../../utils/resultsVisibility';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import ResultsExportModal from './ResultsExportModal';
+import AttemptsSetting from './AttemptsSetting';
+import RetakeModal from './RetakeModal';
+import { retakeCandidates } from '../../utils/attemptRetake';
 
 const { Text } = Typography;
 const PB_URL = PB_BASE_URL;
@@ -25,7 +28,7 @@ const PB_URL = PB_BASE_URL;
  * размазаны по сессиям — в разрезе одной выдачи учитель видит пусто.
  * sessionLabels — подписи выдач (id → строка) для колонки «Из выдачи».
  */
-const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
+const TeacherResultsDashboard = ({ sessionId, sessionLabels = null, sessionsVersion, onSessionsChange }) => {
   const { message } = App.useApp();
   const [attempts, setAttempts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +43,7 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
   const [mcTestData, setMcTestData] = useState(null); // данные MC-теста для отображения текста опций
   const [classRemOpen, setClassRemOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [retakeOpen, setRetakeOpen] = useState(false);
   const [sessionRecords, setSessionRecords] = useState([]); // выдачи: флаг results_hidden, название работы
   const [visibilitySaving, setVisibilitySaving] = useState(false);
   const [answerEdit, setAnswerEdit] = useState(null); // { id, value } — правка ответа ученика
@@ -137,7 +141,15 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
       if (!cancelled) setSessionRecords(list || []);
     });
     return () => { cancelled = true; };
-  }, [sessionKey]);
+  }, [sessionKey, sessionsVersion]);
+
+  // Учитель поменял «Несколько попыток» здесь — запись выдачи обновляем на
+  // месте и сообщаем панели выдачи (там тот же выключатель).
+  const handleAttemptsSaved = (updated) => {
+    const byId = new Map((updated || []).map((s) => [s.id, s]));
+    setSessionRecords((prev) => prev.map((s) => (byId.has(s.id) ? { ...s, max_attempts: byId.get(s.id).max_attempts } : s)));
+    onSessionsChange?.(updated || []);
+  };
 
   const resultsHidden = hiddenState(sessionRecords);
 
@@ -288,6 +300,76 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
     }
   };
 
+  // Новая попытка ученику от его попытки: та же выдача, другой вариант.
+  // `cache` — выдачи/попытки/тесты, уже прочитанные в этой пачке (выдача
+  // «тем, кто ниже порога» создаёт попытки десятку учеников подряд).
+  const createRetake = async (attempt, cache = {}) => {
+    // Новый вариант выдаём в той же сессии, где ученик писал: в режиме
+    // «все выдачи» попытки приходят из разных выдач одной работы.
+    const attemptSessionId = attempt.session || primarySessionId;
+    cache.sessions ||= {};
+    cache.attempts ||= {};
+    cache.variants ||= {};
+    if (!(attemptSessionId in cache.sessions)) {
+      cache.sessions[attemptSessionId] = await api.getSession(attemptSessionId);
+      cache.attempts[attemptSessionId] = await api.getAttemptsBySession(attemptSessionId);
+    }
+    const session = cache.sessions[attemptSessionId];
+    if (!session) throw new Error('Выдача не найдена');
+    const allAttempts = cache.attempts[attemptSessionId];
+    const base = {
+      session: attemptSessionId,
+      student_name: attempt.student_name,
+      device_id: attempt.device_id,
+      student: attempt.student || null, // Копируем student из предыдущей попытки
+      status: 'started',
+      score: 0,
+    };
+
+    let created;
+    let label;
+    // Тест A/B/C/D: записей `variants` у него нет — варианты лежат в
+    // самом тесте, попытка хранит номер в `mc_variant`. Раньше ветки не
+    // было: по пустому `session.work` находились варианты без работы
+    // (остатки удалённых работ), попытка уходила с чужим вариантом, и
+    // ученик вместо теста видел вечную загрузку.
+    if (session.mc_test) {
+      const vkey = `mc:${session.mc_test}`;
+      if (!cache.variants[vkey]) cache.variants[vkey] = (await api.getMCTest(session.mc_test))?.variants || [];
+      const mcVariants = cache.variants[vkey];
+      const number = pickRetakeVariant(
+        mcVariants.map((v) => String(v.number)), allAttempts, attempt, mcVariantKey,
+      );
+      const chosen = mcVariants.find((v) => String(v.number) === number);
+      if (!chosen) throw new Error('В тесте нет вариантов');
+      created = await api.createAttempt({
+        ...base,
+        mc_variant: Number(chosen.number),
+        total: (chosen.tasks || []).length,
+      });
+      label = chosen.number;
+    } else {
+      const vkey = `w:${session.work}`;
+      if (!cache.variants[vkey]) cache.variants[vkey] = await api.getVariantsByWork(session.work);
+      const allVariants = cache.variants[vkey];
+      if (allVariants.length === 0) throw new Error('В работе нет вариантов');
+      const chosenVariantId = pickRetakeVariant(
+        allVariants.map((v) => v.id), allAttempts, attempt, (a) => a.variant,
+      );
+      const chosenVariant = allVariants.find(v => v.id === chosenVariantId);
+      const taskList = chosenVariant.expand?.tasks || [];
+      created = await api.createAttempt({
+        ...base,
+        variant: chosenVariantId,
+        total: taskList.length,
+      });
+      label = chosenVariant.number;
+    }
+    // Следующему ученику пачки вариант подбирается с учётом только что выданных
+    allAttempts.push(created);
+    return { created, label };
+  };
+
   // Выдать другой вариант
   const handleNewVariant = async (attempt) => {
     Modal.confirm({
@@ -297,74 +379,32 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
       cancelText: 'Отмена',
       onOk: async () => {
         try {
-          // Новый вариант выдаём в той же сессии, где ученик писал: в режиме
-          // «все выдачи» попытки приходят из разных выдач одной работы.
-          const attemptSessionId = attempt.session || primarySessionId;
-          const session = await api.getSession(attemptSessionId);
-          if (!session) return;
-
-          const allAttempts = await api.getAttemptsBySession(attemptSessionId);
-          const base = {
-            session: attemptSessionId,
-            student_name: attempt.student_name,
-            device_id: attempt.device_id,
-            student: attempt.student || null, // Копируем student из предыдущей попытки
-            status: 'started',
-            score: 0,
-          };
-
-          // Тест A/B/C/D: записей `variants` у него нет — варианты лежат в
-          // самом тесте, попытка хранит номер в `mc_variant`. Раньше ветки не
-          // было: по пустому `session.work` находились варианты без работы
-          // (остатки удалённых работ), попытка уходила с чужим вариантом, и
-          // ученик вместо теста видел вечную загрузку.
-          if (session.mc_test) {
-            const mcTest = await api.getMCTest(session.mc_test);
-            const mcVariants = mcTest?.variants || [];
-            const number = pickRetakeVariant(
-              mcVariants.map((v) => String(v.number)), allAttempts, attempt, mcVariantKey,
-            );
-            const chosen = mcVariants.find((v) => String(v.number) === number);
-            if (!chosen) {
-              message.error('В тесте нет вариантов');
-              return;
-            }
-            await api.createAttempt({
-              ...base,
-              mc_variant: Number(chosen.number),
-              total: (chosen.tasks || []).length,
-            });
-            message.success(`Ученику ${attempt.student_name} назначен Вариант ${chosen.number}`);
-            loadAttempts();
-            return;
-          }
-
-          const allVariants = await api.getVariantsByWork(session.work);
-          if (allVariants.length === 0) {
-            message.error('В работе нет вариантов');
-            return;
-          }
-
-          const chosenVariantId = pickRetakeVariant(
-            allVariants.map((v) => v.id), allAttempts, attempt, (a) => a.variant,
-          );
-          const chosenVariant = allVariants.find(v => v.id === chosenVariantId);
-
-          const taskList = chosenVariant.expand?.tasks || [];
-          await api.createAttempt({
-            ...base,
-            variant: chosenVariantId,
-            total: taskList.length,
-          });
-
-          message.success(`Ученику ${attempt.student_name} назначен Вариант ${chosenVariant.number}`);
+          const { label } = await createRetake(attempt);
+          message.success(`Ученику ${attempt.student_name} назначен Вариант ${label}`);
           loadAttempts();
         } catch (err) {
           console.error('Error assigning new variant:', err);
-          message.error('Ошибка при назначении варианта');
+          message.error(err?.message?.startsWith('В ') ? err.message : 'Ошибка при назначении варианта');
         }
       },
     });
+  };
+
+  // «Ещё попытка тем, кто ниже порога» — пачкой, по одной на ученика
+  const handleIssueRetakes = async (list) => {
+    const cache = {};
+    let ok = 0;
+    for (const a of list) {
+      try {
+        await createRetake(a, cache);
+        ok++;
+      } catch (err) {
+        console.error('Error issuing retake:', err);
+      }
+    }
+    if (ok === list.length) message.success(`Ещё одна попытка выдана: ${ok}`);
+    else message.warning(`Выдано ${ok} из ${list.length} — остальным не получилось, попробуйте ещё раз`);
+    loadAttempts();
   };
 
   const openManualAchievementsModal = (attempt) => {
@@ -862,6 +902,8 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
     );
   };
 
+  const hasRetakeCandidates = retakeCandidates(attempts, 101).length > 0;
+
   if (loading && attempts.length === 0) {
     return <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>;
   }
@@ -889,6 +931,16 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
                   aria-label="Результаты ученикам"
                 />
               </Space>
+            </Tooltip>
+          )}
+          {canEdit && sessionRecords.length > 0 && (
+            <AttemptsSetting sessions={sessionRecords} onSaved={handleAttemptsSaved} />
+          )}
+          {canEdit && hasRetakeCandidates && (
+            <Tooltip title="Новая попытка с другим вариантом — только тем, у кого лучший результат ниже порога">
+              <Button size="small" icon={<RedoOutlined />} onClick={() => setRetakeOpen(true)}>
+                Ещё попытка…
+              </Button>
             </Tooltip>
           )}
           <Button
@@ -938,6 +990,14 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null }) => {
         mcTest={mcTestData}
         sessions={sessionRecords}
         sessionLabels={multiSession ? sessionLabels : null}
+      />
+
+      <RetakeModal
+        open={retakeOpen}
+        onClose={() => setRetakeOpen(false)}
+        attempts={attempts}
+        onIssue={handleIssueRetakes}
+        closed={sessionRecords.length > 0 && sessionRecords.every((s) => s.is_open === false)}
       />
 
       <ClassRemediationModal

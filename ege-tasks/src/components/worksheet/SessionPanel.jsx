@@ -14,6 +14,7 @@ import {
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/pocketbase';
 import TeacherResultsDashboard from './TeacherResultsDashboard';
+import AttemptsSetting from './AttemptsSetting';
 import './SessionPanel.css';
 import { isGenericTitle } from '../../utils/studentWorkTitle';
 
@@ -116,18 +117,9 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
     }
   };
 
-  const maxAttempts = Number(session?.max_attempts) || 0;
   const passingScore = Number(session?.passing_score) || 0;
-  const multiAttemptsOn = maxAttempts >= 2;
   const passingOn = passingScore >= 1;
 
-  const toggleMultiAttempts = (checked) => {
-    patchSession({ max_attempts: checked ? (maxAttempts >= 2 ? maxAttempts : 2) : 0 });
-  };
-  const changeMaxAttempts = (value) => {
-    const v = Math.max(2, Math.round(Number(value) || 2));
-    patchSession({ max_attempts: v });
-  };
   const togglePassing = (checked) => {
     patchSession({ passing_score: checked ? (passingScore >= 1 ? passingScore : 1) : 0 });
   };
@@ -277,31 +269,14 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
             </div>
           </div>
 
-          {/* Несколько попыток */}
+          {/* Несколько попыток — общий выключатель (он же в «Результатах» и в уроке) */}
           <div className="session-panel__field-row">
             <Text type="secondary" className="session-panel__field-label">Несколько попыток</Text>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <Switch
-                size="small"
-                checked={multiAttemptsOn}
-                onChange={toggleMultiAttempts}
-                checkedChildren="Вкл"
-                unCheckedChildren="Выкл"
-              />
-              {multiAttemptsOn && (
-                <InputNumber
-                  min={2}
-                  step={1}
-                  value={maxAttempts}
-                  onChange={changeMaxAttempts}
-                  addonAfter="попыток"
-                  style={{ width: 150 }}
-                />
-              )}
-              {!multiAttemptsOn && (
-                <Text type="secondary" style={{ fontSize: 12 }}>Одна попытка</Text>
-              )}
-            </div>
+            <AttemptsSetting
+              compact
+              sessions={[session]}
+              onSaved={(list) => list[0] && setSession((prev) => ({ ...prev, ...list[0] }))}
+            />
           </div>
 
           {/* Проходной балл */}
@@ -432,7 +407,11 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
 
       {/* ── Результаты ── */}
       <Divider style={{ margin: '4px 0 0' }}>Результаты учеников</Divider>
-      <TeacherResultsDashboard sessionId={session.id} />
+      <TeacherResultsDashboard
+        sessionId={session.id}
+        sessionsVersion={session.max_attempts}
+        onSessionsChange={(list) => list[0] && setSession((prev) => ({ ...prev, ...list[0] }))}
+      />
     </div>
   );
 };

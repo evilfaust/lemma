@@ -76,7 +76,7 @@ export const sessionsApi = {
   async getSessionsByWorks(workIds = []) {
     try {
       const records = await getFullListByOr('work_sessions', 'work', workIds, {
-        fields: 'id,work,created,is_open,results_hidden',
+        fields: 'id,work,created,is_open,results_hidden,max_attempts',
       });
       return records.sort((a, b) => new Date(b.created) - new Date(a.created));
     } catch (error) {
@@ -120,6 +120,14 @@ export const sessionsApi = {
       throw err;
     }
     return updated;
+  },
+
+  // «Несколько попыток» сразу на все выдачи (v3.9.380): из «Результатов»
+  // работы с несколькими выдачами и из строки урока. 0 — одна попытка.
+  async setSessionsMaxAttempts(ids = [], maxAttempts = 0) {
+    return Promise.all(
+      [...new Set(ids.filter(Boolean))].map((id) => pb.collection('work_sessions').update(id, { max_attempts: maxAttempts })),
+    );
   },
 
   // ============ ПОПЫТКИ УЧЕНИКОВ (ATTEMPTS) ============

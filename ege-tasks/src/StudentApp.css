@@ -1501,6 +1501,12 @@
 }
 
 /* Тёмная тема */
+/* Попытку выдал учитель (v3.9.380) */
+.srp-issued { border-color: #adc6ff; background: linear-gradient(180deg, #f0f5ff 0%, #fff 70%); }
+.srp-issued-title { font-size: 18px; font-weight: 800; line-height: 1.2; color: #1d39c4; }
+.srp-issued-sub { margin-top: 4px; font-size: 13.5px; color: #6b7280; line-height: 1.4; }
+.srp-issued .srp-retry-btn { margin-top: 14px; }
+
 .student-theme-dark .srp-status {
   background: #1f2233;
   border-color: #2c3050;
@@ -1508,6 +1514,9 @@
 }
 .student-theme-dark .srp-status--pass { background: linear-gradient(180deg, rgba(82,196,26,0.12) 0%, #1f2233 70%); border-color: #3a6b2a; }
 .student-theme-dark .srp-status--fail { background: linear-gradient(180deg, rgba(255,77,79,0.12) 0%, #1f2233 70%); border-color: #6b3030; }
+.student-theme-dark .srp-issued { background: linear-gradient(180deg, rgba(67,97,238,0.16) 0%, #1f2233 70%); border-color: #34407a; }
+.student-theme-dark .srp-issued-title { color: #9db4ff; }
+.student-theme-dark .srp-issued-sub { color: #9aa3b8; }
 .student-theme-dark .srp-status-title { color: #f0f2f8; }
 .student-theme-dark .srp-status--pass .srp-status-title { color: #73d13d; }
 .student-theme-dark .srp-status--fail .srp-status-title { color: #ff7875; }

@@ -204,6 +204,9 @@
 }
 .sc-item-status.is-hidden, .sc-item-status.is-none { color: #aaa; }
 .sc-item-status.is-started { color: #d46b08; }
+/* Ещё попытка (v3.9.380) */
+.sc-item-status:has(.sc-retake) { flex-wrap: wrap; }
+.sc-retake { color: #4361ee; font-weight: 600; }
 .sc-done-icon { color: #52c41a; }
 .sc-score {
   display: inline-block;
@@ -321,6 +324,7 @@
 
 /* ── Тёмная тема ── */
 .student-theme-dark .sc-portal-title { color: #f0f0f0; }
+.student-theme-dark .sc-retake { color: #9db4ff; }
 .student-theme-dark .sc-course-name { color: #d3adf7; }
 .student-theme-dark .sc-hero { background: #1f1f24; border-color: rgba(146, 84, 222, 0.4); box-shadow: none; }
 .student-theme-dark .sc-card { background: #1f1f24; border-color: #33333a; }

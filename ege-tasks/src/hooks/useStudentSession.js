@@ -3,6 +3,7 @@ import { api } from '../services/pocketbase';
 import { shuffleArray } from '../utils/shuffle';
 import { shuffleOptionsWithSeed, hashStringToSeed } from '../utils/distractorGenerator';
 import { isDrillTest, drillStudentTasks, answerModeOf } from '../utils/drillTest';
+import { sessionSettingsChanged } from '../utils/attemptRetake';
 
 const MC_VARIANT_MISSING = 'Не удалось открыть вариант теста. Скажи учителю — он выдаст попытку заново.';
 
@@ -351,13 +352,28 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     }
   }, [session, sessionId, deviceId, authStudentId, getIssueNumber, getAccessibleAttempts]);
 
-  // Периодическое обновление attempt (для ручной выдачи ачивок учителем)
+  // Пока ученик на экране результата, раз в 10 с (и при возврате на вкладку)
+  // перечитываем: попытку — ачивки, выданные учителем вручную; выдачу —
+  // учитель мог включить «Несколько попыток» или закрыть приём уже после
+  // сдачи (до v3.9.380 кнопка «Пройти ещё раз» появлялась только после
+  // перезагрузки страницы); список попыток — учитель мог выдать новую.
   useEffect(() => {
     if (!attempt || !attempt.id || attempt.status === 'started') return;
 
-    const refreshAttempt = async () => {
+    const refresh = async () => {
       try {
-        const attempts = await getAccessibleAttempts();
+        const [attempts, freshSession] = await Promise.all([
+          getAccessibleAttempts(),
+          sessionId ? api.getSession(sessionId).catch(() => null) : null,
+        ]);
+        setMyAttempts((prev) => (
+          prev.length === attempts.length
+            && prev.every((a, i) => a.id === attempts[i]?.id && a.status === attempts[i]?.status)
+            ? prev : attempts
+        ));
+        if (freshSession) {
+          setSession((prev) => (sessionSettingsChanged(prev, freshSession) ? { ...prev, ...freshSession } : prev));
+        }
         const fresh = attempts.find(a => a.id === attempt.id) || null;
         if (fresh) {
           // Обновляем только если изменились поля ачивок или статус
@@ -374,9 +390,14 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
       }
     };
 
-    const interval = setInterval(refreshAttempt, 10000); // каждые 10 секунд
-    return () => clearInterval(interval);
-  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, getAccessibleAttempts]);
+    const interval = setInterval(refresh, 10000); // каждые 10 секунд
+    const onVisible = () => { if (document.visibilityState === 'visible') refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [attempt?.id, attempt?.status, attempt?.achievement, attempt?.unlocked_achievements, getAccessibleAttempts, sessionId]);
 
   // Держим список попыток ученика актуальным: при смене попытки или её статуса
   // (старт новой / отправка) перечитываем — нужно для подсчёта оставшихся
@@ -390,11 +411,19 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     return () => { cancelled = true; };
   }, [attempt?.id, attempt?.status, attempt?.score, getAccessibleAttempts]);
 
-  // Повторная попытка: создать свежую попытку (новый вариант по round-robin).
+  // Попытка, которую выдал учитель («Другой вариант» / «Ещё попытка тем,
+  // кто ниже порога»): начатая и новее той, что сейчас на экране.
+  const issuedAttempt = attempt && attempt.status !== 'started'
+    ? myAttempts.find((a) => a.status === 'started' && a.id !== attempt.id
+      && new Date(a.created) > new Date(attempt.created)) || null
+    : null;
+
+  // Повторная попытка: выданная учителем — открываем её, иначе создаём
+  // свежую (новый вариант по round-robin).
   const startRetry = useCallback(async () => {
     const name = attempt?.student_name || 'Студент';
-    return startAttempt(name, { forceNew: true });
-  }, [attempt?.student_name, startAttempt]);
+    return startAttempt(name, { forceNew: !issuedAttempt });
+  }, [attempt?.student_name, startAttempt, issuedAttempt]);
 
   // ── Производные значения для попыток и проходного балла ──
   const maxAttempts = Number(session?.max_attempts) || 0;
@@ -443,5 +472,6 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     attemptsLeft,
     bestAttempt,
     canRetry,
+    issuedAttempt,
   };
 }
