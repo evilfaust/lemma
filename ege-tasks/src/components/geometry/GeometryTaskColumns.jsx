@@ -2,6 +2,7 @@ import { Badge, Button, Popconfirm, Space, Tag, Tooltip, Typography } from 'antd
 import { CheckOutlined, CopyOutlined, DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import MathRenderer from '../MathRenderer';
+import GeometryTaskThumb from './GeometryTaskThumb';
 import { SECTION_LABELS } from '../../utils/geometrySection';
 
 const { Text } = Typography;
@@ -139,25 +140,11 @@ export function buildGeometryColumns({
       width: 120,
       align: 'center',
       render: (_, record) => {
-        const imageUrl = api.getGeometryImageUrl(record);
-        if (!imageUrl) return <Text type="secondary">—</Text>;
-
-        return (
-          <img
-            src={imageUrl}
-            alt={`Превью ${record.code || ''}`}
-            style={{
-              width: 72,
-              height: 48,
-              objectFit: 'contain',
-              border: '1px solid #f0f0f0',
-              borderRadius: 6,
-              background: '#fff',
-              display: 'block',
-              margin: '0 auto',
-            }}
-          />
-        );
+        const hasSvg = record.drawing_view === 'svg' && !!record.drawing_svg;
+        if (!hasSvg && (!api.getGeometryImageUrl(record) || record.image_role === 'solution')) {
+          return <Text type="secondary">—</Text>;
+        }
+        return <GeometryTaskThumb task={record} width={96} height={64} style={{ margin: '0 auto' }} />;
       },
     },
     {

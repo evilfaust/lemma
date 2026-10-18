@@ -33,7 +33,6 @@ import {
   TagsOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
-import { sanitizeSvg } from '../utils/sanitizeSvg';
 import { useNavigate } from 'react-router-dom';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -46,6 +45,7 @@ import MathRenderer from './MathRenderer';
 import { buildGeometryColumns, DIFFICULTY_COLORS, DIFFICULTY_LABELS } from './geometry/GeometryTaskColumns';
 import GeometryTagsModal from './geometry/GeometryTagsModal';
 import GeometryTaskDrawer from './geometry/GeometryTaskDrawer';
+import GeometryTaskThumb from './geometry/GeometryTaskThumb';
 import { GEOMETRY_SECTIONS } from '../utils/geometrySection';
 import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
 import GeometryBankDuplicatesModal from './geometry/GeometryBankDuplicatesModal';
@@ -639,6 +639,9 @@ export default function GeometryTaskList() {
           >
             {pagedCardTasks.map((record) => {
               const imageUrl = api.getGeometryImageUrl(record);
+              const hasSvg = record.drawing_view === 'svg' && !!record.drawing_svg;
+              // Чертёж к решению (МЦНМО) условие не иллюстрирует — в карточке его нет.
+              const hasCondDrawing = hasSvg || (!!imageUrl && record.image_role !== 'solution');
               const topic = record.expand?.topic?.title;
               const subtopic = record.expand?.subtopic?.title;
               const isSelected = selectedRowKeys.includes(record.id);
@@ -729,10 +732,12 @@ export default function GeometryTaskList() {
                       ) : (
                         <Text type="secondary">Сложность: —</Text>
                       )}
-                      {(imageUrl || (record.drawing_view === 'svg' && record.drawing_svg)) ? (
+                      {hasCondDrawing ? (
                         <Tag color="gold" style={{ margin: 0 }}>
-                          {record.drawing_view === 'svg' ? 'SVG' : 'IMG'}
+                          {hasSvg ? 'SVG' : 'IMG'}
                         </Tag>
+                      ) : imageUrl ? (
+                        <Tag style={{ margin: 0 }}>Чертёж к решению</Tag>
                       ) : (
                         <Tag style={{ margin: 0 }}>Без чертежа</Tag>
                       )}
@@ -752,47 +757,15 @@ export default function GeometryTaskList() {
                         : <Text type="secondary">—</Text>}
                     </div>
 
-                    {record.drawing_view === 'svg' && record.drawing_svg ? (
-                      <div
-                        style={{
-                          border: '1px solid #f0f0f0',
-                          borderRadius: 8,
-                          background: '#fff',
-                          padding: 8,
-                          maxHeight: 140,
-                          overflow: 'hidden',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <div
-                          // eslint-disable-next-line react/no-danger
-                          dangerouslySetInnerHTML={{ __html: sanitizeSvg(record.drawing_svg) }}
-                          style={{ width: '100%', maxHeight: 124, overflow: 'hidden' }}
-                        />
-                      </div>
-                    ) : imageUrl ? (
-                      <div
-                        style={{
-                          border: '1px solid #f0f0f0',
-                          borderRadius: 8,
-                          background: '#fff',
-                          padding: 8,
-                        }}
-                      >
-                        <img
-                          src={imageUrl}
-                          alt={`Превью ${record.code || ''}`}
-                          style={{
-                            width: '100%',
-                            height: 140,
-                            objectFit: 'contain',
-                            display: 'block',
-                          }}
-                        />
-                      </div>
-                    ) : null}
+                    {hasCondDrawing && (
+                      <GeometryTaskThumb
+                        task={record}
+                        width="100%"
+                        height={240}
+                        padding={8}
+                        style={{ borderRadius: 8 }}
+                      />
+                    )}
 
                     {stripStatementImages(record.statement_md) && (
                       <div>
