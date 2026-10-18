@@ -140,3 +140,21 @@ describe('где хранится выбор', () => {
     expect(withOrderExtras({ id: 'y' }, order[1]).solutionSpace).toBe(30);
   });
 });
+
+describe('яркость клетки листа (gridTone, как «Линии» в ТДФ)', () => {
+  it('по умолчанию чёткая; «светлая» и «точки» — класс на корне листа и правила в CSS', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const rootOf = (gridTone) => sheet([task(1)], { solutionFill: 'grid', ...(gridTone ? { gridTone } : {}) })
+      .container.querySelector('.ps-root').className;
+    expect(rootOf()).not.toMatch(/ps-root--grid-/);
+    expect(rootOf('light')).toMatch(/ps-root--grid-light/);
+    expect(rootOf('dots')).toMatch(/ps-root--grid-dots/);
+    expect(rootOf('dark')).not.toMatch(/ps-root--grid-/);
+    const css = readFileSync(resolve(__dirname, '../components/print-sheet/printSheet.css'), 'utf8');
+    // серый не светлее #8a8a8a — бледнее ч/б принтер не печатает
+    expect(css).toMatch(/\.ps-root--grid-light \.ps-fill-h \{ border-top-color: #8a8a8a; \}/);
+    expect(css).toMatch(/\.ps-root--grid-dots \.ps-fill-v \{ border-left: 0\.6pt dotted #8a8a8a; \}/);
+  });
+});
+

@@ -41,6 +41,7 @@ const DEFAULTS = {
   answerStyle: 'line',
   solutionSpace: 'fit',
   solutionFill: 'grid',
+  gridTone: 'light', // клетка серая: на ней пишут, чёрная рябит (как в ТДФ)
   tasksPerPage: 2,
   showFooter: true,
   showTaskCode: false,
@@ -199,6 +200,8 @@ export default function GeometrySheetPrint({
           setSolutionSpace={setter('solutionSpace')}
           solutionFill={cfg.solutionFill}
           setSolutionFill={setter('solutionFill')}
+          gridTone={cfg.gridTone}
+          setGridTone={setter('gridTone')}
           tasksPerPage={cfg.tasksPerPage}
           setTasksPerPage={setter('tasksPerPage')}
           fontScale={cfg.fontScale}
@@ -246,6 +249,7 @@ export default function GeometrySheetPrint({
             answerStyle: cfg.answerStyle,
             solutionSpace: cfg.solutionSpace,
             solutionFill: cfg.solutionFill,
+            gridTone: cfg.gridTone,
             tasksPerPage: cfg.tasksPerPage,
             hideTaskPrefixes: cfg.hideTaskPrefixes,
             showTaskCode: cfg.showTaskCode,

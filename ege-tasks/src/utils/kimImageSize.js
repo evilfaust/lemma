@@ -114,3 +114,36 @@ export function figureBoxMm(size, textWidthMm, { side = false } = {}) {
     heightMm: parseFloat(c.maxHeight),
   };
 }
+
+// Чертёж, который строится ПОД ЛИСТ (```planim / ```stereo, DrawingPrintContext),
+// масштабируется не картинкой: буквы и поля вокруг них постоянного размера
+// (≈ 4 буквы условия, ~16 мм при кегле 1). В общей рамке figureBoxMm они
+// съедали одинаковые миллиметры у любого размера, и само тело куба выходило
+// 14,6 → 19,7 → 39,9 → 70,4 мм (S → XL, разбор 18.10.2026): S и M почти
+// одинаковы, M → L — вдвое. Поэтому шкала таких чертежей — по САМОМУ ТЕЛУ,
+// ровными шагами ×1,5, а место под подписи добавляется к рамке сверху.
+// Картинки (PNG, SVG из GeoGebra) по-прежнему идут по общей шкале CFG.
+export const BUILT_BODY_MM = {
+  s: 20,
+  m: 30,
+  l: 45,
+  xl: 68,
+};
+// Подписи и поля вокруг тела — в буквах условия (меряно на кубе: 15,6 мм при букве 4,06 мм)
+export const BUILT_LABEL_LETTERS = 4;
+
+/**
+ * Место под чертёж, построенный под лист: ширина — та же доля полосы, что у
+ * figureBoxMm, высота — тело по шкале BUILT_BODY_MM + запас под подписи.
+ *
+ * @param {string} size — s | m | l | xl
+ * @param {number} textWidthMm — ширина полосы условия
+ * @param {{ side?: boolean, letterMm?: number }} opts
+ */
+export function drawingBoxMm(size, textWidthMm, { side = false, letterMm = psLetterMm(1) } = {}) {
+  const body = BUILT_BODY_MM[size] || BUILT_BODY_MM[DEFAULT_KIM_IMAGE_SIZE];
+  return {
+    widthMm: figureBoxMm(size, textWidthMm, { side }).widthMm,
+    heightMm: Math.round((body + BUILT_LABEL_LETTERS * letterMm) * 10) / 10,
+  };
+}

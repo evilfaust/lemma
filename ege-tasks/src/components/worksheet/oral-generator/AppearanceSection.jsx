@@ -5,6 +5,7 @@ import {
 import { getCryptogramLetterCount } from '../../../utils/cryptogram';
 import { KIM_IMAGE_SIZE_OPTIONS } from '../../../utils/kimImageSize';
 import { SOLUTION_SPACE_OPTIONS, SOLUTION_FILL_OPTIONS, MARGIN_OPTIONS, PAGE_FORMAT_OPTIONS } from '../../print-sheet/geometry';
+import { PRINT_FILL_TONE_OPTIONS } from '../../shared/PrintFill';
 import CardsSettings from '../cards/CardsSettings';
 
 const { Text } = Typography;
@@ -103,6 +104,9 @@ export default function AppearanceSection({
   setItalic,
   solutionFrame,
   setSolutionFrame,
+  // Яркость клетки/линейки — передают листы, где на клетке пишут (геометрия, работа)
+  gridTone,
+  setGridTone,
   showFooter,
   setShowFooter,
   showTaskCode,
@@ -233,6 +237,11 @@ export default function AppearanceSection({
         {solutionSpace !== 'none' && (
           <Field label="Разлиновка">
             <Segmented size="small" value={solutionFill} onChange={setSolutionFill} options={SOLUTION_FILL_OPTIONS} />
+          </Field>
+        )}
+        {solutionSpace !== 'none' && solutionFill !== 'blank' && setGridTone && (
+          <Field label="Линии">
+            <Segmented size="small" value={gridTone || 'dark'} onChange={setGridTone} options={PRINT_FILL_TONE_OPTIONS} />
           </Field>
         )}
         {solutionSpace !== 'none' && setSolutionFrame && (

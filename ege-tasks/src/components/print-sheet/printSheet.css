@@ -671,6 +671,13 @@
   border-left: 0.2pt solid var(--ps-grid);
   pointer-events: none;
 }
+/* Яркость клетки/линейки (options.gridTone, v3.9.385) — как «Линии» бланка
+   ТДФ (shared/printFill.css): чёрная клетка 5 мм под ручкой рябит. Серый не
+   светлее #8a8a8a — бледнее ч/б лазерник растром не печатает. */
+.ps-root--grid-light .ps-fill-h { border-top-color: #8a8a8a; }
+.ps-root--grid-light .ps-fill-v { border-left-color: #8a8a8a; }
+.ps-root--grid-dots .ps-fill-h { border-top: 0.6pt dotted #8a8a8a; }
+.ps-root--grid-dots .ps-fill-v { border-left: 0.6pt dotted #8a8a8a; }
 
 /* ── Правка на экране (в печать не идёт) ──────────────────────────────────
    Кнопки позиционируются абсолютно и НЕ участвуют в потоке: иначе они попали

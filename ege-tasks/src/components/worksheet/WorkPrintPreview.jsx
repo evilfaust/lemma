@@ -33,6 +33,7 @@ export const WORK_PRINT_DEFAULTS = {
   solutionSpace: 'fit',
   solutionFill: 'blank',
   solutionFrame: false,
+  gridTone: 'light', // если включат клетку — серая, как в ТДФ
   tasksPerPage: 4,
   showFooter: true,
   showTaskCode: false,
@@ -224,6 +225,8 @@ export default function WorkPrintPreview({
           setSolutionFill={setter('solutionFill')}
           solutionFrame={cfg.solutionFrame}
           setSolutionFrame={setter('solutionFrame')}
+          gridTone={cfg.gridTone}
+          setGridTone={setter('gridTone')}
           tasksPerPage={cfg.tasksPerPage}
           setTasksPerPage={setter('tasksPerPage')}
           fontScale={cfg.fontScale}
@@ -276,6 +279,7 @@ export default function WorkPrintPreview({
             solutionSpace: cfg.solutionSpace,
             solutionFill: cfg.solutionFill,
             solutionFrame: cfg.solutionFrame,
+            gridTone: cfg.gridTone,
             tasksPerPage: cfg.tasksPerPage,
             hideTaskPrefixes: cfg.hideTaskPrefixes,
             showTaskCode: cfg.showTaskCode,

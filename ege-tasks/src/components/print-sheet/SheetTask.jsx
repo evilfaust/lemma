@@ -8,7 +8,7 @@ import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
 import { filterTaskText } from '../../utils/filterTaskText';
 import {
-  figureSizeVars, figureBoxMm, psLetterMm, KIM_IMAGE_SIZE_OPTIONS,
+  figureSizeVars, drawingBoxMm, psLetterMm, KIM_IMAGE_SIZE_OPTIONS,
 } from '../../utils/kimImageSize';
 import { DrawingPrintContext } from '../shared/drawingPrintContext';
 import SolutionFill, { NotchFrame } from './SolutionFill';
@@ -163,8 +163,9 @@ export default function SheetTask({
   const textWidthMm = contentWidthMm - (numberLabel ? NUM_COL_WIDE_MM : NUM_COL_MM) - (showBox ? ANSWER_BOX_MM : 0);
   const figSize = task.kimImageSize || options.figureSize || 'm';
   const letterMm = psLetterMm(options.fontScale);
-  const belowPlace = { ...figureBoxMm(figSize, textWidthMm), letterMm };
-  const sidePlace = { ...figureBoxMm(figSize, textWidthMm, { side: true }), letterMm };
+  // Шкала построенных чертежей — по самому телу (drawingBoxMm), см. kimImageSize.js
+  const belowPlace = { ...drawingBoxMm(figSize, textWidthMm, { letterMm }), letterMm };
+  const sidePlace = { ...drawingBoxMm(figSize, textWidthMm, { side: true, letterMm }), letterMm };
   const asideFits = aside?.kind === 'drawing' && FIT_FENCE.test(aside.md);
 
   // Место для решения обтекает чертёж сбоку: начинается сразу под текстом и

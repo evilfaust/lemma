@@ -4,7 +4,9 @@ import { App } from 'antd';
 import {
   parsePlanimBlock, planimPrintFrame, planimPrintSvgFromSpec, planimDrawingSvg,
 } from '../utils/planim/dsl';
-import { figureBoxMm, psLetterMm } from '../utils/kimImageSize';
+import {
+  figureBoxMm, psLetterMm, drawingBoxMm, BUILT_BODY_MM, BUILT_LABEL_LETTERS,
+} from '../utils/kimImageSize';
 import { parseStereoBlock, stereoPrintFrame, stereoDrawingSvg } from '../utils/stereo/dsl';
 import { geometrySheetTask } from '../utils/geometrySheet';
 import SheetTask from '../components/print-sheet/SheetTask';
@@ -185,3 +187,37 @@ describe('stereoPrintFrame — стереочертёж под место на �
     expect(letterOnPaper(svg)).toBeCloseTo(psLetterMm(1), 2);
   });
 });
+
+describe('шкала S/M/L/XL построенных чертежей — ровные шаги (разбор 18.10.2026)', () => {
+  const { scene, camera } = parseStereoBlock('куб 4\nM на AA1 1:2\nсечение MBD');
+  const letterMm = psLetterMm(1);
+  // Размер самого тела на бумаге — по отрезкам рёбер (без букв и полей)
+  const bodyMm = (svg) => {
+    const k = 17 / letterMm;
+    const ys = [];
+    for (const m of svg.matchAll(/<line x1="[\d.-]+" y1="([\d.-]+)" x2="[\d.-]+" y2="([\d.-]+)"/g)) ys.push(+m[1], +m[2]);
+    return (Math.max(...ys) - Math.min(...ys)) / k;
+  };
+
+  it('место = тело по шкале + запас под подписи', () => {
+    expect(drawingBoxMm('m', 100, { letterMm: 4 })).toEqual({ widthMm: 48, heightMm: BUILT_BODY_MM.m + BUILT_LABEL_LETTERS * 4 });
+    expect(drawingBoxMm('s', 100, { side: true, letterMm: 4 }).widthMm).toBe(30);
+    expect(drawingBoxMm('нет', 100, { letterMm: 4 })).toEqual(drawingBoxMm('m', 100, { letterMm: 4 }));
+  });
+
+  it('тело куба растёт ровно: каждый шаг ×1,4…1,6, и S не упирается в предел масштаба', () => {
+    const sizes = ['s', 'm', 'l', 'xl'].map((size) => {
+      const box = drawingBoxMm(size, 183, { side: true, letterMm });
+      const r = stereoPrintFrame(scene, camera, { ...box, letterMm });
+      expect(r.heightMm).toBeLessThanOrEqual(box.heightMm + 0.5); // в своё место влезает
+      return bodyMm(r.svg);
+    });
+    for (let i = 1; i < sizes.length; i += 1) {
+      const step = sizes[i] / sizes[i - 1];
+      expect(step).toBeGreaterThan(1.35);
+      expect(step).toBeLessThan(1.65);
+    }
+    expect(sizes[1]).toBeGreaterThan(BUILT_BODY_MM.m * 0.85);
+  });
+});
+

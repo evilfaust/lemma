@@ -29,6 +29,7 @@ const DEFAULT_OPTIONS = {
   figurePlacement: 'below', // below | right | left — чертёж сбоку, текст обтекает
   italic: false,            // условия курсивом (формулы KaTeX не трогает)
   solutionFrame: true,      // рамка зоны решения; false — чистое место
+  gridTone: 'dark',         // линии клетки/линейки: 'dark' | 'light' | 'dots'
 };
 
 /* ── Страницы одного варианта ───────────────────────────────────────────────*/
@@ -335,6 +336,7 @@ export default function PrintSheet({
     opts.fontFamily === 'serif' ? 'ps-root--serif' : '',
     opts.italic ? 'ps-root--italic' : '',
     opts.solutionFrame === false ? 'ps-root--noframe' : '',
+    opts.gridTone === 'light' || opts.gridTone === 'dots' ? `ps-root--grid-${opts.gridTone}` : '',
     opts.showFigures === false ? 'ps-root--nofig' : '',
     isHalfSheet(pageFormat) ? 'ps-root--half' : '',
   ].filter(Boolean).join(' ');
