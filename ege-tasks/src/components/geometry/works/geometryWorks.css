@@ -176,3 +176,24 @@
   .gwd-row { flex-wrap: wrap; }
   .gwd-row .ant-select { width: 100% !important; }
 }
+
+/* ── Перенос ячеек перетаскиванием (v3.9.383) ───────────────────────────── */
+
+.gw-cell--draggable {
+  cursor: grab;
+}
+
+.gw-cell--draggable img {
+  -webkit-user-drag: none;
+}
+
+.gw-cell--dragging {
+  opacity: 0.45;
+}
+
+.gw-cell--drop {
+  /* outline, а не border: рамка толще сдвинула бы сетку под курсором */
+  outline: 2px dashed #2f54eb;
+  outline-offset: -1px;
+  background: #f0f5ff;
+}

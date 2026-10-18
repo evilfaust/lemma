@@ -3,6 +3,7 @@ import {
   emptyStructure, normalizeStructure, rowCount, structureTaskIds, addTasksAsPositions,
   setCell, removeRow, moveRow, addVariant, removeVariant, rowReference, emptyRows,
   variantTasks, withLayouts, structureFromPrintTest,
+  moveCell, moveToVariant, dropEmptyRows, canDistribute, distributeToVariants,
 } from '../utils/geometryWork';
 import { geometryBasket } from '../utils/geometryBasket';
 
@@ -74,6 +75,59 @@ describe('работа: сетка «позиции × варианты»', () =
     });
     expect(grid(s)).toEqual(['a b']);
     expect(Object.keys(s.layouts)).toEqual(['a']);
+  });
+});
+
+describe('перенос задач между вариантами', () => {
+  // Шесть задач собраны в вариант 1, вариант 2 пуст (как на скриншоте 18.10.2026)
+  const list = () => addVariant(addTasksAsPositions(emptyStructure(1), ['a', 'b', 'c', 'd', 'e', 'f']).structure);
+
+  it('перетаскивание: в пустую — перенос, опустевшая позиция убирается', () => {
+    const s = moveCell(list(), { row: 3, variant: 0 }, { row: 0, variant: 1 });
+    expect(grid(s)).toEqual(['a b c e f', 'd · · · ·']);
+  });
+
+  it('перетаскивание: в занятую — обмен местами; на себя и из пустой — ничего', () => {
+    const s0 = normalizeStructure({ variants: [{ items: [{ task: 'a' }, { task: 'b' }] }, { items: [{ task: 'x' }, null] }] });
+    expect(grid(moveCell(s0, { row: 1, variant: 0 }, { row: 0, variant: 1 }))).toEqual(['a x', 'b ·']);
+    expect(moveCell(s0, { row: 0, variant: 0 }, { row: 0, variant: 0 })).toBe(s0);
+    expect(moveCell(s0, { row: 1, variant: 1 }, { row: 0, variant: 0 })).toBe(s0);
+    expect(moveCell(s0, { row: 5, variant: 0 }, { row: 0, variant: 1 })).toBe(s0);
+  });
+
+  it('«В вариант 2» кликами: каждая задача — в первую свободную ячейку сверху', () => {
+    let s = list();
+    s = moveToVariant(s, 3, 0, 1); // d
+    s = moveToVariant(s, 3, 0, 1); // e (после d позиции сдвинулись)
+    s = moveToVariant(s, 3, 0, 1); // f
+    expect(grid(s)).toEqual(['a b c', 'd e f']);
+  });
+
+  it('«В вариант N» без свободных ячеек — новой позицией в конце', () => {
+    const s0 = normalizeStructure({ variants: [{ items: [{ task: 'a' }, { task: 'b' }] }, { items: [{ task: 'x' }, { task: 'y' }] }] });
+    expect(grid(moveToVariant(s0, 0, 0, 1))).toEqual(['· b ·', 'x y a']);
+    expect(moveToVariant(s0, 0, 0, 0)).toBe(s0);
+  });
+
+  it('пустые позиции убираются, заполненные остаются', () => {
+    const s0 = normalizeStructure({ variants: [{ items: [{ task: 'a' }, null, { task: 'b' }] }, { items: [null, null, { task: 'c' }] }] });
+    expect(grid(dropEmptyRows(s0))).toEqual(['a b', '· c']);
+  });
+
+  it('разложить по вариантам: по очереди и блоками', () => {
+    expect(canDistribute(list())).toBe(true);
+    expect(grid(distributeToVariants(list(), 'alternate'))).toEqual(['a c e', 'b d f']);
+    expect(grid(distributeToVariants(list(), 'blocks'))).toEqual(['a b c', 'd e f']);
+    // нечётное число — последняя ячейка пустая
+    const five = addVariant(addTasksAsPositions(emptyStructure(1), ['a', 'b', 'c', 'd', 'e']).structure);
+    expect(grid(distributeToVariants(five, 'alternate'))).toEqual(['a c e', 'b d ·']);
+    expect(grid(distributeToVariants(five, 'blocks'))).toEqual(['a b c', 'd e ·']);
+  });
+
+  it('раскладка недоступна, когда параллели уже есть или вариант один', () => {
+    const paired = moveCell(list(), { row: 1, variant: 0 }, { row: 0, variant: 1 });
+    expect(canDistribute(paired)).toBe(false);
+    expect(canDistribute(addTasksAsPositions(emptyStructure(1), ['a', 'b']).structure)).toBe(false);
   });
 });
 

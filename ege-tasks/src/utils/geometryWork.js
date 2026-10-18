@@ -106,6 +106,86 @@ export function moveRow(s, from, to) {
   }));
 }
 
+/** Убрать позиции, пустые во всех вариантах (остаются после переноса задач). */
+export function dropEmptyRows(s) {
+  const n = rowCount(s);
+  const keep = Array.from({ length: n }, (_, r) => s.variants.some((v) => v.items[r]));
+  return withVariants(s, s.variants.map((v) => ({ items: v.items.filter((_, r) => keep[r]) })));
+}
+
+/**
+ * Перенести задачу из ячейки в ячейку (перетаскивание): в пустую — перенос,
+ * в занятую — обмен местами. Позиции, опустевшие во всех вариантах, убираются.
+ * @param {{row:number, variant:number}} from
+ * @param {{row:number, variant:number}} to
+ */
+export function moveCell(s, from, to) {
+  const n = rowCount(s);
+  const ok = (c) => c && c.row >= 0 && c.row < n && c.variant >= 0 && c.variant < s.variants.length;
+  if (!ok(from) || !ok(to) || (from.row === to.row && from.variant === to.variant)) return s;
+  const a = s.variants[from.variant].items[from.row];
+  if (!a) return s;
+  const b = s.variants[to.variant].items[to.row];
+  const variants = s.variants.map((v) => ({ items: [...v.items] }));
+  variants[to.variant].items[to.row] = a;
+  variants[from.variant].items[from.row] = b || null;
+  return dropEmptyRows({ ...s, variants });
+}
+
+/**
+ * Перенести задачу в другой вариант: в первую свободную ячейку того варианта
+ * сверху (нет свободной — новой позицией в конце). Так список задач одного
+ * варианта раскладывается по вариантам кликами: опустевшие позиции убираются.
+ */
+export function moveToVariant(s, row, from, to) {
+  if (from === to || !s.variants[to] || !s.variants[from]?.items[row]) return s;
+  const free = s.variants[to].items.findIndex((c) => !c);
+  if (free >= 0) return moveCell(s, { row, variant: from }, { row: free, variant: to });
+  // Свободных нет — новая позиция в конце (withVariants срезал бы пустую строку,
+  // поэтому строку добавляем вместе с задачей)
+  const moved = s.variants[from].items[row];
+  const variants = s.variants.map((v, vi) => ({ items: [...v.items, vi === to ? moved : null] }));
+  variants[from].items[row] = null;
+  return dropEmptyRows({ ...s, variants });
+}
+
+/**
+ * Можно ли разложить работу по вариантам: вариантов больше одного, задачи
+ * есть, и в каждой позиции не больше одной задачи (то есть это пока просто
+ * список, параллелей ещё нет — раскладка ничего не сломает).
+ */
+export function canDistribute(s) {
+  if (s.variants.length < 2) return false;
+  let total = 0;
+  for (let r = 0; r < rowCount(s); r += 1) {
+    const k = s.variants.filter((v) => v.items[r]).length;
+    if (k > 1) return false;
+    total += k;
+  }
+  return total > 1;
+}
+
+/**
+ * Разложить задачи (по порядку позиций) по вариантам.
+ *   'alternate' — по очереди: 1 → В1, 2 → В2, 3 → В1… (соседние задачи —
+ *                 параллели одной позиции);
+ *   'blocks'    — блоками: первая часть списка → В1, следующая → В2…
+ */
+export function distributeToVariants(s, mode = 'alternate') {
+  const ids = [];
+  for (let r = 0; r < rowCount(s); r += 1) {
+    for (const v of s.variants) if (v.items[r]) ids.push(v.items[r].task);
+  }
+  const n = s.variants.length;
+  const rows = Math.ceil(ids.length / n);
+  const variants = s.variants.map(() => ({ items: Array(rows).fill(null) }));
+  ids.forEach((id, i) => {
+    const [row, variant] = mode === 'blocks' ? [i % rows, Math.floor(i / rows)] : [Math.floor(i / n), i % n];
+    variants[variant].items[row] = { task: id };
+  });
+  return withVariants(s, variants);
+}
+
 /** Добавить пустой вариант. */
 export function addVariant(s) {
   return withVariants(s, [...s.variants, { items: Array(rowCount(s)).fill(null) }]);

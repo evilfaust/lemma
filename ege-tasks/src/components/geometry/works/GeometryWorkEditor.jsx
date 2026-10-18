@@ -5,7 +5,8 @@ import {
   Tag, Tooltip, Typography,
 } from 'antd';
 import {
-  ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined, EyeOutlined,
+  ArrowDownOutlined, ArrowLeftOutlined, ArrowRightOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined,
+  ExportOutlined, EyeOutlined, PartitionOutlined,
   PlusOutlined, PrinterOutlined, SaveOutlined, StarOutlined, SwapOutlined, ThunderboltOutlined, TableOutlined,
   ShareAltOutlined,
 } from '@ant-design/icons';
@@ -16,6 +17,7 @@ import { useGeometryRefs } from '../../../hooks/useGeometryRefs';
 import {
   addTasksAsPositions, addVariant, emptyRows, emptyStructure, moveRow, normalizeStructure, removeRow,
   removeVariant, rowCount, rowReference, setCell, structureTaskIds, variantLabel, variantTasks, withLayouts,
+  moveCell, moveToVariant, canDistribute, distributeToVariants,
 } from '../../../utils/geometryWork';
 import GeometryTaskThumb from '../GeometryTaskThumb';
 import GeometryTaskDrawer from '../GeometryTaskDrawer';
@@ -77,6 +79,9 @@ export default function GeometryWorkEditor() {
   const [basketVariant, setBasketVariant] = useState(0);
   const [autofill, setAutofill] = useState(null); // { done, total }
   const [journalOpen, setJournalOpen] = useState(false);
+  // Перетаскивание ячейки: откуда тащим и над какой ячейкой сейчас
+  const [drag, setDrag] = useState(null); // { row, variant }
+  const [dropOver, setDropOver] = useState(null); // 'row:variant'
   // «В мои»: задачи генератора работы → свои (id переводимых задач)
   const [toMine, setToMine] = useState(null);
   const [cardRefresh, setCardRefresh] = useState(0);
@@ -437,12 +442,76 @@ export default function GeometryWorkEditor() {
     }
   };
 
+  // Любая ячейка — цель перетаскивания: в пустую задача переносится,
+  // в занятую — меняется местами (moveCell)
+  const dropProps = (row, vi) => (canEdit && drag ? {
+    onDragOver: (e) => {
+      if (drag.row === row && drag.variant === vi) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (dropOver !== `${row}:${vi}`) setDropOver(`${row}:${vi}`);
+    },
+    onDragLeave: () => setDropOver((k) => (k === `${row}:${vi}` ? null : k)),
+    onDrop: (e) => {
+      e.preventDefault();
+      const from = drag;
+      setDrag(null);
+      setDropOver(null);
+      update((s) => moveCell(s, from, { row, variant: vi }));
+    },
+  } : {});
+  const dropClass = (row, vi) => (dropOver === `${row}:${vi}` ? ' gw-cell--drop' : '');
+
+  // Кнопка «в другой вариант»: при двух вариантах — стрелка, иначе меню
+  const moveButton = (row, vi) => {
+    if (nVar < 2) return null;
+    if (nVar === 2) {
+      const to = 1 - vi;
+      return (
+        <Tooltip title={`Перенести в ${variantLabel(to).toLowerCase()} — в первую свободную ячейку`}>
+          <Button
+            size="small"
+            type="text"
+            aria-label={`В ${variantLabel(to).toLowerCase()}`}
+            icon={to > vi ? <ArrowRightOutlined /> : <ArrowLeftOutlined />}
+            onClick={() => update((s) => moveToVariant(s, row, vi, to))}
+          />
+        </Tooltip>
+      );
+    }
+    return (
+      <Dropdown
+        menu={{
+          items: structure.variants.map((_, i) => i).filter((i) => i !== vi)
+            .map((i) => ({ key: String(i), label: `В ${variantLabel(i).toLowerCase()}` })),
+          onClick: ({ key }) => update((s) => moveToVariant(s, row, vi, Number(key))),
+        }}
+      >
+        <Tooltip title="Перенести в другой вариант">
+          <Button size="small" type="text" aria-label="В другой вариант" icon={<ExportOutlined />} />
+        </Tooltip>
+      </Dropdown>
+    );
+  };
+
   const renderCell = (row, vi) => {
     const id = structure.variants[vi].items[row]?.task;
     const task = id ? byId.get(id) : null;
     if (id) {
       return (
-        <div className="gw-cell" key={`${row}-${vi}`}>
+        <div
+          className={`gw-cell${canEdit ? ' gw-cell--draggable' : ''}${drag?.row === row && drag?.variant === vi ? ' gw-cell--dragging' : ''}${dropClass(row, vi)}`}
+          key={`${row}-${vi}`}
+          draggable={canEdit}
+          title={canEdit ? 'Перетащите на другую ячейку: в пустую — перенос, на задачу — обмен местами' : undefined}
+          onDragStart={canEdit ? (e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', id);
+            setDrag({ row, variant: vi });
+          } : undefined}
+          onDragEnd={() => { setDrag(null); setDropOver(null); }}
+          {...dropProps(row, vi)}
+        >
           <GeometryTaskThumb task={task} height={64} width={84} />
           <div
             className="gw-cell-body"
@@ -464,11 +533,12 @@ export default function GeometryWorkEditor() {
           </div>
           {canEdit && (
             <div className="gw-cell-actions">
+              {moveButton(row, vi)}
               <Tooltip title="Заменить: подобрать похожую">
-                <Button size="small" type="text" icon={<SwapOutlined />} onClick={() => setPicker({ row, variant: vi })} />
+                <Button size="small" type="text" aria-label="Заменить" icon={<SwapOutlined />} onClick={() => setPicker({ row, variant: vi })} />
               </Tooltip>
               <Tooltip title="Убрать из варианта">
-                <Button size="small" type="text" icon={<CloseOutlined />} onClick={() => update((s) => setCell(s, row, vi, null))} />
+                <Button size="small" type="text" aria-label="Убрать из варианта" icon={<CloseOutlined />} onClick={() => update((s) => setCell(s, row, vi, null))} />
               </Tooltip>
             </div>
           )}
@@ -477,7 +547,7 @@ export default function GeometryWorkEditor() {
     }
     const ref = rowReference(structure, row);
     return (
-      <div className="gw-cell gw-cell--empty" key={`${row}-${vi}`}>
+      <div className={`gw-cell gw-cell--empty${dropClass(row, vi)}`} key={`${row}-${vi}`} {...dropProps(row, vi)}>
         {canEdit ? (
           <Space wrap size={4}>
             {ref && (
@@ -616,6 +686,21 @@ export default function GeometryWorkEditor() {
                 Задачи генератора → в мои ({genIds.length})
               </Button>
             </Tooltip>
+          )}
+          {canDistribute(structure) && (
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'alternate', label: `По очереди: 1 → В1, 2 → В2${nVar > 2 ? ', 3 → В3' : ''}…` },
+                  { key: 'blocks', label: `Блоками: первые ${Math.ceil(structureTaskIds(structure).length / nVar)} → В1, следующие → В2…` },
+                ],
+                onClick: ({ key }) => update((s) => distributeToVariants(s, key)),
+              }}
+            >
+              <Tooltip title="Задачи собраны списком — разложить их по вариантам; соседние станут параллелями одной позиции">
+                <Button icon={<PartitionOutlined />}>Разложить по вариантам</Button>
+              </Tooltip>
+            </Dropdown>
           )}
           {basket.items.length > 0 && (
             <Button icon={<PlusOutlined />} type="dashed" onClick={addFromBasket}>

@@ -86,7 +86,7 @@ describe('редактор геометрической работы', () => {
     renderEditor();
     await screen.findByText('MCCME-00009');
     const cell = screen.getByText('MCCME-00009').closest('.gw-cell');
-    fireEvent.click(within(cell).getAllByRole('button')[1]); // «Убрать из варианта»
+    fireEvent.click(within(cell).getByLabelText('Убрать из варианта'));
     const saveBtn = screen.getByText('Сохранить').closest('button');
     expect(saveBtn).not.toBeDisabled();
     fireEvent.click(saveBtn);
@@ -194,5 +194,54 @@ describe('редактор работы: добавить задачи и пра
     // Состав работы тот же — сохранять нечего
     expect(screen.getByText('Сохранено').closest('button')).toBeDisabled();
     expect(mockApi.updateGeometryWork).not.toHaveBeenCalled();
+  });
+
+  it('перенос между вариантами: стрелка, перетаскивание и «Разложить по вариантам»', async () => {
+    const LIST = ['a', 'b', 'c', 'd'].map((id, i) => ({ id, code: `GEO-10${i}`, statement_md: `Задача ${id}`, answer: '1', section: 'stereo' }));
+    mockApi.getGeometryWork.mockResolvedValue({
+      id: 'w1', title: 'Список', structure: { variants: [{ items: LIST.map((t) => ({ task: t.id })) }, { items: [] }] },
+    });
+    mockApi.getGeometryTasksByIds.mockImplementation((ids) => Promise.resolve(LIST.filter((t) => ids.includes(t.id))));
+    renderEditor();
+    expect(await screen.findByText('GEO-103')).toBeInTheDocument();
+    const cellOf = (code) => screen.getByText(code).closest('.gw-cell');
+    const rowsText = () => [...document.querySelectorAll('.gw-grid > .gw-cell')].map((el) => (el.classList.contains('gw-cell--empty') ? '·' : el.querySelector('code')?.textContent));
+
+    // Стрелка «в вариант 2»: GEO-103 → первая свободная ячейка варианта 2, позиция 4 исчезает
+    fireEvent.click(within(cellOf('GEO-103')).getByLabelText('В вариант 2'));
+    expect(rowsText()).toEqual(['GEO-100', 'GEO-103', 'GEO-101', '·', 'GEO-102', '·']);
+    expect(screen.getByText('Сохранить').closest('button')).not.toBeDisabled();
+
+    // Перетаскивание GEO-102 на пустую ячейку позиции 2 варианта 2
+    const dt = { setData: () => {}, effectAllowed: '', dropEffect: '' };
+    fireEvent.dragStart(cellOf('GEO-102'), { dataTransfer: dt });
+    const target = document.querySelectorAll('.gw-grid > .gw-cell')[3];
+    fireEvent.dragOver(target, { dataTransfer: dt });
+    expect(target.classList.contains('gw-cell--drop')).toBe(true);
+    fireEvent.drop(target, { dataTransfer: dt });
+    expect(rowsText()).toEqual(['GEO-100', 'GEO-103', 'GEO-101', 'GEO-102']);
+
+    // Перетаскивание на занятую — обмен местами
+    fireEvent.dragStart(cellOf('GEO-100'), { dataTransfer: dt });
+    fireEvent.dragOver(cellOf('GEO-102'), { dataTransfer: dt });
+    fireEvent.drop(cellOf('GEO-102'), { dataTransfer: dt });
+    expect(rowsText()).toEqual(['GEO-102', 'GEO-103', 'GEO-101', 'GEO-100']);
+    // Параллели уже есть — раскладывать нечего
+    expect(screen.queryByText('Разложить по вариантам')).toBeNull();
+  });
+
+  it('«Разложить по вариантам» по очереди: список одного варианта → пары позиций', async () => {
+    const LIST = ['a', 'b', 'c', 'd'].map((id, i) => ({ id, code: `GEO-10${i}`, statement_md: `Задача ${id}`, answer: '1', section: 'stereo' }));
+    mockApi.getGeometryWork.mockResolvedValue({
+      id: 'w1', title: 'Список', structure: { variants: [{ items: LIST.map((t) => ({ task: t.id })) }, { items: [] }] },
+    });
+    mockApi.getGeometryTasksByIds.mockImplementation((ids) => Promise.resolve(LIST.filter((t) => ids.includes(t.id))));
+    renderEditor();
+    expect(await screen.findByText('GEO-103')).toBeInTheDocument();
+    fireEvent.mouseOver(screen.getByText('Разложить по вариантам'));
+    fireEvent.click(await screen.findByText(/^По очереди/));
+    const rowsText = [...document.querySelectorAll('.gw-grid > .gw-cell')].map((el) => el.querySelector('code')?.textContent || '·');
+    expect(rowsText).toEqual(['GEO-100', 'GEO-101', 'GEO-102', 'GEO-103']);
+    expect(screen.getByText('Позиций: 2 · вариантов: 2')).toBeInTheDocument();
   });
 });
