@@ -298,6 +298,7 @@ export default function WorkPrintPreview({
               : undefined,
             onSetFigureSize: onSetTaskOption ? (vi, ti, v) => onSetTaskOption(vi, ti, 'kimImageSize', v) : undefined,
             onSetFigurePlacement: onSetTaskOption ? (vi, ti, v) => onSetTaskOption(vi, ti, 'figurePlacement', v) : undefined,
+            onSetSolutionSpace: onSetTaskOption ? (vi, ti, v) => onSetTaskOption(vi, ti, 'solutionSpace', v) : undefined,
           }}
         />
       )}

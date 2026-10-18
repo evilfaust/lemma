@@ -7,7 +7,7 @@ import {
   MM, TASK_GAP_PX, SOLUTION_GAP_MM, SOLUTION_SPACE_MM, COLUMN_GAP_MM,
   attachTail, bodyFirstMm, bodyRestMm, bodyWidthMm, columnWidthMm, marginsOf,
   isHalfSheet, minFirstCapMm, pageClassName, pageHeightMm,
-  paginateByHeight, paginateFixedCount, paginateIntoColumns,
+  paginateByHeight, paginateFixedCount, paginateIntoColumns, taskSolutionMm,
 } from './geometry';
 import './printSheet.css';
 
@@ -55,6 +55,8 @@ function VariantPages({
   const fixedSolutionMm = workbook && !fitMode
     ? (SOLUTION_SPACE_MM[options.solutionSpace] ?? 0)
     : 0;
+  // Своё место задачи — только там, где лист вообще даёт место (workbook)
+  const solutionOf = (task, sheetMm) => (workbook ? taskSolutionMm(task, sheetMm) : 0);
 
   const [pages, setPages] = useState(null);
   const [tick, setTick] = useState(0);
@@ -74,7 +76,7 @@ function VariantPages({
     meta.eyebrow, meta.classLabel, meta.dateLabel, meta.duration,
     meta.showStudentFields, meta.showClassField,
     tail ? '1' : '0',
-    tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.figureUrl ? t.figureUrl.length : 0}|${t.kimImageSize || 'm'}|${t.figurePlacement || ''}`).join('§'),
+    tasks.map(t => `${t.__key}|${t.statement_md || ''}|${t.answer || ''}|${t.has_image ? 1 : 0}|${t.figureUrl ? t.figureUrl.length : 0}|${t.kimImageSize || 'm'}|${t.figurePlacement || ''}|${t.solutionSpace ?? ''}`).join('§'),
   ].join('¦'), [tasks, layout, headerMode, options, meta, tail, columns, margins, pageFormat]);
 
   // Шрифты KaTeX догружаются асинхронно — после готовности меряем заново.
@@ -117,9 +119,11 @@ function VariantPages({
 
     // Зона решения меряется не в DOM, а прибавляется к измеренной высоте:
     // так в measure-зоне живёт одна «голая» задача на все режимы.
-    const extraPx = fixedSolutionMm > 0 ? (fixedSolutionMm + SOLUTION_GAP_MM) * MM : 0;
+    // Своё место задачи (task.solutionSpace) перебивает лист.
     const withSolution = new Map();
     items.forEach((it) => {
+      const mm = solutionOf(it, fixedSolutionMm);
+      const extraPx = mm > 0 ? (mm + SOLUTION_GAP_MM) * MM : 0;
       withSolution.set(it.__key, (heights.get(it.__key) || 0) + extraPx);
     });
 
@@ -181,7 +185,8 @@ function VariantPages({
       number={item.__no}
       taskIndex={item.__no - 1}
       options={options}
-      solutionMm={solutionMm}
+      solutionMm={solutionOf(item, solutionMm)}
+      sheetSolutionMm={solutionMm}
       contentWidthMm={colWidthMm}
       editing={editing ? { ...editing, variantIndex } : null}
     />

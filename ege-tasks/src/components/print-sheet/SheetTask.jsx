@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Button, Tooltip, Segmented } from 'antd';
+import { Button, Dropdown, Tooltip, Segmented } from 'antd';
 import {
   EditOutlined, SwapOutlined, HolderOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
+  ColumnHeightOutlined,
 } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { api } from '../../services/pocketbase';
@@ -11,7 +12,10 @@ import {
 } from '../../utils/kimImageSize';
 import { DrawingPrintContext } from '../shared/drawingPrintContext';
 import SolutionFill, { NotchFrame } from './SolutionFill';
-import { BODY_W_MM, MM, NUM_COL_MM, NUM_COL_WIDE_MM, SOLUTION_GAP_MM } from './geometry';
+import {
+  BODY_W_MM, MM, NUM_COL_MM, NUM_COL_WIDE_MM, SOLUTION_GAP_MM, SOLUTION_SPACE_MM, SOLUTION_SPACE_OPTIONS,
+  SOLUTION_STEP_MM, isOwnSolution, stepTaskSolution, taskSolutionLabel,
+} from './geometry';
 import { isSidePlacement, splitSideFigure } from './sideFigure';
 
 // Поле «Ответ» справа от условия (`.ps-answer-box` 26 мм + зазор `.ps-task-row` 4 мм).
@@ -67,6 +71,27 @@ const PLACEMENT_OPTIONS = [
   { value: 'right', icon: <PicRightOutlined />, title: 'Чертёж справа' },
 ];
 
+// Меню «Место для решения» у задачи: ключ пункта → значение task.solutionSpace
+const SOLUTION_MENU_SIZES = SOLUTION_SPACE_OPTIONS.filter((o) => o.value !== 'none');
+
+function solutionMenu(task, sheetMm) {
+  const cur = isOwnSolution(task) ? task.solutionSpace : 'auto';
+  const items = [
+    { key: 'auto', label: `Как на листе${sheetMm > 0 ? ` (${Math.round(sheetMm)} мм)` : ' (без места)'}` },
+    { key: 'answer', label: 'Только ответ — без места, строка «Ответ»' },
+    { key: 'none', label: 'Без места для решения' },
+    { type: 'divider' },
+    ...SOLUTION_MENU_SIZES.map((o) => ({
+      key: o.value,
+      label: `${o.label} · ${SOLUTION_SPACE_MM[o.value]} мм (${Math.round(SOLUTION_SPACE_MM[o.value] / SOLUTION_STEP_MM)} кл.)`,
+    })),
+    { type: 'divider' },
+    { key: 'up', label: `Больше на клетку (+${SOLUTION_STEP_MM} мм)` },
+    { key: 'down', label: `Меньше на клетку (−${SOLUTION_STEP_MM} мм)` },
+  ];
+  return { items, selectedKeys: typeof cur === 'number' ? [] : [String(cur)] };
+}
+
 /**
  * Есть ли у задачи чертёж: внешняя картинка, картинка markdown или наш SVG.
  * У встроенных чертежей ДВЕ формы записи — блочная ```numline и inline
@@ -96,7 +121,7 @@ export const hasFigure = (task) => {
  * зоны решения.
  */
 export default function SheetTask({
-  task, number, taskIndex, options, solutionMm = 0, editing, contentWidthMm = BODY_W_MM,
+  task, number, taskIndex, options, solutionMm = 0, sheetSolutionMm = solutionMm, editing, contentWidthMm = BODY_W_MM,
 }) {
   const {
     answerStyle = 'line',
@@ -259,7 +284,7 @@ export default function SheetTask({
 
         {solutionMm > 0 && !notch && solutionZone(solutionMm)}
 
-        {answerStyle === 'line' && !showAnswersInline && (
+        {(answerStyle === 'line' || (task.solutionSpace === 'answer' && answerStyle !== 'box')) && !showAnswersInline && (
           <div className="ps-answer">
             <span className="ps-answer-label">Ответ:</span>
             <span className="ps-answer-rule" />
@@ -289,6 +314,32 @@ export default function SheetTask({
                 onChange={(val) => editing.onSetFigurePlacement(vi, taskIndex, val)}
               />
             </Tooltip>
+          )}
+          {editing.onSetSolutionSpace && (
+            <Dropdown
+              trigger={['click']}
+              menu={{
+                ...solutionMenu(task, sheetSolutionMm),
+                onClick: ({ key }) => {
+                  const value = key === 'up' || key === 'down'
+                    ? stepTaskSolution(task, sheetSolutionMm, key === 'up' ? 1 : -1)
+                    : (key === 'auto' ? null : key);
+                  editing.onSetSolutionSpace(vi, taskIndex, value);
+                },
+              }}
+            >
+              <Tooltip title="Место для решения у этой задачи (общее для листа — в «Оформлении»)">
+                <Button
+                  type={isOwnSolution(task) ? 'primary' : 'text'}
+                  ghost={isOwnSolution(task)}
+                  size="small"
+                  icon={<ColumnHeightOutlined />}
+                  aria-label="Место для решения"
+                >
+                  {taskSolutionLabel(task)}
+                </Button>
+              </Tooltip>
+            </Dropdown>
           )}
           {editing.onEditTask && (
             <Tooltip title="Редактировать задачу">

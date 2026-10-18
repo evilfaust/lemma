@@ -17,7 +17,7 @@ import { useGeometryRefs } from '../../../hooks/useGeometryRefs';
 import {
   addTasksAsPositions, addVariant, emptyRows, emptyStructure, moveRow, normalizeStructure, removeRow,
   removeVariant, rowCount, rowReference, setCell, structureTaskIds, variantLabel, variantTasks, withLayouts,
-  moveCell, moveToVariant, canDistribute, distributeToVariants,
+  moveCell, moveToVariant, canDistribute, distributeToVariants, sheetOptionsOf,
 } from '../../../utils/geometryWork';
 import GeometryTaskThumb from '../GeometryTaskThumb';
 import GeometryTaskDrawer from '../GeometryTaskDrawer';
@@ -390,6 +390,8 @@ export default function GeometryWorkEditor() {
           classLabel={klass ? `${klass} класс` : ''}
           onBack={() => setView('edit')}
           onEditTask={openTaskEditor}
+          taskOptions={sheetOptionsOf(structure)}
+          onSaveTaskOptions={canEdit ? (id, opts) => saveLayouts({ [id]: { sheet: opts } }) : undefined}
         />
       </Space>
     );

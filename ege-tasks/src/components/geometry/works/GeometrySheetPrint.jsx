@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, Space, Typography } from 'antd';
+import { App, Button, Space, Typography } from 'antd';
 import { ArrowLeftOutlined, PrinterOutlined } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import { geometrySheetTask } from '../../../utils/geometrySheet';
@@ -89,16 +89,22 @@ function saveSettings(cfg) {
  *
  * @param {Array} variants — [{ number, tasks: [geometry_tasks] }]
  * @param {Function} onEditTask — (geometry task) => void, правка с листа
+ * @param {object} [taskOptions] — сохранённые в работе настройки задач
+ *   { taskId: { kimImageSize, figurePlacement, solutionSpace } }
+ * @param {Function} [onSaveTaskOptions] — (taskId, opts) => Promise: сохранить
+ *   в работу; без него выбор живёт только на этот показ
  */
 export default function GeometrySheetPrint({
-  variants, title = '', classLabel = '', onBack, onEditTask,
+  variants, title = '', classLabel = '', onBack, onEditTask, taskOptions = null, onSaveTaskOptions,
 }) {
+  const { message } = App.useApp();
   const [cfg, setCfg] = useState(() => {
     const saved = loadSettings();
     return { ...saved, meta: { ...saved.meta, title, subtitle: '', classLabel } };
   });
-  // Размер и место чертежа у отдельной задачи — по id задачи, на этот показ.
-  const [perTask, setPerTask] = useState({});
+  // Размер и место чертежа, место для решения у отдельной задачи — по id
+  // задачи; сохраняются в работу (structure.layouts[id].sheet).
+  const [perTask, setPerTask] = useState(() => taskOptions || {});
 
   const patch = (p) => setCfg((prev) => {
     const next = { ...prev, ...(typeof p === 'function' ? p(prev) : p) };
@@ -135,7 +141,12 @@ export default function GeometrySheetPrint({
 
   const setTaskOpt = (key) => (vi, ti, value) => {
     const id = sheetVariants[vi]?.tasks[ti]?.id;
-    if (id) setPerTask((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), [key]: value } }));
+    if (!id) return;
+    const opts = { ...(perTask[id] || {}) };
+    if (value == null) delete opts[key];
+    else opts[key] = value;
+    setPerTask((prev) => ({ ...prev, [id]: opts }));
+    onSaveTaskOptions?.(id, opts)?.catch?.(() => message.error('Не удалось сохранить настройку задачи в работу'));
   };
 
   const tasksCount = Math.max(0, ...variants.map((v) => v.tasks.length));
@@ -250,6 +261,7 @@ export default function GeometrySheetPrint({
             onEditTask: onEditTask ? (t) => { const full = byId.get(t.id); if (full) onEditTask(full); } : undefined,
             onSetFigureSize: setTaskOpt('kimImageSize'),
             onSetFigurePlacement: setTaskOpt('figurePlacement'),
+            onSetSolutionSpace: setTaskOpt('solutionSpace'),
           }}
         />
       )}

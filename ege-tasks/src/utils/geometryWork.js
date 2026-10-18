@@ -220,14 +220,34 @@ export function variantTasks(s, variant, byId) {
     .filter(Boolean);
 }
 
-/** Сохранить макеты печати; макеты задач, которых в работе уже нет, отбрасываются. */
+const isPlain = (v) => v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Сохранить макеты печати; макеты задач, которых в работе уже нет, отбрасываются.
+ * У задачи несколько независимых настроек — место на карточке (`place`) и
+ * лист задач (`sheet`: чертёж и место для решения, v3.9.384), поэтому патч
+ * задачи СЛИВАЕТСЯ с её макетом, а не заменяет его; `null` — снять макет.
+ */
 export function withLayouts(s, patch = {}) {
   const used = new Set(structureTaskIds(s));
+  const merged = { ...s.layouts };
+  for (const [id, p] of Object.entries(patch)) {
+    merged[id] = isPlain(p) && isPlain(merged[id]) ? { ...merged[id], ...p } : p;
+  }
   const layouts = {};
-  for (const [id, layout] of Object.entries({ ...s.layouts, ...patch })) {
+  for (const [id, layout] of Object.entries(merged)) {
     if (used.has(id) && layout) layouts[id] = layout;
   }
   return { ...s, layouts };
+}
+
+/** Настройки листа задач у задач работы: { taskId: { kimImageSize, figurePlacement, solutionSpace } }. */
+export function sheetOptionsOf(s) {
+  const out = {};
+  for (const [id, layout] of Object.entries(s.layouts || {})) {
+    if (isPlain(layout?.sheet)) out[id] = layout.sheet;
+  }
+  return out;
 }
 
 /** Подпись варианта. */

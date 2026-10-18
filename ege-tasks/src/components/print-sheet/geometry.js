@@ -149,19 +149,71 @@ export const minFirstCapMm = (format) => (isHalfSheet(format) ? 20 : 40);
 /** Высота зоны решения (режим «место для решения»), мм. */
 export const SOLUTION_SPACE_MM = {
   none: 0,
+  xs: 12,
   s: 22,
   m: 38,
   l: 58,
   xl: 82,
+  xxl: 110,
 };
 
 export const SOLUTION_SPACE_OPTIONS = [
   { label: 'Нет',  value: 'none' },
+  { label: 'XS',   value: 'xs' },
   { label: 'S',    value: 's' },
   { label: 'M',    value: 'm' },
   { label: 'L',    value: 'l' },
   { label: 'XL',   value: 'xl' },
+  { label: 'XXL',  value: 'xxl' },
 ];
+
+/** Шаг ручной подгонки места у задачи — клетка 5 мм. */
+export const SOLUTION_STEP_MM = 5;
+/** Потолок места для решения у одной задачи, мм (почти полный лист). */
+export const SOLUTION_MAX_MM = 240;
+
+/**
+ * Личное место для решения задачи (`task.solutionSpace`), v3.9.384:
+ *   undefined / null / 'auto' — как на листе;
+ *   'answer' — без места, только строка «Ответ» (даже если на листе её нет);
+ *   'none'   — без места;
+ *   'xs'…'xxl' — размер из шкалы; число — своя высота, мм (шаг клетки).
+ */
+export const isOwnSolution = (task) => {
+  const v = task?.solutionSpace;
+  return v != null && v !== 'auto' && v !== '';
+};
+
+/**
+ * Высота зоны решения задачи, мм. `sheetMm` — что дал бы лист (S/M/… или
+ * доля страницы в режиме «N на лист»).
+ */
+export function taskSolutionMm(task, sheetMm) {
+  if (!isOwnSolution(task)) return sheetMm;
+  const v = task.solutionSpace;
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    return Math.max(0, Math.min(SOLUTION_MAX_MM, Math.round(v)));
+  }
+  return SOLUTION_SPACE_MM[v] ?? 0;
+}
+
+/** Подпись выбора задачи для кнопки на листе. */
+export function taskSolutionLabel(task) {
+  if (!isOwnSolution(task)) return 'место';
+  const v = task.solutionSpace;
+  if (v === 'answer') return 'только ответ';
+  if (v === 'none') return 'без места';
+  if (typeof v === 'number') return `${Math.round(v / SOLUTION_STEP_MM)} кл.`;
+  return SOLUTION_SPACE_OPTIONS.find((o) => o.value === v)?.label || v;
+}
+
+/** «±1 клетка» от текущей высоты задачи (sheetMm — что даёт лист). */
+export function stepTaskSolution(task, sheetMm, dir) {
+  const cur = taskSolutionMm(task, sheetMm);
+  const cells = Math.round(cur / SOLUTION_STEP_MM) + (dir > 0 ? 1 : -1);
+  const mm = Math.max(0, Math.min(SOLUTION_MAX_MM, cells * SOLUTION_STEP_MM));
+  return mm === 0 ? 'none' : mm;
+}
 
 /** Фон зоны решения. */
 export const SOLUTION_FILL_OPTIONS = [
@@ -219,7 +271,14 @@ export function paginateFixedCount(items, heights, perPage, firstCapPx, restCapP
   if (!items.length) return [];
   const n = Math.max(1, Math.floor(perPage));
   const pages = [];
-  const hOf = (it) => heights.get(it.__key) || 0;
+  // Задача со своим местом (task.solutionSpace) несёт его в своей высоте и в
+  // делёж остатка не входит: остаток делят задачи «как на листе».
+  const ownPx = (it) => {
+    if (!isOwnSolution(it)) return 0;
+    const mm = taskSolutionMm(it, 0);
+    return mm > 0 ? (mm + SOLUTION_GAP_MM) * MM : 0;
+  };
+  const hOf = (it) => (heights.get(it.__key) || 0) + ownPx(it);
 
   let i = 0;
   while (i < items.length) {
@@ -242,8 +301,10 @@ export function paginateFixedCount(items, heights, perPage, firstCapPx, restCapP
     const used = chunk.reduce((sum, it) => sum + hOf(it), 0)
       + gapPx * (slots - 1)
       + (isLast && tailPx ? tailPx + gapPx : 0);   // хвост (шифровка) на последнем листе
-    const leftMm = (cap - used) / MM - SOLUTION_GAP_MM * slots;
-    const perTask = leftMm / slots;
+    // Слоты задач со своим местом в делёж не идут
+    const shares = Math.max(1, slots - chunk.filter(isOwnSolution).length);
+    const leftMm = (cap - used) / MM - SOLUTION_GAP_MM * shares;
+    const perTask = leftMm / shares;
     pages.push({
       items: chunk,
       // Округление вниз до 0.1 мм (+эпсилон против 82.39999) — зона решения
