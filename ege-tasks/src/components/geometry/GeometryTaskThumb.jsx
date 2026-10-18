@@ -5,7 +5,7 @@ import './geometryThumb.css';
 /**
  * Миниатюра чертежа условия: SVG (в т.ч. стерео) или PNG. Чертёж к решению
  * (`image_role = 'solution'`, банк МЦНМО) не показывается — он не к условию.
- * Чертёж вписывается в рамку целиком (`.geo-svg-fit`), а не обрезается.
+ * Чертёж вписывается в рамку целиком (`.geo-drawing-fit`), а не обрезается.
  */
 export default function GeometryTaskThumb({ task, height = 64, width = 88, padding = 2, style }) {
   const box = {
@@ -17,7 +17,7 @@ export default function GeometryTaskThumb({ task, height = 64, width = 88, paddi
     return (
       <div style={box}>
         <div
-          className="geo-svg-fit"
+          className="geo-drawing-fit"
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: sanitizeSvg(task.drawing_svg) }}
         />

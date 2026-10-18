@@ -4,7 +4,7 @@ import {
   Alert, App, Button, Card, Empty, Form, Input, InputNumber, Modal, Segmented, Select, Space, Tag, Tooltip, Typography,
 } from 'antd';
 import {
-  EyeOutlined, FileAddOutlined, PlusOutlined, ReloadOutlined, ThunderboltOutlined,
+  CheckOutlined, EyeOutlined, FileAddOutlined, PlusOutlined, ReloadOutlined, StarOutlined, ThunderboltOutlined,
 } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -19,6 +19,8 @@ import { DEFAULT_CAMERA } from '../../../utils/stereo/camera';
 import { variantLabel } from '../../../utils/geometryWork';
 import MathRenderer from '../../MathRenderer';
 import SectionStepsModal from './SectionStepsModal';
+import ToMineModal from '../ToMineModal';
+import { cellKey } from '../../../utils/geometryAdopt';
 
 const { Text } = Typography;
 
@@ -54,7 +56,7 @@ function generateSheet(cfg, base) {
 }
 
 function TaskCell({
-  task, onSteps, onReplace, index, showBody,
+  task, onSteps, onReplace, index, showBody, mine, onMine,
 }) {
   const svg = useMemo(() => (task ? sanitizeSvg(stereoDrawingSvg(task.scene, DEFAULT_CAMERA, { width: 360, height: 300 })) : ''), [task]);
   if (!task) {
@@ -77,8 +79,17 @@ function TaskCell({
       )}
       extra={(
         <Space size={2}>
+          {mine ? (
+            <Tooltip title="Сохранена в «Мои задачи»">
+              <Tag color="green" icon={<CheckOutlined />} style={{ margin: 0 }}>{mine.code}</Tag>
+            </Tooltip>
+          ) : onMine && (
+            <Tooltip title="Удачная задача — сохранить в «Мои задачи», чтобы брать в другие работы">
+              <Button size="small" type="text" icon={<StarOutlined />} onClick={onMine}>В мои</Button>
+            </Tooltip>
+          )}
           <Tooltip title="Решение по шагам"><Button size="small" type="text" icon={<EyeOutlined />} onClick={onSteps} /></Tooltip>
-          <Tooltip title="Другое задание на это место"><Button size="small" type="text" icon={<ReloadOutlined />} onClick={onReplace} /></Tooltip>
+          {!mine && <Tooltip title="Другое задание на это место"><Button size="small" type="text" icon={<ReloadOutlined />} onClick={onReplace} /></Tooltip>}
         </Space>
       )}
       styles={{ body: { padding: 10 } }}
@@ -128,6 +139,8 @@ export default function SectionGenerator() {
   const [steps, setSteps] = useState(null);
   const [saving, setSaving] = useState(false);
   const [workOpen, setWorkOpen] = useState(false);
+  // «В мои»: какие ячейки сохранить (ключи cellKey) — окно выбора темы
+  const [toMine, setToMine] = useState(null);
   const [form] = Form.useForm();
 
   const set = (patch) => setCfg((c) => ({ ...c, ...patch }));
@@ -137,7 +150,8 @@ export default function SectionGenerator() {
   const families = [...new Set(effective.types.map(familyOf))];
   const ready = effective.types.length > 0 && effective.bodies.length > 0;
 
-  const run = () => setSheet({ cfg: effective, rows: generateSheet(effective, newSeed()) });
+  // mine — ячейки, уже сохранённые в «Мои» (cellKey → запись банка)
+  const run = () => setSheet({ cfg: effective, rows: generateSheet(effective, newSeed()), mine: {} });
 
   const replace = (v, r) => setSheet((s) => {
     const rows = s.rows.map((col) => [...col]);
@@ -147,30 +161,67 @@ export default function SectionGenerator() {
       const t = generateGenTask({ ...plan, level: s.cfg.level, seed: newSeed() });
       if (t && !taken.has(t.statement)) { rows[v][r] = t; break; }
     }
-    return { ...s, rows };
+    const mine = { ...s.mine };
+    delete mine[cellKey(v, r)];
+    return { ...s, rows, mine };
   });
 
-  // Сохранить задания задачами банка (с фасетами) → по вариантам [запись|null]
-  const saveTasks = async () => {
+  // Фасеты задания: имена справочника МЦНМО → id
+  const facetIds = async () => {
     const tags = await api.getGeometryTags().catch(() => null);
     const byName = new Map();
     for (const kind of ['object', 'method', 'fact']) for (const t of tags?.[kind] || []) byName.set(t.name, t.id);
+    return (task) => [...new Set((task.facets || []).map((nm) => byName.get(nm)).filter(Boolean))];
+  };
+
+  // Сохранить задания задачами банка (с фасетами) → по вариантам [запись|null].
+  // Уже сохранённые в «Мои» идут как есть — второй копии не будет.
+  const saveTasks = async () => {
+    const tagsOf = await facetIds();
     const stamp = Date.now().toString(36).toUpperCase().slice(-5);
     let n = 0;
     const ids = [];
-    for (const col of sheet.rows) {
+    for (const [v, col] of sheet.rows.entries()) {
       const out = [];
-      for (const task of col) {
+      for (const [r, task] of col.entries()) {
         if (!task) { out.push(null); continue; }
+        const mine = sheet.mine?.[cellKey(v, r)];
+        if (mine) { out.push(mine); continue; }
         n += 1;
         const rec = genTaskToRecord(task, { code: `${genCodePrefix(task.type)}-${stamp}-${n}` });
-        rec.tags = [...new Set((task.facets || []).map((nm) => byName.get(nm)).filter(Boolean))];
+        rec.tags = tagsOf(task);
         const [saved] = await api.createGeneratedGeometryTasks([rec]);
         out.push(saved);
       }
       ids.push(out);
     }
     return ids;
+  };
+
+  // Ячейки, ещё не сохранённые в «Мои»
+  const unsavedKeys = sheet
+    ? sheet.rows.flatMap((col, v) => col.map((t, r) => (t && !sheet.mine?.[cellKey(v, r)] ? cellKey(v, r) : null))).filter(Boolean)
+    : [];
+
+  const saveToMine = async ({ topic, subtopic }) => {
+    const keys = toMine?.keys || [];
+    try {
+      const tagsOf = await facetIds();
+      const tasks = keys.map((k) => { const [v, r] = k.split(':').map(Number); return sheet.rows[v][r]; });
+      const recs = tasks.map((task) => ({ ...genTaskToRecord(task, { code: '' }), tags: tagsOf(task) }));
+      const saved = await api.createMineGeometryTasks(recs, { topic, subtopic });
+      setSheet((s) => {
+        const mine = { ...s.mine };
+        keys.forEach((k, i) => { if (saved[i]) mine[k] = saved[i]; });
+        return { ...s, mine };
+      });
+      message.success(saved.length === 1
+        ? `Задача сохранена в «Мои» как ${saved[0].code}`
+        : `В «Мои» сохранено задач: ${saved.length} (${saved[0].code}…${saved[saved.length - 1].code})`);
+      setToMine(null);
+    } catch (e) {
+      message.error(`Не удалось сохранить: ${e?.message || 'ошибка'}`);
+    }
   };
 
   const toBasket = async () => {
@@ -338,6 +389,8 @@ export default function SectionGenerator() {
                   showBody={sheet.cfg.bodies.length > 1}
                   onSteps={() => setSteps(col[r])}
                   onReplace={() => replace(v, r)}
+                  mine={sheet.mine?.[cellKey(v, r)]}
+                  onMine={canEdit ? () => setToMine({ keys: [cellKey(v, r)] }) : undefined}
                 />
               )))}
             </div>
@@ -350,8 +403,18 @@ export default function SectionGenerator() {
                 display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap',
               }}
             >
-              <Text>Заданий: <Text strong>{filled}</Text> — сохранятся в банк (область «Генератор») с фасетами</Text>
+              <Text>
+                Заданий: <Text strong>{filled}</Text> — сохранятся в банк (область «Генератор») с фасетами
+                {filled > unsavedKeys.length && <>; в «Мои» уже: <Text strong>{filled - unsavedKeys.length}</Text></>}
+              </Text>
               <Space style={{ marginLeft: 'auto' }}>
+                {unsavedKeys.length > 0 && (
+                  <Tooltip title="Сохранить задачи листа в «Мои задачи» — с кодом GEO-… и темой">
+                    <Button icon={<StarOutlined />} onClick={() => setToMine({ keys: unsavedKeys })}>
+                      Все в мои ({unsavedKeys.length})
+                    </Button>
+                  </Tooltip>
+                )}
                 <Button icon={<PlusOutlined />} loading={saving} onClick={toBasket}>В подборку</Button>
                 <Button type="primary" icon={<FileAddOutlined />} loading={saving} onClick={openWork}>Создать работу</Button>
               </Space>
@@ -361,6 +424,13 @@ export default function SectionGenerator() {
       )}
 
       <SectionStepsModal task={steps} open={!!steps} onClose={() => setSteps(null)} />
+
+      <ToMineModal
+        open={!!toMine}
+        count={toMine?.keys.length || 0}
+        onCancel={() => setToMine(null)}
+        onConfirm={saveToMine}
+      />
 
       <Modal
         title="Новая работа из заданий"

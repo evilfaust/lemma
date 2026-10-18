@@ -6,7 +6,8 @@ import {
 } from 'antd';
 import {
   ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, CloseOutlined, DeleteOutlined, EyeOutlined,
-  PlusOutlined, PrinterOutlined, SaveOutlined, SwapOutlined, ThunderboltOutlined, TableOutlined, ShareAltOutlined,
+  PlusOutlined, PrinterOutlined, SaveOutlined, StarOutlined, SwapOutlined, ThunderboltOutlined, TableOutlined,
+  ShareAltOutlined,
 } from '@ant-design/icons';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -28,6 +29,7 @@ import SheetToJournalModal from '../../workspace/journal/SheetToJournalModal';
 import GeometryTaskEditor from '../../GeometryTaskEditor';
 import MathRenderer from '../../MathRenderer';
 import GeometryTaskPickerModal from './GeometryTaskPickerModal';
+import ToMineModal from '../ToMineModal';
 import WorkLessonLinks from '../../worksheet/WorkLessonLinks';
 import GeometryWorkShareModal from './GeometryWorkShareModal';
 import './geometryWorks.css';
@@ -75,6 +77,9 @@ export default function GeometryWorkEditor() {
   const [basketVariant, setBasketVariant] = useState(0);
   const [autofill, setAutofill] = useState(null); // { done, total }
   const [journalOpen, setJournalOpen] = useState(false);
+  // «В мои»: задачи генератора работы → свои (id переводимых задач)
+  const [toMine, setToMine] = useState(null);
+  const [cardRefresh, setCardRefresh] = useState(0);
   // Правка/создание задачи прямо из работы: { task } | { create: true, row?, variant }
   const [taskEdit, setTaskEdit] = useState(null);
   // Выбор из банка: { variant } — новыми позициями; { row, variant } — в ячейку
@@ -411,6 +416,27 @@ export default function GeometryWorkEditor() {
   const gridMinWidth = 56 + nVar * 240 + (canEdit ? 36 : 0) + 8 * (nVar + (canEdit ? 1 : 0));
   const pickerRef = picker ? byId.get(rowReference(structure, picker.row)) : null;
 
+  // Задачи генератора в работе — их можно перевести в «Мои» на месте
+  const genIds = structureTaskIds(structure).filter((id) => byId.get(id)?.origin === 'gen');
+
+  const adoptToMine = async ({ topic, subtopic }) => {
+    try {
+      const recs = await api.adoptGeneratedGeometryTasks(toMine, { topic, subtopic });
+      if (!recs.length) { message.info('Эти задачи уже не из генератора'); setToMine(null); return; }
+      const next = new Map(byIdRef.current);
+      recs.forEach((r) => next.set(r.id, { ...next.get(r.id), ...r }));
+      byIdRef.current = next;
+      setById(next);
+      setCardRefresh((n) => n + 1);
+      setToMine(null);
+      message.success(recs.length === 1
+        ? `Задача теперь в «Мои»: ${recs[0].code}`
+        : `В «Мои» переведено задач: ${recs.length} — работа не изменилась`);
+    } catch (e) {
+      message.error(`Не удалось перевести в «Мои»: ${e?.message || 'ошибка'}`);
+    }
+  };
+
   const renderCell = (row, vi) => {
     const id = structure.variants[vi].items[row]?.task;
     const task = id ? byId.get(id) : null;
@@ -425,6 +451,7 @@ export default function GeometryWorkEditor() {
             <Space size={4} wrap>
               <Text code style={{ fontSize: 11 }}>{task?.code || '…'}</Text>
               {task?.origin === 'mccme' && <Tag color="geekblue" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>МЦНМО</Tag>}
+              {task?.origin === 'gen' && <Tag color="purple" style={{ margin: 0, fontSize: 10, lineHeight: '16px' }}>Генератор</Tag>}
               {task?.answer && (
                 <Text type="secondary" style={{ fontSize: 11 }}>отв.&nbsp;<MathRenderer text={String(task.answer)} /></Text>
               )}
@@ -583,6 +610,13 @@ export default function GeometryWorkEditor() {
               />
             </Tooltip>
           )}
+          {genIds.length > 0 && (
+            <Tooltip title="Задачи из генератора хранятся в банке отдельно (область «Генератор»). Сделать их своими: код GEO-…, тема, область «Мои» — чтобы брать в другие работы">
+              <Button icon={<StarOutlined />} onClick={() => setToMine(genIds)}>
+                Задачи генератора → в мои ({genIds.length})
+              </Button>
+            </Tooltip>
+          )}
           {basket.items.length > 0 && (
             <Button icon={<PlusOutlined />} type="dashed" onClick={addFromBasket}>
               Позиции из подборки ({basket.items.length})
@@ -709,6 +743,16 @@ export default function GeometryWorkEditor() {
         onOpen={(id, list) => setCard((c) => ({ id, list: list || c.list }))}
         onClose={() => setCard({ id: null, list: [] })}
         canEdit={canEdit}
+        onToMine={canEdit ? (t) => setToMine([t.id]) : undefined}
+        refreshKey={cardRefresh}
+      />
+
+      <ToMineModal
+        open={!!toMine}
+        count={toMine?.length || 0}
+        note="Задачи генератора станут своими: код GEO-…, выбранная тема, область «Мои» банка. Работа не изменится — в ней те же задачи."
+        onCancel={() => setToMine(null)}
+        onConfirm={adoptToMine}
       />
     </Space>
   );

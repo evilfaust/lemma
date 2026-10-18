@@ -9,6 +9,7 @@ import {
   taskToGeometryRecord, findAlreadyTransferred, geometryCodeSequence, transferKey,
 } from '../../../utils/taskToGeometry';
 import { tasksApi } from './tasks.js';
+import { adoptPatch, isGenTask, mineRecord } from '../../../utils/geometryAdopt';
 
 // Поля задачи для списков и работ: без тяжёлых geogebra_base64 (XML состояния
 // апплета, 30–100 КБ) и solution_md — они нужны редактору и карточке задачи
@@ -222,6 +223,40 @@ export const geometryApi = {
   async createGeneratedGeometryTasks(records) {
     const out = [];
     for (const r of records) out.push(await geometryApi.createGeometryTask(r));
+    return out;
+  },
+
+  // Задания генератора, ещё не сохранённые, — сразу в «Мои» (код GEO-N,
+  // тема/подтема). records — из genTaskToRecord. Возвращает записи.
+  async createMineGeometryTasks(records, opts = {}) {
+    if (!records.length) return [];
+    const first = await geometryApi.getNextGeometryCode();
+    if (!first) throw new Error('Не удалось получить код для новой задачи');
+    const codes = geometryCodeSequence(first, records.length);
+    const out = [];
+    for (let i = 0; i < records.length; i += 1) {
+      out.push(await geometryApi.createGeometryTask(mineRecord(records[i], codes[i], opts)));
+    }
+    return out;
+  },
+
+  // Сохранённые задачи генератора (origin = 'gen') → «Мои» НА МЕСТЕ: та же
+  // запись получает код GEO-N и тему, работы с ней не меняются. Остальные id
+  // пропускаются. Возвращает обновлённые записи.
+  async adoptGeneratedGeometryTasks(ids, opts = {}) {
+    const recs = (await geometryApi.getGeometryTasksByIds(ids)).filter(isGenTask);
+    if (!recs.length) return [];
+    const first = await geometryApi.getNextGeometryCode();
+    if (!first) throw new Error('Не удалось получить код для новой задачи');
+    const codes = geometryCodeSequence(first, recs.length);
+    const out = [];
+    for (let i = 0; i < recs.length; i += 1) {
+      const rec = await pb.collection('geometry_tasks').update(recs[i].id, adoptPatch(recs[i], codes[i], opts), {
+        expand: 'topic,subtopic',
+      });
+      _logAudit('update', 'geometry_tasks', rec.id, `${recs[i].code} → ${rec.code} (в «Мои»)`);
+      out.push(rec);
+    }
     return out;
   },
 

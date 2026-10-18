@@ -30,6 +30,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
+  StarOutlined,
   TagsOutlined,
 } from '@ant-design/icons';
 import { api } from '../shared/services/pocketbase';
@@ -46,6 +47,7 @@ import { buildGeometryColumns, DIFFICULTY_COLORS, DIFFICULTY_LABELS } from './ge
 import GeometryTagsModal from './geometry/GeometryTagsModal';
 import GeometryTaskDrawer from './geometry/GeometryTaskDrawer';
 import GeometryTaskThumb from './geometry/GeometryTaskThumb';
+import ToMineModal from './geometry/ToMineModal';
 import { GEOMETRY_SECTIONS } from '../utils/geometrySection';
 import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
 import GeometryBankDuplicatesModal from './geometry/GeometryBankDuplicatesModal';
@@ -72,7 +74,8 @@ const SECTION_OPTIONS = [{ value: '', label: 'Все разделы' }, ...GEOME
 // грузим. Сужают фасет, поиск, сложность, тема/подтема/источник или раздел
 // «Стереометрия» (≈4 тыс.); одна «Планиметрия» — 13,5 тыс., это не сужение.
 function needsNarrowing(f) {
-  if ((f.origin || 'manual') === 'manual') return false;
+  // «Мои» и «Генератор» — десятки–сотни задач, грузятся сразу
+  if (['manual', 'gen'].includes(f.origin || 'manual')) return false;
   return !(f.tagsObject?.length || f.tagsMethod?.length || f.tagsFact?.length
     || String(f.search || '').length >= MIN_SEARCH_LENGTH
     || f.difficulty || f.topic || f.subtopic || f.source || f.section === 'stereo');
@@ -113,6 +116,9 @@ export default function GeometryTaskList() {
   // Карточка задачи: какая открыта и по какому списку листать ← / →
   const [card, setCard] = useState({ id: null, list: [] });
   const [cardBusy, setCardBusy] = useState(null); // 'edit' | 'copy' | 'take'
+  // «В мои»: задачи генератора, которые переводятся (окно выбора темы)
+  const [toMine, setToMine] = useState(null); // { ids, fromCard }
+  const [cardRefresh, setCardRefresh] = useState(0);
   const [viewMode, setViewMode] = useState('table');
   const [cardsPage, setCardsPage] = useState(1);
   const [cardsPageSize, setCardsPageSize] = useState(20);
@@ -251,6 +257,23 @@ export default function GeometryTaskList() {
     }
   };
 
+  // Задачи генератора → «Мои» на месте (те же записи, работы не трогаем)
+  const adoptToMine = async ({ topic, subtopic }) => {
+    try {
+      const recs = await api.adoptGeneratedGeometryTasks(toMine.ids, { topic, subtopic });
+      if (!recs.length) { message.info('Эти задачи уже не из генератора'); setToMine(null); return; }
+      message.success(recs.length === 1
+        ? `Задача теперь в «Мои»: ${recs[0].code}`
+        : `В «Мои» переведено задач: ${recs.length}`);
+      setToMine(null);
+      setSelectedRowKeys((keys) => keys.filter((k) => !toMine.ids.includes(k)));
+      setCardRefresh((n) => n + 1);
+      loadTasks();
+    } catch (e) {
+      message.error(`Не удалось перевести в «Мои»: ${e?.message || 'ошибка'}`);
+    }
+  };
+
   const handleTakeToMine = async (task) => {
     setCardBusy('take');
     try {
@@ -351,6 +374,8 @@ export default function GeometryTaskList() {
   // Свои задачи текущего списка без единого фасета (объект/метод/факт)
   const facetKinds = new Map();
   for (const kind of ['object', 'method', 'fact']) for (const t of geoTags[kind] || []) facetKinds.set(t.id, kind);
+  // Выделенные задачи генератора — их можно перевести в «Мои»
+  const selectedGen = tasks.filter((t) => t.origin === 'gen' && selectedRowKeys.includes(t.id)).map((t) => t.id);
   const untagged = tasks.filter((t) => t.origin !== 'mccme' && t.origin !== 'gen' && !(t.tags || []).some((id) => facetKinds.has(id)));
 
   // В области с банком МЦНМО без сужения и без явной «Загрузить все» — режим подсказки
@@ -545,6 +570,13 @@ export default function GeometryTaskList() {
             >
               В подборку ({selectedRowKeys.length})
             </Button>
+          )}
+          {canEdit && selectedGen.length > 0 && (
+            <Tooltip title="Выделенные задачи генератора станут своими: код GEO-…, тема, область «Мои»">
+              <Button icon={<StarOutlined />} onClick={() => setToMine({ ids: selectedGen })}>
+                В мои ({selectedGen.length})
+              </Button>
+            </Tooltip>
           )}
           {canEdit && selectedRowKeys.length > 0 && (
             <Dropdown
@@ -866,7 +898,17 @@ export default function GeometryTaskList() {
         onEdit={handleCardEdit}
         onDuplicate={handleCardDuplicate}
         onTakeToMine={handleTakeToMine}
+        onToMine={(t) => setToMine({ ids: [t.id] })}
         busy={cardBusy}
+        refreshKey={cardRefresh}
+      />
+
+      <ToMineModal
+        open={!!toMine}
+        count={toMine?.ids.length || 0}
+        note="Задачи генератора станут своими: код GEO-…, выбранная тема, область «Мои». Работы, где они стоят, не меняются."
+        onCancel={() => setToMine(null)}
+        onConfirm={adoptToMine}
       />
 
       {/* ── Модал импорта в обычные задачи ───────────────────────────── */}

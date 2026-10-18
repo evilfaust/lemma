@@ -4,7 +4,7 @@ import {
 } from 'antd';
 import {
   CheckOutlined, CopyOutlined, EditOutlined, ImportOutlined, LeftOutlined, PaperClipOutlined,
-  PlayCircleOutlined, PlusOutlined, RightOutlined, UndoOutlined, CodeSandboxOutlined,
+  PlayCircleOutlined, PlusOutlined, RightOutlined, StarOutlined, UndoOutlined, CodeSandboxOutlined,
 } from '@ant-design/icons';
 import { useGeometryBasket } from '../../hooks/useGeometryBasket';
 import { api } from '../../shared/services/pocketbase';
@@ -128,13 +128,14 @@ function Section({ title, children, extra }) {
  * @param {object} geoTags — фасеты по видам { object: [...], method: [...], fact: [...] }
  * @param {function} onOpen — (id, listIds?) переход к другой задаче
  * @param {function} onFacet — (kind, tagId) отфильтровать банк по фасету
- * @param {function} [onEdit|onDuplicate|onTakeToMine] — кнопки действий; не передан
+ * @param {function} [onEdit|onDuplicate|onTakeToMine|onToMine] — кнопки действий; не передан
  *   обработчик — нет и кнопки (в редакторе работы карточка только смотрит)
  * @param {ReactNode} [extra] — свои кнопки в подвал (например, «Поставить в ячейку»)
+ * @param {number} [refreshKey] — сменился — перечитать задачу (после правки на месте)
  */
 export default function GeometryTaskDrawer({
   taskId, listIds = [], geoTags, onOpen, onClose, onFacet,
-  canEdit, onEdit, onDuplicate, onTakeToMine, busy = null, extra = null,
+  canEdit, onEdit, onDuplicate, onTakeToMine, onToMine, busy = null, extra = null, refreshKey = 0,
 }) {
   const basket = useGeometryBasket();
   const navigate = useNavigate();
@@ -143,6 +144,8 @@ export default function GeometryTaskDrawer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const cacheRef = useRef(new Map());
+
+  useEffect(() => { cacheRef.current.clear(); }, [refreshKey]);
 
   useEffect(() => {
     if (!taskId) return undefined;
@@ -160,7 +163,7 @@ export default function GeometryTaskDrawer({
       .catch(() => alive && setError('Не удалось загрузить задачу'))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
-  }, [taskId]);
+  }, [taskId, refreshKey]);
 
   // После правки/копии задача могла измениться — кэш сбрасываем при закрытии.
   useEffect(() => { if (!taskId) cacheRef.current.clear(); }, [taskId]);
@@ -190,6 +193,7 @@ export default function GeometryTaskDrawer({
 
   const shown = task && task.id === taskId ? task : null;
   const isBank = shown?.origin === 'mccme';
+  const isGen = shown?.origin === 'gen';
   // Построение по шагам: блок ```stereo в решении, иначе стереочертёж условия
   // (если в нём есть шаги). Шаги решения идут после шагов чертежа условия.
   const construction = useMemo(() => {
@@ -270,6 +274,13 @@ export default function GeometryTaskDrawer({
         <Tooltip title="Своя копия задачи: её можно править, не трогая банк. Фасеты и решение сохранятся">
           <Button icon={<ImportOutlined />} loading={busy === 'take'} onClick={() => onTakeToMine(shown)}>
             Взять к себе
+          </Button>
+        </Tooltip>
+      )}
+      {isGen && onToMine && (
+        <Tooltip title="Задача генератора станет своей: код GEO-…, тема, область «Мои». Работы с ней не меняются">
+          <Button icon={<StarOutlined />} loading={busy === 'take'} onClick={() => onToMine(shown)}>
+            В мои задачи
           </Button>
         </Tooltip>
       )}

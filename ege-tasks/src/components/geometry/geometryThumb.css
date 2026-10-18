@@ -5,7 +5,7 @@
  * `overflow:hidden` оставлял от него одну верхнюю грань. viewBox есть у всех
  * чертежей банка, поэтому `meet` (умолчание SVG) держит пропорции.
  */
-.geo-svg-fit {
+.geo-drawing-fit {
   width: 100%;
   height: 100%;
   display: flex;
@@ -15,7 +15,7 @@
   line-height: 0;
 }
 
-.geo-svg-fit > svg {
+.geo-drawing-fit > svg {
   width: 100% !important;
   height: 100% !important;
   max-width: 100% !important;

@@ -18,6 +18,7 @@ const mockApi = vi.hoisted(() => ({
   getGeometryTopics: vi.fn(() => Promise.resolve([])),
   getGeometrySubtopics: vi.fn(() => Promise.resolve([])),
   getNextGeometryCode: vi.fn(() => Promise.resolve('GEO-999')),
+  adoptGeneratedGeometryTasks: vi.fn(),
 }));
 // Редактор задачи тянет апплет GeoGebra — в тестах не нужен
 vi.mock('../components/GeoGebraApplet', () => ({ default: () => <div data-testid="ggb" /> }));
@@ -166,5 +167,32 @@ describe('редактор работы: добавить задачи и пра
     expect(screen.getByText('Редактирование: GEO-001')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Назад к работе'));
     expect(await screen.findByText(/Позиций: 1/)).toBeInTheDocument();
+  });
+
+  it('задачи генератора в работе → «Мои» на месте: работа не меняется, коды обновляются', async () => {
+    const GEN = [
+      { id: 'g1', code: 'ANG-YO5M4-2', origin: 'gen', statement_md: 'Угол в кубе', answer: '60', section: 'stereo' },
+      { id: 'g2', code: 'ANG-YO5M4-4', origin: 'gen', statement_md: 'Ещё угол', answer: '45', section: 'stereo' },
+    ];
+    mockApi.getGeometryWork.mockResolvedValue({
+      id: 'w1', title: 'Из генератора', structure: { variants: [{ items: [{ task: 'g1' }, { task: 'g2' }, { task: 'a' }] }] },
+    });
+    mockApi.getGeometryTasksByIds.mockImplementation((ids) => Promise.resolve([...GEN, ...TASKS].filter((t) => ids.includes(t.id))));
+    mockApi.adoptGeneratedGeometryTasks.mockImplementation((ids) => Promise.resolve(ids.map((id, i) => ({
+      ...GEN.find((t) => t.id === id), origin: 'manual', code: `GEO-${600 + i}`,
+    }))));
+    renderEditor();
+    expect(await screen.findByText('ANG-YO5M4-2')).toBeInTheDocument();
+    expect(screen.getAllByText('Генератор')).toHaveLength(2);
+
+    fireEvent.click(screen.getByText('Задачи генератора → в мои (2)'));
+    fireEvent.click(await screen.findByText('Сохранить в мои'));
+    await waitFor(() => expect(mockApi.adoptGeneratedGeometryTasks).toHaveBeenCalledWith(['g1', 'g2'], { topic: null, subtopic: null }));
+    expect(await screen.findByText('GEO-600')).toBeInTheDocument();
+    expect(screen.getByText('GEO-601')).toBeInTheDocument();
+    expect(screen.queryByText(/Задачи генератора → в мои/)).toBeNull();
+    // Состав работы тот же — сохранять нечего
+    expect(screen.getByText('Сохранено').closest('button')).toBeDisabled();
+    expect(mockApi.updateGeometryWork).not.toHaveBeenCalled();
   });
 });
