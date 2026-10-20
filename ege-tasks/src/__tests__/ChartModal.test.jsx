@@ -36,6 +36,17 @@ describe('ChartModal', () => {
     expect(onInsert.mock.calls[0][0]).toContain('xtitle Час');
   });
 
+  it('подписи под осью и строка дат попадают в разметку и на чертёж', () => {
+    const onInsert = open({ initialSpec: 'x 0 48 step 12\ny 0 10 step 2\nvalues 2 4 6 4 2' });
+    fireEvent.change(screen.getByPlaceholderText('подписи: 00:00 06:00 12:00 18:00'), { target: { value: '00:00 12:00' } });
+    fireEvent.change(screen.getByPlaceholderText('даты: 4 апреля | 5 апреля'), { target: { value: '4 апреля | 5 апреля' } });
+    const preview = document.querySelector('.plot-modal-preview').textContent;
+    expect(preview).toContain('12:00');
+    expect(preview).toContain('5 апреля');
+    fireEvent.click(screen.getByText('Сохранить'));
+    expect(onInsert.mock.calls[0][0]).toContain('labels 00:00 12:00\ngroups 4 апреля | 5 апреля');
+  });
+
   it('переключение на столбики строит их из точек линии', () => {
     const onInsert = open({ initialSpec: 'x 1 3 step 1\ny 0 10 step 2\nvalues 2 4 6' });
     fireEvent.click(screen.getByText('Столбики (диаграмма)'));

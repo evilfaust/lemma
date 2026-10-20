@@ -6,7 +6,7 @@ import { PlusOutlined, DeleteOutlined, ColumnHeightOutlined } from '@ant-design/
 import './PlotModal.css';
 import {
   parseChartSpec, chartToSpec, chartSvgFromSpec, buildChartSnippet, emptyChartDoc,
-  parseTablePaste, fitAxesToData, CHART_COLORS, CHART_SIZES, CHART_DEFAULT_FONT,
+  parseTablePaste, fitAxesToData, parseGroups, CHART_COLORS, CHART_SIZES, CHART_DEFAULT_FONT,
 } from '../../utils/chartSpec';
 
 // Конструктор графика по таблице значений (блок ```chart): осадки по дням,
@@ -390,6 +390,30 @@ export default function ChartModal({
                 placeholder="у оси y: Количество осадков, мм"
                 onChange={(e) => setDoc({ ...doc, ytitle: e.target.value })}
               />
+            </Space>
+            <Space wrap size={8}>
+              <Tooltip title="Подписи засечек вместо чисел, по кругу: «00:00 06:00 12:00 18:00» хватит на любые сутки. С пробелами внутри — через «|»">
+                <span style={labelStyle}>Под осью x:</span>
+              </Tooltip>
+              {doc.type !== 'bar' && (
+                <Input
+                  size="small"
+                  style={{ width: 200 }}
+                  value={doc.xlabels}
+                  placeholder="подписи: 00:00 06:00 12:00 18:00"
+                  onChange={(e) => setDoc({ ...doc, xlabels: e.target.value })}
+                />
+              )}
+              <Tooltip title="Строка под подписями — даты, годы. Ось делится поровну; свой отрезок — «(0; 24) 4 апреля | (24; 48) 5 апреля»">
+                <Input
+                  size="small"
+                  style={{ width: 220 }}
+                  value={doc.groups}
+                  status={parseGroups(doc.groups) ? undefined : 'error'}
+                  placeholder="даты: 4 апреля | 5 апреля"
+                  onChange={(e) => setDoc({ ...doc, groups: e.target.value })}
+                />
+              </Tooltip>
             </Space>
             <Space wrap size={8}>
               <Tooltip title="Короткая единица у конца оси, как в задачах про температуру: «ч», «°C»">

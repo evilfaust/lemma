@@ -20,7 +20,12 @@
 //   line (8; 4) (9; 1,5) …            линия по точкам (x; y)
 //     … color orange | smooth | nodots | dash   — модификаторы линии
 //   bar 12 15 20 …  [color blue]      столбики (на каждую категорию — один)
-//   labels янв фев мар …              подписи столбиков (с пробелами — через «|»)
+//   labels янв фев мар …              подписи столбиков (с пробелами — через «|»);
+//                                     у линии — подписи засечек x вместо чисел, по кругу:
+//                                     labels 00:00 06:00 12:00 18:00 на трое суток
+//   groups 4 апреля | 5 апреля | …    строка под подписями (даты, годы): окно делится
+//                                     поровну; явно — (0; 24) 4 апреля | (24; 48) …
+//                                     (у столбиков — номера: (1; 12) 2025)
 //   size 340 210 / font 1,2            холст (px) и масштаб шрифта
 
 import { num, PLOT_PALETTE } from './coordPlot';
@@ -32,6 +37,13 @@ export const CHART_DEFAULT_FONT = 1.15;
 const INLINE_WIDTH = 220;
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+// Список подписей: через «|», а без него — через пробелы (как у labels)
+const splitLabels = (text) => {
+  const t = String(text ?? '').trim();
+  if (!t) return [];
+  return t.includes('|') ? t.split('|').map((s) => s.trim()) : t.split(/\s+/);
+};
+
 const fmt = (v) => String(Math.round(v * 10000) / 10000).replace('.', ',').replace(/^-/, '-');
 
 export function emptyChartDoc() {
@@ -43,6 +55,8 @@ export function emptyChartDoc() {
     ytitle: '',
     xunit: '',
     yunit: '',
+    xlabels: '',
+    groups: '',
     series: [],
     bars: [],
     barColor: 'ink',
@@ -161,7 +175,12 @@ export function parseChartSpec(spec) {
       doc.barColor = mods.color;
       doc.bars = vals.map((v) => ({ label: '', v }));
     } else if (key === 'labels') {
-      labels = bodyText.includes('|') ? bodyText.split('|').map((s) => s.trim()) : bodyText.split(/\s+/);
+      labels = bodyText;
+    } else if (key === 'xlabels') {
+      doc.xlabels = bodyText;
+    } else if (key === 'groups' || key === 'days') {
+      if (!parseGroups(bodyText)) { errors.push(cmd); doc.raw.push(cmd); continue; }
+      doc.groups = bodyText;
     } else if (key === 'size') {
       const w = num(tail[0]);
       const h = num(tail[1]);
@@ -179,7 +198,11 @@ export function parseChartSpec(spec) {
   for (const { s, vals } of pendingValues) {
     s.points = vals.map((v, i) => [doc.x.min + i * doc.x.step, v]);
   }
-  if (labels) doc.bars.forEach((b, i) => { b.label = labels[i] ?? ''; });
+  // labels у столбиков — подписи категорий, у линии — подписи засечек x
+  if (labels != null && doc.type === 'bar') {
+    const ls = splitLabels(labels);
+    doc.bars.forEach((b, i) => { b.label = ls[i] ?? ''; });
+  } else if (labels != null) doc.xlabels = labels;
 
   // Не задано окно — подбираем по данным
   if (!xGiven && doc.type === 'line') {
@@ -193,6 +216,35 @@ export function parseChartSpec(spec) {
     if (ys.length) Object.assign(doc.y, autoAxis(Math.min(...ys), Math.max(...ys), { fromZero: true }));
   }
   return { doc, errors };
+}
+
+/**
+ * Строка groups → [{ label, from?, to? }] или null (кривой диапазон).
+ * Без «|» и скобок — через пробелы («groups 2025 2026»).
+ */
+export function parseGroups(text) {
+  const t = String(text ?? '').trim();
+  if (!t) return [];
+  const parts = t.includes('|') || t.includes('(') ? t.split('|').map((s) => s.trim()) : t.split(/\s+/);
+  const out = [];
+  for (const part of parts) {
+    const m = part.match(/^\(([^)]*)\)\s*(.*)$/);
+    if (!m) { out.push({ label: part }); continue; }
+    const [a, b] = m[1].split(/;|\s+/).filter(Boolean).map(num);
+    if (!isNum(a) || !isNum(b) || a > b) return null;
+    out.push({ label: m[2].trim(), from: a, to: b });
+  }
+  return out;
+}
+
+// Группы → отрезки оси рендера: без диапазона — окно поровну по порядку,
+// у столбиков диапазон — номера столбиков включительно
+function groupSpans(text, lo, hi, isBar) {
+  const gs = parseGroups(text) || [];
+  const w = (hi - lo) / (gs.length || 1);
+  return gs.map((g, i) => (isNum(g.from)
+    ? { label: g.label, from: isBar ? g.from - 0.5 : g.from, to: isBar ? g.to + 0.5 : g.to }
+    : { label: g.label, from: lo + i * w, to: lo + (i + 1) * w }));
 }
 
 const NICE = [1, 2, 2.5, 5, 10];
@@ -257,7 +309,9 @@ export function chartToSpec(doc) {
         : ['line', ...s.points.map(([px, py]) => `(${fmt(px)}; ${fmt(py)})`)];
       lines.push([...body, ...modsText(s)].join(' '));
     }
+    if (doc.xlabels?.trim()) lines.push(`labels ${doc.xlabels.trim()}`);
   }
+  if (doc.groups?.trim()) lines.push(`groups ${doc.groups.trim()}`);
   const [mw, mh] = CHART_SIZES.M;
   if (doc.size && (doc.size.w !== mw || doc.size.h !== mh)) lines.push(`size ${doc.size.w} ${doc.size.h}`);
   if (doc.font && Math.abs(doc.font - CHART_DEFAULT_FONT) > 1e-9) lines.push(`font ${fmt(doc.font)}`);
@@ -286,6 +340,7 @@ export function docToChart(doc) {
         min: 0.4,
         max: n + 0.6,
         ticks: doc.bars.map((b, i) => ({ v: i + 1, label: b.label || String(i + 1) })),
+        groups: groupSpans(doc.groups, 0.5, n + 0.5, true),
         unit: doc.xunit || undefined,
         title: doc.xtitle || undefined,
       },
@@ -299,17 +354,26 @@ export function docToChart(doc) {
   const every = doc.x.label || step;
   const ticks = [];
   const n = Math.round((max - min) / step);
+  const own = splitLabels(doc.xlabels);
   if (n <= 400) {
     for (let i = 0; i <= n; i += 1) {
       const v = Math.round((min + i * step) * 1e9) / 1e9;
       const k = v / every;
-      if (Math.abs(k - Math.round(k)) < 1e-6) ticks.push({ v, label: fmt(v).replace('-', '−') });
+      if (Math.abs(k - Math.round(k)) >= 1e-6) continue;
+      // Свои подписи («06:00») идут по кругу: четыре на сутки — на любые сутки
+      ticks.push({ v, label: own.length ? own[ticks.length % own.length] : fmt(v).replace('-', '−') });
     }
   }
   return {
     type: 'line',
     x: {
-      min, max, grid: n <= 400 ? step : null, ticks, unit: doc.xunit || undefined, title: doc.xtitle || undefined,
+      min,
+      max,
+      grid: n <= 400 ? step : null,
+      ticks,
+      groups: groupSpans(doc.groups, min, max, false),
+      unit: doc.xunit || undefined,
+      title: doc.xtitle || undefined,
     },
     y,
     series: doc.series.filter((s) => s.points.length).map((s) => ({

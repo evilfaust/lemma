@@ -20,6 +20,13 @@ values 4 1,5 0,25 1,5 4 0 3 1,5 1,75 0,5 1 0 0,5 0,8 0 0 0,5 color orange`;
 
 const texts = (svg) => [...svg.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((m) => m[1]);
 
+// Давление по дням, как на картинке базы №3: подписи времени и строка дат
+const PRESSURE = `x 0 72 step 6
+y 752 766 step 2
+labels 00:00 06:00 12:00 18:00
+values 755 758 758 757 754 756 759 760 759 765 765 762 760 color orange
+groups 4 апреля | 5 апреля | 6 апреля`;
+
 describe('разбор DSL', () => {
   it('values раскладываются с начала оси x с её шагом', () => {
     const { doc, errors } = parseChartSpec(RAIN);
@@ -53,6 +60,31 @@ describe('разбор DSL', () => {
     expect(b.bars.map((x) => x.label)).toEqual(['1 кв.', '2 кв.']);
   });
 
+  it('labels у линии — свои подписи засечек по кругу, groups — строка дат', () => {
+    const { doc, errors } = parseChartSpec(PRESSURE);
+    expect(errors).toEqual([]);
+    expect(doc.type).toBe('line');
+    const chart = docToChart(doc);
+    expect(chart.x.ticks.map((t) => t.label)).toEqual([
+      '00:00', '06:00', '12:00', '18:00', '00:00', '06:00', '12:00', '18:00', '00:00', '06:00', '12:00', '18:00', '00:00',
+    ]);
+    expect(chart.x.groups).toEqual([
+      { label: '4 апреля', from: 0, to: 24 },
+      { label: '5 апреля', from: 24, to: 48 },
+      { label: '6 апреля', from: 48, to: 72 },
+    ]);
+  });
+
+  it('groups: явные отрезки, через пробел, у столбиков — номера столбиков', () => {
+    const line = docToChart(parseChartSpec('x 0 48 step 6\nvalues 1 2 3\ngroups (0; 12) утро | (12; 48) потом').doc);
+    expect(line.x.groups).toEqual([{ label: 'утро', from: 0, to: 12 }, { label: 'потом', from: 12, to: 48 }]);
+    const bars = docToChart(parseChartSpec('bar 1 2 3 4 5 6\ngroups 2025 2026').doc);
+    expect(bars.x.groups).toEqual([{ label: '2025', from: 0.5, to: 3.5 }, { label: '2026', from: 3.5, to: 6.5 }]);
+    const own = docToChart(parseChartSpec('bar 1 2 3 4\ngroups (1; 3) А | (4; 4) Б').doc);
+    expect(own.x.groups).toEqual([{ label: 'А', from: 0.5, to: 3.5 }, { label: 'Б', from: 3.5, to: 4.5 }]);
+    expect(parseChartSpec('bar 1 2\ndays (3; 1) X').errors).toEqual(['days (3; 1) X']);
+  });
+
   it('без окна — оси подбираются по данным', () => {
     const { doc } = parseChartSpec('line (1; 12) (2; 37) (3; 20)');
     expect(doc.x.min).toBeLessThanOrEqual(1);
@@ -74,6 +106,8 @@ describe('DSL ↔ документ без потерь', () => {
     'x 0 24 step 3\ny -6 6 step 2\nxunit ч\nyunit °C\nline (0; -4) (3; -6) (7; -2) smooth color blue',
     'y 0 80 step 10 label 20\nytitle Осадки, мм\nbar 30 25 35 color green\nlabels янв фев мар',
     'x 1 5 step 1\ny 0 10 step 2\nvalues 3 5 4 8 6\nvalues 1 2 3 4 5 color red dash\nsize 420 260\nfont 1,35',
+    PRESSURE,
+    'y 0 80 step 10\nbar 30 25 35 40\nlabels I | II | I | II\ngroups (1; 2) 2025 | (3; 4) 2026',
   ])('%s', (spec) => {
     const once = chartToSpec(parseChartSpec(spec).doc);
     const twice = chartToSpec(parseChartSpec(once).doc);
@@ -96,6 +130,22 @@ describe('рисунок', () => {
     expect(svg).toMatch(/transform="rotate\(-90 /); // подпись оси y — вертикально
     expect((svg.match(/<circle/g) || []).length).toBe(17);
     expect(svg).toContain('stroke="#c8772e"'); // оранжевая линия
+  });
+
+  it('давление: время под осью, даты строкой ниже, разделители не зачёркивают подписи', () => {
+    const svg = chartSvgFromSpec(PRESSURE);
+    const t = texts(svg);
+    expect(t.filter((x) => x === '00:00')).toHaveLength(4);
+    expect(t).toEqual(expect.arrayContaining(['06:00', '18:00', '4 апреля', '5 апреля', '6 апреля']));
+    expect(t).not.toContain('24');
+    // Разделители суток — от строки дат вверх, но ниже подписей засечек
+    const y = (s) => Number(svg.match(new RegExp(`<text x="[^"]+" y="([^"]+)"[^>]*>${s}<`))[1]);
+    const seps = [...svg.matchAll(/<line x1="([^"]+)" y1="([^"]+)" x2="\1" y2="([^"]+)" stroke="#000" stroke-width="0.5"/g)];
+    expect(seps).toHaveLength(4);
+    for (const [, , y1, y2] of seps) {
+      expect(Number(y1)).toBeGreaterThan(y('06:00'));
+      expect(Number(y2)).toBeGreaterThan(y('4 апреля'));
+    }
   });
 
   it('по умолчанию — только чёрная краска (печать на ч/б принтере)', () => {

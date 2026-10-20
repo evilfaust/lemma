@@ -177,7 +177,8 @@ export function chartSvg(chart, {
   }
   if (x.groups?.length) {
     const edges = new Set(x.groups.flatMap((g) => [g.from, g.to]));
-    for (const v of edges) parts.push(line(sx(v), bottom, sx(v), groupsY + 1, 0.5));
+    // Разделитель — под подписями засечек, иначе зачёркивает «00:00» на стыке суток
+    for (const v of edges) parts.push(line(sx(v), bottom + 14 * fs, sx(v), groupsY + 1, 0.5));
   }
 
   // 6) Линии графика и точки измерений
