@@ -81,6 +81,10 @@ export const tasksApi = {
       filterArr.push(`topic.exam_type = "${escapeFilter(filters.exam_type)}"`);
     }
 
+    // «Требует проверки» — сюда ведут строки обзора «Банка задач».
+    if (filters.issue === 'latex') filterArr.push('latex_needs_review = true');
+    if (filters.issue === 'notopic') filterArr.push('topic = ""');
+
     return filterArr.length > 0 ? filterArr.join(' && ') : '';
   },
 

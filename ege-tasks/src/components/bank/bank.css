@@ -1,0 +1,248 @@
+/* Lemma · «Банк задач» — обзор и вкладки справочников.
+   Опирается на токены theme/tokens.css и карточки .ws-card (workspace/ui). */
+
+.bank-page { max-width: 1320px; margin: 0 auto; }
+.bank-loading { display: flex; justify-content: center; padding: 56px 0; }
+.bank-loading--small { padding: 24px 0; }
+.bank-alert { margin-bottom: 14px; }
+
+/* ── Вкладки ── */
+.bank-tabs > .ant-tabs-nav { margin-bottom: 18px; }
+.bank-tab { display: inline-flex; align-items: center; gap: 6px; }
+.bank-tab__n {
+  font-size: 11px; font-weight: 600; color: var(--ink-3);
+  background: var(--bg-sunken); border-radius: 999px; padding: 0 7px; line-height: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.ant-tabs-tab-active .bank-tab__n { color: var(--accent); background: var(--accent-soft); }
+
+/* ── Тоны значков ── */
+.bank-tone--blue    { color: var(--c-blue);   background: var(--c-blue-soft); }
+.bank-tone--teal    { color: var(--c-teal);   background: var(--c-teal-soft); }
+.bank-tone--violet  { color: var(--c-violet); background: var(--c-violet-soft); }
+.bank-tone--amber   { color: var(--c-amber);  background: var(--c-amber-soft); }
+.bank-tone--rose    { color: var(--c-rose);   background: var(--c-rose-soft); }
+.bank-tone--neutral { color: var(--ink-3);    background: var(--bg-sunken); }
+
+/* Значения: хорошо / так себе / плохо */
+.bank-val--good  { color: var(--c-teal); }
+.bank-val--ok    { color: var(--ink-2); }
+.bank-val--bad   { color: var(--c-rose); }
+.bank-val--muted { color: var(--ink-4); }
+
+/* ── KPI ── */
+.bank-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.bank-kpi {
+  display: flex; align-items: center; gap: 13px;
+  text-align: left; font: inherit; color: inherit;
+  background: var(--bg-raised);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.bank-kpi:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-soft); }
+.bank-kpi:disabled { cursor: default; }
+.bank-kpi__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 10px; font-size: 18px; flex-shrink: 0;
+}
+.bank-kpi__body { display: flex; flex-direction: column; min-width: 0; }
+.bank-kpi__value {
+  font-size: 26px; font-weight: 600; line-height: 1.05;
+  letter-spacing: var(--stat-value-tracking, -0.035em);
+  color: var(--ink); font-variant-numeric: tabular-nums;
+}
+.bank-kpi__label { font-size: 12px; font-weight: 500; color: var(--ink-3); margin-top: 2px; }
+.bank-kpi__sub { font-size: 11.5px; color: var(--ink-4); font-variant-numeric: tabular-nums; }
+
+/* ── Сетка колонок ── */
+.bank-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  margin-bottom: 16px;
+}
+.bank-cols--even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.bank-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.bank-card-switch { margin-left: auto; }
+
+.bank-subhead {
+  font-size: var(--eyebrow-size, 10.5px);
+  font-weight: var(--eyebrow-weight, 600);
+  letter-spacing: var(--eyebrow-tracking, 0.08em);
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin: 14px 8px 6px;
+}
+
+/* Полоска-бар */
+.bank-bar {
+  display: block; height: 6px; border-radius: 999px;
+  background: var(--bg-sunken); overflow: hidden; min-width: 0;
+}
+.bank-bar__fill { display: block; height: 100%; border-radius: 999px; transition: width 0.4s ease; }
+
+/* ── Покрытие экзаменов ── */
+.bank-cov { padding: 4px 8px 10px; }
+.bank-cov__notes { font-size: 12px; color: var(--c-amber); padding: 6px 8px 2px; }
+.bank-cov__head,
+.bank-cov__row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 132px 58px 64px 72px 62px;
+  align-items: center;
+  column-gap: 10px;
+  padding: 7px 8px;
+}
+.bank-cov__head {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-4);
+  border-bottom: 1px solid var(--rule-soft);
+  padding-top: 10px;
+}
+.bank-cov__row {
+  width: 100%; border: none; background: transparent; font: inherit; color: inherit;
+  text-align: left; cursor: pointer; border-radius: 8px;
+  transition: background 0.12s ease;
+}
+.bank-cov__row:hover { background: var(--bg-hover); }
+.bank-cov__part {
+  font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-3); padding: 10px 8px 4px; margin-top: 4px;
+  border-top: 1px dashed var(--rule);
+}
+.bank-cov__no {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 24px; border-radius: 6px;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+  color: var(--ink-2); background: var(--bg-sunken);
+}
+.bank-cov__row--thin .bank-cov__no  { color: var(--c-amber); background: var(--c-amber-soft); }
+.bank-cov__row--empty .bank-cov__no { color: var(--c-rose); background: var(--c-rose-soft); }
+.bank-cov__title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.bank-cov__name {
+  font-size: 13px; font-weight: 500; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.bank-cov__title .lemma-chip { flex-shrink: 0; font-size: 10.5px; padding: 0 6px; }
+.bank-cov__count { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 8px; }
+.bank-cov__countn { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.bank-cov__num { text-align: right; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.bank-cov__head .bank-cov__num { font-weight: 600; }
+
+/* ── Списки-строки (внимание, источники) ── */
+.bank-list { padding: 6px 8px 8px; }
+.bank-issue {
+  display: flex; align-items: center; gap: 11px;
+  width: 100%; border: none; background: transparent; font: inherit; color: inherit;
+  text-align: left; padding: 9px 8px; border-radius: 9px; cursor: pointer;
+  transition: background 0.12s ease;
+}
+.bank-issue:hover:not(:disabled) { background: var(--bg-hover); }
+.bank-issue:disabled { cursor: default; }
+.bank-issue__icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px; font-size: 15px; flex-shrink: 0;
+}
+.bank-issue__main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.bank-issue__title { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.bank-issue__hint { font-size: 12px; color: var(--ink-3); line-height: 1.35; }
+.bank-issue__count {
+  font-size: 15px; font-weight: 600; color: var(--ink);
+  font-variant-numeric: tabular-nums; flex-shrink: 0;
+}
+.bank-issue__go { font-size: 11px; color: var(--ink-4); flex-shrink: 0; }
+
+/* Строка «подпись — бар — число» */
+.bank-hrow {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 58px;
+  align-items: center; gap: 10px;
+  width: 100%; border: none; background: transparent; font: inherit; color: inherit;
+  text-align: left; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  transition: background 0.12s ease;
+}
+.bank-hrow:hover:not(:disabled) { background: var(--bg-hover); }
+.bank-hrow:disabled { cursor: default; }
+.bank-hrow__label { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bank-list--rows .bank-hrow { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) 58px; }
+.bank-hrow__n { font-size: 12.5px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* ── Использование ── */
+.bank-usage { padding: 12px 8px 10px; }
+.bank-usage__stats {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;
+  padding: 0 8px 4px;
+}
+.bank-usage__value {
+  font-size: 22px; font-weight: 600; line-height: 1.1;
+  letter-spacing: var(--stat-value-tracking, -0.035em);
+  font-variant-numeric: tabular-nums;
+}
+.bank-usage__label { font-size: 11.5px; color: var(--ink-3); margin-top: 2px; }
+.bank-hard {
+  display: grid;
+  grid-template-columns: 74px minmax(0, 1fr) 42px 56px;
+  align-items: center; gap: 8px;
+  width: 100%; border: none; background: transparent; font: inherit; color: inherit;
+  text-align: left; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+}
+.bank-hard:hover:not(:disabled) { background: var(--bg-hover); }
+.bank-hard:disabled { cursor: default; }
+.bank-hard__code { font-family: var(--font-mono); font-size: 12px; font-weight: 600; color: var(--accent); }
+.bank-hard__topic { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bank-hard__rate { font-size: 13px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.bank-hard__n { font-size: 11.5px; color: var(--ink-4); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Состав банка ── */
+.bank-mix { padding: 14px 8px 12px; }
+.bank-mix__strip {
+  display: flex; gap: 2px; height: 12px; margin: 0 8px 10px;
+  border-radius: 999px; overflow: hidden;
+}
+.bank-mix__seg { display: block; min-width: 3px; }
+.bank-mix__legend { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 8px; }
+.bank-mix__item {
+  display: grid; grid-template-columns: 10px minmax(0, 1fr) auto 38px;
+  align-items: center; gap: 8px;
+  border: none; background: transparent; font: inherit; color: inherit;
+  text-align: left; padding: 5px 8px; border-radius: 8px; cursor: pointer;
+}
+.bank-mix__item:hover:not(:disabled) { background: var(--bg-hover); }
+.bank-mix__item:disabled { cursor: default; }
+.bank-mix__dot { width: 9px; height: 9px; border-radius: 50%; }
+.bank-mix__label { font-size: 12.5px; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bank-mix__n { font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bank-mix__pct { font-size: 11.5px; color: var(--ink-4); text-align: right; font-variant-numeric: tabular-nums; }
+
+.bank-years { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px; }
+.bank-year {
+  border: 1px solid var(--rule); background: var(--bg-raised); border-radius: 999px;
+  padding: 2px 10px; font: inherit; font-size: 12px; color: var(--ink-3); cursor: pointer;
+}
+.bank-year b { color: var(--ink); font-weight: 600; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.bank-year:hover { border-color: var(--accent); }
+
+/* ── Узкие экраны ── */
+@media (max-width: 1100px) {
+  .bank-cols, .bank-cols--even { grid-template-columns: minmax(0, 1fr); }
+  .bank-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .bank-cov__head, .bank-cov__row { grid-template-columns: 30px minmax(0, 1fr) 96px 48px 54px; column-gap: 8px; }
+  .bank-cov__opt { display: none; }
+  .bank-cov__count { grid-template-columns: 36px minmax(0, 1fr); }
+  .bank-mix__legend { grid-template-columns: minmax(0, 1fr); }
+  .bank-usage__stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .bank-kpi { padding: 12px; gap: 10px; }
+  .bank-kpi__value { font-size: 22px; }
+}
+.bank-page .ws-card__head { flex-wrap: wrap; row-gap: 8px; }

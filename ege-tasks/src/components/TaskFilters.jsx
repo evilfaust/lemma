@@ -21,6 +21,11 @@ const EXAM_TYPE_LABELS = {
   other:       'Прочее',
 };
 
+const ISSUE_LABELS = {
+  latex: 'Проверить LaTeX',
+  notopic: 'Без темы',
+};
+
 const topicLabel = (topic) =>
   topic.ege_number ? `№${topic.ege_number} — ${topic.title}` : topic.title;
 
@@ -64,6 +69,7 @@ const TaskFilters = ({
     if (values.hasAnswer  !== undefined)      newFilters.hasAnswer  = values.hasAnswer  === 'yes';
     if (values.hasSolution !== undefined)     newFilters.hasSolution = values.hasSolution === 'yes';
     if (values.hasImage   !== undefined)      newFilters.hasImage   = values.hasImage   === 'yes';
+    if (values.issue)                         newFilters.issue     = values.issue;
     if (values.sortBy)                        newFilters.sortBy    = values.sortBy;
 
     setFilters(newFilters);
@@ -318,7 +324,7 @@ const TaskFilters = ({
         </Row>
 
         <Row gutter={16}>
-          <Col xs={24} sm={8}>
+          <Col xs={24} sm={12} lg={6}>
             <Form.Item name="hasAnswer" label="Наличие ответа">
               <Radio.Group>
                 <Radio.Button value={undefined}>Все</Radio.Button>
@@ -327,7 +333,7 @@ const TaskFilters = ({
               </Radio.Group>
             </Form.Item>
           </Col>
-          <Col xs={24} sm={8}>
+          <Col xs={24} sm={12} lg={6}>
             <Form.Item name="hasSolution" label="Наличие решения">
               <Radio.Group>
                 <Radio.Button value={undefined}>Все</Radio.Button>
@@ -336,13 +342,22 @@ const TaskFilters = ({
               </Radio.Group>
             </Form.Item>
           </Col>
-          <Col xs={24} sm={8}>
+          <Col xs={24} sm={12} lg={6}>
             <Form.Item name="hasImage" label="Наличие изображения">
               <Radio.Group>
                 <Radio.Button value={undefined}>Все</Radio.Button>
                 <Radio.Button value="yes">С изображением</Radio.Button>
                 <Radio.Button value="no">Без изображения</Radio.Button>
               </Radio.Group>
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12} lg={6}>
+            <Form.Item name="issue" label="Требует проверки">
+              <Select placeholder="Не важно" allowClear>
+                {Object.entries(ISSUE_LABELS).map(([value, label]) => (
+                  <Option key={value} value={value}>{label}</Option>
+                ))}
+              </Select>
             </Form.Item>
           </Col>
         </Row>
@@ -404,6 +419,11 @@ const TaskFilters = ({
               {filters.hasImage !== undefined && (
                 <Tag closable onClose={() => removeFilter('hasImage')} color="green">
                   {filters.hasImage ? 'С изображением' : 'Без изображения'}
+                </Tag>
+              )}
+              {filters.issue && (
+                <Tag closable onClose={() => removeFilter('issue')} color="orange">
+                  {ISSUE_LABELS[filters.issue] || filters.issue}
                 </Tag>
               )}
               {filters.sortBy && filters.sortBy !== 'code' && (

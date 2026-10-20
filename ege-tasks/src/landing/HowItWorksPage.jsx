@@ -313,8 +313,7 @@ const ANSWER_CHECKER_FEATURES = [
 const TEACHER_NAV = [
   { key: 'workspace', label: 'Моё пространство', comp: 'Сегодня / Группы / Журнал / Посещаемость / КТП / Календарь / Заметки / Библиотека' },
   { key: 'tasks', label: 'Все задачи', comp: 'TaskList' },
-  { key: 'stats', label: 'Аналитика', comp: 'TaskStatsDashboard' },
-  { key: 'catalog', label: 'Каталог', comp: 'TaskCatalogManager' },
+  { key: 'bank', label: 'Банк задач', comp: 'TaskBank (обзор + справочники)' },
   { key: 'generator', label: 'Устный счёт', comp: 'OralWorksheetGenerator' },
   { key: 'test-generator', label: 'Контрольные', comp: 'TestWorkGenerator' },
   { key: 'work-manager', label: 'Работы', comp: 'WorkManager' },

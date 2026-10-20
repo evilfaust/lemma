@@ -8,7 +8,7 @@ import { hybridTheme } from './theme/hybrid';
 import ErrorBoundary from './components/ErrorBoundary';
 import {
   FileTextOutlined, FileSearchOutlined, BookOutlined, FileAddOutlined, ThunderboltOutlined,
-  UploadOutlined, ImportOutlined, PieChartOutlined, SolutionOutlined, EditOutlined,
+  UploadOutlined, ImportOutlined, DatabaseOutlined, SolutionOutlined, EditOutlined,
   TeamOutlined, TrophyOutlined, BarChartOutlined, ReadOutlined,
   SnippetsOutlined, FolderOutlined, CompassOutlined, UnorderedListOutlined, CheckSquareOutlined,
   FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined,
@@ -48,8 +48,7 @@ const EntranceTestGenerator = lazy(() => import('./components/EntranceTestGenera
 const EgeVariantGenerator = lazy(() => import('./components/EgeVariantGenerator'));
 const EgeProfileVariantGenerator = lazy(() => import('./components/EgeProfileVariantGenerator'));
 const OgeVariantGenerator = lazy(() => import('./components/OgeVariantGenerator'));
-const TaskStatsDashboard = lazy(() => import('./components/TaskStatsDashboard'));
-const TaskCatalogManager = lazy(() => import('./components/TaskCatalogManager'));
+const TaskBank = lazy(() => import('./components/bank/TaskBank'));
 const TheoryBrowser = lazy(() => import('./components/TheoryBrowser'));
 const TheoryEditor = lazy(() => import('./components/TheoryEditor'));
 const ExcalidrawSection = lazy(() => import('./components/ExcalidrawSection'));
@@ -133,6 +132,7 @@ import UserMenu from './components/auth/UserMenu';
 const UserManager = lazy(() => import('./components/auth/UserManager'));
 const AuditLogPage = lazy(() => import('./components/auth/AuditLogPage'));
 import { useVersionSync } from './shared/version/useVersionSync';
+import { filtersToSearch, parseFiltersFromSearch } from './utils/taskListLink';
 import 'katex/dist/katex.min.css';
 import './theme/tokens.css';
 import './App.css';
@@ -163,6 +163,8 @@ export const R = {
   SUMMER_INDIVIDUAL:   '/app/summer/individual',
   SUMMER_STUDENT:      '/app/summer/:studentId',
   TASKS:               '/app/tasks',
+  BANK:                '/app/bank',
+  // старые адреса «Аналитики» и «Каталога» — переадресуются в «Банк задач»
   STATS:               '/app/stats',
   CATALOG:             '/app/catalog',
   // Рабочие листы
@@ -310,8 +312,7 @@ const ROUTE_META = [
   { re: /^\/app\/worksheets\/mc-test\/.+/, menuKey: 'mc-test', menuGroup: 'worksheets-group', title: 'Тесты с выбором' },
   // Простые маршруты
   { re: /^\/app\/tasks/,                   menuKey: 'tasks',                   title: 'Все задачи' },
-  { re: /^\/app\/stats/,                   menuKey: 'stats',                   title: 'Аналитика задач' },
-  { re: /^\/app\/catalog/,                 menuKey: 'catalog',                 title: 'Каталог задач' },
+  { re: /^\/app\/bank/,                    menuKey: 'bank',                    title: 'Банк задач' },
   { re: /^\/app\/worksheets\/oral/,        menuKey: 'generator',         menuGroup: 'worksheets-group', title: 'Генератор' },
   { re: /^\/app\/worksheets\/ege-variant/, menuKey: 'ege-variant',       menuGroup: 'worksheets-group', title: 'Варианты ЕГЭ (базовый уровень)' },
   { re: /^\/app\/worksheets\/ege-profile-variant/, menuKey: 'ege-profile-variant', menuGroup: 'worksheets-group', title: 'Варианты ЕГЭ (профильный уровень)' },
@@ -405,7 +406,7 @@ const MENU_KEY_PATH = {
   materials:                R.MATERIALS,
   summer:                   R.SUMMER,
   tasks:                    R.TASKS,
-  stats:                    R.STATS,
+  bank:                     R.BANK,
   generator:                R.GENERATOR,
   'ege-variant':            R.EGE_VARIANT,
   'ege-profile-variant':    R.EGE_PROFILE_VARIANT,
@@ -505,23 +506,7 @@ const PARENT_META = {
   'work-editor': { label: 'Мои работы', path: R.WORKS },
   'geometry-work': { label: 'Работы по геометрии', path: R.GEOMETRY_WORKS },
   'work-import': { label: 'Мои работы', path: R.WORKS },
-  catalog:       { label: 'Аналитика',  path: R.STATS },
 };
-
-// ── Утилиты для фильтров (Stats → Tasks) ────────────────────────────────────
-function filtersToSearch(filters) {
-  if (!filters) return '';
-  const p = new URLSearchParams();
-  Object.entries(filters).forEach(([k, v]) => { if (v != null) p.set(k, String(v)); });
-  const s = p.toString();
-  return s ? '?' + s : '';
-}
-
-function parseFiltersFromSearch(searchParams) {
-  const filters = {};
-  for (const [k, v] of searchParams.entries()) filters[k] = v;
-  return Object.keys(filters).length ? filters : null;
-}
 
 // ── Вспомогательный Suspense-лоадер ─────────────────────────────────────────
 function LazyFallback() {
@@ -543,23 +528,13 @@ function TasksPage() {
   );
 }
 
-function StatsPage() {
+function BankPage() {
   const navigate = useNavigate();
   return (
-    <TaskStatsDashboard
-      onOpenTasks={(filters) => navigate(R.TASKS + filtersToSearch(filters))}
-      onOpenCatalog={() => navigate(R.CATALOG)}
-    />
-  );
-}
-
-function CatalogPage() {
-  const navigate = useNavigate();
-  return (
-    <TaskCatalogManager
+    <TaskBank
       onOpenTasks={(filters) => navigate(R.TASKS + filtersToSearch(filters))}
       onOpenWork={(workId) => navigate(route(R.WORK_EDITOR, { workId }))}
-      onBackToAnalytics={() => navigate(R.STATS)}
+      onOpenImport={() => navigate(R.IMPORT)}
     />
   );
 }
@@ -762,7 +737,7 @@ function AppLayout() {
       ],
     },
     { key: 'tasks',  icon: <FileTextOutlined />,  label: 'Все задачи', section: 'tasks' },
-    { key: 'stats',  icon: <PieChartOutlined />,   label: 'Аналитика',  section: 'tasks' },
+    { key: 'bank',   icon: <DatabaseOutlined />,   label: 'Банк задач', section: 'tasks' },
     {
       key: 'worksheets-group', icon: <AppstoreOutlined />, label: 'Рабочие листы', section: 'worksheets',
       children: [
@@ -1106,8 +1081,9 @@ function App() {
 
               {/* Задачи */}
               <Route path={R.TASKS}   element={<TasksPage />} />
-              <Route path={R.STATS}   element={<StatsPage />} />
-              <Route path={R.CATALOG} element={<CatalogPage />} />
+              <Route path={R.BANK}    element={<BankPage />} />
+              <Route path={R.STATS}   element={<Navigate to={R.BANK} replace />} />
+              <Route path={R.CATALOG} element={<Navigate to={`${R.BANK}?tab=topics`} replace />} />
 
               {/* Рабочие листы */}
               <Route path={R.GENERATOR}      element={<TaskSheetGenerator />} />

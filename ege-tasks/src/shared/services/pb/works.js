@@ -314,6 +314,21 @@ export const worksApi = {
   // Варианты ДРУГИХ работ, содержащие любую из задач (для предупреждения
   // «задачи уже встречаются в других работах»). taskIds — состав одной работы,
   // фильтр строится OR-цепочкой.
+  // Состав всех вариантов (только id задач и работа) — «Банк задач» считает
+  // по нему, какие задачи и темы уже выдавались. Вариантов сотни, поле лёгкое.
+  async getAllVariantTasks() {
+    try {
+      return await pb.collection('variants').getFullList({
+        fields: 'work,tasks',
+        batch: 1000,
+        requestKey: null,
+      });
+    } catch (error) {
+      console.error('Error fetching variant tasks:', error);
+      return [];
+    }
+  },
+
   async getVariantsContainingTasks(taskIds = [], excludeWorkId = null) {
     try {
       return await getFullListByOr(

@@ -1,6 +1,7 @@
 import { pb, _logAudit, withOwner, andOwner } from './client.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { getFullListByOr } from './chunked.js';
 
 const TAG_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
@@ -187,11 +188,41 @@ export const catalogApi = {
     }
   },
 
+  // «Банк задач» → «Обзор»: какие задачи требуют внимания, по темам.
+  // Только поле `topic` и только «плохие» задачи — десяток лёгких страниц
+  // вместо выкачивания ответов и решений всего банка. Ровно та же выборка,
+  // что у снимка (без `trig_generator`), иначе доли не сойдутся.
+  async getTaskBankFlags() {
+    const base = 'source != "trig_generator"';
+    const topicsOf = (filter) => pb.collection('tasks').getFullList({
+      filter: `${base} && ${filter}`,
+      fields: 'topic',
+      batch: 1000,
+      requestKey: null,
+    }).then((list) => list.map((r) => r.topic || ''));
+    const [noAnswer, noSolution, review] = await Promise.all([
+      topicsOf('answer = ""'),
+      topicsOf('solution_md = ""'),
+      topicsOf('latex_needs_review = true'),
+    ]);
+    return { noAnswer, noSolution, review };
+  },
+
+  // Код, тема и начало условия нескольких задач (список «чаще ошибаются»).
+  async getTasksBrief(ids) {
+    const uniq = [...new Set((ids || []).filter(Boolean))];
+    if (!uniq.length) return [];
+    return getFullListByOr('tasks', 'id', uniq, {
+      fields: 'id,code,topic,statement_md:excerpt(140,true)',
+      requestKey: null,
+    });
+  },
+
   // Количество задач с ответом (один лёгкий запрос вместо загрузки всех answer)
   async getWithAnswerCount() {
     try {
       const result = await pb.collection('tasks').getList(1, 1, {
-        filter: 'answer != ""',
+        filter: 'answer != "" && source != "trig_generator"',
       });
       return result.totalItems;
     } catch (error) {
@@ -204,7 +235,7 @@ export const catalogApi = {
   async getWithSolutionCount() {
     try {
       const result = await pb.collection('tasks').getList(1, 1, {
-        filter: 'solution_md != ""',
+        filter: 'solution_md != "" && source != "trig_generator"',
       });
       return result.totalItems;
     } catch (error) {
