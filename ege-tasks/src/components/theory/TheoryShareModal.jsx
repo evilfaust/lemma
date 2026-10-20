@@ -10,8 +10,9 @@ import { articleLink } from '../../utils/theoryLink';
 const { Text } = Typography;
 
 /**
- * «Поделиться»: открыть статью по ссылке student.oipav.ru/t/<id>. Читать её
- * сможет любой, у кого есть ссылка, — без входа, с компьютера и телефона.
+ * «Поделиться»: открыть статью. Открытая статья видна коллегам в «Теории»
+ * (только для чтения) и читается по ссылке student.oipav.ru/t/<id> — без
+ * входа, с компьютера и телефона. Закрытая — личная: её видит только автор.
  * Переключатель сохраняется сразу, мимо «Сохранить» редактора.
  */
 export default function TheoryShareModal({ open, onClose, articleId, isPublic, onChange, dirty = false }) {
@@ -48,18 +49,19 @@ export default function TheoryShareModal({ open, onClose, articleId, isPublic, o
   };
 
   return (
-    <Modal title="Статья по ссылке" open={open} onCancel={onClose} footer={null} width={560} destroyOnHidden>
+    <Modal title="Доступ к статье" open={open} onCancel={onClose} footer={null} width={560} destroyOnHidden>
       <Space direction="vertical" size={14} style={{ width: '100%' }}>
         <Space align="center">
-          <Switch checked={value} loading={saving} onChange={toggle} aria-label="Открыта по ссылке" />
-          <Text strong>{value ? 'Открыта по ссылке' : 'Закрыта'}</Text>
+          <Switch checked={value} loading={saving} onChange={toggle} aria-label="Открыть статью" />
+          <Text strong>{value ? 'Открыта коллегам и по ссылке' : 'Личная — видите только вы'}</Text>
         </Space>
         <Text type="secondary">
-          Прочитать статью сможет любой, у кого есть ссылка: коллеги, ученики, родители.
-          Вход не нужен, страница одинаково удобна на компьютере и на телефоне.
+          Открытую статью коллеги видят в «Теории» (править её можете только вы),
+          а по ссылке её прочитает любой: ученики, родители. Вход не нужен,
+          страница одинаково удобна на компьютере и на телефоне.
         </Text>
         {dirty && (
-          <Alert type="warning" showIcon message="В статье есть несохранённые изменения — по ссылке видна последняя сохранённая версия" />
+          <Alert type="warning" showIcon message="В статье есть несохранённые изменения — коллеги и читатели по ссылке видят последнюю сохранённую версию" />
         )}
 
         <div className="theory-share-link">

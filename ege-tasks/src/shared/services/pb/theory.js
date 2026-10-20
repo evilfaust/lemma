@@ -1,4 +1,4 @@
-import { pb, _logAudit } from './client.js';
+import { pb, _logAudit, withOwner } from './client.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
 
@@ -72,8 +72,8 @@ export const theoryApi = {
 
       const records = await pb.collection('theory_articles').getFullList({
         filter: filterString,
-        fields: 'id,title,category,summary,tags,order,public,created,updated',
-        expand: 'category',
+        fields: 'id,title,category,summary,tags,order,public,owner,created,updated,expand.owner.id,expand.owner.name,expand.owner.username',
+        expand: 'owner',
         sort: filters.sort || 'order,title',
       });
 
@@ -88,7 +88,7 @@ export const theoryApi = {
   async getTheoryArticle(id) {
     try {
       return await pb.collection('theory_articles').getOne(id, {
-        expand: 'category',
+        expand: 'category,owner',
       });
     } catch (error) {
       console.error('Error fetching theory article:', error);
@@ -96,10 +96,10 @@ export const theoryApi = {
     }
   },
 
-  // Создать статью теории
+  // Создать статью теории (автор — текущий учитель: статья личная, пока не открыта)
   async createTheoryArticle(data) {
     try {
-      const rec = await pb.collection('theory_articles').create(data);
+      const rec = await pb.collection('theory_articles').create(withOwner(data));
       _logAudit('create', 'theory_articles', rec.id, rec.title);
       return rec;
     } catch (error) {
@@ -118,10 +118,10 @@ export const theoryApi = {
     }
   },
 
-  // Открыть / закрыть статью по ссылке (student.oipav.ru/t/<id>)
+  // Открыть / закрыть статью: открытая видна коллегам и по ссылке student.oipav.ru/t/<id>
   async setTheoryArticlePublic(id, isPublic) {
     const rec = await pb.collection('theory_articles').update(id, { public: !!isPublic });
-    _logAudit('update', 'theory_articles', id, `${rec.title}: ${isPublic ? 'открыта по ссылке' : 'закрыта по ссылке'}`);
+    _logAudit('update', 'theory_articles', id, `${rec.title}: ${isPublic ? 'открыта коллегам и по ссылке' : 'закрыта'}`);
     return rec;
   },
 

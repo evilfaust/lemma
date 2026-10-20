@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Button, Spin, Tag, Tooltip, App } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, FilePdfOutlined,
-  PrinterOutlined, BookOutlined, ShareAltOutlined,
+  PrinterOutlined, BookOutlined, ShareAltOutlined, UserOutlined,
 } from '@ant-design/icons';
 import { useMarkdownProcessor, useGeoGebraInjection, useStereoBlocks } from '../hooks';
 import {
@@ -12,6 +12,7 @@ import {
 import { withSheetHead } from '../utils/theorySheetHead';
 import PrintThemeSwitch from './theory/PrintThemeSwitch';
 import TheoryShareModal from './theory/TheoryShareModal';
+import { canManageArticle, isColleagueArticle, articleAuthorName } from '../utils/theoryAccess';
 import { api } from '../services/pocketbase';
 import MathRenderer from './MathRenderer';
 import html2pdf from 'html2pdf.js';
@@ -34,7 +35,7 @@ const formatDate = (dateStr) => {
 export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const { message } = App.useApp();
   const { theoryCategories: categories } = useReferenceData();
-  const { canEdit } = useAuth();
+  const { teacher } = useAuth();
   const [article, setArticle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [pageSettings, setPageSettings] = useState(DEFAULT_SETTINGS);
@@ -251,6 +252,10 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     return <div style={{ textAlign: 'center', padding: 60, color: '#999' }}>Статья не найдена</div>;
   }
 
+  // Править и открывать — автор (и superadmin); статья коллеги — только чтение
+  const manage = canManageArticle(article, teacher);
+  const colleague = isColleagueArticle(article, teacher);
+
   return (
     <div className="theory-article-view">
       {/* Toolbar */}
@@ -264,20 +269,27 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
             onChange={(v) => { setPrintTheme(v); savePrintTheme(v); }}
           />
           <div className="theory-article-toolbar-divider" />
-          {canEdit && (
+          {colleague && (
+            <Tooltip title="Статья коллеги — только для чтения">
+              <span className="theory-article-toolbar-author">
+                <UserOutlined /> {articleAuthorName(article) || 'коллега'}
+              </span>
+            </Tooltip>
+          )}
+          {manage && (
             <Tooltip title="Редактировать">
               <Button type="text" icon={<EditOutlined />} onClick={() => onEdit?.(articleId)} />
             </Tooltip>
           )}
-          {canEdit && (
-            <Tooltip title={article.public ? 'Статья открыта по ссылке' : 'Поделиться ссылкой на статью'}>
+          {manage && (
+            <Tooltip title={article.public ? 'Статья открыта коллегам и по ссылке' : 'Открыть статью коллегам и по ссылке'}>
               <Button
                 type={article.public ? 'link' : 'text'}
                 icon={<ShareAltOutlined />}
                 onClick={() => setShareOpen(true)}
                 aria-label="Поделиться"
               >
-                {article.public ? 'По ссылке' : null}
+                {article.public ? 'Открыта' : null}
               </Button>
             </Tooltip>
           )}
@@ -389,7 +401,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
         </div>
       </div>
 
-      {canEdit && (
+      {manage && (
         <TheoryShareModal
           open={shareOpen}
           onClose={() => setShareOpen(false)}
@@ -401,7 +413,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
 
       {/* Floating actions */}
       <div className="theory-floating-actions no-print">
-        {canEdit && (
+        {manage && (
           <Tooltip title="Редактировать" placement="left">
             <Button shape="circle" icon={<EditOutlined />} onClick={() => onEdit?.(articleId)} />
           </Tooltip>

@@ -7,11 +7,12 @@ import {
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { canManageArticle, isColleagueArticle, articleAuthorName } from '../utils/theoryAccess';
 import { WorkspacePageHeader, EmptyState } from './workspace/ui';
 import './theory/TheoryBrowser.css';
 
 export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateArticle }) {
-  const { canEdit, canDelete } = useAuth();
+  const { canEdit, canDelete, teacher } = useAuth();
   const { message } = App.useApp();
   const { theoryCategories: categories } = useReferenceData();
   const [articles, setArticles] = useState([]);
@@ -164,6 +165,8 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
         <div className="theory-articles-grid">
           {filteredArticles.map(article => {
             const cat = getCategoryInfo(article.category) || article.expand?.category;
+            const manage = canManageArticle(article, teacher);
+            const colleague = isColleagueArticle(article, teacher);
             return (
               <div
                 key={article.id}
@@ -180,9 +183,16 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
                       {cat.title}
                     </span>
                   )}
-                  {article.public && (
-                    <Tooltip title="Статья открыта по ссылке — её может прочитать любой">
-                      <span className="theory-article-shared">по ссылке</span>
+                  {article.public && !colleague && (
+                    <Tooltip title="Статья открыта: её видят коллеги и любой, у кого есть ссылка">
+                      <span className="theory-article-shared">открыта</span>
+                    </Tooltip>
+                  )}
+                  {colleague && (
+                    <Tooltip title={article.public ? 'Статья коллеги — только для чтения' : 'Личная статья коллеги'}>
+                      <span className="theory-article-shared theory-article-author">
+                        {articleAuthorName(article) || 'коллега'}
+                      </span>
                     </Tooltip>
                   )}
                   <span className="theory-article-date">
@@ -211,7 +221,7 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
                         onClick={(e) => { e.stopPropagation(); onViewArticle?.(article.id); }}
                       />
                     </Tooltip>
-                    {canEdit && (
+                    {canEdit && manage && (
                       <Tooltip title="Редактировать">
                         <Button
                           type="text"
@@ -221,7 +231,7 @@ export default function TheoryBrowser({ onEditArticle, onViewArticle, onCreateAr
                         />
                       </Tooltip>
                     )}
-                    {canDelete && (
+                    {canDelete && manage && (
                       <Popconfirm
                         title="Удалить статью?"
                         onConfirm={() => handleDelete(article.id)}

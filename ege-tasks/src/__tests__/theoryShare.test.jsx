@@ -15,8 +15,13 @@ const mockApi = vi.hoisted(() => ({
 vi.mock('../shared/services/pocketbase', () => ({ api: mockApi, default: {} }));
 
 const mockPb = vi.hoisted(() => {
-  const col = { getOne: vi.fn(), update: vi.fn() };
-  return { col, pb: { collection: vi.fn(() => col) }, _logAudit: vi.fn() };
+  const col = { getOne: vi.fn(), update: vi.fn(), create: vi.fn() };
+  return {
+    col,
+    pb: { collection: vi.fn(() => col) },
+    _logAudit: vi.fn(),
+    withOwner: vi.fn((d) => ({ ...d, owner: 'teacher00000001' })),
+  };
 });
 vi.mock('../shared/services/pb/client.js', () => mockPb);
 
@@ -28,6 +33,8 @@ import StudentTheoryArticle, { tocFromHtml } from '../components/theory/StudentT
 import TheoryShareModal from '../components/theory/TheoryShareModal';
 // eslint-disable-next-line import/first
 import { theoryApi } from '../shared/services/pb/theory';
+// eslint-disable-next-line import/first
+import { canManageArticle, isColleagueArticle, articleAuthorName } from '../utils/theoryAccess';
 
 const AID = 'abcdefghijklmno';
 
@@ -36,6 +43,7 @@ beforeEach(() => {
   Object.values(mockApi).forEach((f) => f.mockReset());
   mockPb.col.getOne.mockReset();
   mockPb.col.update.mockReset();
+  mockPb.col.create?.mockReset();
   mockPb._logAudit.mockReset();
 });
 
@@ -88,7 +96,7 @@ describe('api: статья по ссылке', () => {
     mockPb.col.update.mockResolvedValueOnce({ id: AID, title: 'Стерео', public: true });
     await theoryApi.setTheoryArticlePublic(AID, 1);
     expect(mockPb.col.update).toHaveBeenCalledWith(AID, { public: true });
-    expect(mockPb._logAudit).toHaveBeenCalledWith('update', 'theory_articles', AID, 'Стерео: открыта по ссылке');
+    expect(mockPb._logAudit).toHaveBeenCalledWith('update', 'theory_articles', AID, 'Стерео: открыта коллегам и по ссылке');
   });
 });
 
@@ -141,7 +149,53 @@ describe('страница статьи для читателя', () => {
   });
 });
 
-describe('окно «Статья по ссылке»', () => {
+describe('доступ к статьям: личные, коллегам — только открытые (v3.9.390)', () => {
+  const me = { id: 'teacher00000001', role: 'editor' };
+  const mine = { id: AID, owner: me.id, public: false };
+  const theirs = { id: AID, owner: 'teacher00000002', public: true, expand: { owner: { name: 'Анна Петровна' } } };
+
+  it('новая статья пишется с автором', async () => {
+    mockPb.col.create.mockResolvedValueOnce({ id: AID, title: 'Новая' });
+    await theoryApi.createTheoryArticle({ title: 'Новая' });
+    expect(mockPb.col.create).toHaveBeenCalledWith({ title: 'Новая', owner: me.id });
+  });
+
+  it('список просит автора статьи', async () => {
+    mockPb.col.getFullList = vi.fn().mockResolvedValueOnce([]);
+    await theoryApi.getTheoryArticles();
+    const opts = mockPb.col.getFullList.mock.calls[0][0];
+    expect(opts.fields).toContain('owner');
+    expect(opts.fields).toContain('expand.owner.name');
+    expect(opts.expand).toBe('owner');
+  });
+
+  it('свою правит автор, открытую коллеги — нет', () => {
+    expect(canManageArticle(mine, me)).toBe(true);
+    expect(canManageArticle(theirs, me)).toBe(false);
+    expect(isColleagueArticle(theirs, me)).toBe(true);
+    expect(isColleagueArticle(mine, me)).toBe(false);
+    expect(articleAuthorName(theirs)).toBe('Анна Петровна');
+  });
+
+  it('superadmin правит всё, viewer — ничего, статья без автора — общая', () => {
+    expect(canManageArticle(theirs, { id: 'x', role: 'superadmin' })).toBe(true);
+    expect(canManageArticle(mine, { ...me, role: 'viewer' })).toBe(false);
+    expect(canManageArticle({ id: AID, owner: '' }, me)).toBe(true);
+    expect(isColleagueArticle({ id: AID, owner: '' }, me)).toBe(false);
+    expect(canManageArticle(mine, null)).toBe(false);
+  });
+
+  it('миграция: чтение «своё или открытое», запись — автору', () => {
+    const src = readFileSync(resolve(__dirname, '../../../pocketbase/pb_migrations/1788900000_theory_articles_owner.js'), 'utf8');
+    expect(src).toContain('const READ = `public = true || (${T} && ${OWN})`');
+    expect(src).toContain('const WRITE = `${T} && ${NV} && ${OWN}`');
+    expect(src).toMatch(/col\.listRule = READ/);
+    expect(src).toMatch(/col\.updateRule = WRITE/);
+    expect(src).toMatch(/col\.deleteRule = WRITE/);
+  });
+});
+
+describe('окно «Доступ к статье»', () => {
   const renderModal = (props) => render(
     <AntApp>
       <TheoryShareModal open articleId={AID} onClose={() => {}} {...props} />
@@ -152,9 +206,9 @@ describe('окно «Статья по ссылке»', () => {
     const onChange = vi.fn();
     mockApi.setTheoryArticlePublic.mockResolvedValue({ id: AID, public: true });
     renderModal({ isPublic: false, onChange });
-    expect(screen.getByText('Закрыта')).toBeTruthy();
+    expect(screen.getByText('Личная — видите только вы')).toBeTruthy();
     expect(screen.getByLabelText('Скопировать ссылку').closest('button').disabled).toBe(true);
-    fireEvent.click(screen.getByRole('switch', { name: 'Открыта по ссылке' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Открыть статью' }));
     await waitFor(() => expect(onChange).toHaveBeenCalledWith(true));
     expect(mockApi.setTheoryArticlePublic).toHaveBeenCalledWith(AID, true);
     expect(screen.getByText(`student.oipav.ru/t/${AID}`)).toBeTruthy();
@@ -163,13 +217,13 @@ describe('окно «Статья по ссылке»', () => {
   it('ошибка сохранения — переключатель возвращается', async () => {
     mockApi.setTheoryArticlePublic.mockRejectedValue(new Error('403'));
     renderModal({ isPublic: true });
-    fireEvent.click(screen.getByRole('switch', { name: 'Открыта по ссылке' }));
-    await waitFor(() => expect(screen.getByText('Открыта по ссылке')).toBeTruthy());
+    fireEvent.click(screen.getByRole('switch', { name: 'Открыть статью' }));
+    await waitFor(() => expect(screen.getByText('Открыта коллегам и по ссылке')).toBeTruthy());
   });
 
   it('несохранённые правки — предупреждение', () => {
     renderModal({ isPublic: true, dirty: true });
-    expect(screen.getByText(/последняя сохранённая версия/)).toBeTruthy();
+    expect(screen.getByText(/последнюю сохранённую версию/)).toBeTruthy();
   });
 });
 

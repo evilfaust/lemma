@@ -14,6 +14,8 @@ import { withSheetHead } from '../utils/theorySheetHead';
 import PrintThemeSwitch from './theory/PrintThemeSwitch';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import { useAuth } from '../contexts/AuthContext';
+import { canManageArticle } from '../utils/theoryAccess';
 import EditorToolbar from './theory/EditorToolbar';
 import GeoGebraBlocksModal from './theory/GeoGebraBlocksModal';
 import { Chip } from './workspace/ui';
@@ -48,6 +50,9 @@ $$
 export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
   const { message } = App.useApp();
   const { theoryCategories: categories, reloadData } = useReferenceData();
+  const { teacher } = useAuth();
+  // Статья коллеги (открытая) читается, но не сохраняется — правила PB это и так запретят
+  const [readOnly, setReadOnly] = useState(false);
   const initialData = useMemo(() => {
     const { content, settings } = loadAutosave(articleId);
     return {
@@ -146,6 +151,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     try {
       const article = await api.getTheoryArticle(id);
       if (article) {
+        setReadOnly(!canManageArticle(article, teacher));
         setMarkdown(article.content_md || '');
         setTitle(article.title || '');
         setCategoryId(article.category || null);
@@ -184,6 +190,10 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
 
   // Save article
   const handleSave = useCallback(async () => {
+    if (readOnly) {
+      message.warning('Это статья коллеги — править её может только автор');
+      return;
+    }
     if (!title.trim()) {
       message.warning('Введите название статьи');
       return;
@@ -222,7 +232,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
     } finally {
       setSaving(false);
     }
-  }, [title, categoryId, markdown, articleTags, summary, pageSettings, geogebraApplets, articleId, onSaved, reloadData, message, contentSignature]);
+  }, [readOnly, title, categoryId, markdown, articleTags, summary, pageSettings, geogebraApplets, articleId, onSaved, reloadData, message, contentSignature]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
@@ -533,7 +543,9 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
           </Tooltip>
           <div className="toolbar-divider" />
           <span className="theory-save-status">
-            {saving
+            {readOnly
+              ? <Chip tone="violet" dot={false}>Статья коллеги — только чтение</Chip>
+              : saving
               ? <Chip tone="neutral" dot={false}>Сохранение…</Chip>
               : dirty
                 ? <Chip tone="amber" dot={false}>Не сохранено</Chip>
@@ -545,6 +557,7 @@ export default function TheoryEditor({ articleId = null, onBack, onSaved }) {
             icon={<SaveOutlined />}
             onClick={handleSave}
             loading={saving}
+            disabled={readOnly}
             className="theory-save-btn"
           >
             Сохранить

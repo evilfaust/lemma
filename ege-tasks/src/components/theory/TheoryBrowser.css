@@ -229,3 +229,12 @@
   background: var(--teal-soft, #e3f5f1);
   white-space: nowrap;
 }
+
+/* Статья коллеги: автор вместо «открыта» */
+.theory-article-author {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--c-violet, #6d28d9);
+  background: var(--c-violet-soft, #ede9fe);
+}

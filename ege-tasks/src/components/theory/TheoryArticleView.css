@@ -35,6 +35,19 @@
   gap: 4px;
 }
 
+.theory-article-toolbar-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 200px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--c-violet, #7c3aed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .theory-article-toolbar-divider {
   width: 1px;
   height: 24px;
