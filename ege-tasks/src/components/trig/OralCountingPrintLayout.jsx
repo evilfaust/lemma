@@ -59,7 +59,7 @@ function renderTasks(variant, layout, prompt) {
 }
 
 // ─── Страница ученика ─────────────────────────────────────────────────────────
-function StudentPage({ variant, variantIndex, title, mode, columnsCount, prompt, instruction, opts, layout }) {
+function StudentPage({ variant, variantIndex, title, mode, columnsCount, prompt, instruction, answerNote, opts, layout }) {
   const pageClass =
     mode === 'side' ? 'oral-page oral-page--side' :
     mode === 'half' ? 'oral-page oral-page--half' :
@@ -90,6 +90,7 @@ function StudentPage({ variant, variantIndex, title, mode, columnsCount, prompt,
           {instruction || (prompt === 'eq' ? 'Вычислите:' : 'Решите уравнения:')}
         </div>
       )}
+      {answerNote && <div className="oral-answer-note">{answerNote}</div>}
 
       <div className={gridClass}>
         {renderTasks(variant, layout, prompt)}
@@ -182,6 +183,7 @@ export default function OralCountingPrintLayout({
   equationMode = false,
   promptMode,          // 'eq' | 'var' | 'answer' — чем кончается строка задания
   instruction,         // текст над списком заданий
+  answerNote = null,   // «Ответ — целое число или конечная десятичная дробь» (снимается `showAnswerNote`)
   layout,              // план листа: порядок заданий и разделители
   screenMode = false,
   fontSize = 's',
@@ -203,6 +205,7 @@ export default function OralCountingPrintLayout({
       columnsCount={cols}
       prompt={prompt}
       instruction={instruction}
+      answerNote={settings.showAnswerNote === false ? null : answerNote}
       opts={opts}
       layout={layout}
     />

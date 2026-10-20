@@ -89,9 +89,12 @@ import {
 const allTrue = (labels) => Object.fromEntries(Object.keys(labels).map(k => [k, true]));
 
 // `levels: true` — раздел понимает уровень (Разминка / Как на экзамене / Сложнее)
+// `examAnswer: true` — у раздела есть ответ «как в бланке» (`decimalOnly`:
+// целое или конечная десятичная дробь, utils/oralAnswerFilter.examAnswerLatex)
 export const ORAL_TYPES = [
   {
     type:         'oral_counting',
+    examAnswer:   true,
     label:        'Арифметика',
     instruction:  'Вычислите:',
     equationMode: false,
@@ -102,6 +105,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'ege_base',
+    examAnswer:   true,
     levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Действия с десятичными',
     instruction:  'Вычислите:',
@@ -113,6 +117,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'fractions',
+    examAnswer:   true,
     levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Действия с обыкновенными дробями',
     instruction:  'Вычислите:',
@@ -124,6 +129,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'powers_roots',
+    examAnswer:   true,
     levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Степени и корни',
     instruction:  'Вычислите:',
@@ -135,6 +141,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'logarithms',
+    examAnswer:   true,
     levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Логарифмы',
     instruction:  'Вычислите:',
@@ -146,6 +153,7 @@ export const ORAL_TYPES = [
   },
   {
     type:         'log_exp',
+    examAnswer:   true,
     levels:       true,   // переключатель уровня (utils/oral/levels)
     label:        'Показательные и логарифмические уравнения',
     instruction:  'Решите уравнения:',

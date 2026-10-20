@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import {
-  isFiniteDecimalAnswer, isIntegerAnswer, hasNegativeNumber, toImproperFraction,
+  examAnswerLatex, isIntegerAnswer, hasNegativeNumber, toImproperFraction,
 } from '../utils/oralAnswerFilter';
 import { generateByCategories, byExpr } from '../utils/questionPlan';
 import {
@@ -738,7 +738,7 @@ export const DEFAULT_SETTINGS = {
   showWorkSpace:  false,
   columnsCount:   2,      // 2 колонки заданий на листе
   fontSize:       's',    // размер шрифта: s | m | l
-  decimalOnly:    false,  // только целые / конечные десятичные ответы
+  decimalOnly:    false,  // ответ как в бланке экзамена: целое или конечная десятичная
   integerOnly:    false,  // только целые ответы
   allowNegative:  true,   // отрицательные числа в условии и в ответе
   answerForm:     'mixed', // дробный ответ: смешанное число или неправильная дробь
@@ -788,8 +788,12 @@ export function generateOralCountingVariants(settings) {
       const q = GENERATORS[cat]();
       if (!q) return null;
       if (integerOnly && !isIntegerAnswer(q.resultLatex)) return null;
-      if (decimalOnly && !isFiniteDecimalAnswer(q.resultLatex)) return null;
       if (!allowNegative && hasNegativeNumber(q.exprLatex, q.resultLatex)) return null;
+      // Как в бланке: 1¾ → 1,75; ответ без конечной записи (⅓) — не годится
+      if (decimalOnly) {
+        const resultLatex = examAnswerLatex(q.resultLatex);
+        return resultLatex == null ? null : { ...q, resultLatex, cat };
+      }
       const resultLatex = improper ? toImproperFraction(q.resultLatex) : q.resultLatex;
       return { ...q, resultLatex, cat };
     },

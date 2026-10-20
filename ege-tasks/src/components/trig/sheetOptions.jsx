@@ -111,15 +111,19 @@ export function SheetLayoutOptions({
   showSpacing = true,          // у листов без строк заданий интервал не нужен
   showInstructionToggle = true, // ...а у листов без инструкции — её переключатель
   showPerPage = false,          // переключатель «вариантов на листе»
+  answerNote = null,            // строка о формате ответа (устный счёт «как в бланке»)
 }) {
   const o = sheetOptions(settings);
+  const noteOn = Boolean(answerNote) && settings.showAnswerNote !== false;
 
   // Сколько заданий помещается в один вариант при выбранной раскладке.
   // Раскладка переполнение не режет (иначе задания пропадали бы молча),
   // поэтому предупреждаем заранее — см. utils/sheetCapacity.js.
   const plannedCount = Number(settings.questionsCount ?? settings.tasksPerVariant) || 0;
   const capacity = showPerPage
-    ? sheetCapacity(currentPerPage(settings), { ...o, columnsCount: settings.columnsCount })
+    ? sheetCapacity(currentPerPage(settings), {
+      ...o, answerNote: noteOn, columnsCount: settings.columnsCount,
+    })
     : null;
   const tooMany = Boolean(capacity && plannedCount && plannedCount > capacity.total);
 
@@ -192,6 +196,16 @@ export function SheetLayoutOptions({
           >
             <span style={{ fontSize: 13 }}>Строка задания («Вычислите:»)</span>
           </Checkbox>
+        )}
+        {answerNote && (
+          <Tooltip title={`Под строкой задания: «${answerNote}»`}>
+            <Checkbox
+              checked={noteOn}
+              onChange={e => onChange('showAnswerNote', e.target.checked)}
+            >
+              <span style={{ fontSize: 13 }}>Подсказка, в каком виде писать ответ</span>
+            </Checkbox>
+          </Tooltip>
         )}
         {settings.showTeacherKey !== false && (
           <Tooltip title="Цвет виден и на печати — на ч/б принтере ответ выйдет серым. Снимите галочку, чтобы печатать ответы чёрным">

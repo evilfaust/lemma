@@ -1,3 +1,5 @@
+import { rat, decTex, niceDecimal } from './linearExpr';
+
 /**
  * Проверяет, является ли LaTeX-ответ целым числом или конечной десятичной дробью.
  * Принимает: "3", "-3", "0", "1{,}5", "-0{,}2", "0.5"
@@ -40,4 +42,58 @@ export function toImproperFraction(latex) {
   if (!m) return latex;
   const [, sign, whole, n, d] = m;
   return `${sign}\\dfrac{${Number(whole) * Number(d) + Number(n)}}{${d}}`;
+}
+
+// ─── Ответ «как в бланке» ─────────────────────────────────────────────────────
+
+// Сколько знаков после запятой ещё считаем устным ответом: 0,0625 — да,
+// 0,03125 — уже нет (такую дробь на экзамене в первой части не дают).
+export const EXAM_MAX_DIGITS = 4;
+
+const FRAC = String.raw`\\[dt]?frac\{(\d+)\}\{(\d+)\}`;
+const MIXED_RE = new RegExp(String.raw`^(-?)(\d+)?\s*${FRAC}$`);
+const DECIMAL_RE = /^(-?)(\d+)(?:\{,\}|[.,])(\d+)$/;
+
+/** Число из записи ответа: целое, десятичная, дробь, смешанное. Иначе null. */
+export function parseAnswerNumber(latex) {
+  if (typeof latex !== 'string') return null;
+  const s = latex.trim().replace(/^\{(.*)\}$/, '$1').replace(/^−/, '-');
+  if (/^-?\d+$/.test(s)) return rat(Number(s));
+  let m = DECIMAL_RE.exec(s);
+  if (m) {
+    const [, sign, whole, frac] = m;
+    const r = rat(Number(whole + frac), 10 ** frac.length);
+    return sign ? rat(-r.n, r.d) : r;
+  }
+  m = MIXED_RE.exec(s);
+  if (m) {
+    const [, sign, whole, n, d] = m;
+    if (Number(d) === 0) return null;
+    const r = rat((Number(whole) || 0) * Number(d) + Number(n), Number(d));
+    return sign ? rat(-r.n, r.d) : r;
+  }
+  return null;
+}
+
+/**
+ * Ответ так, как его пишут в бланке первой части ОГЭ и ЕГЭ: целое число или
+ * конечная десятичная дробь. Дробь с конечной записью переписывается
+ * десятичной (1\dfrac{3}{4} → 1{,}75, \dfrac{1}{4} → 0{,}25); дробь без неё,
+ * корень, π, логарифм — null: такой ответ в бланк не впишешь.
+ */
+export function examAnswerLatex(latex, { maxDigits = EXAM_MAX_DIGITS } = {}) {
+  const r = parseAnswerNumber(latex);
+  if (!r) return null;
+  if (r.d === 1) return String(r.n);
+  return niceDecimal(r, maxDigits) ? decTex(r) : null;
+}
+
+/**
+ * Строка для ученика под инструкцией листа: в каком виде писать ответ.
+ * null — ответ не ограничен, строки нет.
+ */
+export function examAnswerNote(settings = {}) {
+  if (settings.integerOnly) return 'Ответ — целое число.';
+  if (settings.decimalOnly) return 'Ответ — целое число или конечная десятичная дробь.';
+  return null;
 }

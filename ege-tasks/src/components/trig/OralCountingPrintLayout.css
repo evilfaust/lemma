@@ -130,6 +130,7 @@
   .oral-quad-page--r4 > .oral-page--quad .oral-task-x-prompt { font-size: 8.5pt; }
   .oral-quad-page--r4 > .oral-page--quad .oral-task-x-prompt { min-width: 15mm; }
   .oral-quad-page--r4 > .oral-page--quad .oral-instruction { font-size: 8.5pt; }
+  .oral-quad-page--r4 > .oral-page--quad .oral-answer-note { font-size: 7.5pt; }
   .oral-quad-page--r4 > .oral-page--quad .oral-subtitle    { font-size: 8pt; }
   .oral-quad-page--r4 > .oral-page--quad .oral-header {
     gap: 0.7mm; margin-bottom: 0.7mm; padding-bottom: 0.7mm;
@@ -141,6 +142,7 @@
   .oral-page--quad .oral-line--short   { width: 12mm; }
   .oral-page--quad .oral-subtitle      { font-size: 8.5pt; }
   .oral-page--quad .oral-instruction   { font-size: 9pt; margin-bottom: 1mm; }
+  .oral-page--quad .oral-answer-note   { font-size: 8pt; margin: -0.5mm 0 1mm; }
   /* Квадрант — 105×148,5 мм. За вычетом полей, шапки и инструкции под задания
      остаётся ~120 мм, поэтому строка здесь плотнее: 20 заданий устного счёта
      при интервале 1 занимают ~108 мм и помещаются. */
@@ -239,6 +241,12 @@
     font-size: 10.5pt;
     font-weight: bold;
     margin-bottom: 2mm;
+  }
+  /* Формат ответа, как в инструкции КИМ. Высота — ANSWER_NOTE_MM в sheetCapacity */
+  .oral-answer-note {
+    font-size: 9pt;
+    font-style: italic;
+    margin: -1mm 0 2mm;
   }
 
   /* ─── Двухколоночная сетка заданий ──────────────────────────────────────── */
@@ -387,6 +395,7 @@
   .oral-print-root[data-fs="m"] .oral-task-eq,
   .oral-print-root[data-fs="m"] .oral-task-x-prompt  { font-size: 12pt; }
   .oral-print-root[data-fs="m"] .oral-instruction    { font-size: 12.5pt; }
+  .oral-print-root[data-fs="m"] .oral-answer-note    { font-size: 10.5pt; }
   .oral-print-root[data-fs="m"] .oral-subtitle       { font-size: 12pt; }
   .oral-print-root[data-fs="m"] .oral-page--side .oral-variant-badge { font-size: 11pt; }
   .oral-print-root[data-fs="m"] .oral-page--side .oral-field         { font-size: 10.5pt; }
@@ -399,6 +408,7 @@
   .oral-print-root[data-fs="l"] .oral-task-eq,
   .oral-print-root[data-fs="l"] .oral-task-x-prompt  { font-size: 14pt; }
   .oral-print-root[data-fs="l"] .oral-instruction    { font-size: 14.5pt; }
+  .oral-print-root[data-fs="l"] .oral-answer-note    { font-size: 12pt; }
   .oral-print-root[data-fs="l"] .oral-subtitle       { font-size: 14pt; }
   .oral-print-root[data-fs="l"] .oral-page--side .oral-variant-badge { font-size: 12.5pt; }
   .oral-print-root[data-fs="l"] .oral-page--side .oral-field         { font-size: 12pt; }
@@ -592,6 +602,7 @@
 /* ── Инструкция ─────────────────────────────────────────────────────────── */
 .oral-screen-root .oral-subtitle    { font-size: 0.95em; font-weight: bold; margin-bottom: 1.5mm; }
 .oral-screen-root .oral-instruction { font-weight: bold; margin-bottom: 2mm; }
+.oral-screen-root .oral-answer-note { font-size: 0.85em; font-style: italic; margin: -1mm 0 2mm; }
 
 /* ── Сетка заданий ──────────────────────────────────────────────────────── */
 .oral-screen-root .oral-grid         { display: grid; gap: 0 8mm; }

@@ -1,10 +1,14 @@
 /**
  * Сборка листа устного счёта из генераторов категорий `(level) => задание`.
- * Общая для разделов, переведённых на уровни: план типов, уровень, фильтр
- * «только целые/десятичные ответы» и защита от повторов — в одном месте.
+ * Общая для разделов, переведённых на уровни: план типов, уровень, ответ
+ * «как в бланке» и защита от повторов — в одном месте.
+ *
+ * `decimalOnly` — формат ответа первой части экзамена: целое или конечная
+ * десятичная дробь. Дробный ответ с конечной записью переписывается
+ * десятичной (а не выбрасывается), без неё — задание отбраковывается.
  */
 import { generateByCategories, byExpr } from '../questionPlan';
-import { isFiniteDecimalAnswer } from '../oralAnswerFilter';
+import { examAnswerLatex } from '../oralAnswerFilter';
 import { levelOf } from './levels';
 
 export function generateOralSheet(settings, generators, { attempts = 80, accept = null } = {}) {
@@ -22,7 +26,11 @@ export function generateOralSheet(settings, generators, { attempts = 80, accept 
       let q;
       try { q = generators[cat](level); } catch { q = null; }
       if (!q) return null;
-      if (decimalOnly && !isFiniteDecimalAnswer(q.resultLatex)) return null;
+      if (decimalOnly) {
+        const resultLatex = examAnswerLatex(q.resultLatex);
+        if (resultLatex == null) return null;
+        q = { ...q, resultLatex };
+      }
       if (accept && !accept(q)) return null;
       return { ...q, cat };
     },

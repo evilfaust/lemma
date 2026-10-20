@@ -2,6 +2,7 @@ import { Segmented, Button, Tooltip } from 'antd';
 import { TrigSettingsSection } from './TrigGeneratorLayout';
 import {
   ORAL_LEVELS, DEFAULT_LEVEL, EXAM_FILTERS, hasExam, categoriesForExam,
+  ANSWER_FORMATS, EXAM_FORMAT_HINT,
 } from '../../utils/oral/levels';
 
 /**
@@ -11,6 +12,10 @@ import {
  *
  * `keys` — все типы раздела, `examMap` — метки (`utils/oral/levels.js`).
  * Без меток (чистый устный счёт) кнопки экзаменов не показываются.
+ *
+ * «Ответ: как в бланке» (`settings.decimalOnly`) — формат первой части ОГЭ и
+ * ЕГЭ: живёт здесь, рядом с уровнем, потому что меняет сами задания, а не
+ * вид листа.
  */
 export function OralLevelPanel({ settings, onChange, keys = [], examMap = null }) {
   const level = settings.level ?? DEFAULT_LEVEL;
@@ -31,6 +36,23 @@ export function OralLevelPanel({ settings, onChange, keys = [], examMap = null }
           label: <Tooltip title={l.hint}><span>{l.label}</span></Tooltip>,
         }))}
       />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+        <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Ответ:</span>
+        <Segmented
+          size="small"
+          value={settings.decimalOnly ? 'exam' : 'any'}
+          onChange={v => onChange('decimalOnly', v === 'exam')}
+          options={ANSWER_FORMATS.map(f => ({
+            value: f.value,
+            label: <Tooltip title={f.hint}><span>{f.label}</span></Tooltip>,
+          }))}
+        />
+      </div>
+      {settings.decimalOnly && (
+        <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4, lineHeight: 1.35 }}>
+          {EXAM_FORMAT_HINT}
+        </div>
+      )}
       {exams.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
           <span style={{ fontSize: 12, color: 'var(--ink-3)', marginRight: 2 }}>Готовлю к:</span>

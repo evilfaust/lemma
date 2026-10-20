@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   Button, Slider, Checkbox, Space, Switch, Divider, Segmented,
-  Select, Input, InputNumber, Dropdown, Typography,
+  Select, Input, InputNumber, Dropdown, Typography, Tooltip,
 } from 'antd';
 import {
   PrinterOutlined, ThunderboltOutlined, AppstoreAddOutlined,
@@ -11,6 +11,7 @@ import { SplitLayout, ConfigLabel } from '../ui';
 import OralMixedPrintLayout from './trig/OralMixedPrintLayout';
 import { ORAL_TYPES, getOralType } from '../hooks/oralMixedRegistry';
 import { ORAL_LEVELS, DEFAULT_LEVEL } from '../utils/oral/levels';
+import { examAnswerNote } from '../utils/oralAnswerFilter';
 import { SheetLayoutOptions, SHEET_DEFAULTS } from './trig/sheetOptions';
 import { useSheetTools } from '../hooks/useSheetTools';
 import { SheetStorageActions } from './trig/SheetStorageActions';
@@ -86,13 +87,25 @@ function SectionPanel({ section, onUpdate, onRemove, onDragStart, onDragOver, on
             size="small"
             style={{ width: 64 }}
           />
-          <Checkbox
-            checked={!!section.decimalOnly}
-            onChange={e => setField('decimalOnly', e.target.checked)}
-            style={{ fontSize: 11 }}
-          >
-            <span style={{ fontSize: 11 }}>Только целые/дес.</span>
-          </Checkbox>
+          {meta.examAnswer ? (
+            <Tooltip title="Ответ — целое число или конечная десятичная дробь, как в первой части ОГЭ и ЕГЭ">
+              <Checkbox
+                checked={!!section.decimalOnly}
+                onChange={e => setField('decimalOnly', e.target.checked)}
+                style={{ fontSize: 11 }}
+              >
+                <span style={{ fontSize: 11 }}>Как в бланке</span>
+              </Checkbox>
+            </Tooltip>
+          ) : (
+            <Checkbox
+              checked={!!section.decimalOnly}
+              onChange={e => setField('decimalOnly', e.target.checked)}
+              style={{ fontSize: 11 }}
+            >
+              <span style={{ fontSize: 11 }}>Только целые/дес.</span>
+            </Checkbox>
+          )}
         </div>
 
         {meta.levels && (
@@ -199,6 +212,13 @@ export default function OralMixedGenerator() {
     setSections(prev => prev.map(s => s.id === newSec.id ? newSec : s));
   };
 
+  // «Как в бланке» разом для всех разделов устного счёта
+  const examSections = sections.filter(s => getOralType(s.type)?.examAnswer);
+  const examOn = examSections.filter(s => s.decimalOnly).length;
+  const setAllExam = (on) => setSections(prev => prev.map(s => (
+    getOralType(s.type)?.examAnswer ? { ...s, decimalOnly: on } : s
+  )));
+
   const removeSection = (id) => {
     setSections(prev => prev.filter(s => s.id !== id));
   };
@@ -257,6 +277,7 @@ export default function OralMixedGenerator() {
         instruction: meta.instruction,
         equationMode: meta.equationMode,
         promptMode: meta.promptMode,
+        answerNote: meta.examAnswer ? examAnswerNote(sec) : null,
         tasks: variants[vi] || [],
       })),
     }));
@@ -334,6 +355,17 @@ export default function OralMixedGenerator() {
             <div style={{ fontSize: 10.5, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
               Разделы · {sections.length} · {totalTasks} зад. в варианте
             </div>
+            {examSections.length > 0 && (
+              <Tooltip title="Целое число или конечная десятичная дробь — как в первой части ОГЭ и ЕГЭ. Дробный ответ записывается десятичной (¾ → 0,75)">
+                <Checkbox
+                  checked={examOn === examSections.length}
+                  indeterminate={examOn > 0 && examOn < examSections.length}
+                  onChange={e => setAllExam(e.target.checked)}
+                >
+                  <span style={{ fontSize: 12 }}>Ответы как в бланке ОГЭ/ЕГЭ во всех разделах</span>
+                </Checkbox>
+              </Tooltip>
+            )}
 
             <div style={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 8, padding: '0 4px 4px', margin: '0 -4px' }}>
               {sections.map(sec => (

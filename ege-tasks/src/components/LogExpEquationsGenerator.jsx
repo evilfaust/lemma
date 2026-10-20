@@ -29,6 +29,7 @@ import {
   TrigStatBadge,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
+import { examAnswerNote } from '../utils/oralAnswerFilter';
 
 // ─── Порядок категорий в UI ───────────────────────────────────────────────────
 const CATEGORY_ORDER = [
@@ -177,12 +178,6 @@ export default function LogExpEquationsGenerator() {
                 >
                   Лист ответов (учитель)
                 </Checkbox>
-                <Checkbox
-                  checked={!!settings.decimalOnly}
-                  onChange={e => updateSetting('decimalOnly', e.target.checked)}
-                >
-                  Только целые / десятичные ответы
-                </Checkbox>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 13 }}>Шрифт:</span>
                   <Segmented
@@ -194,7 +189,12 @@ export default function LogExpEquationsGenerator() {
                 </div>
               </Space>
               <Divider style={{ margin: '10px 0' }} />
-              <SheetLayoutOptions settings={settings} onChange={updateSetting} showPerPage />
+              <SheetLayoutOptions
+                settings={settings}
+                onChange={updateSetting}
+                showPerPage
+                answerNote={examAnswerNote(settings)}
+              />
             </TrigSettingsSection>
 
             {/* Порядок заданий и черта — только когда есть что переставлять */}
@@ -284,6 +284,7 @@ export default function LogExpEquationsGenerator() {
             {tasksData && (
               <OralCountingPrintLayout
                 tasksData={tasksData}
+                answerNote={examAnswerNote(settings)}
                 settings={settings}
                 title={title}
                 layout={order.layout}
@@ -300,6 +301,7 @@ export default function LogExpEquationsGenerator() {
       {tasksData && (
         <OralCountingPrintLayout
           tasksData={tasksData}
+          answerNote={examAnswerNote(settings)}
           settings={settings}
           title={title}
           layout={order.layout}

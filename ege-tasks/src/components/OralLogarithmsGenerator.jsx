@@ -30,6 +30,7 @@ import {
   TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
+import { examAnswerNote } from '../utils/oralAnswerFilter';
 
 const CATEGORY_GROUPS = CATEGORY_GROUPS_LOG;
 const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
@@ -166,12 +167,6 @@ export default function OralLogarithmsGenerator() {
                 >
                   Лист ответов (учитель)
                 </Checkbox>
-                <Checkbox
-                  checked={!!settings.decimalOnly}
-                  onChange={e => updateSetting('decimalOnly', e.target.checked)}
-                >
-                  Только целые / десятичные ответы
-                </Checkbox>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 13 }}>Шрифт:</span>
                   <Segmented
@@ -183,7 +178,12 @@ export default function OralLogarithmsGenerator() {
                 </div>
               </Space>
               <Divider style={{ margin: '10px 0' }} />
-              <SheetLayoutOptions settings={settings} onChange={updateSetting} showPerPage />
+              <SheetLayoutOptions
+                settings={settings}
+                onChange={updateSetting}
+                showPerPage
+                answerNote={examAnswerNote(settings)}
+              />
             </TrigSettingsSection>
 
             {/* Порядок заданий и черта — только когда есть что переставлять */}
@@ -272,6 +272,7 @@ export default function OralLogarithmsGenerator() {
             {tasksData && (
               <OralCountingPrintLayout
                 tasksData={tasksData}
+                answerNote={examAnswerNote(settings)}
                 settings={settings}
                 title={title}
                 layout={order.layout}
@@ -286,6 +287,7 @@ export default function OralLogarithmsGenerator() {
       {tasksData && (
         <OralCountingPrintLayout
           tasksData={tasksData}
+          answerNote={examAnswerNote(settings)}
           settings={settings}
           title={title}
           layout={order.layout}

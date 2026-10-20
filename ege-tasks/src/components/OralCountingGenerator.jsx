@@ -28,6 +28,8 @@ import {
   TrigBlockToggle,
 } from './trig/TrigGeneratorLayout';
 import { SheetLayoutOptions } from './trig/sheetOptions';
+import { examAnswerNote } from '../utils/oralAnswerFilter';
+import { EXAM_FORMAT_HINT } from '../utils/oral/levels';
 
 // Вид дробного ответа: смешанное число привычнее в 5–6 классе,
 // неправильная дробь — когда лист готовит к действиям с дробями.
@@ -36,10 +38,11 @@ const ANSWER_FORMS = [
   { value: 'improper', label: '7/4' },
 ];
 
-// Ограничение на ответ: «любой» / целые и конечные десятичные / только целые
+// Ограничение на ответ: «любой» / как в бланке экзамена (целое или конечная
+// десятичная: 1¾ печатается 1,75) / только целые
 const ANSWER_MODES = [
   { value: 'any', label: 'Любой' },
-  { value: 'dec', label: '0,5' },
+  { value: 'dec', label: <Tooltip title="Целое число или конечная десятичная дробь — как в первой части ОГЭ и ЕГЭ"><span>Как в бланке</span></Tooltip> },
   { value: 'int', label: 'Целый' },
 ];
 
@@ -175,6 +178,11 @@ export default function OralCountingGenerator() {
                   onChange={setAnswerMode}
                 />
               </div>
+              {answerMode(settings) === 'dec' && (
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', margin: '-4px 0 8px', lineHeight: 1.35 }}>
+                  {EXAM_FORMAT_HINT}
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span style={{ fontSize: 13 }}>Дробь:</span>
                 <Segmented
@@ -223,7 +231,12 @@ export default function OralCountingGenerator() {
                 </div>
               </Space>
               <Divider style={{ margin: '10px 0' }} />
-              <SheetLayoutOptions settings={settings} onChange={updateSetting} showPerPage />
+              <SheetLayoutOptions
+                settings={settings}
+                onChange={updateSetting}
+                showPerPage
+                answerNote={examAnswerNote(settings)}
+              />
             </TrigSettingsSection>
 
             {/* Порядок заданий и черта — только когда есть что переставлять */}
@@ -313,6 +326,7 @@ export default function OralCountingGenerator() {
             {tasksData && (
               <OralCountingPrintLayout
                 tasksData={tasksData}
+                answerNote={examAnswerNote(settings)}
                 settings={settings}
                 title={title}
                 layout={order.layout}
@@ -328,6 +342,7 @@ export default function OralCountingGenerator() {
       {tasksData && (
         <OralCountingPrintLayout
           tasksData={tasksData}
+          answerNote={examAnswerNote(settings)}
           settings={settings}
           title={title}
           layout={order.layout}

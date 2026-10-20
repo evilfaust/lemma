@@ -65,6 +65,9 @@ function VariantPage({ variant, title, mode, showSectionHeaders, columnsCount, o
           {opts.showInstruction && sec.instruction && (
             <div className="oral-instruction">{sec.instruction}</div>
           )}
+          {sec.answerNote && (
+            <div className="oral-answer-note">{sec.answerNote}</div>
+          )}
           <div className={columnsCount === 2 ? 'oral-grid oral-grid--2col' : 'oral-grid oral-grid--1col'}>
             {sec.tasks.map((q, qi) => {
               const row = <TaskRow key={qi} q={q} qi={globalIdx} prompt={sectionPrompt(sec, opts.showAnswerSpace)} />;

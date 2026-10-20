@@ -29,6 +29,8 @@ const LAYOUTS = {
 const HEAD_MM         = { normal: 11.5, compact: 9 };
 const TITLE_MM        = { normal: 5,    compact: 4 };
 const INSTRUCTION_MM  = { normal: 5,    compact: 4 };
+// «Ответ — целое число или конечная десятичная дробь» — строка мельче инструкции
+const ANSWER_NOTE_MM  = { normal: 4,    compact: 3.5 };
 
 // Задание занимает больше своей min-height: сверху-снизу padding, а дробь или
 // корень поднимают строку ещё примерно на полмиллиметра. Без этой добавки
@@ -43,7 +45,7 @@ export function sheetGeometry(perPage) {
  * Прикидка: сколько заданий влезает в один вариант.
  *
  * @param {number|string} perPage  1 | '2side' | '2half' | 4 | 6 | 8
- * @param {object} opts  showHeader/showTitle/showInstruction/lineSpacing/columnsCount
+ * @param {object} opts  showHeader/showTitle/showInstruction/answerNote/lineSpacing/columnsCount
  * @returns {{ rows, cellHeightMm, availableMm, rowHeightMm, perColumn, total }}
  */
 export function sheetCapacity(perPage, opts = {}) {
@@ -51,6 +53,7 @@ export function sheetCapacity(perPage, opts = {}) {
     showHeader = true,
     showTitle = true,
     showInstruction = true,
+    answerNote = false,
     lineSpacing = 1,
     columnsCount = 1,
   } = opts;
@@ -61,7 +64,8 @@ export function sheetCapacity(perPage, opts = {}) {
   const cellHeightMm = PAGE_H_MM / geo.rows;
   const headerMm = (showHeader ? HEAD_MM[key] : 0)
     + (showTitle ? TITLE_MM[key] : 0)
-    + (showInstruction ? INSTRUCTION_MM[key] : 0);
+    + (showInstruction ? INSTRUCTION_MM[key] : 0)
+    + (answerNote ? ANSWER_NOTE_MM[key] : 0);
 
   const availableMm = Math.max(0, cellHeightMm - geo.padMm - headerMm);
 
