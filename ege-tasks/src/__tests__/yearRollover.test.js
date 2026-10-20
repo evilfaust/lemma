@@ -8,6 +8,7 @@ import {
   buildRolloverPlan, summarizeRolloverPlan, validateRolloverPlan,
   suggestNextGroupName, GROUP_ACTIONS, STUDENT_ACTIONS,
   buildGroupLineage, groupLineageIds, selectRosterMemberships, withPointerMembers,
+  multiGroupConflicts, studentsStayingActive,
 } from '../utils/yearRollover';
 
 describe('academicYear', () => {
@@ -289,5 +290,45 @@ describe('ученики с указателем на группу, но без 
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ student: 'x', group: G, status: 'active', pointerOnly: true });
     expect(out[0].expand.student.name).toBe('Иван');
+  });
+});
+
+describe('ученик в нескольких группах', () => {
+  const groups = [
+    { id: 'ege', name: '11 ЕГЭ', grade: 11 },
+    { id: 'param', name: 'Параметр', grade: 10 },
+    { id: 'base', name: '10 БАЗА', grade: 10 },
+  ];
+  const rosters = {
+    ege: [{ id: 'ivan', name: 'Гунько Иван' }, { id: 'olya', name: 'Оля' }],
+    param: [{ id: 'ivan', name: 'Гунько Иван' }],
+    base: [{ id: 'petya', name: 'Петя' }],
+  };
+  const plan = buildRolloverPlan({ groups, rosters, fromYear: '2026/2027' });
+
+  it('в плане по строке на каждую группу ученика', () => {
+    expect(plan.students.filter((s) => s.studentId === 'ivan')).toHaveLength(2);
+  });
+
+  it('выпуск в одной группе и перевод в другой — конфликт с подсказкой', () => {
+    expect(multiGroupConflicts(plan)).toEqual([
+      { studentId: 'ivan', name: 'Гунько Иван', ending: ['11 ЕГЭ'], staying: ['Параметр'] },
+    ]);
+  });
+
+  it('переведённый хоть где-то ученик остаётся активным', () => {
+    const staying = studentsStayingActive(plan);
+    expect(staying.has('ivan')).toBe(true);
+    expect(staying.has('olya')).toBe(false);
+    expect(staying.has('petya')).toBe(true);
+  });
+
+  it('обе строки — выпуск: конфликта нет', () => {
+    const both = {
+      ...plan,
+      students: plan.students.map((s) => (s.studentId === 'ivan' ? { ...s, action: STUDENT_ACTIONS.GRADUATE } : s)),
+    };
+    expect(multiGroupConflicts(both)).toEqual([]);
+    expect(studentsStayingActive(both).has('ivan')).toBe(false);
   });
 });

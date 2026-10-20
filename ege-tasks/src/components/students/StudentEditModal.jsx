@@ -41,6 +41,8 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
   const [credentials, setCredentials] = useState(null); // { username, password } — показываем один раз
   const [passwordBusy, setPasswordBusy] = useState(false);
   const [status, setStatus] = useState('active');
+  // Группы ученика сейчас (v3.9.386: их может быть несколько) — основная первой.
+  const [groupState, setGroupState] = useState({ active: [], pointer: '' });
 
   // Справочники грузим при открытии — модалка самодостаточна и её можно
   // воткнуть в любой экран, не таща туда загрузку групп и учителей.
@@ -49,13 +51,20 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
     let cancelled = false;
     setLoading(true);
     (async () => {
-      const [groupsData, teachersData, studentsData, extData] = await Promise.all([
+      const [groupsData, teachersData, studentsData, extData, state] = await Promise.all([
         api.getTeachingGroups({ includeArchived: true, allYears: true }).catch(() => []),
         api.getTeachers().catch(() => []),
         api.getStudents().catch(() => []),
         api.getExtResults().catch(() => []),
+        api.getStudentGroupState(student.id).catch(() => null),
       ]);
       if (cancelled) return;
+      const gs = state || {
+        active: student.teaching_group ? [student.teaching_group] : [],
+        pointer: student.teaching_group || '',
+      };
+      setGroupState(gs);
+      form.setFieldsValue({ groups: gs.active, primary: gs.active[0] || '' });
       setGroups(groupsData);
       setTeachers(teachersData);
       setPeers(studentsData.filter((s) => s.id !== student.id));
@@ -63,7 +72,7 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [open, student]);
+  }, [open, student, form]);
 
   useEffect(() => {
     if (!open || !student) return;
@@ -75,7 +84,8 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
       short_name: student.short_name || '',
       username: student.username || '',
       student_class: student.student_class || '',
-      teaching_group: student.teaching_group || '',
+      groups: student.teaching_group ? [student.teaching_group] : [],
+      primary: student.teaching_group || '',
       telegram_id: student.telegram_id || '',
       status: student.status || 'active',
       grad_year: student.grad_year || '',
@@ -111,14 +121,20 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
       values = await form.validateFields();
     } catch { return; }
 
-    const tg = normalizeTelegramId(values.telegram_id);
+    const { groups: wantedGroups = [], primary = '', ...profile } = values;
+    const tg = normalizeTelegramId(profile.telegram_id);
     const next = {
-      ...values,
+      ...profile,
       telegram_id: tg.value,
       // Год выпуска имеет смысл только у выпустившегося или выбывшего.
       grad_year: values.status === 'active' ? '' : (values.grad_year || ''),
     };
     const diff = profileDiff(student, next);
+    const before = groupState.active;
+    const groupsChanged = before.length !== wantedGroups.length
+      || wantedGroups.some((id) => !before.includes(id))
+      || (wantedGroups.length > 1 && primary && primary !== before[0]);
+    if (groupsChanged) diff.push({ field: 'groups', label: wantedGroups.length > 1 ? 'Группы' : 'Группа' });
     if (!diff.length) {
       message.info('Изменений нет');
       onClose?.();
@@ -127,7 +143,10 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
 
     setSaving(true);
     try {
-      const updated = await api.updateStudentProfile(student.id, next);
+      let updated = await api.updateStudentProfile(student.id, next);
+      if (groupsChanged) {
+        updated = (await api.setStudentGroups(student.id, wantedGroups, primary)) || updated;
+      }
       message.success(`Сохранено: ${diff.map((d) => d.label.toLowerCase()).join(', ')}`);
       onSaved?.(updated || { ...student, ...next });
       onClose?.();
@@ -230,8 +249,14 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
           </Space>
 
           <Space size="middle" style={{ display: 'flex' }}>
-            <Form.Item name="teaching_group" label="Группа" style={{ flex: 1 }}>
+            <Form.Item
+              name="groups"
+              label="Группы"
+              tooltip="Ученик может заниматься в нескольких группах сразу — он будет в составе, журнале и уроках каждой"
+              style={{ flex: 1 }}
+            >
               <Select
+                mode="multiple"
                 allowClear
                 placeholder="Без группы"
                 options={groups.map((g) => ({
@@ -251,6 +276,26 @@ export default function StudentEditModal({ open, student, onClose, onSaved, onDe
               <Input placeholder="10А" maxLength={50} />
             </Form.Item>
           </Space>
+
+          <Form.Item noStyle shouldUpdate={(a, b) => a.groups !== b.groups}>
+            {({ getFieldValue }) => {
+              const chosen = getFieldValue('groups') || [];
+              if (chosen.length < 2) return null;
+              const byId = new Map(groups.map((g) => [g.id, g]));
+              return (
+                <Form.Item
+                  name="primary"
+                  label="Основная группа"
+                  tooltip="По ней ученик подписан в списках и выбирается по умолчанию. В остальных группах он тоже состоит полностью"
+                >
+                  <Select
+                    options={chosen.map((id) => ({ value: id, label: byId.get(id)?.name || 'группа' }))}
+                    placeholder={byId.get(chosen[0])?.name}
+                  />
+                </Form.Item>
+              );
+            }}
+          </Form.Item>
 
           <Form.Item
             name="telegram_id"

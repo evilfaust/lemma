@@ -4,6 +4,9 @@ import { escapeFilter } from '../../utils/escapeFilter';
 import { registerGroupColors } from '../../utils/groupColors';
 import { currentAcademicYear } from '../../../utils/academicYear';
 import { selectRosterMemberships, withPointerMembers } from '../../../utils/yearRollover';
+import {
+  activeGroupIds, planJoinGroup, planLeaveGroup, planStudentGroups,
+} from '../../../utils/studentGroups';
 
 // Учительское фло, фаза 1: API классов/групп (коллекция `teaching_groups`).
 // `owner` подставляется автоматически из токена залогиненного учителя.
@@ -282,43 +285,88 @@ export const groupsApi = {
     }
   },
 
-  // Привязка/отвязка ученика. Пишет ОБА представления: указатель «где сейчас»
-  // (students.teaching_group) и строку журнала членства.
+  // ── Ученик ↔ группы (v3.9.386: ученик может состоять в нескольких) ───────
+  // Каждый путь пишет ОБА представления: указатель «основная группа»
+  // (students.teaching_group) и строки журнала членства. Что открыть, что
+  // закрыть и куда поставить указатель — решает чистая логика
+  // `utils/studentGroups.js`, здесь только запись.
+
+  // Где ученик состоит сейчас: { pointer, owner, active: [groupId…] }.
+  async getStudentGroupState(studentId) {
+    const sid = escapeFilter(studentId);
+    const [found, rows] = await Promise.all([
+      pb.collection('students').getFullList({
+        filter: `id = "${sid}"`,
+        fields: 'id,owner,teaching_group',
+      }).catch(() => []),
+      pb.collection('group_memberships').getFullList({
+        filter: `student = "${sid}"`,
+        fields: 'id,group,status,year',
+        sort: '-year,-created',
+      }).catch(() => []),
+    ]);
+    const pointer = found[0]?.teaching_group || '';
+    return { pointer, owner: found[0]?.owner || '', exists: !!found[0], active: activeGroupIds(rows, pointer) };
+  },
+
+  // Применить план { join, close, pointer }. Указатель — сразу (его видят
+  // пикеры), журнал членства — мягко: сбой не роняет привязку, а состав
+  // группы всё равно покажет ученика по указателю (withPointerMembers).
+  async applyStudentGroupPlan(studentId, plan, state) {
+    const data = {};
+    if ((state.pointer || '') !== (plan.pointer || '')) data.teaching_group = plan.pointer || '';
+    // Привязка к группе «забирает» ничейного ученика (саморегистрация)
+    // текущему учителю — это и есть модель привязки учеников.
+    const t = currentTeacher();
+    if (plan.join.length && t && state.exists && !state.owner) {
+      data.owner = t.id;
+      _logAudit('update', 'students', studentId, 'привязан к учителю (claim при добавлении в группу)');
+    }
+    const rec = Object.keys(data).length
+      ? await pb.collection('students').update(studentId, data)
+      : null;
+
+    try {
+      for (const gid of plan.close) {
+        await this.closeMembership(studentId, gid, { status: 'left' });
+      }
+      for (const gid of plan.join) {
+        const group = await this.getTeachingGroup(gid).catch(() => null);
+        await this.joinGroup(studentId, gid, { year: group?.year || '' });
+      }
+    } catch (e) {
+      console.error('Не удалось записать членство в группе:', e?.message);
+    }
+    return rec;
+  },
+
+  // Добавить в группу. По умолчанию ученик остаётся и в прежних группах;
+  // { move: true } — «перевести сюда», прежние закрываются.
+  async addStudentToGroup(studentId, groupId, { move = false } = {}) {
+    const state = await this.getStudentGroupState(studentId);
+    return this.applyStudentGroupPlan(studentId, planJoinGroup({ ...state, groupId, move }), state);
+  },
+
+  // Убрать из одной группы. Остальные не трогаются; если это была основная,
+  // основной становится другая группа ученика.
+  async removeStudentFromGroup(studentId, groupId) {
+    const state = await this.getStudentGroupState(studentId);
+    return this.applyStudentGroupPlan(studentId, planLeaveGroup({ ...state, groupId }), state);
+  },
+
+  // Ровно эти группы + основная (карточка ученика).
+  async setStudentGroups(studentId, groupIds = [], primary = '') {
+    const state = await this.getStudentGroupState(studentId);
+    const plan = planStudentGroups({ ...state, wanted: groupIds, primary });
+    return this.applyStudentGroupPlan(studentId, plan, state);
+  },
+
+  // Перевести в группу: остаётся ТОЛЬКО в ней. groupId === null — отвязать от
+  // всех групп (владелец при этом сохраняется). Массовое «Перевести в» в
+  // «Прогрессе учеников».
   async setStudentGroup(studentId, groupId) {
     try {
-      // groupId === null → отвязать (владелец при этом сохраняется).
-      const data = { teaching_group: groupId || '' };
-      // Привязка к группе «забирает» ничейного ученика (саморегистрация)
-      // текущему учителю — это и есть модель привязки учеников.
-      const t = currentTeacher();
-      let prevGroup = '';
-      try {
-        const found = await pb.collection('students').getFullList({
-          filter: `id = "${escapeFilter(studentId)}"`,
-          fields: 'id,owner,teaching_group',
-        });
-        prevGroup = found[0]?.teaching_group || '';
-        if (groupId && t && found[0] && !found[0].owner) {
-          data.owner = t.id;
-          _logAudit('update', 'students', studentId, 'привязан к учителю (claim при добавлении в группу)');
-        }
-      } catch (_) { /* не смогли прочитать — просто не claim'им */ }
-
-      const rec = await pb.collection('students').update(studentId, data);
-
-      // Журнал членства ведём мягко: сбой здесь не должен ронять привязку.
-      try {
-        if (prevGroup && prevGroup !== groupId) {
-          await this.closeMembership(studentId, prevGroup, { status: 'left' });
-        }
-        if (groupId) {
-          const group = await this.getTeachingGroup(groupId).catch(() => null);
-          await this.joinGroup(studentId, groupId, { year: group?.year || '' });
-        }
-      } catch (e) {
-        console.error('Не удалось записать членство в группе:', e?.message);
-      }
-      return rec;
+      return await this.setStudentGroups(studentId, groupId ? [groupId] : [], groupId || '');
     } catch (error) {
       console.error('Error setting student group:', error);
       throw error;

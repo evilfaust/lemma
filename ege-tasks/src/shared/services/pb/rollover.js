@@ -1,7 +1,7 @@
 import { pb, _logAudit, andOwner, currentTeacher } from './client.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { academicYearStartDate } from '../../../utils/academicYear';
-import { GROUP_ACTIONS, STUDENT_ACTIONS } from '../../../utils/yearRollover';
+import { GROUP_ACTIONS, STUDENT_ACTIONS, studentsStayingActive } from '../../../utils/yearRollover';
 
 // Перевод на новый учебный год: применение плана, собранного мастером
 // (`utils/yearRollover.js` — чистая логика, здесь только запись в базу).
@@ -64,6 +64,9 @@ export const rolloverApi = {
 
     const continuing = (plan?.groups || []).filter((g) => g.action === GROUP_ACTIONS.CONTINUE);
     const students = plan?.students || [];
+    // Ученик нескольких групп, которого хоть где-то переводят или оставляют,
+    // не выпускается целиком: «выпуск» в другой группе закрывает только её.
+    const stayingActive = studentsStayingActive(plan);
     const total = continuing.length + students.length + (plan?.groups || []).length;
     let done = 0;
     const tick = (label) => { done += 1; onProgress({ done, total, label }); };
@@ -128,10 +131,12 @@ export const rolloverApi = {
             await this.closeMembership(s.studentId, s.sourceGroupId, {
               status: graduated ? 'graduated' : 'left',
             });
-            await this.setStudentStatus(s.studentId, graduated ? 'graduated' : 'left', {
-              gradYear: fromYear,
-            });
-            if (graduated) result.graduated += 1; else result.left += 1;
+            if (!stayingActive.has(s.studentId)) {
+              await this.setStudentStatus(s.studentId, graduated ? 'graduated' : 'left', {
+                gradYear: fromYear,
+              });
+              if (graduated) result.graduated += 1; else result.left += 1;
+            }
           }
           // STAY — ученик остаётся как есть, трогать нечего.
         } catch (e) {

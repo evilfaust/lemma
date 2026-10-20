@@ -4,6 +4,7 @@ import {
   Button,
   Input,
   Modal,
+  Radio,
   Select,
   Space,
   Spin,
@@ -30,6 +31,8 @@ import { WorkspacePageHeader, EmptyState, SectionCard, Chip, groupTone, groupHex
 import GroupCampaignsSection from './summer/GroupCampaignsSection';
 import CourseMembersSection from './course/CourseMembersSection';
 import CoTeachersSection from './CoTeachersSection';
+import { groupsByStudent } from '../../utils/studentGroups';
+import { currentAcademicYear } from '../../utils/academicYear';
 
 const { Text } = Typography;
 
@@ -45,6 +48,11 @@ export default function GroupDetail() {
   const [loading, setLoading] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [picked, setPicked] = useState([]);
+  // Ученик уже в другой группе: оставить его и там (по умолчанию) или перевести.
+  const [addMode, setAddMode] = useState('keep');
+  // Где ещё учатся ученики: { [studentId]: [groupId…] } + названия групп.
+  const [otherGroups, setOtherGroups] = useState({});
+  const [groupNames, setGroupNames] = useState({});
   const [busy, setBusy] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualText, setManualText] = useState('');
@@ -63,6 +71,13 @@ export default function GroupDetail() {
       setGroup(g);
       setStudents(inGroup);
       setAllStudents(all);
+      // Подписи «ещё в …» — не критичны: не загрузились, экран работает и так.
+      const [memberships, groups] = await Promise.all([
+        api.getMembershipsByYear(g?.year || currentAcademicYear(), { includeClosed: false }).catch(() => []),
+        api.getTeachingGroups({ allYears: true }).catch(() => []),
+      ]);
+      setOtherGroups(groupsByStudent(memberships, [...all, ...inGroup]));
+      setGroupNames(Object.fromEntries(groups.map((x) => [x.id, x.name])));
     } catch {
       message.error('Не удалось загрузить группу');
     } finally {
@@ -74,10 +89,23 @@ export default function GroupDetail() {
     load();
   }, [load]);
 
-  // Кандидаты на добавление: ученики без этой группы.
-  const candidates = useMemo(
-    () => allStudents.filter((s) => s.teaching_group !== groupId),
-    [allStudents, groupId],
+  // Кандидаты на добавление: все, кого нет в составе этой группы (в том числе
+  // ученики других групп — ученик может ходить в несколько, v3.9.386).
+  const candidates = useMemo(() => {
+    const inGroup = new Set(students.map((s) => s.id));
+    return allStudents.filter((s) => !inGroup.has(s.id));
+  }, [allStudents, students]);
+
+  // Другие действующие группы ученика (без этой) — названиями.
+  const elsewhere = useCallback(
+    (studentId) => (otherGroups[studentId] || [])
+      .filter((id) => id !== groupId && groupNames[id])
+      .map((id) => groupNames[id]),
+    [otherGroups, groupNames, groupId],
+  );
+  const pickedElsewhere = useMemo(
+    () => picked.filter((id) => elsewhere(id).length > 0),
+    [picked, elsewhere],
   );
 
   // Предложение «привязать по совпадению»: ученики, у кого student_class совпадает
@@ -95,10 +123,12 @@ export default function GroupDetail() {
     if (!picked.length) return;
     setBusy(true);
     try {
-      await Promise.all(picked.map((id) => api.setStudentGroup(id, groupId)));
+      const move = addMode === 'move';
+      await Promise.all(picked.map((id) => api.addStudentToGroup(id, groupId, { move })));
       message.success(`Привязано: ${picked.length}`);
       setAddOpen(false);
       setPicked([]);
+      setAddMode('keep');
       load();
     } catch {
       message.error('Не удалось привязать учеников');
@@ -110,7 +140,7 @@ export default function GroupDetail() {
   const handleLinkByName = async () => {
     setBusy(true);
     try {
-      await Promise.all(matchByName.map((s) => api.setStudentGroup(s.id, groupId)));
+      await Promise.all(matchByName.map((s) => api.addStudentToGroup(s.id, groupId)));
       message.success(`Привязано по совпадению: ${matchByName.length}`);
       load();
     } catch {
@@ -141,7 +171,8 @@ export default function GroupDetail() {
 
   const handleUnlink = async (student) => {
     try {
-      await api.setStudentGroup(student.id, null);
+      // Только из ЭТОЙ группы: в остальных ученик остаётся.
+      await api.removeStudentFromGroup(student.id, groupId);
       message.success('Ученик отвязан');
       load();
     } catch {
@@ -275,6 +306,9 @@ export default function GroupDetail() {
                       ? <Chip tone="amber" dot={false}>без аккаунта</Chip>
                       : (s.username && <Text type="secondary" style={{ fontSize: 12 }}>@{s.username}</Text>)}
                     {s.student_class && <Chip tone="neutral" dot={false}>{s.student_class}</Chip>}
+                    {elsewhere(s.id).length > 0 && (
+                      <Chip tone="violet" dot={false}>ещё: {elsewhere(s.id).join(', ')}</Chip>
+                    )}
                   </div>
                 </div>
                 <div className="ws-roster__actions">
@@ -299,6 +333,7 @@ export default function GroupDetail() {
         onCancel={() => {
           setAddOpen(false);
           setPicked([]);
+          setAddMode('keep');
         }}
         onOk={handleAdd}
         confirmLoading={busy}
@@ -314,13 +349,33 @@ export default function GroupDetail() {
           value={picked}
           onChange={setPicked}
           optionFilterProp="label"
-          options={candidates.map((s) => ({
-            value: s.id,
-            label: `${s.name || '—'}${s.username ? ` (@${s.username})` : ''}${
-              s.student_class ? ` · ${s.student_class}` : ''
-            }`,
-          }))}
+          options={candidates.map((s) => {
+            const other = elsewhere(s.id);
+            return {
+              value: s.id,
+              label: `${s.name || '—'}${s.username ? ` (@${s.username})` : ''}${
+                other.length ? ` · сейчас: ${other.join(', ')}` : (s.student_class ? ` · ${s.student_class}` : '')
+              }`,
+            };
+          })}
         />
+        {pickedElsewhere.length > 0 && (
+          <div style={{ marginTop: 12 }}>
+            <Text type="secondary">
+              {pickedElsewhere.length === 1
+                ? 'Этот ученик уже занимается в другой группе:'
+                : `Уже занимаются в других группах: ${pickedElsewhere.length}`}
+            </Text>
+            <Radio.Group
+              value={addMode}
+              onChange={(e) => setAddMode(e.target.value)}
+              style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}
+            >
+              <Radio value="keep">Оставить и там — будет в нескольких группах</Radio>
+              <Radio value="move">Перевести сюда — убрать из прежней группы</Radio>
+            </Radio.Group>
+          </div>
+        )}
       </Modal>
 
       <Modal

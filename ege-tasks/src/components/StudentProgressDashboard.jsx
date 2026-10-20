@@ -8,6 +8,7 @@ import { BULK_ACTIONS, bulkSummary } from '../utils/studentModeration';
 import { api } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
 import { currentAcademicYear } from '../utils/academicYear';
+import { groupsByStudent } from '../utils/studentGroups';
 import { PageHeader, StatRow, Stat } from '../ui';
 
 const { Text } = Typography;
@@ -127,20 +128,24 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkBusy, setBulkBusy] = useState(false);
   const [groups, setGroups] = useState([]);
+  // Ученик может заниматься в нескольких группах (v3.9.386): { [id]: [groupId…] }.
+  const [studentGroupIds, setStudentGroupIds] = useState({});
   const [teachersList, setTeachersList] = useState([]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [studentsData, attemptsData, worksData, achievementsData, groupsData, teachersData] = await Promise.all([
+      const [studentsData, attemptsData, worksData, achievementsData, groupsData, teachersData, membershipsData] = await Promise.all([
         api.getStudents(),
         api.getAttemptsForRegisteredStudents(),
         api.getWorks({ includeArchived: true }),
         api.getAchievements(),
         api.getTeachingGroups({ includeArchived: true, allYears: true }).catch(() => []),
         api.getTeachers().catch(() => []),
+        api.getMembershipsByYear(currentAcademicYear(), { includeClosed: false }).catch(() => []),
       ]);
       setGroups(groupsData);
+      setStudentGroupIds(groupsByStudent(membershipsData, studentsData));
       setTeachersList(teachersData);
       // Внешних (вписанных вручную, без тестов) в дашборде прогресса не показываем.
       setStudents(studentsData.filter((s) => !s.external));
@@ -376,6 +381,9 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         username: student.username || '—',
         studentClass: student.student_class || '',
         groupId: student.teaching_group || '',
+        // Все группы ученика, основная первой; без членств — по указателю.
+        groupIds: studentGroupIds[student.id]
+          || (student.teaching_group ? [student.teaching_group] : []),
         status: student.status || 'active',
         telegramId: student.telegram_id || '',
         external: !!student.external,
@@ -393,17 +401,21 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
         latestTestTitle: getAttemptTestTitle(latestAttempt, worksById),
       };
     });
-  }, [students, attemptsByStudentId, worksById]);
+  }, [students, attemptsByStudentId, worksById, studentGroupIds]);
 
   // Группировка для Collapse: по учебной группе (сущность), а класс-строка —
   // фолбэк для тех, кто к группе ещё не привязан.
   const groupedByClass = useMemo(() => {
     const groups = new Map();
 
+    // Ученик нескольких групп показывается в каждой из них.
     tableData.forEach((student) => {
-      const cls = groupNames[student.groupId] || student.studentClass || '__none__';
-      if (!groups.has(cls)) groups.set(cls, []);
-      groups.get(cls).push(student);
+      const named = student.groupIds.map((id) => groupNames[id]).filter(Boolean);
+      const keys = named.length ? named : [student.studentClass || '__none__'];
+      [...new Set(keys)].forEach((cls) => {
+        if (!groups.has(cls)) groups.set(cls, []);
+        groups.get(cls).push(student);
+      });
     });
 
     // Сортируем классы: сначала по числу, потом буквы, "Без класса" в конец
@@ -467,9 +479,10 @@ const StudentProgressDashboard = ({ onOpenWork, onOpenStudent }) => {
       key: 'studentClass',
       width: 150,
       render: (_, record) => {
-        const label = groupNames[record.groupId] || record.studentClass;
-        return label
-          ? <Tag color="geekblue">{label}</Tag>
+        const named = record.groupIds.map((id) => groupNames[id]).filter(Boolean);
+        const labels = named.length ? named : [record.studentClass].filter(Boolean);
+        return labels.length
+          ? <Space size={4} wrap>{labels.map((l) => <Tag key={l} color="geekblue">{l}</Tag>)}</Space>
           : <Text type="secondary">—</Text>;
       },
       sorter: (a, b) => (groupNames[a.groupId] || a.studentClass || '')

@@ -12,7 +12,7 @@ import {
 } from '../../../utils/academicYear';
 import {
   buildRolloverPlan, summarizeRolloverPlan, validateRolloverPlan,
-  GROUP_ACTIONS, STUDENT_ACTIONS,
+  multiGroupConflicts, GROUP_ACTIONS, STUDENT_ACTIONS,
 } from '../../../utils/yearRollover';
 import { WorkspacePageHeader, SectionCard, EmptyState, Chip } from '../ui';
 
@@ -113,6 +113,7 @@ export default function YearRolloverWizard() {
 
   const summary = useMemo(() => (plan ? summarizeRolloverPlan(plan) : null), [plan]);
   const problems = useMemo(() => (plan ? validateRolloverPlan(plan) : []), [plan]);
+  const conflicts = useMemo(() => (plan ? multiGroupConflicts(plan) : []), [plan]);
   const continuing = useMemo(
     () => (plan?.groups || []).filter((g) => g.action === GROUP_ACTIONS.CONTINUE),
     [plan],
@@ -375,6 +376,22 @@ export default function YearRolloverWizard() {
                 <Tag>{`Оставим как есть: ${summary.stayed}`}</Tag>
                 <Tag color="default">{`В архив групп: ${summary.groupsToArchive}`}</Tag>
               </Space>
+            )}
+            {conflicts.length > 0 && (
+              <Alert
+                type="info"
+                message="Ученики в нескольких группах"
+                description={(
+                  <ul style={{ margin: 0, paddingLeft: 18 }}>
+                    {conflicts.map((c) => (
+                      <li key={c.studentId}>
+                        {`${c.name}: в «${c.ending.join('», «')}» — выпуск/выбытие, в «${c.staying.join('», «')}» продолжает. `}
+                        Ученик останется активным, закроется только членство в «{c.ending.join('», «')}».
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              />
             )}
             {problems.length > 0 && (
               <Alert

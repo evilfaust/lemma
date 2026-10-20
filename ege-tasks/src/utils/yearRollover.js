@@ -125,6 +125,49 @@ export function summarizeRolloverPlan(plan) {
   };
 }
 
+// ── Ученик в нескольких группах (v3.9.386) ──────────────────────────────────
+// В плане у такого ученика несколько строк — по одной на группу. Статус
+// «выпустился/выбыл» у ученика один на всех, поэтому строки могут спорить:
+// в «11 ЕГЭ» выпуск, в «Параметре» перевод. Правило (решение пользователя
+// 20.10.2026): побеждает «перевод» (и «оставить»): такая строка лишь закрывает
+// своё членство, а статус ученика не меняется.
+
+/** Ученики, которые после перевода продолжают заниматься хоть в одной группе. */
+export function studentsStayingActive(plan) {
+  const out = new Set();
+  for (const s of plan?.students || []) {
+    if (s.action === STUDENT_ACTIONS.TRANSFER || s.action === STUDENT_ACTIONS.STAY) out.add(s.studentId);
+  }
+  return out;
+}
+
+/**
+ * Где строки одного ученика спорят: [{ studentId, name, ending: [группы], staying: [группы] }].
+ * Это не ошибка плана — мастер показывает предупреждение.
+ */
+export function multiGroupConflicts(plan) {
+  const nameOf = new Map((plan?.groups || []).map((g) => [g.sourceId, g.sourceName]));
+  const byStudent = new Map();
+  for (const s of plan?.students || []) {
+    if (!byStudent.has(s.studentId)) byStudent.set(s.studentId, []);
+    byStudent.get(s.studentId).push(s);
+  }
+  const out = [];
+  for (const [studentId, rows] of byStudent) {
+    if (rows.length < 2) continue;
+    const ending = rows.filter((r) => r.action === STUDENT_ACTIONS.GRADUATE || r.action === STUDENT_ACTIONS.LEAVE);
+    const staying = rows.filter((r) => r.action === STUDENT_ACTIONS.TRANSFER || r.action === STUDENT_ACTIONS.STAY);
+    if (!ending.length || !staying.length) continue;
+    out.push({
+      studentId,
+      name: rows[0].name,
+      ending: ending.map((r) => nameOf.get(r.sourceGroupId) || ''),
+      staying: staying.map((r) => nameOf.get(r.sourceGroupId) || ''),
+    });
+  }
+  return out;
+}
+
 /** Что мешает применить план: список человекочитаемых проблем ([] = всё готово). */
 export function validateRolloverPlan(plan) {
   const problems = [];
