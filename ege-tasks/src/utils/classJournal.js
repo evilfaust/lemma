@@ -313,12 +313,49 @@ const MOD_SHOW = { '+': '+', '-': '−', '=': '=' };
 const PASS_YES = new Set(['+', 'з', 'зач', 'зачет', 'зачёт', 'да', '1', '✓', 'v']);
 const PASS_NO = new Set(['-', '−', '–', '—', 'нз', 'н/з', 'незач', 'незачет', 'незачёт', 'нет', '0', '✗', 'x', 'х']);
 
+// Пересдача той же работы (v3.9.391): попытки в одной клетке через «/» —
+// «9/11», «.4-/5». В средний идёт лучшая, прежние видны бледными.
+export const ATTEMPT_SEP = '/';
+export const MAX_ATTEMPTS = 5;
+
+/** Хранимый текст → попытки по порядку: «9/11» → ['9', '11']. */
+export function splitAttempts(stored) {
+  const s = String(stored ?? '').trim();
+  return s ? s.split(ATTEMPT_SEP).map((p) => p.trim()) : [];
+}
+
+/** Номер лучшей попытки: наибольшее значение, при равенстве — поздняя. */
+function bestAttemptIndex(attempts) {
+  let best = attempts.length - 1;
+  attempts.forEach((a, i) => {
+    if (a.value == null) return;
+    if (attempts[best].value == null || a.value >= attempts[best].value) best = i;
+  });
+  return best;
+}
+
+/** Хранимая попытка, которая идёт в средний: у «9/11» — «11». */
+export function countedStored(stored) {
+  const parts = splitAttempts(stored);
+  if (parts.length < 2) return String(stored ?? '').trim();
+  return parts[bestAttemptIndex(parts.map(decodeOne))];
+}
+
 /**
  * Хранимый текст → { value: число|null, absent, wait?, skip?, mod?, retake? }.
  * У оценки с плюсом/минусом value — сама цифра, mod — «+», «-» или «=».
- * retake — оценка с точкой: дозачёт.
+ * retake — оценка с точкой: дозачёт. У пересдачи («9/11») поля — от лучшей
+ * попытки, плюс attempts (каждая попытка) и best (её номер).
  */
 export function decodeValue(stored) {
+  const parts = splitAttempts(stored);
+  if (parts.length < 2) return decodeOne(stored);
+  const attempts = parts.map(decodeOne);
+  const best = bestAttemptIndex(attempts);
+  return { ...attempts[best], attempts, best };
+}
+
+function decodeOne(stored) {
   const s = String(stored ?? '').trim();
   if (!s) return { value: null, absent: false };
   if (s === ABSENT) return { value: null, absent: true };
@@ -346,9 +383,12 @@ function canon(n) {
 
 /**
  * Разбор ввода учителя по шкале колонки.
+ * «9/11» — пересдача (попытки по порядку), «/11» — пересдача к тому, что уже
+ * стоит в клетке (prev). paste — вставка из чужой таблицы: там «18/20» в
+ * колонке «из 20» — баллы из максимума, а не две попытки.
  * → { ok: true, stored } (stored '' = очистить клетку) | { ok: false, error }
  */
-export function parseCellInput(raw, col) {
+export function parseCellInput(raw, col, { prev = '', paste = false } = {}) {
   const s = String(raw ?? '').trim().toLowerCase();
   if (!s) return { ok: true, stored: '' };
   if (ABSENT_ALIASES.has(s)) return { ok: true, stored: ABSENT };
@@ -356,6 +396,43 @@ export function parseCellInput(raw, col) {
 
   const scale = columnScale(col);
   if (scale === 'pass' ? SKIP_WORDS.has(s) : SKIP_ALIASES.has(s)) return { ok: true, stored: SKIP };
+  if (s.includes(ATTEMPT_SEP) && !(scale === 'pass' && PASS_NO.has(s))) {
+    const max = Number(col?.max_score ?? col?.max) || 0;
+    const frac = s.match(/^(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)$/);
+    if (!(paste && scale === 'points' && frac && max > 0 && parseNumber(frac[2]) === max)) {
+      return parseAttempts(s, col, prev);
+    }
+  }
+  return parseSingle(s, col, scale);
+}
+
+// «9/11», «/11» (дописать к prev). Каждая попытка — отметка по шкале колонки;
+// «н», «w» и «—» попыткой не бывают: не пришёл на пересдачу — клетка как была.
+function parseAttempts(s, col, prev) {
+  const scale = columnScale(col);
+  const typed = s.split(ATTEMPT_SEP).map((p) => p.trim());
+  const append = typed[0] === '';
+  if (append) typed.shift();
+  const parts = [];
+  for (const p of typed) {
+    const one = p ? parseSingle(p, col, scale) : { ok: false };
+    if (!one.ok || decodeOne(one.stored).value == null) {
+      return {
+        ok: false,
+        error: `Пересдача — через «/»: 9/11 или «/11» к уже стоящей отметке. Каждая попытка — ${
+          one.ok || !p ? 'число по шкале колонки' : one.error.replace(/ или «н».*$/, '')}`,
+      };
+    }
+    parts.push(one.stored);
+  }
+  const base = append ? splitAttempts(prev) : [];
+  // Пересдавать нечего (пусто, «н», «w») — это просто первая отметка.
+  const all = base.length && decodeValue(prev).value != null ? [...base, ...parts] : parts;
+  if (all.length > MAX_ATTEMPTS) return { ok: false, error: `Не больше ${MAX_ATTEMPTS} попыток в клетке` };
+  return { ok: true, stored: all.join(ATTEMPT_SEP) };
+}
+
+function parseSingle(s, col, scale) {
   const tail = ' или «н» — не был, «w» — вейтинг';
 
   if (scale === 'pass') {
@@ -397,6 +474,8 @@ export function parseCellInput(raw, col) {
 
 /** Текст для редактора, когда учитель правит уже стоящую отметку. */
 export function editText(col, stored) {
+  const parts = splitAttempts(stored);
+  if (parts.length > 1) return parts.map((p) => editText(col, p)).join(ATTEMPT_SEP);
   const { value, absent, wait, skip, mod, retake } = decodeValue(stored);
   if (absent) return ABSENT;
   if (wait) return WAIT;
@@ -429,13 +508,84 @@ export function isRetake(stored) {
  * точкой уходит в комментарий («до дозачёта: .4−»), чтобы история не
  * терялась. Другие правки комментарий не трогают.
  */
-export function retakeHistoryComment(oldStored, newStored, comment = '') {
+export function retakeHistoryComment(oldStored, newStored, comment = '', { day } = {}) {
+  const c = String(comment || '').trim();
+  const prepend = (line) => {
+    if (c.includes(line)) return c;
+    return c ? `${line}\n${c}` : line;
+  };
+  // Пересдача дописана через «/» — прежние попытки в самой клетке, в
+  // комментарий уходит только дата.
+  if (isAppendedAttempt(oldStored, newStored)) return day ? prepend(`пересдача ${shortDay(day)}`) : c;
   const old = decodeValue(oldStored);
   if (!old.retake || !newStored || isRetake(newStored)) return comment || '';
-  const line = `до дозачёта: ${formatGrade(old.value, old.mod, true)}`;
-  const c = String(comment || '').trim();
-  if (c.includes(line)) return c;
-  return c ? `${line}\n${c}` : line;
+  return prepend(`до дозачёта: ${formatGrade(old.value, old.mod, true)}`);
+}
+
+/** Новая отметка = прежние попытки + пересдача. */
+export function isAppendedAttempt(oldStored, newStored) {
+  const before = splitAttempts(oldStored);
+  const after = splitAttempts(newStored);
+  return before.length > 0 && after.length > before.length && before.every((p, i) => p === after[i]);
+}
+
+/**
+ * «Это пересдача колонки…»: отметки колонки-пересдачи (retake) дописываются
+ * к основной (target) через «/»; колонка пересдачи потом удаляется.
+ * «н», «w», «—» и пустые клетки пересдачи пропускаются — основная остаётся как
+ * была. Не писал основную («н», пусто) — отметка пересдачи становится просто
+ * отметкой. Пересдача, совпавшая с уже дописанной, второй раз не дописывается.
+ * → { writes: [{ studentId, value, comment }], retaken, late, skipped }
+ */
+export function planRetakeMerge(target, retake, students, marksIndex) {
+  const writes = [];
+  let retaken = 0;
+  let late = 0;
+  let skipped = 0;
+  const day = shortDay(retake.day);
+  for (const s of students) {
+    const r = marksIndex.get(markKey(retake.id, s.id));
+    const rv = String(r?.value || '').trim();
+    if (!rv) continue;
+    if (decodeValue(rv).value == null) { skipped += 1; continue; }
+    const t = marksIndex.get(markKey(target.id, s.id));
+    const tv = String(t?.value || '').trim();
+    const had = tv && decodeValue(tv).value != null;
+    const before = had ? splitAttempts(tv) : [];
+    const added = splitAttempts(rv);
+    const tail = before.slice(-added.length);
+    if (had && tail.length === added.length && tail.every((p, i) => p === added[i])) continue;
+    const all = [...before, ...added];
+    if (all.length > MAX_ATTEMPTS) { skipped += 1; continue; }
+    const lines = [
+      day ? (had ? `пересдача ${day}` : `написал(а) ${day}`) : '',
+      String(t?.comment || '').trim(),
+      String(r?.comment || '').trim(),
+    ].filter(Boolean);
+    writes.push({ studentId: s.id, value: all.join(ATTEMPT_SEP), comment: lines.join('\n') });
+    if (had) retaken += 1; else late += 1;
+  }
+  return { writes, retaken, late, skipped };
+}
+
+/**
+ * Колонки, пересдачей которых может быть col: ручные, та же шкала (у баллов —
+ * тот же максимум), не части интенсива/зачёта. Ближайшие по дате раньше col —
+ * первыми.
+ */
+export function retakeTargets(col, columns = []) {
+  const manual = (c) => c && !c.online && !c.virtual && c.id && !c.blockId;
+  if (!manual(col)) return [];
+  const scale = columnScale(col);
+  const max = Number(col.max_score ?? col.max) || 0;
+  return columns
+    .filter((c) => c.id !== col.id && manual(c) && columnScale(c) === scale
+      && (scale !== 'points' || (Number(c.max_score ?? c.max) || 0) === max))
+    .sort((a, b) => {
+      const ea = compareDays(a.day, col.day) <= 0 ? 0 : 1;
+      const eb = compareDays(b.day, col.day) <= 0 ? 0 : 1;
+      return ea - eb || compareDays(b.day, a.day);
+    });
 }
 
 export function formatAvg(x) {
@@ -1111,6 +1261,23 @@ export function indexMarks(marks = []) {
   return map;
 }
 
+// Текст одной отметки в виде колонки: «18», «90%», «5», «4−», «.4», «зач».
+function markText(col, { value, absent, mod, retake }, { view, views, mode, status }) {
+  if (absent) return ABSENT;
+  if (value == null) return '';
+  if (retake || mod) return formatGrade(value, mod, retake);
+  if (columnScale(col) === 'pass') return value >= 1 ? 'зач' : 'н/з';
+  const grade = gradeOfValue(col, value);
+  if ((view === 'grade' || (!views && mode === 'grade')) && grade != null) return String(grade);
+  if (view === 'percent') return `${formatNumber(Math.round(percentOf(col, value)))}%`;
+  if (view === 'points' && col.online && status?.total) {
+    // Правка поверх попытки хранится процентом — в баллы по числу заданий.
+    return formatNumber((value * status.total) / 100);
+  }
+  if (columnScale(col) === 'percent') return `${formatNumber(value)}%`;
+  return formatNumber(value);
+}
+
 /**
  * Клетка «колонка × ученик».
  * → { kind: empty|manual|online|override|absent («н» из посещаемости), stored, absent, value, grade, text,
@@ -1160,18 +1327,12 @@ export function resolveCell(col, mark, agg, {
         ].filter(Boolean).join('\n'),
       };
     }
+    const { attempts, best } = decodeValue(stored);
     const grade = absent ? null : gradeOfValue(col, value);
-    let text = '';
-    if (absent) text = ABSENT;
-    else if (retake || mod) text = formatGrade(value, mod, retake);
-    else if (columnScale(col) === 'pass') text = value >= 1 ? 'зач' : 'н/з';
-    else if ((view === 'grade' || (!views && mode === 'grade')) && grade != null) text = String(grade);
-    else if (view === 'percent') text = `${formatNumber(Math.round(percentOf(col, value)))}%`;
-    else if (view === 'points' && col.online && status?.total) {
-      // Правка поверх попытки хранится процентом — в баллы по числу заданий.
-      text = formatNumber((value * status.total) / 100);
-    } else if (columnScale(col) === 'percent') text = `${formatNumber(value)}%`;
-    else text = formatNumber(value);
+    const textOf = (d) => markText(col, d, { view, views, mode, status });
+    // Пересдача: попытки по порядку, в средний — лучшая (её и цвет клетки).
+    const tries = attempts ? attempts.map((d, i) => ({ text: textOf(d), best: i === best })) : null;
+    const text = tries ? tries.map((t) => t.text).join(` ${ATTEMPT_SEP} `) : textOf({ value, absent, mod, retake });
 
     const tone = grade != null ? GRADE_TONE[grade] : null;
     let textTone = null;
@@ -1179,6 +1340,7 @@ export function resolveCell(col, mark, agg, {
     else if (columnScale(col) === 'pass') textTone = value >= 1 ? 'teal' : 'rose';
 
     const tip = [
+      tries ? `Пересдача: ${tries.map((t) => t.text).join(' → ')}. В средний — лучшая: ${tries[best].text}` : null,
       retake ? 'Дозачёт: сдаст — оценка повысится' : null,
       col.online ? `Исправлено вручную. Из попыток: ${status?.tip || '—'}` : null,
       comment || null,
@@ -1186,6 +1348,7 @@ export function resolveCell(col, mark, agg, {
     return {
       kind: col.online ? 'override' : 'manual',
       stored, absent, value, grade, mod: mod || '', retake: !!retake, text, tone, textTone, status, comment, tip,
+      ...(tries ? { attempts: tries } : {}),
     };
   }
 
@@ -1255,17 +1418,19 @@ export function summarizeRow(columns, cells) {
   };
 }
 
-/** Сводка колонки: сколько клеток заполнено и средняя оценка класса. */
+/** Сводка колонки: сколько клеток заполнено, средняя оценка класса, сколько пересдали. */
 export function summarizeColumn(cells) {
   let filled = 0;
   let sum = 0;
   let n = 0;
+  let retaken = 0;
   for (const cell of cells) {
+    if (cell.attempts) retaken += 1;
     if (cell.kind === 'manual' || cell.kind === 'override' || cell.kind === 'absent') filled += 1;
     else if (cell.kind === 'online' && !['in_progress', 'overdue'].includes(cell.status?.kind)) filled += 1;
     if (cell.grade != null) { sum += cell.grade; n += 1; }
   }
-  return { filled, total: cells.length, avg: n ? sum / n : null };
+  return { filled, total: cells.length, avg: n ? sum / n : null, retaken };
 }
 
 /**

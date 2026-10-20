@@ -28,8 +28,10 @@ describe('parseCellInput — баллы', () => {
     expect(parseCellInput('-3', pts()).ok).toBe(false);
   });
   it('«18/20» из чужой таблицы — если знаменатель равен максимуму', () => {
-    expect(parseCellInput('18/20', pts())).toEqual({ ok: true, stored: '18' });
-    expect(parseCellInput('18/25', pts()).ok).toBe(false);
+    expect(parseCellInput('18/20', pts(), { paste: true })).toEqual({ ok: true, stored: '18' });
+    expect(parseCellInput('18/25', pts(), { paste: true }).ok).toBe(false);
+    // набранное руками «18/20» — пересдача (v3.9.391)
+    expect(parseCellInput('18/20', pts())).toEqual({ ok: true, stored: '18/20' });
   });
   it('без максимума — любое неотрицательное', () => {
     expect(parseCellInput('150', pts(0))).toEqual({ ok: true, stored: '150' });
@@ -321,7 +323,7 @@ describe('сводки', () => {
   it('сводка колонки: заполнено и средняя оценка', () => {
     const col = cols[0];
     const cells = [resolveCell(col, { value: '5' }), resolveCell(col, { value: '4' }), resolveCell(col, undefined)];
-    expect(summarizeColumn(cells)).toEqual({ filled: 2, total: 3, avg: 4.5 });
+    expect(summarizeColumn(cells)).toEqual({ filled: 2, total: 3, avg: 4.5, retaken: 0 });
   });
   it('buildGrid собирает строки и колонки', () => {
     const students = [{ id: 'st1', name: 'Аня' }, { id: 'st2', name: 'Боря' }];

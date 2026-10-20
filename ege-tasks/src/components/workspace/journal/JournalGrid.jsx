@@ -117,7 +117,9 @@ const Row = memo(function Row({
               />
             ) : (
               <>
-                {cell.text}
+                {cell.attempts ? cell.attempts.map((t, i) => (
+                  <span key={i} className={t.best ? 'cj-try cj-try--best' : 'cj-try'}>{t.text}</span>
+                )) : cell.text}
                 {cell.late && <ClockCircleOutlined className="cj-late" aria-label="после срока" />}
               </>
             )}
@@ -493,9 +495,16 @@ export default function JournalGrid({
                 const st = colStats[c];
                 const gap = st.total - st.filled;
                 return (
-                  <td key={col.key} className={colClass[c] || undefined} title={gap ? `не внесено: ${gap}` : 'внесено у всех'}>
+                  <td
+                    key={col.key}
+                    className={colClass[c] || undefined}
+                    title={[gap ? `не внесено: ${gap}` : 'внесено у всех', st.retaken ? `пересдали: ${st.retaken}` : null].filter(Boolean).join(' · ')}
+                  >
                     <span className="cj-foot__avg">{st.avg != null ? formatAvg(st.avg) : '—'}</span>
-                    <span className={`cj-foot__fill${gap && !col.online ? ' is-gap' : ''}`}>{st.filled}/{st.total}</span>
+                    <span className={`cj-foot__fill${gap && !col.online ? ' is-gap' : ''}`}>
+                      {st.filled}/{st.total}
+                      {st.retaken > 0 && <span className="cj-foot__retaken"> · ↻{st.retaken}</span>}
+                    </span>
                   </td>
                 );
               })}

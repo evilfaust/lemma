@@ -5,7 +5,7 @@ import {
 import {
   CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
   ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FireOutlined, FormatPainterOutlined, MobileOutlined,
-  MoreOutlined, PlusOutlined, SettingOutlined, ShrinkOutlined, ArrowsAltOutlined, UnorderedListOutlined,
+  MergeCellsOutlined, MoreOutlined, PlusOutlined, SettingOutlined, ShrinkOutlined, ArrowsAltOutlined, UnorderedListOutlined,
   RobotOutlined, TrophyOutlined, AuditOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -21,6 +21,7 @@ import {
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
   ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
   isExamBlock, blockKindLabel, retakeHistoryComment, rangePeriod, parsePeriodRange, monthRange,
+  retakeTargets,
 } from '../../../utils/classJournal';
 import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
@@ -31,7 +32,11 @@ import WorkColumnModal from './WorkColumnModal';
 import IntensiveModal from './IntensiveModal';
 import ExamModal from './ExamModal';
 import IntensiveFeedbackModal from './IntensiveFeedbackModal';
+import RetakeMergeModal from './RetakeMergeModal';
 import './journal.css';
+
+// Дата пересдачи в комментарии клетки — сегодняшняя.
+const today = () => dayjs().format('YYYY-MM-DD');
 
 const { Text } = Typography;
 
@@ -114,6 +119,7 @@ export default function ClassJournal() {
   const [workModal, setWorkModal] = useState(false);
   const [entryKey, setEntryKey] = useState(null);
   const [fill, setFill] = useState(null); // { column, text, error }
+  const [retakeKey, setRetakeKey] = useState(null); // колонка-пересдача для «Это пересдача колонки…»
   const [blockModal, setBlockModal] = useState(null); // { block } — null-блок = новый интенсив
   const [blockSaving, setBlockSaving] = useState(false);
   // Зачёт / экзамен (v3.9.334): { block } — правка, { block: null, kind } — новый.
@@ -383,6 +389,7 @@ export default function ClassJournal() {
       message.error(`Не сохранилось отметок: ${failed}. Журнал перечитан с сервера — проверьте клетки.`);
       reloadMarks();
     }
+    return failed;
   }, [applyLocal, saveCell, reloadMarks, message]);
 
   // Найденная по попыткам онлайн-колонка записи в БД не имеет — заводим её
@@ -447,12 +454,13 @@ export default function ClassJournal() {
     const row = grid.rows[r];
     if (!col || !row) return null;
     if (!canEdit) return 'Нет прав на правку журнала';
-    const parsed = parseCellInput(raw, col);
-    if (!parsed.ok) return parsed.error;
     const cell = row.cells[c];
+    const parsed = parseCellInput(raw, col, { prev: cell.stored });
+    if (!parsed.ok) return parsed.error;
     if ((cell.stored || '') === parsed.stored) return null;
-    // Сдал дозачёт — оценка с точкой уходит в комментарий.
-    const comment = retakeHistoryComment(cell.stored, parsed.stored, cell.comment || '');
+    // Сдал дозачёт — оценка с точкой уходит в комментарий; пересдача через
+    // «/» — в комментарий дата.
+    const comment = retakeHistoryComment(cell.stored, parsed.stored, cell.comment || '', { day: today() });
     writeCells([{ col, student: row.student, value: parsed.stored, comment }]);
     return null;
   }, [columns, grid, canEdit, writeCells]);
@@ -471,16 +479,16 @@ export default function ClassJournal() {
         if (raw) skippedOnline += 1;
         continue;
       }
-      const parsed = parseCellInput(raw, col);
+      const cell = row.cells[c];
+      const parsed = parseCellInput(raw, col, { prev: cell.stored, paste: true });
       if (!parsed.ok) {
         errors.push(`${row.student.name} · ${col.title}: «${raw}»`);
         continue;
       }
-      const cell = row.cells[c];
       if ((cell.stored || '') === parsed.stored) continue;
       items.push({
         col, student: row.student, value: parsed.stored,
-        comment: retakeHistoryComment(cell.stored, parsed.stored, cell.comment || ''),
+        comment: retakeHistoryComment(cell.stored, parsed.stored, cell.comment || '', { day: today() }),
       });
     }
     writeCells(items);
@@ -685,6 +693,26 @@ export default function ClassJournal() {
       cancelText: 'Отмена',
       onOk: () => deleteColumn(col),
     });
+  };
+
+  // «Это пересдача колонки…»: отметки — в основную через «/», колонку
+  // пересдачи удаляем, только если всё записалось.
+  const retakeColumn = allColumns.find((c) => c.key === retakeKey) || null;
+  const retakeChoices = useMemo(
+    () => (retakeColumn ? retakeTargets(retakeColumn, allColumns) : []),
+    [retakeColumn, allColumns],
+  );
+  const mergeRetake = async (target, retake, plan) => {
+    const failed = await persist(plan.writes.map((w) => ({
+      colId: target.id, studentId: w.studentId, value: w.value, comment: w.comment,
+    })));
+    if (failed) {
+      message.error(`Колонка «${retake.title}» не удалена: часть отметок не перенеслась`);
+      return;
+    }
+    setRetakeKey(null);
+    await deleteColumn(retake);
+    message.success(`Пересдача перенесена в «${target.title}»: ${plan.writes.length}`);
   };
 
   const addWorkColumn = async (work) => {
@@ -1103,6 +1131,7 @@ export default function ClassJournal() {
       case 'show': setHidden(col, false); break;
       case 'clear': clearColumn(col); break;
       case 'delete': confirmDelete(col); break;
+      case 'retake-of': setRetakeKey(col.key); break;
       default:
     }
   };
@@ -1125,13 +1154,17 @@ export default function ClassJournal() {
         ? { key: 'show', icon: <EyeOutlined />, label: 'Показать колонку' }
         : { key: 'hide', icon: <EyeInvisibleOutlined />, label: 'Скрыть колонку' });
     }
+    // Колонку пересдачи — в основную через «/» (v3.9.391).
+    if (manage && canDelete && retakeTargets(col, allColumns).length) {
+      items.push({ key: 'retake-of', icon: <MergeCellsOutlined />, label: 'Это пересдача колонки…' });
+    }
     if (manage && canDelete && !col.virtual) {
       items.push({ type: 'divider' });
       if (!col.online) items.push({ key: 'clear', icon: <ClearOutlined />, danger: true, label: 'Очистить отметки' });
       items.push({ key: 'delete', icon: <DeleteOutlined />, danger: true, label: col.online ? 'Убрать из журнала' : 'Удалить колонку' });
     }
     return items;
-  }, [writable, canDelete, canManage]);
+  }, [writable, canDelete, canManage, allColumns]);
 
   // ── Ввод списком и «Заполнить пустые» ─────────────────────────────────────
   const entryIndex = columns.findIndex((c) => c.key === entryKey);
@@ -1139,15 +1172,15 @@ export default function ClassJournal() {
 
   const saveFromEntry = useCallback((student, raw, comment) => {
     if (!entryColumn) return null;
-    const parsed = parseCellInput(raw, entryColumn);
-    if (!parsed.ok) return parsed.error;
     const row = grid.rows.find((x) => x.student.id === student.id);
     const cell = row?.cells[entryIndex];
+    const parsed = parseCellInput(raw, entryColumn, { prev: cell?.stored });
+    if (!parsed.ok) return parsed.error;
     const note = String(comment || '').trim();
     if ((cell?.stored || '') === parsed.stored && (cell?.comment || '') === note) return null;
     writeCells([{
       col: entryColumn, student, value: parsed.stored,
-      comment: retakeHistoryComment(cell?.stored || '', parsed.stored, note),
+      comment: retakeHistoryComment(cell?.stored || '', parsed.stored, note, { day: today() }),
     }]);
     return null;
   }, [entryColumn, entryIndex, grid, writeCells]);
@@ -1416,6 +1449,7 @@ export default function ClassJournal() {
           <span><CalendarOutlined /> колонка урока: «н» — из посещаемости</span>
           <span><b className="cj-x-wait">w</b> — вейтинг, ждём пересдачи · «—» — не писал, не в счёт</span>
           <span><b className="cj-legend-retake">.4</b> — дозачёт: сдаст — оценка повысится</span>
+          <span><span className="cj-try">9</span><span className="cj-try cj-try--best">15</span> — пересдача: «/15» к отметке, в средний — лучшая</span>
           {blocks.length > 0 && (
             <span>
               <i className="cj-x-hint">≈4,2</i> — подсказка {blocks.some(isExamBlock)
@@ -1532,6 +1566,15 @@ export default function ClassJournal() {
         isMobile={isMobile}
         onClose={() => setEntryKey(null)}
         onSave={saveFromEntry}
+      />
+      <RetakeMergeModal
+        key={retakeKey || 'none'}
+        column={retakeColumn}
+        targets={retakeChoices}
+        students={data?.students || []}
+        marksIndex={marksIndex}
+        onCancel={() => setRetakeKey(null)}
+        onMerge={mergeRetake}
       />
       <Modal
         open={!!fill}

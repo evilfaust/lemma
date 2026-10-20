@@ -713,3 +713,54 @@ describe('ClassJournal — зачёт', () => {
     expect(apiMock.createJournalBlock).not.toHaveBeenCalled();
   });
 });
+
+describe('ClassJournal — пересдача через «/»', () => {
+  it('«/20» в клетке с отметкой дописывает пересдачу и дату в комментарий', async () => {
+    apiMock.getJournalAttempts.mockResolvedValue([]);
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    const region = container.querySelector('.cj-scroll');
+    fireEvent.mouseDown(container.querySelector('td[data-r="0"][data-c="0"]'));
+    fireEvent.keyDown(region, { key: '/' });
+    const input = container.querySelector('td[data-r="0"][data-c="0"] input');
+    fireEvent.change(input, { target: { value: '/20' } });
+    await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }); });
+    await waitFor(() => expect(apiMock.saveJournalMark).toHaveBeenCalledTimes(1));
+    const [entry] = apiMock.saveJournalMark.mock.calls[0];
+    expect(entry).toMatchObject({ colId: 'c1', studentId: 's1', value: '18/20' });
+    expect(entry.comment).toMatch(/^пересдача \d\d\.\d\d$/);
+    const cell = container.querySelector('td[data-r="0"][data-c="0"]');
+    expect(cell.querySelector('.cj-try--best').textContent).toBe('20');
+    expect(cell.querySelector('.cj-try:not(.cj-try--best)').textContent).toBe('18');
+  });
+
+  it('«Это пересдача колонки…» переносит отметки в основную и удаляет колонку', async () => {
+    apiMock.getJournalAttempts.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([
+      { id: 'c1', group: 'g1', owner: 't1', source: 'manual', title: 'ТДФ', date: '2026-10-14 12:00:00.000Z', scale: 'points', max_score: 11, created: '1' },
+      { id: 'c2', group: 'g1', owner: 't1', source: 'manual', title: 'ТДФ пересдача', date: '2026-10-19 12:00:00.000Z', scale: 'points', max_score: 11, created: '2' },
+    ]);
+    apiMock.getJournalMarks.mockResolvedValue([
+      { id: 'm1', col: 'c1', student: 's1', value: '9', comment: '' },
+      { id: 'm2', col: 'c2', student: 's1', value: '11', comment: '' },
+      { id: 'm3', col: 'c1', student: 's2', value: '6', comment: '' },
+      { id: 'm4', col: 'c2', student: 's2', value: 'н', comment: '' },
+    ]);
+    apiMock.deleteJournalColumn.mockResolvedValue(true);
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(container.querySelectorAll('.cj-colh__btn')[1]);
+    fireEvent.click(await screen.findByText('Это пересдача колонки…'));
+    expect(await screen.findByText(/пересдали: 1/)).toBeInTheDocument();
+    expect(screen.getByText(/пропущено .*: 1/)).toBeInTheDocument();
+    await act(async () => { fireEvent.click(screen.getByText('Перенести и удалить колонку')); });
+    await waitFor(() => expect(apiMock.deleteJournalColumn).toHaveBeenCalledWith('c2'));
+    expect(apiMock.saveJournalMark).toHaveBeenCalledTimes(1);
+    expect(apiMock.saveJournalMark).toHaveBeenCalledWith(
+      { colId: 'c1', studentId: 's1', value: '9/11', comment: 'пересдача 19.10' }, 'm1',
+    );
+    await waitFor(() => expect(container.querySelectorAll('.cj-colh__btn')).toHaveLength(1));
+    expect(container.querySelector('td[data-r="0"][data-c="0"] .cj-try--best').textContent).toBe('11');
+    expect(container.querySelector('td[data-r="1"][data-c="0"]').textContent).toBe('6');
+  });
+});

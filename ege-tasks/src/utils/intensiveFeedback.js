@@ -6,7 +6,7 @@
 // («Ксюша») подставляем здесь (`fillName`). В данных — пол, оценки, проценты,
 // названия работ и их описания из заметки колонки.
 
-import { blockKind, columnScale, isExamBlock, isRetake } from './classJournal';
+import { blockKind, columnScale, countedStored, isExamBlock, isRetake } from './classJournal';
 
 export const NAME_TOKEN = '{ИМЯ}';
 
@@ -89,7 +89,8 @@ function dayNameGen(i, n) {
 
 /** Итог требует пересдачи: вейтинг или неудовлетворительно (в т. ч. «.2»). */
 export function needsRetake(totalStored) {
-  const s = String(totalStored || '').trim().replace(/^\./, '');
+  // «2/4» — пересдал: в счёт идёт лучшая попытка.
+  const s = countedStored(totalStored).replace(/^\./, '');
   return s === 'w' || /^[12]/.test(s);
 }
 const pct = (x) => `${Math.round(x)}%`;
