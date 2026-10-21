@@ -1,0 +1,56 @@
+/* Окно урока: статус и пара кнопками (LessonFormFields.jsx, v3.9.392). */
+
+.lsf-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .lsf-row { grid-template-columns: minmax(0, 1fr); gap: 0; }
+}
+
+/* ── Статус ── */
+.lsf-status { display: flex; flex-wrap: wrap; gap: 6px; }
+.lsf-status-btn {
+  --tone: var(--c-blue);
+  --tone-soft: var(--c-blue-soft);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px;
+  border: 1px solid var(--rule, #e5e7eb); border-radius: var(--radius-lg, 8px);
+  background: var(--bg-raised, #fff); color: var(--ink-3, #646a76);
+  font: inherit; font-size: 14px; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.lsf-status-btn .anticon { font-size: 14px; opacity: .7; }
+.lsf-status-btn:hover:not(:disabled) { border-color: var(--tone); color: var(--tone); }
+.lsf-status-btn.is-on {
+  background: var(--tone-soft); border-color: var(--tone); color: var(--tone); font-weight: 600;
+}
+.lsf-status-btn.is-on .anticon { opacity: 1; }
+.lsf-status-btn:focus-visible { outline: 2px solid var(--accent, #2b4bff); outline-offset: 2px; }
+.lsf-status-btn:disabled { cursor: not-allowed; opacity: .6; }
+.lsf-tone-teal { --tone: var(--c-teal); --tone-soft: var(--c-teal-soft); }
+.lsf-tone-neutral { --tone: var(--ink-2, #2a2f3a); --tone-soft: var(--bg-sunken, #f3f4f6); }
+
+/* ── Пары ── */
+.lsf-pairs { display: flex; flex-wrap: wrap; gap: 6px; }
+.lsf-pair {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+  min-width: 46px; height: 44px; padding: 0 7px;
+  border: 1px solid var(--rule, #e5e7eb); border-radius: var(--radius-lg, 8px);
+  background: var(--bg-raised, #fff); color: var(--ink-2, #2a2f3a);
+  font: inherit; line-height: 1.15; cursor: pointer;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.lsf-pair b { font-size: 15px; font-weight: 600; }
+.lsf-pair small { font-size: 11px; color: var(--ink-4, #9aa0ac); font-variant-numeric: tabular-nums; }
+.lsf-pair:hover:not(:disabled) { border-color: var(--accent, #2b4bff); }
+.lsf-pair.is-on { background: var(--accent-soft, #e7ecff); border-color: var(--accent, #2b4bff); color: var(--accent-ink, #1a34d1); }
+.lsf-pair.is-on small { color: var(--accent-ink, #1a34d1); }
+.lsf-pair--free b { font-size: 13px; font-weight: 500; }
+.lsf-pair:focus-visible { outline: 2px solid var(--accent, #2b4bff); outline-offset: 2px; }
+.lsf-pair:disabled { cursor: not-allowed; opacity: .45; }
+
+.lsf-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
+.lsf-sub-label { font-size: 12px; color: var(--ink-3, #646a76); min-width: 22px; }

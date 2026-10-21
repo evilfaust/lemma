@@ -12,6 +12,7 @@ import { PAIRS, guessSlot, slotRangeFromCode, lessonStart } from '../lessonTime'
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
 import DateTimeField from './DateTimeField';
+import { LessonStatusField, PairButtons } from './LessonFormFields';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -232,21 +233,21 @@ export default function LessonModal({
           {/* Открыли существующий урок — клавиатура на телефоне не нужна */}
           <Input placeholder="Тема урока" maxLength={500} autoFocus={!initial?.id} />
         </Form.Item>
-        <Space size="large" style={{ display: 'flex' }} wrap={isMobile}>
-          <Form.Item name="group" label="Группа" style={{ flex: 1, minWidth: isMobile ? 200 : undefined }}>
+        <div className="lsf-row">
+          <Form.Item name="group" label="Группа">
             <Select allowClear placeholder="Группа" options={groupOptions(groups, initial?.expand?.group)} />
           </Form.Item>
-          <Form.Item name="status" label="Статус" style={{ flex: 1 }}>
-            <Select options={[
-              { value: 'planned', label: 'Запланирован' },
-              { value: 'done', label: 'Проведён' },
-              { value: 'cancelled', label: 'Отменён' },
-            ]} />
+          <Form.Item name="status" label="Статус">
+            <LessonStatusField disabled={!canEdit} />
           </Form.Item>
-        </Space>
+        </div>
         <LessonColorField form={form} />
-        <Form.Item label="Время по расписанию" style={{ marginBottom: 8 }}>
-          <Space direction="vertical" size={6} style={{ width: '100%' }}>
+        <Form.Item name="date_plan" label="Дата и время" rules={[{ required: true }]}>
+          <DateTimeField
+            onChange={(d) => { if (d) { const g = guessSlot(d.toDate()); setPair(g.pair); setPart(g.part); } }} />
+        </Form.Item>
+        <Form.Item label="Время по расписанию" style={{ marginBottom: 16 }}>
+          <Space direction="vertical" size={8} style={{ width: '100%' }}>
             <Segmented value={mode}
               onChange={(m) => {
                 setMode(m);
@@ -258,42 +259,44 @@ export default function LessonModal({
                 { value: 'intensive', label: 'Интенсив (2–4 пары)' },
               ]} />
             {mode === 'single' ? (
-              <Space wrap>
-                <Select allowClear placeholder="— своё время —" style={{ width: 150 }}
-                  value={pair ?? undefined}
-                  onChange={(v) => applySlot(v ?? null, v === '0' ? 'full' : part)}
-                  options={PAIRS.map((p) => ({ value: p.key, label: p.label }))} />
-                <Segmented value={part} disabled={!pair || pair === '0'}
-                  onChange={(v) => applySlot(pair, v)}
-                  options={[
-                    { value: 'full', label: 'Вся пара' },
-                    { value: '1', label: '1-я пол.' },
-                    { value: '2', label: '2-я пол.' },
-                  ]} />
-                {slotRange && <Chip tone="blue" dot={false}>{slotRange[0]}–{slotRange[1]}</Chip>}
-              </Space>
+              <>
+                <PairButtons value={pair} disabled={!canEdit}
+                  onChange={(v) => applySlot(v, v === '0' ? 'full' : part)} />
+                {pair && (
+                  <div className="lsf-sub">
+                    <Segmented value={part} disabled={pair === '0'}
+                      onChange={(v) => applySlot(pair, v)}
+                      options={[
+                        { value: 'full', label: 'Вся пара' },
+                        { value: '1', label: '1-я пол.' },
+                        { value: '2', label: '2-я пол.' },
+                      ]} />
+                    {slotRange && <Chip tone="blue" dot={false}>{slotRange[0]}–{slotRange[1]}</Chip>}
+                  </div>
+                )}
+              </>
             ) : (
-              <Space wrap>
-                <Select placeholder="с пары" style={{ width: 130 }} value={pair ?? undefined}
-                  onChange={(v) => applyIntensive(v ?? null, endPair)}
-                  options={PAIRS.map((p) => ({ value: p.key, label: p.label }))} />
-                <span>→</span>
-                <Select placeholder="по пару" style={{ width: 130 }} value={endPair ?? undefined}
-                  onChange={(v) => applyIntensive(pair, v ?? null)}
-                  options={PAIRS.map((p) => ({ value: p.key, label: p.label }))} />
+              <>
+                <div className="lsf-sub">
+                  <span className="lsf-sub-label">с</span>
+                  <PairButtons value={pair} allowNone={false} disabled={!canEdit}
+                    onChange={(v) => applyIntensive(v, endPair)} />
+                </div>
+                <div className="lsf-sub">
+                  <span className="lsf-sub-label">по</span>
+                  <PairButtons value={endPair} allowNone={false} disabled={!canEdit}
+                    isDisabled={(k) => !!pair && Number(k) <= Number(pair)}
+                    onChange={(v) => applyIntensive(pair, v)} />
+                </div>
                 {slotRange && (
-                  <Chip tone="violet" dot={false}>{slotRange[0]}–{slotRange[1]} · {intensiveCount} пары</Chip>
+                  <div><Chip tone="violet" dot={false}>{slotRange[0]}–{slotRange[1]} · {intensiveCount} пары</Chip></div>
                 )}
                 {pair && endPair && Number(endPair) <= Number(pair) && (
                   <Typography.Text type="danger" style={{ fontSize: 12 }}>конец должен быть позже начала</Typography.Text>
                 )}
-              </Space>
+              </>
             )}
           </Space>
-        </Form.Item>
-        <Form.Item name="date_plan" label="Дата и время" rules={[{ required: true }]}>
-          <DateTimeField
-            onChange={(d) => { if (d) { const g = guessSlot(d.toDate()); setPair(g.pair); setPart(g.part); } }} />
         </Form.Item>
         {isCourse && (
           <Form.Item
