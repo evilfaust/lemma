@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  Button, Form, Input, Modal, Popconfirm, Segmented, Select, Space, Typography,
+  Button, Form, Input, Modal, Popconfirm, Select, Space, Typography,
 } from 'antd';
 import { FileTextOutlined, VideoCameraOutlined, RetweetOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import AttendanceRoster from '../AttendanceRoster';
 import LessonJournalBlock from './LessonJournalBlock';
 import LessonMaterialsEditor from './LessonMaterialsEditor';
-import { Chip, GroupColorPicker } from '../ui';
-import { PAIRS, guessSlot, slotRangeFromCode, lessonStart } from '../lessonTime';
+import { lessonStart } from '../lessonTime';
 import { groupOptions, resolveGroup } from './calendarUtils';
 import LessonAccessBar from './LessonAccessBar';
 import DateTimeField from './DateTimeField';
-import { LessonStatusField, PairButtons } from './LessonFormFields';
+import {
+  LessonColorField, LessonStatusField, LessonSlotPicker, useLessonSlot,
+} from './LessonFormFields';
 import useIsMobile from '../../../hooks/useIsMobile';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
@@ -51,10 +52,8 @@ export default function LessonModal({
   const [itemsLoading, setItemsLoading] = useState(false);
   const [visibleToStudents, setVisibleToStudents] = useState(true);
   const [neighbours, setNeighbours] = useState([]); // уроки класса вокруг — для ДЗ «к след.»
-  const [mode, setMode] = useState('single');
-  const [pair, setPair] = useState(null);
-  const [part, setPart] = useState('full');
-  const [endPair, setEndPair] = useState(null);
+  const slot = useLessonSlot(form, 'date_plan');
+  const loadSlot = slot.load;
 
   useEffect(() => {
     if (open) {
@@ -68,16 +67,9 @@ export default function LessonModal({
         status: initial?.status || 'planned',
         conference_url: initial?.conference_url || '',
       });
-      const ts = initial?.time_slot || '';
-      const inten = /^(\d)-(\d)$/.exec(ts);
-      const half = /^(\d)([ab])$/.exec(ts);
-      if (inten) { setMode('intensive'); setPair(inten[1]); setEndPair(inten[2]); setPart('full'); }
-      else if (half) { setMode('single'); setPair(half[1]); setPart(half[2] === 'a' ? '1' : '2'); setEndPair(null); }
-      else if (ts && PAIRS.some((p) => p.key === ts)) { setMode('single'); setPair(ts); setPart('full'); setEndPair(null); }
-      else if (initial?.slotPair) { setMode('single'); setPair(initial.slotPair); setPart('full'); setEndPair(null); }
-      else { const g = guessSlot(startDate.toDate()); setMode('single'); setPair(g.pair); setPart(g.part); setEndPair(null); }
+      loadSlot({ timeSlot: initial?.time_slot || '', slotPair: initial?.slotPair, date: startDate });
     }
-  }, [open, initial, form]);
+  }, [open, initial, form, loadSlot]);
 
   // Материалы: старые записи приводятся к единому списку (utils/lessonItems.js).
   // Выдача старого вида (`session`) узнаёт свою работу по записи выдачи —
@@ -130,42 +122,6 @@ export default function LessonModal({
     return () => { cancelled = true; };
   }, [open, groupId, studentFacing, initial?.date_plan]);
 
-  const setStartTime = (str) => {
-    const [h, m] = str.split(':').map(Number);
-    const cur = form.getFieldValue('date_plan') || dayjs();
-    form.setFieldsValue({ date_plan: dayjs(cur).hour(h).minute(m).second(0).millisecond(0) });
-  };
-
-  const applySlot = (p, prt) => {
-    setPair(p);
-    setPart(prt);
-    if (!p) return;
-    const def = PAIRS.find((x) => x.key === p);
-    if (def) setStartTime((p === '0' || prt === 'full') ? def.full[0] : (prt === '1' ? def.halves[0][0] : def.halves[1][0]));
-  };
-
-  const applyIntensive = (s, e) => {
-    setPair(s);
-    setEndPair(e);
-    if (!s) return;
-    const def = PAIRS.find((x) => x.key === s);
-    if (def) setStartTime(def.full[0]);
-  };
-
-  const currentSlotCode = () => {
-    if (mode === 'intensive') {
-      if (!pair || !endPair || Number(endPair) <= Number(pair)) return '';
-      return `${pair}-${endPair}`;
-    }
-    if (!pair) return '';
-    if (pair === '0' || part === 'full') return pair;
-    return pair + (part === '1' ? 'a' : 'b');
-  };
-
-  const slotRange = slotRangeFromCode(currentSlotCode());
-  const intensiveCount = (mode === 'intensive' && pair && endPair && Number(endPair) > Number(pair))
-    ? Number(endPair) - Number(pair) + 1 : 0;
-
   const handleFinish = (v) => {
     onSave({
       title: v.title,
@@ -174,7 +130,7 @@ export default function LessonModal({
       color: v.group ? '' : (v.color || ''),
       date_plan: v.date_plan ? v.date_plan.toISOString() : dayjs().toISOString(),
       status: v.status || 'planned',
-      time_slot: currentSlotCode(),
+      time_slot: slot.code,
       conference_url: (v.conference_url || '').trim(),
       hidden_from_students: !visibleToStudents,
       materials: items,
@@ -243,60 +199,10 @@ export default function LessonModal({
         </div>
         <LessonColorField form={form} />
         <Form.Item name="date_plan" label="Дата и время" rules={[{ required: true }]}>
-          <DateTimeField
-            onChange={(d) => { if (d) { const g = guessSlot(d.toDate()); setPair(g.pair); setPart(g.part); } }} />
+          <DateTimeField onChange={slot.guess} />
         </Form.Item>
         <Form.Item label="Время по расписанию" style={{ marginBottom: 16 }}>
-          <Space direction="vertical" size={8} style={{ width: '100%' }}>
-            <Segmented value={mode}
-              onChange={(m) => {
-                setMode(m);
-                if (m === 'intensive') { if (pair) applyIntensive(pair, endPair); }
-                else if (pair) applySlot(pair, part);
-              }}
-              options={[
-                { value: 'single', label: 'Пара' },
-                { value: 'intensive', label: 'Интенсив (2–4 пары)' },
-              ]} />
-            {mode === 'single' ? (
-              <>
-                <PairButtons value={pair} disabled={!canEdit}
-                  onChange={(v) => applySlot(v, v === '0' ? 'full' : part)} />
-                {pair && (
-                  <div className="lsf-sub">
-                    <Segmented value={part} disabled={pair === '0'}
-                      onChange={(v) => applySlot(pair, v)}
-                      options={[
-                        { value: 'full', label: 'Вся пара' },
-                        { value: '1', label: '1-я пол.' },
-                        { value: '2', label: '2-я пол.' },
-                      ]} />
-                    {slotRange && <Chip tone="blue" dot={false}>{slotRange[0]}–{slotRange[1]}</Chip>}
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="lsf-sub">
-                  <span className="lsf-sub-label">с</span>
-                  <PairButtons value={pair} allowNone={false} disabled={!canEdit}
-                    onChange={(v) => applyIntensive(v, endPair)} />
-                </div>
-                <div className="lsf-sub">
-                  <span className="lsf-sub-label">по</span>
-                  <PairButtons value={endPair} allowNone={false} disabled={!canEdit}
-                    isDisabled={(k) => !!pair && Number(k) <= Number(pair)}
-                    onChange={(v) => applyIntensive(pair, v)} />
-                </div>
-                {slotRange && (
-                  <div><Chip tone="violet" dot={false}>{slotRange[0]}–{slotRange[1]} · {intensiveCount} пары</Chip></div>
-                )}
-                {pair && endPair && Number(endPair) <= Number(pair) && (
-                  <Typography.Text type="danger" style={{ fontSize: 12 }}>конец должен быть позже начала</Typography.Text>
-                )}
-              </>
-            )}
-          </Space>
+          <LessonSlotPicker slot={slot} disabled={!canEdit} />
         </Form.Item>
         {isCourse && (
           <Form.Item
@@ -363,20 +269,5 @@ export default function LessonModal({
       </div>
 
     </Modal>
-  );
-}
-
-/**
- * Цвет урока без класса (v3.9.228). С выбранным классом поле прячется: урок
- * красится цветом класса, и второй источник цвета только запутал бы.
- * Значение при этом держится в форме — снял класс, и выбор вернулся.
- */
-export function LessonColorField({ form }) {
-  const group = Form.useWatch('group', form);
-  return (
-    <Form.Item name="color" label="Цвет" hidden={!!group}
-      tooltip="Урок без класса. С классом урок красится цветом класса">
-      <GroupColorPicker />
-    </Form.Item>
   );
 }

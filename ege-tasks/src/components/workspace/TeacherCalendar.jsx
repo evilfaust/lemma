@@ -512,7 +512,11 @@ export default function TeacherCalendar() {
         groups={groups}
         works={works}
         onClose={() => setCreateState(null)}
-        onCreated={load}
+        onCreated={(rec, opts) => {
+          load();
+          // «Создать и открыть» — сразу в окно урока за материалами.
+          if (opts?.open && rec) { setEditing(rec); setModalOpen(true); }
+        }}
       />
 
       <LessonModal

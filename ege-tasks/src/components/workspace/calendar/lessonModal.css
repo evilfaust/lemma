@@ -54,3 +54,54 @@
 
 .lsf-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 2px; }
 .lsf-sub-label { font-size: 12px; color: var(--ink-3, #646a76); min-width: 22px; }
+
+.lsf-slot { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+
+/* ── Окно создания события (CreateEventModal, v3.9.393) ── */
+.ce-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.ce-head__day { font-size: 13px; font-weight: 400; color: var(--ink-3, #646a76); }
+.ce-head__day::first-letter { text-transform: uppercase; }
+.ce-hint { margin: 8px 2px 16px; font-size: 12.5px; color: var(--ink-3, #646a76); }
+
+.ce-recent { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 18px; }
+.ce-recent__label { font-size: 12px; color: var(--ink-3, #646a76); margin-right: 2px; }
+.ce-recent__chip,
+.ce-quick__btn {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  height: 26px; padding: 0 10px; border-radius: 999px;
+  border: 1px dashed var(--rule, #e5e7eb); background: transparent;
+  font: inherit; font-size: 12.5px; color: var(--ink-2, #2a2f3a); cursor: pointer;
+}
+.ce-recent__chip:hover, .ce-quick__btn:hover { border-color: var(--accent, #2b4bff); color: var(--accent-ink, #1a34d1); }
+.ce-recent__chip.is-on, .ce-quick__btn.is-on {
+  border-style: solid; border-color: var(--accent, #2b4bff);
+  background: var(--accent-soft, #e7ecff); color: var(--accent-ink, #1a34d1);
+}
+.ce-quick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 18px; }
+.ce-quick__btn { border-style: solid; }
+
+.ce-summary {
+  margin-top: 4px; padding: 10px 12px; border-radius: var(--radius-lg, 8px);
+  background: var(--bg-sunken, #f3f4f6); font-size: 13px; color: var(--ink-2, #2a2f3a);
+  line-height: 1.45;
+}
+.ce-summary__label { font-weight: 600; color: var(--ink, #0d1321); }
+
+/* ── Тёмная тема ── */
+[data-theme='dark'] .lsf-status-btn, .dark .lsf-status-btn,
+[data-theme='dark'] .lsf-pair, .dark .lsf-pair {
+  background: #1d1d1d; border-color: #303030; color: rgba(255, 255, 255, 0.75);
+}
+[data-theme='dark'] .lsf-pair.is-on, .dark .lsf-pair.is-on,
+[data-theme='dark'] .ce-recent__chip.is-on, .dark .ce-recent__chip.is-on,
+[data-theme='dark'] .ce-quick__btn.is-on, .dark .ce-quick__btn.is-on {
+  background: rgba(43, 75, 255, 0.22); border-color: #5b78ff; color: #c7d2ff;
+}
+[data-theme='dark'] .lsf-status-btn.is-on, .dark .lsf-status-btn.is-on { background: rgba(255, 255, 255, 0.08); }
+[data-theme='dark'] .lsf-tone-blue.is-on, .dark .lsf-tone-blue.is-on { color: #8ea2ff; border-color: #5b78ff; }
+[data-theme='dark'] .lsf-tone-teal.is-on, .dark .lsf-tone-teal.is-on { color: #5eead4; border-color: #14b8a6; }
+[data-theme='dark'] .lsf-tone-neutral.is-on, .dark .lsf-tone-neutral.is-on { color: #e5e7eb; border-color: #6b7280; }
+[data-theme='dark'] .ce-recent__chip, .dark .ce-recent__chip,
+[data-theme='dark'] .ce-quick__btn, .dark .ce-quick__btn { border-color: #3a3a3a; color: rgba(255, 255, 255, 0.75); }
+[data-theme='dark'] .ce-summary, .dark .ce-summary { background: #1d1d1d; color: rgba(255, 255, 255, 0.75); }
+[data-theme='dark'] .ce-summary__label, .dark .ce-summary__label { color: rgba(255, 255, 255, 0.9); }
