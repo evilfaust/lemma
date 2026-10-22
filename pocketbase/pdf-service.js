@@ -13,6 +13,9 @@ import cors from 'cors';
 import * as cheerio from 'cheerio';
 import { fixLatex } from './latex-fixer.js';
 import { buildFeedbackMessages, cleanFeedback } from './feedback-prompt.mjs';
+import {
+  SCAN_BLANK_PROMPT, scanModels, modelsForSlot, shouldTryNext, parseScanReply, extractJson,
+} from './scan-blank-lib.mjs';
 // Семантический поиск похожих задач (sqlite-vec). Грузим мягко: если модуль/vec.db
 // недоступны — сервис всё равно стартует, /similar вернёт 503.
 let findSimilar = null, vecHealth = null, getDuplicateClusters = null, findPairs = null, indexVectors = null, buildParallelVariants = null, buildRemediation = null, pruneVectors = null, setClusters = null;
@@ -1116,41 +1119,83 @@ app.post('/latex-fix', aiGate, async (req, res) => {
   }
 });
 
+// Модели распознавания фото (бланки, скриншоты «Решу») — env SCAN_BLANK_MODELS /
+// SCAN_BLANK_FALLBACK, выбор и разбор ответа — scan-blank-lib.mjs.
+const SCAN_MODELS = scanModels(process.env);
+const VISION_TIMEOUT_MS = 40_000;
+
+/**
+ * Запрос к vision-модели с очередью запасных: модель снята (410), недоступна
+ * ключу, шлюз сбоит — спрашиваем следующую. Возвращает { data, model } или
+ * { status, error, details } для ответа клиенту.
+ */
+async function callVision(models, text, dataUrl, tag) {
+  const aiUrl = process.env.TIMEWEB_AI_URL;
+  const aiKey = process.env.TIMEWEB_AI_KEY;
+  if (!aiUrl || !aiKey) {
+    return { status: 503, error: 'LLM endpoint не настроен на сервере (TIMEWEB_AI_URL / TIMEWEB_AI_KEY)' };
+  }
+  const failed = [];
+  for (const model of models) {
+    let resp;
+    try {
+      resp = await fetch(aiUrl, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${aiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text },
+              { type: 'image_url', image_url: { url: dataUrl } },
+            ],
+          }],
+        }),
+        signal: AbortSignal.timeout(VISION_TIMEOUT_MS),
+      });
+    } catch (error) {
+      console.error(`[${tag}] ${model}: ${error.message}`);
+      failed.push(`${model}: ${error.name === 'TimeoutError' ? 'таймаут' : error.message}`);
+      continue;
+    }
+    if (resp.ok) {
+      if (failed.length) console.warn(`[${tag}] взял ${model} вместо: ${failed.join('; ')}`);
+      return { data: await resp.json(), model };
+    }
+    const body = await resp.text();
+    console.error(`[${tag}] ${model}: HTTP ${resp.status}`, body.slice(0, 200));
+    failed.push(`${model}: HTTP ${resp.status}`);
+    if (!shouldTryNext(resp.status)) {
+      return { status: 502, error: `AI gateway HTTP ${resp.status}`, details: body.slice(0, 300) };
+    }
+  }
+  return { status: 502, error: `Модели распознавания недоступны (${failed.join('; ')})` };
+}
+
 /**
  * POST /scan-blank
  * Распознавание фото заполненного бланка ответов №1 ЕГЭ через vision-LLM.
- * Модель выбрана сравнительным тестом 02.07.2026: gemini-2.5-flash —
- * единственная стабильно правильно обрабатывает зону «Замена ошибочных
- * ответов» (gpt-5.4-mini путал её с полем 21). Результат ВСЕГДА проходит
- * ручную верификацию учителем на клиенте — ручка не пишет в БД.
+ * Клиент читает бланк дважды параллельно (slot 0 и 1) — РАЗНЫМИ моделями:
+ * одна модель дважды повторяет свои ошибки, две разные расходятся как раз там,
+ * где ошиблась одна из них (сравнение на живых бланках — scan-blank-lib.mjs).
+ * Результат ВСЕГДА проходит ручную верификацию учителем на клиенте — ручка не
+ * пишет в БД.
  *
  * Принимает:
  *   { image: string (base64 JPEG/PNG, можно с data:-префиксом),
- *     tasks_count?: number (полей в варианте; поля с бОльшими номерами отбрасываются) }
+ *     tasks_count?: number (полей в варианте; поля с бОльшими номерами отбрасываются),
+ *     slot?: number (какое это прочтение: 0 — первая модель, 1 — вторая) }
  *
  * Возвращает:
- *   { fields: {"1": "17", ...},      — итоговые ответы (замены уже применены)
+ *   { fields: {"1": "17", ...},      — итоговые ответы (замены уже применены,
+ *                                      «X»/прочерк — нет ответа)
  *     replacements: [{task, value}], — что было в зоне замены
  *     uncertain: [номера],           — поля, в прочтении которых модель не уверена
  *     model, usage }
  */
-const SCAN_BLANK_MODEL = process.env.SCAN_BLANK_MODEL || 'gemini/gemini-2.5-flash';
-
-const SCAN_BLANK_PROMPT = (tasksCount) => `На фото — бланк ответов №1 ЕГЭ, заполненный от руки.
-
-СТРУКТУРА БЛАНКА:
-- Основная зона «Результаты выполнения заданий с КРАТКИМ ответом»: поля 1–40 в две колонки. СЛЕВА поля 1–20, СПРАВА поля 21–40. Номер поля напечатан слева от клеток. В каждом поле ответ записан по одному символу в клетке (цифры, минус, запятая).
-- Внизу отдельная зона «Замена ошибочных ответов»: строки вида [2 клетки с номером задания] - [клетки с новым ответом]. Печатный дефис между номером задания и ответом — разделитель, напечатанный на бланке, он НЕ минус ответа. Минус ответа, если есть, написан от руки в первой клетке самого ответа.
-- Если в зоне замены есть запись для задания N — новый ответ ЗАМЕНЯЕТ содержимое поля N.
-${tasksCount ? `- В этом варианте ${tasksCount} заданий: заполненными могут быть только поля 1–${tasksCount}. Записи, похожие на ответы вне этих полей, не выдумывай.` : ''}
-
-Верни СТРОГО JSON без пояснений и без markdown-ограждений:
-{"fields":{"<номер>":"<ответ>"},"replacements":[{"task":<номер>,"value":"<ответ>"}],"uncertain":[<номера полей, в прочтении которых сомневаешься>]}
-
-Правила: только непустые поля; в fields — то, что написано в основной зоне (замены НЕ применяй, их верни отдельно в replacements); десятичный разделитель — запятая; минус — обычный дефис; символы без пробелов.`;
-
 app.post('/scan-blank', aiGate, async (req, res) => {
-  const { image, tasks_count } = req.body || {};
+  const { image, tasks_count, slot } = req.body || {};
 
   if (!image || typeof image !== 'string') {
     return res.status(400).json({ error: 'Поле image обязательно (base64-строка)' });
@@ -1160,79 +1205,30 @@ app.post('/scan-blank', aiGate, async (req, res) => {
     return res.status(400).json({ error: 'Изображение слишком большое (клиент должен ужимать до ~1600px)' });
   }
 
-  const aiUrl = process.env.TIMEWEB_AI_URL;
-  const aiKey = process.env.TIMEWEB_AI_KEY;
-  if (!aiUrl || !aiKey) {
-    return res.status(503).json({
-      error: 'LLM endpoint не настроен на сервере (TIMEWEB_AI_URL / TIMEWEB_AI_KEY)',
-    });
-  }
-
   const tasksCount = Number.isInteger(tasks_count) && tasks_count > 0 && tasks_count <= 40
     ? tasks_count : null;
   const dataUrl = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
 
   try {
-    const resp = await fetch(aiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: SCAN_BLANK_MODEL,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: SCAN_BLANK_PROMPT(tasksCount) },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        }],
-      }),
-    });
+    const call = await callVision(
+      modelsForSlot(SCAN_MODELS, Number.isInteger(slot) ? slot : 0),
+      SCAN_BLANK_PROMPT(tasksCount), dataUrl, 'scan-blank');
+    if (call.error) return res.status(call.status).json({ error: call.error, details: call.details });
 
-    if (!resp.ok) {
-      const body = await resp.text();
-      console.error('[scan-blank] upstream:', resp.status, body.slice(0, 200));
-      return res.status(502).json({
-        error: `AI gateway HTTP ${resp.status}`,
-        details: body.slice(0, 300),
-      });
-    }
-
-    const data = await resp.json();
+    const { data, model } = call;
     const raw = data?.choices?.[0]?.message?.content?.trim();
     if (!raw) {
       return res.status(502).json({ error: 'AI gateway вернул пустой ответ' });
     }
-
-    // Модель может обернуть JSON в ```json ... ``` вопреки промпту
-    const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch {
-      console.error('[scan-blank] не-JSON ответ модели:', raw.slice(0, 300));
+    const result = parseScanReply(raw, tasksCount);
+    if (!result) {
+      console.error(`[scan-blank] ${model}: не-JSON ответ модели:`, raw.slice(0, 300));
       return res.status(502).json({ error: 'Модель вернула не-JSON', raw: raw.slice(0, 500) });
     }
 
-    // Нормализация + пост-фильтр по числу заданий варианта
-    const inRange = (n) => Number.isInteger(n) && n >= 1 && n <= (tasksCount || 40);
-    const fields = {};
-    for (const [k, v] of Object.entries(parsed.fields || {})) {
-      const n = parseInt(k, 10);
-      if (inRange(n) && typeof v === 'string' && v.trim()) fields[n] = v.trim();
-    }
-    const replacements = (Array.isArray(parsed.replacements) ? parsed.replacements : [])
-      .map(r => ({ task: parseInt(r?.task, 10), value: String(r?.value ?? '').trim() }))
-      .filter(r => inRange(r.task) && r.value);
-    // Замена перекрывает основное поле
-    for (const r of replacements) fields[r.task] = r.value;
-    const uncertain = (Array.isArray(parsed.uncertain) ? parsed.uncertain : [])
-      .map(n => parseInt(n, 10)).filter(inRange);
-
-    console.log(`[scan-blank] fields=${Object.keys(fields).length} repl=${replacements.length} uncertain=${uncertain.length} tokens=${data?.usage?.total_tokens ?? '?'}`);
-    res.json({ fields, replacements, uncertain, model: SCAN_BLANK_MODEL, usage: data?.usage || null });
+    const { fields, replacements, uncertain } = result;
+    console.log(`[scan-blank] ${model} fields=${Object.keys(fields).length} repl=${replacements.length} uncertain=${uncertain.length} tokens=${data?.usage?.total_tokens ?? '?'}`);
+    res.json({ fields, replacements, uncertain, model, usage: data?.usage || null });
   } catch (error) {
     console.error('[scan-blank] error:', error);
     res.status(500).json({ error: error.message });
@@ -1266,50 +1262,20 @@ app.post('/scan-task-list', aiGate, async (req, res) => {
     return res.status(400).json({ error: 'Изображение слишком большое (клиент должен ужимать)' });
   }
 
-  const aiUrl = process.env.TIMEWEB_AI_URL;
-  const aiKey = process.env.TIMEWEB_AI_KEY;
-  if (!aiUrl || !aiKey) {
-    return res.status(503).json({
-      error: 'LLM endpoint не настроен на сервере (TIMEWEB_AI_URL / TIMEWEB_AI_KEY)',
-    });
-  }
-
   const dataUrl = image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`;
 
   try {
-    const resp = await fetch(aiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: SCAN_BLANK_MODEL,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'text', text: SCAN_TASK_LIST_PROMPT },
-            { type: 'image_url', image_url: { url: dataUrl } },
-          ],
-        }],
-      }),
-    });
+    // Печатный текст читает любая модель — берём ту же очередь, что у первого
+    // прочтения бланка
+    const call = await callVision(modelsForSlot(SCAN_MODELS, 0), SCAN_TASK_LIST_PROMPT, dataUrl, 'scan-task-list');
+    if (call.error) return res.status(call.status).json({ error: call.error, details: call.details });
 
-    if (!resp.ok) {
-      const body = await resp.text();
-      console.error('[scan-task-list] upstream:', resp.status, body.slice(0, 200));
-      return res.status(502).json({ error: `AI gateway HTTP ${resp.status}`, details: body.slice(0, 300) });
-    }
-
-    const data = await resp.json();
+    const { data, model } = call;
     const raw = data?.choices?.[0]?.message?.content?.trim();
     if (!raw) return res.status(502).json({ error: 'AI gateway вернул пустой ответ' });
 
-    const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch {
+    const parsed = extractJson(raw);
+    if (!parsed) {
       console.error('[scan-task-list] не-JSON ответ модели:', raw.slice(0, 300));
       return res.status(502).json({ error: 'Модель вернула не-JSON', raw: raw.slice(0, 500) });
     }
@@ -1324,8 +1290,8 @@ app.post('/scan-task-list', aiGate, async (req, res) => {
       }))
       .filter((it) => /^\d{3,7}$/.test(it.id));
 
-    console.log(`[scan-task-list] items=${items.length} tokens=${data?.usage?.total_tokens ?? '?'}`);
-    res.json({ items, model: SCAN_BLANK_MODEL, usage: data?.usage || null });
+    console.log(`[scan-task-list] ${model} items=${items.length} tokens=${data?.usage?.total_tokens ?? '?'}`);
+    res.json({ items, model, usage: data?.usage || null });
   } catch (error) {
     console.error('[scan-task-list] error:', error);
     res.status(500).json({ error: error.message });

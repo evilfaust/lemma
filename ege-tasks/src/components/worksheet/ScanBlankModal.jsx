@@ -79,7 +79,8 @@ const MOBILE_INPUT_PROPS = {
  *
  * v3.9.313: фото распознаётся сразу после съёмки, дважды параллельно —
  * расхождения прочтений подсвечиваются и предлагаются кнопкой «или …»
- * (`utils/scanBlank.js`). На телефоне окно во весь экран: настройки выдачи
+ * (`utils/scanBlank.js`). С v3.9.396 прочтения делают две РАЗНЫЕ модели
+ * (`slot` 0/1, выбор — `pocketbase/scan-blank-lib.mjs`). На телефоне окно во весь экран: настройки выдачи
  * сворачиваются в строку, съёмка — крупной кнопкой с камерой, ответы —
  * списком, «Записать» закреплена внизу.
  */
@@ -215,7 +216,8 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
     onClose?.();
   };
 
-  // Два прочтения параллельно; упало одно — работаем по второму
+  // Два прочтения параллельно и РАЗНЫМИ моделями (slot 0 — более точная, её
+  // ответ показывается по умолчанию); упало одно — работаем по второму
   const runScan = async (image, count = tasks.length) => {
     if (!image || !count) return;
     const token = ++scanToken.current;
@@ -223,8 +225,8 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
     setAnswers(null);
     setScanMeta(null);
     setOverrides({});
-    const read = () => api.scanBlank({ imageBase64: image, tasksCount: count });
-    const settled = await Promise.allSettled([read(), read()]);
+    const read = (slot) => api.scanBlank({ imageBase64: image, tasksCount: count, slot });
+    const settled = await Promise.allSettled([read(0), read(1)]);
     if (token !== scanToken.current) return; // фото сменили или окно закрыли
     const reads = settled.filter(s => s.status === 'fulfilled').map(s => s.value);
     if (!reads.length) {
@@ -512,7 +514,7 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
   );
 
   const altChip = (r) => (r.alternative ? (
-    <Tooltip title="Второе прочтение дало другое — нажмите, чтобы взять его">
+    <Tooltip title="Вторая модель прочитала иначе — нажмите, чтобы взять её вариант">
       <button type="button" className="sbm-alt" onClick={() => swapAlternative(r.n)}>
         или {r.alternative}
       </button>
@@ -551,7 +553,7 @@ const ScanBlankModal = ({ open, work, onClose, onRecorded, scanEnabled = true })
       showIcon
       message={`Сверьте с фото поля: ${scanMeta.uncertain.join(', ')}`}
       description={scanMeta.reads > 1 && Object.keys(scanMeta.alternatives || {}).length > 0
-        ? 'Где два прочтения разошлись, рядом есть кнопка «или …» — второй вариант.'
+        ? 'Бланк читали две разные модели. Где они разошлись, рядом есть кнопка «или …» — вариант второй модели.'
         : undefined}
     />
   );

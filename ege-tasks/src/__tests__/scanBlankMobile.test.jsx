@@ -169,10 +169,12 @@ describe('ScanBlankModal на телефоне', () => {
     await pickStudent('Анна Белова');
 
     takePhoto();
-    // Распознавание стартует само, без кнопки «Распознать», и дважды
+    // Распознавание стартует само, без кнопки «Распознать», и дважды — разными
+    // моделями (slot 0 и 1)
     await waitFor(() => expect(document.querySelectorAll('.sbm-row')).toHaveLength(3));
     expect(mockApi.scanBlank).toHaveBeenCalledTimes(2);
-    expect(mockApi.scanBlank).toHaveBeenCalledWith({ imageBase64: 'data:image/jpeg;base64,AAAA', tasksCount: 3 });
+    expect(mockApi.scanBlank).toHaveBeenCalledWith({ imageBase64: 'data:image/jpeg;base64,AAAA', tasksCount: 3, slot: 0 });
+    expect(mockApi.scanBlank).toHaveBeenCalledWith({ imageBase64: 'data:image/jpeg;base64,AAAA', tasksCount: 3, slot: 1 });
 
     // Поле 3 прочитано по-разному — подсвечено, предложен второй вариант
     const rows = document.querySelectorAll('.sbm-row');

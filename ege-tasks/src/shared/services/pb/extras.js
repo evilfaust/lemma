@@ -202,14 +202,16 @@ export const extrasApi = {
 
   // ── Сканирование бумажных бланков ответов №1 (v3.9.116) ────────────────
   // Фото заполненного бланка → pdf-service /scan-blank (vision-LLM) →
-  // { fields: {"1": "17", ...}, replacements, uncertain }. Замены уже применены.
-  // Результат обязательно проходит верификацию учителем перед записью.
-  async scanBlank({ imageBase64, tasksCount }) {
+  // { fields: {"1": "17", ...}, replacements, uncertain, model }. Замены уже
+  // применены. `slot` — какое это прочтение: сервер отдаёт разные прочтения
+  // разным моделям (v3.9.396). Результат обязательно проходит верификацию
+  // учителем перед записью.
+  async scanBlank({ imageBase64, tasksCount, slot = 0 }) {
     const base = import.meta.env.VITE_PDF_SERVICE_URL || 'http://localhost:3001';
     const res = await fetch(`${base}/scan-blank`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...aiHeaders() },
-      body: JSON.stringify({ image: imageBase64, tasks_count: tasksCount }),
+      body: JSON.stringify({ image: imageBase64, tasks_count: tasksCount, slot }),
       signal: AbortSignal.timeout(90000),
     });
     if (!res.ok) {
