@@ -1,4 +1,5 @@
 import { APP_VERSION } from '@shared/version/buildInfo'
+import { GITHUB_URL } from './nav'
 
 const FooterV2 = () => (
   <>
@@ -7,11 +8,14 @@ const FooterV2 = () => (
       <div className="v2-cta-mesh" />
       <div className="v2-container v2-cta-content">
         <h2 className="v2-heading" style={{ fontSize: 'clamp(32px, 5vw, 56px)' }}>
-          {'\u041D\u0430\u0447\u043D\u0438\u0442\u0435 '}<span className="v2-gradient-text">{'\u0441\u0435\u0439\u0447\u0430\u0441'}</span>
+          Посмотрите, <span className="v2-gradient-text">как устроено</span>
         </h2>
-        <p>{'\u0411\u0435\u0441\u043F\u043B\u0430\u0442\u043D\u043E. \u0423\u0447\u0435\u043D\u0438\u043A\u0438 \u043F\u043E\u0434\u043A\u043B\u044E\u0447\u0430\u044E\u0442\u0441\u044F \u043F\u043E \u0441\u0441\u044B\u043B\u043A\u0435 \u0438\u043B\u0438 QR-\u043A\u043E\u0434\u0443.'}</p>
-        <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary">
-          {'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443 \u2192'}
+        <p>
+          Lemma бесплатна, а код открыт: исходники, история изменений и запуск —
+          на GitHub. Ученики подключаются по ссылке или QR-коду.
+        </p>
+        <a href={GITHUB_URL} className="v2-btn v2-btn--primary">
+          Исходный код на GitHub →
         </a>
         <a href="/how-it-works.html" className="v2-btn v2-btn--outline">
           Как работает приложение
@@ -25,8 +29,8 @@ const FooterV2 = () => (
         <span>Lemma &copy; {new Date().getFullYear()} Oleg Pavlyuchenko • v{APP_VERSION}</span>
         <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
           <a href="https://oipav.ru" className="v2-footer-link">oipav.ru</a>
-          <a href="https://github.com/evilfaust/lemma" className="v2-footer-link">github.com/evilfaust/lemma</a>
-          <a href="https://github.com/evilfaust/lemma/blob/main/LICENSE" className="v2-footer-link">AGPL-3.0</a>
+          <a href={GITHUB_URL} className="v2-footer-link">github.com/evilfaust/lemma</a>
+          <a href={`${GITHUB_URL}/blob/main/LICENSE`} className="v2-footer-link">AGPL-3.0</a>
         </div>
       </div>
     </footer>

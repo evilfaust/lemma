@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
+// Округлено вниз, чтобы страница не устаревала с каждым импортом:
+// 30,7 тыс. задач банка + 18 тыс. по геометрии (октябрь 2026).
 const STATS = [
-  { value: 17000, suffix: '+', label: '\u0437\u0430\u0434\u0430\u0447 \u0432 \u0431\u0430\u0437\u0435', color: 'cyan' },
-  { value: 88, suffix: '', label: '\u0434\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u0439', color: 'pink' },
-  { value: 20, suffix: '+', label: '\u0433\u0435\u043D\u0435\u0440\u0430\u0442\u043E\u0440\u043E\u0432', color: 'purple' },
-  { value: 3, suffix: '', label: '\u043C\u0438\u043D\u0443\u0442\u044B \u043D\u0430 \u0440\u0430\u0431\u043E\u0442\u0443', color: 'orange' },
+  { value: 48000, suffix: '+', label: 'задач в банке, из них 18 000 по геометрии', color: 'cyan' },
+  { value: 45, suffix: '+', label: 'генераторов и тренажёров', color: 'purple' },
+  { value: 106, suffix: '', label: 'достижений для учеников', color: 'pink' },
+  { value: 3, suffix: '', label: 'экзамена: ОГЭ, база и профиль-2027', color: 'orange' },
 ]
 
 function animateCount(start, end, duration, callback) {
@@ -42,7 +44,7 @@ const StatItem = ({ value, suffix, label, color }) => {
   return (
     <div className="v2-stat v2-stagger" ref={ref}>
       <div className={`v2-stat-number v2-stat-number--${color}`}>
-        {count}<span>{suffix}</span>
+        {count.toLocaleString('ru-RU')}<span>{suffix}</span>
       </div>
       <div className="v2-stat-label">{label}</div>
     </div>

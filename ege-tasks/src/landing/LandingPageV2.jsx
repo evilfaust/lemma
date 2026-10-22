@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
 import HeroV2 from './components/v2/HeroV2'
 import StatsV2 from './components/v2/StatsV2'
-import FeaturesV2 from './components/v2/FeaturesV2'
-import TimelineV2 from './components/v2/TimelineV2'
+import DrawingsV2 from './components/v2/DrawingsV2'
+import PrepareV2 from './components/v2/PrepareV2'
+import LessonV2 from './components/v2/LessonV2'
+import CheckV2 from './components/v2/CheckV2'
+import JournalV2 from './components/v2/JournalV2'
 import StudentV2 from './components/v2/StudentV2'
-import ProgressInsightsV2 from './components/v2/ProgressInsightsV2'
-import AchievementsV2 from './components/v2/AchievementsV2'
-import TestimonialsV2 from './components/v2/TestimonialsV2'
+import AboutV2 from './components/v2/AboutV2'
 import FooterV2 from './components/v2/FooterV2'
+import { GITHUB_URL, NAV_ITEMS, scrollToSection } from './components/v2/nav'
 
 const LandingPageV2 = () => {
   const [navScrolled, setNavScrolled] = useState(false)
@@ -36,9 +38,10 @@ const LandingPageV2 = () => {
     }
   }, [])
 
-  const scrollTo = (id) => {
+  const go = (e, id) => {
+    e.preventDefault()
     setMobileMenuOpen(false)
-    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' })
+    scrollToSection(id)
   }
 
   return (
@@ -51,20 +54,17 @@ const LandingPageV2 = () => {
           </a>
 
           <ul className="v2-nav-links">
-            <li><a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features') }}>{'\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438'}</a></li>
-            <li><a href="#progress" onClick={(e) => { e.preventDefault(); scrollTo('progress') }}>{'\u0410\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0430'}</a></li>
-            <li><a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollTo('how-it-works') }}>{'\u041F\u0440\u043E\u0446\u0435\u0441\u0441'}</a></li>
-            <li><a href="#students" onClick={(e) => { e.preventDefault(); scrollTo('students') }}>{'\u0423\u0447\u0435\u043D\u0438\u043A\u0438'}</a></li>
-            <li><a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>{'\u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F'}</a></li>
-            <li><a href="/how-it-works.html">{'\u041A\u0430\u043A \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442'}</a></li>
+            {NAV_ITEMS.map(item => (
+              <li key={item.id}>
+                <a href={`#${item.id}`} onClick={(e) => go(e, item.id)}>{item.label}</a>
+              </li>
+            ))}
             <li>
-              <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary v2-nav-cta">
-                {'\u041E\u0442\u043A\u0440\u044B\u0442\u044C'}
-              </a>
+              <a href={GITHUB_URL} className="v2-btn v2-btn--primary v2-nav-cta">GitHub</a>
             </li>
           </ul>
 
-          <button className="v2-nav-burger" onClick={() => setMobileMenuOpen(true)}>
+          <button className="v2-nav-burger" aria-label="Меню" onClick={() => setMobileMenuOpen(true)}>
             <span /><span /><span />
           </button>
         </div>
@@ -72,27 +72,26 @@ const LandingPageV2 = () => {
 
       {/* Mobile Menu */}
       <div className={`v2-mobile-menu ${mobileMenuOpen ? 'open' : ''}`}>
-        <button className="v2-mobile-close" onClick={() => setMobileMenuOpen(false)}>
+        <button className="v2-mobile-close" aria-label="Закрыть меню" onClick={() => setMobileMenuOpen(false)}>
           &times;
         </button>
-        <a href="#features" onClick={(e) => { e.preventDefault(); scrollTo('features') }}>{'\u0412\u043E\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438'}</a>
-        <a href="#progress" onClick={(e) => { e.preventDefault(); scrollTo('progress') }}>{'\u0410\u043D\u0430\u043B\u0438\u0442\u0438\u043A\u0430'}</a>
-        <a href="#how-it-works" onClick={(e) => { e.preventDefault(); scrollTo('how-it-works') }}>{'\u041F\u0440\u043E\u0446\u0435\u0441\u0441'}</a>
-        <a href="#students" onClick={(e) => { e.preventDefault(); scrollTo('students') }}>{'\u0423\u0447\u0435\u043D\u0438\u043A\u0438'}</a>
-        <a href="#achievements" onClick={(e) => { e.preventDefault(); scrollTo('achievements') }}>{'\u0414\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F'}</a>
-        <a href="/how-it-works.html">{'\u041A\u0430\u043A \u0440\u0430\u0431\u043E\u0442\u0430\u0435\u0442 \u043F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435'}</a>
-        <a href="https://github.com/evilfaust/lemma" className="v2-btn v2-btn--primary">{'\u041E\u0442\u043A\u0440\u044B\u0442\u044C \u043F\u043B\u0430\u0442\u0444\u043E\u0440\u043C\u0443'}</a>
+        {NAV_ITEMS.map(item => (
+          <a key={item.id} href={`#${item.id}`} onClick={(e) => go(e, item.id)}>{item.label}</a>
+        ))}
+        <a href="/how-it-works.html">Как работает приложение</a>
+        <a href={GITHUB_URL} className="v2-btn v2-btn--primary">Исходный код на GitHub</a>
       </div>
 
       {/* Sections */}
       <HeroV2 />
       <StatsV2 />
-      <FeaturesV2 />
-      <ProgressInsightsV2 />
-      <TimelineV2 />
+      <DrawingsV2 />
+      <PrepareV2 />
+      <LessonV2 />
+      <CheckV2 />
+      <JournalV2 />
       <StudentV2 />
-      <AchievementsV2 />
-      <TestimonialsV2 />
+      <AboutV2 />
       <FooterV2 />
     </div>
   )
