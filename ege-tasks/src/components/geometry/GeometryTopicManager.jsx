@@ -16,6 +16,7 @@ import {
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from '@ant-design/icons';
 import { api } from '../../shared/services/pocketbase';
 import { reloadGeometryRefs } from '../../hooks/useGeometryRefs';
+import { TOPIC_SELECT } from '../shared/topicSelect';
 
 const { Title, Text } = Typography;
 
@@ -56,7 +57,7 @@ function SubtopicForm({ topics, initial, onSave, onCancel, saving, defaultTopicI
   return (
     <Form form={form} layout="inline" onFinish={onSave} style={{ marginBottom: 12 }}>
       <Form.Item name="topic" rules={[{ required: true, message: 'Выберите тему' }]}>
-        <Select placeholder="Тема" style={{ width: 200 }} options={topics.map((t) => ({ value: t.id, label: t.title }))} />
+        <Select placeholder="Тема" style={{ width: 200 }} options={topics.map((t) => ({ value: t.id, label: t.title }))} {...TOPIC_SELECT} />
       </Form.Item>
       <Form.Item name="title" rules={[{ required: true, message: 'Введите название' }]}>
         <Input placeholder="Название подтемы" style={{ width: 260 }} maxLength={200} />

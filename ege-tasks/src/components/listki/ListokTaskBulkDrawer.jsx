@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Button, Divider, Drawer, Radio, Select, Space, Tag, Typography } from 'antd';
 import { SettingOutlined, CloseOutlined } from '@ant-design/icons';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 const { Title, Text } = Typography;
 
@@ -23,7 +24,7 @@ const DIFFICULTY_OPTIONS = [
   { label: '5 — Олимпиадный', value: '5' },
 ];
 
-const topicLabel = (t) => (t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title);
+const topicLabel = (t) => (topicOptionLabel(t));
 
 /**
  * Drawer массового изменения атрибутов задач листка.
@@ -94,6 +95,7 @@ export default function ListokTaskBulkDrawer({
           showSearch
           optionFilterProp="label"
           allowClear
+          {...TOPIC_SELECT}
         />
         <Select
           mode="multiple"

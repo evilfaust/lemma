@@ -6,6 +6,7 @@ import { ExportOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/pocketbase';
 import { useGeometryRefs } from '../../hooks/useGeometryRefs';
+import { TOPIC_SELECT } from '../shared/topicSelect';
 
 const { Text, Title } = Typography;
 
@@ -83,6 +84,7 @@ export default function BulkToGeometry({ taskIds = [], canDelete = false, busy =
           showSearch
           optionFilterProp="label"
           allowClear
+          {...TOPIC_SELECT}
         />
         <Select
           placeholder={topic ? 'Подтема (необязательно)…' : 'Сначала тема'}
@@ -96,6 +98,7 @@ export default function BulkToGeometry({ taskIds = [], canDelete = false, busy =
           showSearch
           optionFilterProp="label"
           allowClear
+          {...TOPIC_SELECT}
         />
         {canDelete && (
           <Checkbox

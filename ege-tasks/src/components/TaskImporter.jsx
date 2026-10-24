@@ -13,6 +13,7 @@ import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { SDAMGIA_SOURCE_LABELS } from '../utils/markdownTaskParser';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const { Dragger } = Upload;
 const { TextArea } = Input;
@@ -660,8 +661,9 @@ export default function TaskImporter() {
                           optionFilterProp="label"
                           options={localTopics.map(t => ({
                             value: t.id,
-                            label: `${t.ege_number ? `№${t.ege_number} ` : ''}${t.title}`,
+                            label: topicOptionLabel(t),
                           }))}
+                          {...TOPIC_SELECT}
                         />
                         <Button
                           icon={<PlusOutlined />}
@@ -701,6 +703,7 @@ export default function TaskImporter() {
                             value: st.name,
                             label: st.name,
                           }))}
+                          {...TOPIC_SELECT}
                         />
                         <Button
                           icon={<PlusOutlined />}
@@ -849,8 +852,9 @@ export default function TaskImporter() {
                   status={!topicId ? 'error' : undefined}
                   options={localTopics.map(t => ({
                     value: t.id,
-                    label: `${t.ege_number ? `№${t.ege_number} ` : ''}${t.title}`,
+                    label: topicOptionLabel(t),
                   }))}
+                  {...TOPIC_SELECT}
                 />
                 <Button
                   icon={<PlusOutlined />}
@@ -878,6 +882,7 @@ export default function TaskImporter() {
                     value: st.id,
                     label: st.name,
                   }))}
+                  {...TOPIC_SELECT}
                 />
                 <Button
                   icon={<PlusOutlined />}
@@ -1163,7 +1168,7 @@ export default function TaskImporter() {
             {(() => {
               const tid = newSubtopicContext === 'sdamgia' ? sdamgiaTopicId : topicId;
               const t = localTopics.find(t => t.id === tid);
-              return t ? `${t.ege_number ? `№${t.ege_number} ` : ''}${t.title}` : '—';
+              return t ? topicOptionLabel(t) : '—';
             })()}
           </strong>
         </div>

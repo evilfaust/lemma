@@ -23,6 +23,7 @@ import { assembleSummerProgram, addExistingWorkItem, generateWorkItem } from './
 import {
   computeCampaignProgress, sessionFacts, lastActivityLabel, PACE, PACE_LABEL, PACE_TONE,
 } from './campaignProgress';
+import { TOPIC_SELECT, topicOptionLabel } from '../../shared/topicSelect';
 
 const { Text } = Typography;
 
@@ -1293,7 +1294,7 @@ function AddWorkModal({ open, week, topics, subtopics, onClose, onAdd }) {
   // Темы выбранного контекста.
   const topicOpts = useMemo(() => (topics || [])
     .filter((t) => !context || t.exam_type === context)
-    .map((t) => ({ value: t.id, label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title })),
+    .map((t) => ({ value: t.id, label: topicOptionLabel(t) })),
   [topics, context]);
 
   // Подтемы выбранной темы.
@@ -1314,7 +1315,7 @@ function AddWorkModal({ open, week, topics, subtopics, onClose, onAdd }) {
       } else {
         const t = topicById.get(topicId);
         const finalTitle = title.trim()
-          || (t ? (t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title) : (CONTEXT_LABELS[context] || 'Работа'));
+          || (t ? (topicOptionLabel(t)) : (CONTEXT_LABELS[context] || 'Работа'));
         const filters = {
           exam_type: context || undefined,
           topic: topicId || undefined,
@@ -1376,6 +1377,7 @@ function AddWorkModal({ open, week, topics, subtopics, onClose, onAdd }) {
               value={topicId}
               onChange={(v) => { setTopicId(v); setSubtopicId(null); }}
               options={topicOpts}
+              {...TOPIC_SELECT}
             />
           </div>
           <div>
@@ -1388,6 +1390,7 @@ function AddWorkModal({ open, week, topics, subtopics, onClose, onAdd }) {
               value={subtopicId}
               onChange={setSubtopicId}
               options={subtopicOpts}
+              {...TOPIC_SELECT}
             />
           </div>
           <Space size={16} wrap>

@@ -6,6 +6,7 @@ import LatexField from '../shared/LatexField';
 import FieldInsertToolbar from '../shared/FieldInsertToolbar';
 import { GEOMETRY_SECTIONS } from '../../utils/geometrySection';
 import { FacetSelect, FacetSuggestions, useTagById } from './FacetFields';
+import { TOPIC_SELECT } from '../shared/topicSelect';
 
 const FACET_FIELDS = { object: 'facetsObject', method: 'facetsMethod', fact: 'facetsFact' };
 
@@ -85,6 +86,7 @@ export default function TabCondition({
             allowClear
             options={geoTopics.map((t) => ({ value: t.id, label: t.title }))}
             onChange={onTopicChange}
+            {...TOPIC_SELECT}
           />
         </Form.Item>
 
@@ -101,6 +103,7 @@ export default function TabCondition({
             disabled={!!selectedTopicId && !refsLoading.subtopics && filteredSubtopics.length === 0}
             options={filteredSubtopics.map((s) => ({ value: s.id, label: s.title }))}
             notFoundContent="Подтем нет — их заводят в «Геометрия → Темы и подтемы»"
+            {...TOPIC_SELECT}
           />
         </Form.Item>
 

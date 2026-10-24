@@ -52,6 +52,7 @@ import { GEOMETRY_SECTIONS } from '../utils/geometrySection';
 import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
 import GeometryBankDuplicatesModal from './geometry/GeometryBankDuplicatesModal';
 import GeometrySemanticSearchModal from './geometry/GeometrySemanticSearchModal';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const { Text } = Typography;
 
@@ -469,6 +470,7 @@ export default function GeometryTaskList() {
                   value={filters.topic}
                   onChange={(v) => setFilters((f) => ({ ...f, topic: v, subtopic: undefined }))}
                   options={geoTopics.map((t) => ({ value: t.id, label: t.title, title: t.title }))}
+                  {...TOPIC_SELECT}
                 />
                 <Select
                   placeholder={filters.topic && !geoSubtopics.some((s) => s.topic === filters.topic) ? 'У темы нет подтем' : 'Подтема'}
@@ -483,6 +485,7 @@ export default function GeometryTaskList() {
                     ? geoSubtopics.filter((s) => s.topic === filters.topic)
                     : geoSubtopics
                   ).map((s) => ({ value: s.id, label: s.title, title: s.title }))}
+                  {...TOPIC_SELECT}
                 />
                 <Select
                   placeholder="Источник"
@@ -975,8 +978,9 @@ export default function GeometryTaskList() {
                 optionFilterProp="label"
                 options={regularTopics.map((t) => ({
                   value: t.id,
-                  label: t.ege_number ? `№${t.ege_number} ${t.title}` : t.title,
+                  label: topicOptionLabel(t),
                 }))}
+                {...TOPIC_SELECT}
               />
             </div>
             <div>
@@ -991,6 +995,7 @@ export default function GeometryTaskList() {
                 optionFilterProp="label"
                 disabled={!importTopicId}
                 options={importFilteredSubtopics.map((s) => ({ value: s.id, label: s.name }))}
+                {...TOPIC_SELECT}
               />
             </div>
             <div style={{ color: '#888', fontSize: 12 }}>

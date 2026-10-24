@@ -4,6 +4,7 @@ import { PlusOutlined, DeleteOutlined, EditOutlined, SwapOutlined, FolderOpenOut
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/pocketbase';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, onMerge, onReload }) {
   const { topics, reloadData } = useReferenceData();
@@ -132,9 +133,10 @@ export default function SubtopicTab({ subtopicRows, tasksSnapshot, onOpenTasks, 
               showSearch
               optionFilterProp="label"
               options={topics.map(t => ({
-                label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
+                label: topicOptionLabel(t),
                 value: t.id,
               }))}
+              {...TOPIC_SELECT}
             />
           </Form.Item>
           <Form.Item name="order" label="Порядок">

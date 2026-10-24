@@ -3,6 +3,7 @@ import { Alert, Button, Card, Popover, Radio, Select, Space, Table, Tag, Tooltip
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import TopicCreateModal from './TopicCreateModal';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 const { Text } = Typography;
 
@@ -50,7 +51,7 @@ export default function TopicsStep({
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push({
         value: t.id,
-        label: t.ege_number != null && t.ege_number !== '' ? `№${t.ege_number} · ${t.title}` : t.title,
+        label: topicOptionLabel(t),
       });
     });
     const ordered = [...groups.entries()].sort((a, b) => {
@@ -102,6 +103,7 @@ export default function TopicsStep({
             options={topicOptions}
             optionFilterProp="label"
             onChange={(v) => onUpdateRow(row.key, { topicId: v || null, subtopicId: null })}
+            {...TOPIC_SELECT}
           />
           <Tooltip title="Создать новую тему">
             <Button icon={<PlusOutlined />} onClick={() => { setModalRowKey(row.key); setModalOpen(true); }} />
@@ -129,6 +131,7 @@ export default function TopicsStep({
               options={options}
               optionFilterProp="label"
               onChange={(v) => onUpdateRow(row.key, { subtopicId: v || null, newSubtopicName: v ? '' : row.newSubtopicName })}
+              {...TOPIC_SELECT}
             />
             {!value && row.newSubtopicName && (
               <Text type="secondary" style={{ fontSize: 11 }}>будет создана: {row.newSubtopicName}</Text>
@@ -194,6 +197,7 @@ export default function TopicsStep({
                 options={topicOptions}
                 optionFilterProp="label"
                 onChange={setBulkTopic}
+                {...TOPIC_SELECT}
               />
               <Button
                 disabled={!bulkTopic}

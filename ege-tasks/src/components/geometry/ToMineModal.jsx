@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal, Select, Space, Typography } from 'antd';
 import { useGeometryRefs } from '../../hooks/useGeometryRefs';
+import { TOPIC_SELECT } from '../shared/topicSelect';
 
 const { Text } = Typography;
 const STORE = 'geometry.toMine.v1';
@@ -80,6 +81,7 @@ export default function ToMineModal({ open, count, note, onCancel, onConfirm }) 
           showSearch
           optionFilterProp="label"
           allowClear
+          {...TOPIC_SELECT}
         />
         <Select
           aria-label="Подтема"
@@ -92,6 +94,7 @@ export default function ToMineModal({ open, count, note, onCancel, onConfirm }) 
           showSearch
           optionFilterProp="label"
           allowClear
+          {...TOPIC_SELECT}
         />
       </Space>
     </Modal>

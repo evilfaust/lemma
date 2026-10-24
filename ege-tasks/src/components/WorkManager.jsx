@@ -23,6 +23,7 @@ import TeacherResultsDashboard from './worksheet/TeacherResultsDashboard';
 import MathRenderer from './MathRenderer';
 import { PageHeader, StatRow, Stat, FilterRow } from '../ui';
 import './WorkManager.css';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -638,9 +639,10 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
             showSearch
             optionFilterProp="children"
             style={{ minWidth: 180 }}
+            {...TOPIC_SELECT}
           >
             {topics.map(t => (
-              <Option key={t.id} value={t.id}>{t.ege_number ? `№${t.ege_number} — ` : ''}{t.title}</Option>
+              <Option key={t.id} value={t.id}>{topicOptionLabel(t)}</Option>
             ))}
           </Select>
         )}
@@ -746,7 +748,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                       )}
                       {work.expand?.topic && (
                         <Tag color="purple" style={{ margin: 0 }}>
-                          {work.expand.topic.ege_number ? `№${work.expand.topic.ege_number} — ` : ''}{work.expand.topic.title}
+                          {topicOptionLabel(work.expand.topic)}
                         </Tag>
                       )}
                     </div>
@@ -1173,7 +1175,7 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                       </span>
                       {work.expand?.topic && (
                         <Tag color="purple" style={{ margin: 0 }}>
-                          {work.expand.topic.ege_number ? `№${work.expand.topic.ege_number} — ` : ''}{work.expand.topic.title}
+                          {topicOptionLabel(work.expand.topic)}
                         </Tag>
                       )}
                       {Number(work.time_limit) > 0 && (

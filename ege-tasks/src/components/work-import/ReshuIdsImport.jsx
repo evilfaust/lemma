@@ -17,13 +17,14 @@ import {
 } from '../../utils/reshuTaskList';
 import { compressImage } from '../../utils/imageProcessing';
 import MathRenderer from '../MathRenderer';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 const { TextArea } = Input;
 const { Text } = Typography;
 
 const EXAM_OPTIONS = Object.entries(RESHU_EXAMS).map(([value, { label }]) => ({ value, label }));
 
-const topicLabel = (t) => (t ? `${t.ege_number ? `№${t.ege_number} — ` : ''}${t.title}${t.archived ? ' (архив)' : ''}` : '—');
+const topicLabel = (t) => (t ? `${topicOptionLabel(t)}${t.archived ? ' (архив)' : ''}` : '—');
 
 const KEY_ISSUE_TEXT = {
   empty: 'в банке у задачи нет ответа',
@@ -237,6 +238,7 @@ export default function ReshuIdsImport() {
             showSearch
             optionFilterProp="label"
             options={topicOptionsByExam[rowExam(r)] || []}
+            {...TOPIC_SELECT}
           />
         );
       },

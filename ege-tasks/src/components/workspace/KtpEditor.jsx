@@ -15,11 +15,12 @@ import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { exportKtpToWord } from '../../utils/ktpDocx';
 import KtpPrintView from './KtpPrintView';
 import { WorkspacePageHeader, EmptyState, GroupChip, groupTone } from './ui';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 const { Text } = Typography;
 
 function topicLabel(t) {
-  return `${t.ege_number ? `№${t.ege_number} — ` : ''}${t.title}`;
+  return topicOptionLabel(t);
 }
 
 function EntryModal({ open, initial, topics, onSave, onCancel, saving }) {
@@ -83,6 +84,7 @@ function EntryModal({ open, initial, topics, onSave, onCancel, saving }) {
                 optionFilterProp="label"
                 placeholder="Тема из каталога"
                 options={topics.map((t) => ({ value: t.id, label: topicLabel(t) }))}
+                {...TOPIC_SELECT}
               />
             </Form.Item>
             <Space size="large" style={{ display: 'flex' }}>

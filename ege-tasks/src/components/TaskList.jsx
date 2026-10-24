@@ -17,6 +17,7 @@ import BulkToGeometry from './geometry/BulkToGeometry';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import { useAuth } from '../contexts/AuthContext';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const { Text, Title } = Typography;
 
@@ -628,13 +629,14 @@ const TaskList = ({
             onChange={(v) => { setBulkTopic(v); setBulkSubtopics([]); }}
             style={{ width: '100%' }}
             options={(topics || []).map((t) => ({
-              label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
+              label: topicOptionLabel(t),
               value: t.id,
             }))}
             disabled={bulkLoading}
             showSearch
             optionFilterProp="label"
             allowClear
+            {...TOPIC_SELECT}
           />
           <Select
             mode="multiple"
@@ -648,6 +650,7 @@ const TaskList = ({
             disabled={bulkLoading || !bulkTopic}
             showSearch
             optionFilterProp="label"
+            {...TOPIC_SELECT}
           />
           <Button
             block
@@ -725,12 +728,13 @@ const TaskList = ({
             <Select
               placeholder="Выберите тему…"
               options={(topics || []).map((t) => ({
-                label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
+                label: topicOptionLabel(t),
                 value: t.id,
               }))}
               showSearch
               optionFilterProp="label"
               allowClear
+              {...TOPIC_SELECT}
             />
           </Form.Item>
 

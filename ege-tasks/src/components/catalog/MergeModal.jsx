@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Modal, Select, Space, App } from 'antd';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 export default function MergeModal({ open, mergeType, mergeFrom, sourceRows, tasksSnapshot, onClose, onReload }) {
   const { topics, subtopics, tags, reloadData } = useReferenceData();
@@ -66,7 +67,7 @@ export default function MergeModal({ open, mergeType, mergeFrom, sourceRows, tas
   const getOptions = () => {
     if (mergeType === 'topic') {
       return topics.filter(t => t.id !== mergeFrom?.id).map(t => ({
-        label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
+        label: topicOptionLabel(t),
         value: t.id,
       }));
     }
@@ -110,6 +111,7 @@ export default function MergeModal({ open, mergeType, mergeFrom, sourceRows, tas
           options={getOptions()}
           showSearch
           optionFilterProp="label"
+          {...TOPIC_SELECT}
         />
         <div style={{ color: '#666' }}>
           Действие перенесёт все задачи на выбранную цель и удалит исходную сущность.

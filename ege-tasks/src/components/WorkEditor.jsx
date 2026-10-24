@@ -21,6 +21,7 @@ import { useTaskDragDrop, useTaskEditing } from '../hooks';
 import { shuffleArray } from '../utils/shuffle';
 import { PB_BASE_URL } from '../services/pocketbaseUrl';
 import './TaskWorksheet.css';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const PB_URL = PB_BASE_URL;
 
@@ -702,10 +703,10 @@ const WorkEditor = ({
                 </Form.Item>
 
                 <Form.Item name="topic" label="Основная тема">
-                  <Select allowClear placeholder="Не выбрано" showSearch optionFilterProp="children">
+                  <Select allowClear placeholder="Не выбрано" showSearch optionFilterProp="children" {...TOPIC_SELECT}>
                     {topics.map(topic => (
                       <Option key={topic.id} value={topic.id}>
-                        {topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}
+                        {topicOptionLabel(topic)}
                       </Option>
                     ))}
                   </Select>
