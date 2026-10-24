@@ -15,7 +15,6 @@ import {
   applyDuplicates,
   findInternalDuplicates,
 } from '../utils/workImportPlan';
-import { taskCodePrefix, nextCodeFromCodes } from '../utils/taskCodeGenerator';
 import { katexDiagnostics } from '../utils/katexLint';
 import { rewriteImageUrls } from '../components/TaskStatementRenderer';
 
@@ -102,18 +101,13 @@ export function useWorkImport({ topics = [], subtopics = [] } = {}) {
     const taskIdByRow = new Map();
 
     try {
-      // 1. Коды задач: по одному запросу на тему, дальше счётчик крутится локально
+      // 1. Темы новых задач. Коды присваивает сервер (хук task_codes.pb.js, v3.9.397).
       setProgress({ current: 0, total: activeRows.length, label: 'Читаю темы' });
       const codeState = new Map();
       const createTopicIds = [...new Set(activeRows.filter((r) => r.mode === 'create').map((r) => r.topicId))];
       for (const topicId of createTopicIds) {
         const topic = topics.find((t) => t.id === topicId) || await api.getTopic(topicId);
-        const existing = await api.getTasksForDedup(topicId);
-        codeState.set(topicId, {
-          topic,
-          prefix: taskCodePrefix(topic),
-          codes: existing.map((t) => t.code).filter(Boolean),
-        });
+        codeState.set(topicId, { topic });
       }
 
       // 2. Задачи
@@ -149,9 +143,6 @@ export function useWorkImport({ topics = [], subtopics = [] } = {}) {
           stats.failed += 1;
           continue;
         }
-
-        const code = nextCodeFromCodes(state.codes, state.prefix);
-        state.codes.push(code);
 
         // Теги
         const tagIds = [];
@@ -190,7 +181,6 @@ export function useWorkImport({ topics = [], subtopics = [] } = {}) {
         if (useLegacyImage) statementMd = removeImagePlaceholder(statementMd, conditionKeys[0]);
 
         const recordData = {
-          code,
           topic: row.topicId,
           difficulty: task.difficulty || '1',
           statement_md: statementMd,

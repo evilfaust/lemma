@@ -36,7 +36,7 @@ describe('_buildTasksFilter — номер решу', () => {
 
   it('к голому числу добавляет номер решу вариантом к обычному поиску', () => {
     const f = tasksApi._buildTasksFilter({ search: '311151' });
-    expect(f).toBe('(code ~ "311151" || statement_md ~ "311151" || sdamgia_id = "311151")');
+    expect(f).toBe('(code ~ "311151" || statement_md ~ "311151" || old_codes ~ "311151" || sdamgia_id = "311151")');
   });
 
   it('точный поиск идёт под частичный индекс — с условием непустоты', () => {

@@ -59,14 +59,14 @@ export async function fetchSdamgiaProblems(url) {
  * @param {object} p
  * @param {object} p.problem   — задача из `fetchSdamgiaProblems`
  * @param {string} p.topicId
- * @param {string} p.code      — код задачи (считает вызывающий: он знает занятые коды темы)
+ * Кода задача с собой не несёт — его присваивает сервер по теме (v3.9.397).
  * @param {string} p.sourceType — ключ SDAMGIA_SOURCE_LABELS (ege_base / ege_prof / oge)
  * @param {number} [p.examPart=1]
  * @param {string|number} [p.taskNumber]
  * @param {string} [p.fallbackUrl] — ссылка на задачу, если парсер её не отдал
  */
 export async function createTaskFromSdamgia({
-  problem, topicId, code, sourceType = 'ege_base', examPart = 1, taskNumber = '', fallbackUrl = '',
+  problem, topicId, sourceType = 'ege_base', examPart = 1, taskNumber = '', fallbackUrl = '',
 }) {
   const parsed = parseSdamgiaResult([problem], {
     taskNumber, sourceType, examPart, difficulty: '1',
@@ -78,11 +78,10 @@ export async function createTaskFromSdamgia({
   const multiImage = (task.condition_images?.length || 0) >= 2;
   let imageFile = null;
   if (!multiImage && task.imageUrl) {
-    imageFile = await fetchImageAsFile(task.imageUrl, `task_${code}`).catch(() => null);
+    imageFile = await fetchImageAsFile(task.imageUrl, `task_${problem.id || 'reshu'}`).catch(() => null);
   }
 
   const payload = {
-    code,
     topic: topicId,
     difficulty: task.difficulty || '1',
     statement_md: task.statement_md,
@@ -150,7 +149,6 @@ export async function importReshuProblem({ problemId, taskNumber, topicId }) {
   return createTaskFromSdamgia({
     problem: probs[0],
     topicId,
-    code: `${taskNumber}-r${problemId}`,
     sourceType: 'ege_base',
     examPart: 1,
     taskNumber,

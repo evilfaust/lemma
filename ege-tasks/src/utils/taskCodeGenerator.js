@@ -1,87 +1,28 @@
 import { api } from '../services/pocketbase';
-
-function extractCounter(code, prefix) {
-  if (!code || !code.startsWith(prefix)) return null;
-  const num = parseInt(code.slice(prefix.length), 10);
-  return isNaN(num) ? null : num;
-}
-
-function nextCode(existingCodes, prefix) {
-  const counters = existingCodes.map(c => extractCounter(c, prefix)).filter(n => n !== null);
-  const next = counters.length > 0 ? Math.max(...counters) + 1 : 1;
-  return `${prefix}${String(next).padStart(3, '0')}`;
-}
+import { previewNextCode } from './taskCode';
 
 /**
- * Префикс кодов темы: `T{N}-` для тригонометрии, `{ege_number}-` для остальных.
- * У архивной темы (задание убрано из КИМа, `archived`) префикс получает `A`:
- * A12-001 — чтобы коды не сталкивались с темой, занявшей этот номер в новой
- * структуре экзамена.
- * Бросает, если у обычной темы нет номера ЕГЭ.
- */
-export function taskCodePrefix(topic) {
-  if (!topic) throw new Error('taskCodePrefix: тема не передана');
-  if (topic.exam_type === 'trig') {
-    const idMatch = String(topic.id || '').match(/(\d+)$/);
-    return `T${idMatch ? parseInt(idMatch[1], 10) : 0}-`;
-  }
-  const egeNumber = topic.ege_number;
-  if (!egeNumber && egeNumber !== 0) {
-    throw new Error(`У темы "${topic.title || topic.id}" не указан ege_number`);
-  }
-  return `${topic.archived ? 'A' : ''}${egeNumber}-`;
-}
-
-/**
- * Следующий код по уже занятым кодам темы — без обращения к сети.
- * Нужен при импорте пачкой: коды темы читаются один раз, дальше счётчик
- * крутится локально.
- */
-export function nextCodeFromCodes(existingCodes, prefix) {
-  return nextCode(existingCodes || [], prefix);
-}
-
-/**
- * Генерирует следующий код задачи для заданной темы.
- * Для тригонометрических тем (exam_type='trig'): T{N}-{seq}
- * Для остальных тем: {ege_number}-{seq}
+ * Подсказка: какой код получит новая задача темы (≈ П12-427).
+ *
+ * С v3.9.397 код присваивает сервер (хук task_codes.pb.js) — задачу создают с
+ * пустым кодом, а это только предпросмотр для окна создания. Пустая строка —
+ * тема кодов не раздаёт (Гордин, смешанная тема Мордковича): код введут руками.
  */
 export async function generateTaskCode(topicId, topic = null) {
-  if (!topicId) {
-    throw new Error('topicId обязателен для генерации кода');
-  }
-
+  if (!topicId) return '';
   if (!topic) {
     const topics = await api.getTopics();
-    topic = topics.find(t => t.id === topicId);
-    if (!topic) {
-      throw new Error(`Тема с ID "${topicId}" не найдена`);
-    }
+    topic = topics.find((t) => t.id === topicId);
+    if (!topic) return '';
   }
-
   const tasks = await api.getTasks({ topic: topicId });
-  const codes = tasks.map(t => t.code).filter(Boolean);
-
-  return nextCode(codes, taskCodePrefix(topic));
+  return previewNextCode(topic, tasks.map((t) => t.code).filter(Boolean));
 }
 
 /**
- * Генерирует N кодов подряд для тригонометрической темы — один запрос к API.
- * Возвращает массив строк длиной count.
+ * Код в формате банка: префикс темы (П12, ПА12, ОГ5, В7.15, Т1, КУ, И11,
+ * ВХ11П, М16) + дефис + номер от трёх цифр. Буквы — кириллица.
  */
-export async function generateTrigTaskCodes(topicId, count) {
-  const tasks = await api.getTasks({ topic: topicId });
-  const idMatch = topicId.match(/(\d+)$/);
-  const n = idMatch ? parseInt(idMatch[1], 10) : 0;
-  const prefix = `T${n}-`;
-  const codes = tasks.map(t => t.code).filter(Boolean);
-  const counters = codes.map(c => extractCounter(c, prefix)).filter(v => v !== null);
-  let next = counters.length > 0 ? Math.max(...counters) + 1 : 1;
-  return Array.from({ length: count }, () => `${prefix}${String(next++).padStart(3, '0')}`);
-}
-
 export function validateTaskCode(code) {
-  // A — архивная тема, T — тригонометрический генератор; в больших темах
-  // счётчик уже перевалил за 999, поэтому хвост от трёх цифр и длиннее.
-  return /^(T\d+|A?\d+)-\d{3,}$/.test(code);
+  return /^[А-ЯЁ]{1,5}(\d+(\.\d+)?)?[А-ЯЁ]{0,2}-\d{3,}$/.test(String(code || ''));
 }

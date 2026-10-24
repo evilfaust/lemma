@@ -298,31 +298,8 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
         existingRecords.map(r => (r.statement_md || '').trim())
       );
 
-      // 2. Определяем следующий код задачи.
-      // Тему, только что созданную в этой же сессии, список из контекста ещё
-      // может не содержать — тогда дочитываем запись из БД, а не падаем.
-      const topic = topics.find(t => t.id === topicId) || await api.getTopic(topicId);
-      const egeNumber = topic?.ege_number;
-      if (!egeNumber && egeNumber !== 0) {
-        results.errors = total;
-        results.details.push({ status: 'error', message: 'У темы не указан номер ЕГЭ (ege_number)' });
-        setImportResults(results);
-        setImporting(false);
-        return results;
-      }
-
-      const prefix = `${egeNumber}-`;
-      const existingNumbers = existingRecords
-        .map(r => r.code)
-        .filter(code => code && code.startsWith(prefix))
-        .map(code => {
-          const parts = code.split('-');
-          return parts.length === 2 ? parseInt(parts[1], 10) : 0;
-        })
-        .filter(n => !isNaN(n));
-
-      let nextNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) + 1 : 1;
-
+      // 2. Код каждой задаче присваивает сервер по теме (хук task_codes.pb.js,
+      // v3.9.397): П12-035, КУ-361… Тема без префикса (Гордин) — задачи без кода.
       // 3. Получаем или создаём подтему
       let importSubtopicId = subtopicId;
       if (!importSubtopicId && parsedData.metadata.subtopic) {
@@ -376,15 +353,11 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
           if (tagId) tagIds.push(tagId);
         }
 
-        // Генерируем код
-        const code = `${egeNumber}-${String(nextNumber).padStart(3, '0')}`;
-        nextNumber++;
-
         // Загружаем изображение локально (через PDF-сервис), если оно есть
         let imageFile = null;
         if (task.imageUrl) {
           try {
-            imageFile = await fetchImageAsFile(task.imageUrl, `task_${code}`);
+            imageFile = await fetchImageAsFile(task.imageUrl, `task_${task.number || i + 1}`);
           } catch (e) {
             results.details.push({
               status: 'warning',
@@ -396,7 +369,6 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
 
         // Формируем данные задачи
         const recordData = {
-          code,
           topic: topicId,
           difficulty: task.difficulty || parsedData.metadata.difficulty || '1',
           statement_md: task.statement_md,
@@ -513,7 +485,10 @@ export function useTaskImport({ topics = [], tags: existingTags = [], subtopics:
             }
           }
 
-          let detailMsg = `#${task.number}: добавлено с кодом ${code}`;
+          const code = createdTask.code || '';
+          let detailMsg = code
+            ? `#${task.number}: добавлено с кодом ${code}`
+            : `#${task.number}: добавлено (у темы нет префикса — без кода)`;
           if (uploadedCount) detailMsg += `, картинок: ${uploadedCount}`;
           if (failedCount) detailMsg += ` (не загружено: ${failedCount})`;
           results.details.push({

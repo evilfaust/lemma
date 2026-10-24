@@ -77,8 +77,8 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
   const handleDuplicate = async () => {
     setDuplicating(true);
     try {
-      await api.createTask({
-        code: `${task.code}-copy`,
+      // Код дубликату присваивает сервер — следующий номер темы (v3.9.397).
+      const created = await api.createTask({
         topic: task.topic,
         subtopic: task.subtopic || [],
         tags: task.tags || [],
@@ -91,7 +91,7 @@ const TaskCard = ({ task, allTags, allSources, allYears, allSubtopics, allTopics
         year: task.year,
         has_image: false,
       });
-      message.success(`Дубликат создан: ${task.code}-copy`);
+      message.success(created?.code ? `Дубликат создан: ${created.code}` : 'Дубликат создан');
       if (onUpdate) onUpdate();
     } catch (error) {
       console.error('Error duplicating task:', error);

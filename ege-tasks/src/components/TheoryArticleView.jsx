@@ -24,6 +24,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { headingTocEntry } from '../utils/headingToc';
 import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryArticleView.css';
+import { compareTaskCodes } from '../utils/taskCode';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
@@ -92,7 +93,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
       setRelatedTags(matched);
       if (tagIds.length === 0) { setRelatedTasks([]); return; }
       const tasks = await api.getTasks({ tags: tagIds });
-      setRelatedTasks([...tasks].sort((a, b) => (a.code || '').localeCompare(b.code || '')));
+      setRelatedTasks([...tasks].sort((a, b) => compareTaskCodes(a.code, b.code)));
     } catch (error) {
       console.error('Error loading related tasks:', error);
       setRelatedTasks([]);

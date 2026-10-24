@@ -129,13 +129,13 @@ describe('useWorkImport — импорт', () => {
 
     const first = api.createTask.mock.calls[0][0];
     expect(first.topic).toBe('t-prof');
-    expect(first.code).toBe('7-001');
+    expect(first.code).toBeUndefined(); // код присваивает сервер (v3.9.397)
     expect(first.statement_md).toBe('Найдите производную $f(x)=x^2$.');
     expect(first.answer).toBe('2x');
     expect(first.has_image).toBe(false);
 
-    // Вторая задача другой темы — свой префикс кода
-    expect(api.createTask.mock.calls[1][0].code).toBe('8-001');
+    // Вторая задача другой темы
+    expect(api.createTask.mock.calls[1][0].topic).not.toBe('t-prof');
 
     expect(api.createWork).toHaveBeenCalledTimes(1);
     const workData = api.createWork.mock.calls[0][0];
@@ -155,15 +155,15 @@ describe('useWorkImport — импорт', () => {
     expect(api.createVariant.mock.calls[1][0].number).toBe(2);
   });
 
-  it('коды продолжают нумерацию темы', async () => {
+  it('коды не придумывает — их присваивает сервер по теме (v3.9.397)', async () => {
     api.getTasksForDedup.mockImplementation(async (topicId) => (
-      topicId === 't-prof' ? [{ id: 'x', code: '7-014', statement_md: 'другое' }] : []
+      topicId === 't-prof' ? [{ id: 'x', code: 'П7-014', statement_md: 'другое' }] : []
     ));
     const { result } = setup();
     await act(async () => { await result.current.runImport({}); });
 
-    const codes = api.createTask.mock.calls.map((c) => c[0].code);
-    expect(codes).toEqual(['7-015', '8-001', '7-016']);
+    const sent = api.createTask.mock.calls.map((c) => ('code' in c[0]) ? c[0].code : '—');
+    expect(sent).toEqual(['—', '—', '—']);
   });
 
   it('переиспользование не создаёт задачу, но попадает в вариант', async () => {

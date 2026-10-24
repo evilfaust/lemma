@@ -1,54 +1,38 @@
 import { describe, it, expect } from 'vitest';
 import { validateTaskCode } from '../utils/taskCodeGenerator';
 
-describe('validateTaskCode', () => {
-  it('принимает стандартные коды ЕГЭ', () => {
-    expect(validateTaskCode('14-001')).toBe(true);
-    expect(validateTaskCode('1-001')).toBe(true);
-    expect(validateTaskCode('21-999')).toBe(true);
+describe('validateTaskCode (формат банка с v3.9.397)', () => {
+  it('экзамены: буква экзамена + номер задания', () => {
+    expect(validateTaskCode('П12-034')).toBe(true);
+    expect(validateTaskCode('Б5-001')).toBe(true);
+    expect(validateTaskCode('ОГ25-999')).toBe(true);
+    expect(validateTaskCode('ПА12-001')).toBe(true);
+    expect(validateTaskCode('В7.15-001')).toBe(true);
+    expect(validateTaskCode('Т1-012')).toBe(true);
   });
 
-  it('принимает коды архивных тем A{N}-{seq}', () => {
-    // архив — задание, убранное из КИМа: тема живёт, но номер уже занят другой
-    expect(validateTaskCode('A12-001')).toBe(true);
-    expect(validateTaskCode('A16-289')).toBe(true);
+  it('счётчик больших тем — от трёх цифр и длиннее', () => {
+    expect(validateTaskCode('П16-1026')).toBe(true);
   });
 
-  it('принимает счётчик длиннее трёх цифр (большие темы)', () => {
-    expect(validateTaskCode('16-1026')).toBe(true);
+  it('темы без номера: буквы, иногда с классом', () => {
+    expect(validateTaskCode('КУ-361')).toBe(true);
+    expect(validateTaskCode('И11-001')).toBe(true);
+    expect(validateTaskCode('ВХ11П-005')).toBe(true);
+    expect(validateTaskCode('М16-109')).toBe(true);
   });
 
-  it('принимает тригонометрические коды T{N}-{seq}', () => {
-    expect(validateTaskCode('T1-001')).toBe(true);
-    expect(validateTaskCode('T12-042')).toBe(true);
-    expect(validateTaskCode('T7-100')).toBe(true);
+  it('старый формат без буквы экзамена — уже не код банка', () => {
+    expect(validateTaskCode('14-001')).toBe(false);
+    expect(validateTaskCode('A12-001')).toBe(false);
+    expect(validateTaskCode('T1-001')).toBe(false);
   });
 
-  it('отклоняет коды короче трёх цифр в seq', () => {
-    expect(validateTaskCode('14-01')).toBe(false);
-    expect(validateTaskCode('14-1')).toBe(false);
-  });
-
-  it('отклоняет коды без разделителя', () => {
-    expect(validateTaskCode('14001')).toBe(false);
-    expect(validateTaskCode('T1001')).toBe(false);
-  });
-
-  it('отклоняет пустую строку', () => {
+  it('мусор', () => {
+    expect(validateTaskCode('П12-01')).toBe(false);
+    expect(validateTaskCode('П12034')).toBe(false);
     expect(validateTaskCode('')).toBe(false);
-  });
-
-  it('отклоняет null/undefined', () => {
     expect(validateTaskCode(null)).toBe(false);
     expect(validateTaskCode(undefined)).toBe(false);
-  });
-
-  it('отклоняет коды с буквами в seq', () => {
-    expect(validateTaskCode('14-abc')).toBe(false);
-  });
-
-  it('отклоняет коды Mordkovich (M{par}-{seq} — другой формат)', () => {
-    // M{par} не соответствует T\d+ и не является числом → false
-    expect(validateTaskCode('M14-001')).toBe(false);
   });
 });

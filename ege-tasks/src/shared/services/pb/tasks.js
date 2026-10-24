@@ -4,6 +4,7 @@ import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { searchCaseVariants, MIN_SEARCH_LENGTH } from '../../utils/searchVariants';
 import { parseSdamgiaSearch } from '../../utils/sdamgiaSearch';
+import { normalizeCodeQuery } from '../../../utils/taskCode';
 
 export const tasksApi = {
   _buildTasksFilter(filters = {}) {
@@ -24,6 +25,11 @@ export const tasksApi = {
         const term = escapeFilter(v);
         return [`code ~ "${term}"`, `statement_md ~ "${term}"`];
       });
+      // Код набран как попало («п12 34», латинская P) → канонический П12-034;
+      // прежний код со старой распечатки («12-034») ищется в old_codes (v3.9.397).
+      const codeQuery = normalizeCodeQuery(search);
+      if (codeQuery) conds.push(`code ~ "${escapeFilter(codeQuery)}"`);
+      conds.push(`old_codes ~ "${escapeFilter(search)}"`);
       // Голое число могло быть и куском условия — номер решу добавляем как
       // ещё один вариант, а не вместо текстового поиска.
       if (sdamgia.id) conds.push(`sdamgia_id = "${escapeFilter(sdamgia.id)}"`);
@@ -88,24 +94,28 @@ export const tasksApi = {
     return filterArr.length > 0 ? filterArr.join(' && ') : '';
   },
 
-  _buildTasksSort(sortBy) {
+  // Внутри одной темы код сортируется по номеру (code_seq): строкой
+  // «П16-1000» встал бы раньше «П16-999». Без темы — строкой, буквы экзамена
+  // при этом группируют задачи (v3.9.397).
+  _buildTasksSort(sortBy, filters = {}) {
+    const byCode = filters.topic ? 'code_seq,code' : 'code';
     switch (sortBy) {
       case 'difficulty':
-        return 'difficulty,code';
+        return `difficulty,${byCode}`;
       case 'created':
         return '-created';
       case 'updated':
         return '-updated';
       case 'code':
       default:
-        return 'code';
+        return byCode;
     }
   },
 
   async getTasksPage({ page = 1, perPage = 20, filters = {} } = {}) {
     try {
       const filterString = this._buildTasksFilter(filters);
-      const sort = this._buildTasksSort(filters.sortBy);
+      const sort = this._buildTasksSort(filters.sortBy, filters);
 
       return await pb.collection('tasks').getList(page, perPage, {
         filter: filterString,
@@ -127,7 +137,7 @@ export const tasksApi = {
   async getTasks(filters = {}) {
     try {
       const filterString = this._buildTasksFilter(filters);
-      const sort = this._buildTasksSort(filters.sortBy);
+      const sort = this._buildTasksSort(filters.sortBy, filters);
 
       return await pb.collection('tasks').getFullList({
         filter: filterString,

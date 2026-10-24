@@ -15,6 +15,7 @@ const EXAM_TYPE_OPTIONS = [
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { api } from '../../services/pocketbase';
+import { topicPrefix, PREFIX_PATTERN } from '../../utils/taskCode';
 
 export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerge, onReload }) {
   const { topics, reloadData } = useReferenceData();
@@ -43,11 +44,22 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
       exam_part:   topic?.exam_part   || null,
       order:       topic?.order       || null,
       archived:    topic?.archived    || false,
+      code_prefix: topic?.code_prefix || '',
       description: topic?.description || '',
     });
   };
 
+  // Какой префикс кодов получит тема с тем, что сейчас в форме (v3.9.397).
+  const wExam = Form.useWatch('exam_type', form);
+  const wNumber = Form.useWatch('ege_number', form);
+  const wArchived = Form.useWatch('archived', form);
+  const wPrefix = Form.useWatch('code_prefix', form);
+  const formPrefix = topicPrefix({
+    id: editing?.id, exam_type: wExam, ege_number: wNumber, archived: wArchived, code_prefix: wPrefix,
+  });
+
   const save = async (values) => {
+    values = { ...values, code_prefix: String(values.code_prefix || '').trim().toUpperCase() };
     try {
       if (editing) {
         await api.updateTopic(editing.id, values);
@@ -60,7 +72,8 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
       setEditing(null);
       reloadData();
     } catch (error) {
-      message.error('Ошибка при сохранении темы');
+      const notUnique = error?.response?.data?.code_prefix?.code === 'validation_not_unique';
+      message.error(notUnique ? 'Такой префикс кода уже у другой темы' : 'Ошибка при сохранении темы');
     }
   };
 
@@ -122,6 +135,18 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
                 </Space>
               ),
             },
+            {
+              title: 'Код',
+              key: 'prefix',
+              width: 90,
+              sorter: (a, b) => topicPrefix(a.raw).localeCompare(topicPrefix(b.raw), 'ru', { numeric: true }),
+              render: (_, record) => {
+                const p = topicPrefix(record.raw);
+                return p
+                  ? <Tag style={{ fontFamily: 'monospace' }}>{p}-…</Tag>
+                  : <Tooltip title="Тема кодов не раздаёт: код задачи вводится руками (Гордин, смешанные темы)"><span style={{ color: '#999' }}>—</span></Tooltip>;
+              },
+            },
             { title: 'Порядок', dataIndex: 'order', width: 90, sorter: (a, b) => (a.order || 0) - (b.order || 0) },
             { title: 'Кол-во', dataIndex: 'count', width: 90, sorter: (a, b) => a.count - b.count },
             {
@@ -171,6 +196,20 @@ export default function TopicTab({ topicRows, tasksSnapshot, onOpenTasks, onMerg
             tooltip="Задание убрали из экзамена. Задачи остаются в каталоге и в генераторе листов, но в сборку полного варианта тема не идёт"
           >
             <Switch />
+          </Form.Item>
+          <Form.Item
+            name="code_prefix"
+            label="Префикс кода задач"
+            tooltip="У тем экзамена оставьте пустым — префикс считается сам: П12 (профиль №12), Б5 (база), ОГ3 (ОГЭ), ПА12 (архив). Для остальных тем — 2–4 буквы (КУ, ПЛ, И11). Новая тема без номера получит префикс по первым буквам названия. Смена префикса не перенумеровывает уже созданные задачи."
+            normalize={(v) => String(v || '').toUpperCase()}
+            rules={[{
+              validator: (_, v) => (!v || PREFIX_PATTERN.test(v)
+                ? Promise.resolve()
+                : Promise.reject(new Error('Заглавные буквы, цифры и точка, до 16 знаков'))),
+            }]}
+            extra={formPrefix ? `Коды задач: ${formPrefix}-001, ${formPrefix}-002…` : 'Префикс подберётся по названию при создании'}
+          >
+            <Input placeholder="авто" style={{ fontFamily: 'monospace' }} />
           </Form.Item>
           <Form.Item name="description" label="Описание">
             <Input.TextArea rows={3} />

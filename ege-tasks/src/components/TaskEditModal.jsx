@@ -11,6 +11,7 @@ import LatexField from './shared/LatexField';
 import FieldInsertToolbar from './shared/FieldInsertToolbar';
 import useFieldInserts from '../hooks/useFieldInserts';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
+import { oldCodesOf } from '../utils/taskCode';
 import { dataUrlToFile } from '../utils/cropImage';
 import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
@@ -175,7 +176,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     if (!topicId) return;
     setGeneratingCode(true);
     try {
-      const topic = Array.isArray(allTopics) ? allTopics.find(t => t.id === topicId) : null;
+      const topic = (Array.isArray(topics) ? topics : []).find(t => t.id === topicId) || null;
       const code = await generateTaskCode(topicId, topic);
       setGeneratedCode(code);
     } catch (error) {
@@ -411,13 +412,12 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         taskData.has_image = !!(task?.image);
       }
 
-      if (isCreateMode) {
-        if (!generatedCode) {
-          message.error('Код задачи не сгенерирован. Выберите тему.');
-          setLoading(false);
-          return;
-        }
-        taskData.code = generatedCode;
+      // Код присваивает сервер (хук task_codes.pb.js, v3.9.397): новая задача
+      // уходит без кода, при смене темы код меняется там же.
+      if (isCreateMode && !values.topic) {
+        message.error('Выберите тему — по ней задача получит код');
+        setLoading(false);
+        return;
       }
 
       await onSave(isCreateMode ? null : task.id, taskData);
@@ -590,11 +590,16 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           {isCreateMode ? <PlusOutlined /> : <EditOutlined />}
           <span>
             {isCreateMode
-              ? `Создание новой задачи${generatedCode ? ` - ${generatedCode}` : ''}`
+              ? `Создание новой задачи${generatedCode ? ` — будет ≈ ${generatedCode}` : ''}`
               : `Редактирование задачи ${task?.code}`
             }
           </span>
           {isCreateMode && generatingCode && <Spin size="small" />}
+          {!isCreateMode && oldCodesOf(task).length > 0 && (
+            <Tooltip title="Прежние коды задачи — по ним её находит поиск (старые распечатки)">
+              <Tag>прежде: {oldCodesOf(task).join(', ')}</Tag>
+            </Tooltip>
+          )}
           <Tooltip title="Подсветка LaTeX/markdown, перенос строк и поиск-замена (Ctrl+F / Ctrl+H) для условия и решения">
             <Button
               size="small"

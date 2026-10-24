@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { App } from 'antd';
 import { api } from '../services/pocketbase';
 import { shuffleArray } from '../utils/shuffle';
+import { compareTaskCodes } from '../utils/taskCode';
 
 const PDF_SERVICE_URL = import.meta.env.VITE_PDF_SERVICE_URL || 'http://localhost:3001';
 const VECTOR_ENDPOINTS = { seed: '/seed-select', diverse: '/diverse', novelty: '/novelty' };
@@ -69,7 +70,7 @@ export const useWorksheetGeneration = () => {
           if (sortType === 'random') {
             variantTasks = shuffleArray(variantTasks);
           } else if (sortType === 'code') {
-            variantTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+            variantTasks.sort((a, b) => compareTaskCodes(a.code, b.code));
           } else if (sortType === 'difficulty') {
             variantTasks.sort((a, b) => String(a.difficulty ?? '1').localeCompare(String(b.difficulty ?? '1')));
           }
@@ -100,7 +101,7 @@ export const useWorksheetGeneration = () => {
 
         // Сортировка базового набора
         if (sortType === 'code') {
-          baseTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+          baseTasks.sort((a, b) => compareTaskCodes(a.code, b.code));
         } else if (sortType === 'difficulty') {
           baseTasks.sort((a, b) => String(a.difficulty ?? '1').localeCompare(String(b.difficulty ?? '1')));
         }
@@ -134,7 +135,7 @@ export const useWorksheetGeneration = () => {
 
         // Сортировка
         if (sortType === 'code') {
-          baseTasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+          baseTasks.sort((a, b) => compareTaskCodes(a.code, b.code));
         } else if (sortType === 'difficulty') {
           baseTasks.sort((a, b) => (a.difficulty || '1').localeCompare(b.difficulty || '1'));
         }
@@ -626,7 +627,7 @@ export const useWorksheetGeneration = () => {
       tasks.length = 0;
       tasks.push(...shuffled);
     } else if (sortType === 'code') {
-      tasks.sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+      tasks.sort((a, b) => compareTaskCodes(a.code, b.code));
     } else if (sortType === 'difficulty') {
       tasks.sort((a, b) => (a.difficulty || '1').localeCompare(b.difficulty || '1'));
     }

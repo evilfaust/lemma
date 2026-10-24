@@ -25,7 +25,6 @@ import {
   moveItem,
 } from '../utils/reshuTaskList';
 import { fetchSdamgiaProblems, createTaskFromSdamgia } from '../utils/importReshuProblem';
-import { taskCodePrefix, nextCodeFromCodes } from '../utils/taskCodeGenerator';
 
 // Решу режет частые запросы — задачи тянем по несколько за раз
 const FETCH_CONCURRENCY = 3;
@@ -211,17 +210,12 @@ export function useReshuWorkImport({ topics = [] } = {}) {
     const examsUsed = [...new Set(active.map(examOf))];
 
     try {
-      // Коды задач: по одному запросу на тему, дальше счётчик крутится локально
+      // Темы новых задач. Коды присваивает сервер (хук task_codes.pb.js, v3.9.397).
       const codeState = new Map();
       const createTopicIds = [...new Set(active.filter((r) => r.status === 'reshu').map((r) => r.topicId))];
       for (const topicId of createTopicIds) {
         const topic = topics.find((t) => t.id === topicId) || await api.getTopic(topicId);
-        const existing = await api.getTasksForDedup(topicId);
-        codeState.set(topicId, {
-          topic,
-          prefix: taskCodePrefix(topic),
-          codes: existing.map((t) => t.code).filter(Boolean),
-        });
+        codeState.set(topicId, { topic });
       }
 
       for (let i = 0; i < active.length; i++) {
@@ -240,13 +234,10 @@ export function useReshuWorkImport({ topics = [] } = {}) {
           continue;
         }
         const state = codeState.get(row.topicId);
-        const code = nextCodeFromCodes(state.codes, state.prefix);
-        state.codes.push(code);
         try {
           const created = await createTaskFromSdamgia({
             problem: row.problem,
             topicId: row.topicId,
-            code,
             sourceType: RESHU_EXAMS[examOf(row)].sourceType,
             examPart: state.topic?.exam_part || 1,
             taskNumber: state.topic?.ege_number || '',
