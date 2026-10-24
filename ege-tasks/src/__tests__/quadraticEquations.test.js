@@ -269,14 +269,21 @@ describe('устный блок', () => {
   });
 
   it('(ax + b)² = 0 — один корень, чаще дробный', () => {
+    // «Чаще дробный» — свойство распределения: в среднем дробный корень у
+    // ~63 % заданий. На одной выборке из 40 доля гуляет от 17 до 35 и в ~4 %
+    // прогонов не дотягивала до половины (тест падал сам по себе, 25.10.2026).
+    // На 400 заданиях запас до порога — около пяти σ.
     let fractional = 0;
-    const questions = onlyCategory('binomSquareZero', 40);
-    for (const q of questions) {
-      expect(q.exprLatex, q.exprLatex).toMatch(/\\right\)\^2 = 0$/);
-      expect(q.solution.roots, q.exprLatex).toHaveLength(1);
-      if (!Number.isInteger(q.solution.roots[0])) fractional += 1;
+    let total = 0;
+    for (let run = 0; run < 10; run++) {
+      for (const q of onlyCategory('binomSquareZero', 40)) {
+        expect(q.exprLatex, q.exprLatex).toMatch(/\\right\)\^2 = 0$/);
+        expect(q.solution.roots, q.exprLatex).toHaveLength(1);
+        if (!Number.isInteger(q.solution.roots[0])) fractional += 1;
+        total += 1;
+      }
     }
-    expect(fractional).toBeGreaterThan(questions.length / 2);
+    expect(fractional).toBeGreaterThan(total / 2);
   });
 
   it('свёрнутый квадрат даёт ровно один корень', () => {
