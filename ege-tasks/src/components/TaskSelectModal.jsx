@@ -4,6 +4,7 @@ import { PlusOutlined, SearchOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { api } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const { Option } = Select;
 
@@ -213,7 +214,7 @@ const TaskSelectModal = ({
           }}
         >
           <Row gutter={16}>
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={8} lg={6}>
               <Form.Item name="exam_type" label="Контекст">
                 <Select placeholder="Все задачи" allowClear>
                   {EXAM_TYPE_OPTIONS.map(o => (
@@ -223,31 +224,31 @@ const TaskSelectModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={16} lg={9}>
               <Form.Item name="topic" label="Тема">
                 <Select
                   placeholder="Выберите тему"
                   allowClear
-                  showSearch
                   optionFilterProp="children"
+                  {...TOPIC_SELECT}
                 >
                   {filteredTopics.map(topic => (
                     <Option key={topic.id} value={topic.id}>
-                      {topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}
+                      {topicOptionLabel(topic)}
                     </Option>
                   ))}
                 </Select>
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={16} lg={9}>
               <Form.Item name="subtopic" label="Подтема">
                 <Select
                   placeholder="Выберите подтему"
                   allowClear
-                  showSearch
                   optionFilterProp="children"
                   disabled={!filters.topic}
+                  {...TOPIC_SELECT}
                 >
                   {filteredSubtopics.map(subtopic => (
                     <Option key={subtopic.id} value={subtopic.id}>
@@ -258,7 +259,7 @@ const TaskSelectModal = ({
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={8} lg={6}>
               <Form.Item name="difficulty" label="Сложность">
                 <Select placeholder="Любая" allowClear>
                   <Option value="1">1 - Базовый</Option>

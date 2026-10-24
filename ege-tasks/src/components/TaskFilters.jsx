@@ -3,8 +3,7 @@ import { Card, Form, Select, Button, Space, Row, Col, Radio, Statistic, Badge, I
 import { FilterOutlined, ClearOutlined, SearchOutlined, SortAscendingOutlined, PlusOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
-import { topicOptionLabel } from '../utils/topicLabel';
-import './TaskFilters.css';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 // Поиск по тексту — это LIKE по 25 тыс. условий; уходить в сеть на каждую
 // набранную букву не нужно, ждём паузы в наборе.
@@ -30,22 +29,6 @@ const ISSUE_LABELS = {
 
 const topicLabel = topicOptionLabel;
 
-// Список тем и подтем шире поля и с переносом строк: на планшете поле узкое,
-// а подтема бывает в 90 символов. Ширину ограничивает экран (CSS попапа).
-const WIDE_POPUP = {
-  popupMatchSelectWidth: 420,
-  popupClassName: 'tf-select-popup',
-  listHeight: 360,
-  // Строки разной высоты (перенос) — виртуальный список считал бы их по 32 px.
-  virtual: false,
-};
-
-// На сенсорном экране поиск в селекте открывает клавиатуру, и она закрывает
-// список — тему выбирают пролистыванием. Мышью — поиск, как раньше.
-const isCoarsePointer = () => {
-  try { return window.matchMedia('(pointer: coarse)').matches; } catch { return false; }
-};
-
 const TaskFilters = ({
   topics,
   tags,
@@ -63,7 +46,6 @@ const TaskFilters = ({
   const [filters, setFilters] = useState({});
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedExamType, setSelectedExamType] = useState(null);
-  const [touch] = useState(isCoarsePointer);
 
   const getDifficultyColor = (difficulty) => {
     const colors = { '1': '#52c41a', '2': '#faad14', '3': '#ff4d4f', '4': '#a8071a', '5': '#722ed1' };
@@ -258,10 +240,9 @@ const TaskFilters = ({
               <Select
                 placeholder="Выберите тему"
                 allowClear
-                showSearch={!touch}
                 optionFilterProp="label"
                 options={visibleTopics.map((topic) => ({ value: topic.id, label: topicLabel(topic) }))}
-                {...WIDE_POPUP}
+                {...TOPIC_SELECT}
               />
             </Form.Item>
           </Col>
@@ -271,13 +252,12 @@ const TaskFilters = ({
               <Select
                 placeholder={selectedTopic ? 'Выберите подтему' : 'Сначала выберите тему'}
                 allowClear
-                showSearch={!touch}
                 optionFilterProp="label"
                 disabled={!selectedTopic}
                 options={subtopics
                   .filter((st) => !selectedTopic || st.topic === selectedTopic)
                   .map((st) => ({ value: st.id, label: st.name }))}
-                {...WIDE_POPUP}
+                {...TOPIC_SELECT}
               />
             </Form.Item>
           </Col>

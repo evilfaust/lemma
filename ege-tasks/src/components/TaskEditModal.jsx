@@ -12,6 +12,7 @@ import FieldInsertToolbar from './shared/FieldInsertToolbar';
 import useFieldInserts from '../hooks/useFieldInserts';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
 import { oldCodesOf } from '../utils/taskCode';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 import { dataUrlToFile } from '../utils/cropImage';
 import { api, aiHeaders } from '../services/pocketbase';
 import { useAuth } from '../contexts/AuthContext';
@@ -737,14 +738,14 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
         </Form.Item>
         </Col>
 
-        {/* Тема */}
-        <Col xs={24} sm={12} lg={6}>
+        {/* Тема — широкая колонка: длинные названия (v3.9.399) */}
+        <Col xs={24} lg={12}>
         <Form.Item name="topic" label="Тема" rules={[{ required: true, message: 'Выберите тему' }]}>
           <Select
             placeholder="Выберите тему"
-            showSearch
             optionFilterProp="children"
             onChange={handleTopicChange}
+            {...TOPIC_SELECT}
             dropdownRender={(menu) => (
               <>
                 {menu}
@@ -762,21 +763,21 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             )}
           >
             {filteredTopicsList.map(topic => (
-              <Option key={topic.id} value={topic.id}>{topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}</Option>
+              <Option key={topic.id} value={topic.id}>{topicOptionLabel(topic)}</Option>
             ))}
           </Select>
         </Form.Item>
         </Col>
 
         {/* Подтема */}
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} lg={12}>
         <Form.Item name="subtopic" label="Подтема">
           <Select
             placeholder="Выберите подтему"
             allowClear
-            showSearch
             optionFilterProp="children"
             disabled={!form.getFieldValue('topic')}
+            {...TOPIC_SELECT}
             dropdownRender={(menu) => (
               <>
                 {menu}

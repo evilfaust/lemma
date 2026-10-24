@@ -22,6 +22,7 @@ import TrigMCPrintLayout from './trig/TrigMCPrintLayout';
 import TrigMCTestEditor from './trig/TrigMCTestEditor';
 import { GENERATOR_LABELS } from './trig/TrigMCSaveModal';
 import SessionPanel from './worksheet/SessionPanel';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 function SourceBadge({ test }) {
   if (test.source_type === 'generator') {
@@ -386,8 +387,9 @@ const MCTestGenerator = ({ initialMcTestId = null } = {}) => {
                 <label style={{ display: 'block', marginBottom: 4 }}>Темы</label>
                 <Select mode="multiple" value={mc.topicIds} onChange={mc.setTopicIds}
                   placeholder="Можно несколько" style={{ width: '100%' }}
-                  showSearch optionFilterProp="label"
-                  options={topics.map(t => ({ value: t.id, label: t.title }))} />
+                  optionFilterProp="label"
+                  options={topics.map(t => ({ value: t.id, label: topicOptionLabel(t) }))}
+                  {...TOPIC_SELECT} />
               </div>
               <div>
                 <label style={{ display: 'block', marginBottom: 4 }}>Вариантов ответа на задачу</label>

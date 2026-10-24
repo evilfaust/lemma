@@ -1,24 +1,24 @@
-/* Фильтры «Все задачи» (v3.9.398): список тем/подтем шире поля, длинные
+/* Селекты темы и подтемы (v3.9.398): список тем/подтем шире поля, длинные
    названия переносятся, а не обрезаются многоточием. Попап живёт в <body>,
    поэтому класс — на самом попапе (popupClassName). */
-.tf-select-popup {
+.topic-select-popup {
   max-width: calc(100vw - 24px);
 }
 
-.tf-select-popup .ant-select-item-option-content {
+.topic-select-popup .ant-select-item-option-content {
   white-space: normal;
   overflow-wrap: anywhere;
   line-height: 1.35;
 }
 
-.tf-select-popup .ant-select-item {
+.topic-select-popup .ant-select-item {
   padding-top: 7px;
   padding-bottom: 7px;
 }
 
 /* Пальцем по строке высотой 32 px промахиваются — на сенсорном экране выше. */
 @media (pointer: coarse) {
-  .tf-select-popup .ant-select-item {
+  .topic-select-popup .ant-select-item {
     padding-top: 11px;
     padding-bottom: 11px;
   }

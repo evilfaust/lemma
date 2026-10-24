@@ -7,6 +7,7 @@ import MathRenderer from '../../shared/components/MathRenderer';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { api } from '../../services/pocketbase';
 import { circleNum } from '../../hooks/useRouteSheet';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 const { Text, Paragraph } = Typography;
 const { TextArea } = Input;
@@ -221,13 +222,10 @@ export default function RouteTaskEditor({ open, onClose, onSaved, previousTasks 
               <Select
                 placeholder="Выберите тему"
                 allowClear
-                showSearch
                 optionFilterProp="label"
-                options={topics.map(t => ({
-                  value: t.id,
-                  label: t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title,
-                }))}
+                options={topics.map(t => ({ value: t.id, label: topicOptionLabel(t) }))}
                 onChange={() => form.setFieldValue('subtopic', undefined)}
+                {...TOPIC_SELECT}
               />
             </Form.Item>
 
@@ -236,7 +234,9 @@ export default function RouteTaskEditor({ open, onClose, onSaved, previousTasks 
                 <Select
                   placeholder="Подтема (необязательно)"
                   allowClear
+                  optionFilterProp="label"
                   options={filteredSubtopics.map(s => ({ value: s.id, label: s.name }))}
+                  {...TOPIC_SELECT}
                 />
               </Form.Item>
             )}

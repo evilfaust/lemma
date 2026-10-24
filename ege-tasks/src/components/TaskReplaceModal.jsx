@@ -3,6 +3,7 @@ import { Modal, Card, Button, Badge, Spin, Empty, Form, Select, Row, Col } from 
 import { SwapOutlined } from '@ant-design/icons';
 import MathRenderer from './MathRenderer';
 import { api } from '../services/pocketbase';
+import { TOPIC_SELECT } from './shared/topicSelect';
 
 const { Option } = Select;
 
@@ -163,13 +164,13 @@ const TaskReplaceModal = ({
               onValuesChange={handleFilterChange}
             >
               <Row gutter={16}>
-                <Col xs={24} sm={8}>
+                <Col xs={24} md={12}>
                   <Form.Item name="subtopic" label="Подтема">
                     <Select
                       placeholder="Выберите подтему"
                       allowClear
-                      showSearch
                       optionFilterProp="children"
+                      {...TOPIC_SELECT}
                     >
                       {filteredSubtopics.map(subtopic => (
                         <Option key={subtopic.id} value={subtopic.id}>

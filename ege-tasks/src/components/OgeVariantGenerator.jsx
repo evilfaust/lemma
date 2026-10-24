@@ -44,6 +44,7 @@ import { printKimAnswers } from '../utils/printKimAnswers';
 import './TaskWorksheet.css';
 import './EgeVariantGenerator.css';
 import './EgeProfileVariantGenerator.css';
+import { TOPIC_SELECT } from './shared/topicSelect';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -454,6 +455,7 @@ const OgeVariantGenerator = () => {
             placeholder="Любая"
             value={slot.subtopics}
             onChange={v => updateSlot(index, 'subtopics', v)}
+            {...TOPIC_SELECT}
             size="small"
             style={{ width: '100%' }}
             maxTagCount={1}

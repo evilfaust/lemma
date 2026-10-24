@@ -1,5 +1,6 @@
 import { Form, Select, InputNumber, Button, Segmented, Badge, Row, Col } from 'antd';
 import { ThunderboltOutlined } from '@ant-design/icons';
+import { TOPIC_SELECT, topicOptionLabel } from '../../shared/topicSelect';
 
 const { Option } = Select;
 
@@ -20,8 +21,7 @@ const VARIANTS_MODE_OPTIONS = [
   { label: 'Одинаковые', value: 'same' },
 ];
 
-const topicLabel = (topic) =>
-  topic.ege_number ? `№${topic.ege_number} — ${topic.title}` : topic.title;
+const topicLabel = topicOptionLabel;
 
 export default function HeroSection({
   topics,
@@ -87,7 +87,7 @@ export default function HeroSection({
       {methodSlot && <div style={{ marginBottom: 16 }}>{methodSlot}</div>}
 
       <Row gutter={12} style={{ marginBottom: 16 }}>
-        <Col xs={24} md={6}>
+        <Col xs={24} md={8} xl={6}>
           <Form.Item name="exam_type" label="Контекст" style={{ marginBottom: 0 }}>
             <Select size="large" placeholder="Все контексты" allowClear>
               {Object.entries(EXAM_TYPE_LABELS).map(([value, label]) => (
@@ -97,14 +97,14 @@ export default function HeroSection({
           </Form.Item>
         </Col>
 
-        <Col xs={24} md={12}>
+        <Col xs={24} md={16} xl={10}>
           <Form.Item name="topic" label="Тема" style={{ marginBottom: 0 }}>
             <Select
               size="large"
               placeholder={selectedExamType ? 'Все темы контекста' : 'Все темы'}
               allowClear
-              showSearch
               optionFilterProp="children"
+              {...TOPIC_SELECT}
             >
               {visibleTopics.map(topic => (
                 <Option key={topic.id} value={topic.id}>
@@ -115,16 +115,16 @@ export default function HeroSection({
           </Form.Item>
         </Col>
 
-        <Col xs={24} md={6}>
+        <Col xs={24} xl={8}>
           <Form.Item name="subtopic" label="Подтема" style={{ marginBottom: 0 }}>
             <Select
               size="large"
               placeholder={selectedTopic ? 'Все подтемы' : 'Выберите тему'}
               allowClear
-              showSearch
               optionFilterProp="children"
               disabled={!selectedTopic}
               onChange={(value) => onSubtopicChange(value || null)}
+              {...TOPIC_SELECT}
             >
               {visibleSubtopics.map(s => (
                 <Option key={s.id} value={s.id}>{s.name}</Option>

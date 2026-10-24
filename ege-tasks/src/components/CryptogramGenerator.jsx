@@ -29,6 +29,7 @@ import {
   TrigStatBadge,
 } from './trig/TrigGeneratorLayout';
 import './CryptogramGenerator.css';
+import { TOPIC_SELECT, topicOptionLabel } from './shared/topicSelect';
 
 const { Text } = Typography;
 
@@ -44,7 +45,7 @@ const EXAM_TYPE_LABELS = {
   other:       'Прочее',
 };
 
-const topicLabel = (t) => t.ege_number ? `№${t.ege_number} — ${t.title}` : t.title;
+const topicLabel = topicOptionLabel;
 
 /* ── Основной компонент ─────────────────────────────────────────────────── */
 export default function CryptogramGenerator() {
@@ -399,8 +400,8 @@ export default function CryptogramGenerator() {
                         ? topics.filter(t => t.exam_type === genContext)
                         : topics
                       ).map(t => ({ value: t.id, label: topicLabel(t) }))}
-                      showSearch
                       optionFilterProp="label"
+                      {...TOPIC_SELECT}
                     />
                   </div>
                   <div>
@@ -417,6 +418,8 @@ export default function CryptogramGenerator() {
                         .map(s => ({ value: s.id, label: s.name }))
                       }
                       disabled={!genTopic}
+                      optionFilterProp="label"
+                      {...TOPIC_SELECT}
                     />
                   </div>
                   <Button

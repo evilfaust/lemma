@@ -1,5 +1,6 @@
 import { Card, Form, Select, Row, Col, InputNumber, Button, Tag } from 'antd';
 import { DeleteOutlined, DragOutlined } from '@ant-design/icons';
+import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
 const { Option } = Select;
 
@@ -31,7 +32,7 @@ const FilterBlock = ({
   // Получаем название темы для заголовка
   const selectedTopic = topics.find(t => t.id === block.topic);
   const topicTitle = selectedTopic
-    ? (selectedTopic.ege_number ? `№${selectedTopic.ege_number} — ${selectedTopic.title}` : selectedTopic.title)
+    ? topicOptionLabel(selectedTopic)
     : `Блок ${index + 1}`;
 
   return (
@@ -58,20 +59,20 @@ const FilterBlock = ({
       style={{ marginBottom: 16 }}
     >
       <Row gutter={[16, 16]}>
-        {/* Тема */}
-        <Col xs={24} md={12}>
+        {/* Тема — широкая: длинные названия (v3.9.399) */}
+        <Col xs={24} lg={16}>
           <Form.Item label="Тема" style={{ marginBottom: 0 }}>
             <Select
               placeholder="Выберите тему"
               value={block.topic}
               onChange={v => handleChange('topic', v)}
-              showSearch
               optionFilterProp="children"
               allowClear
+              {...TOPIC_SELECT}
             >
               {topics.map(topic => (
                 <Option key={topic.id} value={topic.id}>
-                  {topic.ege_number ? `№${topic.ege_number} — ` : ''}{topic.title}
+                  {topicOptionLabel(topic)}
                 </Option>
               ))}
             </Select>
@@ -79,7 +80,7 @@ const FilterBlock = ({
         </Col>
 
         {/* Количество задач */}
-        <Col xs={24} md={12}>
+        <Col xs={24} lg={8}>
           <Form.Item label="Количество задач" style={{ marginBottom: 0 }}>
             <InputNumber
               min={1}
@@ -93,17 +94,17 @@ const FilterBlock = ({
         </Col>
 
         {/* Подтемы */}
-        <Col xs={24} md={12}>
+        <Col xs={24}>
           <Form.Item label="Подтемы (опционально)" style={{ marginBottom: 0 }}>
             <Select
               mode="multiple"
               placeholder={block.topic ? "Выберите подтемы" : "Сначала выберите тему"}
               value={block.subtopics}
               onChange={v => handleChange('subtopics', v)}
-              showSearch
               optionFilterProp="children"
               allowClear
               disabled={!block.topic}
+              {...TOPIC_SELECT}
             >
               {filteredSubtopics.map(subtopic => (
                 <Option key={subtopic.id} value={subtopic.id}>
