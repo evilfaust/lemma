@@ -3,6 +3,8 @@ import { Card, Form, Select, Button, Space, Row, Col, Radio, Statistic, Badge, I
 import { FilterOutlined, ClearOutlined, SearchOutlined, SortAscendingOutlined, PlusOutlined } from '@ant-design/icons';
 import { useAuth } from '../contexts/AuthContext';
 import { MIN_SEARCH_LENGTH } from '../shared/utils/searchVariants';
+import { topicOptionLabel } from '../utils/topicLabel';
+import './TaskFilters.css';
 
 // Поиск по тексту — это LIKE по 25 тыс. условий; уходить в сеть на каждую
 // набранную букву не нужно, ждём паузы в наборе.
@@ -26,8 +28,23 @@ const ISSUE_LABELS = {
   notopic: 'Без темы',
 };
 
-const topicLabel = (topic) =>
-  topic.ege_number ? `№${topic.ege_number} — ${topic.title}` : topic.title;
+const topicLabel = topicOptionLabel;
+
+// Список тем и подтем шире поля и с переносом строк: на планшете поле узкое,
+// а подтема бывает в 90 символов. Ширину ограничивает экран (CSS попапа).
+const WIDE_POPUP = {
+  popupMatchSelectWidth: 420,
+  popupClassName: 'tf-select-popup',
+  listHeight: 360,
+  // Строки разной высоты (перенос) — виртуальный список считал бы их по 32 px.
+  virtual: false,
+};
+
+// На сенсорном экране поиск в селекте открывает клавиатуру, и она закрывает
+// список — тему выбирают пролистыванием. Мышью — поиск, как раньше.
+const isCoarsePointer = () => {
+  try { return window.matchMedia('(pointer: coarse)').matches; } catch { return false; }
+};
 
 const TaskFilters = ({
   topics,
@@ -46,6 +63,7 @@ const TaskFilters = ({
   const [filters, setFilters] = useState({});
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedExamType, setSelectedExamType] = useState(null);
+  const [touch] = useState(isCoarsePointer);
 
   const getDifficultyColor = (difficulty) => {
     const colors = { '1': '#52c41a', '2': '#faad14', '3': '#ff4d4f', '4': '#a8071a', '5': '#722ed1' };
@@ -224,7 +242,7 @@ const TaskFilters = ({
         </Row>
 
         <Row gutter={16}>
-          <Col xs={24} sm={12} md={4}>
+          <Col xs={24} md={8} xl={6}>
             <Form.Item name="exam_type" label="Контекст">
               <Select placeholder="Все задачи" allowClear>
                 {Object.entries(EXAM_TYPE_LABELS).map(([value, label]) => (
@@ -234,42 +252,39 @@ const TaskFilters = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={4}>
+          {/* Тема и подтема — длинные названия, им широкие колонки (v3.9.398) */}
+          <Col xs={24} md={16} xl={9}>
             <Form.Item name="topic" label="Тема">
               <Select
                 placeholder="Выберите тему"
                 allowClear
-                showSearch
-                optionFilterProp="children"
-              >
-                {visibleTopics.map(topic => (
-                  <Option key={topic.id} value={topic.id}>
-                    {topicLabel(topic)}
-                  </Option>
-                ))}
-              </Select>
+                showSearch={!touch}
+                optionFilterProp="label"
+                options={visibleTopics.map((topic) => ({ value: topic.id, label: topicLabel(topic) }))}
+                {...WIDE_POPUP}
+              />
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={4}>
+          <Col xs={24} xl={9}>
             <Form.Item name="subtopic" label="Подтема">
               <Select
                 placeholder={selectedTopic ? 'Выберите подтему' : 'Сначала выберите тему'}
                 allowClear
-                showSearch
-                optionFilterProp="children"
+                showSearch={!touch}
+                optionFilterProp="label"
                 disabled={!selectedTopic}
-              >
-                {subtopics
-                  .filter(s => !selectedTopic || s.topic === selectedTopic)
-                  .map(s => (
-                    <Option key={s.id} value={s.id}>{s.name}</Option>
-                  ))}
-              </Select>
+                options={subtopics
+                  .filter((st) => !selectedTopic || st.topic === selectedTopic)
+                  .map((st) => ({ value: st.id, label: st.name }))}
+                {...WIDE_POPUP}
+              />
             </Form.Item>
           </Col>
+        </Row>
 
-          <Col xs={24} sm={12} md={4}>
+        <Row gutter={16}>
+          <Col xs={24} sm={8}>
             <Form.Item name="difficulty" label="Сложность">
               <Select placeholder="Выберите сложность" allowClear>
                 {difficulties.map(d => (
@@ -284,7 +299,7 @@ const TaskFilters = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={4}>
+          <Col xs={24} sm={8}>
             <Form.Item name="source" label="Источник">
               <Select placeholder="Выберите источник" allowClear>
                 {sources.map(s => (
@@ -294,7 +309,7 @@ const TaskFilters = ({
             </Form.Item>
           </Col>
 
-          <Col xs={24} sm={12} md={4}>
+          <Col xs={24} sm={8}>
             <Form.Item name="year" label="Год">
               <Select placeholder="Выберите год" allowClear>
                 {years.map(y => (
@@ -364,7 +379,7 @@ const TaskFilters = ({
 
         {getActiveFiltersCount() > 0 && (
           <div style={{ marginBottom: 16 }}>
-            <Space wrap>
+            <Space wrap className="tf-active">
               <span style={{ color: '#666', fontWeight: 500 }}>Активные фильтры:</span>
               {filters.search && (
                 <Tag closable onClose={() => removeFilter('search')} color="blue">
