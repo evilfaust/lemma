@@ -663,13 +663,20 @@ function tidyMarkdown(text) {
 const ALT_SOLUTION_RE = /(?:\*\*)?[ \t]*Прив[её]д[её]м\s+(?:ещё\s+одно|еще\s+одно|другое|иное|второе)\s+решение(?:\s+(?:пункта|задачи)\s*([абвгде])\))?[ \t]*\.?[ \t]*(?:\*\*)?/gi;
 
 function cleanAnswer(text) {
-  return String(text || '')
+  const a = String(text || '')
     .replace(/\*\*/g, '')
     .replace(/^\s*Ответ\s*:?\s*/i, '')
     .replace(/\s*\n+\s*/g, ' ')
     .trim()
     .replace(/\s*\.$/, '')
     .trim();
+  // Число формулой («$2{,}7$», «$-2; 0; 4$») — текстом, как ответы первой части в банке
+  const m = a.match(/^\$([^$]+)\$$/);
+  if (m) {
+    const plain = m[1].replace(/\{,\}/g, ',').replace(/\s+/g, ' ').trim().replace(/^-\s*/, '−').replace(/;\s*-\s*/g, '; −');
+    if (/^−?\d+(?:,\d+)?(?:\s*;\s*−?\d+(?:,\d+)?)*$/.test(plain)) return plain;
+  }
+  return a;
 }
 
 function validateLatex(katex, formula) {

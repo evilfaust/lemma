@@ -138,6 +138,19 @@ describe('cleanLatexFormula', () => {
   });
 });
 
+describe('ответ', () => {
+  const page = (answerHtml) => `<div class="prob_maindiv"><div class="pbody"><p>Условие</p></div><div class="answer"><span>Ответ: </span>${answerHtml}</div></div>`;
+  const answerOf = (html) => parseSdamgiaHtml(page(html), { cheerio, katex }).problems[0].answer;
+  const img = (alt) => `<img class="tex" src="https://ege.sdamgia.ru/formula/svg/aa/aa.svg" alt="${alt}">`;
+  it('число формулой — текстом, как ответы первой части в банке', () => {
+    expect(answerOf(img('2,7.'))).toBe('2,7');
+    expect(answerOf(img('минус 2; 0; 4'))).toBe('−2; 0; 4');
+  });
+  it('не число — формулой', () => {
+    expect(answerOf(img('левая квадратная скобка 1; 2 правая квадратная скобка'))).toBe('$[ 1; 2 ]$');
+  });
+});
+
 describe('splitAltPunct / convertMathRuns', () => {
   it('пунктуация предложения отделяется, точка-скобка системы — нет', () => {
     expect(splitAltPunct('a не равно 0.')).toEqual({ body: 'a не равно 0', punct: '.' });
