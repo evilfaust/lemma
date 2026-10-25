@@ -848,12 +848,23 @@ function intervalTraits(s, p, q) {
   const first = (list) => list[0];
   const last = (list) => list[list.length - 1];
   const rise = Math.abs(s.spline.f(q) - s.spline.f(p));
-  // Признак кладётся в loose всегда, в strict — если виден по клеткам
-  const add = (key, ok, visible) => {
-    if (!ok) return;
-    loose.add(key);
-    if (visible) strict.add(key);
+  // Признак кладётся в loose всегда, в strict — если виден по клеткам.
+  // `maybe` — признак верен не наверняка, но его можно так прочесть: тогда
+  // он только в loose (мешает тому же признаку у другого интервала).
+  const add = (key, ok, visible, maybe = false) => {
+    if (ok || maybe) loose.add(key);
+    if (ok && visible) strict.add(key);
   };
+  // Знак функции «в начале / в конце» интервала ученик читает у самой
+  // отметки. Ноль функции может стоять между отметкой и первой точкой сетки
+  // (разбор 25.10.2026: f(−4) = 0,08, через 1/200 интервала — уже −0,01),
+  // и тогда у задания было два ответа (≈4 на 1000). Поэтому для loose знак
+  // читаем ещё и вплотную к отметке. У производной этого не бывает: она
+  // меняет знак только в узлах графика, а узлы и отметки — целые.
+  const near = [1e-5, 1e-4, 1e-3, 1 / 200].map((t) => t * (q - p));
+  const fStart = [first(fs), ...near.map((h) => s.spline.f(p + h))];
+  const fEnd = [last(fs), ...near.map((h) => s.spline.f(q - h))];
+  const can = (list, sign) => list.some((v) => (sign > 0 ? v > 0 : v < 0));
 
   add('d_pos', ds.every((v) => v > 0), rise >= INT_MIN_RISE);
   add('d_neg', ds.every((v) => v < 0), rise >= INT_MIN_RISE);
@@ -870,9 +881,11 @@ function intervalTraits(s, p, q) {
   add('d_down_up', first(ds) < 0 && last(ds) > 0,
     dOnce && first(ds) < -INT_MIN_SLOPE && last(ds) > INT_MIN_SLOPE);
   add('f_neg_pos', first(fs) < 0 && last(fs) > 0,
-    fOnce && first(fs) < -INT_MIN_DIST && last(fs) > INT_MIN_DIST);
+    fOnce && first(fs) < -INT_MIN_DIST && last(fs) > INT_MIN_DIST,
+    can(fStart, -1) && can(fEnd, 1));
   add('f_pos_neg', first(fs) > 0 && last(fs) < 0,
-    fOnce && first(fs) > INT_MIN_DIST && last(fs) < -INT_MIN_DIST);
+    fOnce && first(fs) > INT_MIN_DIST && last(fs) < -INT_MIN_DIST,
+    can(fStart, 1) && can(fEnd, -1));
   return { strict, loose };
 }
 

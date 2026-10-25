@@ -309,8 +309,7 @@ describe('соответствие «график ↔ характеристик
 
 describe('соответствие «интервал ↔ характеристика»', () => {
   // Верна ли характеристика на интервале — считаем по разобранному чертежу
-  const holds = (s, p, q, text) => {
-    const N = 200;
+  const holds = (s, p, q, text, N = 200) => {
     const at = (i) => p + ((q - p) * i) / N;
     const fs = [];
     const ds = [];
@@ -347,9 +346,12 @@ describe('соответствие «интервал ↔ характерист
         const text = t.matching.values[Number(digit) - 1];
         // верна для своего интервала…
         expect(holds(s, marks[i], marks[i + 1], text)).toBe(true);
-        // …и ни для какого другого — иначе у задания несколько ответов
+        // …и ни для какого другого — иначе у задания несколько ответов.
+        // Мелкий шаг — ноль функции бывает вплотную к отметке (25.10.2026:
+        // f(−4) = 0,08, а через 1/200 интервала уже −0,01).
         for (let j = 0; j < 4; j += 1) {
-          if (j !== i) expect(holds(s, marks[j], marks[j + 1], text)).toBe(false);
+          if (j === i) continue;
+          for (const N of [200, 5000]) expect(holds(s, marks[j], marks[j + 1], text, N)).toBe(false);
         }
       });
     }
