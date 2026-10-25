@@ -1,0 +1,89 @@
+/* RefreshFromSdamgiaModal — «Перепарсить с Решу ЕГЭ» */
+.rfs-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 48px 0;
+  color: var(--ant-color-text-secondary, #666);
+}
+.rfs-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.rfs-field {
+  border: 1px solid var(--ant-color-border-secondary, #f0f0f0);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.rfs-field--quiet { padding: 6px 12px; }
+.rfs-field-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rfs-sides {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+.rfs-side {
+  max-height: 46vh;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 13px;
+}
+.rfs-side--old { background: #fafafa; border: 1px solid #eee; }
+.rfs-side--new { background: #f6ffed; border: 1px solid #b7eb8f; }
+.rfs-side-label { display: block; font-size: 11px; margin-bottom: 4px; }
+.rfs-inline-change {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+.rfs-old { color: #8c8c8c; text-decoration: line-through; }
+.rfs-arrow { color: #8c8c8c; }
+.rfs-diff {
+  margin-top: 8px;
+  max-height: 46vh;
+  overflow: auto;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.rfs-line {
+  padding: 1px 10px 1px 22px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+}
+.rfs-line::before { position: absolute; left: 8px; }
+.rfs-line--same { color: #8c8c8c; }
+.rfs-line--gap { color: #bfbfbf; text-align: center; padding-left: 10px; }
+.rfs-line--del { background: #fff1f0; }
+.rfs-line--del::before { content: '−'; color: #cf1322; }
+.rfs-line--add { background: #f6ffed; }
+.rfs-line--add::before { content: '+'; color: #389e0d; }
+.rfs-line del { background: #ffccc7; text-decoration: line-through; }
+.rfs-line ins { background: #b7eb8f; text-decoration: none; }
+.rfs-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 760px) {
+  .rfs-sides { grid-template-columns: minmax(0, 1fr); }
+  .rfs-toolbar { flex-direction: column; align-items: stretch; }
+}

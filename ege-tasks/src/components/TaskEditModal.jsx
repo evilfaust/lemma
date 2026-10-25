@@ -101,12 +101,46 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [latexFixLoading, setLatexFixLoading] = useState(false);
   const { aiEnabled } = useAuth(); // ИИ-тумблер: гейт LLM-кнопок
   const [criteriaOverride, setCriteriaOverride] = useState(null);
-  // Модал «Перепарсить с Решу ЕГЭ» (Уровень 2)
+  // Модал «Перепарсить с Решу ЕГЭ» (Уровень 2). Он подставляет выбранное в
+  // форму; балл и флаг «⚠ Проверить LaTeX» не в форме — держим их тут, как
+  // критерии, и отдаём при сохранении.
   const [refreshModalOpen, setRefreshModalOpen] = useState(false);
-  // Сбрасываем criteriaOverride при смене task
+  const [refreshCurrent, setRefreshCurrent] = useState(null);
+  const [maxScoreOverride, setMaxScoreOverride] = useState(null);
+  const [reviewOverride, setReviewOverride] = useState(null);
+  // Сбрасываем overrides при смене task
   useEffect(() => {
-    if (visible) setCriteriaOverride(null);
+    if (visible) {
+      setCriteriaOverride(null);
+      setMaxScoreOverride(null);
+      setReviewOverride(null);
+    }
   }, [visible, task?.id]);
+
+  const openRefresh = () => {
+    const values = form.getFieldsValue();
+    setRefreshCurrent({
+      statement_md: values.statement_md || '',
+      answer: values.answer || '',
+      solution_md: values.solution_md || '',
+      criteria_md: criteriaOverride ?? task?.criteria_md ?? '',
+      max_score: maxScoreOverride ?? task?.max_score ?? null,
+    });
+    setRefreshModalOpen(true);
+  };
+
+  const applyRefresh = (fields, { needsReview, imagesReloaded }) => {
+    if ('statement_md' in fields) { form.setFieldValue('statement_md', fields.statement_md); setPreviewStatement(fields.statement_md); }
+    if ('solution_md' in fields) { form.setFieldValue('solution_md', fields.solution_md); setPreviewSolution(fields.solution_md); }
+    if ('answer' in fields) { form.setFieldValue('answer', fields.answer); setPreviewAnswer(fields.answer); }
+    if ('criteria_md' in fields) setCriteriaOverride(fields.criteria_md);
+    if ('max_score' in fields) setMaxScoreOverride(fields.max_score);
+    if (needsReview != null) setReviewOverride(needsReview);
+    if (imagesReloaded && task?.id) api.getTaskImages(task.id).then(setTaskImages).catch(() => {});
+    const n = Object.keys(fields).length;
+    if (n) message.success(`С «Решу» подставлено полей: ${n}. Проверьте и сохраните задачу.`);
+    else if (imagesReloaded) message.success('Картинки перезагружены');
+  };
 
   /**
    * Прогнать текущие statement/solution/criteria через /latex-fix и
@@ -383,12 +417,18 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       if (criteriaOverride != null && criteriaOverride !== task?.criteria_md) {
         taskData.criteria_md = criteriaOverride;
       }
+      if (maxScoreOverride != null && maxScoreOverride !== task?.max_score) {
+        taskData.max_score = maxScoreOverride;
+      }
       // Если хоть одно поле было исправлено LLM, сбрасываем флаг needs_review.
+      // После «Перепарсить» флаг выставлен по свежему тексту (reviewOverride).
       const latexChanged =
         (criteriaOverride != null && criteriaOverride !== task?.criteria_md) ||
         (task && values.statement_md !== task.statement_md) ||
         (task && values.solution_md !== task.solution_md);
-      if (task?.latex_needs_review && latexChanged) {
+      if (reviewOverride != null) {
+        if (reviewOverride !== !!task?.latex_needs_review) taskData.latex_needs_review = reviewOverride;
+      } else if (task?.latex_needs_review && latexChanged) {
         taskData.latex_needs_review = false;
       }
 
@@ -613,8 +653,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
           </Tooltip>
           {/* Бейджи и ссылки для задач из «Решу ЕГЭ» (часть 2) */}
           {task?.exam_part === 2 && <Tag color="purple">Часть 2</Tag>}
-          {task?.max_score != null && <Tag color="gold">{task.max_score} б.</Tag>}
-          {task?.latex_needs_review && <Tag color="warning">⚠ Проверить LaTeX</Tag>}
+          {(maxScoreOverride ?? task?.max_score) != null && <Tag color="gold">{maxScoreOverride ?? task.max_score} б.</Tag>}
+          {(reviewOverride ?? task?.latex_needs_review) && <Tag color="warning">⚠ Проверить LaTeX</Tag>}
           {task?.sdamgia_url && (
             <Button
               type="link"
@@ -646,8 +686,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
               size="small"
               type="default"
               icon={<ReloadOutlined />}
-              onClick={() => setRefreshModalOpen(true)}
-              title="Перепарсить задачу с sdamgia актуальным парсером + LLM"
+              onClick={openRefresh}
+              title="Скачать задачу с «Решу ЕГЭ» заново, сравнить с формой и подставить выбранное"
             >
               Перепарсить с Решу ЕГЭ
             </Button>
@@ -1119,10 +1159,10 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
                 label: (
                   <Space>
                     <strong>Критерии оценивания</strong>
-                    {task?.max_score != null && <Tag color="gold">{task.max_score} б.</Tag>}
+                    {(maxScoreOverride ?? task?.max_score) != null && <Tag color="gold">{maxScoreOverride ?? task.max_score} б.</Tag>}
                     {task?.exam_part === 2 && <Tag color="purple">Часть 2</Tag>}
                     {criteriaOverride != null && criteriaOverride !== task?.criteria_md && (
-                      <Tag color="processing">⚡ Изменено LLM — сохрани</Tag>
+                      <Tag color="processing">⚡ Изменено — сохраните</Tag>
                     )}
                   </Space>
                 ),
@@ -1177,9 +1217,11 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     {task && task.sdamgia_url && (
       <RefreshFromSdamgiaModal
         task={task}
+        current={refreshCurrent}
+        images={taskImages}
         open={refreshModalOpen}
         onClose={() => setRefreshModalOpen(false)}
-        onApplied={() => { onClose?.(); }}
+        onApply={applyRefresh}
       />
     )}
 

@@ -24,6 +24,8 @@ const SLAMMED_COMMANDS = [
   'vec', 'bar', 'hat', 'tilde', 'mathring', 'dot', 'ddot',
   'mathbf', 'mathrm', 'mathit', 'mathcal', 'mathbb', 'mathfrak',
   'underset', 'overset', 'phantom',
+  // В alt «Решу» встречается сырой LaTeX без скобок: \sqrta, \boldsymbola
+  'sqrt', 'boldsymbol',
 ];
 
 const SLAMMED_RE = new RegExp(
@@ -123,34 +125,16 @@ export function fixFunctionParenArg(text) {
  * Регулярка: после _ идёт буква/цифра + один или более _<буква/цифра+>.
  */
 export function fixDoubleSubscript(text) {
-  // Захватываем кластер вида A_1B_1C_1 после внешнего _.
-  // Чтобы быть идемпотентным, нужно знать, не находимся ли мы УЖЕ внутри {},
-  // — потому что регулярка из-за backtrack может матчить и подстроку.
-  // Поэтому идём вручную с подсчётом баланса.
-  let out = '';
-  let depth = 0;
-  let i = 0;
-  // Строгий шаблон: одна буква + цифровой индекс, повторяющиеся группы.
-  // Ловит классические кластеры вида A_1B_1C_1 (геометрические индексы),
-  // но НЕ трогает «обычные» вроде S_AB_1B — где S_AB это просто S с
-  // индексом AB и оборачивать нельзя (получим двойной subscript broken).
-  const re = /^_([A-Za-z](?:_\d+)+(?:[A-Za-z](?:_\d+)+)*)/;
-  while (i < text.length) {
-    const ch = text[i];
-    if (ch === '{') { depth++; out += ch; i++; continue; }
-    if (ch === '}') { depth--; out += ch; i++; continue; }
-    if (depth === 0 && ch === '_') {
-      const m = text.slice(i).match(re);
-      if (m) {
-        out += `_{${m[1]}}`;
-        i += m[0].length;
-        continue;
-      }
-    }
-    out += ch;
-    i++;
-  }
-  return out;
+  // Кластер вида A_1B_1C_1 после внешнего _ (геометрические индексы) плюс
+  // хвостовые буквы без индекса: V_A_1B_2CB → V_{A_1B_2CB}.
+  // Идемпотентно без подсчёта скобок: шаблон начинается с буквы, а внутри уже
+  // обёрнутого «_{A_1B_1}» после «_» стоит цифра. Раньше правило не работало
+  // внутри любых {} — индексы в \frac{…}{S_A_1B_2C} оставались сломанными.
+  // «S_AB_1B» (индекс AB, без цифры у первой буквы) по-прежнему не трогаем.
+  return text.replace(
+    /_([A-Za-z](?:_\d+)+(?:[A-Za-z](?:_\d+)*)*)(?![A-Za-z0-9_{])/g,
+    (_, cluster) => `_{${cluster}}`,
+  );
 }
 
 /**

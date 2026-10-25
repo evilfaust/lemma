@@ -3,20 +3,10 @@
 // Корни в alt-тексте sdamgia: маркеры «начало/конец аргумента» должны стать
 // скобками на своих местах. Раньше лишние маркеры вырезались, и вложенный
 // корень превращался в «\sqrt{6 + \sqrt: 15}» (~1300 задач в БД, v3.9.353).
-//
-// pdf-service.js при импорте поднимает сервер, поэтому cleanLatexFormula
-// достаём из исходника и собираем отдельно (зависит только от fixLatex).
+
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
-import { fixLatex } from './latex-fixer.js';
-
-const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'pdf-service.js'), 'utf8');
-const start = src.indexOf('function cleanLatexFormula(');
-const end = src.indexOf('\n}\n', start) + 3;
-const cleanLatexFormula = new Function('fixLatex', `${src.slice(start, end)}\nreturn cleanLatexFormula;`)(fixLatex);
+import { cleanLatexFormula } from './sdamgia-lib.mjs';
 
 const SH = '­';
 const norm = (s) => s.replace(/\s+/g, ' ').trim();
