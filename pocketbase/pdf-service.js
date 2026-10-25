@@ -13,6 +13,7 @@ import cors from 'cors';
 import * as cheerio from 'cheerio';
 import { parseSdamgiaHtml, SDAMGIA_BASE_URL } from './sdamgia-lib.mjs';
 import { buildFeedbackMessages, cleanFeedback } from './feedback-prompt.mjs';
+import { isSdamgiaUrl, safeFetch } from './net-guard.mjs';
 import {
   SCAN_BLANK_PROMPT, scanModels, modelsForSlot, shouldTryNext, parseScanReply, extractJson,
 } from './scan-blank-lib.mjs';
@@ -109,8 +110,8 @@ app.post('/parse-sdamgia', async (req, res) => {
       return res.status(400).json({ error: 'URL обязателен' });
     }
 
-    // Валидация URL
-    if (!url.includes('sdamgia.ru')) {
+    // Валидация URL: хост sdamgia.ru или поддомен (не «…?sdamgia.ru» в чужой ссылке)
+    if (!isSdamgiaUrl(url)) {
       return res.status(400).json({ error: 'URL должен быть с сайта sdamgia.ru' });
     }
 
@@ -127,8 +128,8 @@ app.post('/parse-sdamgia', async (req, res) => {
 
     console.log(`[Sdamgia] Загрузка: ${fetchUrl}`);
 
-    // Загружаем страницу
-    const response = await fetch(fetchUrl, {
+    // Загружаем страницу (только публичные адреса, в т. ч. после редиректов)
+    const { response, buffer: pageBuf } = await safeFetch(fetchUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       },
@@ -140,7 +141,7 @@ app.post('/parse-sdamgia', async (req, res) => {
       });
     }
 
-    const html = await response.text();
+    const html = pageBuf.toString('utf8');
 
     const baseUrl = (() => { try { const u = new URL(fetchUrl); return u.origin; } catch(e) { return SDAMGIA_BASE_URL; } })();
     const { problems, totalOnPage } = parseSdamgiaHtml(html, { cheerio, katex, baseUrl });
@@ -186,20 +187,26 @@ app.post('/fetch-image', async (req, res) => {
       return res.status(400).json({ error: 'Поддерживаются только http/https URL' });
     }
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
-        Referer: `${parsed.protocol}//${parsed.host}/`,
-      },
-    });
+    // Только публичные адреса (и после редиректов), не больше 20 МБ — иначе
+    // ручка была открытым прокси внутрь VPS (аудит 25.10.2026).
+    let fetched;
+    try {
+      fetched = await safeFetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+          Referer: `${parsed.protocol}//${parsed.host}/`,
+        },
+      });
+    } catch (e) {
+      return res.status(400).json({ error: e.message });
+    }
+    const { response, buffer } = fetched;
 
     if (!response.ok) {
       return res.status(502).json({ error: `Ошибка загрузки изображения: HTTP ${response.status}` });
     }
 
     const contentType = response.headers.get('content-type') || 'application/octet-stream';
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'no-store');

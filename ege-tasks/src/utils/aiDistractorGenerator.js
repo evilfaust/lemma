@@ -1,4 +1,5 @@
 import { buildOptions } from './distractorGenerator';
+import { aiHeaders } from '../shared/services/pb/client.js';
 
 const DISTRACTORS_API = import.meta.env.VITE_DISTRACTORS_API_URL || 'https://l.oipav.ru/distractors';
 
@@ -13,7 +14,7 @@ export async function buildOptionsWithAI(correctAnswer, exprLatex, generatorType
   try {
     const resp = await fetch(DISTRACTORS_API, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...aiHeaders() },
       body: JSON.stringify({
         correctAnswer: correct,
         exprLatex,

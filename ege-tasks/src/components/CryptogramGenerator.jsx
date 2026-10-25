@@ -9,7 +9,7 @@ import {
   ThunderboltOutlined, SaveOutlined, FolderOpenOutlined, BulbOutlined,
 } from '@ant-design/icons';
 import { Modal, List } from 'antd';
-import { api } from '../shared/services/pocketbase';
+import { api, aiHeaders } from '../shared/services/pocketbase';
 import MathRenderer from '../shared/components/MathRenderer';
 import TaskSelectModal from './TaskSelectModal';
 import { filterTaskText } from '../utils/filterTaskText';
@@ -129,7 +129,7 @@ export default function CryptogramGenerator() {
     try {
       const resp = await fetch(DEFINE_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...aiHeaders() },
         body: JSON.stringify({ term }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

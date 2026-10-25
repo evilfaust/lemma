@@ -1,5 +1,28 @@
 import { pb } from './client.js';
 import { buildOrFilter, orChunks, OR_CHUNK_SIZE } from '../../utils/orFilter';
+import { mapLimit } from '../../utils/mapLimit.js';
+
+/**
+ * getFullList крупными страницами и параллельно (аудит 25.10.2026).
+ *
+ * getFullList SDK ходит страницами строго по очереди: снимок банка (30 тыс.
+ * задач по 500) — 60 запросов подряд, ~15 с на старте учителя. Здесь первая
+ * страница узнаёт число страниц, остальные идут по `concurrency` одновременно,
+ * результат склеивается в порядке страниц — как у getFullList.
+ *
+ * requestKey: null — иначе SDK автоотменяет одинаковые параллельные запросы.
+ */
+export async function getFullListPaged(collection, options = {}, { perPage = 1000, concurrency = 4 } = {}) {
+  const col = pb.collection(collection);
+  const first = await col.getList(1, perPage, { ...options, requestKey: null });
+  if (first.totalPages <= 1) return first.items;
+  const pages = Array.from({ length: first.totalPages - 1 }, (_, i) => i + 2);
+  const { results, errors } = await mapLimit(pages, concurrency, (page) =>
+    col.getList(page, perPage, { ...options, skipTotal: true, requestKey: null })
+  );
+  if (errors.length) throw errors[0].error;
+  return first.items.concat(...results.map((r) => r.items));
+}
 
 /**
  * getFullList по списку значений одного поля, но безопасно: OR-цепочка режется

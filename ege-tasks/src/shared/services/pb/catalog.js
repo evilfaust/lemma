@@ -1,13 +1,26 @@
 import { pb, _logAudit, withOwner, andOwner } from './client.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
-import { getFullListByOr } from './chunked.js';
+import { getFullListByOr, getFullListPaged } from './chunked.js';
 
 const TAG_COLORS = [
   '#FF6B6B', '#4ECDC4', '#45B7D1', '#FFA07A', '#98D8C8',
   '#F7DC6F', '#BB8FCE', '#85C1E2', '#F8B500', '#52BE80',
 ];
 const randomTagColor = () => TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)];
+
+// Ответ /api/tasks/snapshot ({ fields, rows }) → записи как у REST
+// (has_image — булево). Неожиданная форма → null, вызывающий грузит по-старому.
+export function rowsToRecords(data) {
+  const fields = data?.fields;
+  if (!Array.isArray(fields) || !Array.isArray(data?.rows) || !fields.includes('id')) return null;
+  return data.rows.map((row) => {
+    const rec = {};
+    fields.forEach((f, i) => { rec[f] = row[i]; });
+    if ('has_image' in rec) rec.has_image = !!rec.has_image;
+    return rec;
+  });
+}
 
 export const catalogApi = {
   // ============ КАРТОЧКИ ============
@@ -176,12 +189,19 @@ export const catalogApi = {
   // Получить лёгкий snapshot задач для статистики (без тяжёлых текстовых полей)
   async getTasksStatsSnapshot() {
     try {
-      const records = await pb.collection('tasks').getFullList({
+      // Одним запросом из хука pb_hooks/tasks_snapshot.pb.js (~0,3 с);
+      // нет хука или сбой — страницами по 1000 параллельно (getFullList шёл
+      // бы ~60 запросами подряд).
+      try {
+        const rows = rowsToRecords(await pb.send('/api/tasks/snapshot', { method: 'GET', requestKey: null }));
+        if (rows) return rows;
+      } catch (e) {
+        console.warn('Снимок задач одним запросом недоступен, грузим страницами:', e?.status || e?.message);
+      }
+      return await getFullListPaged('tasks', {
         fields: 'id,topic,subtopic,tags,difficulty,has_image,source,year',
         filter: 'source != "trig_generator"',
-        batch: 500,
       });
-      return records;
     } catch (error) {
       console.error('Error fetching tasks stats snapshot:', error);
       return [];

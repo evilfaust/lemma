@@ -531,7 +531,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     try {
       const resp = await fetch(`${DEFINE_API_BASE}/parse-matching`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...aiHeaders() },
         body: JSON.stringify({ text: ctx.sourceText }),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

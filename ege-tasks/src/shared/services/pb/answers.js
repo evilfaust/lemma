@@ -2,6 +2,12 @@ import { pb, _logAudit } from './client.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
 import { getFullListByOr } from './chunked.js';
+import { mapLimit } from '../../utils/mapLimit.js';
+
+// Ответы ученика пишутся по одному запросу на задачу; подряд это сумма
+// задержек сети (20 задач — 20 круговых поездок), все сразу — лишняя нагрузка
+// на одноядерный VPS при сдаче всем классом. Несколько параллельно — середина.
+const ANSWER_WRITE_CONCURRENCY = 4;
 
 export const answersApi = {
   // ============ ОТВЕТЫ НА ЗАДАЧИ (ATTEMPT ANSWERS) ============
@@ -119,20 +125,17 @@ export const answersApi = {
   },
 
   async batchCreateAttemptAnswers(answers) {
-    const results = [];
-    const failed = [];
-    for (const answer of answers) {
-      try {
-        const result = await pb.collection('attempt_answers').create(answer);
-        results.push(result);
-      } catch (error) {
-        console.error('Error creating attempt answer:', error);
-        if (error?.data) {
-          console.error('PocketBase validation errors:', JSON.stringify(error.data));
-        }
-        failed.push({ answer, error });
+    const { results: all, errors } = await mapLimit(answers, ANSWER_WRITE_CONCURRENCY, (answer) =>
+      pb.collection('attempt_answers').create(answer, { requestKey: null })
+    );
+    const failed = errors.map(({ item, error }) => {
+      console.error('Error creating attempt answer:', error);
+      if (error?.data) {
+        console.error('PocketBase validation errors:', JSON.stringify(error.data));
       }
-    }
+      return { answer: item, error };
+    });
+    const results = all.filter((r) => r !== undefined);
     if (failed.length > 0) {
       const err = new Error(`Failed to create ${failed.length} of ${answers.length} attempt answers`);
       err.failed = failed;
@@ -142,17 +145,15 @@ export const answersApi = {
   },
 
   async batchUpdateAttemptAnswers(answers) {
-    const results = [];
-    const failed = [];
-    for (const { id, ...data } of answers) {
-      try {
-        const result = await pb.collection('attempt_answers').update(id, data);
-        results.push(result);
-      } catch (error) {
-        console.error('Error updating attempt answer:', error);
-        failed.push({ id, data, error });
-      }
-    }
+    const { results: all, errors } = await mapLimit(answers, ANSWER_WRITE_CONCURRENCY, ({ id, ...data }) =>
+      pb.collection('attempt_answers').update(id, data, { requestKey: null })
+    );
+    const failed = errors.map(({ item, error }) => {
+      console.error('Error updating attempt answer:', error);
+      const { id, ...data } = item;
+      return { id, data, error };
+    });
+    const results = all.filter((r) => r !== undefined);
     if (failed.length > 0) {
       const err = new Error(`Failed to update ${failed.length} of ${answers.length} attempt answers`);
       err.failed = failed;

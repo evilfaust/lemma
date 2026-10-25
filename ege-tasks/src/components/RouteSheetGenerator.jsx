@@ -20,7 +20,7 @@ import RouteChainGeneratorDrawer from './route-sheet/RouteChainGeneratorDrawer';
 import RouteImportModal from './route-sheet/RouteImportModal';
 import { buildRouteMarkdown, routeMarkdownFilename } from '../utils/routeImport';
 import MathRenderer from '../shared/components/MathRenderer';
-import { api } from '../services/pocketbase';
+import { api, aiHeaders } from '../services/pocketbase';
 import { useReferenceData } from '../contexts/ReferenceDataContext';
 import {
   TrigGeneratorLayout,
@@ -104,7 +104,7 @@ function TaskRowEditor({ task, index, previousTasks, onSave, onCancel }) {
     try {
       const resp = await fetch(REFORMULATE_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...aiHeaders() },
         body: JSON.stringify({
           statement,
           answer,

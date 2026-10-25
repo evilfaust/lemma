@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { aiHeaders } from '../shared/services/pb/client.js';
 
 const CHAIN_API = import.meta.env.VITE_CHAIN_API_URL || 'https://l.oipav.ru/generate-chain';
 
@@ -34,7 +35,7 @@ export default function useRouteChainGenerator() {
 
       const resp = await fetch(CHAIN_API, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...aiHeaders() },
         body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);

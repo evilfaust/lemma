@@ -6,6 +6,33 @@ export const pb = new PocketBase(PB_BASE_URL);
 // Отключаем автоматическое обновление токена для анонимного доступа
 pb.autoCancellation(false);
 
+// ─── Попытки ученика по устройству (аудит 25.10.2026, шаг 2) ───
+// Чужие попытки и ответы ученику больше не видны (миграция 1789100100): кроме
+// своих по входу, он видит и правит те, что начаты на ЭТОМ устройстве. Правило
+// сверяет device_id попытки с параметром `device` запроса — его и дописываем
+// ко всем запросам к attempts / attempt_answers. Устройство — случайный UUID
+// из localStorage (`ege_device_id`, StudentApp); у учительского приложения
+// его нет, там параметр не нужен (учителю правила открыты).
+const DEVICE_COLLECTIONS = /\/api\/collections\/(attempts|attempt_answers)\/records/;
+
+export function studentDeviceId() {
+  try {
+    return localStorage.getItem('ege_device_id') || '';
+  } catch {
+    return '';
+  }
+}
+
+pb.beforeSend = (url, options) => {
+  if (DEVICE_COLLECTIONS.test(url)) {
+    const device = studentDeviceId();
+    if (device && !(options.query && options.query.device)) {
+      options.query = { ...(options.query || {}), device };
+    }
+  }
+  return { url, options };
+};
+
 // ─── Мультиучительство: владелец записей (v3.9.117) ───
 // В ученическом приложении teacher-auth нет → хелперы «прозрачны»
 // (owner не подставляется, фильтр не накладывается) — student-фло не меняется.

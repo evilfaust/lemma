@@ -168,6 +168,24 @@ export const sessionsApi = {
     }
   },
 
+  // Раскладка вариантов по выдаче для раздачи по кругу (ученик): только
+  // `variant`/`mc_variant` каждой попытки — хук pb_hooks/attempts_load.pb.js.
+  // Чужие попытки ученику не видны (аудит 25.10.2026, шаг 2); нет хука — читаем
+  // попытки выдачи как раньше (видно столько, сколько разрешат правила).
+  async getSessionVariantLoad(sessionId) {
+    try {
+      const data = await pb.send('/api/attempts/variant-load', {
+        method: 'GET',
+        query: { session: sessionId },
+      });
+      if (Array.isArray(data?.items)) return data.items;
+    } catch (error) {
+      console.warn('Раскладка вариантов недоступна, читаем попытки выдачи:', error?.status || error?.message);
+    }
+    const attempts = await this.getAttemptsBySession(sessionId);
+    return attempts.map((a) => ({ variant: a.variant, mc_variant: a.mc_variant }));
+  },
+
   async getAttemptsBySession(sessionId) {
     try {
       return await pb.collection('attempts').getFullList({

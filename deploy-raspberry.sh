@@ -58,9 +58,25 @@ echo -e "${YELLOW}Цель:${NC}   $REMOTE:$REMOTE_PATH"
 echo ""
 
 echo -e "${BLUE}→ Синхронизация...${NC}"
-rsync -az --delete --exclude='.DS_Store' \
+# 🚨 Порядок и --delete (аудит 25.10.2026, как у ученического деплоя):
+# 1) assets — БЕЗ --delete: открытая у учителя вкладка догружает ленивые чанки
+#    по старым именам; с --delete после деплоя ловила «Failed to fetch
+#    dynamically imported module». Старше 14 дней — удаляем (свежий билд
+#    rsync заливает с новой датой, у старых чанков дата прежняя).
+# 2) всё остальное, кроме страниц и version.json, — с --delete;
+# 3) последними — *.html и version.json: новый HTML не должен ссылаться на
+#    ещё не залитые чанки.
+rsync -az --exclude='.DS_Store' \
   -e "ssh -p $SSH_PORT" \
-  "$DIST/" "$REMOTE:$REMOTE_PATH"
+  "$DIST/assets/" "$REMOTE:$REMOTE_PATH/assets/" \
+&& ssh -p "$SSH_PORT" "$REMOTE" "find '$REMOTE_PATH/assets' -type f -mtime +14 -delete" \
+&& rsync -az --delete --exclude='.DS_Store' --exclude='/assets/' \
+  --exclude='/*.html' --exclude='/version.json' \
+  -e "ssh -p $SSH_PORT" \
+  "$DIST/" "$REMOTE:$REMOTE_PATH" \
+&& rsync -az --exclude='.DS_Store' \
+  -e "ssh -p $SSH_PORT" \
+  "$DIST"/*.html "$DIST/version.json" "$REMOTE:$REMOTE_PATH"
 
 if [ $? -ne 0 ]; then
   echo -e "${RED}✗ Ошибка rsync${NC}"

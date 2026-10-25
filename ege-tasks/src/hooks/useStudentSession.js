@@ -146,10 +146,11 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
         }
 
         if (existingAttempt) {
-          const allAttempts = await api.getAttemptsBySession(sessionId);
+          // Номер попытки считается по попыткам этого устройства — они все
+          // среди своих (чужие попытки ученику не видны, аудит 25.10.2026).
           setAttempt({
             ...existingAttempt,
-            issueNumber: getIssueNumber(existingAttempt, allAttempts),
+            issueNumber: getIssueNumber(existingAttempt, existingAttempts),
           });
 
           if (sessionData.mc_test) {
@@ -231,10 +232,9 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           }
         }
 
-        const allAttempts = await api.getAttemptsBySession(sessionId);
         setAttempt({
           ...resolvedAttempt,
-          issueNumber: getIssueNumber(resolvedAttempt, allAttempts),
+          issueNumber: getIssueNumber(resolvedAttempt, existingAttempts),
         });
         if (session.mc_test) {
           const mcTest = await api.getMCTest(session.mc_test);
@@ -261,10 +261,11 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           setError('В тесте нет вариантов');
           return null;
         }
-        const allAttemptsAll = await api.getAttemptsBySession(sessionId);
+        // Раскладка вариантов по выдаче — без попыток одноклассников.
+        const variantLoad = await api.getSessionVariantLoad(sessionId);
         const counts = {};
         mcVariants.forEach(v => { counts[String(v.number)] = 0; });
-        allAttemptsAll.forEach(a => {
+        variantLoad.forEach(a => {
           const key = String(a.mc_variant ?? a.variant ?? '');
           if (counts[key] !== undefined) counts[key]++;
         });
@@ -288,7 +289,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
         );
         setAttempt({
           ...newAttempt,
-          issueNumber: getIssueNumber(newAttempt, [...allAttemptsAll, newAttempt]),
+          issueNumber: getIssueNumber(newAttempt, [...existingAttempts, newAttempt]),
         });
         if (mcVariant) { setVariant(mcVariant); setTasks(mcTasks); setVariantError(null); }
         return newAttempt;
@@ -301,13 +302,14 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
         return null;
       }
 
-      // Получить все попытки этой сессии для подсчёта назначений
-      const allAttempts = await api.getAttemptsBySession(sessionId);
+      // Сколько раз каждый вариант уже выдан — раскладка по выдаче без
+      // попыток одноклассников (хук attempts_load.pb.js)
+      const variantLoad = await api.getSessionVariantLoad(sessionId);
 
       // Подсчитать, сколько раз каждый вариант назначен
       const assignmentCount = {};
       allVariants.forEach(v => { assignmentCount[v.id] = 0; });
-      allAttempts.forEach(a => {
+      variantLoad.forEach(a => {
         if (assignmentCount[a.variant] !== undefined) {
           assignmentCount[a.variant]++;
         }
@@ -339,7 +341,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
 
       setAttempt({
         ...newAttempt,
-        issueNumber: getIssueNumber(newAttempt, [...allAttempts, newAttempt]),
+        issueNumber: getIssueNumber(newAttempt, [...existingAttempts, newAttempt]),
       });
       setVariant(chosenVariant);
       await loadVariantTasks(chosenVariant);
