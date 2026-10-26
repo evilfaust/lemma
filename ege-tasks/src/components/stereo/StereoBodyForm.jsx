@@ -23,19 +23,30 @@ const DIR_OPTIONS = [
 
 const SIZE = { min: 0.5, max: 50, step: 0.5 };
 
-export default function StereoBodyForm({ form, initialValues }) {
+/**
+ * @param previewSpec — что показать в превью вместо этого тела (весь чертёж
+ *   из нескольких тел, StereoBodiesForm)
+ * @param noSpace — без пункта «Без тела» (второе тело чертежа)
+ */
+export default function StereoBodyForm({
+  form, initialValues, previewSpec = null, noSpace = false,
+}) {
   const values = Form.useWatch([], form) || initialValues;
   const kind = values?.kind || 'cube';
   const spec = useMemo(() => bodySpecFromForm(values || {}), [values]);
+  const shown = previewSpec || spec;
   const preview = useMemo(() => {
     try {
-      const model = evaluateScene({ body: spec, ops: [] });
+      const model = evaluateScene({ body: shown, ops: [] });
       const frame = renderStereo(model, DEFAULT_CAMERA, { width: 240, height: 200 });
       return stereoSvgString(frame, { background: false, responsive: true });
     } catch {
       return '';
     }
-  }, [spec]);
+  }, [shown]);
+  const kindOptions = Object.entries(BODY_KINDS)
+    .filter(([value]) => value !== 'hull' && value !== 'blocks' && !(noSpace && value === 'space'))
+    .map(([value, v]) => ({ value, label: v.label }));
 
   const hasShape = kind !== 'cube' && kind !== 'octa' && kind !== 'space';
   const hasApex = kind === 'pyramid' || kind === 'frustum' || (kind === 'tetra' && values?.shape && values.shape !== 'regular') || (kind === 'tetra' && values?.apexPos && values.apexPos !== 'center');
@@ -57,10 +68,7 @@ export default function StereoBodyForm({ form, initialValues }) {
       <div className="stereo-body-form">
         <div className="stereo-body-form-fields">
           <Form.Item name="kind" label="Тело">
-            <Select
-              onChange={onKindChange}
-              options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull' && value !== 'blocks').map(([value, v]) => ({ value, label: v.label }))}
-            />
+            <Select onChange={onKindChange} options={kindOptions} />
           </Form.Item>
           <Space wrap align="start">
             <Form.Item name="r" label={kind === 'tcone' ? 'Радиус нижнего основания' : 'Радиус'}><InputNumber {...SIZE} /></Form.Item>
@@ -71,6 +79,11 @@ export default function StereoBodyForm({ form, initialValues }) {
               <Form.Item name="h" label="Высота"><InputNumber {...SIZE} /></Form.Item>
             )}
           </Space>
+          {kind === 'cone' && (
+            <Form.Item name="down" valuePropName="checked" extra="Сосуд-воронка; два конуса с общим основанием — второй вершиной вниз, «Снизу»">
+              <Checkbox>Вершиной вниз</Checkbox>
+            </Form.Item>
+          )}
           <Form.Item
             name="letters"
             valuePropName="checked"
@@ -81,7 +94,7 @@ export default function StereoBodyForm({ form, initialValues }) {
         </div>
         <div className="stereo-body-form-preview">
           <div className="stereo-body-form-svg" dangerouslySetInnerHTML={{ __html: preview }} />
-          <div className="stereo-body-form-title">{bodyTitle(spec)}</div>
+          <div className="stereo-body-form-title">{bodyTitle(shown)}</div>
         </div>
       </div>
     );
@@ -92,10 +105,7 @@ export default function StereoBodyForm({ form, initialValues }) {
       <div className="stereo-body-form">
         <div className="stereo-body-form-fields">
           <Form.Item name="kind" label="Тело">
-            <Select
-              onChange={onKindChange}
-              options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull' && value !== 'blocks').map(([value, v]) => ({ value, label: v.label }))}
-            />
+            <Select onChange={onKindChange} options={kindOptions} />
           </Form.Item>
           <div style={{ color: '#6b7280', fontSize: 13 }}>
             Чертёж без тела. «Точка» (P) — клик в любое место: точка встанет на «пол» (z = 0);
@@ -113,10 +123,7 @@ export default function StereoBodyForm({ form, initialValues }) {
       <div className="stereo-body-form-fields">
         {/* «Многогранник по точкам» задаётся только текстом (блок ```stereo) */}
         <Form.Item name="kind" label="Тело">
-          <Select
-            onChange={onKindChange}
-            options={Object.entries(BODY_KINDS).filter(([value]) => value !== 'hull' && value !== 'blocks').map(([value, v]) => ({ value, label: v.label }))}
-          />
+          <Select onChange={onKindChange} options={kindOptions} />
         </Form.Item>
         {hasShape && (
           <Form.Item name="shape" label={kind === 'tetra' ? 'Вид' : 'В основании'}>
@@ -196,7 +203,7 @@ export default function StereoBodyForm({ form, initialValues }) {
       <div className="stereo-body-form-preview">
         {/* SVG собирает наш же движок (stereoSvgString) — внешних данных в нём нет */}
         <div className="stereo-body-form-svg" dangerouslySetInnerHTML={{ __html: preview }} />
-        <div className="stereo-body-form-title">{bodyTitle(spec)}</div>
+        <div className="stereo-body-form-title">{bodyTitle(shown)}</div>
       </div>
     </div>
   );

@@ -32,6 +32,11 @@ import {
   renderStereo, stereoSvgString, contentBox, POINT_COLORS, LABEL_SIZE,
 } from './render';
 import { stereoInlineFromSpec } from './inline';
+import {
+  addPart, bodyParts, placementWord, PLACE_WORDS,
+} from './combo';
+
+export { addPart };
 
 const num = (s) => Number(String(s).replace(',', '.'));
 const isNum = (s) => /^-?\d+(?:[.,]\d+)?$/.test(String(s));
@@ -279,12 +284,11 @@ const fmt = (x) => String(Math.round(Number(x) * 100) / 100);
 /** Тело → строка блока. */
 export function bodyLine(specIn) {
   const s0 = normalizeBodySpec(specIn);
-  // Несколько тел: первая строка — первое тело, дальше «и … сдвиг x y z»
+  // Несколько тел: первая строка — первое тело, дальше «и … справа / на дне / сдвиг x y z»
   if (s0.kind === 'group') {
-    return s0.parts.map((p, i) => {
-      const { at, frame, ...part } = p;
-      const line = `${bodyLine(part)}${frame ? ' каркас' : ''}`;
-      return i === 0 ? line : `и ${line}${at.some((x) => x) ? ` сдвиг ${at.map(fmt).join(' ')}` : ''}`;
+    return bodyParts(s0).map(({ spec, placement, frame }, i) => {
+      const line = join(bodyLine(spec), i ? placementWord(placement) : '', frame ? 'каркас' : '');
+      return i === 0 ? line : `и ${line}`;
     }).join('\n');
   }
   const s = s0;
@@ -351,62 +355,36 @@ function bodyShapeLine(s) {
   }
 }
 
-const PLACE_WORDS = {
-  справа: 'right', рядом: 'right', слева: 'left', сзади: 'back', сверху: 'top', центре: 'center', внутри: 'center',
-};
-
-/** «конус 2 4 справа каркас» / «шар 2 сдвиг 1 0 0» → тело, размещение, каркас. */
+/** «конус 2 4 справа каркас» / «шар 2 на дне» / «шар 2 сдвиг 1 0 0» → тело, размещение, каркас. */
 function parsePartLine(text) {
   let t = ` ${text} `;
   let placement = { kind: 'center' };
   const sh = /\s(?:сдвиг|at)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)\s+(-?\d+(?:[.,]\d+)?)(?=\s)/i.exec(t);
   if (sh) { placement = { kind: 'shift', at: [sh[1], sh[2], sh[3]].map(num) }; t = t.replace(sh[0], ' '); }
-  for (const [w, kind] of Object.entries(PLACE_WORDS)) {
-    const re = new RegExp(`\\s(?:в\\s+)?${w}(?=\\s)`, 'i');
-    if (re.test(t)) { if (!sh) placement = { kind }; t = t.replace(re, ' '); }
+  for (const [w, kind] of PLACE_WORDS) {
+    const re = new RegExp(`\\s(?:в\\s+)?${w.replace(/ /g, '\\s+')}(?=\\s)`, 'i');
+    if (re.test(t)) {
+      if (!sh && placement.kind === 'center') placement = { kind };
+      t = t.replace(re, ' ');
+    }
   }
   const frame = /\sкаркас(?=\s)/i.test(t);
   t = t.replace(/\sкаркас(?=\s)/i, ' ');
   return { spec: parseBodyLine(t.trim()), placement, frame };
 }
 
-/** Габарит тела в его собственных координатах. */
-function extentOf(spec) {
-  const b = buildBody(spec);
-  const pts = b.extent || b.order.map((n) => b.vertices[n]);
-  const lo = { x: Infinity, y: Infinity, z: Infinity };
-  const hi = { x: -Infinity, y: -Infinity, z: -Infinity };
-  for (const p of pts) {
-    lo.x = Math.min(lo.x, p.x); lo.y = Math.min(lo.y, p.y); lo.z = Math.min(lo.z, p.z);
-    hi.x = Math.max(hi.x, p.x); hi.y = Math.max(hi.y, p.y); hi.z = Math.max(hi.z, p.z);
+/** Свои имена вершин группы: список по порядку частей → names каждой части. */
+function groupWithNames(group, names) {
+  let k = 0;
+  const parts = [];
+  for (const { at, frame, names: _old, ...p } of group.parts) {
+    void _old;
+    if (p.kind === 'blocks') return null;
+    const n = buildBody(p).order.length;
+    parts.push({ ...p, names: names.slice(k, k + n), at, ...(frame ? { frame } : {}) });
+    k += n;
   }
-  return { lo, hi };
-}
-
-/** Добавить тело к чертежу: вписанное (в центре), рядом, сверху или со сдвигом. */
-export function addPart(bodySpec, partSpec, placement = { kind: 'center' }, frame = false) {
-  const cur = normalizeBodySpec(bodySpec);
-  const parts = cur.kind === 'group' ? cur.parts : [{ ...cur, at: [0, 0, 0], ...(bodySpec?.frame ? { frame: true } : {}) }];
-  const U = { lo: { x: Infinity, y: Infinity, z: Infinity }, hi: { x: -Infinity, y: -Infinity, z: -Infinity } };
-  for (const p of parts) {
-    const { at, frame: _f, ...ps } = p;
-    void _f;
-    const e = extentOf(ps);
-    for (const k of ['x', 'y', 'z']) {
-      U.lo[k] = Math.min(U.lo[k], e.lo[k] + at['xyz'.indexOf(k)]);
-      U.hi[k] = Math.max(U.hi[k], e.hi[k] + at['xyz'.indexOf(k)]);
-    }
-  }
-  const e2 = extentOf(partSpec);
-  const gap = 0.25 * Math.max(U.hi.x - U.lo.x, e2.hi.x - e2.lo.x, 1);
-  const r2 = (x) => Math.round(x * 1000) / 1000;
-  let at = [0, 0, 0];
-  if (placement.kind === 'shift') at = placement.at;
-  else if (placement.kind === 'right') at = [U.hi.x - e2.lo.x + gap, 0, U.lo.z - e2.lo.z];
-  else if (placement.kind === 'left') at = [U.lo.x - e2.hi.x - gap, 0, U.lo.z - e2.lo.z];
-  else if (placement.kind === 'back') at = [0, U.hi.y - e2.lo.y + gap, U.lo.z - e2.lo.z];
-  else if (placement.kind === 'top') at = [0, 0, U.hi.z - e2.lo.z];
-  return normalizeBodySpec({ kind: 'group', parts: [...parts, { ...partSpec, at: at.map(r2), ...(frame ? { frame: true } : {}) }] });
+  return normalizeBodySpec({ ...group, parts });
 }
 
 const STILL_RE = /^(статично|статичный|static|без вращения)$/;
@@ -484,10 +462,16 @@ export function parseStereoBlock(text) {
     m = /^(?:вершины|vertices)\s+(.+)$/i.exec(cmd);
     if (m) {
       const names = splitNames(m[1].replace(/\s+/g, ''));
-      const need = buildBody({ ...scene.body, names: undefined }).order.length;
+      const need = scene.body.kind === 'group'
+        ? scene.body.parts.reduce((k, p) => k + buildBody({ ...p, at: undefined, frame: undefined, names: undefined }).order.length, 0)
+        : buildBody({ ...scene.body, names: undefined }).order.length;
       if (scene.ops.length) errors.push({ line: lineNo, message: 'Имена вершин — сразу после тела, до построений' });
       else if (!names || names.length !== need || new Set(names).size !== names.length) {
         errors.push({ line: lineNo, message: `Нужно ${need} разных имён вершин` });
+      } else if (scene.body.kind === 'group') {
+        const body = groupWithNames(scene.body, names);
+        if (!body) errors.push({ line: lineNo, message: 'Вершины ступенчатого тела в группе — по координатам не задаются' });
+        else scene = { ...scene, body };
       } else scene = { ...scene, body: normalizeBodySpec({ ...scene.body, names }) };
       return;
     }
@@ -538,6 +522,10 @@ export function parseStereoBlock(text) {
 export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false } = {}) {
   const out = [bodyLine(scene?.body)];
   if (scene?.body?.names?.length) out.push(`вершины ${scene.body.names.join('')}`);
+  // У группы — имена всех тел одной строкой (по порядку частей)
+  if (scene?.body?.kind === 'group' && scene.body.parts.some((p) => p.names?.length)) {
+    out.push(`вершины ${buildBody(scene.body).order.join('')}`);
+  }
   if (scene?.body?.kind === 'blocks' && scene.body.labels) {
     out.push(`вершины ${Object.entries(scene.body.labels).map(([k, n]) => `${n}(${k})`).join(' ')}`);
   }

@@ -7,7 +7,9 @@
 // ушло бы в пунктир. Свои рёбра каркас закрывает как обычно (задние рёбра
 // куба — пунктиром).
 //
-// Имена: у второй части совпавшие имена получают номер части (O → O2).
+// Имена: у второй части совпавшие имена получают номер части (O → O2);
+// видимые буквы имеют приоритет над спрятанными точками тел вращения.
+// Где стоит часть (внутри, на дне, справа…) — combo.js.
 
 import {
   v3, add, sub, mul, dist,
@@ -32,6 +34,9 @@ export function normalizeGroupSpec(spec, normalizePart) {
 
 const tr = (P, d) => add(P, d);
 
+/** Окружность как набор точек — без учёта начала и направления обхода. */
+const curveKey = (pts) => pts.map((p) => [p.x, p.y, p.z].map((x) => (Math.round(x * 1e4) / 1e4 || 0).toFixed(4)).join(',')).sort().join(' ');
+
 /**
  * Собирает группу из построенных частей.
  * @param built — [{ body, at, frame }] (body — результат buildBody части)
@@ -42,6 +47,7 @@ export function buildGroupBody(spec, built) {
   const edges = [];
   const faces = [];
   const curves = [];
+  const curveKeys = new Set();
   const circles = {};
   const concealed = new Set();
   const vertexPart = {};
@@ -59,10 +65,20 @@ export function buildGroupBody(spec, built) {
   const hi = allPts.reduce((m, p) => v3(Math.max(m.x, p.x), Math.max(m.y, p.y), Math.max(m.z, p.z)), v3(-Infinity, -Infinity, -Infinity));
   const mid = mul(add(lo, hi), 0.5);
 
-  built.forEach(({ body, at, frame }, i) => {
-    const d = sub(v3(...at), mid);
-    const map = {};
+  // Имена: сначала видимые буквы всех частей, потом спрятанные точки (центры
+  // и точки тел вращения). Иначе у призмы, вписанной в цилиндр, буквы A, A1
+  // забрали бы невидимые точки цилиндра, а призма получила бы A2, A12.
+  const maps = built.map(() => ({}));
+  built.forEach(({ body }, i) => {
     for (const n of body.order) {
+      if (body.concealed?.has(n) || taken.has(n)) continue;
+      taken.add(n);
+      maps[i][n] = n;
+    }
+  });
+  built.forEach(({ body }, i) => {
+    for (const n of body.order) {
+      if (maps[i][n]) continue;
       let name = n;
       if (taken.has(name)) {
         let k = i + 1;
@@ -70,7 +86,15 @@ export function buildGroupBody(spec, built) {
         while (taken.has(name) || !NAME_RE.test(name)) { k += 1; name = `${n}${k}`; }
       }
       taken.add(name);
-      map[n] = name;
+      maps[i][n] = name;
+    }
+  });
+
+  built.forEach(({ body, at, frame }, i) => {
+    const d = sub(v3(...at), mid);
+    const map = maps[i];
+    for (const n of body.order) {
+      const name = map[n];
       vertices[name] = tr(body.vertices[n], d);
       order.push(name);
       vertexPart[name] = i;
@@ -90,7 +114,16 @@ export function buildGroupBody(spec, built) {
         ...(f.center ? { center: map[f.center] || f.center } : {}),
       });
     }
-    for (const cv of body.curves || []) curves.push({ ...cv, id: `${i}:${cv.id}`, pts: cv.pts.map((p) => tr(p, d)), part: i });
+    for (const cv of body.curves || []) {
+      // Совпавшая окружность (общее основание двух конусов, конуса и
+      // цилиндра) рисуется один раз — первой частью: две копии с разным
+      // началом штриха сливаются в сплошную линию.
+      const pts = cv.pts.map((p) => tr(p, d));
+      const key = curveKey(pts);
+      if (curveKeys.has(key)) continue;
+      curveKeys.add(key);
+      curves.push({ ...cv, id: `${i}:${cv.id}`, pts, part: i });
+    }
     for (const [k, c] of Object.entries(body.circles || {})) circles[map[k] || k] = { ...c, c: tr(c.c, d) };
     // Часть — для видимости: тело, сдвинутое на d
     parts.push({ body: shiftBody(body, d), frame: !!frame });

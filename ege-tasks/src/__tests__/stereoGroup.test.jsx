@@ -31,7 +31,7 @@ describe('группа тел: разбор и текст', () => {
   it('текст блока туда и обратно', () => {
     const r = parseStereoBlock('цилиндр 2 3\nи цилиндр 1,5 4 справа');
     const text = buildStereoBlock(r.scene, DEFAULT_CAMERA).text;
-    expect(text.split('\n')[1]).toMatch(/^и цилиндр 1\.5 4 сдвиг /);
+    expect(text.split('\n')[1]).toBe('и цилиндр 1.5 4 справа');
     const back = parseStereoBlock(text);
     expect(back.errors).toEqual([]);
     expect(back.scene.body).toEqual(r.scene.body);

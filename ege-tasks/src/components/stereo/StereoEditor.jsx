@@ -19,7 +19,7 @@ import { useOptionalAuth } from '../../contexts/AuthContext';
 import {
   evaluateScene, tryAppendOp, removeOpCascade,
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
-  bodyFormValues, bodySpecFromForm, TOOLS, toolHint, toolClick, finishPending,
+  TOOLS, toolHint, toolClick, finishPending,
   chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace, pickPoly, cameraFacing,
   renderStereo, stereoSvgString, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition, dragOpPatch, setOpFields,
@@ -30,7 +30,7 @@ import {
 } from '../../utils/stereo';
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
 import StereoMeasures from './StereoMeasures';
-import StereoBodyForm from './StereoBodyForm';
+import StereoBodiesForm from './StereoBodiesForm';
 import './stereo.css';
 
 const DRAFT_KEY = 'stereo.editor.v1';
@@ -165,6 +165,7 @@ export default function StereoEditor({
   const [currentDoc, setCurrentDoc] = useState(() => draft?.doc || null);
   const [savedSig, setSavedSig] = useState(() => draft?.savedSig || '');
   const [bodyForm] = Form.useForm();
+  const bodiesRef = useRef(null);
 
   const model = useMemo(() => evaluateScene(scene), [scene]);
   // Новое тело — прежние измерения ни к чему
@@ -583,8 +584,8 @@ export default function StereoEditor({
   // --- тело -------------------------------------------------------------------
   const openBody = () => setBodyOpen(true);
   const applyBody = async () => {
-    const values = await bodyForm.validateFields();
-    const body = bodySpecFromForm(values);
+    await bodyForm.validateFields();
+    const body = bodiesRef.current.spec();
     const apply = () => {
       setScene({ body, ops: [] });
       setCurrentDoc(null);
@@ -1068,9 +1069,7 @@ export default function StereoEditor({
         width={760}
         destroyOnHidden
       >
-        <Form form={bodyForm} layout="vertical" initialValues={bodyFormValues(scene.body)}>
-          <StereoBodyForm form={bodyForm} initialValues={bodyFormValues(scene.body)} />
-        </Form>
+        <StereoBodiesForm ref={bodiesRef} form={bodyForm} body={scene.body} />
       </Modal>
     </div>
   );
