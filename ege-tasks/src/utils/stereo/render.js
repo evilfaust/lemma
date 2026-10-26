@@ -67,6 +67,26 @@ export const RIGHT_MARK_PX = 12;
 export const ARC_PX = 20;
 const PAINTED_WIDTH = 1.45;
 export const DASH = '6 4';
+const DASH_PERIOD = DASH.split(' ').reduce((a, x) => a + Number(x), 0);
+
+/**
+ * Пунктир вдоль ломаной — одним узором: скрытый кусок, который начинается в
+ * конце предыдущего скрытого, продолжает его штрих (dashOffset). Иначе
+ * окружность из 48–96 коротких кусков (основание, уровень жидкости) у каждого
+ * куска начинала штрих заново и выглядела почти сплошной.
+ */
+function continueDashes(strokes) {
+  let prev = null;
+  let off = 0;
+  for (const s of strokes) {
+    if (s.hidden && prev?.hidden && prev.objId.split(':')[0] === s.objId.split(':')[0]
+      && Math.abs(prev.x2 - s.x1) < 0.05 && Math.abs(prev.y2 - s.y1) < 0.05) {
+      off = (off + Math.hypot(prev.x2 - prev.x1, prev.y2 - prev.y1)) % DASH_PERIOD;
+      if (off > 1e-6) s.dashOffset = Math.round(off * 100) / 100;
+    } else off = 0;
+    prev = s;
+  }
+}
 // Метка скрытого куска линии среди цветов отрезков (colorPieces)
 const HIDE = '__hidden';
 
@@ -250,7 +270,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   // передняя и задняя легли бы друг на друга двойной краской.
   const OPACITY = { plane: 0.2, fill: 0.28, water: 0.38, waterSide: 0.2, sheet: 0.13 };
   const polys = model.polys
-    .filter((pg) => pg.kind !== 'waterSide' || dot(pg.n, toViewer) > 1e-9)
+    .filter((pg) => pg.kind !== 'levelMark' && (pg.kind !== 'waterSide' || dot(pg.n, toViewer) > 1e-9))
     .map((pg) => {
       const pts = pg.pts.map(P);
       const color = pointColorHex(pg.color) || pg.color || (pg.kind === 'plane' ? STEREO_COLORS.plane : pg.kind === 'fill' ? STEREO_COLORS.fill : pg.kind === 'sheet' ? STEREO_COLORS.sheet : STEREO_COLORS.sectionFill);
@@ -327,6 +347,19 @@ export function renderStereo(model, camera, viewport, opts = {}) {
       const occ = s.seg ? groupOccluder(body, { exclude: s.part }) : others;
       pushSplit(`sil:${i}`, 'edge', A, B, STEREO_COLORS.edge, WIDTH.edge, -1, occ);
     });
+  }
+
+  // Отметка уровня жидкости — кольцо целиком пунктиром (как на рисунках
+  // задач: «уровень поднимется до…»), без заливки.
+  for (const pg of model.polys) {
+    if (pg.kind !== 'levelMark') continue;
+    const color = pointColorHex(pg.color) || pg.color || STEREO_COLORS.section;
+    const k = strokes.length;
+    pg.pts.forEach((A, i) => {
+      const B = pg.pts[(i + 1) % pg.pts.length];
+      if (len(sub(B, A)) > 1e-9) pushSplit(`${pg.id}:e${i}`, 'section', A, B, color, WIDTH.section, pg.step);
+    });
+    for (let i = k; i < strokes.length; i += 1) strokes[i].hidden = true;
   }
 
   for (const pg of model.polys) {
@@ -590,6 +623,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
     ...(f.surface ? { surface: f.surface, center: f.center } : {}),
   }));
 
+  continueDashes(strokes);
   return {
     width, height, scale: pr.scale, project: pr.project, unproject: pr.unproject,
     polys, strokes, dots, labels, angleTexts, lengthTexts,
@@ -726,7 +760,7 @@ export function stereoSvgString(frame, opts = {}) {
   }
   const line = (s) => {
     const w = (s.hidden ? s.width * 0.8 : s.width) * (mono && s.kind !== 'edge' && s.kind !== 'section' && s.kind !== 'mark' ? 0.85 : 1);
-    return `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${s.hidden && s.kind !== 'mark' ? ` stroke-dasharray="${DASH}"` : ''}/>`;
+    return `<line x1="${s.x1.toFixed(2)}" y1="${s.y1.toFixed(2)}" x2="${s.x2.toFixed(2)}" y2="${s.y2.toFixed(2)}" stroke="${esc(ink(s.color))}" stroke-width="${w.toFixed(2)}" stroke-linecap="round"${s.hidden && s.kind !== 'mark' ? ` stroke-dasharray="${DASH}"${s.dashOffset ? ` stroke-dashoffset="${s.dashOffset}"` : ''}` : ''}/>`;
   };
   for (const s of frame.strokes) if (s.hidden && !s.ghost) parts.push(line(s));
   for (const s of frame.strokes) if (!s.hidden && !s.ghost) parts.push(line(s));

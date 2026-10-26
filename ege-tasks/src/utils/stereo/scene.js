@@ -784,7 +784,12 @@ export function evaluateScene(scene, opts = {}) {
           // на доле t высоты тела или через точку (уровень через W). Рисуется
           // поверхность (контур — как у сечения) и стенки ниже уровня —
           // render.js закрашивает только те, что смотрят на зрителя.
-          const zs = body.extent ? body.extent.map((p) => p.z) : body.order.map((v) => body.vertices[v].z);
+          // Несколько тел: part — номер сосуда (у двух кружек свои уровни);
+          // без него — общий уровень по всему чертежу.
+          const partNo = op.part == null ? null : Number(op.part);
+          if (partNo != null && !body.parts?.[partNo]) fail(`Нет тела ${partNo + 1}: тел на чертеже ${body.parts?.length || 1}`);
+          const vessel = partNo != null ? body.parts[partNo].body : body;
+          const zs = vessel.extent ? vessel.extent.map((p) => p.z) : vessel.order.map((v) => vessel.vertices[v].z);
           const zmin = Math.min(...zs);
           const zmax = Math.max(...zs);
           let z;
@@ -797,19 +802,30 @@ export function evaluateScene(scene, opts = {}) {
           const plane = { n: { x: 0, y: 0, z: 1 }, d: Math.min(z, zmax) };
           // Полный сосуд: поверхность — чуть ниже верха (у ступенчатого тела
           // сечение по самой грани пусто).
-          let surface = sectionPieces(plane);
-          if (!surface.length && plane.d >= zmax - eps * 10) surface = sectionPieces({ ...plane, d: zmax - eps * 100 });
+          const piecesAt = (pl) => (partNo != null ? piecesOf(vessel, pl) : sectionPieces(pl));
+          let surface = piecesAt(plane);
+          if (!surface.length && plane.d >= zmax - eps * 10) surface = piecesAt({ ...plane, d: zmax - eps * 100 });
           if (!surface.length) fail('На этой высоте у тела нет горизонтального сечения');
+          const mark = !!op.mark;
+          const value = String(Math.round((plane.d - zmin) * 100) / 100).replace('.', ',');
+          if (mark) {
+            // Отметка уровня: пунктирное кольцо на стенке — куда поднимется
+            // (или где была) жидкость; без заливки и без стенок.
+            pushPieces(opId, 'levelMark', surface, stepIdx, created, op.color || 'orange');
+            created.value = `${value} от дна`;
+            created.note = `Отметка уровня: ${created.value}`;
+            break;
+          }
           const color = op.color || 'cyan';
           pushPieces(opId, 'water', surface, stepIdx, created, color);
-          body.faces.forEach((f, i) => {
+          vessel.faces.forEach((f, i) => {
             const pts = clipPolygonBelow(f.pts3 || f.verts.map((v) => body.vertices[v]), plane, eps);
             if (pts.length < 3) return;
             const id = `${opId}:w${i}`;
             polys.push({ id, base: opId, kind: 'waterSide', pts, n: f.n, step: stepIdx, color });
             created.polys.push(id);
           });
-          created.value = `${String(Math.round((plane.d - zmin) * 100) / 100).replace('.', ',')} от дна`;
+          created.value = `${value} от дна`;
           created.note = `Уровень жидкости: ${created.value}`;
           break;
         }

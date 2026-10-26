@@ -169,7 +169,7 @@ export function toolHint(tool, pending = []) {
       return names.length >= 3
         ? `${names.join('')} — кликните по первой точке или Enter, чтобы закрасить`
         : 'Выберите вершины многоугольника по порядку';
-    case 'level': return 'Кликните по боковому ребру на нужной высоте (или по точке) — сосуд наполнится до этого уровня';
+    case 'level': return 'Кликните по боковому ребру или стенке на нужной высоте (или по точке) — сосуд наполнится до этого уровня; в двух сосудах — у каждого свой';
     case 'attention': return 'Кликните по точке или прямой — она замигает у всех учеников';
     case 'measure': {
       const first = pending[0];
@@ -217,7 +217,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'section': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point', 'empty'];
     case 'fill': return ['point'];
-    case 'level': return ['point', 'line'];
+    case 'level': return ['point', 'line', 'face'];
     case 'attention': return ['point', 'line'];
     case 'measure': return ['point', 'line', 'poly', 'face'];
     case 'color': return ['point', 'line', 'poly', 'face'];
@@ -458,8 +458,15 @@ export function toolClick(tool, pending, hit, model) {
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'plane', pts: pts.slice(0, 3) } };
     case 'level': {
-      // Жидкость до высоты точки (через неё) или места клика на ребре.
-      if (target.kind === 'point') return { pending: [], op: { id: newOpId(), type: 'level', through: target.name } };
+      // Жидкость до высоты точки (через неё) или места клика на ребре /
+      // стенке (у цилиндра и конуса рёбер нет — кликают по поверхности).
+      // Несколько тел: уровень — в том сосуде, по которому кликнули.
+      const body = model.body;
+      const part = target.kind === 'face' ? body.faces.find((f) => f.id === target.id)?.part
+        : target.kind === 'line' ? model.lines.find((l) => l.id === target.id)?.part
+          : target.kind === 'point' ? model.points[target.name]?.part : undefined;
+      const inPart = body.parts && part != null ? { part } : {};
+      if (target.kind === 'point') return { pending: [], op: { id: newOpId(), type: 'level', through: target.name, ...inPart } };
       let pos = target.pos;
       if (Array.isArray(target.ref) && Number.isFinite(target.t)) {
         const A = model.points[target.ref[0]]?.pos;
@@ -467,8 +474,12 @@ export function toolClick(tool, pending, hit, model) {
         if (A && B) pos = add(A, mul(sub(B, A), target.t));
       }
       if (!pos) return { pending: [] };
-      const zmin = Math.min(...model.body.order.map((v) => model.body.vertices[v].z));
-      return { pending: [], op: { id: newOpId(), type: 'level', h: Math.round((pos.z - zmin) * 100) / 100 } };
+      const vessel = inPart.part != null ? body.parts[part].body : body;
+      const zs = vessel.extent ? vessel.extent.map((p) => p.z) : vessel.order.map((v) => vessel.vertices[v].z);
+      const zmin = Math.min(...zs);
+      const h = Math.round((pos.z - zmin) * 100) / 100;
+      if (h <= 0) return { pending: [], error: 'Кликните по стенке сосуда выше дна' };
+      return { pending: [], op: { id: newOpId(), type: 'level', h, ...inPart } };
     }
     case 'rename':
       return { pending: [], rename: { name: target.name } };

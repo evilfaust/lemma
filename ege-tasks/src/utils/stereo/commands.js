@@ -656,10 +656,19 @@ export function parseCommand(text, model) {
 
     // «уровень 3» — жидкость на высоте 3 от дна; «уровень 60%», «уровень 3/5» —
     // доля высоты сосуда; «уровень через W» — через точку.
-    m = /^(?:уровень|вода|жидкость|level|water)\s+(?:жидкости\s+)?(?:на\s+высоте\s+)?(.+)$/i.exec(src);
+    // «отметка уровня 3» — только пунктирное кольцо (куда поднимется вода);
+    // «… в теле 2» — уровень во втором сосуде чертежа из нескольких тел.
+    m = /^(?:(отметка\s+уровня|линия\s+уровня|отметка|mark)|уровень|вода|жидкость|level|water)\s+(?:жидкости\s+)?(?:на\s+высоте\s+)?(.+)$/i.exec(src);
     if (m) {
-      const arg = m[1].trim();
-      const op = { id: newOpId(), type: 'level' };
+      let arg = m[2].trim();
+      const op = { id: newOpId(), type: 'level', ...(m[1] ? { mark: true } : {}) };
+      const inPart = /\s+(?:в\s+)?(?:теле|тело|сосуде|сосуд|body)\s+(\d+)$/i.exec(arg);
+      if (inPart) {
+        const k = Number(inPart[1]);
+        if (k < 1) throw new Error('Тела нумеруются с 1: «уровень 2 в теле 2»');
+        op.part = k - 1;
+        arg = arg.slice(0, inPart.index).trim();
+      }
       let mm = /^(?:через\s+)?([A-Z][0-9]*)$/.exec(arg);
       if (mm) return { op: { ...op, through: mm[1] } };
       mm = /^(\d+(?:[.,]\d+)?)\s*%$/.exec(arg);
@@ -668,7 +677,7 @@ export function parseCommand(text, model) {
       if (mm && Number(mm[2])) return { op: { ...op, t: Number(mm[1]) / Number(mm[2]) } };
       mm = /^(?:H\s*=\s*)?(\d+(?:[.,]\d+)?)$/i.exec(arg);
       if (mm) return { op: { ...op, h: Number(mm[1].replace(',', '.')) } };
-      throw new Error('Уровень жидкости: «уровень 3» (высота от дна), «уровень 60%», «уровень 3/5» или «уровень через W»');
+      throw new Error('Уровень жидкости: «уровень 3» (высота от дна), «уровень 60%», «уровень 3/5», «уровень через W»; во втором сосуде — «уровень 3 в теле 2»');
     }
 
     m = /^(?:сечение|section)\s+(\S+)$/i.exec(src);
@@ -764,11 +773,12 @@ function sheetArg(op, name) {
   return ` z = ${fmt(op.z)}`;
 }
 
-/** Уровень жидкости словами: «через W», «60%», «3». */
+/** Уровень жидкости словами: «через W», «60%», «3» (+ «в теле 2»). */
 function levelArg(op, name) {
-  if (op.through) return `через ${name(op.through)}`;
-  if (Number.isFinite(Number(op.t))) return `${fmt(Number(op.t) * 100)}%`;
-  return fmt(Number(op.h));
+  const part = op.part != null ? ` в теле ${Number(op.part) + 1}` : '';
+  if (op.through) return `через ${name(op.through)}${part}`;
+  if (Number.isFinite(Number(op.t))) return `${fmt(Number(op.t) * 100)}%${part}`;
+  return `${fmt(Number(op.h))}${part}`;
 }
 
 /** Человеческое описание шага журнала. */
@@ -815,7 +825,7 @@ export function describeOp(op, opsById = {}) {
     case 'section': return `Сечение (${names(op.pts)})`;
     case 'plane': return `Плоскость (${names(op.pts)})`;
     case 'fill': return `Многоугольник ${names(op.pts)}`;
-    case 'level': return `Уровень жидкости ${levelArg(op, P)}`;
+    case 'level': return `${op.mark ? 'Отметка уровня' : 'Уровень жидкости'} ${levelArg(op, P)}`;
     case 'freePoint': return `${P(op.name)} = (${(op.at || []).map(fmt).join('; ')})`;
     case 'pointOnCircle': return `${P(op.name)} на окружности с центром ${P(op.center)}, ${fmt(op.angle)}°`;
     case 'pointOnBody':
@@ -880,7 +890,7 @@ export function opToCommand(op, opsById = {}) {
     case 'section': return `сечение ${n(op.pts)}`;
     case 'plane': return `плоскость ${n(op.pts)}`;
     case 'fill': return `заливка ${n(op.pts)}`;
-    case 'level': return `уровень ${levelArg(op, (x) => x)}`;
+    case 'level': return `${op.mark ? 'отметка уровня' : 'уровень'} ${levelArg(op, (x) => x)}`;
     case 'freePoint': return `${op.name} = (${(op.at || []).map(fmt).join('; ')})`;
     case 'pointOnCircle': return `${op.name} на окружности ${op.center} ${fmt(op.angle)}`;
     case 'pointOnBody': {

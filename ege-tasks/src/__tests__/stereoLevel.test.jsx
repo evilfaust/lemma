@@ -112,3 +112,76 @@ describe('уровень жидкости: чертёж и инструмент'
     expect(Math.max(...out.map((p) => p.z))).toBeCloseTo(1);
   });
 });
+
+// Сосуды цилиндрической формы (база №13, профиль №3): уровень в цилиндре и
+// конусе, отметка «поднимется до…», два сосуда с разными уровнями.
+describe('жидкость в телах вращения и в нескольких сосудах', () => {
+  const FRONT = { yaw: 0, pitch: 15, zoom: 1 };
+
+  it('цилиндр: поверхность на высоте от дна, стенки ниже уровня', () => {
+    const md = evaluateScene(build(['уровень 2,5'], { kind: 'cylinder', r: 2, h: 4 }));
+    expect(zOf(md)).toBeCloseTo(-2 + 2.5);
+    expect(md.polys.find((p) => p.kind === 'water').pts.length).toBeGreaterThan(40);
+    expect(md.polys.filter((p) => p.kind === 'waterSide').length).toBeGreaterThan(40);
+  });
+
+  it('конус вершиной вниз — воронка', () => {
+    const md = evaluateScene(build(['уровень 50%'], { kind: 'cone', r: 2, h: 4, down: true }));
+    expect(zOf(md)).toBeCloseTo(0);
+  });
+
+  it('инструмент «Жидкость» — клик по стенке цилиндра (рёбер у него нет)', () => {
+    const model = evaluateScene({ body: { kind: 'cylinder', r: 2, h: 4 }, ops: [] });
+    const side = model.body.faces.find((f) => f.surface === 'side');
+    const r = toolClick('level', [], { face: { id: side.id, pos: { x: 2, y: 0, z: 1 }, surface: 'side', center: 'O' } }, model);
+    expect(r.op).toMatchObject({ type: 'level', h: 3 });
+    expect(r.op.part).toBeUndefined();
+  });
+
+  it('отметка уровня — пунктирное кольцо без заливки', () => {
+    const sc = build(['уровень 2', 'отметка уровня 3'], { kind: 'cylinder', r: 2, h: 4 });
+    expect(sc.ops[1]).toMatchObject({ type: 'level', h: 3, mark: true });
+    const md = evaluateScene(sc);
+    expect(md.polys.filter((p) => p.kind === 'levelMark')).toHaveLength(1);
+    const fr = renderStereo(md, FRONT, VP);
+    const ring = fr.strokes.filter((s) => s.objId.startsWith(`${sc.ops[1].id}:`));
+    expect(ring.length).toBeGreaterThan(40);
+    expect(ring.every((s) => s.hidden)).toBe(true);
+    expect(fr.polys.some((p) => p.kind === 'levelMark')).toBe(false);
+    // пунктир идёт одним узором вдоль кольца
+    expect(ring.some((s) => s.dashOffset > 0)).toBe(true);
+    expect(describeOp(sc.ops[1])).toBe('Отметка уровня 3');
+    expect(opToCommand(sc.ops[1])).toBe('отметка уровня 3');
+  });
+
+  it('два сосуда — у каждого свой уровень от своего дна', () => {
+    const r = parseStereoBlock('цилиндр 2 3\nи цилиндр 2,5 3 справа\nуровень 2 в теле 1\nуровень 0,8 в теле 2\nотметка уровня 2 в теле 2');
+    expect(r.errors).toEqual([]);
+    expect(r.scene.ops.map((o) => o.part)).toEqual([0, 1, 1]);
+    const md = evaluateScene(r.scene);
+    const water = md.polys.filter((p) => p.kind === 'water');
+    expect(water).toHaveLength(2);
+    const bottom = -1.5;
+    expect(water[0].pts[0].z).toBeCloseTo(bottom + 2);
+    expect(water[1].pts[0].z).toBeCloseTo(bottom + 0.8);
+    // первый сосуд — слева, второй — справа: вода не перетекает
+    expect(Math.max(...water[0].pts.map((p) => p.x))).toBeLessThan(Math.min(...water[1].pts.map((p) => p.x)));
+    const text = buildStereoBlock(r.scene, DEFAULT_CAMERA).text;
+    expect(text).toContain('уровень 0,8 в теле 2');
+    expect(text).toContain('отметка уровня 2 в теле 2');
+    expect(parseStereoBlock(text).scene.ops.map((o) => [o.h, o.part, !!o.mark])).toEqual([[2, 0, false], [0.8, 1, false], [2, 1, true]]);
+  });
+
+  it('клик по стенке второго сосуда — уровень в нём', () => {
+    const model = evaluateScene(parseStereoBlock('цилиндр 2 3\nи цилиндр 2,5 3 справа').scene);
+    const side = model.body.faces.find((f) => f.part === 1 && f.surface === 'side');
+    const r = toolClick('level', [], { face: { id: side.id, pos: { x: 3, y: 0, z: -0.5 }, surface: 'side', center: 'O2' } }, model);
+    expect(r.op).toMatchObject({ type: 'level', h: 1, part: 1 });
+  });
+
+  it('нет такого тела — понятная ошибка', () => {
+    const sc = { body: { kind: 'cylinder', r: 2, h: 4 }, ops: [] };
+    const r = parseCommand('уровень 2 в теле 2', evaluateScene(sc));
+    expect(tryAppendOp(sc, r.op).error).toMatch(/Нет тела 2/);
+  });
+});
