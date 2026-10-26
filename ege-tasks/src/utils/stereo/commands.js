@@ -35,6 +35,7 @@ import {
 import { colorKeyFromWord, COLOR_WORDS } from './render';
 import { nextFreeName, nextFootName } from './naming';
 import { makeMeasure, makeVertexAngle } from './measure';
+import { circlePlane } from './revolution';
 
 const CYR_TO_LAT = {
   А: 'A', В: 'B', С: 'C', Е: 'E', Н: 'H', К: 'K', М: 'M', О: 'O', Р: 'P', Т: 'T', Х: 'X', У: 'Y',
@@ -183,6 +184,8 @@ export function parsePlaneRef(tok, model, what = 'Плоскость — три 
     return op.id;
   }
   const n = PERP_TOK.test(t) ? null : splitNames(t);
+  // «(O)» — плоскость основания тела вращения (окружности с центром O)
+  if (n?.length === 1 && /^\(.+\)$/.test(t) && circlePlane(model?.body, n[0])) return n;
   if (!n || n.length < 3) throw new Error(what);
   return n;
 }

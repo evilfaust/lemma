@@ -20,7 +20,7 @@ import {
   affinePoint, clipPolygonBelow,
 } from './geometry';
 import { blocksSectionPieces } from './blocks';
-import { circlePoint, bodySurfacePoint } from './revolution';
+import { circlePoint, bodySurfacePoint, circlePlane } from './revolution';
 
 /** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
 export function isPlaneRefId(ref) {
@@ -68,6 +68,7 @@ export function planeName(ref, opsById = {}) {
 /** Плоскость по именам точек модели (или по id шага); null — точки нет или они на одной прямой. */
 function planeOfNames(model, names) {
   if (isPlaneRefId(names)) return model.planes?.[names] || null;
+  if (names?.length === 1) return circlePlane(model.body, names[0]);
   const pts = (names || []).map((n) => model.points[n]?.pos);
   if (pts.length < 3 || pts.some((p) => !p)) return null;
   for (let i = 2; i < pts.length; i++) {
@@ -247,6 +248,12 @@ export function evaluateScene(scene, opts = {}) {
     if (isPlaneRefId(names)) {
       if (!planeDefs[names]) fail('Нет такой плоскости');
       return { plane: planeDefs[names], face: null };
+    }
+    // «(O)» — плоскость основания тела вращения по его центру
+    if (Array.isArray(names) && names.length === 1) {
+      const plane = circlePlane(body, names[0]);
+      if (!plane) fail(`Нет основания с центром ${prettyName(names[0])}`);
+      return { plane, face: null };
     }
     if (!Array.isArray(names) || names.length < 3) fail('Плоскость задаётся тремя точками');
     const pts = names.map(pointPos);

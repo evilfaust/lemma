@@ -14,6 +14,7 @@ import { sub, dot, cross, len, norm } from './vec3';
 import { prettyName, findFace } from './bodies';
 import { refName, planeName, isPairRef, isPlaneRefId } from './scene';
 import { planeFromPoints } from './geometry';
+import { circlePlane } from './revolution';
 import {
   sqrtQ, surdLatex, surdComplexity, formatAngle, recognizeRational,
 } from './exact';
@@ -82,6 +83,11 @@ function planeOf(model, ref) {
     return { n: norm(pl.n), d: pl.d };
   }
   const names = ref || [];
+  if (names.length === 1) {
+    const pl = circlePlane(model.body, names[0]);
+    if (!pl) throw new Error(`Нет основания с центром ${prettyName(names[0])}`);
+    return pl;
+  }
   const face = names.every((n) => model.body.vertices[n]) ? findFace(model.body, names) : null;
   if (face) return { n: face.n, d: face.d };
   const pts = names.map((n) => pointOf(model, n));

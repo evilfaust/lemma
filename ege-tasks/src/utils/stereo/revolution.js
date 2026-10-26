@@ -232,6 +232,19 @@ export function sphereSection(sp, plane, n = 96) {
   });
 }
 
+/**
+ * Плоскость окружности тела по имени её центра: основание цилиндра и конуса,
+ * экватор шара. Ссылка на неё в операциях — ['O'], текстом «(O)»: у круга
+ * основания нет трёх именованных точек, а опустить перпендикуляр на нижнее
+ * основание, провести след или угол с ним нужно. null — такой окружности нет.
+ */
+export function circlePlane(body, name) {
+  const c = body?.circles?.[name];
+  if (!c || !(c.r > 0)) return null;
+  const n = norm(c.axis);
+  return { n, d: dot(n, c.c) };
+}
+
 /** Точка окружности тела по углу (°, против часовой, если смотреть сверху). */
 export function circlePoint(circle, deg) {
   const t = (deg * Math.PI) / 180;

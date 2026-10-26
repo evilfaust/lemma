@@ -129,3 +129,49 @@ describe('тела вращения: текст и форма', () => {
     expect(bodySpecFromForm({ ...bodyFormValues({ kind: 'cube', a: 4 }), kind: 'cylinder', r: 3, h: 6 })).toMatchObject({ kind: 'cylinder', r: 3, h: 6 });
   });
 });
+
+// Плоскость основания тела вращения — ссылка по центру «(O)»: у круга нет
+// трёх именованных точек, а перпендикуляр на нижнее основание нужен.
+describe('плоскость основания тела вращения: «(O)»', () => {
+  const cyl = { kind: 'cylinder', r: 4, h: 1.5 };
+
+  it('перпендикуляр из точки верхнего круга на нижнее основание — командой', () => {
+    const r = parseStereoBlock('цилиндр 4 1,5\nM в круге O1 120 0,9\nH = M ⊥ (O)');
+    expect(r.errors).toEqual([]);
+    expect(r.scene.ops[1]).toMatchObject({ type: 'perp', from: 'M', plane: ['O'], name: 'H' });
+    const md = evaluateScene(r.scene);
+    const { M, H } = md.points;
+    expect(H.pos.z).toBeCloseTo(-0.75);
+    expect(H.pos.x).toBeCloseTo(M.pos.x);
+    expect(H.pos.y).toBeCloseTo(M.pos.y);
+    expect(buildStereoBlock(r.scene, DEFAULT_CAMERA).text).toContain('H = M ⊥ (O)');
+  });
+
+  it('клик по кругу основания инструментом «Перпендикуляр»', async () => {
+    const { toolClick } = await import('../utils/stereo');
+    const sc = parseStereoBlock('цилиндр 4 1,5\nM в круге O1 120 0,9').scene;
+    const md = evaluateScene(sc);
+    const disk = md.body.faces.find((f) => f.surface === 'disk' && f.center === 'O');
+    const step1 = toolClick('perp', [], { point: 'M' }, md);
+    const step2 = toolClick('perp', step1.pending, { face: { id: disk.id, pos: { x: 0, y: 0, z: -0.75 }, surface: 'disk', center: 'O' } }, md);
+    expect(step2.error).toBeUndefined();
+    expect(step2.op).toMatchObject({ type: 'perp', from: 'M', plane: ['O'] });
+    expect(opToCommand(step2.op)).toBe('H = M ⊥ (O)');
+  });
+
+  it('боковая поверхность плоскостью не считается — подсказка про основание', async () => {
+    const { toolClick } = await import('../utils/stereo');
+    const md = evaluateScene({ body: cyl, ops: [] });
+    const side = md.body.faces.find((f) => f.surface === 'side');
+    const r = toolClick('perp', [{ kind: 'point', name: 'O1' }], { face: { id: side.id, pos: { x: 4, y: 0, z: 0 }, surface: 'side', center: 'O' } }, md);
+    expect(r.error).toMatch(/по основанию/);
+  });
+
+  it('угол с основанием и след на нём; нет такого центра — ошибка', () => {
+    const r = parseStereoBlock('конус 3 4\nM на поверхности O 300 0,5\nугол MS (O)\nX = MS ∩ (O)');
+    expect(r.errors).toEqual([]);
+    expect(evaluateScene(r.scene).points.X.pos.z).toBeCloseTo(-2);
+    const sc = { body: cyl, ops: [] };
+    expect(parseCommand('H = O1 ⊥ (K)', evaluateScene(sc)).error).toBeTruthy();
+  });
+});

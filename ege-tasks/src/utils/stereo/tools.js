@@ -15,7 +15,7 @@ import { paramOnLine, add, mul, sub } from './vec3';
 import {
   intersectLinePlane, planeFromPoints, affineCoords, pointInConvexPolygon,
 } from './geometry';
-import { bodySurfaceParams } from './revolution';
+import { bodySurfaceParams, circlePlane } from './revolution';
 import { pickFace } from './render';
 
 /** Чертёж без тела: точки ставятся в пустоту, плоскости — листами. */
@@ -260,12 +260,16 @@ export function toolClick(tool, pending, hit, model) {
   }
   // Часть грани ступенчатого тела, у которой не все углы — вершины с
   // именами: плоскость по ней не назвать.
+  // Круг основания тела вращения — плоскость: ссылка на неё по центру «(O)».
+  if (target.kind === 'face' && !target.verts && target.surface === 'disk' && target.center && tool !== 'point') {
+    target.verts = [target.center];
+  }
   if (target.kind === 'face' && !target.verts && !(tool === 'point' && target.surface)
     && ['point', 'trace', 'perp', 'angle', 'perpPlane', 'plane'].includes(tool)) {
     return {
       pending,
       error: target.surface
-        ? 'Поверхность тела вращения — не плоскость: задайте плоскость тремя точками'
+        ? 'Боковая поверхность тела вращения — не плоскость: кликните по основанию или задайте плоскость тремя точками'
         : 'У этой части грани нет вершин с именами — задайте плоскость тремя точками (или дайте вершинам имена)',
     };
   }
@@ -587,6 +591,7 @@ export function finishPending(tool, pending, model = null) {
 
 /** Плоскость по именам точек модели; null — их нет или на одной прямой. */
 function planeOfPts(model, names) {
+  if (names.length === 1) return circlePlane(model.body, names[0]);
   const [A, B, C] = names.slice(0, 3).map((n) => model.points[n]?.pos);
   return A && B && C ? planeFromPoints(A, B, C, model.body.size) : null;
 }
