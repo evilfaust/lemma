@@ -580,6 +580,9 @@ export function buildStereoBlock(scene, camera = DEFAULT_CAMERA, { color = false
   for (const [key, polys] of Object.entries(polysByColor)) {
     out.push(`цвет ${polys.length > 1 ? 'сечений' : 'сечения'} ${polys.join(', ')} ${wordOf(key)}`);
   }
+  // Точки, которые тело прячет (центры O, O1 тел вращения), но учитель
+  // открыл: «показать O, O1». Без этой строки они пропадали из блока задачи.
+  if (scene?.shown?.length) out.push(`показать ${scene.shown.join(', ')}`);
   // Скрытые точки — одной строкой: «скрыть M, N».
   if (scene?.hidden?.length) out.push(`скрыть ${scene.hidden.join(', ')}`);
   // Скрытые прямые и отрезки: «скрыть прямые AB, CD», «скрыть отрезок AM»

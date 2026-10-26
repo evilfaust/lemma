@@ -175,3 +175,17 @@ describe('плоскость основания тела вращения: «(O)
     expect(parseCommand('H = O1 ⊥ (K)', evaluateScene(sc)).error).toBeTruthy();
   });
 });
+
+describe('открытые центры тел вращения в тексте блока', () => {
+  it('«показать O1, O2» сохраняется при выгрузке в текст (раньше пропадало)', () => {
+    let sc = parseStereoBlock('цилиндр 2 4\nи шар 2\nвершины O2O1AA1OA3\nотрезок O1O2').scene;
+    sc = setPointsHidden(sc, ['O1', 'O', 'O2'], false);
+    const text = buildStereoBlock(sc, DEFAULT_CAMERA).text;
+    expect(text).toContain('показать O1, O, O2');
+    const back = parseStereoBlock(text);
+    expect(back.errors).toEqual([]);
+    const md = evaluateScene(back.scene);
+    expect(['O1', 'O', 'O2'].map((n) => md.points[n].concealed)).toEqual([undefined, undefined, undefined]);
+    expect(md.points.A.concealed).toBe(true);
+  });
+});
