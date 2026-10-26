@@ -433,6 +433,45 @@
   }
 }
 
+/* Режим чтения на телефоне (v3.9.404): не лист A4, а текст во всю ширину.
+   Типографику текста даёт класс sta-content (studentTheoryArticle.css —
+   та же вёрстка, что у статьи по ссылке /t/<id>), здесь — обвязка экрана. */
+.theory-article-view--read .theory-article-toolbar {
+  padding: 4px 8px;
+}
+.theory-article-view--read .theory-article-header {
+  padding: 16px 16px 14px;
+  animation: none;
+}
+.theory-article-view--read .theory-article-category {
+  margin-bottom: 8px;
+}
+.theory-article-view--read .theory-article-title {
+  font-size: 24px;
+  line-height: 1.25;
+}
+.theory-article-view--read .theory-article-summary {
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+.theory-article-view--read .theory-article-toc-mobile {
+  margin: 14px 16px 0;
+}
+.theory-article-view--read .theory-article-content-wrapper {
+  padding: 16px 16px 28px;
+  background: #fff;
+}
+.theory-article-view--read .theory-article-main {
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+.theory-article-view--read .sta-content.theory-preview-content h1 {
+  scroll-margin-top: 12px;
+}
+.theory-article-view--read .theory-related-section {
+  padding: 16px;
+}
+
 /* «Статья по ссылке» (TheoryShareModal, v3.9.285) */
 .theory-share-link {
   display: flex;

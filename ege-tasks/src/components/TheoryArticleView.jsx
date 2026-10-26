@@ -24,7 +24,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { headingTocEntry } from '../utils/headingToc';
 import './theory/TheoryGeoGebraEmbed.css';
 import './theory/TheoryArticleView.css';
+// Режим чтения на телефоне — та же вёрстка, что у статьи по ссылке (/t/<id>)
+import './theory/studentTheoryArticle.css';
 import { compareTaskCodes } from '../utils/taskCode';
+import useIsMobile from '../hooks/useIsMobile';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
@@ -52,6 +55,9 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const [activeHeading, setActiveHeading] = useState(-1);
   const previewRef = useRef(null);
   const contentRef = useRef(null);
+  // На телефоне статья — не лист A4 (210 мм шире экрана), а текст для чтения:
+  // одна колонка во всю ширину, без печатных кнопок.
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (articleId) loadArticle(articleId);
@@ -103,20 +109,21 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
     }
   };
 
-  const html = useMarkdownProcessor(article?.content_md || '', pageSettings.columns);
+  const html = useMarkdownProcessor(article?.content_md || '', isMobile ? 1 : pageSettings.columns);
 
   const cat = article?.expand?.category || categories.find(c => c.id === article?.category);
   const sheet = normalizePrintTheme(printTheme) === 'sheet';
 
   // В теме «Лист» перед статьёй печатается шапка листа: на экране заголовок
   // живёт в .theory-article-header (no-print), то есть в печать не попадает.
+  // В режиме чтения печати нет — шапка задвоила бы заголовок.
   const printHtml = useMemo(() => withSheetHead(html, {
-    enabled: sheet,
+    enabled: sheet && !isMobile,
     eyebrow: cat?.title,
     title: article?.title,
     subtitle: article?.summary,
     meta: [...(article?.tags || []), formatDate(article?.updated)],
-  }), [html, sheet, cat?.title, article?.title, article?.summary, article?.tags, article?.updated]);
+  }), [html, sheet, isMobile, cat?.title, article?.title, article?.summary, article?.tags, article?.updated]);
 
   // Generate TOC from rendered HTML
   useEffect(() => {
@@ -258,18 +265,22 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
   const colleague = isColleagueArticle(article, teacher);
 
   return (
-    <div className="theory-article-view">
+    <div className={`theory-article-view${isMobile ? ' theory-article-view--read' : ''}`}>
       {/* Toolbar */}
       <div className="theory-article-toolbar no-print">
         <div className="theory-article-toolbar-left">
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={onBack}>Назад</Button>
         </div>
         <div className="theory-article-toolbar-right">
-          <PrintThemeSwitch
-            value={printTheme}
-            onChange={(v) => { setPrintTheme(v); savePrintTheme(v); }}
-          />
-          <div className="theory-article-toolbar-divider" />
+          {!isMobile && (
+            <>
+              <PrintThemeSwitch
+                value={printTheme}
+                onChange={(v) => { setPrintTheme(v); savePrintTheme(v); }}
+              />
+              <div className="theory-article-toolbar-divider" />
+            </>
+          )}
           {colleague && (
             <Tooltip title="Статья коллеги — только для чтения">
               <span className="theory-article-toolbar-author">
@@ -290,28 +301,32 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
                 onClick={() => setShareOpen(true)}
                 aria-label="Поделиться"
               >
-                {article.public ? 'Открыта' : null}
+                {article.public && !isMobile ? 'Открыта' : null}
               </Button>
             </Tooltip>
           )}
-          <Tooltip title="Печать">
-            <Button type="text" icon={<PrinterOutlined />} onClick={handlePrint} />
-          </Tooltip>
-          <Tooltip title="Экспорт PDF">
-            <Button
-              type="text"
-              icon={<FilePdfOutlined />}
-              onClick={handleExportPDF}
-              loading={isExporting}
-            />
-          </Tooltip>
+          {!isMobile && (
+            <>
+              <Tooltip title="Печать">
+                <Button type="text" icon={<PrinterOutlined />} onClick={handlePrint} />
+              </Tooltip>
+              <Tooltip title="Экспорт PDF">
+                <Button
+                  type="text"
+                  icon={<FilePdfOutlined />}
+                  onClick={handleExportPDF}
+                  loading={isExporting}
+                />
+              </Tooltip>
+            </>
+          )}
         </div>
       </div>
 
       {/* Layout with optional TOC */}
       <div className="theory-article-layout">
         {/* TOC Sidebar */}
-        {toc.length > 3 && (
+        {!isMobile && toc.length > 3 && (
           <aside className="theory-article-toc no-print">
             <div className="toc-title">Содержание</div>
             {toc.map((item, i) => (
@@ -351,12 +366,31 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
             </div>
           </div>
 
+          {/* Оглавление на телефоне — сворачиваемым блоком над текстом */}
+          {isMobile && toc.length >= 3 && (
+            <details className="sta-toc theory-article-toc-mobile no-print">
+              <summary>Содержание</summary>
+              <ol>
+                {toc.map((item) => (
+                  <li key={item.id} className={`sta-toc__item sta-toc__item--h${Math.max(2, item.level)}`}>
+                    <a
+                      href={`#${item.id}`}
+                      onClick={(e) => { e.preventDefault(); scrollToHeading(item.id); }}
+                      // HTML заголовка уже прошёл DOMPurify; формулы — KaTeX.
+                      dangerouslySetInnerHTML={{ __html: item.html }}
+                    />
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+
           {/* Article body */}
           <div className="theory-article-content-wrapper">
             <div
               ref={previewRef}
-              className={`theory-preview-content theory-article-print-area ${printThemeClass(printTheme)}`}
-              style={previewStyles}
+              className={`theory-preview-content theory-article-print-area ${printThemeClass(printTheme)}${isMobile ? ' sta-content' : ''}`}
+              style={isMobile ? undefined : previewStyles}
               dangerouslySetInnerHTML={{ __html: printHtml }}
             />
           </div>
@@ -412,8 +446,8 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
         />
       )}
 
-      {/* Floating actions */}
-      <div className="theory-floating-actions no-print">
+      {/* Floating actions — на телефоне закрывали бы текст */}
+      {!isMobile && <div className="theory-floating-actions no-print">
         {manage && (
           <Tooltip title="Редактировать" placement="left">
             <Button shape="circle" icon={<EditOutlined />} onClick={() => onEdit?.(articleId)} />
@@ -430,7 +464,7 @@ export default function TheoryArticleView({ articleId, onBack, onEdit }) {
             loading={isExporting}
           />
         </Tooltip>
-      </div>
+      </div>}
     </div>
   );
 }
