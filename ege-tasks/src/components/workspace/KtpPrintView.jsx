@@ -8,7 +8,7 @@ function fmtDate(iso) {
   try { return dayjs(iso).format('DD.MM.YYYY'); } catch { return ''; }
 }
 
-export default function KtpPrintView({ course, entries = [], group, totalHours, onBack }) {
+export default function KtpPrintView({ course, entries = [], group, totalHours, totalText, unit, onBack }) {
   const doPrint = () => {
     const style = document.createElement('style');
     style.textContent = '@page { size: A4 landscape; margin: 12mm; }';
@@ -20,7 +20,7 @@ export default function KtpPrintView({ course, entries = [], group, totalHours, 
   const subtitle = [
     group?.name ? `Класс: ${group.name}` : null,
     course?.year ? `Учебный год: ${course.year}` : null,
-    totalHours ? `Всего часов: ${totalHours}` : null,
+    totalHours ? `Всего: ${totalText || totalHours}` : null,
   ].filter(Boolean).join('    ·    ');
 
   let n = 0;
@@ -43,7 +43,7 @@ export default function KtpPrintView({ course, entries = [], group, totalHours, 
             <tr>
               <th style={{ width: '5%' }}>№</th>
               <th style={{ width: '38%' }}>Тема</th>
-              <th style={{ width: '7%' }}>Часы</th>
+              <th style={{ width: '7%' }}>{unit?.column || 'Часы'}</th>
               <th style={{ width: '8%' }}>Неделя</th>
               <th style={{ width: '12%' }}>Дата</th>
               <th style={{ width: '30%' }}>Планируемые результаты</th>
@@ -72,7 +72,7 @@ export default function KtpPrintView({ course, entries = [], group, totalHours, 
                   <td className="ktp-c">{e.hours ?? ''}</td>
                   <td className="ktp-c">{e.week_no ?? ''}</td>
                   <td className="ktp-c">{fmtDate(e.planned_date)}</td>
-                  <td>{e.planned_results || ''}</td>
+                  <td className="ktp-print-results">{e.planned_results || ''}</td>
                 </tr>
               );
             })}

@@ -1,4 +1,5 @@
 // Экспорт КТП в Word (.docx). docx грузится динамически (тяжёлый — не в main-бандл).
+import { totalAmount, totalLabel, unitOf } from './ktpPlan';
 
 function fmtDate(iso) {
   if (!iso) return '';
@@ -17,7 +18,7 @@ export async function exportKtpToWord(course, entries, group) {
     TextRun, HeadingLevel, WidthType, AlignmentType,
   } = docx;
 
-  const headerCells = ['№', 'Тема', 'Часы', 'Неделя', 'Дата', 'Планируемые результаты'];
+  const headerCells = ['№', 'Тема', unitOf(course).column, 'Неделя', 'Дата', 'Планируемые результаты'];
   const widths = [6, 38, 8, 9, 13, 26]; // проценты
 
   const headerRow = new TableRow({
@@ -76,14 +77,12 @@ export async function exportKtpToWord(course, entries, group) {
     rows: [headerRow, ...bodyRows],
   });
 
-  const totalHours = entries
-    .filter((e) => !e.is_section && e.hours != null)
-    .reduce((s, e) => s + Number(e.hours || 0), 0);
+  const totalHours = totalAmount(entries);
 
   const subtitleParts = [
     group?.name ? `Класс: ${group.name}` : null,
     course?.year ? `Учебный год: ${course.year}` : null,
-    totalHours ? `Всего часов: ${totalHours}` : null,
+    totalHours ? `Всего: ${totalLabel(entries, course)}` : null,
   ].filter(Boolean);
 
   const doc = new Document({

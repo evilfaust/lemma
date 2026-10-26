@@ -84,3 +84,8 @@
     break-inside: avoid;
   }
 }
+
+/* Планируемые результаты шаблона — несколько строк (цель / учебник / контроль) */
+.ktp-print-results {
+  white-space: pre-line;
+}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  App, Button, Form, Input, Modal, Popconfirm, Select, Space, Spin, Switch, Tag, Typography,
+  App, Button, Form, Input, InputNumber, Modal, Popconfirm, Segmented, Select, Space, Spin, Switch, Tag, Typography,
 } from 'antd';
 import {
   DeleteOutlined, EditOutlined, InboxOutlined, PlusOutlined, ScheduleOutlined,
@@ -9,6 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import { WorkspacePageHeader, EmptyState, GroupChip, groupHex, TONE_HEX } from './ui';
+import { KTP_UNITS, formatAmount, perWeekOf, unitOf } from '../../utils/ktpPlan';
+import { KTP_TEMPLATES, ktpTemplate } from '../../utils/ktpTemplates';
 
 const { Text } = Typography;
 
@@ -25,8 +27,11 @@ function CourseModal({ open, initial, groups, onSave, onCancel, saving }) {
     if (open) {
       form.setFieldsValue(
         initial
-          ? { title: initial.title, group: initial.group || undefined, year: initial.year }
-          : { title: '', group: undefined, year: defaultYear() },
+          ? {
+              title: initial.title, group: initial.group || undefined, year: initial.year,
+              unit: unitOf(initial).key, per_week: perWeekOf(initial),
+            }
+          : { title: '', group: undefined, year: defaultYear(), unit: 'lesson', per_week: 2, template: undefined },
       );
     }
   }, [open, initial, form]);
@@ -56,6 +61,27 @@ function CourseModal({ open, initial, groups, onSave, onCancel, saving }) {
         <Form.Item name="year" label="Учебный год">
           <Input placeholder="2025/2026" maxLength={20} />
         </Form.Item>
+        <Space size="large" wrap>
+          <Form.Item name="unit" label="Занятие" extra="Пара = 2 академических часа">
+            <Segmented options={Object.values(KTP_UNITS).map((u) => ({ value: u.key, label: u.label }))} />
+          </Form.Item>
+          <Form.Item name="per_week" label="В неделю">
+            <InputNumber min={0.5} max={20} step={0.5} style={{ width: 90 }} />
+          </Form.Item>
+        </Space>
+        {!initial && (
+          <Form.Item name="template" label="Начать с шаблона" extra="Темы и часы программы, разложенные под вашу сетку — дальше правится как обычно">
+            <Select
+              allowClear
+              placeholder="Пустой план"
+              options={KTP_TEMPLATES.map((t) => ({ value: t.key, label: t.title }))}
+              onChange={(k) => {
+                const t = ktpTemplate(k);
+                if (t && !form.getFieldValue('title')) form.setFieldValue('title', t.defaultTitle);
+              }}
+            />
+          </Form.Item>
+        )}
       </Form>
     </Modal>
   );
@@ -78,7 +104,7 @@ export default function KtpList() {
     setLoading(true);
     try {
       const [c, g] = await Promise.all([
-        api.getCourses({ includeArchived: showArchived }),
+        api.getKtps({ includeArchived: showArchived }),
         api.getTeachingGroups(),
       ]);
       setCourses(c);
@@ -92,16 +118,17 @@ export default function KtpList() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSave = async (values) => {
+  const handleSave = async ({ template, ...values }) => {
     setSaving(true);
     try {
       if (editing) {
-        await api.updateCourse(editing.id, values);
+        await api.updateKtp(editing.id, values);
         message.success('КТП обновлено');
       } else {
-        const rec = await api.createCourse(values);
+        const rec = await api.createKtp(values);
         message.success('КТП создано');
-        navigate(`/app/ktp/${rec.id}`);
+        // Шаблон раскладывается уже в редакторе — там видно, что получится.
+        navigate(template ? `/app/ktp/${rec.id}?template=${template}` : `/app/ktp/${rec.id}`);
       }
       setModalOpen(false);
       setEditing(null);
@@ -115,14 +142,14 @@ export default function KtpList() {
 
   const handleArchive = async (c) => {
     try {
-      await api.archiveCourse(c.id, !c.archived);
+      await api.archiveKtp(c.id, !c.archived);
       load();
     } catch { message.error('Не удалось'); }
   };
 
   const handleDelete = async (c) => {
     try {
-      await api.deleteCourse(c.id);
+      await api.deleteKtp(c.id);
       message.success('КТП удалено');
       load();
     } catch { message.error('Не удалось удалить'); }
@@ -138,7 +165,10 @@ export default function KtpList() {
           <span className="ws-tile__badge" style={{ color: hex.base, background: hex.soft }}><ScheduleOutlined /></span>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div className="ws-tile__name">{c.title}{c.archived && <Tag style={{ marginLeft: 6 }}>архив</Tag>}</div>
-            <div className="ws-tile__sub">{c.year || 'без года'}</div>
+            <div className="ws-tile__sub">
+              {c.year || 'без года'}
+              {c.unit === 'pair' && ` · ${formatAmount(perWeekOf(c), KTP_UNITS.pair)} в неделю`}
+            </div>
           </div>
         </div>
 

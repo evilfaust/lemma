@@ -4,16 +4,18 @@ import {
   Select, Space, Spin, Switch, Table, Tooltip, Typography,
 } from 'antd';
 import {
-  ArrowLeftOutlined, ArrowUpOutlined, ArrowDownOutlined, DeleteOutlined, EditOutlined,
-  FileWordOutlined, PlusOutlined, PrinterOutlined, ScheduleOutlined,
+  ArrowLeftOutlined, ArrowUpOutlined, ArrowDownOutlined, CalendarOutlined, DeleteOutlined, EditOutlined,
+  FileWordOutlined, PlusOutlined, PrinterOutlined, ScheduleOutlined, SnippetsOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useReferenceData } from '../../contexts/ReferenceDataContext';
 import { exportKtpToWord } from '../../utils/ktpDocx';
 import KtpPrintView from './KtpPrintView';
+import KtpTemplateModal from './KtpTemplateModal';
+import { assignWeeks, perWeekOf, totalAmount, totalLabel, unitOf, weeksNeeded } from '../../utils/ktpPlan';
 import { WorkspacePageHeader, EmptyState, GroupChip, groupTone } from './ui';
 import { TOPIC_SELECT, topicOptionLabel } from '../shared/topicSelect';
 
@@ -23,7 +25,7 @@ function topicLabel(t) {
   return topicOptionLabel(t);
 }
 
-function EntryModal({ open, initial, topics, onSave, onCancel, saving }) {
+function EntryModal({ open, initial, topics, unit, onSave, onCancel, saving }) {
   const [form] = Form.useForm();
   const isSection = Form.useWatch('is_section', form);
 
@@ -88,7 +90,7 @@ function EntryModal({ open, initial, topics, onSave, onCancel, saving }) {
               />
             </Form.Item>
             <Space size="large" style={{ display: 'flex' }}>
-              <Form.Item name="hours" label="Часов" style={{ flex: 1 }}>
+              <Form.Item name="hours" label={unit.key === 'pair' ? 'Пар' : 'Часов'} style={{ flex: 1 }}>
                 <InputNumber min={0} step={0.5} style={{ width: '100%' }} placeholder="2" />
               </Form.Item>
               <Form.Item name="week_no" label="Неделя" style={{ flex: 1 }}>
@@ -111,6 +113,7 @@ function EntryModal({ open, initial, topics, onSave, onCancel, saving }) {
 export default function KtpEditor() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { message } = App.useApp();
   const { canEdit } = useAuth();
   const { topics } = useReferenceData();
@@ -122,11 +125,13 @@ export default function KtpEditor() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [printMode, setPrintMode] = useState(false);
+  const [templateKey, setTemplateKey] = useState(null); // открыт шаблон: ключ или '' (выбор в окне)
+  const [templateSaving, setTemplateSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [c, e] = await Promise.all([api.getCourse(courseId), api.getKtpEntries(courseId)]);
+      const [c, e] = await Promise.all([api.getKtp(courseId), api.getKtpEntries(courseId)]);
       setCourse(c);
       setEntries(e);
     } catch {
@@ -138,10 +143,18 @@ export default function KtpEditor() {
 
   useEffect(() => { load(); }, [load]);
 
-  const totalHours = useMemo(
-    () => entries.filter((e) => !e.is_section && e.hours != null).reduce((s, e) => s + Number(e.hours || 0), 0),
-    [entries],
-  );
+  // «Новое КТП» с шаблоном приходит сюда с ?template=<ключ> — окно открывается само.
+  useEffect(() => {
+    const key = searchParams.get('template');
+    if (!key || !course) return;
+    setTemplateKey(key);
+    const next = new URLSearchParams(searchParams);
+    next.delete('template');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, course, setSearchParams]);
+
+  const unit = unitOf(course);
+  const totalHours = useMemo(() => totalAmount(entries), [entries]);
 
   const handleSaveEntry = async (data) => {
     setSaving(true);
@@ -182,6 +195,50 @@ export default function KtpEditor() {
     }
   };
 
+  // Недели строк — по накопленным часам и числу занятий в неделю (курс).
+  // Пишем только строки, у которых неделя изменилась.
+  const handleAssignWeeks = async (list = entries, perWeek = perWeekOf(course)) => {
+    const next = assignWeeks(list, perWeek);
+    const patches = next
+      .filter((e, i) => !e.is_section && e.week_no !== list[i].week_no)
+      .map((e) => ({ id: e.id, week_no: e.week_no }));
+    if (!patches.length) {
+      message.info('Недели уже расставлены');
+      return;
+    }
+    try {
+      await api.updateKtpEntries(patches);
+      message.success(`Недели расставлены: ${weeksNeeded(list, perWeek)} нед.`);
+    } catch {
+      message.error('Не удалось расставить недели');
+    }
+    load();
+  };
+
+  const handleApplyTemplate = async ({ entries: rows, unit: newUnit, perWeek }) => {
+    setTemplateSaving(true);
+    try {
+      if (newUnit !== unit.key || perWeek !== perWeekOf(course)) {
+        await api.updateKtp(course.id, { unit: newUnit, per_week: perWeek });
+      }
+      const { created, failed } = await api.createKtpEntries(courseId, rows, entries.length);
+      if (failed) message.warning(`Добавлено строк: ${created}, не удалось: ${failed}`);
+      else message.success(`Добавлено строк: ${created}`);
+      setTemplateKey(null);
+      if (entries.length) {
+        // Дописали в конец — недели считаем по всему плану заново.
+        const all = await api.getKtpEntries(courseId);
+        await handleAssignWeeks(all, perWeek);
+      } else {
+        load();
+      }
+    } catch {
+      message.error('Не удалось заполнить по шаблону');
+    } finally {
+      setTemplateSaving(false);
+    }
+  };
+
   const handleWord = async () => {
     try {
       await exportKtpToWord(course, entries, course?.expand?.group);
@@ -208,6 +265,8 @@ export default function KtpEditor() {
         entries={entries}
         group={course?.expand?.group}
         totalHours={totalHours}
+        totalText={totalLabel(entries, course)}
+        unit={unit}
         onBack={() => setPrintMode(false)}
       />
     );
@@ -245,10 +304,10 @@ export default function KtpEditor() {
           </Space>
         ),
     },
-    { title: 'Часы', dataIndex: 'hours', key: 'hours', width: 70, align: 'center', render: (h, e) => e.is_section ? '' : (h ?? '') },
+    { title: unit.column, dataIndex: 'hours', key: 'hours', width: 70, align: 'center', render: (h, e) => e.is_section ? '' : (h ?? '') },
     { title: 'Нед.', dataIndex: 'week_no', key: 'week_no', width: 60, align: 'center', render: (w, e) => e.is_section ? '' : (w ?? '') },
     { title: 'Дата', dataIndex: 'planned_date', key: 'planned_date', width: 100, render: (d, e) => e.is_section || !d ? '' : dayjs(d).format('DD.MM.YY') },
-    { title: 'Планируемые результаты', dataIndex: 'planned_results', key: 'planned_results', responsive: ['lg'], render: (r, e) => e.is_section ? '' : (r || '') },
+    { title: 'Планируемые результаты', dataIndex: 'planned_results', key: 'planned_results', responsive: ['lg'], render: (r, e) => e.is_section ? '' : <span style={{ whiteSpace: 'pre-line', fontSize: 13 }}>{r || ''}</span> },
     ...(canEdit ? [{
       title: '', key: 'actions', width: 150,
       render: (_, e, idx) => (
@@ -278,7 +337,10 @@ export default function KtpEditor() {
           <Space size={8} wrap>
             {course.expand?.group?.name && <GroupChip id={course.group} name={course.expand.group.name} />}
             {course.year && <span>{course.year}</span>}
-            <span>Всего часов: <b>{totalHours}</b></span>
+            <span>Всего: <b>{totalLabel(entries, course)}</b></span>
+            {totalHours > 0 && entries.some((e) => e.week_no) && (
+              <span>{weeksNeeded(entries, perWeekOf(course))} нед. по {String(perWeekOf(course)).replace('.', ',')}</span>
+            )}
           </Space>
         )}
         extra={(
@@ -291,6 +353,14 @@ export default function KtpEditor() {
             </Tooltip>
             {canEdit && (
               <>
+                <Tooltip title="Темы и часы программы, разложенные под вашу сетку">
+                  <Button icon={<SnippetsOutlined />} onClick={() => setTemplateKey('')}>Из шаблона</Button>
+                </Tooltip>
+                {entries.length > 0 && (
+                  <Tooltip title={`Неделя каждой строки — по часам, ${String(perWeekOf(course)).replace('.', ',')} в неделю`}>
+                    <Button icon={<CalendarOutlined />} onClick={() => handleAssignWeeks()}>Недели</Button>
+                  </Tooltip>
+                )}
                 <Button onClick={() => { setEditing({ is_section: true }); setModalOpen(true); }}>+ Раздел</Button>
                 <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setModalOpen(true); }}>Строка</Button>
               </>
@@ -312,10 +382,10 @@ export default function KtpEditor() {
             emptyText: (
               <EmptyState
                 title="План пока пуст"
-                description="Добавьте первую тему или раздел-заголовок"
-                cta={canEdit ? 'Добавить строку' : undefined}
-                ctaIcon={<PlusOutlined />}
-                onCta={() => { setEditing(null); setModalOpen(true); }}
+                description="Начните с шаблона программы или добавьте первую тему"
+                cta={canEdit ? 'Заполнить по шаблону' : undefined}
+                ctaIcon={<SnippetsOutlined />}
+                onCta={() => setTemplateKey('')}
               />
             ),
           }}
@@ -326,9 +396,20 @@ export default function KtpEditor() {
         open={modalOpen}
         initial={editing && editing.id ? editing : (editing?.is_section ? { is_section: true } : null)}
         topics={topics || []}
+        unit={unit}
         saving={saving}
         onSave={handleSaveEntry}
         onCancel={() => { setModalOpen(false); setEditing(null); }}
+      />
+
+      <KtpTemplateModal
+        open={templateKey !== null}
+        course={course}
+        initialKey={templateKey || undefined}
+        existingCount={entries.length}
+        saving={templateSaving}
+        onApply={handleApplyTemplate}
+        onCancel={() => setTemplateKey(null)}
       />
     </div>
   );
