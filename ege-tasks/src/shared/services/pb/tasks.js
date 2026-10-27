@@ -6,6 +6,28 @@ import { searchCaseVariants, MIN_SEARCH_LENGTH } from '../../utils/searchVariant
 import { parseSdamgiaSearch } from '../../utils/sdamgiaSearch';
 import { normalizeCodeQuery } from '../../../utils/taskCode';
 
+// Тема задачи — на клиенте, а не через expand (аудит 25.10.2026): в списке
+// темы expand=topic повторял одну и ту же запись темы в каждой из 500 задач —
+// ~20 % ответа и ~0,3 с сервера. Здесь тема одна на весь список, форма та же
+// (record.expand.topic — полная запись темы), её читают 17 экранов.
+async function withTopicExpand(records) {
+  const ids = [...new Set((records || []).map((r) => r.topic).filter(Boolean))];
+  if (!ids.length) return records;
+  let topics;
+  try {
+    topics = await getFullListByOr('topics', 'id', ids, { requestKey: null });
+  } catch (error) {
+    console.error('Error fetching topics for tasks:', error);
+    return records;
+  }
+  const byId = new Map(topics.map((t) => [t.id, t]));
+  for (const r of records) {
+    const topic = byId.get(r.topic);
+    if (topic) r.expand = { ...(r.expand || {}), topic };
+  }
+  return records;
+}
+
 export const tasksApi = {
   _buildTasksFilter(filters = {}) {
     const filterArr = [];
@@ -117,11 +139,13 @@ export const tasksApi = {
       const filterString = this._buildTasksFilter(filters);
       const sort = this._buildTasksSort(filters.sortBy, filters);
 
-      return await pb.collection('tasks').getList(page, perPage, {
+      const result = await pb.collection('tasks').getList(page, perPage, {
         filter: filterString,
-        expand: 'topic,tags,subtopic',
+        expand: 'tags,subtopic',
         sort,
       });
+      await withTopicExpand(result.items);
+      return result;
     } catch (error) {
       console.error('Error fetching tasks page:', error);
       return {
@@ -139,11 +163,12 @@ export const tasksApi = {
       const filterString = this._buildTasksFilter(filters);
       const sort = this._buildTasksSort(filters.sortBy, filters);
 
-      return await pb.collection('tasks').getFullList({
+      const records = await pb.collection('tasks').getFullList({
         filter: filterString,
-        expand: 'topic,tags,subtopic',
+        expand: 'tags,subtopic',
         sort,
       });
+      return await withTopicExpand(records);
     } catch (error) {
       console.error('Error fetching tasks:', error);
       return [];
@@ -308,6 +333,36 @@ export const tasksApi = {
     }
 
     return dist.filter(d => d.taskCount > 0);
+  },
+
+  // Коды задач темы — для подсказки «будет ≈ П12-427» (раньше тянулась вся
+  // тема с условиями и решениями ради одного поля).
+  async getTaskCodesByTopic(topicId) {
+    if (!topicId) return [];
+    const records = await pb.collection('tasks').getFullList({
+      filter: `topic = "${escapeFilter(topicId)}" && code != ""`,
+      fields: 'code',
+      batch: 1000,
+      requestKey: null,
+    });
+    return records.map((r) => r.code).filter(Boolean);
+  },
+
+  // id тегов задач под фильтром каталога — только поле tags
+  // (для «доступных тегов» генератора).
+  async getTaskTagIds(filters = {}) {
+    const records = await pb.collection('tasks').getFullList({
+      filter: this._buildTasksFilter(filters),
+      fields: 'tags',
+      batch: 1000,
+      requestKey: null,
+    });
+    const ids = new Set();
+    for (const r of records) {
+      const tags = Array.isArray(r.tags) ? r.tags : (r.tags ? [r.tags] : []);
+      tags.forEach((id) => { if (id) ids.add(id); });
+    }
+    return [...ids];
   },
 
   // Получить задачу по ID

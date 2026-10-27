@@ -149,6 +149,8 @@ function IconPicker({ value, onChange, achievements, editingId }) {
           >
             <img
               src={`/achievements/${icon}`}
+              loading="lazy"
+              decoding="async"
               alt={icon}
               style={{ width: '100%', height: 'auto', borderRadius: 4 }}
             />
@@ -398,6 +400,8 @@ export default function AchievementManager() {
       render: (icon) => (
         <img
           src={`/achievements/${icon}`}
+          loading="lazy"
+          decoding="async"
           alt=""
           style={{ width: 40, height: 40, borderRadius: 6 }}
           onError={(e) => { e.target.style.display = 'none'; }}

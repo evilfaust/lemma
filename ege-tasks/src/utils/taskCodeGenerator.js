@@ -15,8 +15,8 @@ export async function generateTaskCode(topicId, topic = null) {
     topic = topics.find((t) => t.id === topicId);
     if (!topic) return '';
   }
-  const tasks = await api.getTasks({ topic: topicId });
-  return previewNextCode(topic, tasks.map((t) => t.code).filter(Boolean));
+  const codes = await api.getTaskCodesByTopic(topicId);
+  return previewNextCode(topic, codes);
 }
 
 /**

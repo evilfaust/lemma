@@ -115,7 +115,7 @@ const AchievementGallery = ({ studentSession }) => {
               <>
                 <div className={`achievement-stats-badge-icon rarity-bg-${lastBadge.rarity}`}>
                   {lastBadge.icon
-                    ? <img src={`/achievements/${lastBadge.icon}`} alt={lastBadge.title} className="achievement-stats-badge-img" />
+                    ? <img src={`/achievements/${lastBadge.icon}`} loading="lazy" decoding="async" alt={lastBadge.title} className="achievement-stats-badge-img" />
                     : <TrophyOutlined className="achievement-stats-badge-trophy" />
                   }
                 </div>

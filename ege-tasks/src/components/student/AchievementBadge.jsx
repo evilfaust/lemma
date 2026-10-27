@@ -106,6 +106,8 @@ const AchievementBadge = ({
         {achievement.icon ? (
           <img
             src={`/achievements/${achievement.icon}`}
+            loading="lazy"
+            decoding="async"
             alt={achievement.title}
             className="achievement-icon"
             style={{ width: iconSize, height: iconSize }}

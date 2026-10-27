@@ -22,6 +22,33 @@ export function rowsToRecords(data) {
   });
 }
 
+// Счётчики банка из хука /api/tasks/stats (v3.9.411): одним маленьким
+// ответом из кэша сервера вместо пяти подсчётов по 1–1,5 с, каждый из которых
+// читал тексты всех задач. На старте учителя оба счётчика просят параллельно —
+// одновременные вызовы делят один запрос (statsInflight).
+let statsInflight = null;
+function fetchTaskStats() {
+  if (!statsInflight) {
+    statsInflight = pb.send('/api/tasks/stats', { method: 'GET', requestKey: null })
+      .then((data) => (data && typeof data.withAnswer === 'number' ? data : null))
+      .catch((e) => {
+        console.warn('Счётчики банка одним запросом недоступны, считаем по-старому:', e?.status || e?.message);
+        return null;
+      })
+      .finally(() => { setTimeout(() => { statsInflight = null; }, 0); });
+  }
+  return statsInflight;
+}
+
+// { тема: N } → [тема × N] — форма, которую ждёт countByTopic (обзор банка).
+export function topicCountsToList(map) {
+  const out = [];
+  for (const [topic, n] of Object.entries(map || {})) {
+    for (let i = 0; i < n; i++) out.push(topic);
+  }
+  return out;
+}
+
 export const catalogApi = {
   // ============ КАРТОЧКИ ============
 
@@ -213,6 +240,14 @@ export const catalogApi = {
   // вместо выкачивания ответов и решений всего банка. Ровно та же выборка,
   // что у снимка (без `trig_generator`), иначе доли не сойдутся.
   async getTaskBankFlags() {
+    const stats = await fetchTaskStats();
+    if (stats) {
+      return {
+        noAnswer: topicCountsToList(stats.noAnswer),
+        noSolution: topicCountsToList(stats.noSolution),
+        review: topicCountsToList(stats.review),
+      };
+    }
     const base = 'source != "trig_generator"';
     const topicsOf = (filter) => pb.collection('tasks').getFullList({
       filter: `${base} && ${filter}`,
@@ -240,6 +275,8 @@ export const catalogApi = {
 
   // Количество задач с ответом (один лёгкий запрос вместо загрузки всех answer)
   async getWithAnswerCount() {
+    const stats = await fetchTaskStats();
+    if (stats) return stats.withAnswer;
     try {
       const result = await pb.collection('tasks').getList(1, 1, {
         filter: 'answer != "" && source != "trig_generator"',
@@ -253,6 +290,8 @@ export const catalogApi = {
 
   // Количество задач с решением (один лёгкий запрос вместо загрузки всех solution_md)
   async getWithSolutionCount() {
+    const stats = await fetchTaskStats();
+    if (stats) return stats.withSolution;
     try {
       const result = await pb.collection('tasks').getList(1, 1, {
         filter: 'solution_md != "" && source != "trig_generator"',

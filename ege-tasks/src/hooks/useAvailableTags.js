@@ -25,19 +25,8 @@ export function useAvailableTags(topicId, subtopicId, allTags) {
       const filters = { topic: topicId };
       if (subtopicId) filters.subtopic = subtopicId;
 
-      const tasks = await api.getTasks(filters);
-
-      // Собираем уникальные теги
-      const tagSet = new Set();
-      tasks.forEach(task => {
-        if (task.tags) {
-          if (Array.isArray(task.tags)) {
-            task.tags.forEach(tagId => { if (tagId) tagSet.add(tagId); });
-          } else if (typeof task.tags === 'string' && task.tags.length > 0) {
-            tagSet.add(task.tags);
-          }
-        }
-      });
+      // Только id тегов задач — без условий и решений всей темы
+      const tagSet = new Set(await api.getTaskTagIds(filters));
 
       setAvailableTags(allTags.filter(tag => tagSet.has(tag.id)));
     } catch (error) {
