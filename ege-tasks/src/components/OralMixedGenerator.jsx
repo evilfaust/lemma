@@ -274,7 +274,9 @@ export default function OralMixedGenerator() {
       sections: perSection.map(({ sec, meta, variants }) => ({
         id: sec.id,
         label: meta.label,
-        instruction: meta.instruction,
+        // строка задания может зависеть от выбранных типов (ФСУ: «Раскройте
+        // скобки» / «Разложите на множители»)
+        instruction: meta.instructionFor ? meta.instructionFor(sec.categories) : meta.instruction,
         equationMode: meta.equationMode,
         promptMode: meta.promptMode,
         answerNote: meta.examAnswer ? examAnswerNote(sec) : null,

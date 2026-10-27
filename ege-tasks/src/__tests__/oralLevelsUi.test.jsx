@@ -10,6 +10,8 @@ import OralPowersRootsGenerator from '../components/OralPowersRootsGenerator';
 import OralEgeBaseGenerator from '../components/OralEgeBaseGenerator';
 import OralFractionsGenerator from '../components/OralFractionsGenerator';
 import LogExpEquationsGenerator from '../components/LogExpEquationsGenerator';
+import OralFsuGenerator from '../components/OralFsuGenerator';
+import { FSU_SECTION_LABELS } from '../utils/oral/fsu';
 import { POW_LABELS } from '../utils/oral/powers';
 
 const wrapper = ({ children }) => <MemoryRouter><App>{children}</App></MemoryRouter>;
@@ -58,4 +60,27 @@ describe('страницы разделов устного счёта', () => {
     expect(within(panel).queryByText('ОГЭ')).toBeNull();
     expect(within(panel).getByText('Профиль')).toBeTruthy();
   });
+
+  it('формулы сокращённого умножения: уровень без «как в бланке», строка задания по типам, пропуски с «Ответ:»', () => {
+    const { container } = render(<OralFsuGenerator />, { wrapper });
+    expect(screen.getByText('Сложнее')).toBeTruthy();
+    expect(screen.queryByText('Как в бланке')).toBeNull();
+    // по умолчанию — раскрыть и свернуть: общая строка
+    fireEvent.click(screen.getByText('Сформировать'));
+    expect(screen.getAllByText('Выполните преобразования:').length).toBeGreaterThan(0);
+    expect(container.querySelectorAll('.katex').length).toBeGreaterThan(10);
+    // только пропуски: своя строка и «Ответ:» вместо «=»
+    for (const [key, label] of Object.entries(FSU_SECTION_LABELS)) {
+      const box = checkboxOf(label);
+      if (box.checked !== (key === 'fill')) fireEvent.click(box);
+    }
+    fireEvent.click(screen.getByText('Сформировать'));
+    expect(screen.getAllByText('Вставьте пропущенные одночлены:').length).toBeGreaterThan(0);
+    const rows = container.querySelectorAll('.oral-screen-root .oral-task');
+    expect(rows.length).toBeGreaterThan(0);
+    rows.forEach(r => {
+      expect(r.querySelector('.oral-task-x-prompt')?.textContent).toBe('Ответ:');
+      expect(r.querySelector('.oral-task-eq')).toBeNull();
+    });
+  }, 20000);   // два прохода «Сформировать» под общей нагрузкой прогона
 });

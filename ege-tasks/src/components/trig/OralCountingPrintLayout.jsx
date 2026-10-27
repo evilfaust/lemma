@@ -15,8 +15,18 @@ function resolvePrompt(promptMode, equationMode, showAnswerSpace = true) {
   return promptMode || (equationMode ? 'var' : 'eq');
 }
 
+/**
+ * Своё окончание строки у задания: «(x + □)² = x² + 10x + □» уже содержит
+ * «=», ему нужно «Ответ:» (`q.prompt`, формулы сокращённого умножения).
+ * Режим «только условия» главнее.
+ */
+export function taskPrompt(q, prompt) {
+  return prompt !== 'none' && q?.prompt ? q.prompt : prompt;
+}
+
 // ─── Одно задание ─────────────────────────────────────────────────────────────
-function TaskRow({ q, qi, prompt }) {
+function TaskRow({ q, qi, prompt: sheetPrompt }) {
+  const prompt = taskPrompt(q, sheetPrompt);
   return (
     <div className="oral-task">
       <span className="oral-task-num">{LABELS[qi]})</span>
@@ -133,10 +143,10 @@ function TeacherKeyPage({ tasksData, title, prompt, layout, opts }) {
                     <MathInline latex={q.exprLatex} />
                   </span>
                   <span className="oral-key-eq">
-                    {prompt === 'var' && !q.hideKeyPrompt && (
+                    {taskPrompt(q, prompt) === 'var' && !q.hideKeyPrompt && (
                       <><MathInline latex={q.varLatex || 'x'} /> =</>
                     )}
-                    {prompt === 'eq' && '='}
+                    {taskPrompt(q, prompt) === 'eq' && '='}
                   </span>
                   <span className="oral-key-ans">
                     <MathInline latex={keyAnswerLatex(q.resultLatex, opts)} />

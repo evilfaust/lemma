@@ -1,7 +1,7 @@
 import React from 'react';
 import { MathInline } from '../shared/MathInline';
 import { sheetOptions, sheetSpacingStyle, keyAnswerLatex } from './sheetOptions';
-import { GRID_MODES, variantsPerPage } from './OralCountingPrintLayout';
+import { GRID_MODES, variantsPerPage, taskPrompt } from './OralCountingPrintLayout';
 import './OralCountingPrintLayout.css';
 import './OralMixedPrintLayout.css';
 
@@ -15,7 +15,8 @@ const sectionPrompt = (sec, showAnswerSpace = true) => {
 };
 
 // Одно задание — поддерживает вычисления, уравнения и неравенства
-function TaskRow({ q, qi, prompt }) {
+function TaskRow({ q, qi, prompt: sectionMode }) {
+  const prompt = taskPrompt(q, sectionMode);
   return (
     <div className="oral-task">
       <span className="oral-task-num">{LABELS[qi]})</span>
@@ -100,10 +101,10 @@ function TeacherKeyPage({ variants, title, opts }) {
                         <span className="oral-key-num">{LABELS[idx]})</span>
                         <span className="oral-key-expr"><MathInline latex={q.exprLatex} /></span>
                         <span className="oral-key-eq">
-                          {sectionPrompt(sec) === 'var' && !q.hideKeyPrompt && (
+                          {taskPrompt(q, sectionPrompt(sec)) === 'var' && !q.hideKeyPrompt && (
                             <><MathInline latex={q.varLatex || 'x'} /> =</>
                           )}
-                          {sectionPrompt(sec) === 'eq' && '='}
+                          {taskPrompt(q, sectionPrompt(sec)) === 'eq' && '='}
                         </span>
                         <span className="oral-key-ans">
                           <MathInline latex={keyAnswerLatex(q.resultLatex, opts)} />

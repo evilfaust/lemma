@@ -21,6 +21,10 @@ import {
   CATEGORY_LABELS_FR,
 } from '../hooks/useOralFractions';
 import {
+  generateFsuVariants,
+  CATEGORY_LABELS_FSU,
+} from '../hooks/useOralFsu';
+import {
   generateLogarithmsVariants,
   CATEGORY_LABELS_LOG,
 } from '../hooks/useOralLogarithms';
@@ -132,6 +136,13 @@ export const SHEET_GENERATORS = {
     instruction: 'Вычислите:',
     categoryLabels: CATEGORY_LABELS_PR,
     generate: generatePowersRootsVariants,
+  },
+  oral_fsu: {
+    label: 'Формулы сокращённого умножения',
+    route: '/app/arith/fsu',
+    instruction: 'Выполните преобразования:',
+    categoryLabels: CATEGORY_LABELS_FSU,
+    generate: generateFsuVariants,
   },
   oral_logarithms: {
     label: 'Устный счёт: логарифмы',

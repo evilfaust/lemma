@@ -103,6 +103,7 @@ const TrigBasicsGenerator = lazy(() => import('./components/TrigBasicsGenerator'
 const OralCountingGenerator = lazy(() => import('./components/OralCountingGenerator'));
 const LogExpEquationsGenerator = lazy(() => import('./components/LogExpEquationsGenerator'));
 const OralPowersRootsGenerator = lazy(() => import('./components/OralPowersRootsGenerator'));
+const OralFsuGenerator = lazy(() => import('./components/OralFsuGenerator'));
 const OralLogarithmsGenerator = lazy(() => import('./components/OralLogarithmsGenerator'));
 const OralEgeBaseGenerator = lazy(() => import('./components/OralEgeBaseGenerator'));
 const OralFractionsGenerator = lazy(() => import('./components/OralFractionsGenerator'));
@@ -230,6 +231,7 @@ export const R = {
   ORAL_COUNTING:       '/app/arith/oral-counting',
   LOG_EXP_EQUATIONS:   '/app/arith/log-exp',
   POWERS_ROOTS:        '/app/arith/powers-roots',
+  FSU:                 '/app/arith/fsu',
   LOGARITHMS:          '/app/arith/logarithms',
   EGE_BASE_ORAL:       '/app/arith/ege-base',
   FRACTIONS_ORAL:      '/app/arith/fractions',
@@ -359,6 +361,7 @@ const ROUTE_META = [
   { re: /^\/app\/arith\/oral-counting/,   menuKey: 'oral-counting',    menuGroup: 'arith', title: 'Устный счёт — Арифметика' },
   { re: /^\/app\/arith\/log-exp/,         menuKey: 'log-exp',          menuGroup: 'arith', title: 'Устный счёт — Показательные и логарифмические уравнения' },
   { re: /^\/app\/arith\/powers-roots/,    menuKey: 'powers-roots',     menuGroup: 'arith', title: 'Устный счёт — Степени и корни' },
+  { re: /^\/app\/arith\/fsu/,             menuKey: 'fsu',              menuGroup: 'arith', title: 'Устный счёт — Формулы сокращённого умножения' },
   { re: /^\/app\/arith\/logarithms/,      menuKey: 'logarithms',       menuGroup: 'arith', title: 'Устный счёт — Логарифмы' },
   { re: /^\/app\/arith\/ege-base/,        menuKey: 'ege-base-oral',    menuGroup: 'arith', title: 'Устный счёт — Действия с десятичными' },
   { re: /^\/app\/arith\/fractions/,       menuKey: 'fractions-oral',   menuGroup: 'arith', title: 'Устный счёт — Действия с обыкновенными дробями' },
@@ -456,6 +459,7 @@ const MENU_KEY_PATH = {
   'oral-counting':          R.ORAL_COUNTING,
   'log-exp':                R.LOG_EXP_EQUATIONS,
   'powers-roots':           R.POWERS_ROOTS,
+  'fsu':                    R.FSU,
   'logarithms':             R.LOGARITHMS,
   'ege-base-oral':          R.EGE_BASE_ORAL,
   'fractions-oral':         R.FRACTIONS_ORAL,
@@ -820,6 +824,7 @@ function AppLayout() {
         { key: 'oral-counting', icon: <CalculatorOutlined />, label: 'Арифметика' },
         { key: 'log-exp',       icon: <FunctionOutlined />,  label: 'Уравнения: показательные и логарифмические' },
         { key: 'powers-roots',  icon: <ExperimentOutlined />, label: 'Степени и корни' },
+        { key: 'fsu',           icon: <FunctionOutlined />,  label: 'Формулы сокращённого умножения' },
         { key: 'logarithms',    icon: <LineChartOutlined />,  label: 'Логарифмы' },
         { key: 'ege-base-oral', icon: <FieldNumberOutlined />, label: 'Действия с десятичными' },
         { key: 'fractions-oral', icon: <PercentageOutlined />, label: 'Действия с обыкновенными дробями' },
@@ -1147,6 +1152,7 @@ function App() {
               <Route path={R.ORAL_COUNTING} element={<OralCountingGenerator />} />
               <Route path={R.LOG_EXP_EQUATIONS} element={<LogExpEquationsGenerator />} />
               <Route path={R.POWERS_ROOTS} element={<OralPowersRootsGenerator />} />
+              <Route path={R.FSU} element={<OralFsuGenerator />} />
               <Route path={R.LOGARITHMS} element={<OralLogarithmsGenerator />} />
               <Route path={R.EGE_BASE_ORAL} element={<OralEgeBaseGenerator />} />
               <Route path={R.FRACTIONS_ORAL} element={<OralFractionsGenerator />} />

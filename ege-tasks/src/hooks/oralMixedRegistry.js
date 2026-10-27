@@ -23,6 +23,13 @@ import {
 } from './useOralPowersRoots';
 
 import {
+  generateFsuVariants,
+  CATEGORY_LABELS_FSU,
+  DEFAULT_SETTINGS_FSU,
+} from './useOralFsu';
+import { fsuInstruction } from '../utils/oral/fsu';
+
+import {
   generateLogarithmsVariants,
   CATEGORY_LABELS_LOG,
   DEFAULT_SETTINGS_LOG,
@@ -138,6 +145,18 @@ export const ORAL_TYPES = [
     categoryLabels: CATEGORY_LABELS_PR,
     defaultCategories: DEFAULT_SETTINGS_PR.categories,
     defaultSettings: DEFAULT_SETTINGS_PR,
+  },
+  {
+    type:         'fsu',
+    levels:       true,   // переключатель уровня (utils/oral/levels)
+    label:        'Формулы сокращённого умножения',
+    instruction:  'Выполните преобразования:',
+    instructionFor: fsuInstruction,
+    equationMode: false,
+    generator:    generateFsuVariants,
+    categoryLabels: CATEGORY_LABELS_FSU,
+    defaultCategories: DEFAULT_SETTINGS_FSU.categories,
+    defaultSettings: DEFAULT_SETTINGS_FSU,
   },
   {
     type:         'logarithms',

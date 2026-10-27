@@ -1,0 +1,297 @@
+import {
+  Button, Slider, Checkbox, Space, Switch, Divider, Segmented,
+} from 'antd';
+import {
+  PrinterOutlined, CheckSquareOutlined, ThunderboltOutlined,
+  FunctionOutlined,
+} from '@ant-design/icons';
+import {
+  useOralFsu, CATEGORY_LABELS_FSU, CATEGORY_GROUPS_FSU,
+} from '../hooks/useOralFsu';
+import { fsuInstruction } from '../utils/oral/fsu';
+import { OralLevelPanel } from './trig/OralLevelPanel';
+import { useTrigMCModal } from '../hooks/useTrigMCModal';
+import OralCountingPrintLayout from './trig/OralCountingPrintLayout';
+import { SheetOrderPanel } from './trig/SheetOrderPanel';
+import { CategoryChecklist } from './trig/CategoryChecklist';
+import { plannedTotal } from '../utils/questionPlan';
+import { useSheetLayout } from '../hooks/useSheetLayout';
+import { useSheetTools } from '../hooks/useSheetTools';
+import { SheetStorageActions } from './trig/SheetStorageActions';
+import { SheetToolsModals } from './trig/SheetTools';
+import { TrigMCSection } from './trig/TrigMCSection';
+import {
+  TrigGeneratorLayout,
+  TrigSettingsSection,
+  TrigActions,
+  TrigPreviewPane,
+  TrigStatBadge,
+  TrigBlockToggle,
+} from './trig/TrigGeneratorLayout';
+import { SheetLayoutOptions } from './trig/sheetOptions';
+
+// Формулы сокращённого умножения: разминка на 5–7 минут — раскрыть скобки,
+// свернуть, пропуски, корни как в иррациональных уравнениях, счёт по формуле.
+// Ответ — формула, поэтому «как в бланке» и «Вписать ответ» здесь нет; тест
+// A/B/C/D берёт в дистракторы типичные ошибки (`task.mistakes`).
+const CATEGORY_GROUPS = CATEGORY_GROUPS_FSU;
+const ALL_KEYS = CATEGORY_GROUPS.flatMap(g => g.keys);
+const GENERATOR = 'oral_fsu';
+
+export default function OralFsuGenerator() {
+  const {
+    title, setTitle,
+    settings, updateSetting, updateCategory,
+    tasksData,
+    generate, reset,
+    setTasksData, applySheet,
+  } = useOralFsu();
+
+  const { modalOpen, setModalOpen, printTest, handlePrint: handleMCPrint } = useTrigMCModal();
+  const order = useSheetLayout(tasksData);
+  // Сохранение листа + правка отдельных заданий
+  const sheet = useSheetTools({
+    generator: GENERATOR,
+    hook: { title, settings, tasksData, setTasksData, applySheet },
+    order,
+  });
+
+  // Сколько заданий каждого типа: пусто — «сколько получится»
+  const updateCount = (cat, value) => updateSetting('categoryCounts', {
+    ...(settings.categoryCounts || {}),
+    [cat]: value || undefined,
+  });
+
+  // Сколько заданий реально будет на листе: квоты типов могут превысить ползунок
+  const plannedCount = plannedTotal(
+    settings.categories, settings.questionsCount, settings.categoryCounts,
+  );
+
+  const handlePrint = () => {
+    const style = document.createElement('style');
+    style.id = 'oral-print-page-style';
+    style.textContent = `@page { size: A4 portrait; margin: 0; }`;
+    document.head.appendChild(style);
+    window.print();
+    setTimeout(() => {
+      const s = document.getElementById('oral-print-page-style');
+      if (s) s.remove();
+    }, 1500);
+  };
+
+  const toggleBlock = (keys, checked) => keys.forEach(k => updateCategory(k, checked));
+
+  const enabledCount = Object.values(settings.categories).filter(Boolean).length;
+  const instruction = fsuInstruction(settings.categories);
+  const varCount = tasksData?.length ?? 0;
+  const qCount = tasksData?.[0]?.length ?? plannedCount;
+
+  return (
+    <>
+      <TrigGeneratorLayout
+        icon={<FunctionOutlined style={{ fontSize: 14 }} />}
+        title={title}
+        onTitleChange={setTitle}
+        titlePlaceholder="Название листа"
+        leftWidth={320}
+        left={
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 10 }}>
+
+            <OralLevelPanel
+              settings={settings}
+              onChange={updateSetting}
+              keys={ALL_KEYS}
+              answerFormat={false}
+            />
+
+
+            {CATEGORY_GROUPS.map(group => (
+              <TrigSettingsSection
+                key={group.label}
+                label={
+                  <TrigBlockToggle
+                    label={group.label}
+                    keys={group.keys}
+                    categories={settings.categories}
+                    onToggleBlock={toggleBlock}
+                  />
+                }
+              >
+                <CategoryChecklist
+                  keys={group.keys}
+                  labels={CATEGORY_LABELS_FSU}
+                  categories={settings.categories}
+                  counts={settings.categoryCounts || {}}
+                  onToggle={updateCategory}
+                  onCount={updateCount}
+                />
+              </TrigSettingsSection>
+            ))}
+
+            <TrigSettingsSection label="Параметры">
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 6 }}>
+                Заданий в варианте: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{plannedCount}</b>
+                {plannedCount !== settings.questionsCount && (
+                  <span style={{ color: 'var(--ink-4)' }}> — по количеству типов</span>
+                )}
+              </div>
+              <Slider
+                min={2} max={30} step={1}
+                value={settings.questionsCount}
+                onChange={v => updateSetting('questionsCount', v)}
+                marks={{ 5: '5', 10: '10', 20: '20', 30: '30' }}
+                size="small"
+              />
+              <Divider style={{ margin: '10px 0' }} />
+              <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 6 }}>
+                Вариантов: <b style={{ color: 'var(--ink)', fontFamily: 'var(--font-mono)' }}>{settings.variantsCount}</b>
+              </div>
+              <Slider
+                min={1} max={32}
+                value={settings.variantsCount}
+                onChange={v => updateSetting('variantsCount', v)}
+                marks={{ 1: '1', 8: '8', 16: '16', 32: '32' }}
+                size="small"
+              />
+            </TrigSettingsSection>
+
+            <TrigSettingsSection label="Печать и вид">
+              <Space direction="vertical" size={6}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Switch
+                    size="small"
+                    checked={settings.columnsCount === 2}
+                    onChange={v => updateSetting('columnsCount', v ? 2 : 1)}
+                  />
+                  <span style={{ fontSize: 13 }}>2 колонки на листе</span>
+                </div>
+                <Checkbox
+                  checked={settings.showTeacherKey}
+                  onChange={e => updateSetting('showTeacherKey', e.target.checked)}
+                >
+                  Лист ответов (учитель)
+                </Checkbox>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 13 }}>Шрифт:</span>
+                  <Segmented
+                    size="small"
+                    options={['S', 'M', 'L']}
+                    value={(settings.fontSize || 's').toUpperCase()}
+                    onChange={v => updateSetting('fontSize', v.toLowerCase())}
+                  />
+                </div>
+              </Space>
+              <Divider style={{ margin: '10px 0' }} />
+              <SheetLayoutOptions
+                settings={settings}
+                onChange={updateSetting}
+                showPerPage
+              />
+            </TrigSettingsSection>
+
+            {/* Порядок заданий и черта — только когда есть что переставлять */}
+
+            {tasksData && (
+              <SheetOrderPanel
+                layout={order.layout}
+                categoryLabels={CATEGORY_LABELS_FSU}
+                sample={tasksData[0] || []}
+                onMove={order.move}
+                onAddDivider={order.addDivider}
+                onRemoveAt={order.removeAt}
+                onReset={order.reset}
+                onEditTask={sheet.openTask}
+                onAddTask={sheet.openAdd}
+              />
+            )}
+
+
+            <TrigActions>
+              <Button
+                type="primary" block
+                icon={<ThunderboltOutlined />}
+                onClick={() => generate()}
+                disabled={enabledCount === 0}
+              >
+                Сформировать
+              </Button>
+              {tasksData && (
+                <>
+                  <Button block icon={<PrinterOutlined />} onClick={handlePrint}>
+                    Печать
+                  </Button>
+                  <SheetStorageActions
+                    storage={sheet.storage}
+                    hasData={Boolean(tasksData)}
+                    generator={GENERATOR}
+                    instruction={instruction}
+                  />
+                  <Button
+                    block
+                    icon={<CheckSquareOutlined />}
+                    onClick={() => setModalOpen(true)}
+                  >
+                    Тест A/B/C/D
+                  </Button>
+                  <Button block onClick={reset}>Сбросить</Button>
+                </>
+              )}
+            </TrigActions>
+          </div>
+        }
+        right={
+          <TrigPreviewPane
+            hasData={Boolean(tasksData)}
+            emptyIcon={<FunctionOutlined />}
+            emptyTitle="Настройте параметры и нажмите «Сформировать»"
+            emptyHint={`Активных категорий: ${enabledCount}`}
+            summary={[
+              <TrigStatBadge key="cats" tone="accent">{enabledCount} кат.</TrigStatBadge>,
+              <TrigStatBadge key="q">{qCount} зад.</TrigStatBadge>,
+              <TrigStatBadge key="v" tone="success">{varCount || settings.variantsCount} вар.</TrigStatBadge>,
+              <TrigStatBadge key="fs">{(settings.fontSize || 's').toUpperCase()}</TrigStatBadge>,
+            ].filter(Boolean)}
+          >
+            {tasksData && (
+              <OralCountingPrintLayout
+                tasksData={tasksData}
+                settings={settings}
+                title={title}
+                layout={order.layout}
+                instruction={instruction}
+                wideAnswers
+                screenMode
+                fontSize={settings.fontSize || 's'}
+              />
+            )}
+          </TrigPreviewPane>
+        }
+      />
+
+      {tasksData && (
+        <OralCountingPrintLayout
+          tasksData={tasksData}
+          settings={settings}
+          title={title}
+          layout={order.layout}
+          instruction={instruction}
+          wideAnswers
+          fontSize={settings.fontSize || 's'}
+        />
+      )}
+
+      <SheetToolsModals sheet={sheet} />
+
+      <TrigMCSection
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        printTest={printTest}
+        onPrint={handleMCPrint}
+        tasksData={tasksData}
+        generatorType={GENERATOR}
+        generatorTitle={title}
+        settings={settings}
+      />
+    </>
+  );
+}

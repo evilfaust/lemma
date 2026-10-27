@@ -34,6 +34,7 @@ const EXAM_TYPE_BY_GENERATOR = {
   oral_ege_base:      'oral',
   oral_fractions:     'oral',
   oral_powers_roots:  'oral',
+  oral_fsu:           'oral',
   oral_logarithms:    'oral',
   oral_mixed:         'oral',
   log_exp_equations:  'oral',

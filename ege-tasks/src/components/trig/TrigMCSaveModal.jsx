@@ -25,6 +25,7 @@ export const GENERATOR_LABELS = {
   oral_fractions:          'Устный счёт: дроби',
   oral_powers_roots:       'Устный счёт: степени и корни',
   oral_logarithms:         'Устный счёт: логарифмы',
+  oral_fsu:                'Формулы сокращённого умножения',
   log_exp_equations:       'Показательные и логарифмические уравнения',
   linear_equations:        'Линейные уравнения',
   quadratic_equations:     'Квадратные уравнения',

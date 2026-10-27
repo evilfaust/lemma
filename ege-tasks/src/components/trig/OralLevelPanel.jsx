@@ -17,7 +17,7 @@ import {
  * ЕГЭ: живёт здесь, рядом с уровнем, потому что меняет сами задания, а не
  * вид листа.
  */
-export function OralLevelPanel({ settings, onChange, keys = [], examMap = null }) {
+export function OralLevelPanel({ settings, onChange, keys = [], examMap = null, answerFormat = true }) {
   const level = settings.level ?? DEFAULT_LEVEL;
   const exams = examMap ? EXAM_FILTERS.filter(e => hasExam(examMap, e.key)) : [];
 
@@ -36,7 +36,7 @@ export function OralLevelPanel({ settings, onChange, keys = [], examMap = null }
           label: <Tooltip title={l.hint}><span>{l.label}</span></Tooltip>,
         }))}
       />
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+      {answerFormat && <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
         <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>Ответ:</span>
         <Segmented
           size="small"
@@ -47,8 +47,8 @@ export function OralLevelPanel({ settings, onChange, keys = [], examMap = null }
             label: <Tooltip title={f.hint}><span>{f.label}</span></Tooltip>,
           }))}
         />
-      </div>
-      {settings.decimalOnly && (
+      </div>}
+      {answerFormat && settings.decimalOnly && (
         <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4, lineHeight: 1.35 }}>
           {EXAM_FORMAT_HINT}
         </div>
