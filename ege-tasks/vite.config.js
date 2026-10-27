@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 import { buildMeta, defineFromMeta, versionJsonPlugin } from './buildMeta.mjs'
+import { CHUNK_OUTPUT } from './chunkSplit.mjs'
 
 // Номер сборки один на код и version.json — см. buildMeta.mjs.
 const meta = buildMeta({ appDir: __dirname })
@@ -57,11 +58,26 @@ export default defineConfig({
         landing: resolve(__dirname, 'landing.html'),
         howItWorks: resolve(__dirname, 'how-it-works.html'),
       },
-      // Ручных кусков (manualChunks) нет намеренно (v3.9.374): общий кусок
-      // 'antd' собирал всё, чем пользуется учительский интерфейс, и ученик
-      // качал 480 КБ (сжатых) ради пары кнопок, а 'markdown' прихватывал
-      // общие зависимости — его тянуло даже ядро. Rollup сам делит общий код
-      // между приложениями: старт ученика 857 → ~350 КБ, учителя 581 → ~384 КБ.
+      // Библиотеки (antd, markdown…) в ручные куски НЕ выносим (v3.9.374):
+      // общий кусок 'antd' собирал всё, чем пользуется учительский интерфейс,
+      // и ученик качал 480 КБ (сжатых) ради пары кнопок, а 'markdown'
+      // прихватывал общие зависимости — его тянуло даже ядро. Rollup сам делит
+      // общий код между приложениями: старт ученика 857 → ~350 КБ, учителя
+      // 581 → ~384 КБ.
+      //
+      // Два узких куска — ради кэша между деплоями (v3.9.413). Слой API
+      // (src/shared/services) Rollup клал в один кусок с antd; наш код
+      // меняется почти в каждом релизе, хеш куска — вместе с ним, а за ним и
+      // хеши всех кусков, что его импортируют: после любого деплоя ученик
+      // заново качал ~280 из 333 КБ, учитель ~330 из 378. Теперь:
+      // 'api' — только наш слой API (+ SDK PocketBase, который тянет он сам),
+      // 'react' — react/react-dom/scheduler, иначе 'api' забрал бы их к себе
+      // зависимостями и каждый релиз снова сбрасывал бы всё. Старт не растёт
+      // (оба куска и так грузились на старте), после правки API — ~84 КБ
+      // ученику и ~134 учителю. Имена экспортов между кусками — настоящие
+      // (minifyInternalExports: false), иначе из одного кода выходили разные
+      // хеши. Правило — chunkSplit.mjs, сторож — __tests__/buildChunks.test.js.
+      output: CHUNK_OUTPUT,
     },
   },
 })
