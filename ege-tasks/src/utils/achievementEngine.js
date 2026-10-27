@@ -106,6 +106,9 @@ export function checkUnlockedAchievements(
 
     // Проверить условие
     if (isAchievementUnlocked(achievement, attemptData, allAttempts)) {
+      // Шанс выпадения (condition_value.chance, %): условие выполнено, но
+      // ачивка выпадает не всегда — «ультра»-редкие; не выпала — ждёт следующей попытки
+      if (!passesChance(achievement, random)) continue;
       if (isDrawAchievement(achievement)) {
         drawPool.push(achievement);
         continue;
@@ -128,6 +131,13 @@ export function checkUnlockedAchievements(
 
 /** Вес редкости в розыгрыше: обычная выпадает в 6 раз чаще легендарной */
 export const DRAW_WEIGHTS = { common: 6, rare: 3, legendary: 1 };
+
+/** Проходит ли ачивка свой шанс выпадения (condition_value.chance — проценты) */
+export function passesChance(achievement, random = Math.random) {
+  const chance = achievement?.condition_value?.chance;
+  if (chance == null || chance >= 100) return true;
+  return random() * 100 < chance;
+}
 
 /** Ачивка разыгрывается (одна за попытку), а не открывается вместе с остальными */
 export function isDrawAchievement(achievement) {

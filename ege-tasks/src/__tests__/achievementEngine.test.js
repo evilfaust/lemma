@@ -4,6 +4,7 @@ import {
   checkUnlockedAchievements,
   drawAchievement,
   isDrawAchievement,
+  passesChance,
   getPreviouslyUnlockedIds,
   getPreviouslyEarnedBadgeIds,
 } from '../utils/achievementEngine';
@@ -196,5 +197,30 @@ describe('условные ачивки за процент: «ровно» и �
     expect(drawAchievement(pool, () => 0.85).id).toBe('c');
     expect(drawAchievement(pool, () => 0.9).id).toBe('l');
     expect(drawAchievement([], () => 0.5)).toBeNull();
+  });
+});
+
+describe('шанс выпадения (condition_value.chance)', () => {
+  const ultra = {
+    id: 'u', code: 'u', type: 'condition', rarity: 'legendary',
+    condition_type: 'score', condition_value: { min: 100, chance: 10 },
+  };
+  const check = (percentage, random) =>
+    checkUnlockedAchievements([ultra], { percentage }, [{ id: 'a' }], [], random).map((a) => a.id);
+
+  it('условие выполнено и шанс выпал — открывается', () => {
+    expect(check(100, () => 0.05)).toEqual(['u']);
+  });
+
+  it('условие выполнено, но шанс не выпал — ждёт следующей попытки', () => {
+    expect(check(100, () => 0.5)).toEqual([]);
+  });
+
+  it('без условия шанс не помогает', () => {
+    expect(check(90, () => 0)).toEqual([]);
+  });
+
+  it('без поля chance — всегда', () => {
+    expect(passesChance({ condition_value: { min: 100 } }, () => 0.99)).toBe(true);
   });
 });

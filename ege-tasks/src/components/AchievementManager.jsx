@@ -69,7 +69,7 @@ function normalizeUnlockedIds(value) {
 function describeCondition(achievement) {
   if (achievement.type !== 'condition') return '';
   const cv = achievement.condition_value || {};
-  const draw = cv.pick ? ' · розыгрыш' : '';
+  const draw = (cv.pick ? ' · розыгрыш' : '') + (cv.chance != null ? ` · шанс ${cv.chance}%` : '');
   switch (achievement.condition_type) {
     case 'score': {
       if (cv.exact != null) return `ровно ${cv.exact}%${draw}`;
@@ -743,6 +743,13 @@ export default function AchievementManager() {
                 tooltip="Из всех подошедших по проценту ачивок с этой галочкой за попытку выпадает одна: обычная — чаще, легендарная — реже"
               >
                 <Checkbox>Розыгрыш: одна за попытку</Checkbox>
+              </Form.Item>
+              <Form.Item
+                name={['condition_value', 'chance']}
+                label="Шанс выпадения"
+                tooltip="Пусто — выпадает всегда, когда условие выполнено. 10% — в среднем одна из десяти подходящих попыток"
+              >
+                <InputNumber min={1} max={100} addonAfter="%" placeholder="всегда" style={{ width: 160 }} />
               </Form.Item>
             </>
           )}
