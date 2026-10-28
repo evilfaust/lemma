@@ -3,6 +3,15 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../shared/services/pocketbase';
 import { sheetKind } from '../utils/sheetRegistry';
 
+// Подсказки первого варианта японского кроссворда. Своя копия, а не импорт из
+// `utils/nonogram/sheet.js`: тот тянет генераторы устного счёта в чанк
+// каждого генератора, который сохраняет листы.
+const nonogramClueCount = (data) => {
+  const v = data?.variants?.[0];
+  const n = (lines) => (lines || []).reduce((s, l) => s + l.length, 0);
+  return v ? n(v.rows) + n(v.cols) : 0;
+};
+
 /**
  * Сохранение и загрузка листов генераторов (коллекция `generator_sheets`).
  *
@@ -49,12 +58,18 @@ export function useSheetStorage({
     // У листа-классификатора вариантов нет вовсе, а «заданий» столько, сколько
     // уравнений в банке — счётчики в списке листов должны говорить правду.
     const classify = kind === 'classify';
+    // У японского кроссворда «задания» — подсказки-примеры одного варианта.
+    const nonogram = kind === 'nonogram';
     const variantsCount = classify
       ? 1
-      : (Array.isArray(tasksData) ? tasksData.length : 0);
+      : nonogram
+        ? (tasksData?.variants?.length ?? 0)
+        : (Array.isArray(tasksData) ? tasksData.length : 0);
     const questionsCount = classify
       ? (tasksData?.items?.length ?? 0)
-      : (flat
+      : nonogram
+        ? nonogramClueCount(tasksData)
+        : (flat
         ? (tasksData?.[0]?.length ?? 0)
         : (tasksData?.[0]?.sections?.reduce((s, sec) => s + (sec.tasks?.length || 0), 0) ?? 0));
 

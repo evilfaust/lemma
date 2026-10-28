@@ -342,6 +342,17 @@ export const SHEET_GENERATORS = {
     instruction: 'Определите тип уравнения:',
     kind: 'classify',
   },
+
+  // ── Японский кроссворд (нонограмма) ──
+  // Четвёртая форма снимка: `{ matrix, givens, variants: [{rows, cols}] }` —
+  // картинка, готовые клетки и подсказки-примеры по вариантам
+  // (`utils/nonogram/sheet.js`). Примеры случайны — снимок хранится целиком.
+  nonogram: {
+    label: 'Японский кроссворд',
+    route: '/app/gamification/nonogram',
+    instruction: 'Вычислите примеры и закрасьте клетки:',
+    kind: 'nonogram',
+  },
 };
 
 export const SHEET_GENERATOR_TYPES = Object.keys(SHEET_GENERATORS);
@@ -360,7 +371,7 @@ export function sheetGeneratorRoute(type) {
   return SHEET_GENERATORS[type]?.route || null;
 }
 
-// Форма снимка заданий: 'flat' (Variant[][]), 'sections' или 'classify'
+// Форма снимка заданий: 'flat' (Variant[][]), 'sections', 'classify' или 'nonogram'
 export function sheetKind(type) {
   return SHEET_GENERATORS[type]?.kind || 'flat';
 }
