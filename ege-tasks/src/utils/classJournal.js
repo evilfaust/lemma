@@ -574,7 +574,7 @@ export function planRetakeMerge(target, retake, students, marksIndex) {
  * первыми.
  */
 export function retakeTargets(col, columns = []) {
-  const manual = (c) => c && !c.online && !c.virtual && c.id && !c.blockId;
+  const manual = (c) => c && !c.online && !c.virtual && c.id && !c.blockId && !c.period;
   if (!manual(col)) return [];
   const scale = columnScale(col);
   const max = Number(col.max_score ?? col.max) || 0;
@@ -588,8 +588,8 @@ export function retakeTargets(col, columns = []) {
     });
 }
 
-export function formatAvg(x) {
-  return x == null ? '' : x.toFixed(1).replace('.', ',');
+export function formatAvg(x, digits = 1) {
+  return x == null ? '' : x.toFixed(digits).replace('.', ',');
 }
 
 /** Процент выполнения значения (для баллов и процентов), иначе null. */
@@ -787,6 +787,8 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       role: rec.block ? (ROLES.includes(rec.role) ? rec.role : 'work') : '',
       // Часть зачёта: письменно / устно (v3.9.334).
       format: PART_FORMATS.includes(rec.format) ? rec.format : '',
+      // Аттестация (v3.9.414): оценка за период '2026-09-01..2026-10-26'.
+      period: !isOnline && parsePeriodRange(rec.period) ? rec.period : '',
       deadline: info?.deadline || sessionDeadlines.get(key) || '',
       classDeadline: info?.classDeadline || '',
       // Работа выдана классу целиком (учитель сам завёл колонку) — срок
@@ -825,6 +827,7 @@ export function mergeColumns(stored = [], online = new Map(), { sessionDeadlines
       blockId: '',
       role: '',
       format: '',
+      period: '',
       deadline: info.deadline,
       classDeadline: info.classDeadline,
       assigned: false,
@@ -931,6 +934,115 @@ export function inPeriod(col, period) {
     return !!d && d >= range.from && d <= range.to;
   }
   return monthKey(col.day) === period;
+}
+
+// ─── Аттестация за период (v3.9.414) ───────────────────────────────────────
+// Колонка с `period` — оценка за четверть, полугодие, год. Период выбирает
+// учитель. Пустая клетка показывает средний ученика за период (подсказка, не
+// отметка), «Выставить по среднему» пишет округлённые оценки обычными
+// отметками — дальше учитель правит их как любые. В средний за год аттестация
+// не входит: она сама из него сложена.
+
+export const ATTESTATION_CATEGORY = 'Аттестация';
+export const ATTESTATION_TITLES = [
+  'I четверть', 'II четверть', 'III четверть', 'IV четверть', 'I полугодие', 'II полугодие', 'Год',
+];
+// С какой дробной части средний округляется вверх: 4,5 → 5 или 4,6 → 5.
+export const ROUND_EDGES = [0.5, 0.6];
+export const DEFAULT_ROUND_EDGE = 0.5;
+
+/** Колонки, из которых складывается средний за период: видимые, не аттестации. */
+export function periodColumns(columns = [], period) {
+  if (!parsePeriodRange(period)) return [];
+  return columns.filter((c) => !c.hidden && !c.period && inPeriod(c, period));
+}
+
+/** «01.09–26.10» — период аттестации подписью. */
+export function periodLabel(period) {
+  const r = parsePeriodRange(period);
+  return r ? rangeLabel(r.from, r.to) : '';
+}
+
+/** Средний → оценка: дробная часть от `edge` — вверх (4,5 → 5 при 0,5). */
+export function roundAverage(avg, edge = DEFAULT_ROUND_EDGE) {
+  if (avg == null || !Number.isFinite(avg)) return null;
+  const whole = Math.floor(avg + 1e-9);
+  const grade = avg - whole >= edge - 1e-9 ? whole + 1 : whole;
+  return Math.min(5, Math.max(1, grade));
+}
+
+function periodTip(col, s) {
+  const span = periodLabel(col.period);
+  if (s.avg == null) return `За ${span} оценок нет`;
+  return `Средний за ${span}: ${formatAvg(s.avg, 2)} (оценок: ${s.count})`;
+}
+
+// Клетка аттестации: пустая — подсказка «≈4,36», заполненная — в подсказке
+// средний за период. periodAvg/periodCount — для окна «Выставить по среднему».
+function withPeriodAverage(col, cell, s) {
+  const extra = { periodAvg: s.avg, periodCount: s.count };
+  if (cell.kind === 'empty' && s.avg != null) {
+    return {
+      ...cell, ...extra, kind: 'hint', text: `≈${formatAvg(s.avg, 2)}`, textTone: 'hint',
+      tip: `${periodTip(col, s)} — подсказка, оценку ставите вы`,
+    };
+  }
+  return { ...cell, ...extra, tip: [cell.tip, periodTip(col, s)].filter(Boolean).join('\n') };
+}
+
+/** Следующее название: первая из четвертей (затем «Год»), которой ещё нет. */
+export function suggestAttestationTitle(columns = []) {
+  const used = new Set(columns.filter((c) => c.period).map((c) => String(c.title || '').trim()));
+  return ['I четверть', 'II четверть', 'III четверть', 'IV четверть', 'Год'].find((t) => !used.has(t)) || '';
+}
+
+/** День после 'YYYY-MM-DD'. */
+export function nextDay(day) {
+  const d = dayOf(day);
+  if (!d) return null;
+  const t = new Date(`${d}T12:00:00Z`);
+  t.setUTCDate(t.getUTCDate() + 1);
+  return t.toISOString().slice(0, 10);
+}
+
+/**
+ * Период новой аттестации: со дня после конца прошлой (раньше `today`), а
+ * без неё — с начала учебного года; по сегодня. «Год» и «I полугодие» — всегда
+ * с начала года.
+ */
+export function suggestAttestationPeriod(columns = [], { yearStart, today, title = '' } = {}) {
+  const start = dayOf(yearStart);
+  const end = dayOf(today);
+  let from = start;
+  if (!/^(Год|I полугодие)$/i.test(String(title).trim())) {
+    const ends = columns
+      .map((c) => parsePeriodRange(c.period)?.to)
+      .filter((d) => d && (!end || d < end) && (!start || d >= start))
+      .sort();
+    if (ends.length) from = nextDay(ends[ends.length - 1]);
+  }
+  if (!from) from = end;
+  return rangePeriod(from, end && end >= from ? end : from);
+}
+
+/**
+ * Что записать «Выставить по среднему»: rows — [{ student, avg, stored,
+ * comment }]. Без оценок за период и выбывших пропускаем; заполненные клетки
+ * трогаем только при overwrite. → [{ student, value, comment }]
+ */
+export function planAttestationFill(rows = [], { edge = DEFAULT_ROUND_EDGE, overwrite = false } = {}) {
+  const out = [];
+  for (const row of rows) {
+    if (!row?.student || row.student.former) continue;
+    const grade = roundAverage(row.avg, edge);
+    if (grade == null) continue;
+    const stored = row.stored || '';
+    if (stored && !overwrite) continue;
+    const value = String(grade);
+    if (stored === value) continue;
+    out.push({ student: row.student, value, comment: row.comment || '' });
+  }
+  return out;
 }
 
 /** Шапка месяцев: подряд идущие колонки одного месяца → { key, label, span }. */
@@ -1400,6 +1512,7 @@ export function summarizeRow(columns, cells) {
   let overdue = 0;
   let waits = 0;
   let retakes = 0;
+  let count = 0;
   columns.forEach((col, i) => {
     const cell = cells[i];
     if (!cell || col.hidden) return;
@@ -1407,14 +1520,16 @@ export function summarizeRow(columns, cells) {
     if (cell.wait) waits += 1;
     if (cell.retake) retakes += 1;
     if (cell.kind === 'online' && cell.status?.kind === 'overdue') overdue += 1;
-    const w = col.blockId && col.role !== 'total' ? 0 : columnWeight(col);
+    // Аттестация — итог периода, а не ещё одна отметка в нём.
+    const w = (col.blockId && col.role !== 'total') || col.period ? 0 : columnWeight(col);
     if (cell.grade != null && w > 0) {
       sum += w * cell.grade;
       wsum += w;
+      count += 1;
     }
   });
   return {
-    avg: wsum ? sum / wsum : null, absences, overdue, waits, retakes, debts: absences + overdue + waits + retakes,
+    avg: wsum ? sum / wsum : null, count, absences, overdue, waits, retakes, debts: absences + overdue + waits + retakes,
   };
 }
 
@@ -1443,7 +1558,7 @@ export function summarizeColumn(cells) {
  */
 export function buildGrid(students, columns, marksIndex, onlineCells, {
   mode = 'raw', now = new Date(), attendance = new Map(), blocks = [], blockColumns = null,
-  views = true,
+  views = true, allColumns = null,
 } = {}) {
   const cellOf = (col, student) => resolveCell(
     col,
@@ -1461,12 +1576,22 @@ export function buildGrid(students, columns, marksIndex, onlineCells, {
   // работам, которых в сетке сейчас нет.
   const blocksById = new Map(blocks.map((b) => [b.id, b]));
   const inBlocks = (blockColumns || columns).filter((c) => c.blockId && !c.hidden && blocksById.has(c.blockId));
+  // Средний аттестации — по ВСЕМ колонкам её периода (allColumns), а не по
+  // видимым: фильтр месяца и свёрнутый интенсив его менять не должны.
+  const attest = columns
+    .map((col, i) => (col.period ? { i, cols: periodColumns(allColumns || columns, col.period) } : null))
+    .filter(Boolean);
+  const indexOf = new Map(columns.map((c, i) => [c.key, i]));
   const rows = students.map((student) => {
     const cells = columns.map((col) => cellOf(col, student));
     if (inBlocks.length) applyIntensiveHints(columns, cells, inBlocks, blocksById, (col) => {
       const i = columns.indexOf(col);
       return i >= 0 ? cells[i] : cellOf(col, student);
     });
+    for (const { i, cols } of attest) {
+      const own = cols.map((c) => (indexOf.has(c.key) ? cells[indexOf.get(c.key)] : cellOf(c, student)));
+      cells[i] = withPeriodAverage(columns[i], cells[i], summarizeRow(cols, own));
+    }
     return { student, cells, summary: summarizeRow(columns, cells) };
   });
   const current = rows.filter((r) => !r.student.former);

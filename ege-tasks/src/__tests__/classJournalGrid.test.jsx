@@ -764,3 +764,80 @@ describe('ClassJournal — пересдача через «/»', () => {
     expect(container.querySelector('td[data-r="1"][data-c="0"]').textContent).toBe('6');
   });
 });
+
+// ── Аттестация за период (v3.9.414) ─────────────────────────────────────────
+
+describe('ClassJournal — аттестация', () => {
+  const q1 = {
+    id: 'q1', group: 'g1', owner: 't1', source: 'manual', title: 'I четверть', date: '2026-10-26 12:00:00.000Z',
+    scale: 'grade', no_avg: true, category: 'Аттестация', period: '2026-09-01..2026-10-26', created: '3',
+  };
+  beforeEach(() => {
+    apiMock.getJournalAttempts.mockResolvedValue([]);
+    apiMock.getJournalColumns.mockResolvedValue([
+      { id: 'c1', group: 'g1', owner: 't1', source: 'manual', title: 'Опрос', date: '2026-09-09 12:00:00.000Z', scale: 'grade', created: '1' },
+      { id: 'c2', group: 'g1', owner: 't1', source: 'manual', title: 'Самостоятельная', date: '2026-10-14 12:00:00.000Z', scale: 'grade', created: '2' },
+      q1,
+    ]);
+    apiMock.getJournalMarks.mockResolvedValue([
+      { id: 'm1', col: 'c1', student: 's1', value: '5', comment: '' },
+      { id: 'm2', col: 'c2', student: 's1', value: '4', comment: '' },
+      { id: 'm3', col: 'c1', student: 's2', value: '3', comment: '' },
+      { id: 'm4', col: 'q1', student: 's2', value: '4', comment: '' },
+    ]);
+  });
+
+  it('в пустой клетке — средний за период, в шапке — даты, в выборе периода — четверть', async () => {
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    const head = container.querySelectorAll('.cj-colh__btn')[2];
+    expect(head.textContent).toMatch('01.09–26.10');
+    const cell = container.querySelector('td[data-r="0"][data-c="2"]');
+    expect(cell.textContent).toBe('≈4,50');
+    expect(cell.title).toMatch('Средний за 01.09–26.10: 4,50');
+    expect(container.querySelector('td[data-r="1"][data-c="2"]').textContent).toBe('4');
+    // Средний за год аттестацию не считает: у s2 только «3».
+    const avgCells = container.querySelectorAll('td.cj-sum--avg');
+    expect(avgCells[1].textContent).toMatch('3,0');
+    fireEvent.mouseDown(screen.getByRole('combobox', { name: 'Период' }));
+    expect(await screen.findByText('I четверть · 01.09–26.10')).toBeInTheDocument();
+  });
+
+  it('«Выставить по среднему…» пишет округлённый средний в пустые клетки', async () => {
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(container.querySelectorAll('.cj-colh__btn')[2]);
+    fireEvent.click(await screen.findByText('Выставить по среднему…'));
+    expect(await screen.findByText(/оценки есть у 2 из 2/)).toBeInTheDocument();
+    apiMock.updateJournalColumn.mockImplementation(async (id, patch) => ({ ...q1, ...patch }));
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Сохранить и выставить \(1\)/ })); });
+    await waitFor(() => expect(apiMock.saveJournalMark).toHaveBeenCalledTimes(1));
+    expect(apiMock.saveJournalMark).toHaveBeenCalledWith(
+      { colId: 'q1', studentId: 's1', value: '5', comment: '' }, null,
+    );
+    expect(apiMock.updateJournalColumn).toHaveBeenCalledWith('q1', {
+      title: 'I четверть', period: '2026-09-01..2026-10-26', date: '2026-10-26 12:00:00.000Z',
+    });
+  });
+
+  it('новая аттестация: колонка оценок с периодом, вне среднего за год', async () => {
+    apiMock.getJournalColumns.mockResolvedValue([
+      { id: 'c1', group: 'g1', owner: 't1', source: 'manual', title: 'Опрос', date: '2026-09-09 12:00:00.000Z', scale: 'grade', created: '1' },
+    ]);
+    apiMock.getJournalMarks.mockResolvedValue([{ id: 'm1', col: 'c1', student: 's1', value: '5', comment: '' }]);
+    renderScreen();
+    await screen.findByText('Алексеева Мария');
+    fireEvent.click(screen.getByRole('button', { name: 'Какую колонку добавить' }));
+    fireEvent.click(await screen.findByText('Аттестация — средний за период (четверть, год)'));
+    expect(await screen.findByDisplayValue('I четверть')).toBeInTheDocument();
+    await act(async () => { fireEvent.click(await screen.findByRole('button', { name: /Создать и выставить \(1\)/ })); });
+    await waitFor(() => expect(apiMock.createJournalColumn).toHaveBeenCalled());
+    expect(apiMock.createJournalColumn.mock.calls[0][0]).toMatchObject({
+      group: 'g1', title: 'I четверть', scale: 'grade', no_avg: true, category: 'Аттестация',
+      period: expect.stringMatching(/^2026-09-01\.\.\d{4}-\d\d-\d\d$/),
+    });
+    await waitFor(() => expect(apiMock.saveJournalMark).toHaveBeenCalledWith(
+      { colId: 'c9', studentId: 's1', value: '5', comment: '' }, null,
+    ));
+  });
+});

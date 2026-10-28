@@ -6,14 +6,14 @@ import {
   CalendarOutlined, ClearOutlined, CopyOutlined, DeleteOutlined, DownOutlined, DownloadOutlined, EditOutlined,
   ExportOutlined, EyeInvisibleOutlined, EyeOutlined, FireOutlined, FormatPainterOutlined, MobileOutlined,
   MergeCellsOutlined, MoreOutlined, PlusOutlined, SettingOutlined, ShrinkOutlined, ArrowsAltOutlined, UnorderedListOutlined,
-  RobotOutlined, TrophyOutlined, AuditOutlined,
+  RobotOutlined, TrophyOutlined, AuditOutlined, FlagOutlined, CalculatorOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { api } from '../../../shared/services/pocketbase';
 import { useAuth } from '../../../contexts/AuthContext';
 import useIsMobile from '../../../hooks/useIsMobile';
-import { currentAcademicYear } from '../../../utils/academicYear';
+import { academicYearStartDate, currentAcademicYear } from '../../../utils/academicYear';
 import {
   buildGrid, collectOnline, columnMonths, columnScale, findSheetColumn, indexAttendance, indexMarks, inPeriod,
   journalStudents, sheetColumnPreset, findRefColumn, geometryWorkColumnPreset,
@@ -21,7 +21,8 @@ import {
   suggestNextTitle, toCsv, toStoredDate, toTsv, yearWindow, formatNumber, dayOf,
   ALL_YEARS, groupsOfYear, journalGroupYear, journalYears, pickGroupForYear,
   isExamBlock, blockKindLabel, retakeHistoryComment, rangePeriod, parsePeriodRange, monthRange,
-  retakeTargets,
+  retakeTargets, ATTESTATION_CATEGORY, periodColumns, periodLabel, planAttestationFill,
+  suggestAttestationPeriod, suggestAttestationTitle,
 } from '../../../utils/classJournal';
 import { normalizeStructure, rowCount } from '../../../utils/geometryWork';
 import { EmptyState } from '../ui';
@@ -33,6 +34,7 @@ import IntensiveModal from './IntensiveModal';
 import ExamModal from './ExamModal';
 import IntensiveFeedbackModal from './IntensiveFeedbackModal';
 import RetakeMergeModal from './RetakeMergeModal';
+import AttestationModal from './AttestationModal';
 import './journal.css';
 
 // Дата пересдачи в комментарии клетки — сегодняшняя.
@@ -120,6 +122,9 @@ export default function ClassJournal() {
   const [entryKey, setEntryKey] = useState(null);
   const [fill, setFill] = useState(null); // { column, text, error }
   const [retakeKey, setRetakeKey] = useState(null); // колонка-пересдача для «Это пересдача колонки…»
+  // Аттестация за период (v3.9.414): { column, fill } — null-колонка = новая.
+  const [attModal, setAttModal] = useState(null);
+  const [attSaving, setAttSaving] = useState(false);
   const [blockModal, setBlockModal] = useState(null); // { block } — null-блок = новый интенсив
   const [blockSaving, setBlockSaving] = useState(false);
   // Зачёт / экзамен (v3.9.334): { block } — правка, { block: null, kind } — новый.
@@ -301,9 +306,9 @@ export default function ClassJournal() {
   const attendanceIndex = useMemo(() => indexAttendance(data?.attendance || []), [data?.attendance]);
   const grid = useMemo(
     () => buildGrid(data?.students || [], columns, marksIndex, online.cells, {
-      mode, attendance: attendanceIndex, blocks, blockColumns,
+      mode, attendance: attendanceIndex, blocks, blockColumns, allColumns,
     }),
-    [data?.students, columns, marksIndex, online, mode, attendanceIndex, blocks, blockColumns],
+    [data?.students, columns, marksIndex, online, mode, attendanceIndex, blocks, blockColumns, allColumns],
   );
   const group = data?.group || groups.find((g) => g.id === groupId) || null;
 
@@ -530,7 +535,7 @@ export default function ClassJournal() {
   const newDefaults = useMemo(() => {
     // «За день», зачёт и итог интенсива — не образец для обычной колонки.
     const last = [...(data?.columns || [])]
-      .filter((c) => (c.source || 'manual') === 'manual' && (!c.role || c.role === 'work'))
+      .filter((c) => (c.source || 'manual') === 'manual' && (!c.role || c.role === 'work') && !c.period)
       .sort((a, b) => String(b.created || '').localeCompare(String(a.created || '')))[0];
     if (!last) return { scale: 'points', max_score: 10 };
     return {
@@ -713,6 +718,73 @@ export default function ClassJournal() {
     setRetakeKey(null);
     await deleteColumn(retake);
     message.success(`Пересдача перенесена в «${target.title}»: ${plan.writes.length}`);
+  };
+
+  // ── Аттестация за период (v3.9.414) ─────────────────────────────────────
+  const attColumns = useMemo(() => allColumns.filter((c) => c.period), [allColumns]);
+  const yearStart = dayOf(academicYearStartDate(group?.year || currentYear));
+  const suggestAttPeriod = useCallback(
+    (title) => suggestAttestationPeriod(attColumns, { yearStart, today: today(), title }),
+    [attColumns, yearStart],
+  );
+  // Средний каждого ученика за период — тем же buildGrid, что и подсказка в
+  // клетке аттестации, поэтому окно и журнал не разойдутся.
+  const averagesFor = useCallback((period, colId = attModal?.column?.id) => {
+    const g = buildGrid(data?.students || [], periodColumns(allColumns, period), marksIndex, online.cells, {
+      mode: 'grade', attendance: attendanceIndex, blocks, blockColumns,
+    });
+    return g.rows.map((r) => {
+      const mark = colId ? marksIndex.get(markKey(colId, r.student.id)) : null;
+      return {
+        student: r.student, avg: r.summary.avg, count: r.summary.count,
+        stored: mark?.value || '', text: mark?.value || '', comment: mark?.comment || '',
+      };
+    });
+  }, [data?.students, allColumns, marksIndex, online, attendanceIndex, blocks, blockColumns, attModal?.column?.id]);
+
+  const saveAttestation = async ({ title, period, fill }) => {
+    const gid = data?.groupId;
+    const col = attModal?.column;
+    const range = parsePeriodRange(period);
+    if (!gid || !range) return;
+    setAttSaving(true);
+    try {
+      const values = { title, period, date: toStoredDate(range.to) };
+      let rec;
+      if (col) {
+        rec = await api.updateJournalColumn(col.id, values);
+        replaceColumn(gid, rec);
+      } else {
+        rec = await api.createJournalColumn({
+          ...values, group: gid, source: 'manual', scale: 'grade', category: ATTESTATION_CATEGORY,
+          no_avg: true, weight: 1,
+        });
+        if (!rec.period) {
+          // Сервер без поля period молча завёл бы обычную колонку оценок.
+          await api.deleteJournalColumn(rec.id).catch(() => {});
+          message.error('На сервере ещё нет аттестации (миграция 1789400000)');
+          return;
+        }
+        patchData(gid, (d) => ({ ...d, columns: [...d.columns, rec] }));
+      }
+      let written = 0;
+      if (fill) {
+        const writes = planAttestationFill(averagesFor(period, rec.id), fill);
+        const failed = await persist(writes.map((w) => ({
+          colId: rec.id, studentId: w.student.id, value: w.value, comment: w.comment,
+        })));
+        written = writes.length - (failed || 0);
+      }
+      // Показываем журнал за этот период: видно, из чего сложилась оценка.
+      setPeriod(period);
+      setAttModal(null);
+      message.success(`«${rec.title}» за ${periodLabel(period)}${fill ? ` — выставлено оценок: ${written}` : ''}`);
+    } catch (e) {
+      console.error('journal attestation save failed', e);
+      message.error('Не удалось сохранить аттестацию');
+    } finally {
+      setAttSaving(false);
+    }
   };
 
   const addWorkColumn = async (work) => {
@@ -1121,7 +1193,11 @@ export default function ClassJournal() {
   const onMenu = (key, col) => {
     switch (key) {
       case 'entry': setEntryKey(col.key); break;
-      case 'edit': setColModal({ column: col }); break;
+      case 'edit':
+        if (col.period) setAttModal({ column: col, fill: 'none' });
+        else setColModal({ column: col });
+        break;
+      case 'attest-fill': setAttModal({ column: col, fill: 'empty' }); break;
       case 'fill': setFill({ column: col, text: '', error: '' }); break;
       case 'open-work': navigate(`/app/works/${col.workId}/edit`); break;
       case 'open-test': openTest(col); break;
@@ -1143,7 +1219,8 @@ export default function ClassJournal() {
     const items = [];
     const manage = writable && canManage(col);
     if (writable) items.push({ key: 'entry', icon: <UnorderedListOutlined />, label: 'Ввод списком' });
-    if (manage) items.push({ key: 'edit', icon: <SettingOutlined />, label: 'Настроить колонку' });
+    if (manage && col.period) items.push({ key: 'attest-fill', icon: <CalculatorOutlined />, label: 'Выставить по среднему…' });
+    if (manage) items.push({ key: 'edit', icon: <SettingOutlined />, label: col.period ? 'Период и название' : 'Настроить колонку' });
     if (writable && !col.online) items.push({ key: 'fill', icon: <FormatPainterOutlined />, label: 'Заполнить пустые…' });
     if (col.workId) items.push({ key: 'open-work', icon: <ExportOutlined />, label: 'Открыть работу' });
     else if (col.sessionId) items.push({ key: 'open-test', icon: <ExportOutlined />, label: 'Открыть работу' });
@@ -1267,6 +1344,10 @@ export default function ClassJournal() {
     return 'Проценты 0–100';
   })() : '';
 
+  // Периоды аттестаций — в выборе периода: журнал «за I четверть» одним кликом.
+  const attPeriods = [...new Map(attColumns.map((c) => [c.period, c])).values()]
+    .map((c) => ({ value: c.period, label: `${c.title} · ${periodLabel(c.period)}` }));
+
   const toolbar = (
     <div className="cj-toolbar">
       <Select
@@ -1290,11 +1371,13 @@ export default function ClassJournal() {
       />
       <Select
         style={{ minWidth: 130 }}
-        value={periodRange ? RANGE : period}
+        value={periodRange && !attPeriods.some((a) => a.value === period) ? RANGE : period}
         onChange={choosePeriod}
+        popupMatchSelectWidth={false}
         options={[
           { value: 'all', label: 'Весь год' },
           ...months.map((m) => ({ value: m.key, label: m.label })),
+          ...attPeriods,
           { value: RANGE, label: 'Свой период…' },
         ]}
         aria-label="Период"
@@ -1352,6 +1435,7 @@ export default function ClassJournal() {
                 { key: 'manual', icon: <EditOutlined />, label: 'Ручная колонка — бумажная работа, опрос' },
                 { key: 'lesson', icon: <CalendarOutlined />, label: 'Из урока календаря — «н» из посещаемости' },
                 { key: 'work', icon: <MobileOutlined />, label: 'Работа или тест Lemma — выданы всему классу' },
+                { key: 'attestation', icon: <FlagOutlined />, label: 'Аттестация — средний за период (четверть, год)' },
                 ...(data.blocksMissing ? [] : [
                   { type: 'divider' },
                   { key: 'intensive', icon: <FireOutlined />, label: 'Интенсив — несколько дней по одной теме' },
@@ -1361,6 +1445,7 @@ export default function ClassJournal() {
               ],
               onClick: ({ key }) => {
                 if (key === 'work') setWorkModal(true);
+                else if (key === 'attestation') setAttModal({ column: null, fill: 'empty' });
                 else if (key === 'intensive') setBlockModal({ block: null });
                 else if (key === 'credit' || key === 'exam') setExamModal({ block: null, kind: key });
                 else setColModal({ column: null, pickLesson: key === 'lesson' });
@@ -1450,6 +1535,9 @@ export default function ClassJournal() {
           <span><b className="cj-x-wait">w</b> — вейтинг, ждём пересдачи · «—» — не писал, не в счёт</span>
           <span><b className="cj-legend-retake">.4</b> — дозачёт: сдаст — оценка повысится</span>
           <span><span className="cj-try">9</span><span className="cj-try cj-try--best">15</span> — пересдача: «/15» к отметке, в средний — лучшая</span>
+          {attColumns.length > 0 && (
+            <span><i className="cj-x-hint">≈4,36</i> в аттестации — средний за её период, оценку ставите вы</span>
+          )}
           {blocks.length > 0 && (
             <span>
               <i className="cj-x-hint">≈4,2</i> — подсказка {blocks.some(isExamBlock)
@@ -1566,6 +1654,20 @@ export default function ClassJournal() {
         isMobile={isMobile}
         onClose={() => setEntryKey(null)}
         onSave={saveFromEntry}
+      />
+      <AttestationModal
+        open={!!attModal}
+        column={attModal?.column || null}
+        initialFill={attModal?.fill || 'none'}
+        suggestTitle={suggestAttestationTitle(attColumns)}
+        suggestPeriod={suggestAttPeriod}
+        averagesFor={averagesFor}
+        presets={rangePresets}
+        saving={attSaving}
+        canDelete={canDelete && !!attModal?.column && canManage(attModal.column)}
+        onCancel={() => setAttModal(null)}
+        onSave={saveAttestation}
+        onDelete={async () => { await deleteColumn(attModal.column); setAttModal(null); }}
       />
       <RetakeMergeModal
         key={retakeKey || 'none'}

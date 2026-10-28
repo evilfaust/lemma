@@ -1,11 +1,11 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Dropdown } from 'antd';
 import {
-  CalendarOutlined, ClockCircleOutlined, DownOutlined, EditOutlined, EyeInvisibleOutlined, MobileOutlined,
+  CalendarOutlined, ClockCircleOutlined, DownOutlined, EditOutlined, EyeInvisibleOutlined, FlagOutlined, MobileOutlined,
 } from '@ant-design/icons';
 import {
   shortDay, headerSpans, formatAvg, formatNumber, GRADE_TONE, columnWeight, editText,
-  startsBlockSection, viewBadge, roleLabel, isExamBlock, PART_FORMAT_LABELS,
+  startsBlockSection, viewBadge, roleLabel, isExamBlock, PART_FORMAT_LABELS, periodLabel,
 } from '../../../utils/classJournal';
 import { groupHex } from '../ui';
 
@@ -50,7 +50,8 @@ function blockKindLabelLower(block) {
 function columnTip(col, block) {
   return [
     col.title,
-    col.day ? `дата ${shortDay(col.day)}` : null,
+    col.period ? `аттестация за ${periodLabel(col.period)}: в пустой клетке — средний за период; в средний за год не входит` : null,
+    col.day && !col.period ? `дата ${shortDay(col.day)}` : null,
     block ? `${blockKindLabelLower(block)} «${block.title}» · ${roleLabel(block, col.role).toLowerCase()}` : null,
     block && col.format ? PART_FORMAT_LABELS[col.format].toLowerCase() : null,
     block && col.role !== 'total' ? `в средний за год ${blockKindLabelLower(block)} идёт итогом` : null,
@@ -59,7 +60,7 @@ function columnTip(col, block) {
     col.ref?.type === 'sheet' ? `лист генератора: «${col.ref.title || ''}»` : null,
     col.ref?.type === 'geometry_work' ? `работа по геометрии: «${col.ref.title || ''}»` : null,
     col.online ? (col.virtual ? 'онлайн-работа: результаты из попыток учеников' : 'онлайн-работа') : null,
-    columnWeight(col) === 0 ? 'не входит в средний' : columnWeight(col) !== 1 ? `вес ×${formatNumber(columnWeight(col))}` : null,
+    columnWeight(col) === 0 && !col.period ? 'не входит в средний' : columnWeight(col) !== 1 ? `вес ×${formatNumber(columnWeight(col))}` : null,
     col.note || null,
   ].filter(Boolean).join('\n');
 }
@@ -376,7 +377,7 @@ export default function JournalGrid({
   const colClass = useMemo(() => columns.map((col, c) => [
     boundaryClass(columns, c),
     col.blockId ? 'cj-inblock' : '',
-    col.role === 'total' ? 'cj-role-total' : '',
+    col.role === 'total' || col.period ? 'cj-role-total' : '',
   ].filter(Boolean).join(' ')), [columns]);
   const tableWidth = NAME_W + nCols * COL_W + 2 * SUM_W;
 
@@ -443,15 +444,19 @@ export default function JournalGrid({
                   <button type="button" className="cj-colh__btn" title={columnTip(col, col.blockId ? blocks.get(col.blockId) : null)}>
                     <span className="cj-colh__date">{shortDay(col.day) || '—'}</span>
                     <span className="cj-colh__title">{col.title}</span>
-                    <span className="cj-colh__meta">
-                      {col.online ? <MobileOutlined /> : <EditOutlined />}
-                      {col.blockId && col.format === 'oral' && <span>устно ·</span>}
-                      {scaleLabel(col)}
-                      {col.lessonId && <CalendarOutlined aria-label="колонка урока" />}
-                      {w === 0 && <span>· вне ср.</span>}
-                      {w > 0 && w !== 1 && <span>· ×{formatNumber(w)}</span>}
-                      {col.hidden && <EyeInvisibleOutlined />}
-                    </span>
+                    {col.period ? (
+                      <span className="cj-colh__meta"><FlagOutlined /> {periodLabel(col.period)}</span>
+                    ) : (
+                      <span className="cj-colh__meta">
+                        {col.online ? <MobileOutlined /> : <EditOutlined />}
+                        {col.blockId && col.format === 'oral' && <span>устно ·</span>}
+                        {scaleLabel(col)}
+                        {col.lessonId && <CalendarOutlined aria-label="колонка урока" />}
+                        {w === 0 && <span>· вне ср.</span>}
+                        {w > 0 && w !== 1 && <span>· ×{formatNumber(w)}</span>}
+                        {col.hidden && <EyeInvisibleOutlined />}
+                      </span>
+                    )}
                   </button>
                 );
                 return (

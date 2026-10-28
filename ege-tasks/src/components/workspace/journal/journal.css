@@ -437,3 +437,36 @@
 @media (max-width: 767.98px) {
   .cj-exam-part__row--sub, .cj-exam-part__err { padding-left: 0; margin-left: 0; }
 }
+
+/* Аттестация за период (v3.9.414) — окно AttestationModal */
+.cj-att-titles { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; }
+.cj-att-opts { display: flex; flex-wrap: wrap; gap: 12px 24px; }
+.cj-att-label { font-size: 12.5px; color: var(--ink-3); margin-bottom: 4px; }
+.cj-att-preview { border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.cj-att-preview__head {
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  background: var(--bg-sunken);
+}
+.cj-att-preview__scroll { max-height: 280px; overflow-y: auto; }
+.cj-att-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cj-att-table th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-raised);
+  font-weight: 500;
+  color: var(--ink-3);
+  text-align: left;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.cj-att-table td { padding: 3px 10px; border-bottom: 1px solid var(--rule-soft); }
+.cj-att-table th:not(:first-child), .cj-att-table td:not(:first-child) {
+  text-align: center;
+  width: 70px;
+  font-variant-numeric: tabular-nums;
+}
+.cj-att-table td.is-few { color: var(--c-amber); }
+.cj-att-table td.is-write { font-weight: 700; color: var(--accent); }
+.cj-att-table tr.is-former td { color: var(--ink-4); }
