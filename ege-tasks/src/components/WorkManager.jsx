@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import useIsMobile from '../hooks/useIsMobile';
 import SessionPanel from './worksheet/SessionPanel';
 import WorkShowPanel from './worksheet/WorkShowPanel';
+import WorkLessonLinks from './worksheet/WorkLessonLinks';
 import ParallelVariantsModal from './worksheet/ParallelVariantsModal';
 import ScanBlankModal from './worksheet/ScanBlankModal';
 import SendToMarathonModal from './worksheet/SendToMarathonModal';
@@ -919,6 +920,11 @@ const WorkManager = ({ onEditWork, onEditMCTest }) => {
                     : workSessions[0]?.id || null;
                   return (
                   <div className="wm-work-card-body">
+                    <WorkLessonLinks
+                      workId={work.id}
+                      workTitle={work.title}
+                      onWorkChange={(patch) => setWorks(prev => prev.map(w => w.id === work.id ? { ...w, ...patch } : w))}
+                    />
                     <Tabs
                       defaultActiveKey="session"
                       items={[

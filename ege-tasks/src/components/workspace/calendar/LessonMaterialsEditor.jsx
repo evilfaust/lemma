@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  App, Button, Checkbox, Input, Modal, Radio, Segmented, Select, Space, Spin, Switch, Tooltip, Typography,
+  App, Button, Checkbox, Input, Segmented, Select, Space, Spin, Switch, Tooltip, Typography,
 } from 'antd';
 import {
   CheckSquareOutlined, DeleteOutlined, EditOutlined, EyeOutlined, EyeInvisibleOutlined, FileTextOutlined,
@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 import MaterialPickerModal from '../MaterialPickerModal';
 import LessonWorkPickerModal from './LessonWorkPickerModal';
 import AttemptsSetting from '../../worksheet/AttemptsSetting';
+import DeliveryModal from '../../worksheet/DeliveryModal';
 import { api } from '../../../shared/services/pocketbase';
 import {
   ITEM_MODES, itemMode, withMode, defaultItemTitle, requiredOf,
@@ -577,55 +578,5 @@ function MaterialRow({
         <div className={`lm-preview${visible ? '' : ' is-hidden'}`}>{studentPreview(item, { isCourse, studentFacing })}</div>
       )}
     </div>
-  );
-}
-
-/** Только что выбранная работа: как её получат ученики. */
-function DeliveryModal({ pending, setPending, busy, onOk }) {
-  if (!pending) return null;
-  const choices = deliveryChoices({ type: pending.type });
-  const draft = { type: pending.type, deliver: pending.deliver === 'none' ? undefined : pending.deliver, role: pending.mode === 'class' ? 'class' : 'homework' };
-  const required = typeof pending.required === 'boolean' ? pending.required : requiredOf(draft);
-  const showWhen = pending.deliver !== 'paper' && pending.deliver !== 'none';
-  return (
-    <Modal
-      open
-      title={`Как ученики получат «${pending.title || TYPE_META[pending.type]?.label}»?`}
-      okText="Добавить в урок"
-      cancelText="Отмена"
-      onOk={onOk}
-      confirmLoading={busy}
-      onCancel={() => setPending(null)}
-      width={480}
-    >
-      <Radio.Group
-        className="lm-choice"
-        value={pending.deliver}
-        onChange={(e) => setPending((p) => ({ ...p, deliver: e.target.value }))}
-      >
-        {choices.map((c) => (
-          <Radio key={c} value={c} className="lm-choice-item">
-            <div className="lm-choice-label">{DELIVERIES[c].label}</div>
-            <div className="lm-choice-hint">
-              {c === 'online' && pending.type !== 'geometry_work'
-                ? 'Выдача по ссылке, ответы проверяются сразу. Нет открытой выдачи — она создастся.'
-                : DELIVERIES[c].hint}
-            </div>
-          </Radio>
-        ))}
-      </Radio.Group>
-      {showWhen && (
-        <div className="lm-choice-when">
-          <Segmented
-            value={pending.mode}
-            options={ITEM_MODES}
-            onChange={(v) => setPending((p) => ({ ...p, mode: v }))}
-          />
-          <Checkbox checked={required} onChange={(e) => setPending((p) => ({ ...p, required: e.target.checked }))}>
-            обязательно сделать
-          </Checkbox>
-        </div>
-      )}
-    </Modal>
   );
 }

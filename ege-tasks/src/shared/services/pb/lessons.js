@@ -61,7 +61,11 @@ export const lessonsApi = {
   async updateLesson(id, data) {
     try {
       const { owner, ...rest } = data;
-      return await pb.collection('lessons').update(id, rest);
+      const rec = await pb.collection('lessons').update(id, rest);
+      if (Object.prototype.hasOwnProperty.call(rest, 'materials')) {
+        _logAudit('update', 'lessons', id, `Материалы урока: ${rec.title || id}`);
+      }
+      return rec;
     } catch (error) {
       console.error('Error updating lesson:', error);
       throw error;
@@ -101,11 +105,16 @@ export const lessonsApi = {
 
   // Уроки, к которым прикреплён материал (работа или файл) — поиск по json-полю
   // materials (~ ищет подстроку id в сериализованном json).
-  async getLessonsByMaterialId(materialId) {
+  async getLessonsByMaterialId(materialId, materialType) {
     try {
       if (!materialId) return [];
+      // Старые уроки хранят ссылку на выдачу вместо самой работы.
+      const sessions = materialType === 'work' ? await this.getSessionsByWork(materialId)
+        : materialType === 'mc_test' ? await this.getSessionsByMCTest(materialId) : [];
+      const ids = [materialId, ...sessions.map(s => s.id)];
+      const materialFilter = ids.map(id => `materials ~ "${escapeFilter(id)}"`).join(' || ');
       return await pb.collection('lessons').getFullList({
-        filter: andOwner(`materials ~ "${escapeFilter(materialId)}"`),
+        filter: andMineOrCoTaught(`(${materialFilter})`, { shareField: 'shared_with' }),
         sort: '-date_plan',
         expand: 'group',
       });
