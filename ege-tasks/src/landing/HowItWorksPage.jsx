@@ -308,7 +308,7 @@ const API_GROUPS = [
 const VPS_ARCH = [
   { service: 'PocketBase', port: '8095', systemd: 'pocketbase-ege', desc: 'Backend API + Auth + Files + SQLite + JS-хуки (ленты ученика, .ics, слияние учеников)' },
   { service: 'Backend helper', port: '3001', systemd: 'pdf-service-ege', desc: 'Парсер «Решу», LaTeX-LLM, распознавание бланков, векторный поиск. PDF не генерирует — печать в браузере' },
-  { service: 'Raspberry Pi', port: '443', systemd: 'docker nginx', desc: 'Статика учительского приложения (l.oipav.ru) и лаборатория: Grist и HedgeDoc' },
+  { service: 'Raspberry Pi', port: '443', systemd: 'docker nginx', desc: 'Статика учительского приложения (l.oipav.ru) и файловое хранилище библиотеки материалов' },
 ]
 
 const VERSION_MILESTONES = [

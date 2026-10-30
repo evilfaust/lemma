@@ -14,7 +14,7 @@ import {
   FormOutlined, QrcodeOutlined, PictureOutlined, HeatMapOutlined,
   BranchesOutlined, CreditCardOutlined, RadarChartOutlined, KeyOutlined,
   FunctionOutlined, AppstoreOutlined, BulbOutlined, MenuOutlined,
-  MenuFoldOutlined, MenuUnfoldOutlined, TableOutlined, FileMarkdownOutlined,
+  MenuFoldOutlined, MenuUnfoldOutlined,
   CalculatorOutlined, ExperimentOutlined, LineChartOutlined, FieldNumberOutlined,
   PercentageOutlined, HomeOutlined, CalendarOutlined, ProfileOutlined, ColumnWidthOutlined,
   MergeCellsOutlined, BlockOutlined, FilterOutlined,
@@ -53,8 +53,6 @@ const TaskBank = lazy(() => import('./components/bank/TaskBank'));
 const TheoryBrowser = lazy(() => import('./components/TheoryBrowser'));
 const TheoryEditor = lazy(() => import('./components/TheoryEditor'));
 const ExcalidrawSection = lazy(() => import('./components/ExcalidrawSection'));
-const GristSection = lazy(() => import('./components/lab/GristSection'));
-const HedgeDocSection = lazy(() => import('./components/lab/HedgeDocSection'));
 const TheoryArticleView = lazy(() => import('./components/TheoryArticleView'));
 const TheoryCategoryManager = lazy(() => import('./components/TheoryCategoryManager'));
 const TheoryPrintBuilder = lazy(() => import('./components/TheoryPrintBuilder'));
@@ -265,8 +263,6 @@ export const R = {
   LISTOK_EDIT:         '/app/listki/:sheetId/edit',
   // Лаборатория
   EXCALIDRAW:          '/app/lab/excalidraw',
-  LAB_GRIST:           '/app/lab/grist',
-  LAB_PAD:             '/app/lab/pad',
   // Администрирование
   ADMIN_USERS:         '/app/admin/users',
   ADMIN_AUDIT:         '/app/admin/audit',
@@ -391,8 +387,6 @@ const ROUTE_META = [
   { re: /^\/app\/listki\/[^/]+$/,          menuKey: 'listki', menuGroup: 'listki', title: 'Листки — Просмотр' },
   { re: /^\/app\/listki$/,                 menuKey: 'listki', menuGroup: 'listki', title: 'Листки' },
   { re: /^\/app\/lab\/excalidraw/,         menuKey: 'excalidraw',       menuGroup: 'lab', title: 'Excalidraw', noMargin: true },
-  { re: /^\/app\/lab\/grist/,              menuKey: 'lab-grist',        menuGroup: 'lab', title: 'Grist — таблицы', noMargin: true },
-  { re: /^\/app\/lab\/pad/,                menuKey: 'lab-pad',          menuGroup: 'lab', title: 'HedgeDoc — заметки', noMargin: true },
   { re: /^\/app\/admin\/users/,            menuKey: 'admin-users',      menuGroup: 'admin-group', title: 'Управление пользователями' },
   { re: /^\/app\/admin\/audit/,            menuKey: 'admin-audit',      menuGroup: 'admin-group', title: 'Журнал действий' },
 ];
@@ -486,8 +480,6 @@ const MENU_KEY_PATH = {
   'theory-categories':      R.THEORY_CATEGORIES,
   'listki':                 R.LISTKI,
   excalidraw:               R.EXCALIDRAW,
-  'lab-grist':              R.LAB_GRIST,
-  'lab-pad':                R.LAB_PAD,
   'admin-users':            R.ADMIN_USERS,
   'admin-audit':            R.ADMIN_AUDIT,
 };
@@ -872,8 +864,6 @@ function AppLayout() {
       key: 'lab', icon: <EditOutlined />, label: 'Лаборатория', section: 'lab',
       children: [
         { key: 'excalidraw', icon: <EditOutlined />, label: 'Excalidraw' },
-        { key: 'lab-grist', icon: <TableOutlined />, label: 'Grist — таблицы' },
-        { key: 'lab-pad', icon: <FileMarkdownOutlined />, label: 'HedgeDoc — заметки' },
       ],
     },
     {
@@ -1193,16 +1183,6 @@ function App() {
               <Route path={R.EXCALIDRAW} element={
                 <Suspense fallback={<LazyFallback />}>
                   <ExcalidrawSection />
-                </Suspense>
-              } />
-              <Route path={R.LAB_GRIST} element={
-                <Suspense fallback={<LazyFallback />}>
-                  <GristSection />
-                </Suspense>
-              } />
-              <Route path={R.LAB_PAD} element={
-                <Suspense fallback={<LazyFallback />}>
-                  <HedgeDocSection />
                 </Suspense>
               } />
             </Route>
