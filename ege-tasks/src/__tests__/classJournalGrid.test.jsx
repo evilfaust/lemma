@@ -36,6 +36,9 @@ const apiMock = vi.hoisted(() => ({
 vi.setConfig({ testTimeout: 20000 });
 
 vi.mock('../shared/services/pocketbase', () => ({ api: apiMock }));
+vi.mock('../utils/xlsxWriter', async (importOriginal) => ({
+  ...await importOriginal(), downloadXlsx: vi.fn(),
+}));
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ teacher: { id: 't1' }, isSuperAdmin: false, canEdit: true, canDelete: true }),
 }));
@@ -51,6 +54,7 @@ import SheetToJournalModal from '../components/workspace/journal/SheetToJournalM
 // eslint-disable-next-line import/first
 import { buildGrid, indexMarks } from '../utils/classJournal';
 import { currentAcademicYear, prevAcademicYear } from '../utils/academicYear';
+import { downloadXlsx } from '../utils/xlsxWriter';
 
 // ── Сетка сама по себе ──────────────────────────────────────────────────────
 
@@ -614,6 +618,7 @@ describe('ClassJournal — зачёт', () => {
   const inZ = (extra) => ({ group: 'g1', owner: 't1', source: 'manual', block: 'Z1', date: d9, category: 'Зачёт', ...extra });
 
   beforeEach(() => {
+    downloadXlsx.mockClear();
     apiMock.getJournalBlocks.mockResolvedValue([credit]);
     apiMock.getJournalAttempts.mockResolvedValue([]);
     apiMock.getJournalColumns.mockResolvedValue([
@@ -626,6 +631,22 @@ describe('ClassJournal — зачёт', () => {
       { id: 'm1', col: 'p1', student: 's1', value: '9', comment: '' },
       { id: 'm2', col: 'p2', student: 's1', value: '4', comment: '' },
     ]);
+  });
+
+  it('выгружает все части свёрнутого зачёта и не записывает подсказку итога', async () => {
+    localStorage.setItem('journal.collapsedBlocks', JSON.stringify(['Z1']));
+    const { container } = renderScreen();
+    await screen.findByText('Алексеева Мария');
+    expect(container.querySelectorAll('.cj-colh__title')).toHaveLength(1);
+    fireEvent.click(screen.getByText('Зачёт · Параллелограмм · 09.10'));
+    fireEvent.click(await screen.findByText('Скачать Excel (.xlsx)'));
+    await waitFor(() => expect(downloadXlsx).toHaveBeenCalledTimes(1));
+    const [sheets, name] = downloadXlsx.mock.calls[0];
+    expect(name).toContain('Параллелограмм');
+    expect(sheets[0].rows[3].map((c) => c.v)).toEqual([
+      '№', 'Ученик', 'Устный счёт (09.10)\nБаллы из 10', 'Билет (09.10)\nОценка 2–5', 'Итог (09.10)\nОценка 2–5',
+    ]);
+    expect(sheets[0].rows[4].map((c) => c.v)).toEqual([1, 'Алексеева Мария', 9, 4, '']);
   });
 
   it('шапка «Зачёт · тема · дата», устная часть подписана, итог — подсказкой по частям', async () => {

@@ -1038,6 +1038,7 @@ export default function ClassJournal() {
     if (!block) return [];
     const exam = isExamBlock(block);
     const items = [];
+    items.push({ key: 'block-excel', icon: <DownloadOutlined />, label: 'Скачать Excel (.xlsx)' });
     if (canEdit && !data?.missing) {
       items.push({ key: 'block-add', icon: <PlusOutlined />, label: exam ? 'Добавить часть' : 'Добавить работу дня' });
     }
@@ -1064,7 +1065,8 @@ export default function ClassJournal() {
   }, [canEdit, data?.missing, collapsed, canManageBlock]);
 
   const onBlockMenu = (key, block) => {
-    if (key === 'block-add') setColModal({ column: null, presetBlock: block });
+    if (key === 'block-excel') exportExcel(block);
+    else if (key === 'block-add') setColModal({ column: null, presetBlock: block });
     else if (key === 'block-collapse' || key === 'block-expand') toggleCollapsed(block.id);
     else if (key === 'block-edit') {
       if (isExamBlock(block)) setExamModal({ block });
@@ -1283,7 +1285,31 @@ export default function ClassJournal() {
   const exportName = () => `Журнал ${group?.name || ''} ${dayjs().format('YYYY-MM-DD')}`
     .replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
 
+  const exportExcel = async (block = null) => {
+    try {
+      // Свёрнутый блок выгружается со всеми частями. Фильтр скрытых колонок
+      // тот же, что на экране; выбранный период не обрезает отдельную работу.
+      const cols = block
+        ? allColumns.filter((c) => c.blockId === block.id && (showHidden || !c.hidden))
+        : columns;
+      const exportGrid = block ? buildGrid(data?.students || [], cols, marksIndex, online.cells, {
+        mode, attendance: attendanceIndex, blocks, blockColumns, allColumns,
+      }) : grid;
+      const [{ journalSheets }, { downloadXlsx }] = await Promise.all([
+        import('../../../utils/journalExport'), import('../../../utils/xlsxWriter'),
+      ]);
+      const name = block
+        ? `${blockKindLabel(block)} ${block.title || ''} ${group?.name || ''} ${dayOf(block.date_from)}`
+        : exportName();
+      downloadXlsx(journalSheets(exportGrid, cols, { groupName: group?.name, block, blocks, mode }), name);
+    } catch (e) {
+      console.error('journal Excel export failed', e);
+      message.error('Не удалось выгрузить Excel');
+    }
+  };
+
   const onExport = async ({ key }) => {
+    if (key === 'xlsx') { await exportExcel(); return; }
     const table = journalTable(grid, columns);
     if (key === 'copy') {
       try {
@@ -1413,6 +1439,7 @@ export default function ClassJournal() {
           trigger={['click']}
           menu={{
             items: [
+              { key: 'xlsx', icon: <DownloadOutlined />, label: 'Скачать Excel (.xlsx)' },
               { key: 'copy', icon: <CopyOutlined />, label: 'Скопировать таблицу' },
               { key: 'csv', icon: <DownloadOutlined />, label: 'Скачать CSV (Excel)' },
             ],
