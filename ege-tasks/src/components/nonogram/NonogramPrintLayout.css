@@ -4,14 +4,13 @@
    краска, иерархия — кеглем и толщиной линий:
      0.5mm  — рамка шапки
      0.35mm — линии заполнения, граница поля, каждые 5 клеток
-     0.2pt  — волосяные: клетка, рамки примеров
+     0.2pt  — волосяные: клетка, строки списка примеров
    🚨 Высоты шапки, инструкции и подвала заданы ЖЁСТКО и совпадают с
    `utils/nonogram/layout.js` (HEAD_MM, INSTR_MM, FOOT_MM, CUT_MM, MARGIN_MM):
    раскладка считает клетку из оставшегося места. Меняешь одно — меняй оба. */
 
 .nng-print-root {
-  /* На экране лист не нужен, но должен ВЕРСТАТЬСЯ: подгонка кегля мерит
-     настоящую ширину подсказок (`display: none` дал бы нули). */
+  /* Подгонка списков мерит настоящую геометрию KaTeX: display:none нельзя. */
   position: fixed;
   left: -20000px;
   top: 0;
@@ -44,7 +43,7 @@
 .nng-block {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: none;
   min-height: 0;
 }
 
@@ -110,7 +109,7 @@
 /* ─── Инструкция и подвал ─────────────────────────────────────────────────── */
 .nng-instr {
   box-sizing: border-box;
-  height: 11mm;
+  height: 16mm;
   flex: none;
   margin: 0;
   padding: 2mm 0 0;
@@ -139,6 +138,8 @@
 .nng-grid {
   display: grid;
   line-height: 1;
+  flex: none;
+  font-size: 3mm;
 }
 .nng-grid > div { box-sizing: border-box; border-style: solid; border-color: var(--nng-ink); border-width: 0; }
 
@@ -154,39 +155,89 @@
   justify-content: flex-end;
   align-items: center;
   gap: 0.5mm;
-  padding: 0.6mm 0;
-  line-height: 1.15;
-  overflow: hidden;
+  padding: 0.8mm 0;
 }
 .nng-rowclue {
   border-left-width: 0.2pt !important;
   border-right-width: 0.35mm !important;
   display: flex;
   flex-direction: row;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
-  gap: 0.8mm;
-  padding: 0 0.6mm;
-  overflow: hidden;
+  padding: 0 0.8mm 0 0;
 }
-.nng-q {
-  /* 🚨 inline-block, НЕ inline-flex: внутри flex-элемента KaTeX растягивает
-     SVG-черту корня на всю ширину — \sqrt печатался пустой длинной рамкой. */
+.nng-col-label,
+.nng-row-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.8mm;
+  font-weight: 600;
+}
+.nng-row-label { width: 4mm; flex: none; }
+.nng-row-answers { display: flex; align-items: center; gap: 0.8mm; }
+.nng-answer {
   display: inline-block;
-  text-align: center;
-  line-height: 1.15;
-  padding: 0.17em 0.27em;
-  border: 0.2pt solid var(--nng-ink);
-  border-radius: 0.6mm;
-  white-space: nowrap;
+  width: 3.5mm;
+  height: 4mm;
   flex: none;
+  line-height: 4mm;
+  text-align: center;
+  box-sizing: border-box;
 }
-/* Число ключа: тот же кегль, что у KaTeX (1.21em), ширина — NUM_DIGIT_EM в layout.js */
-.nng-q--num { font-weight: 600; font-size: 1.21em; }
-/* Над столбцом пример стоит на своей строке — рамка не нужна (COL_PAD_* в layout.js) */
-.nng-colclue .nng-q {
-  border-color: transparent;
-  padding: 0.15em 0.1em;
+.nng-answer--blank { border-bottom: 0.2pt solid var(--nng-ink); }
+.nng-q--num { font-weight: 600; }
+
+/* ─── Поле и отдельные списки примеров ─────────────────────────────────────── */
+.nng-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 6mm;
+  margin-top: 2mm;
+  flex: none;
+  min-height: 0;
+}
+.nng-field-grid { display: flex; justify-content: center; min-width: 0; }
+.nng-work--separate { gap: 0; }
+.nng-page-note { height: 6mm; padding-top: 2mm; box-sizing: border-box; font-size: 3mm; text-align: center; }
+.nng-tasks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6mm;
+  min-width: 0;
+  align-items: start;
+  line-height: 1.3;
+}
+.nng-task-group { min-width: 0; }
+.nng-task-head {
+  height: 6mm;
+  box-sizing: border-box;
+  border-bottom: 0.35mm solid var(--nng-ink);
+  padding-bottom: 1mm;
+  font-size: 3.2mm;
+  font-weight: 600;
+}
+.nng-task-row {
+  display: grid;
+  grid-template-columns: 5mm minmax(0, 1fr);
+  column-gap: 1.5mm;
+  padding: 1mm 0;
+  min-height: 5.5mm;
+  border-bottom: 0.2pt solid var(--nng-ink);
+  box-sizing: border-box;
+  break-inside: avoid;
+}
+.nng-task-label { font-weight: 600; padding-top: 0.3mm; }
+.nng-task-expressions { display: flex; flex-wrap: wrap; gap: 1.2mm; align-items: center; min-width: 0; }
+.nng-task-expression { display: inline-block; white-space: nowrap; }
+.nng-task-separator { margin-left: 0.5mm; }
+.nng-empty-line { line-height: 1.3; }
+.nng-q {
+  /* inline-flex растягивает SVG-черту корня внутри KaTeX. */
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1.15;
 }
 
 .nng-cell { position: relative; }

@@ -198,6 +198,10 @@ export default function NonogramGenerator() {
       message.warning('Сначала загрузите картинку');
       return;
     }
+    if (overflow || document.querySelector('.nng-print-root [data-overflow="true"]')) {
+      message.warning('Лист не помещается: выберите один кроссворд на странице, другую ориентацию или меньшую сетку');
+      return;
+    }
     printPaged({ size: `A4 ${orientation}` });
   };
 
@@ -300,6 +304,10 @@ export default function NonogramGenerator() {
 
               <TrigSettingsSection label="Лист">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>
+                    Примеры — {orientation === 'landscape' ? 'справа от сетки' : 'под сеткой'}.
+                    {' '}Строки — по номерам, столбцы — по буквам. Ответы вписываются у поля.
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 12, flex: 1 }}>Вариантов</span>
                     <InputNumber
@@ -448,8 +456,8 @@ export default function NonogramGenerator() {
                   {overflow && (
                     <Alert
                       type="warning" showIcon style={{ marginBottom: 10 }}
-                      message="Подсказки не помещаются на лист"
-                      description="Уменьшите сетку, выберите «Альбомный» лист или «Разминку» — у неё записи короче."
+                      message="Поле не помещается на лист"
+                      description="Выберите один кроссворд на странице, другую ориентацию или меньшую сетку."
                     />
                   )}
                   {stats?.fallback > 0 && (

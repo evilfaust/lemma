@@ -4,8 +4,8 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import NonogramPrintLayout, { nonogramOverflow } from '../components/nonogram/NonogramPrintLayout';
 import {
-  layoutGrid, blockSizeMm, clueLimits, resolveOrientation, PAGE_MM, MARGIN_MM,
-  HEAD_MM, INSTR_MM, FOOT_MM, CUT_MM,
+  layoutGrid, layoutPuzzle, paginateTasks, taskLineHeight, blockSizeMm, clueLimits, resolveOrientation, PAGE_MM, MARGIN_MM,
+  HEAD_MM, INSTR_MM, FOOT_MM, CUT_MM, CONTENT_TOP_MM, CONTENT_GAP_MM, TASK_HEAD_MM,
 } from '../utils/nonogram/layout';
 import {
   NONOGRAM_DEFAULTS, normalizeNonogramSettings, generateNonogramVariants, nonogramKey,
@@ -40,30 +40,61 @@ describe('раскладка листа', () => {
   it('место под кроссворд = лист минус поля, шапка, инструкция, подвал', () => {
     const b = blockSizeMm({ orientation: 'portrait', perPage: 1 });
     expect(b.w).toBe(PAGE_MM.portrait.w - 2 * MARGIN_MM);
-    expect(b.h).toBeCloseTo(PAGE_MM.portrait.h - 1 - 2 * MARGIN_MM - HEAD_MM.full - INSTR_MM - FOOT_MM);
+    expect(b.h).toBeCloseTo(PAGE_MM.portrait.h - 1 - 2 * MARGIN_MM - HEAD_MM.full - INSTR_MM - FOOT_MM - CONTENT_TOP_MM);
     const two = blockSizeMm({ orientation: 'portrait', perPage: 2 });
     expect(two.slot * 2 + CUT_MM).toBeCloseTo(PAGE_MM.portrait.h - 1 - 2 * MARGIN_MM);
   });
 
-  it('сетка с примерами помещается в блок', () => {
+  it('поле и отдельные примеры помещаются в блок или получают дополнительные страницы', () => {
     for (const n of [5, 10, 15]) {
       const m = randomPic(n, n);
       const s = normalizeNonogramSettings({ cols: n, rows: n, variantsCount: 1 });
       const block = sheetBlock(s, n);
       const { variants } = generateNonogramVariants(m, s);
-      const L = layoutGrid(variants[0].rows, variants[0].cols, block);
+      const plan = layoutPuzzle(variants[0].rows, variants[0].cols, block, resolveOrientation(s.orientation, n));
+      const L = plan.grid;
       expect(L.overflow, `${n}×${n}`).toBe(false);
       expect(L.widthMm).toBeLessThanOrEqual(block.w + 0.01);
       expect(L.heightMm).toBeLessThanOrEqual(block.h + 0.01);
       expect(L.cellMm).toBeGreaterThanOrEqual(5);
+      if (!plan.separate) {
+        if (plan.placement === 'below') expect(L.heightMm + CONTENT_GAP_MM + plan.tasksHeightMm).toBeLessThanOrEqual(block.h);
+        else expect(plan.tasksHeightMm).toBeLessThanOrEqual(block.h);
+      }
     }
   });
 
-  it('пределы примеров: столбец уже строки', () => {
+  it('столбцы допускают такие же выражения и дроби, как строки', () => {
     const clues = cluesOf(randomPic(15, 4));
     const lim = clueLimits(clues, blockSizeMm({ orientation: 'landscape' }));
-    expect(lim.col.em).toBeLessThan(lim.row.em);
-    expect(lim.col.noTall).toBe(true);
+    expect(lim.col).toEqual(lim.row);
+    expect(lim.col.em).toBeGreaterThanOrEqual(10);
+    expect(lim.col.noTall).toBe(false);
+  });
+
+  it('длина записи не меняет размеры самого поля', () => {
+    const numbers = [[1, 2], [3]];
+    const expressions = numbers.map(line => line.map(value => ({ exprLatex: `\\dfrac{${value * 1000}}{1000}`, value })));
+    const block = blockSizeMm();
+    expect(layoutGrid(expressions, expressions, block)).toEqual(layoutGrid(numbers, numbers, block));
+  });
+
+  it('длинные списки разбиваются без потери линий и с сохранением обозначений', () => {
+    const matrix = Array.from({ length: 20 }, (_, r) => Array.from({ length: 20 }, (_, c) => (r + c) % 2 === 0));
+    const variant = Object.fromEntries(Object.entries(cluesOf(matrix)).map(([side, lines]) =>
+      [side, lines.map(line => line.map(value => ({ value, exprLatex: '101 - 100' })))]));
+    const block = blockSizeMm({ orientation: 'landscape' });
+    expect(layoutPuzzle(variant.rows, variant.cols, block, 'landscape').separate).toBe(true);
+    const taskBlock = blockSizeMm({ orientation: 'landscape', instruction: false, checksum: false });
+    const pages = paginateTasks(variant.rows, variant.cols, taskBlock);
+    for (const side of ['rows', 'cols']) {
+      expect(pages.flatMap(page => page[side]).map(entry => entry.line)).toEqual(variant[side]);
+      expect(pages.flatMap(page => page[side]).map(entry => entry.index)).toEqual(Array.from({ length: 20 }, (_, i) => i));
+      for (const page of pages) {
+        const used = page[side].reduce((sum, entry) => sum + taskLineHeight(entry.line, (taskBlock.w - CONTENT_GAP_MM) / 2, page.fontPt).height, TASK_HEAD_MM);
+        expect(used).toBeLessThanOrEqual(taskBlock.h);
+      }
+    }
   });
 });
 
@@ -85,6 +116,11 @@ describe('лист и ключ', () => {
     expect(key.querySelectorAll('.nng-cell--fill')).toHaveLength(HEART.flat().filter(Boolean).length);
     // у ученика ничего не залито (готовых клеток нет)
     expect(pages[0].querySelectorAll('.nng-cell--fill')).toHaveLength(0);
+    // Ученик видит выражения только в списках, ответы у сетки остаются пустыми.
+    expect(pages[0].querySelectorAll('.nng-grid .katex')).toHaveLength(0);
+    expect(pages[0].querySelectorAll('.nng-answer--blank')).toHaveLength(variants[0].rows.flat().length + variants[0].cols.flat().length);
+    expect([...pages[0].querySelectorAll('.nng-col-label')].map(el => el.textContent)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G']);
+    expect(pages[0].querySelectorAll('.nng-task-row')).toHaveLength(HEART.length + HEART[0].length);
     expect(pages[0].textContent).toContain('Вариант 1');
     expect(pages[0].textContent).toContain(`= ${HEART.flat().filter(Boolean).length}`);
   });
@@ -120,7 +156,35 @@ describe('лист и ключ', () => {
       <NonogramPrintLayout title="t" settings={s} matrix={m} givens={[]} variants={v} only="key" />,
     );
     const rowClues = container.querySelectorAll('.nng-rowclue');
-    expect(rowClues[1].textContent).toBe('0');
+    expect(rowClues[1].querySelector('.nng-answer').textContent).toBe('0');
+  });
+
+  it('ориентация определяет положение примеров; порядок выражений в линии сохранён', () => {
+    const { container, rerender } = render(
+      <NonogramPrintLayout title="t" settings={{ ...settings, orientation: 'portrait', showKey: false }} matrix={HEART} givens={[]} variants={variants.slice(0, 1)} />,
+    );
+    expect(container.querySelector('.nng-work--below')).not.toBeNull();
+    const firstRow = container.querySelector('.nng-task-row[data-side="rows"][data-line="0"]');
+    expect([...firstRow.querySelectorAll('.nng-q')].map(el => el.textContent)).toHaveLength(variants[0].rows[0].length);
+    expect(firstRow.querySelectorAll('.nng-task-separator')).toHaveLength(variants[0].rows[0].length - 1);
+    rerender(<NonogramPrintLayout title="t" settings={{ ...settings, orientation: 'landscape', showKey: false }} matrix={HEART} givens={[]} variants={variants.slice(0, 1)} />);
+    expect(container.querySelector('.nng-work--aside')).not.toBeNull();
+  });
+
+  it('дополнительные страницы примеров сохраняют две копии и линию отреза', () => {
+    const matrix = Array.from({ length: 10 }, (_, r) => Array.from({ length: 10 }, (_, c) => (r + c) % 2 === 0));
+    const clues = cluesOf(matrix);
+    const variant = Object.fromEntries(Object.entries(clues).map(([side, lines]) => [side,
+      lines.map(line => line.map(value => ({ value, exprLatex: '\\dfrac{101}{101}' }))),
+    ]));
+    const { container } = render(<NonogramPrintLayout title="t" settings={{ ...settings, perPage: 2 }} matrix={matrix} givens={[]} variants={[variant]} />);
+    const taskPages = container.querySelectorAll('.nng-page--tasks');
+    expect(taskPages.length).toBeGreaterThan(0);
+    for (const page of taskPages) {
+      expect(page.querySelectorAll('.nng-block')).toHaveLength(2);
+      expect(page.querySelector('.nng-cut')).not.toBeNull();
+    }
+    expect(container.querySelectorAll('.nng-page--key')).toHaveLength(1);
   });
 
   it('предупреждение о переполнении — только когда не влезло', () => {

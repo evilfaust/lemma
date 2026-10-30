@@ -1,40 +1,28 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import katex from 'katex';
-import { layoutGrid, isMajorLine, resolveOrientation } from '../../utils/nonogram/layout';
+import {
+  layoutGrid, layoutPuzzle, paginateTasks, isMajorLine, resolveOrientation,
+  columnLabel, LABEL_MM, CONTENT_GAP_MM, MIN_TASK_FONT_PT,
+} from '../../utils/nonogram/layout';
 import { sheetBlock } from '../../utils/nonogram/sheet';
 import { cluesOf, checksum } from '../../utils/nonogram/solver';
 import './NonogramPrintLayout.css';
 
-/**
- * Печатный лист японского кроссворда — и предпросмотр (`screenMode`).
- *
- * Страница ученика: шапка, инструкция, сетка с подсказками-примерами, готовые
- * клетки, строка самопроверки. При `perPage = 2` на листе два ОДИНАКОВЫХ
- * кроссворда с линией отреза. Ключ учителя — одна страница на все варианты:
- * картинка и числа у вариантов общие, различается только запись примеров.
- *
- * Оформление — канон `print-sheet`: только чёрная краска, миллиметры,
- * волосяная клетка и жирная линия каждые 5 клеток.
- */
-
+/** Общая вёрстка предпросмотра и печати; примеры отделены от поля. */
 const texCache = new Map();
 function texHtml(tex) {
   let html = texCache.get(tex);
   if (html == null) {
-    try {
-      html = katex.renderToString(tex, { throwOnError: false, output: 'html' });
-    } catch {
-      html = tex;
-    }
+    html = katex.renderToString(tex, { throwOnError: false, output: 'html' });
     if (texCache.size > 4000) texCache.clear();
     texCache.set(tex, html);
   }
   return html;
 }
 
-function ClueItem({ q }) {
-  if (typeof q === 'number') return <span className="nng-q nng-q--num">{q}</span>;
-  return <span className="nng-q" dangerouslySetInnerHTML={{ __html: texHtml(q.exprLatex) }} />;
+function ClueItem({ q, solution }) {
+  if (q === 0 || solution) return <span className="nng-answer nng-q--num">{q}</span>;
+  return <span className="nng-answer nng-answer--blank" />;
 }
 
 function cellBorders(r, c, R, C) {
@@ -44,109 +32,114 @@ function cellBorders(r, c, R, C) {
   };
 }
 
-// Самый мелкий кегль подгонки: дальше пример уже не прочесть
-const MIN_FIT_PT = 5;
-
-/**
- * Что-то из подсказок вылезло за свою клетку (по настоящей вёрстке).
- * Сравниваются рамки элементов, а не scrollWidth: подсказки строки прижаты
- * вправо, и вылет влево scrollWidth не считает.
- */
-function overflowing(root) {
-  for (const el of root.querySelectorAll('.nng-rowclue, .nng-colclue')) {
-    const box = el.getBoundingClientRect();
-    for (const q of el.children) {
-      const r = q.getBoundingClientRect();
-      if (r.left < box.left - 0.5 || r.right > box.right + 0.5
-        || r.top < box.top - 0.5 || r.bottom > box.bottom + 0.5) return true;
-    }
-  }
-  return false;
-}
-
-/**
- * Сетка с подсказками. `rows`/`cols` — примеры или числа; `solution` — залить картинку.
- *
- * Кегль раскладка выбирает по ОЦЕНКЕ ширины примеров; если настоящая вёрстка
- * всё же не влезла (у KaTeX свои отступы), кегль шагает вниз до `MIN_FIT_PT`.
- * Клетки при этом не меняются — меньше становятся только примеры.
- */
 function NonogramGrid({ rows, cols, layout, matrix, givens, solution = false }) {
   const R = rows.length;
   const C = cols.length;
   const { cellMm, rowZoneMm, colZoneMm } = layout;
-  const ref = useRef(null);
-  const [fit, setFit] = useState({ key: layout, pt: layout.fontPt });
-  const fontPt = fit.key === layout ? fit.pt : layout.fontPt;
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el || fit.key !== layout) { setFit({ key: layout, pt: layout.fontPt }); return; }
-    if (fontPt > MIN_FIT_PT && overflowing(el)) setFit({ key: layout, pt: Math.max(MIN_FIT_PT, fontPt - 0.25) });
-  }, [layout, fontPt, fit.key, rows, cols]);
-  const givenMap = useMemo(() => {
-    const m = new Map();
-    for (const g of givens || []) m.set(`${g.r}:${g.c}`, g.v);
-    return m;
-  }, [givens]);
-
+  const givenMap = useMemo(() => new Map((givens || []).map(g => [`${g.r}:${g.c}`, g.v])), [givens]);
   return (
     <div
-      ref={ref}
       className="nng-grid"
+      aria-label={solution ? 'Решение японского кроссворда' : 'Поле японского кроссворда'}
       style={{
         gridTemplateColumns: `${rowZoneMm}mm repeat(${C}, ${cellMm}mm)`,
-        gridTemplateRows: `${colZoneMm}mm repeat(${R}, ${cellMm}mm)`,
-        fontSize: `${fontPt}pt`,
+        gridTemplateRows: `${LABEL_MM}mm ${colZoneMm - LABEL_MM}mm repeat(${R}, ${cellMm}mm)`,
       }}
     >
+      <div />
+      {cols.map((_, c) => <div key={`label${c}`} className="nng-col-label">{columnLabel(c)}</div>)}
       <div className="nng-corner" />
       {cols.map((line, c) => (
-        <div
-          key={`c${c}`}
-          className="nng-colclue"
-          style={{ borderRightWidth: isMajorLine(c + 1, C) ? '0.35mm' : '0.2pt' }}
-        >
-          {line.length ? line.map((q, i) => <ClueItem key={i} q={q} />) : <ClueItem q={0} />}
+        <div key={`c${c}`} className="nng-colclue" aria-label={`Столбец ${columnLabel(c)}`}
+          style={{ borderRightWidth: isMajorLine(c + 1, C) ? '0.35mm' : '0.2pt' }}>
+          {line.length ? line.map((q, i) => <ClueItem key={i} q={q} solution={solution} />) : <ClueItem q={0} />}
         </div>
       ))}
       {rows.map((line, r) => (
-        <RowCells
-          key={`r${r}`}
-          r={r} R={R} C={C} line={line}
-          matrix={matrix} givenMap={givenMap} solution={solution}
-        />
+        <RowCells key={`r${r}`} r={r} R={R} C={C} line={line}
+          matrix={matrix} givenMap={givenMap} solution={solution} />
       ))}
     </div>
   );
 }
 
 function RowCells({ r, R, C, line, matrix, givenMap, solution }) {
-  const cells = [];
-  for (let c = 0; c < C; c++) {
-    const given = givenMap.get(`${r}:${c}`);
-    const fill = solution ? matrix?.[r]?.[c] : given === 1;
-    const dot = !solution && given === 0;
-    cells.push(
-      <div
-        key={c}
-        className={`nng-cell${fill ? ' nng-cell--fill' : ''}${dot ? ' nng-cell--dot' : ''}`}
-        style={cellBorders(r, c, R, C)}
-      />,
-    );
-  }
   return (
     <>
-      <div
-        className="nng-rowclue"
-        style={{ borderBottomWidth: isMajorLine(r + 1, R) ? '0.35mm' : '0.2pt' }}
-      >
-        {line.length ? line.map((q, i) => <ClueItem key={i} q={q} />) : <ClueItem q={0} />}
+      <div className="nng-rowclue" aria-label={`Строка ${r + 1}`}
+        style={{ borderBottomWidth: isMajorLine(r + 1, R) ? '0.35mm' : '0.2pt' }}>
+        <span className="nng-row-label">{r + 1}</span>
+        <span className="nng-row-answers">
+          {line.length ? line.map((q, i) => <ClueItem key={i} q={q} solution={solution} />) : <ClueItem q={0} />}
+        </span>
       </div>
-      {cells}
+      {Array.from({ length: C }, (_, c) => {
+        const given = givenMap.get(`${r}:${c}`);
+        const fill = solution ? matrix?.[r]?.[c] : given === 1;
+        const dot = !solution && given === 0;
+        return <div key={c} className={`nng-cell${fill ? ' nng-cell--fill' : ''}${dot ? ' nng-cell--dot' : ''}`}
+          style={cellBorders(r, c, R, C)} />;
+      })}
     </>
   );
 }
 
+/** Выражение не разрывается переносом; порядок подсказок задан точками с запятой. */
+function TaskGroup({ entries, side }) {
+  return (
+    <section className="nng-task-group" aria-label={side === 'rows' ? 'Примеры для строк' : 'Примеры для столбцов'}>
+      <div className="nng-task-head">{side === 'rows' ? 'Строки →' : 'Столбцы ↓'}</div>
+      {entries.map(({ line, index }) => (
+        <div className="nng-task-row" key={index} data-line={index} data-side={side}>
+          <span className="nng-task-label">{side === 'rows' ? index + 1 : columnLabel(index)}</span>
+          <div className="nng-task-expressions">
+            {line.length ? line.map((q, i) => (
+              <span className="nng-task-expression" key={i}>
+                <span className="nng-q" dangerouslySetInnerHTML={{ __html: texHtml(typeof q === 'number' ? String(q) : q.exprLatex) }} />
+                {i < line.length - 1 && <span className="nng-task-separator">;</span>}
+              </span>
+            )) : <span className="nng-empty-line">0</span>}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function tasksOverflowing(root) {
+  const box = root.getBoundingClientRect();
+  if (!box.width) return false; // jsdom / ещё не разложенный DOM
+  for (const el of root.querySelectorAll('.nng-task-group, .nng-task-expression, .nng-task-head')) {
+    const r = el.getBoundingClientRect();
+    const parent = el.classList.contains('nng-task-expression')
+      ? el.parentElement.getBoundingClientRect() : box;
+    if (r.left < parent.left - 0.5 || r.right > parent.right + 0.5 || r.bottom > box.bottom + 0.5) return true;
+  }
+  return false;
+}
+
+function TaskLists({ rows, cols, fontPt, heightMm, onOverflow }) {
+  const ref = useRef(null);
+  const key = useMemo(() => ({}), [rows, cols, fontPt, heightMm]);
+  const [fit, setFit] = useState({ key, pt: fontPt });
+  const pt = fit.key === key ? fit.pt : fontPt;
+  useLayoutEffect(() => {
+    if (fit.key !== key) { setFit({ key, pt: fontPt }); return; }
+    const overflow = tasksOverflowing(ref.current);
+    if (overflow && pt > MIN_TASK_FONT_PT) {
+      setFit({ key, pt: Math.max(MIN_TASK_FONT_PT, pt - 0.25) });
+    } else {
+      ref.current.dataset.overflow = String(overflow);
+      if (overflow) onOverflow?.();
+    }
+  }, [key, fit.key, fontPt, pt, onOverflow]);
+  return (
+    <div ref={ref} className="nng-tasks" style={{ fontSize: `${pt}pt`, height: `${heightMm}mm` }}>
+      <TaskGroup entries={rows} side="rows" />
+      <TaskGroup entries={cols} side="cols" />
+    </div>
+  );
+}
 function Head({ title, number, variantsCount, compact }) {
   const variant = variantsCount > 1 ? `Вариант ${number}` : null;
   if (compact) {
@@ -175,13 +168,17 @@ function Head({ title, number, variantsCount, compact }) {
 }
 
 export const NONOGRAM_INSTRUCTION =
-  'Вычислите примеры: ответ — сколько клеток подряд закрасить. Слева — по строке '
-  + 'слева направо, сверху — по столбцу сверху вниз. Между группами закрашенных '
-  + 'клеток — хотя бы одна пустая.';
+  'Вычислите примеры и впишите ответы у сетки. В строках 1, 2, … порядок подсказок — '
+  + 'слева направо, в столбцах A, B, … — сверху вниз. Ответ — длина группы '
+  + 'закрашенных клеток. Между группами — хотя бы одна пустая клетка.';
 
-function Puzzle({ title, number, variantsCount, variant, layout, matrix, givens, settings, sum, compact }) {
+const indexed = lines => lines.map((line, index) => ({ line, index }));
+
+function Puzzle({ title, number, variantsCount, variant, plan, block, matrix, givens, settings, sum, compact, onOverflow }) {
+  const rows = useMemo(() => indexed(variant.rows), [variant.rows]);
+  const cols = useMemo(() => indexed(variant.cols), [variant.cols]);
   return (
-    <div className="nng-block">
+    <div className="nng-block" style={{ height: `${block.slot}mm` }}>
       <Head title={title} number={number} variantsCount={variantsCount} compact={compact} />
       {settings.showInstruction && (
         <div className="nng-instr">
@@ -190,14 +187,34 @@ function Puzzle({ title, number, variantsCount, variant, layout, matrix, givens,
           {givens?.some(g => g.v === 0) && ' Клетка с точкой — пустая.'}
         </div>
       )}
-      <div className="nng-grid-wrap">
-        <NonogramGrid rows={variant.rows} cols={variant.cols} layout={layout} matrix={matrix} givens={givens} />
+      <div className={`nng-work nng-work--${plan.separate ? 'separate' : plan.placement}`}
+        style={{ height: `${block.h}mm`, gridTemplateColumns: !plan.separate && plan.placement === 'aside' ? `${plan.grid.widthMm}mm minmax(0, 1fr)` : undefined }}>
+        <div className="nng-field-grid">
+          <NonogramGrid rows={variant.rows} cols={variant.cols} layout={plan.grid} matrix={matrix} givens={givens} />
+        </div>
+        {plan.separate
+          ? <div className="nng-page-note">Примеры для этого поля — на следующих страницах.</div>
+          : <TaskLists rows={rows} cols={cols} fontPt={plan.fontPt}
+            heightMm={plan.placement === 'aside' ? block.h : block.h - plan.grid.heightMm - CONTENT_GAP_MM}
+            onOverflow={onOverflow} />}
       </div>
       {settings.showChecksum && (
         <div className="nng-foot">
           Проверьте себя: сумма ответов слева = сумма ответов сверху = <b>{sum}</b>.
         </div>
       )}
+    </div>
+  );
+}
+
+function TaskPage({ title, number, variantsCount, page, part, parts, block, compact }) {
+  return (
+    <div className="nng-block nng-block--tasks" style={{ height: `${block.slot}mm` }}>
+      <Head title={`${title} · Примеры${parts > 1 ? ` ${part}/${parts}` : ''}`}
+        number={number} variantsCount={variantsCount} compact={compact} />
+      <div className="nng-work" style={{ height: `${block.h}mm` }}>
+        <TaskLists rows={page.rows} cols={page.cols} fontPt={page.fontPt} heightMm={block.h} />
+      </div>
     </div>
   );
 }
@@ -211,36 +228,49 @@ export default function NonogramPrintLayout({
     const orientation = resolveOrientation(settings.orientation, C);
     const block = sheetBlock(settings, C);
     const clues = cluesOf(matrix);
-    const layouts = variants.map(v => layoutGrid(v.rows, v.cols, block));
-    // Ключ: числа вместо примеров, места — на всю страницу
-    const keyBlock = sheetBlock({ ...settings, perPage: 1, showInstruction: false, showChecksum: true }, C);
+    const plans = variants.map(v => layoutPuzzle(v.rows, v.cols, block, orientation));
+    const taskBlock = sheetBlock({ ...settings, showInstruction: false, showChecksum: false }, C);
+    const keyBlock = sheetBlock({ ...settings, perPage: 1, showInstruction: false, showChecksum: false }, C);
     const keyLayout = layoutGrid(clues.rows, clues.cols, keyBlock);
-    return { orientation, clues, layouts, keyLayout, sum: checksum(clues).rows };
+    return { orientation, clues, plans, block, taskBlock, keyLayout, sum: checksum(clues).rows };
   }, [matrix, variants, settings]);
-
+  // Реальная геометрия KaTeX может отличаться от оценки: переносим списки,
+  // которые не вместились даже при 8 pt, на отдельные страницы.
+  const [measuredSeparate, setMeasuredSeparate] = useState({ key: null, indices: [] });
   if (!data) return null;
   const compact = settings.perPage === 2;
   const pageCls = `nng-page nng-page--${data.orientation}`;
-  const showStudent = only !== 'key';
-  const showKey = (only === 'key') || (only == null && settings.showKey);
-
   const pages = [];
-  if (showStudent) {
+  const twice = child => <>{child}{compact && <><div className="nng-cut" />{child}</>}</>;
+  if (only !== 'key') {
     variants.forEach((variant, i) => {
-      const props = {
-        title, number: i + 1, variantsCount: variants.length, variant,
-        layout: data.layouts[i], matrix, givens, settings, sum: data.sum, compact,
-      };
+      let plan = data.plans[i];
+      if (!plan.separate && measuredSeparate.key === data && measuredSeparate.indices.includes(i)) {
+        plan = { ...plan, separate: true, grid: layoutGrid(variant.rows, variant.cols, { w: data.block.w, h: data.block.h - CONTENT_GAP_MM }) };
+      }
+      const onOverflow = () => setMeasuredSeparate(prev => {
+        const indices = prev.key === data ? prev.indices : [];
+        return indices.includes(i) ? prev : { key: data, indices: [...indices, i] };
+      });
       pages.push(
         <div key={`v${i}`} className={pageCls}>
-          <Puzzle {...props} />
-          {compact && <div className="nng-cut" />}
-          {compact && <Puzzle {...props} />}
+          {twice(<Puzzle title={title} number={i + 1} variantsCount={variants.length} variant={variant}
+            plan={plan} block={data.block} matrix={matrix} givens={givens} settings={settings}
+            sum={data.sum} compact={compact} onOverflow={onOverflow} />)}
         </div>,
       );
+      if (plan.separate) {
+        const tasks = paginateTasks(variant.rows, variant.cols, data.taskBlock);
+        tasks.forEach((page, j) => pages.push(
+          <div key={`v${i}-tasks${j}`} className={`${pageCls} nng-page--tasks`}>
+            {twice(<TaskPage title={title} number={i + 1} variantsCount={variants.length} page={page}
+              part={j + 1} parts={tasks.length} block={data.taskBlock} compact={compact} />)}
+          </div>,
+        ));
+      }
     });
   }
-  if (showKey) {
+  if (only === 'key' || (only == null && settings.showKey)) {
     pages.push(
       <div key="key" className={`${pageCls} nng-page--key`}>
         <div className="nng-head">
@@ -252,24 +282,20 @@ export default function NonogramPrintLayout({
           </div>
         </div>
         <div className="nng-grid-wrap">
-          <NonogramGrid
-            rows={data.clues.rows} cols={data.clues.cols}
-            layout={data.keyLayout} matrix={matrix} givens={givens} solution
-          />
+          <NonogramGrid rows={data.clues.rows} cols={data.clues.cols}
+            layout={data.keyLayout} matrix={matrix} givens={givens} solution />
         </div>
       </div>,
     );
   }
-
-  const rootCls = screenMode
-    ? 'nng-screen-root'
-    : `nng-print-root nng-print-root--${data.orientation}`;
-  return <div className={rootCls}>{pages}</div>;
+  return <div className={screenMode ? 'nng-screen-root' : `nng-print-root nng-print-root--${data.orientation}`}>{pages}</div>;
 }
 
-/** Хоть один вариант не уместился — предупреждение для панели. */
+/** Нехватка места под само поле; длинные списки раскладываются на отдельные страницы. */
 export function nonogramOverflow(matrix, variants, settings) {
   if (!matrix?.length || !variants?.length) return false;
-  const block = sheetBlock(settings, matrix[0].length);
-  return variants.some(v => layoutGrid(v.rows, v.cols, block).overflow);
+  const C = matrix[0].length;
+  const block = sheetBlock(settings, C);
+  const orientation = resolveOrientation(settings.orientation, C);
+  return variants.some(v => layoutPuzzle(v.rows, v.cols, block, orientation).grid.overflow);
 }
