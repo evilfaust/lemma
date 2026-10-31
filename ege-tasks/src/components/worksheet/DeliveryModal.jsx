@@ -2,6 +2,7 @@ import { Alert, Checkbox, Modal, Radio, Segmented } from 'antd';
 import { DELIVERIES, deliveryChoices } from '../../utils/lessonItems';
 import { ITEM_MODES, requiredOf } from '../../utils/homework';
 import '../workspace/calendar/lessonMaterials.css';
+import './WorkLessonLinks.css';
 
 /** Только что выбранная работа: как её получат ученики. */
 export default function DeliveryModal({ pending, setPending, busy, onOk, notice }) {
@@ -12,6 +13,7 @@ export default function DeliveryModal({ pending, setPending, busy, onOk, notice 
   const showWhen = pending.deliver !== 'paper' && pending.deliver !== 'none';
   return (
     <Modal
+      className="work-delivery-modal"
       open
       title={`Как ученики получат «${pending.title || ({ mc_test: 'Тест', geometry_work: 'Геометрия', work: 'Работа' }[pending.type] || 'Работа')}»?`}
       okText="Добавить в урок"

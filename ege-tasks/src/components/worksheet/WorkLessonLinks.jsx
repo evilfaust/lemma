@@ -7,6 +7,7 @@ import { useOptionalAuth } from '../../contexts/AuthContext';
 import { defaultDelivery, DELIVERIES, normalizeLessonItems, pickOpenSession, withDelivery } from '../../utils/lessonItems';
 import { studentFacing, withMode } from '../../utils/homework';
 import DeliveryModal from './DeliveryModal';
+import './WorkLessonLinks.css';
 
 const { Text } = Typography;
 
@@ -171,8 +172,8 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
   const visibleCandidates = candidates.filter(l => fmtLessonLabel(l).toLocaleLowerCase('ru').includes(query.trim().toLocaleLowerCase('ru')));
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-      <Text type="secondary" style={{ fontSize: 13 }}><PaperClipOutlined /> Уроки:</Text>
+    <div className="work-lesson-links">
+      <Text className="work-lesson-links-label"><PaperClipOutlined /> Уроки</Text>
       {loading && <Spin size="small" />}
       {!loading && linked.length === 0 && <Text type="secondary" style={{ fontSize: 13 }}>{isTest ? 'не прикреплён' : 'не прикреплена'}</Text>}
       {!loading && linked.map(({ lesson, item }) => (
@@ -187,12 +188,12 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
       ))}
       {canEdit && (
         <Tooltip title={`Прикрепить ${isTest ? 'тест' : 'работу'} к уроку календаря`}>
-          <Button size="small" icon={<CalendarOutlined />} onClick={openPicker} disabled={loading || !!busyId}>
+          <Button className="work-lesson-links-action" icon={<CalendarOutlined />} onClick={openPicker} disabled={loading || !!busyId}>
             Прикрепить к уроку
           </Button>
         </Tooltip>
       )}
-      <Modal title="Прикрепить к уроку" open={pickerOpen}
+      <Modal className="work-lesson-picker" title="Прикрепить к уроку" open={pickerOpen}
         onCancel={() => { if (!busyId) setPickerOpen(false); }} closable={!busyId} maskClosable={!busyId}
         footer={[<Button key="close" disabled={!!busyId} onClick={() => setPickerOpen(false)}>Закрыть</Button>]} width={600}
       >
@@ -202,10 +203,10 @@ export default function WorkLessonLinks({ workId, workTitle, materialType = 'wor
         {candidatesLoading ? <div style={{ textAlign: 'center', padding: 24 }}><Spin /></div>
           : visibleCandidates.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={query.trim() ? 'Уроки не найдены' : 'Нет доступных уроков — создайте урок в календаре'} />
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 420, overflowY: 'auto', marginTop: 12 }}>
+            : <div className="work-lesson-picker-list">
               {visibleCandidates.map(lesson => (
-                <div key={lesson.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
-                  <div style={{ flex: 1, fontSize: 13 }}>
+                <div key={lesson.id} className="work-lesson-picker-row">
+                  <div className="work-lesson-picker-info">
                     {fmtLessonLabel(lesson)}
                     {(!studentFacing(lesson.expand?.group) || lesson.hidden_from_students) && (
                       <div><Text type="secondary" style={{ fontSize: 12 }}>

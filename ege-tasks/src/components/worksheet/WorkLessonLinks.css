@@ -1,0 +1,42 @@
+.work-lesson-links {
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px 12px;
+  padding:12px 14px; margin-bottom:16px;
+  border:1px solid var(--rule-soft,#eef0f3); border-radius:var(--radius,8px);
+  background:var(--bg-sunken,#f7f8fa); color:var(--ink-3,#6b7280);
+}
+.wm-work-card-body > .work-lesson-links { margin:14px 16px 4px; }
+.work-lesson-links .work-lesson-links-label {
+  display:inline-flex; align-items:center; gap:7px; font-size:13px;
+  font-weight:600; color:var(--ink-2,#374151);
+}
+.work-lesson-links-label .anticon { color:var(--ink-3,#6b7280); }
+.work-lesson-links .work-lesson-links-action {
+  margin-left:auto; flex-shrink:0; font-size:13px; color:var(--accent,#2b4bff);
+  border-color:var(--rule,#e1e4ea); background:var(--bg-raised,#fff); box-shadow:none;
+}
+.work-lesson-links .ant-tag {
+  padding:5px 9px; line-height:20px; border-color:var(--rule,#e1e4ea);
+  background:var(--bg-raised,#fff); color:var(--ink-2,#374151); border-radius:var(--radius-sm,6px);
+}
+.work-lesson-links .ant-tag-close-icon { margin-left:10px; flex-shrink:0; }
+.work-lesson-picker-list {
+  display:flex; flex-direction:column; gap:8px; max-height:min(420px,52vh);
+  overflow-y:auto; margin-top:16px;
+}
+.work-lesson-picker-row {
+  display:flex; align-items:center; gap:16px; padding:12px 14px;
+  border:1px solid var(--rule-soft,#eef0f3); border-radius:var(--radius,8px);
+  background:var(--bg-raised,#fff); transition:border-color .15s,background .15s;
+}
+.work-lesson-picker-row:hover { border-color:var(--accent,#2b4bff); background:var(--accent-soft,#eef2ff); }
+.work-lesson-picker-info { flex:1; min-width:0; font-size:13px; line-height:1.6; color:var(--ink,#111827); overflow-wrap:anywhere; }
+.work-lesson-picker-row > .ant-btn { flex-shrink:0; box-shadow:none; }
+.work-delivery-modal .lm-choice-item { border-color:var(--rule,#e1e4ea); padding:12px; background:var(--bg-raised,#fff); color:var(--ink,#111827); }
+.work-delivery-modal .lm-choice-item.ant-radio-wrapper-checked { border-color:var(--accent,#2b4bff); background:var(--accent-soft,#eef2ff); }
+.work-delivery-modal .lm-choice-hint { color:var(--ink-3,#6b7280); line-height:1.5; margin-top:3px; }
+@media(max-width:767.98px) {
+  .wm-work-card-body > .work-lesson-links { margin:12px 12px 4px; }
+  .work-lesson-links { padding:12px; gap:10px; }
+  .work-lesson-links .work-lesson-links-action { width:100%; margin-left:0; }
+  .work-lesson-picker-row { gap:10px; padding:10px; }
+}

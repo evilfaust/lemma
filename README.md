@@ -1,6 +1,6 @@
 # Lemma — платформа для учителя математики
 
-[![Version](https://img.shields.io/badge/version-3.9.419-blue.svg)](./CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-3.9.420-blue.svg)](./CHANGELOG.md)
 [![Stack](https://img.shields.io/badge/stack-React%2018%20%2B%20PocketBase-green.svg)]()
 [![Tests](https://img.shields.io/badge/tests-436%20passing-brightgreen.svg)]()
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](./LICENSE)
