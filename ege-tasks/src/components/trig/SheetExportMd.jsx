@@ -21,10 +21,10 @@ const { TextArea } = Input;
  *
  * @param {object} snapshot — { generator, title, tasksData, layout, instruction }
  */
-export function SheetExportMd({ snapshot, hasData }) {
+export function SheetExportMd({ snapshot, hasData, defaultFormat = 'compact' }) {
   const { message } = App.useApp();
   const [open, setOpen] = useState(false);
-  const [format, setFormat] = useState('compact');
+  const [format, setFormat] = useState(defaultFormat);
   const [withAnswers, setWithAnswers] = useState(true);
   const [onlyFirstVariant, setOnlyFirstVariant] = useState(false);
 
@@ -141,8 +141,8 @@ export function SheetExportMd({ snapshot, hasData }) {
             <Alert
               type="warning"
               showIcon
-              message={`«Импорт работы» разбирает не больше ${WORK_MD_MAX_VARIANTS} вариантов`}
-              description="Лишние варианты в файле останутся, но при импорте о них будет предупреждение — выгрузите вариант 1 или разложите лист на несколько файлов."
+              message={`В файле больше ${WORK_MD_MAX_VARIANTS} вариантов`}
+              description="«Импорт работы» покажет предупреждение. Все варианты из файла будут доступны в мастере импорта."
             />
           )}
 

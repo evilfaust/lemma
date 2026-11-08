@@ -12,6 +12,9 @@ import { CATEGORY_LABELS_GRAPH, makeGraphTask, MATCH_LETTERS } from './derivativ
 import { CATEGORY_LABELS_CHART, CATEGORY_GROUPS_CHART, makeChartTask } from './chartReadingTasks';
 import { chartToSpec, emptyChartDoc } from './chartSpec';
 import { examAnswerLatex } from './oralAnswerFilter';
+import { EGE_BASE_6_TYPES, generateEgeBase6Task } from './egeBase6Tasks';
+import { EGE_BASE_1_TYPES, generateEgeBase1Task } from './egeBase1Tasks';
+import { EGE_BASE_5_TYPES, generateEgeBase5Task } from './egeBase5Tasks';
 
 export const EGE_GENERATOR_SOURCE = 'Генератор Lemma · ЕГЭ база';
 const registry = [];
@@ -76,6 +79,24 @@ for (const [i, group] of CATEGORY_GROUPS_CHART.entries()) {
     });
   }
 }
+for (const [type, { label, subtopic }] of Object.entries(EGE_BASE_6_TYPES)) {
+  registry.push({
+    id: `table:${type}`, number: 6, subtopic, label,
+    make: ({ used, usedModels }) => generateEgeBase6Task(type, usedModels, used),
+  });
+}
+for (const [type, { label, subtopic }] of Object.entries(EGE_BASE_1_TYPES)) {
+  registry.push({
+    id: `everyday:${type}`, number: 1, subtopic, label,
+    make: ({ used, usedModels }) => generateEgeBase1Task(type, usedModels, used),
+  });
+}
+for (const [type, { label, subtopic }] of Object.entries(EGE_BASE_5_TYPES)) {
+  registry.push({
+    id: `probability:${type}`, number: 5, subtopic, label,
+    make: ({ used, usedModels }) => generateEgeBase5Task(type, usedModels, used),
+  });
+}
 export const EGE_BASE_GENERATORS = registry;
 const normalize = s => String(s || '').normalize('NFKC').toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').trim();
 export function generatorsForTopic(topic, subtopics, selected = []) {
@@ -127,15 +148,15 @@ function graphStatement(task) {
   if (m) parts.push('| А | Б | В | Г |\n| --- | --- | --- | --- |\n|  |  |  |  |');
   return parts.filter(Boolean).join('\n\n');
 }
-export async function generateEgeBaseTask({ topic, subtopics, generatorId, used = new Set() }) {
+export async function generateEgeBaseTask({ topic, subtopics, generatorId, used = new Set(), usedModels = new Set() }) {
   const g = generatorsForTopic(topic, subtopics).find(g => g.id === generatorId);
   if (!g) throw new Error('Для выбранной темы и подтемы нет подходящего генератора');
   for (let i = 0; i < 160; i++) {
-    const task = await g.make();
+    const task = await g.make({ used, usedModels });
     if (!task) continue;
-    const answer = examAnswerLatex(String(task.resultLatex));
+    const answer = examAnswerLatex(String(task.answer ?? task.resultLatex));
     if (answer === null || (g.number === 7 && (!/^[1-4]{4}$/.test(answer) || new Set(answer).size !== 4))) continue;
-    const statement_md = task.question ? graphStatement(task) : `${g.instruction}:\n\n$${task.exprLatex}$.`;
+    const statement_md = task.statement_md ?? (task.question ? graphStatement(task) : `${g.instruction}:\n\n$${task.exprLatex}$.`);
     if (!statement_md || used.has(statement_md)) continue;
     used.add(statement_md);
     return {

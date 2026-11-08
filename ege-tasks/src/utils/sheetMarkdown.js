@@ -23,8 +23,7 @@ export const SHEET_MD_FORMATS = [
   { value: 'work',    label: 'Для импорта в Lemma' },
 ];
 
-// Больше вариантов «Импорт работы» не разбирает (MAX_VARIANTS в
-// workImportFormat.js) — предупреждаем об этом в модалке экспорта.
+// Свыше этого числа парсер «Импорта работы» выводит предупреждение.
 export const WORK_MD_MAX_VARIANTS = 4;
 
 // Контекст тем при импорте обратно в банк (`topics.exam_type`). Тригонометрия
@@ -51,6 +50,9 @@ const EXAM_TYPE_BY_GENERATOR = {
   trig_basics:             'trig',   // первая часть профиля: вычисления и преобразования
   trig_mixed:              'trig',
   chart_reading:           'ege_base',
+  table_choice:            'ege_base',
+  everyday_math:           'ege_base',
+  probability:             'ege_base',
 };
 
 // Чем заканчивается строка задания на листе — тем же правилом собирается ответ:
@@ -79,6 +81,9 @@ const PROMPT_BY_GENERATOR = {
   // проверяется ученик, если задание уедет в работу.
   graph_derivative:        'plain',
   chart_reading:           'plain',
+  table_choice:            'plain',
+  everyday_math:           'plain',
+  probability:             'plain',
 };
 
 /**
@@ -136,6 +141,8 @@ export function texInline(latex) {
  * в текст по-прежнему не переносятся.
  */
 export function taskStatement(task) {
+  const statement = String(task?.statement_md ?? '').trim();
+  if (statement) return statement;
   const expr = statementLatexOf(task).trim();
   if (expr) return texInline(expr);
   const question = String(task?.question ?? '').trim();
@@ -193,7 +200,7 @@ function figureGallery(plots) {
  * «x ∈ ℝ» переменную перед собой не хотят).
  */
 export function taskAnswer(task, prompt) {
-  const ans = String(task?.resultLatex ?? '').trim();
+  const ans = String(task?.resultLatex ?? task?.answer ?? '').trim();
   if (!ans) return '—';
   if (prompt === 'plain') {
     // Ответ по графику — число: «0,5», а не «$0{,}5$» (в KaTeX запятая берётся
@@ -351,9 +358,11 @@ const yamlValue = (s) => {
 };
 
 function buildWork(sheet, { withAnswers, topic }) {
+  const meta = getSheetGenerator(sheet.generator);
+  const workTopic = topic || meta?.workTopic;
   const out = ['---', `работа: ${yamlValue(sheet.title)}`];
   out.push(`контекст: ${sheetExamType(sheet.generator, sheet)}`);
-  if (topic) out.push(`тема: ${yamlValue(topic)}`);
+  if (workTopic) out.push(`тема: ${yamlValue(workTopic)}`);
   out.push(`источник: ${yamlValue(`Lemma, ${sheet.label}`)}`);
   out.push('---');
 
@@ -367,7 +376,8 @@ function buildWork(sheet, { withAnswers, topic }) {
         out.push('', `### ${++n}`);
         // Метастроки идут сразу под заголовком и до условия — иначе парсер
         // прочтёт «ответ:» как часть текста задачи
-        if (block.label) out.push(`подтема: ${metaValue(block.label)}`);
+        const subtopic = block.label || meta?.workSubtopic?.(item.task?.cat);
+        if (subtopic) out.push(`подтема: ${metaValue(subtopic)}`);
         if (withAnswers) out.push(`ответ: ${taskAnswer(item.task, block.prompt)}`);
         out.push('', taskStatement(item.task));
       });

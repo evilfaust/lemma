@@ -48,6 +48,7 @@ const TaskSheetGenerator = lazy(() => import('./components/OralWorksheetGenerato
 const TestWorkGenerator = lazy(() => import('./components/TestWorkGenerator'));
 const EntranceTestGenerator = lazy(() => import('./components/EntranceTestGenerator'));
 const EgeVariantGenerator = lazy(() => import('./components/EgeVariantGenerator'));
+const TextTaskGenerator = lazy(() => import('./components/text-tasks/TextTaskGenerator'));
 const EgeProfileVariantGenerator = lazy(() => import('./components/EgeProfileVariantGenerator'));
 const OgeVariantGenerator = lazy(() => import('./components/OgeVariantGenerator'));
 const TaskBank = lazy(() => import('./components/bank/TaskBank'));
@@ -253,6 +254,9 @@ export const R = {
   GRAPH_DERIVATIVE:    '/app/functions/graph-derivative',
   DERIVATIVES:         '/app/functions/derivatives',
   CHART_READING:       '/app/functions/charts',
+  TABLE_CHOICE:        '/app/text-tasks/table-choice',
+  EVERYDAY_MATH:       '/app/text-tasks/everyday-math',
+  PROBABILITY:         '/app/text-tasks/probability',
   // Теория
   THEORY:              '/app/theory',
   THEORY_NEW:          '/app/theory/articles/new',
@@ -384,6 +388,9 @@ const ROUTE_META = [
   { re: /^\/app\/functions\/graph-derivative/, menuKey: 'graph-derivative', menuGroup: 'functions', title: 'Функции — Производная и график' },
   { re: /^\/app\/functions\/derivatives/, menuKey: 'derivatives', menuGroup: 'functions', title: 'Функции — Вычисление производных' },
   { re: /^\/app\/functions\/charts/, menuKey: 'chart-reading', menuGroup: 'functions', title: 'Функции — Графики и диаграммы' },
+  { re: /^\/app\/text-tasks\/table-choice\/?$/, menuKey: 'table-choice', menuGroup: 'text-tasks', title: 'Выбор по таблице · ЕГЭ база №6' },
+  { re: /^\/app\/text-tasks\/everyday-math\/?$/, menuKey: 'everyday-math', menuGroup: 'text-tasks', title: 'Бытовые расчёты · ЕГЭ база №1' },
+  { re: /^\/app\/text-tasks\/probability\/?$/, menuKey: 'probability', menuGroup: 'text-tasks', title: 'Вероятность · ЕГЭ база №5' },
   { re: /^\/app\/theory\/print/,           menuKey: 'theory-print',     menuGroup: 'theory', title: 'Теория — Конспекты', noMargin: true },
   { re: /^\/app\/theory\/categories/,      menuKey: 'theory-categories', menuGroup: 'theory', title: 'Теория — Категории' },
   { re: /^\/app\/theory$/,                 menuKey: 'theory-browser',   menuGroup: 'theory', title: 'Теория — Библиотека' },
@@ -478,6 +485,9 @@ const MENU_KEY_PATH = {
   'graph-derivative':       R.GRAPH_DERIVATIVE,
   'derivatives':            R.DERIVATIVES,
   'chart-reading':          R.CHART_READING,
+  'table-choice':           R.TABLE_CHOICE,
+  'everyday-math':          R.EVERYDAY_MATH,
+  'probability':           R.PROBABILITY,
   'linear-systems':         R.LINEAR_SYSTEMS,
   'quadratic-systems':      R.QUADRATIC_SYSTEMS,
   'theory-browser':         R.THEORY,
@@ -503,6 +513,7 @@ const GROUP_META = {
   arith:                { label: 'Устный счёт' },
   equations:            { label: 'Уравнения' },
   functions:            { label: 'Функции' },
+  'text-tasks':         { label: 'Текстовые задачи' },
   theory:               { label: 'Теория',        path: R.THEORY },
   listki:               { label: 'Листки',        path: R.LISTKI },
   lab:                  { label: 'Лаборатория' },
@@ -858,6 +869,14 @@ function AppLayout() {
       ],
     },
     {
+      key: 'text-tasks', icon: <ProfileOutlined />, label: 'Текстовые задачи', section: 'worksheets',
+      children: [
+        { key: 'everyday-math', icon: <CalculatorOutlined />, label: 'Бытовые расчёты · ЕГЭ база №1' },
+        { key: 'probability', icon: <PercentageOutlined />, label: 'Вероятность · ЕГЭ база №5' },
+        { key: 'table-choice', icon: <ProfileOutlined />, label: 'Выбор по таблице · ЕГЭ база №6' },
+      ],
+    },
+    {
       key: 'theory', icon: <BookOutlined />, label: 'Теория', section: 'theory',
       children: [
         { key: 'theory-browser',    icon: <ReadOutlined />,    label: 'Библиотека' },
@@ -1178,6 +1197,11 @@ function App() {
               <Route path={R.GRAPH_DERIVATIVE} element={<GraphTasksGenerator />} />
               <Route path={R.DERIVATIVES} element={<DerivativesGenerator />} />
               <Route path={R.CHART_READING} element={<ChartTasksGenerator />} />
+              <Route element={<ProtectedRoute requireSection="worksheets" />}>
+                <Route path={R.EVERYDAY_MATH} element={<TextTaskGenerator key="everyday_math" generator="everyday_math" examNumber={1} />} />
+                <Route path={R.PROBABILITY} element={<TextTaskGenerator key="probability" generator="probability" examNumber={5} />} />
+                <Route path={R.TABLE_CHOICE} element={<TextTaskGenerator key="table_choice" generator="table_choice" examNumber={6} />} />
+              </Route>
 
               {/* Теория — просмотр (viewer тоже) */}
               <Route path={R.THEORY}            element={<TheoryPage />} />

@@ -30,7 +30,7 @@ const { TextArea } = Input;
 // и перейти в журнал (`workspace/journal/SheetToJournalModal`). Колонка
 // ссылается на СОХРАНЁННЫЙ лист, поэтому несохранённый сначала сохраняем.
 export function SheetStorageActions({
-  storage, hasData, generator, instruction, exportMd = true,
+  storage, hasData, generator, instruction, exportMd = true, exportMdFormat,
 }) {
   const { message } = App.useApp();
   const navigate = useNavigate();
@@ -175,6 +175,7 @@ export function SheetStorageActions({
         <SheetExportMd
           snapshot={storage.exportData ? { ...storage.exportData, instruction } : null}
           hasData={hasData}
+          defaultFormat={exportMdFormat}
         />
       )}
 

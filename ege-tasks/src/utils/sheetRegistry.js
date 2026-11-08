@@ -8,6 +8,9 @@
 // Ключи типов совпадают с `generator_type` тестов A/B/C/D (TrigMCSaveModal) —
 // один лист может дать и печатный вариант, и тест, и метка у них общая.
 
+import { EGE_BASE_6_TYPES, generateTableChoiceVariants, TABLE_CHOICE_LABELS } from './egeBase6Tasks';
+import { EGE_BASE_1_TYPES, EVERYDAY_MATH_LABELS, generateEverydayMathVariants } from './egeBase1Tasks';
+import { EGE_BASE_5_TYPES, PROBABILITY_GROUPS, PROBABILITY_LABELS, generateProbabilityVariants } from './egeBase5Tasks';
 import {
   generateOralCountingVariants,
   CATEGORY_LABELS as CL_ORAL,
@@ -243,6 +246,31 @@ export const SHEET_GENERATORS = {
     instruction: 'Рассмотрите рисунок и ответьте на вопрос:',
     categoryLabels: CATEGORY_LABELS_CHART,
     generate: generateChartVariants,
+  },
+  table_choice: {
+    label: 'Выбор по таблице · ЕГЭ база №6',
+    route: '/app/text-tasks/table-choice',
+    categoryLabels: TABLE_CHOICE_LABELS,
+    generate: generateTableChoiceVariants,
+    workTopic: 'ЕГЭ-База. №6 Выбор оптимального варианта',
+    workSubtopic: cat => EGE_BASE_6_TYPES[cat]?.subtopic,
+  },
+  everyday_math: {
+    label: 'Бытовые расчёты · ЕГЭ база №1',
+    route: '/app/text-tasks/everyday-math',
+    categoryLabels: EVERYDAY_MATH_LABELS,
+    generate: generateEverydayMathVariants,
+    workTopic: 'ЕГЭ-База. №1 Простейшие текстовые задачи',
+    workSubtopic: cat => EGE_BASE_1_TYPES[cat]?.subtopic,
+  },
+  probability: {
+    label: 'Вероятность · ЕГЭ база №5',
+    route: '/app/text-tasks/probability',
+    categoryLabels: PROBABILITY_LABELS,
+    categoryGroups: PROBABILITY_GROUPS,
+    generate: generateProbabilityVariants,
+    workTopic: 'ЕГЭ-База. №5 Начала теории вероятностей',
+    workSubtopic: cat => EGE_BASE_5_TYPES[cat]?.subtopic,
   },
 
   // ── Тригонометрия ──

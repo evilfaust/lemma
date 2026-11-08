@@ -33,6 +33,7 @@ export async function buildEgeBaseVariants({ slots, topics, subtopics, variantsC
     ...slots.map(s => s.pinnedTask?.statement_md),
     ...pools.flatMap(pool => pool.slice(0, variantsMode === 'different' ? variantsCount : 1).map(t => t.statement_md)),
   ].filter(Boolean));
+  const usedModels = new Set();
   const drafts = [];
   const count = variantsMode === 'different' ? variantsCount : 1;
   for (let vi = 0; vi < count; vi++) {
@@ -41,7 +42,7 @@ export async function buildEgeBaseVariants({ slots, topics, subtopics, variantsC
       const slot = slots[si];
       let task = slot.pinnedTask;
       if (!task && slot.source === 'generated') {
-        task = await generateEgeBaseTask({ topic: byId.get(slot.topicId), subtopics, generatorId: slot.generatorId, used });
+        task = await generateEgeBaseTask({ topic: byId.get(slot.topicId), subtopics, generatorId: slot.generatorId, used, usedModels });
       }
       task ||= pools[si][vi];
       tasks.push(task);

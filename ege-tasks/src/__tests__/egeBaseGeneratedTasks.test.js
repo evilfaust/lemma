@@ -6,14 +6,14 @@ import { parseChartSpec, docToChart } from '../utils/chartSpec';
 import { parseCoordPlot, coordPlotSvg } from '../utils/coordPlot';
 import { buildEgeBaseVariants } from '../utils/buildEgeBaseVariants';
 
-const topics = [3, 7, 14, 16, 17].map(n => ({ id: `topic${n}`, exam_type: 'ege_base', ege_number: n }));
+const topics = [1, 3, 5, 6, 7, 14, 16, 17].map(n => ({ id: `topic${n}`, exam_type: 'ege_base', ege_number: n }));
 const subtopics = [...new Map(EGE_BASE_GENERATORS.map(g => [`${g.number}:${g.subtopic}`, g])).values()]
   .map((g, i) => ({ id: `sub${i}`, topic: `topic${g.number}`, name: g.subtopic }));
 const argsFor = g => ({ topic: topics.find(t => t.ege_number === g.number), subtopics, generatorId: g.id });
 
 describe('прототипы базового ЕГЭ', () => {
   it('не подмешивает профильные производные и непроверенные тригонометрические типы', () => {
-    expect([...new Set(EGE_BASE_GENERATORS.map(g => g.number))].sort((a,b)=>a-b)).toEqual([3,7,14,16,17]);
+    expect([...new Set(EGE_BASE_GENERATORS.map(g => g.number))].sort((a,b)=>a-b)).toEqual([1,3,5,6,7,14,16,17]);
     expect(EGE_BASE_GENERATORS.filter(g => g.id.startsWith('graph:')).map(g => g.id)).toEqual([
       'graph:f_tangent_match', 'graph:f_sign_match', 'graph:b_interval_match',
       'graph:b_tangent_graphs', 'graph:b_linear_slope', 'graph:b_char_match',
@@ -47,7 +47,10 @@ describe('прототипы базового ЕГЭ', () => {
     expect(used.size).toBe(3);
   });
   it.each(CHART_CATEGORIES)('%s: chart DSL сохраняет данные и подписи', cat => {
-    const task = makeChartTask(cat); expect(task).toBeTruthy();
+    // Движок может отклонить все случайные наборы за один вызов.
+    let task = makeChartTask(cat);
+    for (let i = 0; !task && i < 20; i++) task = makeChartTask(cat);
+    expect(task).toBeTruthy();
     const {doc,errors} = parseChartSpec(generatedChartSpec(task.chart)); expect(errors).toEqual([]);
     const back=docToChart(doc), original=JSON.parse(JSON.stringify(task.chart));
     expect(back.y).toMatchObject({min:original.y.min || 0,max:original.y.max || 0,grid:original.y.grid});
@@ -63,6 +66,47 @@ const genSlot = { topicId:'topic14', source:'generated', generatorId:'decimal:tr
 function fakeApi() { let id=0; return { getTasks:vi.fn(async()=>[1,2,3].map(n=>({id:`bank${n}`,topic:'topic3',difficulty:'2'}))), createTask:vi.fn(async data=>({...data,id:`new${++id}`,code:`Б14-${id}`})) }; }
 const build = (api, extra={})=>buildEgeBaseVariants({slots:[bankSlot,genSlot],topics,subtopics,variantsCount:3,variantsMode:'different',api,...extra});
 describe('сборка и сохранение смешанного варианта',()=>{
+  it.each([
+    ['draw', 'Классическое определение вероятности'],
+    ['complement', 'Классическое определение вероятности'],
+    ['schedule', 'Классическое определение вероятности'],
+    ['opponent', 'Классическое определение вероятности'],
+    ['dice', 'Классическое определение вероятности'],
+    ['independent', 'Теоремы о вероятностях событий'],
+    ['maze', 'Теоремы о вероятностях событий'],
+  ])('подключает №5 (%s) к полному варианту с ответом через запятую', async (type, name) => {
+    const api = fakeApi();
+    const topic = topics.find(t => t.ege_number === 5);
+    const subtopic = subtopics.find(s => s.topic === topic.id && s.name === name);
+    const slot5 = { ...genSlot, topicId: topic.id, generatorId: `probability:${type}`, subtopics: [subtopic.id] };
+    const variants = await build(api, { slots: [bankSlot, slot5, genSlot] });
+    expect(variants.every(v => v.tasks[1].topic === topic.id && v.tasks[1].subtopic[0] === subtopic.id)).toBe(true);
+    expect(variants.every(v => /^0,\d{1,4}$/.test(v.tasks[1].answer))).toBe(true);
+    expect(new Set(variants.map(v => v.tasks[1].statement_md)).size).toBe(3);
+  });
+  it('сохраняет №1 в своём слоте и сопоставляет тип с выбранной подтемой', async () => {
+    const api = fakeApi();
+    const topic = topics.find(t => t.ege_number === 1);
+    const subtopic = subtopics.find(s => s.topic === topic.id && s.name === 'Округление с недостатком');
+    const slot1 = { ...genSlot, topicId: topic.id, generatorId: 'everyday:shelves', subtopics: [subtopic.id] };
+    const variants = await build(api, { slots: [slot1, bankSlot, genSlot] });
+    expect(variants.every(v => v.tasks[0].topic === topic.id && v.tasks[0].subtopic[0] === subtopic.id)).toBe(true);
+    expect(new Set(variants.map(v => v.tasks[0].statement_md)).size).toBe(3);
+  });
+  it.each(['delivery', 'tariffs', 'luggage'])('подключает №6 (%s) к полному варианту через реальную подтему', async type => {
+    const api = fakeApi();
+    const slot6 = { ...genSlot, topicId: 'topic6', generatorId: `table:${type}` };
+    const variants = await build(api, { slots: [bankSlot, slot6, genSlot] });
+    const generated = variants.map(variant => variant.tasks[1]);
+    expect(variants.map(variant => variant.tasks.map(task => task.topic))).toEqual(
+      Array.from({ length: 3 }, () => ['topic3', 'topic6', 'topic14']),
+    );
+    expect(new Set(generated.map(task => task.statement_md)).size).toBe(3);
+    for (const task of generated) {
+      expect(task.source).toContain(`table:${type}`);
+      expect(task.statement_md).toContain('| --- |');
+    }
+  });
   it('сохраняет новые задачи и порядок слотов без повторов между вариантами',async()=>{
     const api=fakeApi(),variants=await build(api); expect(api.createTask).toHaveBeenCalledTimes(3);
     expect(new Set(variants.map(v=>v.tasks[0].id)).size).toBe(3); expect(new Set(variants.map(v=>v.tasks[1].statement_md)).size).toBe(3);

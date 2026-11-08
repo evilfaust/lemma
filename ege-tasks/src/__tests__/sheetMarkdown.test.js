@@ -4,6 +4,8 @@ import {
   taskAnswer, sheetExamType, sheetPrompt,
 } from '../utils/sheetMarkdown';
 import { parseWorkMarkdown } from '../utils/workImportFormat';
+import { buildImportRows } from '../utils/workImportPlan';
+import { generateTableChoiceVariants } from '../utils/egeBase6Tasks';
 
 const task = (n, ans = `ans${n}`, extra = {}) => ({
   exprLatex: `expr${n}`, resultLatex: ans, ...extra,
@@ -151,6 +153,35 @@ describe('формат «Импорта работы»', () => {
     const md = buildSheetMarkdown(systems, { format: 'work', withAnswers: false });
     expect(md).not.toContain('ответ:');
     expect(parseWorkMarkdown(md).variants[0].tasks[0].answer).toBeFalsy();
+  });
+
+  it.each([1, 10])('импортирует лист №6 с %s вариантами, таблицами и подтемами', variantsCount => {
+    const tasksData = generateTableChoiceVariants({
+      categories: { delivery: true, tariffs: true, luggage: true },
+      questionsCount: 3,
+      variantsCount,
+    });
+    const title = 'База №6: проверочная';
+    const topicName = 'ЕГЭ-База. №6 Выбор оптимального варианта';
+    const parsed = parseWorkMarkdown(buildSheetMarkdown({ generator: 'table_choice', title, tasksData }, { format: 'work' }));
+    expect(parsed.errors).toEqual([]);
+    expect(parsed.warnings).toEqual(variantsCount > 4
+      ? ['Вариантов 10 — больше 4; проверьте разметку «## Вариант N»']
+      : []);
+    expect(parsed.work).toMatchObject({ title, examType: 'ege_base' });
+    expect(parsed.variants.map(variant => variant.number)).toEqual(tasksData.map((_, index) => index + 1));
+    expect(parsed.variants.map(variant => variant.tasks.map(({ statement_md, answer }) => ({ statement_md, answer }))))
+      .toEqual(tasksData.map(tasks => tasks.map(({ statement_md, answer }) => ({ statement_md, answer }))));
+
+    const rows = buildImportRows(parsed, {
+      topics: [{ id: 'topic6', title: topicName, exam_type: 'ege_base' }],
+      subtopics: [
+        { id: 'three', name: 'Выбор варианта из трех возможных', topic: 'topic6' },
+        { id: 'luggage', name: 'Подбор комплекта или комбинации', topic: 'topic6' },
+      ],
+    });
+    expect(rows.map(row => [row.topicId, row.subtopicId, row.newSubtopicName]))
+      .toEqual(tasksData.flatMap(() => ['three', 'three', 'luggage'].map(subtopic => ['topic6', subtopic, ''])));
   });
 });
 
