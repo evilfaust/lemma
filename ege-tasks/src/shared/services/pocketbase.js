@@ -37,8 +37,10 @@ import { schoolEventsApi } from './pb/schoolEvents.js';
 import { journalApi } from './pb/journal.js';
 import { stereoApi } from './pb/stereo.js';
 import { calendarFeedApi } from './pb/calendarFeed.js';
+import { labIntervalsApi } from './pb/labIntervals.js';
 
 export const api = {
+  ...labIntervalsApi,
   ...extrasApi,
   ...topicsApi,
   ...tasksApi,

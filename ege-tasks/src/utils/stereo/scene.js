@@ -17,10 +17,11 @@ import {
 } from './bodies';
 import {
   intersectLines, intersectLinePlane, planeFromPoints, sectionPolygon, orderPolygon,
-  affinePoint, clipPolygonBelow,
+  affinePoint, clipPolygonBelow, circumcenter, intersectLineCircle,
 } from './geometry';
 import { blocksSectionPieces } from './blocks';
 import { circlePoint, bodySurfacePoint, circlePlane } from './revolution';
+import { dimensionValue } from './dimensions';
 
 /** Плоскость-ссылка: имена точек (массив) или id шага «перпендикулярная плоскость». */
 export function isPlaneRefId(ref) {
@@ -29,7 +30,7 @@ export function isPlaneRefId(ref) {
 
 export const OP_TYPES = [
   'pointOnLine', 'pointOnFace', 'segment', 'line', 'intersect', 'trace', 'parallel', 'perp', 'perpPlane',
-  'angle', 'angleMark', 'lengthMark', 'text', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'pointOnCircle', 'pointOnBody',
+  'angle', 'angleMark', 'lengthMark', 'text', 'section', 'plane', 'fill', 'level', 'freePoint', 'sheet', 'circle', 'lineCircle', 'pointOnCircle', 'pointOnBody',
 ];
 
 /** Прямая-ссылка: пара имён точек или id операции «параллельная». */
@@ -98,6 +99,18 @@ function modelLine(model, ref) {
     return A && B && dist(A, B) > 1e-9 ? { p: A, u: sub(B, A) } : null;
   }
   return model.lines.find((l) => l.id === ref) || null;
+}
+
+// [O1] — окружность тела с центром O1; строка — id шага построения окружности.
+function circleOf(body, circles, ref) {
+  const circle = Array.isArray(ref) ? body.circles?.[ref[0]] : circles.find((c) => c.id === ref);
+  return circle?.r > 0 ? circle : null;
+}
+
+export function lineCircleHits(model, lineRef, circleRef) {
+  const line = modelLine(model, lineRef);
+  const circle = circleOf(model.body, model.circles, circleRef);
+  return line && circle ? intersectLineCircle(line, circle, model.body.size) : [];
 }
 
 /**
@@ -178,6 +191,7 @@ export function evaluateScene(scene, opts = {}) {
   const pointOrder = [];
   const lines = [];
   const polys = [];
+  const circles = [];
   const steps = [];
   const rightAngles = []; // заготовки знаков прямого угла — доводятся после журнала
   const arcs = []; // дуги углов: { id, at, u, v, step, color, count?, label?, right? }
@@ -685,6 +699,43 @@ export function evaluateScene(scene, opts = {}) {
           created.note = `Надпись: ${text}`;
           break;
         }
+        case 'circle': {
+          let c;
+          let r;
+          let e1;
+          let n;
+          if (op.center) {
+            c = pointPos(op.center);
+            const plane = op.plane ? resolvePlane(op.plane).plane : { n: { x: 0, y: 0, z: 1 }, d: c.z };
+            n = plane.n;
+            if (Math.abs(dot(n, c) - plane.d) > eps) fail('Центр окружности должен лежать в выбранной плоскости');
+            if (op.through) {
+              const a = pointPos(op.through);
+              const u = sub(a, c);
+              const off = dot(u, n);
+              if (Math.abs(off) > eps) fail('Центр и точка окружности должны лежать в одной плоскости');
+              const radial = sub(u, mul(n, off));
+              r = len(radial);
+              e1 = norm(radial);
+            } else {
+              r = dimensionValue(op.radius);
+              e1 = norm(cross(Math.abs(n.z) > 0.9 ? { x: 0, y: 1, z: 0 } : { x: 0, y: 0, z: 1 }, n));
+            }
+          } else {
+            if (op.pts?.length !== 3) fail('Выберите три точки окружности');
+            const [a, b, d] = op.pts.map(pointPos);
+            c = circumcenter(a, b, d);
+            if (!c) fail('Три точки окружности не должны лежать на одной прямой');
+            n = norm(cross(sub(b, a), sub(d, a)));
+            r = dist(a, c);
+            e1 = norm(sub(a, c));
+          }
+          if (!Number.isFinite(r) || r <= eps) fail('Радиус окружности должен быть больше нуля');
+          const circle = { c, r, e1, e2: cross(n, e1) };
+          const pts = Array.from({ length: 96 }, (_, i) => circlePoint(circle, (360 * i) / 96));
+          circles.push({ ...circle, id: opId, pts, step: stepIdx });
+          break;
+        }
         case 'pointOnCircle': {
           // Точка на окружности тела вращения (основание, экватор шара) по
           // углу: 0° — вправо, против часовой, если смотреть сверху.
@@ -716,6 +767,17 @@ export function evaluateScene(scene, opts = {}) {
         case 'sheet':
           buildSheet(op, opId, stepIdx, created, op.color);
           break;
+        case 'lineCircle': {
+          const line = resolveLine(op.ref);
+          const circle = circleOf(body, circles, op.circle);
+          if (!circle) fail('Окружность не найдена');
+          const hits = intersectLineCircle(line, circle, body.size);
+          if (!hits.length) fail('У прямой и окружности нет общих точек в пространстве');
+          const hit = (op.branch === 2 && hits[1]) || hits[0];
+          ensureCoverage(line, op.ref, hit.t, stepIdx, created, op.color);
+          addPoint(op.name, hit.point, stepIdx, created);
+          break;
+        }
         case 'intersect': {
           const L1 = resolveLine(op.l1);
           const L2 = resolveLine(op.l2);
@@ -940,6 +1002,7 @@ export function evaluateScene(scene, opts = {}) {
   const lo = { x: Infinity, y: Infinity, z: Infinity };
   const hi = { x: -Infinity, y: -Infinity, z: -Infinity };
   for (const sh of sheets) all.push(...sh.pts);
+  for (const circle of circles) all.push(...circle.pts);
   if (body.extent) all.push(...body.extent);
   if (!all.length) all.push({ x: -body.size / 2, y: 0, z: 0 }, { x: body.size / 2, y: 0, z: 0 });
   for (const P of all) {
@@ -1037,7 +1100,7 @@ export function evaluateScene(scene, opts = {}) {
   }
 
   return {
-    body, points, pointOrder, lines, polys, marks, arcs: angleArcs, lengthMarks, texts, sheets, steps, opsById, planes: planeDefs,
+    body, points, pointOrder, lines, polys, circles, marks, arcs: angleArcs, lengthMarks, texts, sheets, steps, opsById, planes: planeDefs,
     radius, viewCenter, center: body.center,
   };
 }
@@ -1069,8 +1132,10 @@ export function opPointNames(op) {
     case 'lengthMark': fromRef(op.ref); break;
     case 'text': if (op.near) out.push(op.near); break;
     case 'intersect': fromRef(op.l1); fromRef(op.l2); break;
+    case 'lineCircle': fromRef(op.ref); if (Array.isArray(op.circle)) out.push(...op.circle); break;
     case 'trace': fromRef(op.ref); fromPlane(op.plane); break;
     case 'section': case 'plane': case 'fill': out.push(...(op.pts || [])); break;
+    case 'circle': fromPlane(op.plane); out.push(...(op.pts || [])); if (op.center) out.push(op.center); if (op.through) out.push(op.through); break;
     case 'level': if (op.through) out.push(op.through); break;
     case 'pointOnCircle': case 'pointOnBody': if (op.center) out.push(op.center); break;
     case 'sheet': if (op.through) out.push(op.through); if (Array.isArray(op.pts)) out.push(...op.pts); break;
@@ -1097,9 +1162,9 @@ export function removeOpCascade(scene, opId) {
   for (let i = idx + 1; i < ops.length; i++) {
     const op = ops[i];
     const usesName = opPointNames(op).some((n) => deadNames.has(n));
-    const usesLine = [op.ref, op.l1, op.l2, op.line, op.plane, op.within]
+    const usesStep = [op.ref, op.l1, op.l2, op.line, op.plane, op.within, op.circle]
       .some((r) => typeof r === 'string' && deadIds.has(r));
-    if (usesName || usesLine) mark(op);
+    if (usesName || usesStep) mark(op);
   }
   const next = { ...scene, ops: ops.filter((o) => !deadIds.has(o.id)) };
   if (scene?.colors) next.colors = withoutKeys(scene.colors, deadNames);
@@ -1148,6 +1213,7 @@ export function renamePointInScene(scene, from, to) {
     if (o.ref) o.ref = swapRef(o.ref);
     if (o.l1) o.l1 = swapRef(o.l1);
     if (o.l2) o.l2 = swapRef(o.l2);
+    if (Array.isArray(o.circle)) o.circle = o.circle.map(swap);
     if (Array.isArray(o.plane)) o.plane = o.plane.map(swap);
     if (Array.isArray(o.within)) o.within = o.within.map(swap);
     if (o.line) o.line = swapRef(o.line);

@@ -1,14 +1,15 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Modal, Form, Select, Input, InputNumber, Button, Space, Popconfirm, Spin, Divider, Alert, Segmented, Upload, App, Tooltip, Tag, Collapse, Row, Col } from 'antd';
-import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined, ExportOutlined, TableOutlined, ReloadOutlined, ClearOutlined } from '@ant-design/icons';
-import MathRenderer from './MathRenderer';
+import { EditOutlined, SaveOutlined, DeleteOutlined, ExclamationCircleOutlined, PlusOutlined, LinkOutlined, HighlightOutlined, UploadOutlined, ScissorOutlined, CloseCircleOutlined, ExportOutlined, TableOutlined, ReloadOutlined, ClearOutlined, SettingOutlined, ThunderboltOutlined, ToolOutlined } from '@ant-design/icons';
 import TaskStatementRenderer from './TaskStatementRenderer';
+import TaskEditorPreview from './task-editor/TaskEditorPreview';
+import TaskEditorToolbar from './task-editor/TaskEditorToolbar';
+import './task-editor/taskEditor.css';
 import RefreshFromSdamgiaModal from './RefreshFromSdamgiaModal';
 import SimilarTasksPanel from './SimilarTasksPanel';
 import GeoGebraDrawingPanel from './GeoGebraDrawingPanel';
 import CropModal from './shared/CropModal';
 import LatexField from './shared/LatexField';
-import FieldInsertToolbar from './shared/FieldInsertToolbar';
 import useFieldInserts from '../hooks/useFieldInserts';
 import { generateTaskCode } from '../utils/taskCodeGenerator';
 import { oldCodesOf } from '../utils/taskCode';
@@ -61,6 +62,8 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
   const [newSubtopicName, setNewSubtopicName] = useState('');
 
   const [selectedExamType, setSelectedExamType] = useState(null);
+  const [parametersOpen, setParametersOpen] = useState(false);
+  const previewImageUrl = Form.useWatch('image_url', form);
 
   // Расширенный редактор (CodeMirror) для условия и решения — выбор учителя,
   // запоминается в localStorage. Грузится лениво, только при включении.
@@ -114,6 +117,7 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       setCriteriaOverride(null);
       setMaxScoreOverride(null);
       setReviewOverride(null);
+      setParametersOpen(!task);
     }
   }, [visible, task?.id]);
 
@@ -464,6 +468,11 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       await onSave(isCreateMode ? null : task.id, taskData);
       onClose();
     } catch (error) {
+      // Поля параметров остаются в форме, даже когда панель свёрнута.
+      // При ошибке раскрываем её, чтобы обязательные поля были доступны.
+      if (error.errorFields?.some(({ name }) => ['topic', 'difficulty'].includes(name[0]))) {
+        setParametersOpen(true);
+      }
       console.error('Error saving task:', error);
     } finally {
       setLoading(false);
@@ -623,9 +632,15 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [visible, handleEscClose]);
 
+  const attachedImageUrl = imageDeleted ? ''
+    : img.imageSource === 'drawing' ? (img.drawingImageDataUrl || api.getTaskImageUrl(task))
+    : img.imageSource === 'upload' ? (img.uploadPreviewUrl || (task?.image ? api.getTaskImageUrl(task) : ''))
+    : (previewImageUrl || '');
+
   return (
     <>
     <Modal
+      className="task-edit-modal"
       title={
         <Space wrap>
           {isCreateMode ? <PlusOutlined /> : <EditOutlined />}
@@ -641,16 +656,6 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
               <Tag>прежде: {oldCodesOf(task).join(', ')}</Tag>
             </Tooltip>
           )}
-          <Tooltip title="Подсветка LaTeX/markdown, перенос строк и поиск-замена (Ctrl+F / Ctrl+H) для условия и решения">
-            <Button
-              size="small"
-              type={codeEditor ? 'primary' : 'default'}
-              icon={<HighlightOutlined />}
-              onClick={toggleCodeEditor}
-            >
-              {codeEditor ? 'Расширенный редактор: вкл' : 'Расширенный редактор'}
-            </Button>
-          </Tooltip>
           {/* Бейджи и ссылки для задач из «Решу ЕГЭ» (часть 2) */}
           {task?.exam_part === 2 && <Tag color="purple">Часть 2</Tag>}
           {(maxScoreOverride ?? task?.max_score) != null && <Tag color="gold">{maxScoreOverride ?? task.max_score} б.</Tag>}
@@ -674,11 +679,12 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
             <Button
               size="small"
               type="default"
+              icon={<ToolOutlined />}
               loading={latexFixLoading}
               onClick={handleLatexFix}
               title="Прогнать текст задачи через LLM, чтобы починить разметку LaTeX"
             >
-              🤖 Починить LaTeX
+              Исправить LaTeX
             </Button>
           )}
           {!isCreateMode && task?.sdamgia_url && (
@@ -699,12 +705,9 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
       keyboard={false}
       width="100vw"
       style={{ top: 0, paddingBottom: 0, maxWidth: '100vw', margin: 0 }}
-      styles={{
-        content: { borderRadius: 0 },
-        body: { maxHeight: 'calc(100vh - 110px)', overflowY: 'auto', padding: '16px 24px' },
-      }}
+      styles={{ content: { borderRadius: 0 } }}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div className="task-editor-footer">
           {!isCreateMode ? (
             <Space>
               <Popconfirm
@@ -736,469 +739,441 @@ const TaskEditModal = ({ task, visible, onClose, onSave, onDelete, allTags = [],
     >
       {!isCreateMode && (
         <Alert
+          className="task-editor-warning"
           type="warning"
           showIcon
           message="Изменения будут применены ко всем работам, где используется эта задача."
-          style={{ marginBottom: 16 }}
         />
       )}
-      <Form form={form} layout="vertical">
-       <Row gutter={[16, 0]}>
-        {/* Уровень сложности */}
-        <Col xs={24} sm={12} lg={6}>
-        <Form.Item name="difficulty" label="Уровень сложности" rules={[{ required: true, message: 'Выберите уровень сложности' }]}>
-          <Select>
-            <Option value="1">1 - Базовый</Option>
-            <Option value="2">2 - Средний</Option>
-            <Option value="3">3 - Повышенный</Option>
-            <Option value="4">4 - Высокий</Option>
-            <Option value="5">5 - Олимпиадный</Option>
-          </Select>
-        </Form.Item>
-        </Col>
-
-        {/* Контекст */}
-        <Col xs={24} sm={12} lg={6}>
-        <Form.Item label="Контекст">
-          <Select
-            placeholder="Все темы"
-            allowClear
-            value={selectedExamType}
-            onChange={(val) => {
-              setSelectedExamType(val || null);
-              form.setFieldsValue({ topic: undefined, subtopic: undefined });
-              setSelectedTopic(null);
-              setFilteredSubtopics([]);
-            }}
-          >
-            {EXAM_TYPE_OPTIONS.map(o => (
-              <Option key={o.value} value={o.value}>{o.label}</Option>
-            ))}
-          </Select>
-        </Form.Item>
-        </Col>
-
-        {/* Тема — широкая колонка: длинные названия (v3.9.399) */}
-        <Col xs={24} lg={12}>
-        <Form.Item name="topic" label="Тема" rules={[{ required: true, message: 'Выберите тему' }]}>
-          <Select
-            placeholder="Выберите тему"
-            optionFilterProp="children"
-            onChange={handleTopicChange}
-            {...TOPIC_SELECT}
-            dropdownRender={(menu) => (
-              <>
-                {menu}
-                <Divider style={{ margin: '8px 0' }} />
-                <div style={{ padding: '0 8px 8px' }}>
-                  <Space style={{ display: 'flex' }}>
-                    {(selectedExamType === 'ege_base' || selectedExamType === 'ege_profile' || !selectedExamType) && (
-                      <InputNumber placeholder="№ ЕГЭ" min={0} style={{ width: 100 }} value={newTopicNumber} onChange={setNewTopicNumber} />
-                    )}
-                    <Input placeholder="Новая тема" value={newTopicTitle} onChange={(e) => setNewTopicTitle(e.target.value)} />
-                    <Button type="text" icon={<PlusOutlined />} loading={creatingTopic} onClick={handleCreateTopic}>Добавить</Button>
-                  </Space>
+      <Form form={form} layout="vertical" className="task-editor-form">
+        <div className="task-editor-parameters-bar">
+          <Form.Item noStyle shouldUpdate>
+            {() => {
+              const values = form.getFieldsValue();
+              const subtopic = subtopics.find(item => item.id === values.subtopic);
+              const context = EXAM_TYPE_OPTIONS.find(item => item.value === selectedExamType);
+              return (
+                <div className="task-editor-summary">
+                  {context && <Tag color="blue">{context.label}</Tag>}
+                  {selectedTopic ? <Tag>{topicOptionLabel(selectedTopic)}</Tag> : <span className="task-editor-muted">Выберите тему задачи</span>}
+                  {subtopic && <Tag>{subtopic.name}</Tag>}
+                  {values.difficulty && <Tag>Сложность {values.difficulty}</Tag>}
                 </div>
-              </>
-            )}
-          >
-            {filteredTopicsList.map(topic => (
-              <Option key={topic.id} value={topic.id}>{topicOptionLabel(topic)}</Option>
-            ))}
-          </Select>
-        </Form.Item>
-        </Col>
-
-        {/* Подтема */}
-        <Col xs={24} lg={12}>
-        <Form.Item name="subtopic" label="Подтема">
-          <Select
-            placeholder="Выберите подтему"
-            allowClear
-            optionFilterProp="children"
-            disabled={!form.getFieldValue('topic')}
-            {...TOPIC_SELECT}
-            dropdownRender={(menu) => (
-              <>
-                {menu}
-                <Divider style={{ margin: '8px 0' }} />
-                <div style={{ padding: '0 8px 8px' }}>
-                  <Space style={{ display: 'flex' }}>
-                    <Input placeholder="Новая подтема" value={newSubtopicName} onChange={(e) => setNewSubtopicName(e.target.value)} />
-                    <Button type="text" icon={<PlusOutlined />} loading={creatingSubtopic} onClick={handleCreateSubtopic} disabled={!form.getFieldValue('topic')}>Добавить</Button>
-                  </Space>
-                </div>
-              </>
-            )}
-          >
-            {filteredSubtopics.map(st => (
-              <Option key={st.id} value={st.id}>{st.name}</Option>
-            ))}
-          </Select>
-        </Form.Item>
-        </Col>
-
-        {/* Источник */}
-        <Col xs={24} sm={12} lg={8}>
-        <Form.Item name="source" label="Источник">
-          <Select placeholder="Выберите или введите источник" allowClear showSearch mode="tags" maxTagCount={1}>
-            {allSources.map(s => (<Option key={s} value={s}>{s}</Option>))}
-          </Select>
-        </Form.Item>
-        </Col>
-
-        {/* Год */}
-        <Col xs={24} sm={12} lg={4}>
-        <Form.Item name="year" label="Год">
-          <Select placeholder="Выберите год" allowClear showSearch>
-            {allYears.map(y => (<Option key={y} value={y}>{y}</Option>))}
-          </Select>
-        </Form.Item>
-        </Col>
-
-        {/* Теги */}
-        <Col xs={24} sm={24} lg={12}>
-        <Form.Item name="tags" label="Теги" help="Введите название нового тега и нажмите Enter для создания">
-          <Select
-            mode="tags"
-            placeholder="Выберите или создайте теги"
-            allowClear
-            showSearch
-            loading={creatingTag}
-            optionFilterProp="children"
-            onSelect={async (value) => {
-              const isExistingTag = tags.some(t => t.id === value);
-              if (!isExistingTag) {
-                const newTagId = await handleCreateTag(value);
-                const currentTags = form.getFieldValue('tags') || [];
-                if (newTagId) {
-                  form.setFieldValue('tags', currentTags.map(t => t === value ? newTagId : t));
-                } else {
-                  form.setFieldValue('tags', currentTags.filter(t => t !== value));
-                }
-              }
+              );
             }}
-          >
-            {tags.map(tag => (<Option key={tag.id} value={tag.id}>{tag.title}</Option>))}
-          </Select>
-        </Form.Item>
-        </Col>
-       </Row>
+          </Form.Item>
+          <Button icon={<SettingOutlined />} onClick={() => setParametersOpen(open => !open)}
+            aria-expanded={parametersOpen} aria-controls="task-editor-parameters">
+            Параметры
+          </Button>
+        </div>
+        <div id="task-editor-parameters" className="task-editor-parameters" hidden={!parametersOpen}>
+          <Row gutter={[16, 0]}>
+            {/* Уровень сложности */}
+            <Col xs={24} sm={12} lg={6}>
+            <Form.Item name="difficulty" label="Уровень сложности" rules={[{ required: true, message: 'Выберите уровень сложности' }]}>
+              <Select>
+                <Option value="1">1 - Базовый</Option>
+                <Option value="2">2 - Средний</Option>
+                <Option value="3">3 - Повышенный</Option>
+                <Option value="4">4 - Высокий</Option>
+                <Option value="5">5 - Олимпиадный</Option>
+              </Select>
+            </Form.Item>
+            </Col>
 
-        {/* Изображение */}
-        <Form.Item label="Изображение (опционально)">
-          {/* Индикатор текущего изображения с кнопкой удаления */}
-          {!isCreateMode && (task?.image || task?.image_url) && !imageDeleted && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-              padding: '6px 10px', background: '#f6ffed', borderRadius: 6,
-              border: '1px solid #b7eb8f', fontSize: 12,
-            }}>
-              <span style={{ color: '#52c41a', flex: 1 }}>
-                ✓ Изображение прикреплено
-                {task.image_url ? ` (ссылка)` : ` (файл)`}
-              </span>
-              <Tooltip title="Удалить изображение из задачи">
-                <Button
-                  size="small"
-                  danger
-                  icon={<CloseCircleOutlined />}
-                  onClick={() => {
-                    setImageDeleted(true);
-                    img.resetImage();
-                    form.setFieldValue('image_url', '');
-                  }}
-                >
-                  Удалить
-                </Button>
-              </Tooltip>
-            </div>
-          )}
+            {/* Контекст */}
+            <Col xs={24} sm={12} lg={6}>
+            <Form.Item label="Контекст">
+              <Select
+                placeholder="Все темы"
+                allowClear
+                value={selectedExamType}
+                onChange={(val) => {
+                  setSelectedExamType(val || null);
+                  form.setFieldsValue({ topic: undefined, subtopic: undefined });
+                  setSelectedTopic(null);
+                  setFilteredSubtopics([]);
+                }}
+              >
+                {EXAM_TYPE_OPTIONS.map(o => (
+                  <Option key={o.value} value={o.value}>{o.label}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            </Col>
 
-          {/* Уведомление о том, что изображение будет удалено */}
-          {imageDeleted && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
-              padding: '6px 10px', background: '#fff1f0', borderRadius: 6,
-              border: '1px solid #ffa39e', fontSize: 12,
-            }}>
-              <span style={{ color: '#ff4d4f', flex: 1 }}>
-                ✕ Изображение будет удалено при сохранении
-              </span>
-              <Button
-                size="small"
-                onClick={() => {
-                  setImageDeleted(false);
-                  // Восстанавливаем исходный режим
-                  if (task?.image && !task?.image_url) {
-                    img.setImageSource('upload');
-                  } else {
-                    img.setImageSource('url');
-                    form.setFieldValue('image_url', task?.image_url || '');
+            {/* Тема — широкая колонка: длинные названия (v3.9.399) */}
+            <Col xs={24} lg={12}>
+            <Form.Item name="topic" label="Тема" rules={[{ required: true, message: 'Выберите тему' }]}>
+              <Select
+                placeholder="Выберите тему"
+                optionFilterProp="children"
+                onChange={handleTopicChange}
+                {...TOPIC_SELECT}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    <Divider style={{ margin: '8px 0' }} />
+                    <div style={{ padding: '0 8px 8px' }}>
+                      <Space style={{ display: 'flex' }}>
+                        {(selectedExamType === 'ege_base' || selectedExamType === 'ege_profile' || !selectedExamType) && (
+                          <InputNumber placeholder="№ ЕГЭ" min={0} style={{ width: 100 }} value={newTopicNumber} onChange={setNewTopicNumber} />
+                        )}
+                        <Input placeholder="Новая тема" value={newTopicTitle} onChange={(e) => setNewTopicTitle(e.target.value)} />
+                        <Button type="text" icon={<PlusOutlined />} loading={creatingTopic} onClick={handleCreateTopic}>Добавить</Button>
+                      </Space>
+                    </div>
+                  </>
+                )}
+              >
+                {filteredTopicsList.map(topic => (
+                  <Option key={topic.id} value={topic.id}>{topicOptionLabel(topic)}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            </Col>
+
+            {/* Подтема */}
+            <Col xs={24} lg={12}>
+            <Form.Item name="subtopic" label="Подтема">
+              <Select
+                placeholder="Выберите подтему"
+                allowClear
+                optionFilterProp="children"
+                disabled={!form.getFieldValue('topic')}
+                {...TOPIC_SELECT}
+                dropdownRender={(menu) => (
+                  <>
+                    {menu}
+                    <Divider style={{ margin: '8px 0' }} />
+                    <div style={{ padding: '0 8px 8px' }}>
+                      <Space style={{ display: 'flex' }}>
+                        <Input placeholder="Новая подтема" value={newSubtopicName} onChange={(e) => setNewSubtopicName(e.target.value)} />
+                        <Button type="text" icon={<PlusOutlined />} loading={creatingSubtopic} onClick={handleCreateSubtopic} disabled={!form.getFieldValue('topic')}>Добавить</Button>
+                      </Space>
+                    </div>
+                  </>
+                )}
+              >
+                {filteredSubtopics.map(st => (
+                  <Option key={st.id} value={st.id}>{st.name}</Option>
+                ))}
+              </Select>
+            </Form.Item>
+            </Col>
+
+            {/* Источник */}
+            <Col xs={24} sm={12} lg={8}>
+            <Form.Item name="source" label="Источник">
+              <Select placeholder="Выберите или введите источник" allowClear showSearch mode="tags" maxTagCount={1}>
+                {allSources.map(s => (<Option key={s} value={s}>{s}</Option>))}
+              </Select>
+            </Form.Item>
+            </Col>
+
+            {/* Год */}
+            <Col xs={24} sm={12} lg={4}>
+            <Form.Item name="year" label="Год">
+              <Select placeholder="Выберите год" allowClear showSearch>
+                {allYears.map(y => (<Option key={y} value={y}>{y}</Option>))}
+              </Select>
+            </Form.Item>
+            </Col>
+
+            {/* Теги */}
+            <Col xs={24} sm={24} lg={12}>
+            <Form.Item name="tags" label="Теги" help="Введите название нового тега и нажмите Enter для создания">
+              <Select
+                mode="tags"
+                placeholder="Выберите или создайте теги"
+                allowClear
+                showSearch
+                loading={creatingTag}
+                optionFilterProp="children"
+                onSelect={async (value) => {
+                  const isExistingTag = tags.some(t => t.id === value);
+                  if (!isExistingTag) {
+                    const newTagId = await handleCreateTag(value);
+                    const currentTags = form.getFieldValue('tags') || [];
+                    if (newTagId) {
+                      form.setFieldValue('tags', currentTags.map(t => t === value ? newTagId : t));
+                    } else {
+                      form.setFieldValue('tags', currentTags.filter(t => t !== value));
+                    }
                   }
                 }}
               >
-                Отменить
-              </Button>
-            </div>
-          )}
-
-          <Segmented
-            value={img.imageSource}
-            onChange={img.setImageSource}
-            options={[
-              { value: 'url', label: 'По ссылке', icon: <LinkOutlined /> },
-              { value: 'upload', label: 'Загрузить', icon: <UploadOutlined /> },
-              { value: 'drawing', label: 'Нарисовать', icon: <HighlightOutlined /> },
-            ]}
-            style={{ marginBottom: 12 }}
-          />
-
-          {img.imageSource === 'url' && (
-            <Form.Item name="image_url" noStyle>
-              <Input placeholder="https://example.com/image.png" />
+                {tags.map(tag => (<Option key={tag.id} value={tag.id}>{tag.title}</Option>))}
+              </Select>
             </Form.Item>
-          )}
-
-          {img.imageSource === 'upload' && (
-            <div>
-              {(img.uploadPreviewUrl || (task?.image && !img.uploadedFile)) && (
-                <div style={{ marginBottom: 12, border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, textAlign: 'center' }}>
-                  <img
-                    src={img.uploadPreviewUrl || api.getTaskImageUrl(task)}
-                    alt="Изображение"
-                    style={{ maxWidth: '100%', maxHeight: 200, display: 'block', margin: '0 auto' }}
-                  />
-                </div>
-              )}
-              <Space wrap>
-                <Upload
-                  accept="image/*"
-                  maxCount={1}
-                  showUploadList={false}
-                  beforeUpload={(file) => {
-                    img.setUploadedFile(file);
-                    const reader = new FileReader();
-                    reader.onload = (e) => img.setUploadPreviewUrl(e.target.result);
-                    reader.readAsDataURL(file);
-                    return false;
-                  }}
-                >
-                  <Button icon={<UploadOutlined />}>Выбрать файл</Button>
-                </Upload>
-                <Button
-                  icon={<ScissorOutlined />}
-                  disabled={!img.uploadPreviewUrl}
-                  onClick={() => img.setCropModalOpen(true)}
-                >
-                  Обрезать
-                </Button>
-              </Space>
-              {img.uploadedFile && (
-                <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>{img.uploadedFile.name}</div>
-              )}
-            </div>
-          )}
-
-          {img.imageSource === 'drawing' && (
-            <>
-              {task?.image && !img.drawingImageDataUrl && (
-                <div style={{ marginBottom: 12, border: '1px solid #e8e8e8', borderRadius: 8, padding: 8, textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, color: '#888', marginBottom: 4 }}>Текущий чертёж:</div>
-                  <img
-                    src={api.getTaskImageUrl(task)}
-                    alt="Текущий чертёж"
-                    style={{ maxWidth: '100%', maxHeight: 150, display: 'block', margin: '0 auto' }}
-                  />
-                </div>
-              )}
-              <GeoGebraDrawingPanel
-                imageDataUrl={img.drawingImageDataUrl}
-                onImageChange={img.setDrawingImageDataUrl}
-              />
-            </>
-          )}
-        </Form.Item>
-
-        {/* Текст задания */}
-        <Form.Item
-          name="statement_md"
-          label={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              Текст задания (поддерживает LaTeX: $x^2$)
-              <Tooltip title="Быстрое преобразование алгоритмом — мгновенно, без сети">
-                <Button
-                  size="small"
-                  icon={<TableOutlined />}
-                  onClick={handleConvertHeuristic}
-                  style={{ fontWeight: 400 }}
-                >
-                  → Таблица
-                </Button>
+            </Col>
+          </Row>
+        </div>
+        <div className="task-editor-columns">
+          <section className="task-editor-content" aria-label="Редактирование содержимого">
+            <div className="task-editor-section-heading">
+              <h3>Содержание</h3>
+              <Tooltip title="Код — подсветка LaTeX/markdown, поиск и замена Ctrl+F / Ctrl+H">
+                <Segmented
+                  value={fieldMode}
+                  onChange={toggleCodeEditor}
+                  options={[{ value: 'plain', label: 'Текст' }, { value: 'code', label: 'Код' }]}
+                />
               </Tooltip>
-              {aiEnabled && (
-                <Tooltip title="Преобразование через AI — медленнее, но справляется с нестандартными форматами">
+            </div>
+            {/* Текст задания */}
+            <Form.Item
+              name="statement_md"
+              label={
+                <span className="task-editor-field-label">
+                  <span className="task-editor-field-title">Условие</span>
+                  <TaskEditorToolbar
+                    tools={inserts} field="statement_md" rootsLabel="условие" label="Инструменты условия"
+                    conversions={(
+                      <>
+                        <Tooltip title="Распознать таблицу из выделенного текста или всего условия. Мгновенно, без сети">
+                          <Button size="small" type="text" icon={<TableOutlined />} onClick={handleConvertHeuristic}>
+                            Текст в таблицу
+                          </Button>
+                        </Tooltip>
+                        {aiEnabled && (
+                          <Tooltip title="Распознать таблицу из текста с помощью ИИ — для нестандартных форматов">
+                            <Button size="small" type="text" className="task-editor-tool-ai" icon={<ThunderboltOutlined />}
+                              loading={convertingTable} onClick={handleConvertAI}>
+                              Таблица с ИИ
+                            </Button>
+                          </Tooltip>
+                        )}
+                      </>
+                    )}
+                    extraProcessing={(
+                      <Tooltip title="Исправить разметку корней сразу в ответе и решении. Мгновенно, без сети">
+                        <Button size="small" type="text" icon={<ClearOutlined />}
+                          onClick={() => inserts.fixRootsIn(['answer', 'solution_md'], 'ответ+решение')}>
+                          Корни: ответ и решение
+                        </Button>
+                      </Tooltip>
+                    )}
+                  />
+                </span>
+              }
+              rules={[{ required: isCreateMode, message: 'Введите текст задания' }]}
+            >
+              <LatexField
+                ref={statementTextAreaRef}
+                mode={fieldMode}
+                rows={4}
+                placeholder="Введите текст задания..."
+                onTextChange={setPreviewStatement}
+                onCaret={inserts.onCaret('statement_md')}
+                onImageFiles={inserts.onImageFiles('statement_md')}
+              />
+            </Form.Item>
+
+            {/* Изображение */}
+            <Form.Item label="Рисунок к условию" className="task-editor-image-field">
+              {attachedImageUrl && (
+                <div className="task-editor-attachment">
+                  <img src={attachedImageUrl} alt="Прикреплённый рисунок" />
+                  <span className="task-editor-attachment-name">
+                    {img.uploadedFile?.name || 'Изображение прикреплено'}
+                  </span>
+                  <Tooltip title="Удалить изображение из задачи">
+                    <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => {
+                      setImageDeleted(true);
+                      img.resetImage();
+                      form.setFieldValue('image_url', '');
+                    }}>Удалить</Button>
+                  </Tooltip>
+                </div>
+              )}
+
+              {/* Уведомление о том, что изображение будет удалено */}
+              {imageDeleted && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10,
+                  padding: '6px 10px', background: '#fff1f0', borderRadius: 6,
+                  border: '1px solid #ffa39e', fontSize: 12,
+                }}>
+                  <span style={{ color: '#ff4d4f', flex: 1 }}>
+                    ✕ Изображение будет удалено при сохранении
+                  </span>
                   <Button
                     size="small"
-                    icon={<TableOutlined />}
-                    loading={convertingTable}
-                    onClick={handleConvertAI}
-                    style={{ fontWeight: 400 }}
+                    onClick={() => {
+                      setImageDeleted(false);
+                      // Восстанавливаем исходный режим
+                      if (task?.image && !task?.image_url) {
+                        img.setImageSource('upload');
+                      } else {
+                        img.setImageSource('url');
+                        form.setFieldValue('image_url', task?.image_url || '');
+                      }
+                    }}
                   >
-                    → Таблица (AI)
+                    Отменить
                   </Button>
-                </Tooltip>
+                </div>
               )}
-              <FieldInsertToolbar tools={inserts} field="statement_md" rootsLabel="условие" />
-              <Tooltip title="Чинит битые корни сразу в полях «Ответ» и «Решение».">
-                <Button
-                  size="small"
-                  icon={<ClearOutlined />}
-                  onClick={() => inserts.fixRootsIn(['answer', 'solution_md'], 'ответ+решение')}
-                  style={{ fontWeight: 400 }}
-                >
-                  🧹 Ответ+решение
-                </Button>
-              </Tooltip>
-            </span>
-          }
-          rules={[{ required: isCreateMode, message: 'Введите текст задания' }]}
-        >
-          <LatexField
-            ref={statementTextAreaRef}
-            mode={fieldMode}
-            rows={4}
-            placeholder="Введите текст задания..."
-            onTextChange={setPreviewStatement}
-            onCaret={inserts.onCaret('statement_md')}
-            onImageFiles={inserts.onImageFiles('statement_md')}
-          />
-        </Form.Item>
 
-        {previewStatement && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#f5f5f5', borderRadius: 4, border: '1px solid #d9d9d9' }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр задания:</div>
-            {/* task-statement — те же рамки картинок, что в карточке задачи */}
-            <div className="task-statement">
-              <TaskStatementRenderer text={previewStatement} images={taskImages.condition} answerBoxes />
-            </div>
-          </div>
-        )}
+              <Segmented
+                value={img.imageSource}
+                onChange={img.setImageSource}
+                options={[
+                  { value: 'url', label: 'По ссылке', icon: <LinkOutlined /> },
+                  { value: 'upload', label: 'Загрузить', icon: <UploadOutlined /> },
+                  { value: 'drawing', label: 'Нарисовать', icon: <HighlightOutlined /> },
+                ]}
+                style={{ marginBottom: 12 }}
+              />
 
-        {/* Ответ */}
-        <Form.Item
-          name="answer"
-          label={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              Ответ (поддерживает LaTeX)
-              <Tooltip title="Чинит битые корни в этом поле. Мгновенно, без сети.">
-                <Button
-                  size="small"
-                  icon={<ClearOutlined />}
-                  onClick={() => inserts.fixRootsIn(['answer'], 'ответ')}
-                  style={{ fontWeight: 400 }}
-                >
-                  🧹 Корни
-                </Button>
-              </Tooltip>
-            </span>
-          }
-        >
-          <Input placeholder="Введите ответ..." onChange={(e) => setPreviewAnswer(e.target.value)} />
-        </Form.Item>
+              {img.imageSource === 'url' && (
+                <Form.Item name="image_url" noStyle>
+                  <Input placeholder="https://example.com/image.png" onChange={() => setImageDeleted(false)} />
+                </Form.Item>
+              )}
 
-        {previewAnswer && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#e6f7ff', borderRadius: 4, border: '1px solid #91d5ff' }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр ответа:</div>
-            <MathRenderer text={previewAnswer} />
-          </div>
-        )}
-
-        {/* Решение */}
-        <Form.Item
-          name="solution_md"
-          label={
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              Решение (опционально, поддерживает LaTeX)
-              <FieldInsertToolbar tools={inserts} field="solution_md" rootsLabel="решение" />
-            </span>
-          }
-        >
-          <LatexField
-            ref={solutionTextAreaRef}
-            mode={fieldMode}
-            rows={5}
-            placeholder="Введите решение задачи..."
-            onTextChange={setPreviewSolution}
-            onCaret={inserts.onCaret('solution_md')}
-            onImageFiles={inserts.onImageFiles('solution_md')}
-          />
-        </Form.Item>
-
-        {previewSolution && (
-          <div style={{ marginBottom: 16, padding: 12, background: '#f6ffed', borderRadius: 4, border: '1px solid #b7eb8f' }}>
-            <div style={{ fontSize: 12, color: '#666', marginBottom: 8, fontWeight: 'bold' }}>Предпросмотр решения:</div>
-            <div className="task-statement">
-              <TaskStatementRenderer text={previewSolution} images={taskImages.solution} />
-            </div>
-          </div>
-        )}
-
-        {/* Критерии оценивания + max_score — только для задач части 2.
-            После LLM-fix используем criteriaOverride, до сохранения task
-            не меняется, но превью обновлено. */}
-        {(() => {
-          const currentCriteria = criteriaOverride ?? task?.criteria_md;
-          if (!currentCriteria && task?.exam_part !== 2) return null;
-          return (
-            <Collapse
-              ghost
-              style={{ marginBottom: 16 }}
-              items={[{
-                key: 'criteria',
-                label: (
-                  <Space>
-                    <strong>Критерии оценивания</strong>
-                    {(maxScoreOverride ?? task?.max_score) != null && <Tag color="gold">{maxScoreOverride ?? task.max_score} б.</Tag>}
-                    {task?.exam_part === 2 && <Tag color="purple">Часть 2</Tag>}
-                    {criteriaOverride != null && criteriaOverride !== task?.criteria_md && (
-                      <Tag color="processing">⚡ Изменено — сохраните</Tag>
-                    )}
+              {img.imageSource === 'upload' && (
+                <div>
+                  <Space wrap>
+                    <Upload
+                      accept="image/*"
+                      maxCount={1}
+                      showUploadList={false}
+                      beforeUpload={(file) => {
+                        setImageDeleted(false);
+                        img.setUploadedFile(file);
+                        const reader = new FileReader();
+                        reader.onload = (e) => img.setUploadPreviewUrl(e.target.result);
+                        reader.readAsDataURL(file);
+                        return false;
+                      }}
+                    >
+                      <Button icon={<UploadOutlined />}>Выбрать файл</Button>
+                    </Upload>
+                    <Button
+                      icon={<ScissorOutlined />}
+                      disabled={!img.uploadPreviewUrl}
+                      onClick={() => img.setCropModalOpen(true)}
+                    >
+                      Обрезать
+                    </Button>
                   </Space>
-                ),
-                children: currentCriteria ? (
-                  <div style={{ padding: 12, background: '#fffbe6', borderRadius: 4, border: '1px solid #ffe58f' }}>
-                    <TaskStatementRenderer text={currentCriteria} images={taskImages.criteria} />
-                  </div>
-                ) : (
-                  <Alert type="info" message="Критерии не загружены" />
-                ),
-              }]}
-            />
-          );
-        })()}
+                  {img.uploadedFile && (
+                    <div style={{ marginTop: 4, fontSize: 12, color: '#888' }}>{img.uploadedFile.name}</div>
+                  )}
+                </div>
+              )}
 
-        {/* Похожие задачи (sqlite-vec) — только для сохранённых задач */}
-        {!isCreateMode && task?.id && (
-          <Collapse
-            ghost
-            style={{ marginBottom: 16 }}
-            items={[{
-              key: 'similar',
-              label: <strong>🔎 Похожие задачи</strong>,
-              children: <SimilarTasksPanel taskId={task.id} />,
-            }]}
+              {img.imageSource === 'drawing' && (
+                <GeoGebraDrawingPanel
+                  imageDataUrl={img.drawingImageDataUrl}
+                  onImageChange={(data) => { setImageDeleted(false); img.setDrawingImageDataUrl(data); }}
+                />
+              )}
+            </Form.Item>
+
+            {/* Ответ */}
+            <Form.Item
+              name="answer"
+              label={
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  Ответ
+                  <Tooltip title="Чинит битые корни в этом поле. Мгновенно, без сети.">
+                    <Button
+                      size="small"
+                      type="text"
+                      className="task-editor-answer-tool"
+                      icon={<ClearOutlined />}
+                      onClick={() => inserts.fixRootsIn(['answer'], 'ответ')}
+                      style={{ fontWeight: 400 }}
+                    >
+                      Исправить корни
+                    </Button>
+                  </Tooltip>
+                </span>
+              }
+            >
+              <Input placeholder="Введите ответ..." onChange={(e) => setPreviewAnswer(e.target.value)} />
+            </Form.Item>
+
+            {/* Решение */}
+            <Form.Item
+              name="solution_md"
+              label={
+                <span className="task-editor-field-label">
+                  <span className="task-editor-field-title">Решение <span className="task-editor-optional">необязательно</span></span>
+                  <TaskEditorToolbar tools={inserts} field="solution_md" rootsLabel="решение" label="Инструменты решения" />
+                </span>
+              }
+            >
+              <LatexField
+                ref={solutionTextAreaRef}
+                mode={fieldMode}
+                rows={5}
+                placeholder="Введите решение задачи..."
+                onTextChange={setPreviewSolution}
+                onCaret={inserts.onCaret('solution_md')}
+                onImageFiles={inserts.onImageFiles('solution_md')}
+              />
+            </Form.Item>
+
+            {/* Критерии оценивания + max_score — только для задач части 2.
+                После LLM-fix используем criteriaOverride, до сохранения task
+                не меняется, но превью обновлено. */}
+            {(() => {
+              const currentCriteria = criteriaOverride ?? task?.criteria_md;
+              if (!currentCriteria && task?.exam_part !== 2) return null;
+              return (
+                <Collapse
+                  ghost
+                  style={{ marginBottom: 16 }}
+                  items={[{
+                    key: 'criteria',
+                    label: (
+                      <Space>
+                        <strong>Критерии оценивания</strong>
+                        {(maxScoreOverride ?? task?.max_score) != null && <Tag color="gold">{maxScoreOverride ?? task.max_score} б.</Tag>}
+                        {task?.exam_part === 2 && <Tag color="purple">Часть 2</Tag>}
+                        {criteriaOverride != null && criteriaOverride !== task?.criteria_md && (
+                          <Tag color="processing">⚡ Изменено — сохраните</Tag>
+                        )}
+                      </Space>
+                    ),
+                    children: currentCriteria ? (
+                      <div style={{ padding: 12, background: '#fffbe6', borderRadius: 4, border: '1px solid #ffe58f' }}>
+                        <TaskStatementRenderer text={currentCriteria} images={taskImages.criteria} />
+                      </div>
+                    ) : (
+                      <Alert type="info" message="Критерии не загружены" />
+                    ),
+                  }]}
+                />
+              );
+            })()}
+
+            {/* Похожие задачи (sqlite-vec) — только для сохранённых задач */}
+            {!isCreateMode && task?.id && (
+              <Collapse
+                ghost
+                style={{ marginBottom: 16 }}
+                items={[{
+                  key: 'similar',
+                  label: <strong>🔎 Похожие задачи</strong>,
+                  children: <SimilarTasksPanel taskId={task.id} />,
+                }]}
+              />
+            )}
+          </section>
+          <TaskEditorPreview
+            code={task?.code || generatedCode}
+            statement={previewStatement}
+            answer={previewAnswer}
+            solution={previewSolution}
+            imageUrl={attachedImageUrl}
+            images={taskImages}
           />
-        )}
-
-        {/* Подсказка по LaTeX */}
-        <div style={{ fontSize: 12, color: '#666', background: '#fff7e6', padding: 8, borderRadius: 4, border: '1px solid #ffd591' }}>
-          <strong>Примеры LaTeX:</strong><br />
-          • Степени: <code>x^2</code>, <code>a^{10}</code><br />
-          • Дроби: <code>\frac{'{'}a{'}'}{'{'} b{'}'}</code><br />
-          • Корни: <code>\sqrt{'{'}x{'}'}</code>, <code>\sqrt[3]{'{'}x{'}'}</code><br />
-          • Знаки: <code>\cdot</code> (умножение), <code>\leq</code>, <code>\geq</code><br />
-          • Скобки: <code>\left( ... \right)</code>
         </div>
       </Form>
 

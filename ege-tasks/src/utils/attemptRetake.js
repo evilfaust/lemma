@@ -13,6 +13,8 @@
  * Тесты — `__tests__/attemptRetake.test.js`.
  */
 
+import { deadlinePassed } from './sessionDeadline';
+
 export const isSubmittedAttempt = (a) => !!a && (a.status === 'submitted' || a.status === 'corrected');
 
 const pctOf = (a) => (Number(a?.total) > 0 ? (Number(a.score) || 0) / Number(a.total) : 0);
@@ -93,7 +95,7 @@ export function retakeOf(sessionId, attempts, session = null) {
   const done = mine.filter(isSubmittedAttempt);
   if (!done.length) return null;
   const sess = session || mine.find((a) => a.expand?.session)?.expand?.session || null;
-  if (sess?.is_open === false) return null;
+  if (sess?.is_open === false || deadlinePassed(sess)) return null;
   const lastDone = Math.max(...done.map(timeOf));
   const started = mine.filter((a) => a.status === 'started');
   if (started.some((a) => timeOf(a) > lastDone)) return { kind: 'issued' };
@@ -119,6 +121,6 @@ export function retakeLabel(r) {
  */
 export function sessionSettingsChanged(prev, next) {
   if (!prev || !next) return !!next && prev !== next;
-  return ['max_attempts', 'passing_score', 'is_open', 'results_hidden']
+  return ['max_attempts', 'passing_score', 'is_open', 'results_hidden', 'deadline', 'strict_deadline']
     .some((k) => (prev[k] ?? null) !== (next[k] ?? null));
 }

@@ -1,9 +1,35 @@
-import { pb, _logAudit, andOwner } from './client.js';
+import { pb, _logAudit, andOwner, currentTeacher } from './client.js';
 import { escapeFilter } from '../../utils/escapeFilter';
 
 // Учительское фло, фаза 5: API заметок (teacher_notes). body = JSON-документ BlockNote.
 // «Общие заметки»: заметка может быть свободной или привязанной к группе/дате/уроку.
 export const notesApi = {
+  async getNoteTemplates() {
+    const teacher = currentTeacher();
+    if (!teacher) throw new Error('Войдите как учитель');
+    // Личные шаблоны: даже superadmin видит здесь только свои.
+    return pb.collection('teacher_note_templates').getFullList({
+      sort: '-updated', filter: `owner = "${escapeFilter(teacher.id)}"`,
+    });
+  },
+
+  async createNoteTemplate({ title, type, body }) {
+    const teacher = currentTeacher();
+    if (!teacher || teacher.role === 'viewer') throw new Error('Недостаточно прав');
+    const record = await pb.collection('teacher_note_templates').create({
+      title, type: type || 'idea', body, owner: teacher.id,
+    });
+    _logAudit('create', 'teacher_note_templates', record.id, record.title);
+    return record;
+  },
+
+  async deleteNoteTemplate(id) {
+    const teacher = currentTeacher();
+    if (!teacher || teacher.role === 'viewer') throw new Error('Недостаточно прав для удаления');
+    await pb.collection('teacher_note_templates').delete(id);
+    _logAudit('delete', 'teacher_note_templates', id, '');
+  },
+
   async getNotes() {
     try {
       return await pb.collection('teacher_notes').getFullList({ sort: '-updated', expand: 'group', filter: andOwner() });

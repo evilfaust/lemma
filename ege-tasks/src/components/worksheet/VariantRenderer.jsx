@@ -1,5 +1,5 @@
 import { Button, Tooltip } from 'antd';
-import { EditOutlined, SwapOutlined } from '@ant-design/icons';
+import { EditOutlined, SwapOutlined, ThunderboltOutlined } from '@ant-design/icons';
 import MathRenderer from '../MathRenderer';
 import { filterTaskText } from '../../utils/filterTaskText';
 import { api } from '../../services/pocketbase';
@@ -48,6 +48,8 @@ const VariantRenderer = ({
   dragDropHandlers,
   onEditTask,
   onReplaceTask,
+  onGenerateTask,
+  canGenerateTask,
   onSetImageSize,
   onSetFigurePlacement,
   cryptogramEnabled = false,
@@ -107,6 +109,12 @@ const VariantRenderer = ({
                       onClick={() => onEditTask?.(task)}
                     />
                   </Tooltip>
+                  {onGenerateTask && canGenerateTask?.(task) && (
+                    <Tooltip title="Сгенерировать новую задачу этой темы">
+                      <Button type="text" size="small" icon={<ThunderboltOutlined />}
+                        onClick={() => onGenerateTask(variantIndex, taskIndex, task)} />
+                    </Tooltip>
+                  )}
                   <Tooltip title="Заменить задачу">
                     <Button
                       type="text"
@@ -200,6 +208,12 @@ const VariantRenderer = ({
                       onClick={() => onEditTask?.(task)}
                     />
                   </Tooltip>
+                  {onGenerateTask && canGenerateTask?.(task) && (
+                    <Tooltip title="Сгенерировать новую задачу этой темы">
+                      <Button type="text" size="small" icon={<ThunderboltOutlined />}
+                        onClick={() => onGenerateTask(variantIndex, taskIndex, task)} />
+                    </Tooltip>
+                  )}
                   <Tooltip title="Заменить задачу">
                     <Button
                       type="text"

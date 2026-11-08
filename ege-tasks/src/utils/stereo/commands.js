@@ -436,6 +436,13 @@ function parseSheet(text) {
 }
 
 const OP_RE = '(?:∩|×|\\^|(?<![A-Za-z0-9])[xх](?![A-Za-z0-9])|пересеч[а-яё]*(?:\\s+с)?)';
+const circleStepIds = (opsById = {}) => Object.keys(opsById).filter((id) => opsById[id].type === 'circle');
+
+function circleRefText(ref, opsById, pointName = (name) => name) {
+  if (Array.isArray(ref)) return `окр(${pointName(ref[0])})`;
+  const index = circleStepIds(opsById).indexOf(ref);
+  return index < 0 ? '' : `окр(#${index + 1})`;
+}
 
 /**
  * Разбирает команду в операцию.
@@ -455,6 +462,21 @@ export function parseCommand(text, model) {
 
   try {
     if (/^(отмена|отменить|undo|назад)$/.test(low)) return { action: 'undo' };
+
+    if (/^(?:окружность|oкружность|circle)(?:\s|$)/i.test(src)) {
+      const args = src.replace(/^\S+\s*/, '');
+      const id = newOpId();
+      const through = /^с центром ([A-Z][0-9]*) через ([A-Z][0-9]*)(?: в плоскости (\S+))?$/i.exec(args);
+      if (through) {
+        const [, center, point, planeText] = through;
+        const plane = planeText && need(splitNames(planeText), 3, 'Укажите три точки плоскости окружности');
+        return { op: { id, type: 'circle', center, through: point, ...(plane ? { plane } : {}) } };
+      }
+      const radius = /^с центром ([A-Z][0-9]*) радиуса (.+)$/i.exec(args);
+      if (radius) return { op: { id, type: 'circle', center: radius[1], radius: radius[2].toLowerCase() } };
+      const pts = need(splitNames(args), 3, 'Окружность: «окружность ABC» или «окружность с центром O через A»');
+      return { op: { id, type: 'circle', pts } };
+    }
 
     // «измерить AB», «измерить ABC», «измерить AB CD» — не шаг: измерение видит
     // только учитель (utils/stereo/measure.js).
@@ -712,6 +734,16 @@ export function parseCommand(text, model) {
     }
 
     const OPERAND = '(\\([A-Z0-9|⊥в()]+\\)|\\([α-ωΑ-Ω]\\)|[α-ωΑ-Ω]|[A-Z0-9]+)';
+    const CIRCLE = '[оO]кр\\(([A-Z][0-9]*|#[1-9][0-9]*)\\)';
+    const LINE_CIRCLE = `(?:${OPERAND}\\s*${OP_RE}\\s*${CIRCLE}|${CIRCLE}\\s*${OP_RE}\\s*${OPERAND})`;
+    m = new RegExp(`^(?:([A-Z][0-9]*)\\s*=\\s*)?${LINE_CIRCLE}(?:\\s+([12]))?$`).exec(src);
+    if (m) {
+      const ref = parseLineRef(m[2] || m[5], model, 'Укажите прямую для пересечения с окружностью');
+      const key = m[3] || m[4];
+      const circle = key.startsWith('#') ? circleStepIds(model?.opsById)[Number(key.slice(1)) - 1] : [key];
+      if (!circle) throw new Error(`Нет построенной окружности ${key}`);
+      return { op: { id: newOpId(), type: 'lineCircle', name: auto(m[1]), ref, circle, ...(m[6] === '2' ? { branch: 2 } : {}) } };
+    }
     m = new RegExp(`^(?:([A-Z][0-9]*)\\s*=\\s*)?${OPERAND}\\s*${OP_RE}\\s*${OPERAND}$`).exec(src);
     if (m) {
       const rightPlane = isPlaneTok(m[3]);
@@ -789,6 +821,9 @@ export function describeOp(op, opsById = {}) {
   const P = prettyName;
   const names = (arr) => (arr || []).map(P).join('');
   switch (op?.type) {
+    case 'circle': return op.center
+      ? `Окружность с центром ${P(op.center)}${op.through ? ` через ${P(op.through)}` : ` радиуса ${op.radius}`}`
+      : `Окружность через ${names(op.pts)}`;
     case 'pointOnLine': {
       const [a, b] = op.ref || [];
       const base = `${P(op.name)} ∈ ${Array.isArray(op.ref) ? names(op.ref) : refName(op.ref, opsById)}`;
@@ -824,6 +859,7 @@ export function describeOp(op, opsById = {}) {
         : `${what} через ${refName(op.line, opsById)} ⊥ ${planeName(op.plane, opsById)}`;
     }
     case 'intersect': return `${P(op.name)} = ${refName(op.l1, opsById)} ∩ ${refName(op.l2, opsById)}`;
+    case 'lineCircle': return `${P(op.name)} = ${refName(op.ref, opsById)} ∩ ${circleRefText(op.circle, opsById, P)}`;
     case 'trace': return `${P(op.name)} = ${refName(op.ref, opsById)} ∩ ${planeName(op.plane, opsById)}`;
     case 'section': return `Сечение (${names(op.pts)})`;
     case 'plane': return `Плоскость (${names(op.pts)})`;
@@ -849,6 +885,11 @@ export function opToCommand(op, opsById = {}) {
   const n = (arr) => (Array.isArray(arr) ? arr.join('') : '');
   const r = (ref) => lineRefText(ref, opsById);
   switch (op?.type) {
+    case 'circle':
+      if (!op.center) return `окружность ${n(op.pts)}`;
+      return op.through
+        ? `окружность с центром ${op.center} через ${op.through}${op.plane ? ` в плоскости ${n(op.plane)}` : ''}`
+        : `окружность с центром ${op.center} радиуса ${op.radius}`;
     case 'pointOnLine': {
       if (!r(op.ref)) return '';
       const pos = op.ratio && Array.isArray(op.ref) ? `${op.ratio[0]}:${op.ratio[1]}` : fmt(op.t);
@@ -886,6 +927,11 @@ export function opToCommand(op, opsById = {}) {
     }
     case 'intersect':
       return r(op.l1) && r(op.l2) ? `${op.name} = ${r(op.l1)} ∩ ${r(op.l2)}` : '';
+    case 'lineCircle': {
+      const line = r(op.ref);
+      const circle = circleRefText(op.circle, opsById);
+      return line && circle ? `${op.name} = ${line} ∩ ${circle}${op.branch === 2 ? ' 2' : ''}` : '';
+    }
     case 'trace': {
       const pl = planeTokText(op.plane, opsById);
       return r(op.ref) && pl ? `${op.name} = ${r(op.ref)} ∩ ${pl}` : '';

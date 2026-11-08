@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import {
   Checkbox, Form, InputNumber, Select, Space,
 } from 'antd';
+import StereoDimensionInput, { dimensionRules, DIMENSION_HINT } from './StereoDimensionInput';
+import { BODY_DIMENSIONS } from '../../utils/stereo/dimensions';
 import { REVOLUTION_KINDS } from '../../utils/stereo/revolution';
 import {
   BODY_KINDS, TILT_DIRS, DEFAULT_TILT_DIR, bodySpecFromForm, baseShapeOptions, apexPosOptions,
@@ -21,7 +23,20 @@ const DIR_OPTIONS = [
   ...Object.entries(TILT_DIRS).map(([label, value]) => ({ value, label })),
 ];
 
-const SIZE = { min: 0.5, max: 50, step: 0.5 };
+const SIZE_RULES = dimensionRules();
+
+function sizeField(name, label, calculatedSizes) {
+  const value = calculatedSizes?.[name];
+  if (value == null) {
+    return <Form.Item name={name} label={label} rules={SIZE_RULES}><StereoDimensionInput /></Form.Item>;
+  }
+  const id = `stereo-calculated-${name}`;
+  return (
+    <Form.Item label={label} htmlFor={id} extra="Рассчитывается автоматически">
+      <StereoDimensionInput id={id} value={String(Number(value.toPrecision(12)))} readOnly />
+    </Form.Item>
+  );
+}
 
 /**
  * @param previewSpec — что показать в превью вместо этого тела (весь чертёж
@@ -29,7 +44,7 @@ const SIZE = { min: 0.5, max: 50, step: 0.5 };
  * @param noSpace — без пункта «Без тела» (второе тело чертежа)
  */
 export default function StereoBodyForm({
-  form, initialValues, previewSpec = null, noSpace = false,
+  form, initialValues, previewSpec = null, calculatedSizes, noSpace = false,
 }) {
   const values = Form.useWatch([], form) || initialValues;
   const kind = values?.kind || 'cube';
@@ -60,7 +75,12 @@ export default function StereoBodyForm({
           : 'Ребро основания AB';
 
   const onKindChange = (k) => {
-    form.setFieldsValue({ shape: KIND_DEFAULT_SHAPE[k], apexPos: 'center', oblique: false });
+    const next = { kind: k, shape: KIND_DEFAULT_SHAPE[k], apexPos: 'center', oblique: false };
+    const defaults = bodySpecFromForm({ ...values, ...next });
+    const missing = Object.fromEntries(BODY_DIMENSIONS
+      .filter((key) => values?.[key] == null && defaults[key] != null)
+      .map((key) => [key, defaults[key]]));
+    form.setFieldsValue({ ...next, ...missing });
   };
 
   if (REVOLUTION_KINDS.includes(kind)) {
@@ -71,14 +91,13 @@ export default function StereoBodyForm({
             <Select onChange={onKindChange} options={kindOptions} />
           </Form.Item>
           <Space wrap align="start">
-            <Form.Item name="r" label={kind === 'tcone' ? 'Радиус нижнего основания' : 'Радиус'}><InputNumber {...SIZE} /></Form.Item>
+            {sizeField('r', kind === 'tcone' ? 'Радиус нижнего основания' : 'Радиус', calculatedSizes)}
             {kind === 'tcone' && (
-              <Form.Item name="r2" label="Радиус верхнего"><InputNumber {...SIZE} /></Form.Item>
+              <Form.Item name="r2" rules={SIZE_RULES} label="Радиус верхнего"><StereoDimensionInput /></Form.Item>
             )}
-            {kind !== 'sphere' && (
-              <Form.Item name="h" label="Высота"><InputNumber {...SIZE} /></Form.Item>
-            )}
+            {kind !== 'sphere' && sizeField('h', 'Высота', calculatedSizes)}
           </Space>
+          <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>{DIMENSION_HINT}</div>
           {kind === 'cone' && (
             <Form.Item name="down" valuePropName="checked" extra="Сосуд-воронка; два конуса с общим основанием — второй вершиной вниз, «Снизу»">
               <Checkbox>Вершиной вниз</Checkbox>
@@ -131,18 +150,15 @@ export default function StereoBodyForm({
           </Form.Item>
         )}
         <Space wrap align="start">
-          <Form.Item name="a" label={aLabel}>
-            <InputNumber {...SIZE} />
-          </Form.Item>
+          {sizeField('a', aLabel, calculatedSizes)}
           {hasB && (
-            <Form.Item name="b" label="AD"><InputNumber {...SIZE} /></Form.Item>
+            <Form.Item name="b" rules={SIZE_RULES} label="AD"><StereoDimensionInput /></Form.Item>
           )}
           {kind === 'box' && (
-            <Form.Item name="c" label="Высота"><InputNumber {...SIZE} /></Form.Item>
+            <Form.Item name="c" rules={SIZE_RULES} label="Высота"><StereoDimensionInput /></Form.Item>
           )}
-          {(kind === 'prism' || kind === 'pyramid' || kind === 'frustum' || (kind === 'tetra' && hasApex)) && (
-            <Form.Item name="h" label="Высота"><InputNumber {...SIZE} /></Form.Item>
-          )}
+          {(kind === 'prism' || kind === 'pyramid' || kind === 'frustum' || (kind === 'tetra' && hasApex))
+            && sizeField('h', 'Высота', calculatedSizes)}
           {kind === 'frustum' && (
             <Form.Item name="k" label="Верх : низ" tooltip="Во сколько раз верхнее основание меньше нижнего (0,1–0,9)">
               <InputNumber min={0.1} max={0.9} step={0.1} />
@@ -154,14 +170,15 @@ export default function StereoBodyForm({
             </Form.Item>
           )}
         </Space>
+        <div style={{ color: '#6b7280', fontSize: 13, marginBottom: 16 }}>{DIMENSION_HINT}</div>
         <Space wrap align="start">
           {ROOF_KINDS.includes(kind) && (
-            <Form.Item name="roof" label="Пирамида сверху, высота" tooltip="«К кубу приклеили пирамиду»: 0 — без неё">
-              <InputNumber min={0} max={50} step={0.5} />
+            <Form.Item name="roof" rules={dimensionRules({ optional: true })} label="Пирамида сверху, высота" tooltip="«К кубу приклеили пирамиду»: 0 — без неё">
+              <StereoDimensionInput />
             </Form.Item>
           )}
-          <Form.Item name="cut" label="Срезать вершины на" tooltip="«Отпилили все вершины»: отрезок, отсекаемый от каждой вершины на рёбрах; 0 — не срезать. Буквы у такого тела не ставятся">
-            <InputNumber min={0} max={25} step={0.25} />
+          <Form.Item name="cut" rules={dimensionRules({ optional: true })} label="Срезать вершины на" tooltip="«Отпилили все вершины»: отрезок, отсекаемый от каждой вершины на рёбрах; 0 — не срезать. Буквы у такого тела не ставятся">
+            <StereoDimensionInput />
           </Form.Item>
         </Space>
         {canTilt && (

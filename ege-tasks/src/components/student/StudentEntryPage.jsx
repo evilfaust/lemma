@@ -1,3 +1,4 @@
+import StudentDeadlineNotice from './StudentDeadlineNotice';
 import { useState } from 'react';
 import { Button, Result, Spin, Typography } from 'antd';
 import { LoadingOutlined, StopOutlined, UserOutlined, RocketOutlined } from '@ant-design/icons';
@@ -45,6 +46,8 @@ const StudentEntryPage = ({ sessionId, deviceId, studentSession }) => {
       />
     );
   }
+
+  if (studentSession.deadlineExpired) return <StudentDeadlineNotice />;
 
   // Приём закрыт только при явном false.
   // Если поле не пришло (undefined/null), не показываем ложное "закрыто".

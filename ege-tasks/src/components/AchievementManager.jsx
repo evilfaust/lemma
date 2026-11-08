@@ -12,11 +12,11 @@ import AchievementBadge from './student/AchievementBadge';
 
 // ==================== CONSTANTS ====================
 
-// icon001–078 — png (071 отсутствует), icon079–089 — jpg
+// icon001–078 — png (071 отсутствует), icon079–109 — jpg
 const ALL_ICONS = [
   ...Array.from({ length: 78 }, (_, i) => `icon${String(i + 1).padStart(3, '0')}.png`)
     .filter((name) => name !== 'icon071.png'),
-  ...Array.from({ length: 11 }, (_, i) => `icon${String(i + 79).padStart(3, '0')}.jpg`),
+  ...Array.from({ length: 31 }, (_, i) => `icon${String(i + 79).padStart(3, '0')}.jpg`),
 ];
 
 const RARITY_COLORS = {
@@ -36,6 +36,7 @@ const CONDITION_TYPE_LABELS = {
   speed: 'Скорость',
   count: 'Кол-во попыток',
   streak: 'Серия',
+  perfect_after_errors: 'Работа над ошибками',
   special: 'Специальное',
 };
 
@@ -80,6 +81,7 @@ function describeCondition(achievement) {
       return `≥ ${cv.min ?? 0}%${draw}`;
     }
     case 'streak': return `${cv.count ?? 3} подряд ≥ ${cv.min_score ?? 100}%`;
+    case 'perfect_after_errors': return '100% после двух работ подряд с ошибками';
     case 'speed': return `≤ ${cv.max_minutes} мин`;
     case 'count': return `${cv.attempts} попыток`;
     case 'special': {
@@ -687,6 +689,7 @@ export default function AchievementManager() {
                     { value: 'score', label: 'Процент правильных' },
                     { value: 'speed', label: 'Скорость' },
                     { value: 'count', label: 'Кол-во попыток' },
+                    { value: 'perfect_after_errors', label: '100% после двух работ подряд с ошибками' },
                     { value: 'special', label: 'Специальное' },
                   ]} />
                 </Form.Item>

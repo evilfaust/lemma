@@ -52,7 +52,7 @@ routerAdd("GET", "/api/stereo/my", (c) => {
   each("course_members", "student = {:s} && active != false", (r) => add(r.getString("course")));
 
   const ids = Object.keys(groups).slice(0, 60);
-  if (!ids.length) return c.json(200, { rooms: [], scenes: [], works: [], shows: [] });
+  if (!ids.length) return c.json(200, { rooms: [], scenes: [], works: [], shows: [], tests: [] });
 
   // Мульти-relation — только через .id: `groups ?= x` в PB 0.36 молча пуст.
   const params = {};
@@ -100,5 +100,6 @@ routerAdd("GET", "/api/stereo/my", (c) => {
       updated: r.getString("updated"),
     });
   }
-  return c.json(200, { rooms: rooms, scenes: scenes, works: works, shows: shows });
+  const tests = require(`${__hooks}/group_tests_lib.js`).assignedTests($app, ids, sid);
+  return c.json(200, { rooms: rooms, scenes: scenes, works: works, shows: shows, tests: tests });
 });

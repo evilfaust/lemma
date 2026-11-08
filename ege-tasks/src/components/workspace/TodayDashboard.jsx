@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { App, Checkbox, Spin } from 'antd';
 import {
   BankOutlined, BulbOutlined, CalendarOutlined, CheckOutlined, CheckSquareOutlined, ClockCircleOutlined,
@@ -10,12 +10,15 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ru';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Chip, groupHex, lessonHex, TONE_HEX, SectionCard } from './ui';
+import { Chip, groupHex, lessonHex, SectionCard } from './ui';
 import { lessonStart, lessonStartEnd, lessonProgress } from './lessonTime';
 import { KIND_COLORS } from '../../shared/services/pb/schoolEvents';
 import WeekNavigator from './today/WeekNavigator';
 import NowHero from './today/NowHero';
 import KpiCluster from './today/KpiCluster';
+import useAssignmentAttention from './today/useAssignmentAttention';
+import { assignmentDeadlineTime, assignmentNeedsAttention, assignmentPath } from '../../utils/assignmentAttention';
+import { studentWorkTitle } from '../../utils/studentWorkTitle';
 import LessonSheet from './calendar/LessonSheet';
 import LessonModal from './calendar/LessonModal';
 import CreateEventModal from './calendar/CreateEventModal';
@@ -47,9 +50,29 @@ function greeting() {
   return 'Добрый вечер';
 }
 
-function sessionTitle(s) {
-  const e = s?.expand || {};
-  return e.work?.title || s?.student_title || e.mc_test?.title || e.trig_mc_test?.title || 'Работа';
+function AssignmentAttentionList({ assignments, attention }) {
+  if (assignments.loading) return <div className="ws-card__empty"><Spin size="small" /></div>;
+  if (assignments.error) return <div className="ws-card__empty">Не удалось загрузить выдачи.</div>;
+  if (!attention.length) return <div className="ws-card__empty">Все выданные работы под контролем.</div>;
+
+  return attention.map((session) => {
+    const progress = assignments.progress?.get(session.id);
+    const reason = !progress ? 'Сводка пока недоступна'
+      : progress.expected ? `Не сдали ${progress.missing} из ${progress.expected}`
+      : `Посмотреть итоги · сдано попыток: ${progress.submittedAttempts}`;
+    return (
+      <Link key={session.id} className="td-att" to={assignmentPath(session.id)}>
+        <span className="td-att__bar" style={{ background: progress?.expected ? 'var(--c-rose)' : 'var(--c-amber)' }} />
+        <div className="td-att__main">
+          <div className="td-att__toprow">
+            <span className="td-att__title">{studentWorkTitle(session, 'Работа')}</span>
+          </div>
+          <div className="td-att__sub">{reason} · срок {dayjs(assignmentDeadlineTime(session.deadline)).format('DD.MM HH:mm')}</div>
+        </div>
+        <span aria-hidden="true">→</span>
+      </Link>
+    );
+  });
 }
 
 const lessonTopic = (l) => l.expand?.ktp_entry?.title || '';
@@ -76,7 +99,9 @@ export default function TodayDashboard() {
   const [weekLessons, setWeekLessons] = useState([]);
   const [hwLessons, setHwLessons] = useState([]); // неделя + полтора месяца до неё — для ДЗ
   const [thisWeekLessons, setThisWeekLessons] = useState([]);
-  const [deadlines, setDeadlines] = useState([]);
+  const [assignmentRefresh, setAssignmentRefresh] = useState(0);
+  const assignments = useAssignmentAttention(assignmentRefresh);
+  const attentionRef = useRef(null);
   const [notes, setNotes] = useState([]);
   const [todos, setTodos] = useState([]);
   const [schoolEvents, setSchoolEvents] = useState([]);
@@ -102,13 +127,12 @@ export default function TodayDashboard() {
     return () => clearInterval(id);
   }, []);
 
-  // Дедлайны + заметки — один раз.
+  // Заметки и дела.
   useEffect(() => {
     Promise.all([
-      api.getSessionsWithDeadline().catch(() => []),
       api.getNotes().catch(() => []),
       api.getTodos().catch(() => []),
-    ]).then(([d, n, t]) => { setDeadlines(d); setNotes(n); setTodos(t); });
+    ]).then(([n, t]) => { setNotes(n); setTodos(t); });
   }, []);
 
   // Уроки видимой недели (+ снимок текущей недели для KPI/бэклога).
@@ -216,18 +240,13 @@ export default function TodayDashboard() {
       .slice(0, 5);
   }, [thisWeekLessons, today]);
 
-  const upcomingDeadlines = useMemo(() => {
-    const horizon = today.add(14, 'day');
-    return deadlines
-      .map((s) => ({ s, dl: dayjs(s.deadline) }))
-      .filter(({ dl }) => dl.isAfter(today.subtract(7, 'day')) && dl.isBefore(horizon))
-      .sort((a, b) => a.dl - b.dl);
-  }, [deadlines, today]);
-
-  const overdueCount = useMemo(
-    () => deadlines.filter((s) => dayjs(s.deadline).isBefore(today)).length,
-    [deadlines, today],
-  );
+  const deadlineHorizon = today.add(14, 'day').valueOf();
+  const upcomingCount = assignments.sessions.filter((s) => {
+    const deadline = assignmentDeadlineTime(s.deadline);
+    return s.is_open !== false && deadline > nowTick && deadline <= deadlineHorizon;
+  }).length;
+  const attention = assignments.sessions.filter((s) =>
+    assignmentNeedsAttention(s, assignments.progress?.get(s.id), nowTick));
 
   const dashboardNotes = useMemo(
     () => notes
@@ -347,15 +366,17 @@ export default function TodayDashboard() {
   const firstName = teacher?.name ? teacher.name.split(' ')[0] : '';
   const summaryLine = [
     `${todayLessonsCount} ${plural(todayLessonsCount, 'урок', 'урока', 'уроков')} сегодня`,
-    `${upcomingDeadlines.length} ${plural(upcomingDeadlines.length, 'дедлайн', 'дедлайна', 'дедлайнов')} на 2 недели`,
+    assignments.loading || assignments.error ? null
+      : `${upcomingCount} ${plural(upcomingCount, 'дедлайн', 'дедлайна', 'дедлайнов')} на 2 недели`,
     `${inboxCount} ${plural(inboxCount, 'заметка', 'заметки', 'заметок')} в инбоксе`,
-  ].join(' · ');
+  ].filter(Boolean).join(' · ');
 
+  const assignmentCount = (count) => assignments.loading || assignments.error ? '—' : count;
   const kpis = [
     { key: 'lessons', label: 'Уроков сегодня', value: todayLessonsCount, tone: 'blue', icon: <ClockCircleOutlined />, onClick: () => navigate('/app/calendar') },
     { key: 'prep', label: 'К подготовке', value: prepBacklog.length, tone: 'amber', tag: 'неделя', alert: prepBacklog.length > 0, icon: <ToolOutlined />, onClick: () => navigate('/app/ktp') },
-    { key: 'deadlines', label: 'Дедлайнов', value: upcomingDeadlines.length, tone: 'violet', tag: '2 нед.', icon: <CalendarOutlined />, onClick: () => navigate('/app/journal') },
-    { key: 'overdue', label: 'Просрочено', value: overdueCount, tone: 'rose', alert: overdueCount > 0, icon: <WarningOutlined />, onClick: () => navigate('/app/journal') },
+    { key: 'deadlines', label: 'Ближайших дедлайнов', value: assignmentCount(upcomingCount), tone: 'violet', tag: '2 нед.', icon: <CalendarOutlined />, onClick: () => navigate('/app/calendar') },
+    { key: 'attention', label: 'Требуют внимания', value: assignmentCount(attention.length), tone: 'rose', alert: attention.length > 0, icon: <WarningOutlined />, onClick: () => attentionRef.current?.focus() },
   ];
 
   const scheduleTitle = isSelectedToday ? 'Расписание на сегодня' : `Расписание · ${cap(selectedDate.format('dddd, D MMMM'))}`;
@@ -547,35 +568,17 @@ export default function TodayDashboard() {
 
         {/* Правый рейл */}
         <div className="td-col">
-          <SectionCard
-            icon={<WarningOutlined />}
-            iconColor="var(--c-rose)"
-            title="Требует внимания"
-            actionLabel="Журнал →"
-            onAction={() => navigate('/app/journal')}
-          >
-            {upcomingDeadlines.length ? upcomingDeadlines.map(({ s, dl }) => {
-              const overdue = dl.isBefore(today);
-              const days = dl.startOf('day').diff(today.startOf('day'), 'day');
-              const when = overdue ? `${days} дн.` : days === 0 ? 'сегодня' : days === 1 ? 'завтра' : `+${days} дн.`;
-              const tone = overdue ? 'rose' : (days <= 1 ? 'amber' : 'neutral');
-              const hex = TONE_HEX[tone];
-              return (
-                <div key={s.id} className="td-att" onClick={() => navigate('/app/journal')}>
-                  <span className="td-att__bar" style={{ background: hex.base }} />
-                  <div className="td-att__main">
-                    <div className="td-att__toprow">
-                      <span className="td-att__title">{sessionTitle(s)}</span>
-                    </div>
-                    <div className="td-att__sub">срок {dl.format('DD.MM HH:mm')}</div>
-                  </div>
-                  <span className="td-att__when" style={{ color: hex.base, background: hex.soft }}>{when}</span>
-                </div>
-              );
-            }) : (
-              <div className="ws-card__empty">Все выданные работы под контролем.</div>
-            )}
-          </SectionCard>
+          <div ref={attentionRef} tabIndex={-1} role="region" aria-label="Требует внимания">
+            <SectionCard
+              icon={<WarningOutlined />}
+              iconColor="var(--c-rose)"
+              title="Требует внимания"
+              actionLabel={assignments.error || attention.some((s) => !assignments.progress?.get(s.id)) ? 'Обновить' : null}
+              onAction={() => setAssignmentRefresh((n) => n + 1)}
+            >
+              <AssignmentAttentionList assignments={assignments} attention={attention} />
+            </SectionCard>
+          </div>
 
           <SectionCard
             icon={<CheckSquareOutlined />}
@@ -669,7 +672,7 @@ export default function TodayDashboard() {
           // Во вкладках модалки можно завести и дело, и дедлайн — обновляем всё.
           loadWeek(weekStart);
           api.getTodos().then(setTodos).catch(() => {});
-          api.getSessionsWithDeadline().then(setDeadlines).catch(() => {});
+          setAssignmentRefresh((n) => n + 1);
         }}
       />
 

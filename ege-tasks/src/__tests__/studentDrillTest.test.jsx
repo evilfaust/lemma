@@ -8,6 +8,7 @@ import { App } from 'antd';
 
 vi.mock('../services/pocketbase', () => ({
   api: {
+    getSession: vi.fn().mockResolvedValue({ id: 'session1' }),
     getAttemptAnswers: vi.fn().mockResolvedValue([]),
     batchCreateAttemptAnswers: vi.fn(),
     batchUpdateAttemptAnswers: vi.fn(),
@@ -33,7 +34,7 @@ function renderPage(setAttempt = vi.fn()) {
     setAttempt,
     variant: { id: 'mc-1', number: 1, isMC: true, drill: true, answerMode: 'input' },
     tasks: drillStudentTasks(variantData),
-    session: { achievements_enabled: false },
+    session: { id: 'session1', achievements_enabled: false },
   };
   render(<App><StudentMCTestPage studentSession={studentSession} /></App>);
   return setAttempt;

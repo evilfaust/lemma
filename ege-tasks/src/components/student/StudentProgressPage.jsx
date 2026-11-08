@@ -7,6 +7,7 @@ import MathRenderer from '../MathRenderer';
 import { drillAttemptRows } from '../../utils/drillTest';
 import { visibleResultAttempts } from '../../utils/resultsVisibility';
 import { studentWorkTitle } from '../../utils/studentWorkTitle';
+import { averageAttemptDuration, formatAttemptDuration, getAttemptTiming } from '../../utils/attemptTiming';
 
 const PB_URL = PB_BASE_URL;
 
@@ -110,23 +111,6 @@ const TopicBar = ({ title, percent, correct, total }) => {
 };
 
 // ==========================================
-// Форматирование времени
-// ==========================================
-const formatDuration = (seconds) => {
-  if (!seconds || seconds <= 0) return '—';
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m === 0) return `${s} сек`;
-  return `${m} мин`;
-};
-
-const formatDurationShort = (seconds) => {
-  if (!seconds || seconds <= 0) return '—';
-  const m = Math.floor(seconds / 60);
-  return m > 0 ? `${m} мин` : '<1 мин';
-};
-
-// ==========================================
 // Детальный просмотр одной попытки
 // ==========================================
 const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
@@ -134,6 +118,7 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
   const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
   const workTitle = studentWorkTitle(attempt.expand?.session);
   const date = new Date(attempt.submitted_at || attempt.created);
+  const { seconds } = getAttemptTiming(attempt);
   const correctCount = answers.filter(a => a.is_correct).length;
   const wrongCount = answers.filter(a => !a.is_correct).length;
 
@@ -148,7 +133,7 @@ const AttemptDetailView = ({ attempt, answers, loading, onBack }) => {
           <h2 className="sp-detail-title">{workTitle}</h2>
           <p className="sp-detail-meta">
             {date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}
-            {attempt.duration_seconds > 0 && ` · ${formatDuration(attempt.duration_seconds)}`}
+            {seconds !== null && ` · До сдачи: ${formatAttemptDuration(seconds)}`}
           </p>
         </div>
         <div className={`sp-detail-score sp-detail-score--${scoreClass}`}>
@@ -379,10 +364,7 @@ function StudentProgressPage({ studentSession, initialAttemptId = null }) {
       return Math.max(best, pct);
     }, 0);
 
-    const withTime = allAttempts.filter(a => a.duration_seconds > 0);
-    const avgTime = withTime.length > 0
-      ? Math.round(withTime.reduce((s, a) => s + a.duration_seconds, 0) / withTime.length)
-      : 0;
+    const avgTime = averageAttemptDuration(allAttempts);
 
     // Текущая серия (streak) — подряд ≥70% с конца
     const sorted = [...allAttempts].sort((a, b) => new Date(a.submitted_at || a.created) - new Date(b.submitted_at || b.created));
@@ -529,8 +511,8 @@ function StudentProgressPage({ studentSession, initialAttemptId = null }) {
           <div className="sp-stat-label">Лучший результат</div>
         </div>
         <div className="sp-stat-card">
-          <div className="sp-stat-value">{formatDurationShort(stats.avgTime)}</div>
-          <div className="sp-stat-label">Среднее время</div>
+          <div className="sp-stat-value">{formatAttemptDuration(stats.avgTime)}</div>
+          <div className="sp-stat-label">Среднее время до сдачи</div>
         </div>
       </div>
 
@@ -595,7 +577,7 @@ function StudentProgressPage({ studentSession, initialAttemptId = null }) {
             const scoreClass = pct >= 70 ? 'good' : pct >= 40 ? 'ok' : 'bad';
             const workTitle = studentWorkTitle(a.expand?.session);
             const date = new Date(a.submitted_at || a.created);
-            const duration = a.duration_seconds;
+            const { seconds } = getAttemptTiming(a);
 
             return (
               <div
@@ -609,7 +591,7 @@ function StudentProgressPage({ studentSession, initialAttemptId = null }) {
                   <div className="sp-history-title">{workTitle}</div>
                   <div className="sp-history-meta">
                     {date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}
-                    {duration > 0 && ` · ${formatDuration(duration)}`}
+                    {seconds !== null && ` · До сдачи: ${formatAttemptDuration(seconds)}`}
                     {' · '}{a.score}/{a.total}
                   </div>
                 </div>

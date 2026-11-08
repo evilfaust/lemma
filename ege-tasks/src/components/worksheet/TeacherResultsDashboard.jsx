@@ -12,6 +12,7 @@ import { hiddenState } from '../../utils/resultsVisibility';
 import { useOptionalAuth } from '../../contexts/AuthContext';
 import ResultsExportModal from './ResultsExportModal';
 import AttemptsSetting from './AttemptsSetting';
+import AttemptTiming from './AttemptTiming';
 import RetakeModal from './RetakeModal';
 import { retakeCandidates } from '../../utils/attemptRetake';
 
@@ -582,6 +583,12 @@ const TeacherResultsDashboard = ({ sessionId, sessionLabels = null, sessionsVers
         if (record.status === 'started') return <Text type="secondary">—</Text>;
         return <Text strong>{record.score} / {record.total}</Text>;
       },
+    },
+    {
+      title: 'Время',
+      key: 'timing',
+      width: 215,
+      render: (_, record) => <AttemptTiming attempt={record} />,
     },
     {
       title: 'Статус',

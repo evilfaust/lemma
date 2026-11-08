@@ -22,6 +22,30 @@ const UNFINISHED_DAYS = 14;     // старше — не напоминаем о
 
 const ru = (d) => dayjs(d).locale('ru');
 
+/** Назначенные группе тесты: актуальный статус присылает сервер по всем
+ * своим попыткам, без ограничения «последние 40». Сданные убираем из дел.
+ * Дедлайн остаётся сроком сдачи: закрытие приёма управляется учителем. */
+export function assignedGroupTests(tests = [], now = dayjs()) {
+  const t = dayjs(now);
+  const seen = new Set();
+  return tests.filter((s) => {
+    if (!s.id || s.status === 'submitted' || seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  }).map((s) => {
+    const due = s.deadline ? dayjs(s.deadline) : null;
+    const valid = due?.isValid();
+    const overdue = valid && due.isBefore(t);
+    return {
+      ...s, overdue: !!overdue,
+      dueLabel: !valid ? 'Без срока сдачи' : overdue ? `Срок истёк · ${due.format('DD.MM HH:mm')}`
+        : due.isSame(t, 'day') ? `Сегодня до ${due.format('HH:mm')}`
+          : `Сдать до ${due.format('DD.MM HH:mm')}`,
+      action: s.status === 'started' ? 'Продолжить' : 'Начать тест',
+    };
+  }).sort((a, b) => (a.deadline ? dayjs(a.deadline).valueOf() : Infinity) - (b.deadline ? dayjs(b.deadline).valueOf() : Infinity));
+}
+
 /** Начало и конец урока: конец — по паре расписания, иначе +45 мин. */
 export function lessonWindow(lesson) {
   if (!lesson?.date_plan) return null;

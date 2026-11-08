@@ -1,3 +1,5 @@
+import StudentDeadlineNotice from './StudentDeadlineNotice';
+import { attemptElapsedSeconds, intakeClosedReason } from '../../utils/sessionDeadline';
 import { useEffect, useMemo, useState } from 'react';
 import { Input, Button, Typography, Modal, App } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
@@ -24,7 +26,6 @@ const StudentTestPage = ({ studentSession }) => {
   useBlockAppReload(attempt?.status === 'started');
   const [answers, setAnswers] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [startTime] = useState(Date.now());
   const storageKey = useMemo(
     () => (attempt?.id ? `ege_student_answers_${attempt.id}` : null),
     [attempt?.id]
@@ -90,7 +91,11 @@ const StudentTestPage = ({ studentSession }) => {
   const doSubmit = async () => {
     setSubmitting(true);
     try {
-      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+      const freshSession = await api.getSession(attempt.session || session.id);
+      if (!freshSession) throw new Error('Не удалось проверить срок сдачи. Попробуйте ещё раз.');
+      const closedReason = intakeClosedReason(freshSession);
+      if (closedReason) throw new Error(closedReason);
+      const durationSeconds = attemptElapsedSeconds(attempt);
       const durationMinutes = durationSeconds / 60;
 
       let score = 0;
@@ -219,7 +224,7 @@ const StudentTestPage = ({ studentSession }) => {
         duration_seconds: durationSeconds,
         achievement: randomBadge?.id || null,
         unlocked_achievements: unlocked.map(a => a.id),
-      });
+      }, { expand: 'unlocked_achievements' });
 
       console.log('[StudentTest] Попытка обновлена:', updated);
 
@@ -231,7 +236,7 @@ const StudentTestPage = ({ studentSession }) => {
         ...updated,
         expand: {
           achievement: randomBadge,
-          unlocked_achievements: unlocked,
+          unlocked_achievements: updated?.expand?.unlocked_achievements ?? unlocked,
         },
       };
 
@@ -244,6 +249,8 @@ const StudentTestPage = ({ studentSession }) => {
     }
     setSubmitting(false);
   };
+
+  if (studentSession.deadlineExpired) return <StudentDeadlineNotice />;
 
   if (!variant || !tasks.length) {
     return (

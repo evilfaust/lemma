@@ -32,6 +32,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { teacherLabel } from './CoTeachersSection';
 import { WorkspacePageHeader, EmptyState, Chip, GroupColorPicker, groupHex } from './ui';
 import { collectAcademicYears, currentAcademicYear } from '../../utils/academicYear';
+import CopyGroupButton from './CopyGroupButton';
 
 const { Text } = Typography;
 
@@ -308,34 +309,33 @@ export default function GroupManager() {
           <Chip tone={n ? 'blue' : 'neutral'} dot={false}>
             <TeamOutlined style={{ marginRight: 4 }} />{n}
           </Chip>
-          {(canEdit || canDelete) && (
-            <div className="ws-tile__actions" onClick={stop}>
-              {canEdit && (
-                <Button.Group>
-                  <Button size="small" type="text" icon={<ArrowUpOutlined />} disabled={reordering || index === 0} title="Выше" onClick={() => handleMove(index, -1)} />
-                  <Button size="small" type="text" icon={<ArrowDownOutlined />} disabled={reordering || index === groups.length - 1} title="Ниже" onClick={() => handleMove(index, 1)} />
-                </Button.Group>
-              )}
-              {canEdit && (
-                <Button size="small" type="text" icon={<EditOutlined />} title="Редактировать" onClick={() => { setEditing(g); setModalOpen(true); }} />
-              )}
-              {canEdit && (
-                <Button size="small" type="text" icon={<InboxOutlined />} title={g.archived ? 'Восстановить' : 'В архив'} onClick={() => handleArchive(g)} />
-              )}
-              {canDelete && (
-                <Popconfirm
-                  title="Удалить группу?"
-                  description="Ученики не удаляются, только отвязываются."
-                  okText="Удалить"
-                  cancelText="Отмена"
-                  okButtonProps={{ danger: true }}
-                  onConfirm={() => handleDelete(g)}
-                >
-                  <Button size="small" type="text" danger icon={<DeleteOutlined />} title="Удалить" />
-                </Popconfirm>
-              )}
-            </div>
-          )}
+          <div className="ws-tile__actions" onClick={stop}>
+            <CopyGroupButton group={g} iconOnly />
+            {canEdit && (
+              <Button.Group>
+                <Button size="small" type="text" icon={<ArrowUpOutlined />} disabled={reordering || index === 0} title="Выше" onClick={() => handleMove(index, -1)} />
+                <Button size="small" type="text" icon={<ArrowDownOutlined />} disabled={reordering || index === groups.length - 1} title="Ниже" onClick={() => handleMove(index, 1)} />
+              </Button.Group>
+            )}
+            {canEdit && (
+              <Button size="small" type="text" icon={<EditOutlined />} title="Редактировать" onClick={() => { setEditing(g); setModalOpen(true); }} />
+            )}
+            {canEdit && (
+              <Button size="small" type="text" icon={<InboxOutlined />} title={g.archived ? 'Восстановить' : 'В архив'} onClick={() => handleArchive(g)} />
+            )}
+            {canDelete && (
+              <Popconfirm
+                title="Удалить группу?"
+                description="Ученики не удаляются, только отвязываются."
+                okText="Удалить"
+                cancelText="Отмена"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => handleDelete(g)}
+              >
+                <Button size="small" type="text" danger icon={<DeleteOutlined />} title="Удалить" />
+              </Popconfirm>
+            )}
+          </div>
         </div>
       </div>
     );

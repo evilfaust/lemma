@@ -30,7 +30,7 @@ describe('инструмент «Удалить»', () => {
 
   it('клик по точке, отрезку, сечению — шаг, который их построил', () => {
     expect(TOOLS.find((t) => t.key === 'erase').hot).toBe('D');
-    expect(acceptedKinds('erase', [])).toEqual(['point', 'line', 'poly']);
+    expect(acceptedKinds('erase', [])).toEqual(['point', 'line', 'poly', 'circle']);
     expect(toolClick('erase', [], { point: 'N' }, m).erase).toEqual({ opId: sc.ops[1].id });
     const mn = m.lines.find((l) => l.kind === 'segment');
     expect(toolClick('erase', [], { line: { id: mn.id, ref: mn.ref } }, m).erase).toEqual({ opId: sc.ops[2].id });

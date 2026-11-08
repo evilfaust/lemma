@@ -346,34 +346,7 @@
 .sh-welcome-title { margin-top: 8px; font-size: 17px; font-weight: 700; }
 .sh-welcome-text { margin-top: 6px; font-size: 14px; line-height: 1.5; color: var(--sh-ink-2); }
 
-/* ── Код теста ── */
-.sh-code {
-  margin-top: 24px;
-  padding: 14px;
-  border-radius: 16px;
-  border: 1px dashed var(--sh-line);
-}
-.sh-code-label { font-size: 13.5px; font-weight: 600; color: var(--sh-ink-2); margin-bottom: 8px; }
-.sh-code-row { display: flex; gap: 8px; }
-.sh-code-input {
-  flex: 1;
-  min-width: 0;
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
-  border: 1.5px solid var(--sh-line);
-  background: var(--sh-card);
-  color: var(--sh-ink);
-  font-size: 16px; /* меньше 16 — iOS приближает страницу при фокусе */
-}
-.sh-code-input:focus {
-  outline: none;
-  border-color: var(--sh-accent);
-  box-shadow: 0 0 0 3px var(--sh-accent-soft);
-}
-.sh-code-row .sh-btn { height: 40px; }
-
-/* ── Гость: вход сначала, код ниже ── */
+/* ── Гость: вход и регистрация ── */
 .student-home-guest-lead {
   margin: 0 0 18px;
   text-align: center;
@@ -401,14 +374,6 @@
 .student-home-guest-register b { color: #4361ee; font-weight: 600; }
 .student-theme-dark .student-home-guest-register { color: #999; }
 .student-theme-dark .student-home-guest-register b { color: #7b8cff; }
-.student-home-guest-code { margin-top: 20px; }
-.student-home-guest-code-label {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #4a4f63;
-}
-.student-theme-dark .student-home-guest-code-label { color: #ccc; }
 
 /* Лента ещё грузится (v3.9.373); сама крутилка — `.boot-spinner` из student.html */
 .sh-loading {
@@ -421,3 +386,4 @@
   font-size: 14px;
 }
 .student-theme-dark .sh-loading { color: #9ca3af; }
+.sh-todo-due.sh-assigned-overdue { color: var(--sh-low); }

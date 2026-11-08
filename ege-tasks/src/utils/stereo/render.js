@@ -288,7 +288,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   // Линии: каждая режется на видимые и скрытые куски.
   const strokes = [];
   const hitLines = [];
-  const pushSplit = (objId, kind, A, B, color, w, step, occ = body) => {
+  const pushSplit = (objId, kind, A, B, color, w, step, occ = body, circleRef) => {
     for (const piece of splitByVisibility(occ, A, B, toViewer)) {
       const a = P(lerp(A, B, piece.t0));
       const b = P(lerp(A, B, piece.t1));
@@ -296,6 +296,7 @@ export function renderStereo(model, camera, viewport, opts = {}) {
         id: `${objId}#${strokes.length}`, objId, kind,
         x1: a.x, y1: a.y, x2: b.x, y2: b.y,
         hidden: piece.hidden, color, width: w, step,
+        ...(circleRef ? { circleRef } : {}),
       });
     }
   };
@@ -334,10 +335,16 @@ export function renderStereo(model, camera, viewport, opts = {}) {
   if (body.curves) {
     for (const cv of body.curves) {
       const occ = ownerOcc(cv.part);
+      const ref = cv.center ? [cv.center] : null;
       cv.pts.forEach((A, i) => {
-        pushSplit(`curve:${cv.id}`, 'edge', A, cv.pts[(i + 1) % cv.pts.length], STEREO_COLORS.edge, WIDTH.edge, -1, occ);
+        pushSplit(`curve:${cv.id}`, 'edge', A, cv.pts[(i + 1) % cv.pts.length], STEREO_COLORS.edge, WIDTH.edge, -1, occ, ref);
       });
     }
+  }
+  for (const circle of model.circles || []) {
+    circle.pts.forEach((a, i) => {
+      pushSplit(circle.id, 'circle', a, circle.pts[(i + 1) % circle.pts.length], STEREO_COLORS.construct, WIDTH.segment, circle.step, body, circle.id);
+    });
   }
   if (body.silhouette) {
     const others = { ...body, faces: [], sphere: null, cells: null, curves: null };
@@ -662,7 +669,22 @@ export function pickLine(frame, x, y, tol = 9) {
   if (!best) return null;
   const { line, t } = best;
   const pos = lerp(line.a3, line.b3, t);
-  return { line, t, pos };
+  return { line, t, pos, distance: best.d };
+}
+
+/** Окружность под курсором по её проекции, включая пунктирные дуги. */
+export function pickCircleTarget(frame, x, y, tol = 6, includeBody = false) {
+  let best = null;
+  for (const s of frame.strokes) {
+    if (s.kind !== 'circle' && !(includeBody && s.circleRef)) continue;
+    const d = segDist(x, y, s.x1, s.y1, s.x2, s.y2);
+    if (d <= tol && (!best || d < best.distance)) best = { id: s.objId, ref: s.circleRef, distance: d };
+  }
+  return best;
+}
+
+export function pickCircle(frame, x, y, tol = 6) {
+  return pickCircleTarget(frame, x, y, tol)?.id || null;
 }
 
 function pointInPoly(x, y, pts) {

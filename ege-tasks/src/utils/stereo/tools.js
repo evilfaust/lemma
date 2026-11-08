@@ -6,7 +6,7 @@
 // готовую операцию.
 
 import {
-  newOpId, lineColorKey, segmentAt, pointInPlane, pointOnLineRef, makeAngleOp,
+  newOpId, lineColorKey, segmentAt, pointInPlane, pointOnLineRef, makeAngleOp, lineCircleHits,
 } from './scene';
 import { nextFreeName, nextFootName } from './naming';
 import { makeMeasure } from './measure';
@@ -66,6 +66,7 @@ export const TOOLS = [
   { key: 'length', label: 'Длина', glyph: '↦', hot: 'Y' },
   { key: 'section', label: 'Сечение', glyph: '▱', hot: 'C' },
   { key: 'plane', label: 'Плоскость', glyph: '◧', hot: 'G' },
+  { key: 'circle', label: 'Окружность', glyph: '○', hot: 'B' },
   { key: 'fill', label: 'Закрасить', glyph: '◆', hot: 'F' },
   { key: 'level', label: 'Жидкость', glyph: '≋', hot: 'Q' },
   { key: 'color', label: 'Цвет', glyph: '◉', hot: 'O' },
@@ -114,7 +115,7 @@ export function lineHitParam(hit, project) {
 }
 
 /** Подсказка над чертежом: что сделать дальше. */
-export function toolHint(tool, pending = []) {
+export function toolHint(tool, pending = [], circleMode = 'through') {
   const names = pending.filter((p) => p.kind === 'point').map((p) => prettyName(p.name));
   switch (tool) {
     case 'point': return 'Кликните по ребру, прямой, внутри грани или сечения; у цилиндра, конуса, шара — по поверхности или основанию; на чертеже без тела — в любое место (точка встанет на «пол» z = 0) или на лист. Точку можно тянуть, с Shift — по высоте';
@@ -128,7 +129,9 @@ export function toolHint(tool, pending = []) {
         ? `${tool === 'line' ? 'Прямая' : 'Отрезок'} ${names[0]}… — выберите вторую точку`
         : `Выберите две точки${tool === 'line' ? ' (или кликните по ребру — продолжить его)' : ''}`;
     case 'intersect':
-      return pending.length ? 'Выберите вторую прямую' : 'Выберите две прямые — найдём их общую точку';
+      if (pending[0]?.kind === 'circle') return 'Выберите прямую для пересечения с окружностью';
+      return pending.length ? 'Выберите вторую прямую или окружность около нужной точки пересечения'
+        : 'Выберите две прямые или прямую и окружность';
     case 'trace':
       return pending.length ? 'Теперь грань, на плоскости которой ищем след (Shift — задняя грань)' : 'Выберите прямую, затем грань';
     case 'parallel':
@@ -161,6 +164,13 @@ export function toolHint(tool, pending = []) {
     }
     case 'section':
       return names.length ? `Сечение ${names.join('')}… — ещё ${3 - names.length}` : 'Выберите три точки секущей плоскости';
+    case 'circle':
+      if (circleMode === 'radius') return 'Введите радиус и выберите центр горизонтальной окружности';
+      if (circleMode === 'center') {
+        if (names.length === 2) return 'Выберите третью точку в плоскости окружности или нажмите «Горизонтальная окружность» (Enter)';
+        return names.length ? 'Выберите точку на окружности' : 'Выберите центр окружности';
+      }
+      return names.length ? `Выбрано точек: ${names.length} из 3` : 'Выберите три точки на окружности';
     case 'plane':
       return names.length
         ? `Плоскость ${names.join('')}… — ещё ${3 - names.length} (без тела: повторный клик по точке или Enter — горизонтальная плоскость через неё)`
@@ -183,7 +193,7 @@ export function toolHint(tool, pending = []) {
     case 'color': return 'Клик по точке, отрезку или внутри сечения — окрасится выбранным цветом, Shift+клик по линии — прямая целиком (повторный клик снимает)';
     case 'rename': return 'Кликните по точке, чтобы дать ей другое имя (вершины тоже). Или двойной клик по точке';
     case 'hide': return 'Клик по точке или отрезку (кусок между соседними точками) — пропадёт с чертежа у учеников и в печати, построения останутся; Shift+клик по линии — прямая целиком. Здесь скрытое видно бледным, повторный клик вернёт';
-    case 'erase': return 'Кликните по точке, прямой или сечению — уберётся шаг, который их построил (вместе с зависящими от него). Ctrl+Z вернёт';
+    case 'erase': return 'Кликните по точке, прямой, окружности или сечению — уберётся шаг, который их построил (вместе с зависящими от него). Ctrl+Z вернёт';
     default: return 'Тяните мышью — чертёж поворачивается. Точку на ребре можно перетащить. Колёсико — масштаб';
   }
 }
@@ -196,7 +206,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'mid': return pending.length ? ['point'] : ['point', 'line'];
     case 'length': return pending.length ? ['point'] : ['point', 'line'];
     case 'line': return pending.length ? ['point'] : ['point', 'line'];
-    case 'intersect': return ['line'];
+    case 'intersect': return pending[0]?.kind === 'circle' ? ['line'] : ['line', 'circle'];
     case 'trace': return pending.length ? ['face'] : ['line'];
     case 'parallel': {
       const hasP = pending.some((p) => p.kind === 'point');
@@ -214,7 +224,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'perpPlane':
       if (!pending.length) return ['point', 'line'];
       return pending[0].kind === 'point' ? ['line'] : ['poly', 'face'];
-    case 'section': return ['point'];
+    case 'section': case 'circle': return ['point'];
     case 'plane': return pending.length ? ['point'] : ['face', 'point', 'empty'];
     case 'fill': return ['point'];
     case 'level': return ['point', 'line', 'face'];
@@ -224,7 +234,7 @@ export function acceptedKinds(tool, pending = []) {
     case 'view': return ['poly', 'face'];
     case 'rename': return ['point'];
     case 'hide': return ['point', 'line'];
-    case 'erase': return ['point', 'line', 'poly'];
+    case 'erase': return ['point', 'line', 'poly', 'circle'];
     default: return [];
   }
 }
@@ -236,6 +246,13 @@ export function acceptedKinds(tool, pending = []) {
 export function chooseHit(tool, pending, hit) {
   const ok = acceptedKinds(tool, pending);
   if (hit.point && ok.includes('point')) return { kind: 'point', name: hit.point };
+  if (hit.circleTarget && ok.includes('circle')) {
+    const circle = hit.circleTarget;
+    if (!hit.line || pending[0]?.id === hit.line.id || circle.distance <= hit.line.distance) {
+      return { ...circle, kind: 'circle' };
+    }
+  }
+  if (hit.circle && ok.includes('circle')) return { kind: 'circle', id: hit.circle };
   if (hit.line && ok.includes('line')) return { kind: 'line', ...hit.line };
   if (hit.poly && ok.includes('poly')) return { kind: 'poly', id: hit.poly.id };
   if (hit.face && ok.includes('face')) {
@@ -252,7 +269,7 @@ export function chooseHit(tool, pending, hit) {
  * @param hit — { point?: name, line?: { id, ref, t, ratio?, pos?, p?, u? }, face?: { id, verts }, poly?: { id }, shift? }
  * @returns {{ pending, op?, error?, attention?, paint?, rename?, hide?, view?, erase?, measure? }}
  */
-export function toolClick(tool, pending, hit, model) {
+export function toolClick(tool, pending, hit, model, { circleMode = 'through', circleRadius } = {}) {
   const target = chooseHit(tool, pending, hit);
   if (!target) {
     if (tool === 'point' && hit.point) return { pending, error: `Здесь уже есть точка ${prettyName(hit.point)}` };
@@ -378,6 +395,21 @@ export function toolClick(tool, pending, hit, model) {
     }
     case 'intersect': {
       if (!pending.length) return { pending: [target] };
+      const first = pending[0];
+      const circle = first.kind === 'circle' ? first : target.kind === 'circle' ? target : null;
+      if (circle) {
+        const line = first.kind === 'line' ? first : target;
+        const hits = lineCircleHits(model, line.ref, circle.ref);
+        const distanceToClick = ({ point }) => {
+          const p = circle.project(point);
+          return Math.hypot(p.x - circle.x, p.y - circle.y);
+        };
+        const second = hits.length === 2 && circle.project && distanceToClick(hits[1]) < distanceToClick(hits[0]);
+        return {
+          pending: [],
+          op: { id: newOpId(), type: 'lineCircle', name: name(), ref: line.ref, circle: circle.ref, ...(second ? { branch: 2 } : {}) },
+        };
+      }
       return { pending: [], op: { id: newOpId(), type: 'intersect', name: name(), l1: pending[0].ref, l2: target.ref } };
     }
     case 'trace': {
@@ -447,6 +479,17 @@ export function toolClick(tool, pending, hit, model) {
     case 'section':
       if (pts.length < 3) return { pending: [...pending, target] };
       return { pending: [], op: { id: newOpId(), type: 'section', pts: pts.slice(0, 3) } };
+    case 'circle':
+      if (circleMode === 'radius') {
+        return { pending: [], op: { id: newOpId(), type: 'circle', center: target.name, radius: circleRadius } };
+      }
+      if (pts.length < 3) return { pending: [...pending, target] };
+      return {
+        pending: [],
+        op: circleMode === 'center'
+          ? { id: newOpId(), type: 'circle', center: pts[0], through: pts[1], plane: pts }
+          : { id: newOpId(), type: 'circle', pts },
+      };
     case 'plane':
       if (isEmptySpace(model)) {
         // Без тела плоскость — лист: три точки, «пол» (клик в пустоту)
@@ -551,6 +594,7 @@ export function toolClick(tool, pending, hit, model) {
 
 /** Id шага, который построил точку / линию / многоугольник; null — это тело. */
 export function stepOfTarget(model, target) {
+  if (target.kind === 'circle') return target.id;
   let step = -1;
   if (target.kind === 'point') step = model.points[target.name]?.step ?? -1;
   else if (target.kind === 'line') step = model.lines.find((l) => l.id === target.id)?.step ?? -1;
@@ -578,7 +622,10 @@ function measureObject(model, target) {
 }
 
 /** Enter у «Закрасить»: замкнуть многоугольник. */
-export function finishPending(tool, pending, model = null) {
+export function finishPending(tool, pending, model = null, circleMode = 'through') {
+  if (tool === 'circle' && circleMode === 'center' && pending.length === 2) {
+    return { pending: [], op: { id: newOpId(), type: 'circle', center: pending[0].name, through: pending[1].name } };
+  }
   if (tool === 'fill' && pending.length >= 3) {
     return { pending: [], op: { id: newOpId(), type: 'fill', pts: pending.map((p) => p.name) } };
   }

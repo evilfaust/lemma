@@ -20,7 +20,7 @@ import {
   evaluateScene, tryAppendOp, removeOpCascade,
   parseCommand, describeOp, DEFAULT_CAMERA, DEFAULT_BODY, bodyTitle,
   TOOLS, toolHint, toolClick, finishPending,
-  chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace, pickPoly, cameraFacing,
+  chooseHit, lineHitParam, snapPosition, pickPoint, pickLine, pickFace, pickPoly, pickCircle, pickCircleTarget, cameraFacing,
   renderStereo, stereoSvgString, isTeachingNotice,
   draggableOp, lineOfOp, dragPosition, setOpPosition, dragOpPatch, setOpFields,
   facePointAt, faceDragTarget, dragFacePosition, newOpId,
@@ -31,6 +31,7 @@ import {
 import { takeStereoOpenRequest } from '../../utils/stereo/dsl';
 import StereoMeasures from './StereoMeasures';
 import StereoBodiesForm from './StereoBodiesForm';
+import StereoDimensionInput from './StereoDimensionInput';
 import './stereo.css';
 
 const DRAFT_KEY = 'stereo.editor.v1';
@@ -66,7 +67,7 @@ const CAMERA_PRESETS = [
   { key: 'top', label: 'Сверху', cam: { yaw: 0, pitch: 90, zoom: 1 } },
 ];
 
-function buildHit(frame, x, y, back, model) {
+function buildHit(frame, x, y, back, model, tool) {
   const point = pickPoint(frame, x, y);
   const lh = pickLine(frame, x, y);
   let line = null;
@@ -74,14 +75,17 @@ function buildHit(frame, x, y, back, model) {
     const { t, pxPerUnit } = lineHitParam(lh, frame.project);
     line = {
       id: lh.line.id, ref: lh.line.ref, ...snapPosition(t, pxPerUnit),
-      pos: lh.pos, p: lh.line.p, u: lh.line.u, // для «Цвета»: какой кусок под курсором
+      pos: lh.pos, p: lh.line.p, u: lh.line.u, distance: lh.distance,
     };
   }
   const face = pickFace(frame, x, y, { back });
   const poly = pickPoly(frame, x, y);
+  const circleTarget = tool === 'intersect' ? pickCircleTarget(frame, x, y, 6, true) : null;
   return {
     point,
     line,
+    circle: tool === 'erase' ? pickCircle(frame, x, y) : null,
+    circleTarget: circleTarget ? { ...circleTarget, x, y, project: frame.project } : null,
     poly: poly ? { id: poly.id } : null,
     face: face ? {
       id: face.id, verts: face.verts, surface: face.surface, center: face.center,
@@ -136,6 +140,8 @@ export default function StereoEditor({
   const [camera, setCamera] = useState(() => draft?.camera || DEFAULT_CAMERA);
   const [tool, setTool] = useState('rotate');
   const [pending, setPending] = useState([]);
+  const [circleMode, setCircleMode] = useState('through');
+  const [circleRadius, setCircleRadius] = useState('');
   const [hover, setHover] = useState(null);
   const [notice, setNotice] = useState(null);
   const [flashStep, setFlashStep] = useState(null);
@@ -349,7 +355,7 @@ export default function StereoEditor({
   // --- клики по чертежу -----------------------------------------------------
   const handleClick = useCallback(({ x, y, frame, shiftKey }) => {
     if (tool === 'rotate' || (replay && tool !== 'attention' && tool !== 'view' && tool !== 'measure')) return;
-    const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey, model), model);
+    const r = toolClick(tool, pending, buildHit(frame, x, y, shiftKey, model, tool), model, { circleMode, circleRadius });
     if (r.error) showNotice('error', r.error);
     setPending(r.pending);
     if (r.op?.type === 'angleMark') {
@@ -395,7 +401,7 @@ export default function StereoEditor({
         setScene(setPointColors(sc, [r.paint.name], cur === paintColor ? '' : paintColor));
       }
     }
-  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure, angleLabel, angleArcs, lengthText, lengthDim]);
+  }, [tool, pending, model, commit, showNotice, attention, replay, paintColor, setScene, selectTool, addMeasure, angleLabel, angleArcs, lengthText, lengthDim, circleMode, circleRadius]);
 
   // --- пошаговый показ ----------------------------------------------------------
   const stepsTotal = scene.ops.length;
@@ -430,7 +436,7 @@ export default function StereoEditor({
       if (hoverKey.current) { hoverKey.current = ''; setHover(null); }
       return;
     }
-    const target = chooseHit(tool, pending, buildHit(frame, x, y, false));
+    const target = chooseHit(tool, pending, buildHit(frame, x, y, false, null, tool));
     const key = target ? `${target.kind}:${target.name || target.id}` : '';
     if (key !== hoverKey.current) {
       hoverKey.current = key;
@@ -445,7 +451,7 @@ export default function StereoEditor({
     const polys = new Set();
     for (const p of [...pending, hover].filter(Boolean)) {
       if (p.kind === 'point') points.add(p.name);
-      if (p.kind === 'line') lines.add(p.id);
+      if (p.kind === 'line' || p.kind === 'circle') lines.add(p.id);
       if (p.kind === 'face') faces.add(p.id);
       if (p.kind === 'poly') polys.add(p.id);
     }
@@ -454,6 +460,13 @@ export default function StereoEditor({
     if (hovered) measurePoints(hovered, model).forEach((n) => points.add(n));
     return { points, lines, faces, polys };
   }, [pending, hover, dragging, measureHover, measures, model]);
+
+  const completePending = useCallback(() => {
+    const r = finishPending(tool, pending, model, circleMode);
+    setPending(r.pending);
+    if (r.op) commit(r.op);
+    return Boolean(r.op);
+  }, [tool, pending, model, circleMode, commit]);
 
   // --- клавиатура -----------------------------------------------------------
   useEffect(() => {
@@ -486,9 +499,7 @@ export default function StereoEditor({
         return;
       }
       if (e.key === 'Enter') {
-        const r = finishPending(tool, pending, model);
-        setPending(r.pending);
-        if (r.op) commit(r.op);
+        if (completePending()) e.preventDefault();
         return;
       }
       const t = TOOLS.find((x) => e.code === `Key${x.hot}`);
@@ -496,7 +507,7 @@ export default function StereoEditor({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [tool, pending, undo, selectTool, commit, replay, exitReplay, goStep, viewStep, model]);
+  }, [undo, selectTool, replay, exitReplay, goStep, viewStep, completePending]);
 
   // --- строка команд ----------------------------------------------------------
   const runCommand = () => {
@@ -586,6 +597,7 @@ export default function StereoEditor({
   const applyBody = async () => {
     await bodyForm.validateFields();
     const body = bodiesRef.current.spec();
+    if (!body) return;
     const apply = () => {
       setScene({ body, ops: [] });
       setCurrentDoc(null);
@@ -615,7 +627,7 @@ export default function StereoEditor({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  const hint = toolHint(tool, pending);
+  const hint = toolHint(tool, pending, circleMode);
 
   return (
     <div className={embedded ? 'stereo-embedded' : undefined}>
@@ -742,6 +754,37 @@ export default function StereoEditor({
               </button>
             ))}
           </div>
+
+          {tool === 'circle' && (
+            <div className="stereo-angle-style">
+              <Segmented
+                size="small"
+                aria-label="Способ построения окружности"
+                value={circleMode}
+                options={[
+                  { value: 'through', label: 'Через три точки' },
+                  { value: 'center', label: 'По центру' },
+                  { value: 'radius', label: 'По радиусу' },
+                ]}
+                onChange={(mode) => {
+                  setCircleMode(mode);
+                  setPending([]);
+                }}
+              />
+              {circleMode === 'radius' && (
+                <StereoDimensionInput
+                  size="small"
+                  aria-label="Радиус окружности"
+                  placeholder="Например, 2√3"
+                  value={circleRadius}
+                  onChange={(e) => setCircleRadius(e.target.value)}
+                />
+              )}
+              {circleMode === 'center' && pending.length === 2 && (
+                <Button size="small" onClick={completePending}>Горизонтальная окружность</Button>
+              )}
+            </div>
+          )}
 
           {tool === 'color' && (
             <div className="stereo-palette" role="radiogroup" aria-label="Цвет точек, прямых и сечений">

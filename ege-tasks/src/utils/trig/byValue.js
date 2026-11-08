@@ -345,21 +345,21 @@ function numericTask(ask, answer) {
   return makeTask({ ask, answer, cat: 'numeric' });
 }
 
-const NUMERIC = [
+export const NUMERIC_TRIG_GENERATORS = {
   // K sin θ cos θ / sin 2θ = K/2
-  () => {
+  doubleAngleRatio: () => {
     const th = rand(NONSTD); const K = 2 * randInt(2, 15);
     return numericTask(`\\dfrac{${K}\\sin ${deg(th)}\\cos ${deg(th)}}{\\sin ${deg(2 * th)}}`, rat(K / 2));
   },
   // K cos θ / sin(90° − θ) = K; K sin θ / cos(90° − θ)
-  () => {
+  complementaryRatio: () => {
     const th = rand(NONSTD); const K = randInt(2, 30) * (chance(0.3) ? -1 : 1);
     return chance(0.5)
       ? numericTask(`\\dfrac{${K}\\cos ${deg(th)}}{\\sin ${deg(90 - th)}}`, rat(K))
       : numericTask(`\\dfrac{${K}\\sin ${deg(th)}}{\\cos ${deg(90 - th)}}`, rat(K));
   },
   // K sin(180° + θ) / sin θ = −K; K cos(180° − θ)/cos θ = −K; K sin(360° − θ)/sin θ = −K
-  () => {
+  reductionRatio: () => {
     const th = rand(NONSTD); const K = randInt(2, 30);
     const f = rand([
       [`\\sin ${deg(180 + th)}`, 'sin', -1], [`\\cos ${deg(180 - th)}`, 'cos', -1],
@@ -369,24 +369,24 @@ const NUMERIC = [
     return numericTask(`\\dfrac{${K}${f[0]}}{\\${f[1]} ${deg(th)}}`, rat(K * f[2]));
   },
   // K(sin²θ − cos²θ)/cos 2θ = −K
-  () => {
+  doubleAngleSquares: () => {
     const th = rand(NONSTD); const K = randInt(2, 25);
     return numericTask(`\\dfrac{${K}\\left(\\sin^2 ${deg(th)} - \\cos^2 ${deg(th)}\\right)}{\\cos ${deg(2 * th)}}`, rat(-K));
   },
   // K/(sin²θ + sin²(90° − θ)) = K
-  () => {
+  squaresIdentity: () => {
     const th = rand(NONSTD); const K = randInt(3, 40);
     return numericTask(`\\dfrac{${K}}{\\sin^2 ${deg(th)} + \\sin^2 ${deg(90 + th)}}`, rat(K));
   },
   // K tg θ · tg(90° − θ) = K; K tg θ · ctg(180° + θ) = K
-  () => {
+  complementaryProduct: () => {
     const th = rand(NONSTD); const K = randInt(2, 30) * (chance(0.3) ? -1 : 1);
     return chance(0.5)
       ? numericTask(`${K}\\,\\operatorname{tg} ${deg(th)}\\cdot\\operatorname{tg} ${deg(90 - th)}`, rat(K))
       : numericTask(`${K}\\,\\operatorname{tg} ${deg(th)}\\cdot\\operatorname{ctg} ${deg(180 + th)}`, rat(K));
   },
   // табличные: 4√2 cos(−135°) = −4, 6√3 tg(−300°) = 18…
-  () => {
+  standardAngles: () => {
     const expr = rand([
       '\\sqrt{2}\\,\\cos\\left(-135^{\\circ}\\right)',
       '\\sqrt{2}\\,\\sin 405^{\\circ}',
@@ -402,7 +402,8 @@ const NUMERIC = [
     if (Math.abs(num - Math.round(num)) > 1e-9) return null;
     return numericTask(`${K}${expr}`, rat(Math.round(num)));
   },
-];
+};
+const NUMERIC = Object.values(NUMERIC_TRIG_GENERATORS);
 
 // Значение «√2 cos(−135°)», «sin(−19π/6)» — для табличных числовых
 function evaluateSimple(tex) {

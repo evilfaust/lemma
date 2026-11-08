@@ -1,3 +1,5 @@
+import StudentDeadlineNotice from './StudentDeadlineNotice';
+import { attemptElapsedSeconds, intakeClosedReason } from '../../utils/sessionDeadline';
 import { useEffect, useMemo, useState } from 'react';
 import { Button, Typography, Modal, App, Radio, Input } from 'antd';
 import { SendOutlined } from '@ant-design/icons';
@@ -40,7 +42,6 @@ const StudentMCTestPage = ({ studentSession }) => {
   // Решается на весь тест, а не на задание, — иначе кнопка подсказывала бы ответ.
   const symbolKeys = isInput && (tasks || []).some(t => /\\sqrt|\\pi/.test(t.answer || ''));
   const [submitting, setSubmitting] = useState(false);
-  const [startTime] = useState(Date.now());
 
   const storageKey = useMemo(
     () => (attempt?.id ? `ege_student_mc_answers_${attempt.id}` : null),
@@ -95,7 +96,11 @@ const StudentMCTestPage = ({ studentSession }) => {
   const doSubmit = async () => {
     setSubmitting(true);
     try {
-      const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+      const freshSession = await api.getSession(attempt.session || session.id);
+      if (!freshSession) throw new Error('Не удалось проверить срок сдачи. Попробуйте ещё раз.');
+      const closedReason = intakeClosedReason(freshSession);
+      if (closedReason) throw new Error(closedReason);
+      const durationSeconds = attemptElapsedSeconds(attempt);
       const durationMinutes = durationSeconds / 60;
 
       let score = 0;
@@ -178,13 +183,16 @@ const StudentMCTestPage = ({ studentSession }) => {
         duration_seconds: durationSeconds,
         achievement: randomBadge?.id || null,
         unlocked_achievements: unlocked.map(a => a.id),
-      });
+      }, { expand: 'unlocked_achievements' });
 
       if (storageKey) localStorage.removeItem(storageKey);
 
       setAttempt({
         ...attempt, ...updated,
-        expand: { achievement: randomBadge, unlocked_achievements: unlocked },
+        expand: {
+          achievement: randomBadge,
+          unlocked_achievements: updated?.expand?.unlocked_achievements ?? unlocked,
+        },
       });
       message.success('Ответы отправлены');
     } catch (err) {
@@ -201,6 +209,8 @@ const StudentMCTestPage = ({ studentSession }) => {
       </div>
     );
   }
+
+  if (studentSession.deadlineExpired) return <StudentDeadlineNotice />;
 
   if (!variant || !tasks.length) {
     return (

@@ -15,6 +15,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../../services/pocketbase';
 import TeacherResultsDashboard from './TeacherResultsDashboard';
 import AttemptsSetting from './AttemptsSetting';
+import SessionGroupsSelect from './SessionGroupsSelect';
 import './SessionPanel.css';
 import { isGenericTitle } from '../../utils/studentWorkTitle';
 
@@ -112,8 +113,8 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
       const updated = await api.updateSession(session.id, fields);
       setSession({ ...session, ...updated });
       if (successMsg) message.success(successMsg);
-    } catch {
-      message.error('Ошибка обновления сессии');
+    } catch (err) {
+      message.error(err.message || 'Ошибка обновления сессии');
     }
   };
 
@@ -309,7 +310,7 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
           {/* Дедлайн сдачи */}
           <div className="session-panel__field-row">
             <Text type="secondary" className="session-panel__field-label">Дедлайн сдачи</Text>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <DatePicker
                 showTime={{ format: 'HH:mm' }}
                 format="DD.MM.YYYY HH:mm"
@@ -318,10 +319,24 @@ const SessionPanel = ({ workId, mcTestId, defaultTitle }) => {
                 placeholder="Без дедлайна"
                 style={{ width: 220 }}
               />
+              {session.deadline && (
+                <Tooltip title="После срока нельзя начать или сдать работу, включая уже начатую попытку.">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <Switch size="small" checked={!!session.strict_deadline}
+                      onChange={(checked) => patchSession({ strict_deadline: checked })} />
+                    Строгий срок
+                  </label>
+                </Tooltip>
+              )}
               {!session.deadline && (
                 <Text type="secondary" style={{ fontSize: 12 }}>Срок не ограничен</Text>
               )}
             </div>
+          </div>
+
+          <div className="session-panel__field-row">
+            <Text type="secondary" className="session-panel__field-label">Назначить группам</Text>
+            <SessionGroupsSelect session={session} onSaved={(updated) => setSession((prev) => ({ ...prev, ...updated }))} />
           </div>
 
           <div className="session-panel__field-row">

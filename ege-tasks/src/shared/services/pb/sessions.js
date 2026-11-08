@@ -1,9 +1,124 @@
-import { pb, _logAudit, withOwner } from './client.js';
+import { pb, _logAudit, withOwner, andOwner, currentTeacher } from './client.js';
 import { getFullListByOr } from './chunked.js';
 import { shuffleArray } from '../../utils/shuffle';
 import { escapeFilter } from '../../utils/escapeFilter';
+import { mapLimit } from '../../utils/mapLimit.js';
+import { assignmentProgress, assignmentReviewed } from '../../../utils/assignmentAttention';
+
+const assignmentProjection = {
+  expand: 'work,mc_test,trig_mc_test,groups',
+  fields: 'id,deadline,reviewed_deadline,is_open,strict_deadline,student_title,groups,'
+    + 'expand.work.title,expand.mc_test.title,expand.trig_mc_test.title,'
+    + 'expand.groups.id,expand.groups.name,expand.groups.kind',
+};
 
 export const sessionsApi = {
+  async getDeadlineAssignments() {
+    return pb.collection('work_sessions').getFullList({
+      ...assignmentProjection, filter: andOwner('deadline != ""'), sort: 'deadline',
+    });
+  },
+
+  async getAssignment(id) {
+    return pb.collection('work_sessions').getFirstListItem(
+      andOwner(`id = "${escapeFilter(id)}"`), assignmentProjection,
+    );
+  },
+
+  async getAssignmentProgress(sessions) {
+    const groups = new Map(sessions.flatMap((s) => (s.expand?.groups || []).map((g) => [g.id, g])));
+    const groupIds = [...new Set(sessions.flatMap((s) => s.groups || []))];
+    const [attempts, { results }] = await Promise.all([
+      getFullListByOr('attempts', 'session', sessions.map((s) => s.id), {
+        fields: 'id,session,student,student_name,status',
+      }),
+      mapLimit(groupIds, 4, (id) => {
+        const group = groups.get(id);
+        if (!group) throw new Error('Группа недоступна');
+        return group.kind === 'course'
+          ? this.getCourseStudents(id, { strict: true })
+          : this.getStudentsByGroup(id, { strict: true });
+      }),
+    ]);
+    const rosters = new Map(groupIds.map((id, i) => [id, results[i]]));
+    const bySession = new Map(sessions.map((s) => [s.id, []]));
+    for (const attempt of attempts) bySession.get(attempt.session)?.push(attempt);
+    return new Map(sessions.map((s) => {
+      const assigned = (s.groups || []).map((id) => rosters.get(id));
+      const progress = assigned.includes(undefined) ? null : assignmentProgress(assigned.flat(), bySession.get(s.id));
+      return [s.id, progress];
+    }));
+  },
+
+  async setAssignmentReviewed(session, reviewed) {
+    const value = reviewed ? session.deadline : '';
+    const updated = await this.updateSession(session.id, { reviewed_deadline: value });
+    if (typeof updated.reviewed_deadline !== 'string'
+      || (value ? !assignmentReviewed({ ...updated, deadline: value }) : updated.reviewed_deadline !== '')) {
+      throw new Error('Отметка недоступна. Требуется обновление базы.');
+    }
+    _logAudit('update', 'work_sessions', session.id, reviewed ? 'Итоги разобраны' : 'Возврат в очередь внимания');
+    return updated;
+  },
+
+  // Для назначения нужны только сведения о выдаче и названия. Содержимое
+  // тестов (и правильные ответы из mc_tests.variants) здесь не запрашиваем.
+  async getAssignableSessions() {
+    return pb.collection('work_sessions').getFullList({
+      filter: andOwner('work != "" || mc_test != ""'),
+      sort: '-created', expand: 'work,mc_test',
+      fields: 'id,owner,groups,is_open,deadline,student_title,created,work,mc_test,'
+        + 'expand.work.title,expand.mc_test.title',
+    });
+  },
+
+  async getGroupTestSessions(groupIds) {
+    return getFullListByOr('work_sessions', 'groups.id', groupIds, {
+      sort: '-created', expand: 'work,mc_test',
+      fields: 'id,owner,groups,is_open,deadline,student_title,created,work,mc_test,'
+        + 'expand.work.title,expand.mc_test.title',
+    }, { op: '?=', extraFilter: andOwner() });
+  },
+
+  // Ошибку чтения нельзя превращать в []: это ошибочно пометит весь класс
+  // как «не приступали» и попадёт в сообщение учителя.
+  async getGroupTestAttempts(sessionId) {
+    return pb.collection('attempts').getFullList({
+      filter: `session = "${escapeFilter(sessionId)}"`,
+      fields: 'id,student,student_name,status', requestKey: null,
+    });
+  },
+
+  async setSessionGroups(sessionId, groups) {
+    const session = await pb.collection('work_sessions').getOne(sessionId);
+    const teacher = currentTeacher();
+    if (!teacher || teacher.role === 'viewer' || (session.owner && session.owner !== teacher.id && teacher.role !== 'superadmin')) {
+      throw new Error('Назначать тест может его автор');
+    }
+    const ids = [...new Set(groups.filter(Boolean))];
+    const updated = await pb.collection('work_sessions').update(sessionId, { groups: ids });
+    if (!Array.isArray(updated.groups) || updated.groups.length !== ids.length || ids.some((id) => !updated.groups.includes(id))) {
+      throw new Error('Не удалось сохранить группы: требуется миграция 1789600000');
+    }
+    _logAudit('update', 'work_sessions', sessionId, `Группы теста: ${ids.join(', ') || 'назначение снято'}`);
+    return updated;
+  },
+
+  // Операторы PB сохраняют назначения другим классам при параллельной работе.
+  async assignSessionToGroup(sessionId, groupId, assigned = true) {
+    const session = await pb.collection('work_sessions').getOne(sessionId);
+    const teacher = currentTeacher();
+    if (!teacher || teacher.role === 'viewer' || (session.owner && session.owner !== teacher.id && teacher.role !== 'superadmin')) {
+      throw new Error('Назначать тест может его автор');
+    }
+    const updated = await pb.collection('work_sessions').update(sessionId, { [assigned ? 'groups+' : 'groups-']: [groupId] });
+    if (!Array.isArray(updated.groups) || updated.groups.includes(groupId) !== assigned) {
+      throw new Error('Не удалось сохранить назначение: требуется миграция 1789600000');
+    }
+    _logAudit('update', 'work_sessions', sessionId, `${assigned ? 'Назначен группе' : 'Снято назначение группе'} ${groupId}`);
+    return updated;
+  },
+
   // ============ СЕССИИ ВЫДАЧИ (WORK SESSIONS) ============
 
   async createSession(data) {
@@ -87,7 +202,15 @@ export const sessionsApi = {
 
   async updateSession(id, data) {
     try {
-      return await pb.collection('work_sessions').update(id, data);
+      const updated = await pb.collection('work_sessions').update(id, data);
+      if ('strict_deadline' in data && updated.strict_deadline !== data.strict_deadline) {
+        throw new Error('Не удалось сохранить строгий срок: требуется миграция 1789800000');
+      }
+      const changes = [];
+      if ('deadline' in data) changes.push(updated.deadline ? `Срок сдачи: ${updated.deadline}` : 'Срок сдачи снят');
+      if ('is_open' in data) changes.push(updated.is_open ? 'Приём открыт' : 'Приём закрыт');
+      if (changes.length) _logAudit('update', 'work_sessions', id, changes.join(' · '));
+      return updated;
     } catch (error) {
       console.error('Error updating session:', error);
       throw error;
@@ -283,9 +406,9 @@ export const sessionsApi = {
     }
   },
 
-  async updateAttempt(id, data) {
+  async updateAttempt(id, data, options) {
     try {
-      return await pb.collection('attempts').update(id, data);
+      return await pb.collection('attempts').update(id, data, options);
     } catch (error) {
       console.error('Error updating attempt:', error);
       throw error;

@@ -49,6 +49,25 @@ describe('useStudentSession — раздача вариантов без чуж�
     expect(result.current.attempt.issueNumber).toBe(1);
   });
 
+  it('строгий срок запрещает старт новой попытки', async () => {
+    mockApi.getSession.mockResolvedValue({ id: 'sess', work: 'w1', strict_deadline: true, deadline: '2020-01-01T00:00:00Z' });
+    const { result } = renderHook(() => useStudentSession('sess', 'dev-1', null));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    await act(async () => { await result.current.startAttempt('Иванов'); });
+    expect(result.current.deadlineExpired).toBe(true);
+    expect(mockApi.createAttempt).not.toHaveBeenCalled();
+  });
+
+  it('первое открытие заранее выданной попытки фиксирует старт', async () => {
+    const mine = { id: 'issued', session: 'sess', variant: 'v1', status: 'started', started_at: '', created: '2026-10-01T10:00:00Z' };
+    mockApi.getAttemptsByDevice.mockResolvedValue([mine]);
+    mockApi.updateAttempt.mockImplementation(async (id, patch) => ({ ...mine, ...patch }));
+    mockApi.getVariant.mockResolvedValue(variant('v1', 1));
+    const { result } = renderHook(() => useStudentSession('sess', 'dev-1', null));
+    await waitFor(() => expect(result.current.attempt?.id).toBe('issued'));
+    expect(mockApi.updateAttempt).toHaveBeenCalledWith('issued', { started_at: expect.any(String) });
+  });
+
   it('продолжение начатой попытки — номер по своим попыткам, чужие не нужны', async () => {
     const mine = { id: 'a1', session: 'sess', device_id: 'dev-1', variant: 'v1', status: 'started', created: '2026-10-01T10:00:00Z' };
     mockApi.getAttemptsByDevice.mockResolvedValue([mine]);

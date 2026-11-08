@@ -240,17 +240,35 @@ describe('экран главной', () => {
     expect(screen.getByText('завтра в 10:15')).toBeTruthy();
     expect(screen.getByText('Степени').closest('a').getAttribute('href')).toBe('/student/s8');
     expect(screen.queryByText('Пока здесь пусто')).toBeNull();
-    expect(screen.getByLabelText('Код теста')).toBeTruthy();
+    expect(screen.queryByLabelText('Код теста')).toBeNull();
   });
 
-  it('ни уроков, ни материалов, ни результатов — объяснение и код теста', async () => {
+  it('ни уроков, ни материалов, ни результатов — объяснение без формы кода', async () => {
     mockApi.getMyLessons.mockResolvedValue(null);
     mockApi.getRecentStudentAttempts.mockResolvedValue([]);
     mockApi.getMyStereoFeed.mockResolvedValue(null);
     await renderHome();
     expect(screen.getByText('Пока здесь пусто')).toBeTruthy();
     expect(screen.queryByText('Сделать')).toBeNull();
-    expect(screen.getByLabelText('Код теста')).toBeTruthy();
+    expect(screen.queryByLabelText('Код теста')).toBeNull();
+    expect(screen.queryByText(/А тест по коду/)).toBeNull();
+  });
+
+  it('назначенный тест виден без расписания; срок и продолжение, без дубля в «Сейчас»', async () => {
+    mockApi.getMyLessons.mockResolvedValue(null);
+    mockApi.getRecentStudentAttempts.mockResolvedValue([
+      attempt('a1', 's1', 'started', { expand: { session: { student_title: 'Субботний тест' } } }),
+    ]);
+    mockApi.getMyStereoFeed.mockResolvedValue({ rooms: [], tests: [
+      { id: 's1', title: 'Субботний тест', status: 'started', deadline: at('2026-10-07T18:00:00') },
+      { id: 's2', title: 'Уже сданный тест', status: 'submitted' },
+    ] });
+    await renderHome();
+    expect(screen.getAllByText('Субботний тест')).toHaveLength(1);
+    expect(screen.getByText('Сегодня до 18:00')).toBeTruthy();
+    expect(screen.getByText('Продолжить').closest('a').getAttribute('href')).toBe('/student/s1');
+    expect(screen.queryByText('Уже сданный тест')).toBeNull();
+    expect(screen.queryByText('Пока здесь пусто')).toBeNull();
   });
 
   it('класс с расписанием, но без ДЗ — «Сделать» успокаивает', async () => {

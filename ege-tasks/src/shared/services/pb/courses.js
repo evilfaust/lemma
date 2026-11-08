@@ -27,7 +27,7 @@ export const coursesApi = {
   },
 
   // ── Членство в курсе (course_members) ────────────────────────────────────
-  async getCourseMembers(courseId) {
+  async getCourseMembers(courseId, { strict = false } = {}) {
     try {
       return await pb.collection('course_members').getFullList({
         filter: `course = "${escapeFilter(courseId)}"`,
@@ -36,6 +36,7 @@ export const coursesApi = {
       });
     } catch (error) {
       console.error('Error fetching course members:', error);
+      if (strict) throw error;
       return [];
     }
   },
@@ -74,14 +75,15 @@ export const coursesApi = {
   // Ученики курса как записи students (для ростера посещаемости и т.п.).
   // Имена берём list-запросом по id — students.viewRule=self ломает getOne/expand,
   // но listRule публичен, поэтому фильтр по id возвращает имена.
-  async getCourseStudents(courseId) {
+  async getCourseStudents(courseId, { strict = false } = {}) {
     try {
-      const members = (await this.getCourseMembers(courseId)).filter((m) => m.active !== false);
+      const members = (await this.getCourseMembers(courseId, { strict })).filter((m) => m.active !== false);
       const ids = members.map((m) => m.student).filter(Boolean);
       if (!ids.length) return [];
       return await getFullListByOr('students', 'id', ids, { sort: 'name' });
     } catch (error) {
       console.error('Error fetching course students:', error);
+      if (strict) throw error;
       return [];
     }
   },

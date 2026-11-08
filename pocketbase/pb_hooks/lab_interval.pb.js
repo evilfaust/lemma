@@ -1,0 +1,9 @@
+/// <reference path="../pb_data/types.d.ts" />
+routerAdd('GET', '/api/lab-interval/teacher', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'teacherList'));
+routerAdd('POST', '/api/lab-interval/teacher', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'create'));
+routerAdd('GET', '/api/lab-interval/teacher/{id}', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'teacherDetail'));
+routerAdd('POST', '/api/lab-interval/teacher/{id}/status', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'status'));
+routerAdd('GET', '/api/lab-interval/my', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'my'));
+routerAdd('GET', '/api/lab-interval/student/{id}', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'view'));
+routerAdd('POST', '/api/lab-interval/student/{id}/start', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'start'));
+routerAdd('POST', '/api/lab-interval/student/{id}/action', c => require(`${__hooks}/lab_interval_lib.js`).route($app, c, 'action'));

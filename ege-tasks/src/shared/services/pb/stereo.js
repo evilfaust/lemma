@@ -100,7 +100,7 @@ export const stereoApi = {
     try {
       const res = await pb.send('/api/stereo/my', { method: 'GET', requestKey: null });
       return {
-        rooms: res?.rooms || [], scenes: res?.scenes || [], works: res?.works || [], shows: res?.shows || [],
+        rooms: res?.rooms || [], scenes: res?.scenes || [], works: res?.works || [], shows: res?.shows || [], tests: res?.tests || [],
       };
     } catch (error) {
       if ([401, 403, 404].includes(error?.status)) return null;

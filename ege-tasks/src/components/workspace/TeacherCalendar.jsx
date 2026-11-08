@@ -16,6 +16,7 @@ import localizedFormat from 'dayjs/plugin/localizedFormat';
 import { WorkspacePageHeader, groupHex, lessonHex, registerGroupColors } from './ui';
 import { api } from '../../shared/services/pocketbase';
 import { useAuth } from '../../contexts/AuthContext';
+import { assignmentPath } from '../../utils/assignmentAttention';
 import LessonModal from './calendar/LessonModal';
 import EventChip from './calendar/EventChip';
 import WeekByPairs from './calendar/WeekByPairs';
@@ -498,6 +499,7 @@ export default function TeacherCalendar() {
         onToggleTodo={(t) => { toggleTodo(t); setSelected(null); }}
         onToggleLessonDone={toggleLessonDone}
         onOpenWork={handleOpenWork}
+        onOpenAssignment={(id) => navigate(assignmentPath(id))}
         onOpenNote={handleOpenNoteById}
         canEdit={canEdit}
         canDelete={canDelete}

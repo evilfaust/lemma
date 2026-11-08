@@ -33,6 +33,8 @@ import CourseMembersSection from './course/CourseMembersSection';
 import CoTeachersSection from './CoTeachersSection';
 import { groupsByStudent } from '../../utils/studentGroups';
 import { currentAcademicYear } from '../../utils/academicYear';
+import CopyGroupButton from './CopyGroupButton';
+import GroupTestsSection from './GroupTestsSection';
 
 const { Text } = Typography;
 
@@ -206,7 +208,7 @@ export default function GroupDetail() {
   ].filter(Boolean);
 
   return (
-    <div style={{ maxWidth: 900 }}>
+    <div className="ws-group-detail" style={{ maxWidth: 900 }}>
       <Space style={{ marginBottom: 16 }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/app/groups')}>
           К группам
@@ -220,6 +222,7 @@ export default function GroupDetail() {
         subtitle={subtitleParts.join(' · ') || undefined}
         extra={(
           <Space>
+            <CopyGroupButton group={group} students={group.kind === 'course' ? undefined : students} />
             {group.kind === 'course' && <Tag color="purple">курс</Tag>}
             {group.archived ? <Tag>архив</Tag> : null}
           </Space>
@@ -242,6 +245,8 @@ export default function GroupDetail() {
 
       <GroupCampaignsSection group={group} />
 
+      <GroupTestsSection key={group.id} group={group} students={students} />
+
       {group.kind === 'course' ? (
         <CourseMembersSection group={group} allStudents={allStudents} />
       ) : (
@@ -250,7 +255,7 @@ export default function GroupDetail() {
         iconColor={groupHex(group).base}
         title={`Ученики (${students.length})`}
         extra={canEdit && (
-          <Space size={6} style={{ marginLeft: 'auto' }}>
+          <Space size={6} wrap className="ws-group-roster-actions">
             {matchByName.length > 0 && (
               <Button
                 size="small"

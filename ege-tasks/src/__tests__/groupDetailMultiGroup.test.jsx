@@ -14,6 +14,7 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ canEdit: true, canDelete: true, isSuperAdmin: true }),
 }));
 vi.mock('../components/workspace/CoTeachersSection', () => ({ default: () => null }));
+vi.mock('../components/workspace/GroupTestsSection', () => ({ default: () => null }));
 vi.mock('../components/workspace/summer/GroupCampaignsSection', () => ({ default: () => null }));
 vi.mock('../components/workspace/course/CourseMembersSection', () => ({ default: () => null }));
 vi.mock('../components/students/StudentEditModal', () => ({ default: () => null }));

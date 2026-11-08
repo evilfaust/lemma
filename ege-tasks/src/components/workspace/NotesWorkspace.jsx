@@ -3,21 +3,21 @@ import {
 } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  App, Button, DatePicker, Dropdown, Input, Popconfirm, Segmented, Select, Spin, Tooltip,
+  Alert, App, Button, DatePicker, Dropdown, Input, Popconfirm, Segmented, Select, Spin, Tooltip,
 } from 'antd';
 import {
   ContainerOutlined, DeleteOutlined, FileTextOutlined, InboxOutlined, PaperClipOutlined,
   PlusOutlined, PushpinFilled, PushpinOutlined, SearchOutlined, UndoOutlined, TeamOutlined,
   ThunderboltOutlined, DownOutlined, BoldOutlined, FontSizeOutlined, UnorderedListOutlined,
   CheckSquareOutlined, FunctionOutlined, PictureOutlined, TableOutlined, ExportOutlined,
-  MenuFoldOutlined, MenuUnfoldOutlined,
+  MenuFoldOutlined, MenuUnfoldOutlined, MoreOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import InsertStudentsModal from './InsertStudentsModal';
 import { WorkspacePageHeader, EmptyState, Chip, GroupChip } from './ui';
 import { useCreateBlockNote, SuggestionMenuController, getDefaultReactSlashMenuItems } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/mantine';
-import { BlockNoteSchema, defaultBlockSpecs, filterSuggestionItems, insertOrUpdateBlock } from '@blocknote/core';
+import { BlockNoteSchema, defaultBlockSpecs, defaultInlineContentSpecs, filterSuggestionItems, insertOrUpdateBlock } from '@blocknote/core';
 import { ru as bnRu } from '@blocknote/core/locales';
 import { api } from '../../shared/services/pocketbase';
 import { materialsApi } from '../../shared/services/pb/filesClient';
@@ -26,12 +26,18 @@ import { MathBlock, mathSlashItem } from './notesMathBlock';
 import { extractNoteText, extractCheckItems } from './notesText';
 import { NOTE_TYPES, noteTypeMeta } from './notes/noteTypes';
 import NoteContextPanel from './notes/NoteContextPanel';
+import { InlineMath, InlineMathEditContext, InlineFormulaDialog } from './notes/InlineMath';
+import { createNoteDraftStore, createNoteSaveQueue } from './notes/noteDrafts';
+import { duplicateNoteData, freshNoteBody, noteFromTemplate } from './notes/noteTemplates';
+import { NoteTemplatesDialog, SaveNoteTemplateDialog } from './notes/NoteTemplatesDialog';
+import { currentTeacher } from '../../shared/services/pb/client';
 import '@blocknote/core/fonts/inter.css';
 import '@blocknote/mantine/style.css';
 import './NotesWorkspace.css';
 
 const noteSchema = BlockNoteSchema.create({
   blockSpecs: { ...defaultBlockSpecs, math: MathBlock },
+  inlineContentSpecs: { ...defaultInlineContentSpecs, inlineMath: InlineMath },
 });
 
 const RAIL_KEY = 'notes.railCollapsed';
@@ -65,21 +71,6 @@ function starterBody(type) {
   return undefined;
 }
 
-// Рекурсивная инверсия checked у чек-айтема по id (иммутабельно).
-function flipCheck(blocks, blockId) {
-  if (!Array.isArray(blocks)) return blocks;
-  return blocks.map((b) => {
-    if (b.id === blockId && b.type === 'checkListItem') {
-      return { ...b, props: { ...(b.props || {}), checked: !b.props?.checked } };
-    }
-    if (Array.isArray(b.children)) {
-      const children = flipCheck(b.children, blockId);
-      if (children !== b.children) return { ...b, children };
-    }
-    return b;
-  });
-}
-
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"]/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]
@@ -92,6 +83,7 @@ const NoteEditor = forwardRef(function NoteEditor(
 ) {
   const { message } = App.useApp();
   const [studentsModalOpen, setStudentsModalOpen] = useState(false);
+  const [formulaOpen, setFormulaOpen] = useState(false);
   const initialContent = useMemo(
     () => (Array.isArray(note.body) && note.body.length ? note.body : undefined),
     [note.id], // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,22 +104,8 @@ const NoteEditor = forwardRef(function NoteEditor(
     },
   });
 
-  const dirtyRef = useRef(null);
-  const timer = useRef();
-
-  const flush = useCallback(() => {
-    if (dirtyRef.current) {
-      onSaveBody(dirtyRef.current);
-      dirtyRef.current = null;
-    }
-  }, [onSaveBody]);
-
-  useEffect(() => () => { clearTimeout(timer.current); flush(); }, [flush]);
-
   const handleChange = () => {
-    dirtyRef.current = editor.document;
-    clearTimeout(timer.current);
-    timer.current = setTimeout(flush, 800);
+    onSaveBody(note.id, editor.document);
   };
 
   // Вставка/конвертация блока по позиции курсора.
@@ -152,7 +130,7 @@ const NoteEditor = forwardRef(function NoteEditor(
     const doc = editor.document;
     const refBlock = doc[doc.length - 1];
     editor.insertBlocks(blocks, refBlock, 'after');
-    onSaveBody(editor.document);
+    onSaveBody(note.id, editor.document);
     onTagStudents?.(selected);
     message.success(`Добавлено учеников: ${selected.length}`);
   };
@@ -160,6 +138,11 @@ const NoteEditor = forwardRef(function NoteEditor(
   // API наружу — для контекст-панели (отметить учеников) и шапки (экспорт PDF).
   useImperativeHandle(ref, () => ({
     requestInsertStudents: () => setStudentsModalOpen(true),
+    getBody: () => editor.document,
+    toggleCheck: (blockId) => {
+      const block = editor.getBlock(blockId);
+      if (block?.type === 'checkListItem') editor.updateBlock(block, { props: { checked: !block.props.checked } });
+    },
     exportPdf: async () => {
       try {
         const html = await editor.blocksToHTMLLossy(editor.document);
@@ -181,6 +164,7 @@ const NoteEditor = forwardRef(function NoteEditor(
   }), [editor, note.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
+    <InlineMathEditContext.Provider value={editable}>
     <div className="note-editor-wrap">
       {editable && (
         <div className="note-editor-toolbar">
@@ -200,7 +184,10 @@ const NoteEditor = forwardRef(function NoteEditor(
             <Button size="small" type="text" icon={<CheckSquareOutlined />}
               onClick={() => insert({ type: 'checkListItem', props: { checked: false } })} />
           </Tooltip>
-          <Tooltip title="Формула (LaTeX)">
+          <Tooltip title="Формула в строке">
+            <Button size="small" type="text" onClick={() => setFormulaOpen(true)}>∑ в строке</Button>
+          </Tooltip>
+          <Tooltip title="Блок-формула (LaTeX)">
             <Button size="small" type="text" icon={<FunctionOutlined />}
               onClick={() => { insertOrUpdateBlock(editor, { type: 'math', props: { formula: '' } }); editor.focus(); }} />
           </Tooltip>
@@ -237,12 +224,28 @@ const NoteEditor = forwardRef(function NoteEditor(
           triggerCharacter="/"
           getItems={async (query) =>
             filterSuggestionItems(
-              [...getDefaultReactSlashMenuItems(editor), mathSlashItem(editor)],
+              [...getDefaultReactSlashMenuItems(editor), mathSlashItem(editor), {
+                title: 'Формула в строке', subtext: 'LaTeX внутри предложения',
+                aliases: ['inline', 'latex', 'math', 'формула', 'строка'], group: 'Дополнительно',
+                onItemClick: () => setFormulaOpen(true),
+              }],
               query,
             )
           }
         />
       </BlockNoteView>
+      <InlineFormulaDialog open={formulaOpen} onCancel={() => setFormulaOpen(false)}
+        onConfirm={(formula) => {
+          if (!editable) return;
+          const block = editor.getTextCursorPosition().block;
+          if (!Array.isArray(block.content) && block.type !== 'table') {
+            const [paragraph] = editor.insertBlocks([{ type: 'paragraph' }], block, 'after');
+            editor.setTextCursorPosition(paragraph, 'start');
+          }
+          editor.insertInlineContent([{ type: 'inlineMath', props: { formula } }, ' '], { updateSelection: true });
+          setFormulaOpen(false);
+          editor.focus();
+        }} />
       <InsertStudentsModal
         open={studentsModalOpen}
         groupId={note.group}
@@ -250,13 +253,14 @@ const NoteEditor = forwardRef(function NoteEditor(
         onConfirm={insertStudents}
       />
     </div>
+    </InlineMathEditContext.Provider>
   );
 });
 
 export default function NotesWorkspace() {
   const { message } = App.useApp();
   const navigate = useNavigate();
-  const { canEdit, canDelete } = useAuth();
+  const { teacher, canEdit, canDelete } = useAuth();
 
   const [searchParams] = useSearchParams();
   const [notes, setNotes] = useState([]);
@@ -267,7 +271,10 @@ export default function NotesWorkspace() {
   const [searchQ, setSearchQ] = useState('');
   const [groupFilter, setGroupFilter] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [savedTick, setSavedTick] = useState(0);
+  const [saveStates, setSaveStates] = useState({});
+  const [draftRevision, setDraftRevision] = useState(0);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [saveTemplateOpen, setSaveTemplateOpen] = useState(false);
   const [lessonFiles, setLessonFiles] = useState([]);
   const [lessonObj, setLessonObj] = useState(null);
   const [backlinks, setBacklinks] = useState([]);
@@ -275,13 +282,53 @@ export default function NotesWorkspace() {
   const [flashId, setFlashId] = useState(null);
   const [editorRev, setEditorRev] = useState(0);
   const [railCollapsed, setRailCollapsed] = useState(
-    () => localStorage.getItem(RAIL_KEY) === '1',
+    () => { try { return localStorage.getItem(RAIL_KEY) === '1'; } catch { return false; } },
   );
   const editorRef = useRef(null);
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const draftStore = useMemo(() => createNoteDraftStore({
+    getItem: (key) => localStorage.getItem(key),
+    setItem: (key, value) => localStorage.setItem(key, value),
+    removeItem: (key) => localStorage.removeItem(key),
+  }, teacher?.id || ''), [teacher?.id]);
+  const saveQueue = useMemo(() => createNoteSaveQueue({
+    store: draftStore,
+    save: (id, patch) => {
+      if (!teacher?.id || currentTeacher()?.id !== teacher.id) {
+        throw Object.assign(new Error('Войдите под автором черновика'), { status: 401 });
+      }
+      return api.updateNote(id, patch);
+    },
+    onState: (id, state) => setSaveStates((prev) => ({ ...prev, [id]: state })),
+    onSaved: (id, record) => setNotes((prev) => prev.map((n) => (
+      n.id === id ? { ...n, updated: record?.updated || n.updated } : n
+    ))),
+  }), [draftStore, teacher?.id]);
+
+  useEffect(() => {
+    saveQueue.resume();
+    const retry = () => saveQueue.flushAll();
+    const leave = (e) => {
+      if (saveQueue.pending()) { e.preventDefault(); e.returnValue = ''; }
+    };
+    const hide = () => { if (document.visibilityState === 'hidden') saveQueue.flushAll(); };
+    window.addEventListener('online', retry);
+    window.addEventListener('beforeunload', leave);
+    document.addEventListener('visibilitychange', hide);
+    return () => {
+      window.removeEventListener('online', retry);
+      window.removeEventListener('beforeunload', leave);
+      document.removeEventListener('visibilitychange', hide);
+      saveQueue.stop();
+    };
+  }, [saveQueue]);
+
+  useEffect(() => { saveQueue.flushAll(); }, [activeId, saveQueue]);
 
   const toggleRail = () => setRailCollapsed((v) => {
     const next = !v;
-    localStorage.setItem(RAIL_KEY, next ? '1' : '0');
+    try { localStorage.setItem(RAIL_KEY, next ? '1' : '0'); } catch { /* Панель работает и без storage. */ }
     return next;
   });
 
@@ -304,9 +351,14 @@ export default function NotesWorkspace() {
 
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const appliedNoteParam = useRef(null);
   useEffect(() => {
     const wanted = searchParams.get('note');
-    if (wanted && notes.some((n) => n.id === wanted)) setActiveId(wanted);
+    if (!wanted) appliedNoteParam.current = null;
+    else if (appliedNoteParam.current !== wanted && notes.some((n) => n.id === wanted)) {
+      appliedNoteParam.current = wanted;
+      setActiveId(wanted);
+    }
   }, [searchParams, notes]);
 
   const groupName = (n) => n?.expand?.group?.name;
@@ -360,6 +412,11 @@ export default function NotesWorkspace() {
   );
 
   const active = useMemo(() => notes.find((n) => n.id === activeId) || null, [notes, activeId]);
+  const recoveredDraft = useMemo(() => (
+    activeId && !saveQueue.has(activeId) ? draftStore.read(activeId) : null
+  ), [activeId, draftStore, saveQueue, draftRevision]);
+  const editable = canEdit && !recoveredDraft;
+  const saveState = saveStates[activeId];
 
   const checkItems = useMemo(() => extractCheckItems(active?.body), [active?.body]);
   const wordCount = useMemo(() => {
@@ -409,6 +466,44 @@ export default function NotesWorkspace() {
     }
   };
 
+  const selectCreated = (rec) => {
+    setNotes((prev) => [rec, ...prev]);
+    setActiveId(rec.id);
+    setView('all');
+    setTypeFilter('all');
+    setGroupFilter(null);
+    setSearchQ('');
+  };
+
+  const handleFromTemplate = async (template) => {
+    try {
+      const rec = await api.createNote(noteFromTemplate(template));
+      selectCreated(rec);
+      setTemplatesOpen(false);
+    } catch { message.error('Не удалось создать заметку из шаблона'); }
+  };
+
+  const handleDuplicate = async () => {
+    if (!active || !editable) return;
+    try {
+      const rec = await api.createNote(duplicateNoteData({ ...active, body: editorRef.current?.getBody() || active.body }));
+      selectCreated(rec);
+      message.success('Копия создана. Выберите дату и при необходимости другую группу.');
+    } catch { message.error('Не удалось создать копию'); }
+  };
+
+  const handleSaveTemplate = async (title) => {
+    if (!active || !editable) return;
+    try {
+      await api.createNoteTemplate({
+        title, type: noteTypeMeta(active).value,
+        body: freshNoteBody(editorRef.current?.getBody() || active.body, { resetChecks: true }),
+      });
+      setSaveTemplateOpen(false);
+      message.success('Шаблон сохранён');
+    } catch { message.error('Не удалось сохранить шаблон'); }
+  };
+
   const handleQuickCapture = async () => {
     const text = quickDraft.trim();
     if (!text) return;
@@ -423,24 +518,34 @@ export default function NotesWorkspace() {
     }
   };
 
-  const patchNote = useCallback(async (id, patch) => {
+  const patchNote = useCallback((id, patch) => {
+    if (!canEdit) return false;
+    if (!saveQueue.has(id) && draftStore.read(id)) {
+      message.warning('Сначала восстановите или отклоните черновик этой заметки');
+      return false;
+    }
+    const note = notesRef.current.find((n) => n.id === id);
+    saveQueue.enqueue(id, patch, note?.updated);
     setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
-    try {
-      await api.updateNote(id, patch);
-      setSavedTick((t) => t + 1);
-    } catch { message.error('Не удалось сохранить'); }
-  }, [message]);
+    return true;
+  }, [canEdit, draftStore, saveQueue, message]);
 
   const togglePin = (n) => patchNote(n.id, { is_pinned: !n.is_pinned });
 
   const archiveNote = (n, archived = true) => {
-    patchNote(n.id, { is_archived: archived });
-    if (archived && activeId === n.id && view !== 'archive') setActiveId(null);
+    if (patchNote(n.id, { is_archived: archived }) && archived && activeId === n.id && view !== 'archive') setActiveId(null);
   };
 
   const handleDeleteForever = async (id) => {
     try {
+      await saveQueue.flush(id);
+      if (!saveQueue.forget(id)) {
+        message.error('Дождитесь завершения сохранения перед удалением');
+        return;
+      }
       await api.deleteNote(id);
+      const draft = draftStore.read(id);
+      if (draft) draftStore.remove(id, draft.token);
       setNotes((prev) => prev.filter((n) => n.id !== id));
       if (activeId === id) setActiveId(null);
     } catch {
@@ -448,16 +553,21 @@ export default function NotesWorkspace() {
     }
   };
 
-  const saveBody = useCallback(async (body) => {
-    if (!activeId) return;
-    try {
-      await api.updateNote(activeId, { body });
-      setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...n, body } : n)));
-      setSavedTick((t) => t + 1);
-    } catch {
-      message.error('Не удалось сохранить заметку');
-    }
-  }, [activeId, message]);
+  const saveBody = useCallback((id, body) => patchNote(id, { body }), [patchNote]);
+
+  const restoreDraft = () => {
+    if (!active || !recoveredDraft || !canEdit) return;
+    saveQueue.enqueue(active.id, recoveredDraft.patch, active.updated);
+    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, ...recoveredDraft.patch } : n)));
+    setDraftRevision((v) => v + 1);
+    setEditorRev((v) => v + 1);
+  };
+
+  const discardDraft = () => {
+    if (!active || !recoveredDraft) return;
+    draftStore.remove(active.id, recoveredDraft.token);
+    setDraftRevision((v) => v + 1);
+  };
 
   const tagStudents = useCallback((students) => {
     if (!active) return;
@@ -470,16 +580,10 @@ export default function NotesWorkspace() {
     patchNote(active.id, { links: [...existing, ...additions] });
   }, [active, patchNote]);
 
-  // Тоггл чек-айтема из контекст-панели → правка тела + ремоунт редактора.
+  // Меняем через живой редактор: это сохраняет курсор и ещё не отправленный текст.
   const toggleCheck = useCallback((blockId) => {
-    if (!active) return;
-    const newBody = flipCheck(active.body || [], blockId);
-    setNotes((prev) => prev.map((n) => (n.id === active.id ? { ...n, body: newBody } : n)));
-    setEditorRev((r) => r + 1);
-    api.updateNote(active.id, { body: newBody })
-      .then(() => setSavedTick((t) => t + 1))
-      .catch(() => message.error('Не удалось сохранить'));
-  }, [active, message]);
+    if (editable) editorRef.current?.toggleCheck(blockId);
+  }, [editable]);
 
   const exportTasks = useCallback(async () => {
     if (!active) return;
@@ -493,17 +597,8 @@ export default function NotesWorkspace() {
     }
   }, [active, message]);
 
-  const titleTimer = useRef();
   const handleTitleChange = (e) => {
-    const title = e.target.value;
-    setNotes((prev) => prev.map((n) => (n.id === activeId ? { ...n, title } : n)));
-    clearTimeout(titleTimer.current);
-    titleTimer.current = setTimeout(async () => {
-      try {
-        await api.updateNote(activeId, { title });
-        setSavedTick((t) => t + 1);
-      } catch { /* тихо */ }
-    }, 600);
+    patchNote(activeId, { title: e.target.value });
   };
 
   const patchActive = (patch, optimisticExtra = {}) => {
@@ -602,7 +697,10 @@ export default function NotesWorkspace() {
 
   const typeChips = [{ value: 'all', label: 'Все', tone: 'neutral' }, ...NOTE_TYPES];
 
-  const newMenuItems = NOTE_TYPES.map((t) => ({ key: t.value, icon: <t.Icon />, label: `${t.label}` }));
+  const newMenuItems = [
+    { key: 'template', label: 'Из шаблона…' }, { type: 'divider' },
+    ...NOTE_TYPES.map((t) => ({ key: t.value, icon: <t.Icon />, label: `${t.label}` })),
+  ];
 
   const activeMeta = active ? noteTypeMeta(active) : null;
 
@@ -616,9 +714,10 @@ export default function NotesWorkspace() {
         extra={canEdit && (
           <Dropdown.Button
             type="primary"
-            icon={<DownOutlined />}
+            trigger={['click']}
+            icon={<DownOutlined aria-label="Способы создания заметки" />}
             onClick={() => handleNew()}
-            menu={{ items: newMenuItems, onClick: ({ key }) => handleNew(key) }}
+            menu={{ items: newMenuItems, onClick: ({ key }) => key === 'template' ? setTemplatesOpen(true) : handleNew(key) }}
           >
             <PlusOutlined /> Новая заметка
           </Dropdown.Button>
@@ -721,29 +820,41 @@ export default function NotesWorkspace() {
                   placeholder="Заголовок заметки"
                   value={active.title}
                   onChange={handleTitleChange}
-                  disabled={!canEdit}
+                  disabled={!editable}
                   maxLength={200}
                 />
                 <div className="notes-editor__tools">
-                  {savedTick > 0 && <span key={savedTick} className="notes-saved">✓ сохранено</span>}
+                  {saveState && <span className={`notes-save-state notes-save-state--${saveState.phase}`} role="status">
+                    {saveState.phase === 'saved' ? '✓ Сохранено'
+                      : saveState.phase === 'saving' ? 'Сохраняется…'
+                        : saveState.phase === 'error' ? 'Не сохранено'
+                          : 'Есть изменения'}
+                  </span>}
+                  {canEdit && <Dropdown trigger={['click']} menu={{
+                    items: [{ key: 'copy', label: 'Дублировать заметку', disabled: !editable },
+                      { key: 'template', label: 'Сохранить как шаблон…', disabled: !editable }],
+                    onClick: ({ key }) => key === 'copy' ? handleDuplicate() : setSaveTemplateOpen(true),
+                  }}>
+                    <Button type="text" aria-label="Действия с заметкой" icon={<MoreOutlined />} />
+                  </Dropdown>}
                   <Tooltip title={active.is_pinned ? 'Открепить' : 'Закрепить сверху'}>
                     <Button type="text"
                       icon={active.is_pinned ? <PushpinFilled style={{ color: 'var(--c-amber)' }} /> : <PushpinOutlined />}
-                      onClick={() => togglePin(active)} disabled={!canEdit} />
+                      onClick={() => togglePin(active)} disabled={!editable} />
                   </Tooltip>
                   <Tooltip title={active.is_inbox ? 'Убрать из инбокса' : 'В инбокс'}>
                     <Button type="text"
                       icon={<InboxOutlined style={active.is_inbox ? { color: 'var(--c-amber)' } : undefined} />}
-                      onClick={() => patchActive({ is_inbox: !active.is_inbox })} disabled={!canEdit} />
+                      onClick={() => patchActive({ is_inbox: !active.is_inbox })} disabled={!editable} />
                   </Tooltip>
                   <Tooltip title="Экспорт в PDF">
-                    <Button type="text" icon={<ExportOutlined />}
+                    <Button type="text" aria-label="Экспорт в PDF" icon={<ExportOutlined />}
                       onClick={() => editorRef.current?.exportPdf()} />
                   </Tooltip>
                   <Tooltip title={active.is_archived ? 'Вернуть из архива' : 'В архив'}>
                     <Button type="text"
                       icon={active.is_archived ? <UndoOutlined /> : <ContainerOutlined />}
-                      onClick={() => archiveNote(active, !active.is_archived)} disabled={!canEdit} />
+                      onClick={() => archiveNote(active, !active.is_archived)} disabled={!editable} />
                   </Tooltip>
                   <Tooltip title={railCollapsed ? 'Показать контекст' : 'Скрыть контекст'}>
                     <Button type="text"
@@ -756,13 +867,13 @@ export default function NotesWorkspace() {
                 {activeMeta && (
                   <Dropdown
                     trigger={['click']}
-                    disabled={!canEdit}
+                    disabled={!editable}
                     menu={{
                       items: NOTE_TYPES.map((t) => ({ key: t.value, icon: <t.Icon />, label: t.label })),
                       onClick: ({ key }) => patchActive({ type: key }),
                     }}
                   >
-                    <button type="button" className="notes-type-pill" data-tone={activeMeta.tone} disabled={!canEdit}>
+                    <button type="button" className="notes-type-pill" data-tone={activeMeta.tone} disabled={!editable}>
                       <activeMeta.Icon /> {activeMeta.label} <DownOutlined style={{ fontSize: 9 }} />
                     </button>
                   </Dropdown>
@@ -771,23 +882,43 @@ export default function NotesWorkspace() {
                   allowClear size="small" style={{ minWidth: 160 }}
                   placeholder="Класс / группа"
                   value={active.group || undefined}
-                  onChange={changeGroup} disabled={!canEdit}
+                  onChange={changeGroup} disabled={!editable}
                   options={groups.map((g) => ({ value: g.id, label: g.name }))}
                 />
                 <DatePicker
                   size="small" format="DD.MM.YYYY" placeholder="Дата"
                   value={active.note_date ? dayjs(active.note_date) : null}
-                  onChange={changeDate} disabled={!canEdit}
+                  onChange={changeDate} disabled={!editable}
                 />
                 {active.is_archived && <Chip tone="neutral" dot={false}>в архиве</Chip>}
               </div>
+              {canEdit && recoveredDraft && <Alert className="notes-draft-alert" type="warning" showIcon
+                message="Найден несохранённый черновик в этом браузере"
+                description={recoveredDraft.baseUpdated && recoveredDraft.baseUpdated !== active.updated
+                  ? 'На сервере заметка изменилась после создания черновика. Восстановление заменит соответствующие поля вашей локальной версией.'
+                  : 'Можно восстановить текст и продолжить сохранение либо оставить версию с сервера.'}
+                action={<div className="notes-draft-actions">
+                  <Button size="small" type="primary" onClick={restoreDraft}>Восстановить</Button>
+                  <Popconfirm title="Удалить локальный черновик и оставить серверную версию?"
+                    okText="Оставить серверную" cancelText="Отмена" onConfirm={discardDraft}>
+                    <Button size="small">Оставить серверную</Button>
+                  </Popconfirm>
+                </div>} />}
+              {saveState && saveState.phase !== 'saved' && (saveState.phase === 'error' || !saveState.persisted) && (
+                <Alert className="notes-draft-alert" type="warning" showIcon
+                  message={saveState.phase === 'error' ? 'Изменения ещё не сохранены на сервере' : 'Не удалось сохранить черновик в браузере'}
+                  description={saveState.persisted
+                    ? 'Черновик сохранён в этом браузере. Повторим отправку при восстановлении связи.'
+                    : 'Текст пока хранится только в открытой странице. Не закрывайте её до успешного сохранения.'}
+                  action={<Button size="small" onClick={() => saveQueue.flush(active.id)}>Повторить</Button>} />
+              )}
               <div className="notes-editor__body">
                 <NoteEditor
                   key={`${active.id}:${editorRev}`}
                   ref={editorRef}
                   note={active}
                   onSaveBody={saveBody}
-                  editable={canEdit}
+                  editable={editable}
                   onTagStudents={tagStudents}
                   wordCount={wordCount}
                   readMin={readMin}
@@ -806,7 +937,7 @@ export default function NotesWorkspace() {
             noteFiles={noteFiles}
             backlinks={backlinks}
             checkItems={checkItems}
-            canEdit={canEdit}
+            canEdit={editable}
             wordCount={wordCount}
             readMin={readMin}
             onCollapse={toggleRail}
@@ -819,6 +950,12 @@ export default function NotesWorkspace() {
           />
         )}
       </div>
+      {canEdit && <>
+        <NoteTemplatesDialog open={templatesOpen} onCancel={() => setTemplatesOpen(false)}
+          onSelect={handleFromTemplate} canDelete={canDelete} />
+        <SaveNoteTemplateDialog open={saveTemplateOpen} defaultTitle={active?.title}
+          onCancel={() => setSaveTemplateOpen(false)} onSave={handleSaveTemplate} />
+      </>}
     </div>
   );
 }

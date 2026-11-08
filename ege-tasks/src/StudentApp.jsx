@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { App, ConfigProvider, Button, notification, theme } from 'antd';
-import { ArrowLeftOutlined, TrophyOutlined, LinkOutlined, BarChartOutlined, CalendarOutlined, HomeOutlined, SunOutlined, MoonOutlined, LoginOutlined, ReadOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, TrophyOutlined, BarChartOutlined, CalendarOutlined, HomeOutlined, SunOutlined, MoonOutlined, LoginOutlined, ReadOutlined } from '@ant-design/icons';
 
 // Нижнее меню кабинета ученика (показывается залогиненному на всех экранах, кроме теста).
 // go(key) — навигация: в кабинете меняет homeView, на странице сессии ведёт на /student/.
@@ -90,13 +90,13 @@ const StudentStereoManual = lazy(() => import('./components/stereo/StudentStereo
 const StudentGeometryWork = lazy(() => import('./components/geometry/student/StudentGeometryWork'));
 // Работа в режиме показа (только условия, без выдачи) — /r/<id>
 const StudentWorkShow = lazy(() => import('./components/student/StudentWorkShow'));
+const StudentIntervalLab = lazy(() => import('./components/lab/interval/StudentIntervalLab'));
 // Статья теории по ссылке — отдельный чанк (markdown + KaTeX + стили темы).
 const StudentTheoryArticle = lazy(() => import('./components/theory/StudentTheoryArticle'));
 import 'katex/dist/katex.min.css';
 import './StudentApp.css';
 
 function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAuthSuccess, onLogout, hasSummer }) {
-  const [sessionCode, setSessionCode] = useState('');
   const [homeView, setHomeView] = useState(() => {
     const v = new URLSearchParams(window.location.search).get('v');
     return ['program', 'progress', 'gallery', 'courses'].includes(v) ? v : null;
@@ -107,12 +107,6 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
 
   // Минимальный псевдо-session для страниц прогресса/галереи
   const homeStudentSession = useMemo(() => ({ student, attempt: null, session: null }), [student]);
-
-  const openSession = () => {
-    const code = sessionCode.trim();
-    if (!code) return;
-    window.location.href = `/student/${encodeURIComponent(code)}`;
-  };
 
   const handleAuthSuccess = (s) => {
     onAuthSuccess(s);
@@ -219,7 +213,7 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
     );
   }
 
-  // ---- Гость: сначала вход, тест по коду — ниже ----
+  // ---- Гость: вход или регистрация ----
   return (
     <div className={`student-home${isDark ? ' student-theme-dark' : ''}`}>
       {themeCorner}
@@ -248,37 +242,6 @@ function StudentHomeLanding({ isDark, onToggleTheme, student, authChecked, onAut
           </>
         )}
 
-        <div className="student-home-section-divider student-home-guest-code">
-          <span>или</span>
-        </div>
-        <div className="student-home-guest-code-label">Есть код теста от учителя?</div>
-        <div className="student-home-input-wrap">
-          <input
-            type="text"
-            value={sessionCode}
-            onChange={(e) => setSessionCode(e.target.value)}
-            placeholder="Код с доски"
-            className="student-home-input"
-            autoCapitalize="off"
-            autoCorrect="off"
-            autoComplete="off"
-            aria-label="Код теста"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') openSession();
-            }}
-          />
-          <Button
-            className="student-home-btn"
-            icon={<LinkOutlined />}
-            onClick={openSession}
-            disabled={!sessionCode.trim()}
-          >
-            Открыть тест
-          </Button>
-        </div>
-        <div className="student-home-hint">
-          На телефоне удобнее навести камеру на QR-код с доски.
-        </div>
       </div>
       <InstallAppCard className="pwa-install--guest" />
       {legal}
@@ -305,6 +268,7 @@ function StudentScreens() {
   const shownWork = useMemo(() => showFromLocation(window.location.pathname, window.location.search), []);
   // Статья теории по ссылке: /t/{id} (или /student/t/{id})
   const theoryArticleId = useMemo(() => articleIdFromPath(window.location.pathname), []);
+  const intervalLabId = useMemo(() => window.location.pathname.match(/^\/student\/lab-interval\/([a-z0-9]{15})\/?$/)?.[1] || '', []);
 
   const generateDeviceId = () => {
     if (globalThis.crypto?.randomUUID) {
@@ -327,10 +291,10 @@ function StudentScreens() {
   // Извлекаем sessionId из URL: /student/{sessionId}
   // marathon-live — специальный маршрут, не является sessionId
   const sessionId = useMemo(() => {
-    if (marathonLiveMatch || stereoCode || manualId || geoWork || shownWork || theoryArticleId) return '';
+    if (marathonLiveMatch || stereoCode || manualId || geoWork || shownWork || theoryArticleId || intervalLabId) return '';
     const parts = window.location.pathname.split('/student/');
     return parts[1]?.split('/')[0] || '';
-  }, [marathonLiveMatch, stereoCode, manualId, geoWork, shownWork, theoryArticleId]);
+  }, [marathonLiveMatch, stereoCode, manualId, geoWork, shownWork, theoryArticleId, intervalLabId]);
 
   // device_id: генерируем или берём из localStorage
   const [deviceId] = useState(() => {
@@ -476,6 +440,17 @@ function StudentScreens() {
       <ConfigProvider theme={antdTheme}>
         <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
           <StudentPasswordChange student={student} onDone={setStudent} onLater={postponePassword} />
+        </div>
+      </ConfigProvider>
+    );
+  }
+
+  if (intervalLabId) {
+    return (
+      <ConfigProvider theme={antdTheme}>
+        <div className={`student-app${isDark ? ' student-theme-dark' : ''}`}>
+          {!student ? <><div style={{ padding: 16 }}><a href="/student/">← Главная</a></div><StudentAuthPage sessionTitle="Лаборатория · Метод интервалов" onAuthSuccess={handleAuthSuccess} /></> :
+            <Suspense fallback={<BootSpinner />}><StudentIntervalLab key={`${student.id}:${intervalLabId}`} id={intervalLabId} /></Suspense>}
         </div>
       </ConfigProvider>
     );

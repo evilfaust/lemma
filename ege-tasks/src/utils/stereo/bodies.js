@@ -18,6 +18,7 @@ import { convexHull3 } from './hull';
 import { normalizeBlocksSpec, buildBlocksBody } from './blocks';
 import { REVOLUTION_KINDS, normalizeRevolution, buildRevolutionBody } from './revolution';
 import { normalizeGroupSpec, buildGroupBody } from './group';
+import { dimensionValue, dimensionExpressions } from './dimensions';
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'K', 'L'];
 
@@ -143,7 +144,7 @@ function isConvex(pts) {
 }
 
 function num(v, fallback) {
-  const n = Number(v);
+  const n = dimensionValue(v);
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
@@ -220,9 +221,9 @@ export function normalizeBodySpec(spec = DEFAULT_BODY) {
   const out = normalizeBodyShape(spec);
   // Модификаторы: пирамида сверху (roof — её высота), срезанные вершины
   // (cut — сколько отрезать по рёбрам от каждой вершины), без букв (bare).
-  const roof = Number(spec?.roof);
+  const roof = dimensionValue(spec?.roof);
   if (ROOF_KINDS.includes(out.kind) && Number.isFinite(roof) && roof > 0) out.roof = roof;
-  const cut = Number(spec?.cut);
+  const cut = dimensionValue(spec?.cut);
   if (!['hull', 'blocks', 'space', ...REVOLUTION_KINDS].includes(out.kind) && Number.isFinite(cut) && cut > 0) out.cut = cut;
   if (spec?.bare) out.bare = true;
   if (spec?.letters && REVOLUTION_KINDS.includes(out.kind)) out.letters = true;
@@ -235,6 +236,8 @@ export function normalizeBodySpec(spec = DEFAULT_BODY) {
     && new Set(names).size === names.length) {
     out.names = [...names];
   }
+  const expressions = dimensionExpressions(spec, out);
+  if (Object.keys(expressions).length) out.expressions = expressions;
   return out;
 }
 
@@ -432,6 +435,7 @@ export function buildBody(specIn) {
     const renamed = renameBody(rb, spec.names);
     const map = Object.fromEntries(rb.order.map((n, i) => [n, spec.names[i]]));
     renamed.circles = Object.fromEntries(Object.entries(rb.circles).map(([k, c]) => [map[k] || k, c]));
+    renamed.curves = rb.curves.map((cv) => ({ ...cv, center: map[cv.center] || cv.center }));
     renamed.concealed = new Set([...rb.concealed].map((n) => map[n] || n));
     renamed.faces = renamed.faces.map((f) => (f.center ? { ...f, center: map[f.center] || f.center } : f));
     return renamed;
@@ -654,7 +658,8 @@ export function findFace(body, names) {
 /** Описание тела → значения формы редактора. */
 export function bodyFormValues(specIn) {
   const s = normalizeBodySpec(specIn);
-  const v = { ...s };
+  const v = { ...s, ...s.expressions };
+  delete v.expressions;
   delete v.names;
   if (s.kind === 'box') v.shape = s.base || 'rect';
   else if (s.kind === 'tetra') v.shape = s.base || 'regular';
@@ -684,6 +689,7 @@ export function bodySpecFromForm(values = {}) {
   if (kind === 'prism' || kind === 'pyramid' || kind === 'frustum') {
     const [base, n] = String(shape || 'regular:3').split(':');
     if (base !== 'regular') spec.base = base;
+    if (base === 'poly') spec.poly = rest.poly;
     if (n) spec.n = Number(n);
   }
   if (kind === 'pyramid' || kind === 'frustum' || kind === 'tetra') {

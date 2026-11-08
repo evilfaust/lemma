@@ -10,11 +10,17 @@
 //   сверху / снизу       — поставить на тело / под тело (конус на цилиндре,
 //                          два конуса с общим основанием).
 //
-// В части группы хранится только `at`; размещение восстанавливает
+// Ручное размещение хранится как `at`; размещение восстанавливает
 // bodyParts — так форма «Новый чертёж» и выгрузка текста показывают
-// «на дне», а не «сдвиг 0 0 -1.5».
+// «на дне», а не «сдвиг 0 0 -1.5». Для вписывания дополнительно хранится связь.
 
 import { normalizeBodySpec, buildBody } from './bodies';
+import { fitBodyPair, isInscription } from './inscription';
+
+export const INSCRIPTION_PLACEMENTS = [
+  { key: 'inscribed', label: 'Вписать в первое тело', word: 'вписано' },
+  { key: 'circumscribed', label: 'Описать вокруг первого тела', word: 'описано' },
+];
 
 export const PLACEMENTS = [
   { key: 'center', label: 'Внутри, общий центр', word: '' },
@@ -29,6 +35,7 @@ export const PLACEMENTS = [
 
 // Слова блока → размещение. Фразы из нескольких слов — первыми.
 export const PLACE_WORDS = [
+  ...INSCRIPTION_PLACEMENTS.map(({ key, word }) => [word, key]),
   ['на дне', 'floor'], ['на основании', 'floor'], ['внизу', 'floor'],
   ['вверху', 'ceil'], ['наверху', 'ceil'],
   ['справа', 'right'], ['рядом', 'right'], ['слева', 'left'], ['сзади', 'back'],
@@ -54,7 +61,7 @@ function extentOf(spec) {
   return { lo, hi };
 }
 
-const partSpec = ({ at, frame, ...ps }) => { void at; void frame; return ps; };
+const partSpec = ({ at, frame, fit, ...ps }) => { void at; void frame; void fit; return ps; };
 
 /**
  * Сдвиг нового тела при размещении рядом с уже стоящими частями.
@@ -94,11 +101,26 @@ function placedParts(bodySpec) {
     : [{ ...cur, at: [0, 0, 0], ...(bodySpec?.frame ? { frame: true } : {}) }];
 }
 
+function appendPart(parts, spec, placement, frame) {
+  const style = frame ? { frame: true } : {};
+  if (isInscription(placement?.kind)) {
+    if (parts.length !== 1) return false;
+    const fit = fitBodyPair(parts[0], spec, placement.kind);
+    if (!fit) return false;
+    parts[0] = { ...parts[0], ...fit.sizes[0] };
+    parts.push({ ...spec, ...fit.sizes[1], ...style, at: fit.at, fit: placement.kind });
+  } else {
+    const at = parts.length ? placeAt(parts, spec, placement) : [0, 0, 0];
+    parts.push({ ...spec, ...style, at });
+  }
+  return true;
+}
+
 /** Добавить тело к чертежу: внутри, на дне, рядом, сверху, снизу или со сдвигом. */
 export function addPart(bodySpec, spec, placement = { kind: 'center' }, frame = false) {
   const parts = placedParts(bodySpec);
-  const at = placeAt(parts, spec, placement);
-  return normalizeBodySpec({ kind: 'group', parts: [...parts, { ...spec, at, ...(frame ? { frame: true } : {}) }] });
+  if (!appendPart(parts, normalizeBodySpec(spec), placement, frame)) return null;
+  return normalizeBodySpec({ kind: 'group', parts });
 }
 
 const sameAt = (a, b) => a.every((x, i) => Math.abs(x - b[i]) <= 2e-3);
@@ -112,11 +134,12 @@ const sameAt = (a, b) => a.every((x, i) => Math.abs(x - b[i]) <= 2e-3);
 export function bodyParts(bodySpec) {
   const parts = placedParts(bodySpec);
   const base = parts[0].at;
-  const rel = parts.map((p) => ({ ...p, at: p.at.map((x, i) => r3(x - base[i])) }));
+  const rel = parts.map((p) => ({ ...p, at: p.at.map((x, i) => (p.fit ? x - base[i] : r3(x - base[i]))) }));
   return rel.map((p, i) => {
     const spec = partSpec(p);
     const frame = !!p.frame;
     if (i === 0) return { spec, placement: { kind: 'center' }, frame };
+    if (p.fit) return { spec, placement: { kind: p.fit }, frame };
     const before = rel.slice(0, i);
     const hit = PLACEMENTS.find(({ key }) => sameAt(placeAt(before, spec, { kind: key }), p.at));
     return { spec, placement: hit ? { kind: hit.key } : { kind: 'shift', at: p.at }, frame };
@@ -129,11 +152,9 @@ export function bodyFromParts(list) {
   if (!items.length) return normalizeBodySpec();
   if (items.length === 1) return normalizeBodySpec(items[0].spec);
   const placed = [];
-  items.forEach(({ spec, placement, frame }, i) => {
-    const s = normalizeBodySpec(spec);
-    const at = i === 0 ? [0, 0, 0] : placeAt(placed, s, placement);
-    placed.push({ ...s, at, ...(frame ? { frame: true } : {}) });
-  });
+  for (const { spec, placement, frame } of items) {
+    if (!appendPart(placed, normalizeBodySpec(spec), placement, frame)) return null;
+  }
   return normalizeBodySpec({ kind: 'group', parts: placed });
 }
 
@@ -143,5 +164,5 @@ export function placementWord(placement) {
     const f = (x) => String(Math.round(Number(x) * 100) / 100);
     return `сдвиг ${placement.at.map(f).join(' ')}`;
   }
-  return PLACEMENTS.find((p) => p.key === placement?.kind)?.word || '';
+  return [...PLACEMENTS, ...INSCRIPTION_PLACEMENTS].find((p) => p.key === placement?.kind)?.word || '';
 }

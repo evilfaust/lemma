@@ -5,6 +5,8 @@ import { shuffleOptionsWithSeed, hashStringToSeed } from '../utils/distractorGen
 import { isDrillTest, drillStudentTasks, answerModeOf } from '../utils/drillTest';
 import { sessionSettingsChanged } from '../utils/attemptRetake';
 
+import { deadlinePassed, intakeClosedReason } from '../utils/sessionDeadline';
+
 const MC_VARIANT_MISSING = 'Не удалось открыть вариант теста. Скажи учителю — он выдаст попытку заново.';
 
 // Загрузка задач варианта MC-теста: getTasksByIds + прикрепляем mc_options
@@ -62,7 +64,15 @@ async function loadMCVariantTasks(mcTest, variantNumber, attemptId, deviceId, au
  * Загружает сессию, проверяет существующую попытку, назначает вариант.
  */
 export function useStudentSession(sessionId, deviceId, authStudentId = null) {
+  const [now, setNow] = useState(Date.now);
   const [session, setSession] = useState(null);
+  useEffect(() => {
+    if (!session?.strict_deadline || !session.deadline) return;
+    const remaining = Date.parse(session.deadline) - Date.now();
+    if (!Number.isFinite(remaining) || remaining <= 0) return;
+    const timer = setTimeout(() => setNow(Date.now()), Math.min(remaining, 2147483647));
+    return () => clearTimeout(timer);
+  }, [session?.strict_deadline, session?.deadline, now]);
   const [attempt, setAttempt] = useState(null);
   const [variant, setVariant] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -145,6 +155,10 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           }
         }
 
+        if (existingAttempt?.status === 'started' && existingAttempt.started_at === '' && !intakeClosedReason(sessionData)) {
+          // Попытка могла быть заранее выдана учителем. Отсчёт — с открытия учеником.
+          existingAttempt = await api.updateAttempt(existingAttempt.id, { started_at: new Date().toISOString() });
+        }
         if (existingAttempt) {
           // Номер попытки считается по попыткам этого устройства — они все
           // среди своих (чужие попытки ученику не видны, аудит 25.10.2026).
@@ -215,6 +229,11 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
     if (!session) return null;
 
     try {
+      const freshSession = await api.getSession(sessionId);
+      if (!freshSession) throw new Error('Не удалось проверить срок сдачи');
+      setSession(freshSession);
+      const closedReason = intakeClosedReason(freshSession);
+      if (closedReason) throw new Error(closedReason);
       // Если попытка уже есть (включая гостевую на текущем устройстве), продолжаем её.
       // При forceNew пропускаем этот шаг и создаём свежую попытку.
       const existingAttempts = await getAccessibleAttempts();
@@ -232,6 +251,9 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
           }
         }
 
+        if (resolvedAttempt.status === 'started' && resolvedAttempt.started_at === '') {
+          resolvedAttempt = await api.updateAttempt(resolvedAttempt.id, { started_at: new Date().toISOString() });
+        }
         setAttempt({
           ...resolvedAttempt,
           issueNumber: getIssueNumber(resolvedAttempt, existingAttempts),
@@ -349,18 +371,18 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
       return newAttempt;
     } catch (err) {
       console.error('Error starting attempt:', err);
-      setError('Ошибка при начале теста');
+      setError(err?.response?.message || err.message || 'Ошибка при начале теста');
       return null;
     }
   }, [session, sessionId, deviceId, authStudentId, getIssueNumber, getAccessibleAttempts]);
 
-  // Пока ученик на экране результата, раз в 10 с (и при возврате на вкладку)
+  // Во время работы и на экране результата раз в 10 с (и при возврате на вкладку)
   // перечитываем: попытку — ачивки, выданные учителем вручную; выдачу —
   // учитель мог включить «Несколько попыток» или закрыть приём уже после
   // сдачи (до v3.9.380 кнопка «Пройти ещё раз» появлялась только после
   // перезагрузки страницы); список попыток — учитель мог выдать новую.
   useEffect(() => {
-    if (!attempt || !attempt.id || attempt.status === 'started') return;
+    if (!sessionId) return;
 
     const refresh = async () => {
       try {
@@ -376,7 +398,7 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
         if (freshSession) {
           setSession((prev) => (sessionSettingsChanged(prev, freshSession) ? { ...prev, ...freshSession } : prev));
         }
-        const fresh = attempts.find(a => a.id === attempt.id) || null;
+        const fresh = attempts.find(a => a.id === attempt?.id) || null;
         if (fresh) {
           // Обновляем только если изменились поля ачивок или статус
           const achChanged = fresh.achievement !== attempt.achievement
@@ -415,7 +437,8 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
 
   // Попытка, которую выдал учитель («Другой вариант» / «Ещё попытка тем,
   // кто ниже порога»): начатая и новее той, что сейчас на экране.
-  const issuedAttempt = attempt && attempt.status !== 'started'
+  const expired = deadlinePassed(session, Math.max(now, Date.now()));
+  const issuedAttempt = !expired && attempt && attempt.status !== 'started'
     ? myAttempts.find((a) => a.status === 'started' && a.id !== attempt.id
       && new Date(a.created) > new Date(attempt.created)) || null
     : null;
@@ -453,10 +476,12 @@ export function useStudentSession(sessionId, deviceId, authStudentId = null) {
   const canRetry = retryEnabled
     && attemptsLeft > 0
     && (session?.is_open !== false)
+    && !expired
     && !hasStartedAttempt;
 
   return {
     session,
+    deadlineExpired: expired,
     attempt,
     setAttempt,
     variant,

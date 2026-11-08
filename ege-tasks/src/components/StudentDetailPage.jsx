@@ -12,6 +12,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ATT_STATUSES } from './workspace/AttendanceRoster';
 import MathRenderer from './MathRenderer';
 import { AttemptDetails, ScoreChart } from './StudentDetailCharts';
+import { averageAttemptDuration, formatAttemptDuration, getAttemptTiming } from '../utils/attemptTiming';
 import './StudentDetailPage.css';
 
 const PDF_SERVICE_URL = import.meta.env.VITE_PDF_SERVICE_URL || 'http://localhost:3001';
@@ -21,13 +22,6 @@ const { Title, Text } = Typography;
 // ============================================
 // Helpers
 // ============================================
-const formatDuration = (seconds) => {
-  if (!seconds || seconds <= 0) return '—';
-  const m = Math.floor(seconds / 60);
-  if (m === 0) return `${seconds} сек`;
-  return `${m} мин`;
-};
-
 const difficultyLabels = { 1: 'Базовый', 2: 'Средний', 3: 'Повышенный', 4: 'Высокий', 5: 'Олимпиадный' };
 const difficultyColors = { 1: '#52c41a', 2: '#faad14', 3: '#ff4d4f', 4: '#a8071a', 5: '#722ed1' };
 
@@ -210,10 +204,7 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
       const pct = a.total ? Math.round((a.score / a.total) * 100) : 0;
       return Math.max(best, pct);
     }, 0);
-    const withTime = filteredAttempts.filter(a => a.duration_seconds > 0);
-    const avgTime = withTime.length > 0
-      ? Math.round(withTime.reduce((s, a) => s + a.duration_seconds, 0) / withTime.length)
-      : 0;
+    const avgTime = averageAttemptDuration(filteredAttempts);
 
     // Тренд: последние 3 попытки vs предыдущие 3
     const sorted = [...filteredAttempts]
@@ -483,10 +474,10 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
       },
     },
     {
-      title: 'Время',
+      title: 'До сдачи',
       key: 'duration',
       width: 90,
-      render: (_, record) => <Text type="secondary">{formatDuration(record.duration_seconds)}</Text>,
+      render: (_, record) => <Text type="secondary">{formatAttemptDuration(getAttemptTiming(record).seconds)}</Text>,
     },
     {
       title: 'Достижения',
@@ -721,8 +712,8 @@ function StudentDetailPage({ studentId, onBack, onOpenWork, onOpenNote }) {
           </div>
           <div className="sdp-hero-card sdp-hero-card--time">
             <div className="sdp-hero-label">Среднее время</div>
-            <div className="sdp-hero-value">{formatDuration(stats.avgTime)}</div>
-            <div className="sdp-hero-suffix">на работу</div>
+            <div className="sdp-hero-value">{formatAttemptDuration(stats.avgTime)}</div>
+            <div className="sdp-hero-suffix">от начала до сдачи</div>
           </div>
         </div>
       )}

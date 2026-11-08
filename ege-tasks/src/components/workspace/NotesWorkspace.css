@@ -4,6 +4,7 @@
    белый контейнер height:100%). Скроллятся только внутренние панели — нет
    внешнего скролла и «мёртвой» пустоты снизу. */
 .notes-page {
+  container: notes / inline-size;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -184,11 +185,14 @@
 /* 54px слева — выравнивание по тексту BlockNote (.bn-editor padding-inline: 54px) */
 .notes-editor__header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 14px 20px 0 54px;
 }
 .notes-title-input {
+  flex: 1 1 280px;
+  min-width: 0;
   font-size: 23px !important;
   font-weight: 600 !important;
   letter-spacing: -0.02em;
@@ -198,17 +202,31 @@
 .notes-title-input::placeholder { color: var(--ink-4); }
 .notes-editor__tools {
   display: flex;
+  flex-wrap: wrap;
+  margin-left: auto;
+  max-width: 100%;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
 }
-.notes-saved {
+.notes-save-state {
   margin-right: 6px;
   font-size: 12px;
-  color: var(--c-teal);
+  color: var(--ink-3);
   white-space: nowrap;
   animation: notes-saved-in 0.25s ease;
 }
+.notes-save-state--saved { color: var(--c-teal); }
+.notes-save-state--error { color: var(--c-rose, #b42318); }
+.notes-draft-alert { margin: 8px 20px; flex-shrink: 0; }
+.notes-draft-actions, .notes-template-list { display: flex; flex-direction: column; gap: 8px; }
+.notes-template-row { display: flex; gap: 8px; }
+.notes-template-row > .ant-btn:first-child { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.notes-dialog-hint { color: var(--ink-3); font-size: 13px; margin-top: 12px; }
+.notes-formula-preview { min-height: 64px; padding: 16px 0; overflow-x: auto; }
+.bn-inline-math { display: inline; padding: 0 2px; }
+.bn-inline-math [role="button"] { cursor: pointer; border-radius: 3px; }
+.bn-inline-math [role="button"]:hover, .bn-inline-math [role="button"]:focus-visible { background: var(--accent-soft); outline: 1px solid var(--accent); }
 @keyframes notes-saved-in {
   from { opacity: 0; transform: translateY(2px); }
   to   { opacity: 1; transform: none; }
@@ -336,6 +354,21 @@
 
 /* Мобильно: список сверху, редактор снизу. Страница скроллится целиком
    (а не зажимается flex-заполнением десктопа). */
+/* Учитываем реальную ширину страницы, включая боковое меню приложения.
+   На среднем экране контекст переносится вниз, оставляя место для текста. */
+@container notes (max-width: 1100px) {
+  .notes-workspace { flex-wrap: wrap; overflow-y: auto; align-content: flex-start; }
+  .notes-sidebar { width: 260px; min-height: 400px; max-height: 600px; }
+  .notes-editor { flex: 1 1 360px; min-height: 600px; }
+  .notes-workspace > .notes-context { width: 100%; flex-basis: 100%; }
+}
+@container notes (max-width: 680px) {
+  .notes-workspace { flex-direction: column; flex-wrap: nowrap; }
+  .notes-sidebar { width: 100%; min-height: 0; max-height: none; }
+  .notes-sidebar__list { max-height: 220px; }
+  .notes-editor { flex: none; width: 100%; min-width: 0; min-height: 500px; }
+  .notes-workspace > .notes-context { flex-basis: auto; }
+}
 @media (max-width: 768px) {
   .notes-page {
     height: auto;
@@ -354,6 +387,10 @@
   .notes-sidebar__list { max-height: 300px; }
   .notes-editor { min-height: 60vh; min-width: 0; }
   .notes-editor__header { padding: 12px 16px 0; }
+  .notes-draft-alert { margin-inline: 16px; }
+  .notes-draft-alert { flex-wrap: wrap; }
+  .notes-draft-alert .ant-alert-action { width: 100%; margin: 10px 0 0 24px; }
+  .notes-draft-actions { flex-direction: row; flex-wrap: wrap; }
   .notes-editor__meta { padding: 6px 16px 10px; }
   .note-editor-toolbar { padding-left: 16px; }
   .note-att { margin: 10px 16px 0; }

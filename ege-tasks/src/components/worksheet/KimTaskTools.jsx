@@ -1,6 +1,6 @@
 import { Button, Tooltip, Segmented } from 'antd';
 import {
-  EditOutlined, SwapOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
+  EditOutlined, SwapOutlined, ThunderboltOutlined, PicLeftOutlined, PicCenterOutlined, PicRightOutlined,
 } from '@ant-design/icons';
 import { api } from '../../services/pocketbase';
 import { KIM_IMAGE_SIZE_OPTIONS, DEFAULT_KIM_IMAGE_SIZE } from '../../utils/kimImageSize';
@@ -67,6 +67,11 @@ export default function KimTaskTools({ task, editing }) {
       {editing.onEditTask && (
         <Tooltip title="Редактировать задачу">
           <Button size="small" icon={<EditOutlined />} onClick={() => editing.onEditTask(task)} />
+        </Tooltip>
+      )}
+      {editing.onGenerateTask && editing.canGenerateTask?.(task) && (
+        <Tooltip title="Сгенерировать новую задачу этой темы">
+          <Button size="small" icon={<ThunderboltOutlined />} onClick={() => editing.onGenerateTask(vi, ti, task)} />
         </Tooltip>
       )}
       {editing.onReplaceTask && (

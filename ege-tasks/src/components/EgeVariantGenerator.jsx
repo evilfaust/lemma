@@ -1,17 +1,11 @@
 import React, { useState, useRef, useMemo, useEffect, useLayoutEffect } from 'react';
-import dayjs from 'dayjs';
 import {
   Card, Button, Space, Alert, Spin, Row, Col, Statistic,
-  Table, Select, Tag, Tooltip, Typography, App, InputNumber, Switch, Progress,
+  Collapse, Select, Tag, Tooltip, Typography, App, InputNumber, Switch,
   DatePicker, Input,
 } from 'antd';
 import {
   ThunderboltOutlined,
-  InfoCircleOutlined,
-  PushpinOutlined,
-  PushpinFilled,
-  SwapOutlined,
-  DeleteOutlined,
   SaveOutlined,
   FolderOpenOutlined,
   FileTextOutlined,
@@ -26,7 +20,7 @@ import {
   useTaskStats,
 } from '../hooks';
 import { poolStatsDetailed } from '../utils/successStats';
-import SuccessRateCell from './worksheet/SuccessRateCell';
+import EgeBaseStructureTable from './worksheet/EgeBaseStructureTable';
 import KimTaskContent, { KimAnswer } from './worksheet/KimTaskContent';
 import KimTaskTools from './worksheet/KimTaskTools';
 import KimViewSwitch, { useKimView } from './worksheet/KimViewSwitch';
@@ -44,7 +38,11 @@ import TaskReplaceModal from './TaskReplaceModal';
 import TaskEditModal from './TaskEditModal';
 import './TaskWorksheet.css';
 import './EgeVariantGenerator.css';
-import { TOPIC_SELECT } from './shared/topicSelect';
+import { api } from '../services/pocketbase';
+import { useOptionalAuth } from '../contexts/AuthContext';
+import { generatorsForTopic } from '../utils/egeBaseGeneratedTasks';
+import { buildEgeBaseVariants } from '../utils/buildEgeBaseVariants';
+import EgeBaseTaskGeneratorModal from './worksheet/EgeBaseTaskGeneratorModal';
 
 const { Text } = Typography;
 const { Option } = Select;
@@ -271,6 +269,10 @@ const EgeVariantGenerator = () => {
   const { message } = App.useApp();
   const { egeBaseTopics, subtopics, tags, topics, years, sources, tasksSnapshot } = useReferenceData();
   const printRef = useRef();
+  const auth = useOptionalAuth();
+  const canGenerate = !!auth?.canEdit;
+  const [loading, setGenerationLoading] = useState(false);
+  const [generatorTarget, setGeneratorTarget] = useState(null);
 
   // Настройки каждого слота (21 строка)
   const [slots, setSlots] = useState([]);
@@ -316,7 +318,7 @@ const EgeVariantGenerator = () => {
   const [pinModalSlotIndex, setPinModalSlotIndex] = useState(null);
 
   // Хуки
-  const { variants, setVariants, loading, generateFromStructure, reset } = useWorksheetGeneration();
+  const { variants, setVariants, reset } = useWorksheetGeneration();
   const dragDropHandlers = useTaskDragDrop(variants, setVariants);
   const {
     saving,
@@ -338,6 +340,8 @@ const EgeVariantGenerator = () => {
     setSlots(
       egeBaseTopics.map(topic => ({
         topicId: topic.id,
+        source: 'bank',
+        generatorId: null,
         pinnedTask: null,
         subtopics: [],
         difficulty: [],
@@ -364,14 +368,6 @@ const EgeVariantGenerator = () => {
   }, [kimStyle]);
 
   // Подтемы, сгруппированные по теме
-  const subtopicsByTopic = useMemo(() => {
-    const map = {};
-    subtopics.forEach(s => {
-      if (!map[s.topic]) map[s.topic] = [];
-      map[s.topic].push(s);
-    });
-    return map;
-  }, [subtopics]);
 
   // Решаемость по каждой теме из реальных ответов учеников (attempt_answers),
   // а не из легаси-поля tasks.success_rate (там ~10к фейковых нулей). Пулинг
@@ -386,13 +382,16 @@ const EgeVariantGenerator = () => {
     return map;
   }, [egeBaseTopics, tasksSnapshot, statsByTask]);
 
-  // Подсчёт зафиксированных слотов
-  const pinnedCount = useMemo(() => slots.filter(s => s.pinnedTask).length, [slots]);
-
   const updateSlot = (index, field, value) => {
     setSlots(prev => {
       const next = [...prev];
       next[index] = { ...next[index], [field]: value };
+      if (field === 'subtopics') {
+        const available = generatorsForTopic(egeBaseTopics.find(t => t.id === next[index].topicId), subtopics, value);
+        if (!available.some(g => g.id === next[index].generatorId)) next[index].generatorId = available[0]?.id || null;
+        if (!available.length) next[index].source = 'bank';
+      }
+      if (field === 'generatorId') next[index].source = value ? 'generated' : 'bank';
       return next;
     });
   };
@@ -401,6 +400,10 @@ const EgeVariantGenerator = () => {
 
   const handlePinTask = (task) => {
     if (pinModalSlotIndex === null) return;
+    if (task.topic !== slots[pinModalSlotIndex]?.topicId) {
+      message.warning('Выберите задачу из темы этого номера ЕГЭ');
+      return;
+    }
     updateSlot(pinModalSlotIndex, 'pinnedTask', task);
     setPinModalSlotIndex(null);
     message.success(`Задача ${task.code} зафиксирована в слоте №${egeBaseTopics[pinModalSlotIndex]?.ege_number}`);
@@ -413,34 +416,23 @@ const EgeVariantGenerator = () => {
       message.warning('Темы ЕГЭ ещё загружаются...');
       return;
     }
-    const structure = slots.map(slot => ({
-      topic: slot.topicId,
-      subtopics: slot.subtopics,
-      difficulty: slot.difficulty,
-      tags: slot.tags,
-      count: 1,
-    }));
-    await generateFromStructure(structure, {
-      variantsMode,
-      variantsCount,
-      sortType: 'structured',
-      progressiveDifficulty: false,
-    });
+    if (loading) return;
+    if (!canGenerate && slots.some(s => s.source === 'generated' && !s.pinnedTask)) {
+      message.error('Для создания задач нужны права редактора');
+      return;
+    }
+    setGenerationLoading(true);
+    try {
+      const generated = await buildEgeBaseVariants({ slots, topics: egeBaseTopics, subtopics, variantsCount, variantsMode, api });
+      setVariants(generated);
+      setCurrentWork(null);
+      message.success(`Собрано вариантов: ${generated.length}.${slots.some(s => s.source === 'generated' && !s.pinnedTask) ? ' Новые задачи сохранены в банк.' : ''}`);
+    } catch (error) {
+      message.error(error.message || 'Ошибка при генерации варианта');
+    } finally {
+      setGenerationLoading(false);
+    }
   };
-
-  // Применяем pinnedTask после генерации
-  useEffect(() => {
-    if (variants.length === 0) return;
-    const hasPinned = slots.some(s => s.pinnedTask);
-    if (!hasPinned) return;
-    setVariants(prev => prev.map(variant => ({
-      ...variant,
-      tasks: variant.tasks.map((task, idx) => {
-        const slot = slots[idx];
-        return slot?.pinnedTask ?? task;
-      }),
-    })));
-  }, [variants.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReset = () => { reset(); setCurrentWork(null); };
 
@@ -526,197 +518,44 @@ const EgeVariantGenerator = () => {
     setSavedWorks(prev => prev.filter(w => w.id !== workId));
   };
 
-  const topicForSlot = (slot) => egeBaseTopics.find(t => t.id === slot.topicId);
+  const canGenerateTask = task => generatorsForTopic(egeBaseTopics.find(t => t.id === task.topic), subtopics).length > 0;
+  const openTaskGenerator = canGenerate ? (vi, ti, task) => setGeneratorTarget({ vi, ti, task }) : undefined;
+  const applyGeneratedTask = task => {
+    const { vi, ti } = generatorTarget;
+    setVariants(prev => prev.map((variant, i) => i !== vi ? variant : {
+      ...variant, tasks: variant.tasks.map((old, j) => j === ti ? task : old),
+    }));
+    setGeneratorTarget(null);
+  };
 
-  // Индикатор решаемости (измерено / оценка-усадка) — общий компонент.
-  const renderSuccessRate = (topicId) => (
-    <SuccessRateCell st={successRateByTopic[topicId]} prior={prior} />
-  );
 
-  // Колонки таблицы структуры
-  const tableColumns = [
-    {
-      title: '№',
-      dataIndex: 'num',
-      width: 48,
-      render: (_, __, index) => {
-        const topic = topicForSlot(slots[index]);
-        return (
-          <Tag color="blue" style={{ fontWeight: 700, fontSize: 13, margin: 0 }}>
-            {topic?.ege_number ?? index + 1}
-          </Tag>
-        );
-      },
-    },
-    {
-      title: 'Тема',
-      dataIndex: 'topic',
-      width: 260,
-      render: (_, __, index) => {
-        const topic = topicForSlot(slots[index]);
-        if (!topic) return null;
-        const shortTitle = topic.title.replace(/^ЕГЭ-База\. №\d+\s+/, '');
-        return <Text type="secondary" style={{ fontSize: 12 }}>{shortTitle}</Text>;
-      },
-    },
-    {
-      title: 'Успеваемость',
-      dataIndex: 'stats',
-      width: 120,
-      render: (_, __, index) => {
-        const slot = slots[index];
-        return renderSuccessRate(slot.topicId);
-      },
-    },
-    {
-      title: 'Подтема',
-      dataIndex: 'subtopics',
-      width: 190,
-      render: (_, __, index) => {
-        const slot = slots[index];
-        const topic = topicForSlot(slot);
-        const topicSubs = topic ? (subtopicsByTopic[topic.id] || []) : [];
-        if (topicSubs.length === 0) return <Text type="secondary" style={{ fontSize: 11 }}>—</Text>;
-        return (
-          <Select
-            mode="multiple"
-            placeholder="Любая"
-            value={slot.subtopics}
-            onChange={v => updateSlot(index, 'subtopics', v)}
-            {...TOPIC_SELECT}
-            size="small"
-            style={{ width: '100%' }}
-            maxTagCount={1}
-          >
-            {topicSubs.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}
-          </Select>
-        );
-      },
-    },
-    {
-      title: 'Сложность',
-      dataIndex: 'difficulty',
-      width: 130,
-      render: (_, __, index) => {
-        const slot = slots[index];
-        return (
-          <Select
-            mode="multiple"
-            placeholder="Любая"
-            value={slot.difficulty}
-            onChange={v => updateSlot(index, 'difficulty', v)}
-            size="small"
-            style={{ width: '100%' }}
-            maxTagCount={1}
-          >
-            <Option value={1}><Tag color="green">Лёгкая</Tag></Option>
-            <Option value={2}><Tag color="orange">Средняя</Tag></Option>
-            <Option value={3}><Tag color="red">Сложная</Tag></Option>
-          </Select>
-        );
-      },
-    },
-    {
-      title: 'Зафиксировать',
-      dataIndex: 'pin',
-      width: 160,
-      render: (_, __, index) => {
-        const slot = slots[index];
-        if (slot.pinnedTask) {
-          return (
-            <Space size={4}>
-              <Tag
-                icon={<PushpinFilled />}
-                color="gold"
-                style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-              >
-                {slot.pinnedTask.code}
-              </Tag>
-              <Tooltip title="Снять фиксацию">
-                <Button
-                  size="small" type="text" danger
-                  icon={<DeleteOutlined />}
-                  onClick={() => unpinSlot(index)}
-                />
-              </Tooltip>
-            </Space>
-          );
-        }
-        return (
-          <Button
-            size="small" type="dashed" icon={<PushpinOutlined />}
-            onClick={() => openPinModal(index)}
-          >
-            Выбрать
-          </Button>
-        );
-      },
-    },
-  ];
-
-  const tableData = slots.map((_, index) => ({ key: index }));
   const hasVariants = variants.length > 0;
 
   return (
-    <div className="task-worksheet-container">
-      <Alert
-        message="Генератор вариантов ЕГЭ (базовый уровень)"
-        description={
-          <div>
-            <div>📋 Полный вариант ЕГЭ — 21 задание с кратким ответом</div>
-            <div>📊 Колонка «Успеваемость» показывает % правильных ответов учеников по теме</div>
-            <div>📌 Фиксация конкретных задач по любому номеру</div>
-            <div>🖨️ Обычная печать или в стиле КИМ (официальный бланк)</div>
-          </div>
-        }
-        type="info"
-        icon={<InfoCircleOutlined />}
-        showIcon
-        className="no-print"
-        style={{ marginBottom: 16 }}
-      />
+    <div className="task-worksheet-container ege-base-page">
+      <header className="ege-base-page-header no-print">
+        <div>
+          <Typography.Title level={3}>Варианты ЕГЭ · базовый уровень</Typography.Title>
+          <p>Полный вариант из 21 задания. Выберите задачи из банка или создайте новые по готовым прототипам. Номера с генераторами отмечены молнией.</p>
+        </div>
+        <Button icon={<FolderOpenOutlined />} onClick={handleOpenLoadModal}>Открыть работу</Button>
+      </header>
 
       {/* Настройки */}
       <Card
-        title="Структура варианта ЕГЭ"
+        title="Состав варианта"
         className="no-print"
-        extra={
-          <Space>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {pinnedCount > 0 && `📌 Зафиксировано: ${pinnedCount}`}
-            </Text>
-            <Button icon={<FolderOpenOutlined />} onClick={handleOpenLoadModal} size="small">
-              Загрузить
-            </Button>
-          </Space>
-        }
         style={{ marginBottom: 16 }}
       >
         {egeBaseTopics.length === 0 ? (
           <Spin tip="Загрузка тем ЕГЭ..." />
         ) : (
           <>
-            <Alert
-              message="Для каждого номера задания ЕГЭ можно ограничить подтему, сложность или зафиксировать конкретную задачу. Оставьте поля пустыми — задача выберется случайно."
-              type="info"
-              showIcon
-              style={{ marginBottom: 12 }}
-            />
-            <Table
-              dataSource={tableData}
-              columns={tableColumns}
-              pagination={false}
-              size="small"
-              bordered
-              rowKey="key"
-              scroll={{ x: 900 }}
-              style={{ marginBottom: 16 }}
-            />
-
-            <Row gutter={16} align="middle" wrap>
+            <Row gutter={[16, 12]} align="middle" wrap className="ege-base-build-toolbar">
               <Col>
-                <Text strong>Вариантов:</Text>{' '}
+                <Text strong>Количество вариантов:</Text>{' '}
                 <InputNumber
+                  aria-label="Количество вариантов"
                   min={1} max={30}
                   value={variantsCount}
                   onChange={v => setVariantsCount(v || 1)}
@@ -725,41 +564,16 @@ const EgeVariantGenerator = () => {
                 />
               </Col>
               <Col>
-                <Text strong>Режим:</Text>{' '}
+                <Text strong>Задачи в вариантах:</Text>{' '}
                 <Select
                   value={variantsMode}
                   onChange={setVariantsMode}
                   size="small"
                   style={{ width: 210 }}
                 >
-                  <Option value="different">Разные задачи (рекомендовано)</Option>
-                  <Option value="shuffled">Одни задачи, разный порядок</Option>
-                  <Option value="same">Одинаковые варианты</Option>
+                  <Option value="different">Разные</Option>
+                  <Option value="same">Одинаковые</Option>
                 </Select>
-              </Col>
-              <Col>
-                <Space>
-                  <Text strong>Место для решения:</Text>
-                  <Switch
-                    checked={showSolutionSpace}
-                    onChange={setShowSolutionSpace}
-                    size="small"
-                    disabled={kimStyle}
-                  />
-                </Space>
-              </Col>
-              <Col>
-                <Space>
-                  <Text strong>Стиль КИМ:</Text>
-                  <Tooltip title="Печать в официальном формате: шапка с полями для ФИО, задания с ячейками ответов, лист ответов">
-                    <Switch
-                      checked={kimStyle}
-                      onChange={v => { setKimStyle(v); if (v) setShowSolutionSpace(false); }}
-                      size="small"
-                      checkedChildren={<FileTextOutlined />}
-                    />
-                  </Tooltip>
-                </Space>
               </Col>
               <Col flex="auto" />
               <Col>
@@ -774,78 +588,120 @@ const EgeVariantGenerator = () => {
                     onClick={handleGenerate}
                     size="middle"
                   >
-                    {hasVariants ? 'Перегенерировать' : 'Сгенерировать'}
+                    {hasVariants ? 'Собрать заново' : 'Собрать варианты'}
                   </Button>
                 </Space>
               </Col>
             </Row>
 
-            {/* Настройки КИМ — дополнительная строка */}
-            {kimStyle && (
-              <Row
-                gutter={16}
-                align="middle"
-                wrap
-                style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e8e8e8' }}
-              >
-                <Col>
-                  <Space size={6}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Вариант №</Text>
-                    <Input
-                      value={kimVariantNumber}
-                      onChange={e => setKimVariantNumber(e.target.value)}
-                      placeholder="авто"
-                      size="small"
-                      style={{ width: 72 }}
-                      maxLength={8}
-                    />
-                  </Space>
-                </Col>
-                <Col>
-                  <Space size={6}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Класс</Text>
-                    <Input
-                      value={kimClass}
-                      onChange={e => setKimClass(e.target.value)}
-                      size="small"
-                      style={{ width: 56 }}
-                      maxLength={4}
-                    />
-                  </Space>
-                </Col>
-                <Col>
-                  <Space size={6}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Дата</Text>
-                    <DatePicker
-                      value={kimDate}
-                      onChange={setKimDate}
-                      format="DD.MM.YYYY"
-                      placeholder="сегодня"
-                      size="small"
-                      allowClear
-                      style={{ width: 130 }}
-                    />
-                  </Space>
-                </Col>
-                <Col>
-                  <Space size={6}>
-                    <Text type="secondary" style={{ fontSize: 12 }}>Год в подписи</Text>
-                    <Switch
-                      checked={kimShowYear}
-                      onChange={setKimShowYear}
-                      size="small"
-                    />
-                  </Space>
-                </Col>
-                {(kimVariantNumber || kimClass !== '11' || kimDate) && (
-                  <Col>
-                    <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
-                      → {kimDisplayDate} · {kimClass} кл. · Вар.&nbsp;{kimVariantNumber || '(авто)'}
-                    </Text>
-                  </Col>
-                )}
-              </Row>
-            )}
+            <EgeBaseStructureTable
+              slots={slots} topics={egeBaseTopics} subtopics={subtopics}
+              canGenerate={canGenerate} loading={loading}
+              onUpdateSlot={updateSlot} onSetSlots={setSlots}
+              onPin={openPinModal} onUnpin={unpinSlot}
+              statsByTopic={successRateByTopic} prior={prior}
+            />
+            <Collapse className="ege-base-print-settings" items={[{
+              key: 'print', label: 'Оформление и печать',
+              children: (
+                <>
+                  <Row gutter={[16, 12]} align="middle" wrap>
+                    <Col>
+                      <Space>
+                        <Text strong>Место для решения:</Text>
+                        <Switch
+                          checked={showSolutionSpace}
+                          onChange={setShowSolutionSpace}
+                          size="small"
+                          disabled={kimStyle}
+                        />
+                      </Space>
+                    </Col>
+                    <Col>
+                      <Space>
+                        <Text strong>Стиль КИМ:</Text>
+                        <Tooltip title="Печать в официальном формате: шапка с полями для ФИО, задания с ячейками ответов, лист ответов">
+                          <Switch
+                            checked={kimStyle}
+                            onChange={v => { setKimStyle(v); if (v) setShowSolutionSpace(false); }}
+                            size="small"
+                            checkedChildren={<FileTextOutlined />}
+                          />
+                        </Tooltip>
+                      </Space>
+                    </Col>
+                    {!kimStyle && <Col><Space><Text>Размер текста:</Text><InputNumber aria-label="Размер текста" min={9} max={18} value={fontSize} onChange={value => setFontSize(value || 13)} size="small" /></Space></Col>}
+                    {!kimStyle && showSolutionSpace && <Col><Space><Text>Место под задачу:</Text><Select aria-label="Место для решения" size="small" value={solutionSpace} onChange={setSolutionSpace} style={{ width: 130 }} options={[{ value: 'small', label: 'Небольшое' }, { value: 'medium', label: 'Среднее' }, { value: 'large', label: 'Большое' }]} /></Space></Col>}
+                  </Row>
+                  {/* Настройки КИМ — дополнительная строка */}
+                  {kimStyle && (
+                    <Row
+                      gutter={16}
+                      align="middle"
+                      wrap
+                      style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #e8e8e8' }}
+                    >
+                      <Col>
+                        <Space size={6}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>Вариант №</Text>
+                          <Input
+                            value={kimVariantNumber}
+                            onChange={e => setKimVariantNumber(e.target.value)}
+                            placeholder="авто"
+                            size="small"
+                            style={{ width: 72 }}
+                            maxLength={8}
+                          />
+                        </Space>
+                      </Col>
+                      <Col>
+                        <Space size={6}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>Класс</Text>
+                          <Input
+                            value={kimClass}
+                            onChange={e => setKimClass(e.target.value)}
+                            size="small"
+                            style={{ width: 56 }}
+                            maxLength={4}
+                          />
+                        </Space>
+                      </Col>
+                      <Col>
+                        <Space size={6}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>Дата</Text>
+                          <DatePicker
+                            value={kimDate}
+                            onChange={setKimDate}
+                            format="DD.MM.YYYY"
+                            placeholder="сегодня"
+                            size="small"
+                            allowClear
+                            style={{ width: 130 }}
+                          />
+                        </Space>
+                      </Col>
+                      <Col>
+                        <Space size={6}>
+                          <Text type="secondary" style={{ fontSize: 12 }}>Год в подписи</Text>
+                          <Switch
+                            checked={kimShowYear}
+                            onChange={setKimShowYear}
+                            size="small"
+                          />
+                        </Space>
+                      </Col>
+                      {(kimVariantNumber || kimClass !== '11' || kimDate) && (
+                        <Col>
+                          <Text type="secondary" style={{ fontSize: 11, fontStyle: 'italic' }}>
+                            → {kimDisplayDate} · {kimClass} кл. · Вар.&nbsp;{kimVariantNumber || '(авто)'}
+                          </Text>
+                        </Col>
+                      )}
+                    </Row>
+                  )}
+                </>
+              ),
+            }]} />
           </>
         )}
       </Card>
@@ -970,6 +826,8 @@ const EgeVariantGenerator = () => {
                     dragDropHandlers={dragDropHandlers}
                     onEditTask={taskEditing.handleEditTask}
                     onReplaceTask={taskEditing.handleReplaceTask}
+                    onGenerateTask={openTaskGenerator}
+                    canGenerateTask={canGenerateTask}
                   />
                 )}
 
@@ -993,6 +851,8 @@ const EgeVariantGenerator = () => {
                         dragDropHandlers={dragDropHandlers}
                         onEditTask={taskEditing.handleEditTask}
                         onReplaceTask={taskEditing.handleReplaceTask}
+                        onGenerateTask={openTaskGenerator}
+                        canGenerateTask={canGenerateTask}
                         onSetImageSize={handleSetImageSize}
                         onSetFigurePlacement={handleSetFigurePlacement}
                       />
@@ -1010,6 +870,8 @@ const EgeVariantGenerator = () => {
                         onSetFigurePlacement: handleSetFigurePlacement,
                         onEditTask: taskEditing.handleEditTask,
                         onReplaceTask: taskEditing.handleReplaceTask,
+                        onGenerateTask: openTaskGenerator,
+                        canGenerateTask,
                       }}
                     />
                   </>
@@ -1060,6 +922,14 @@ const EgeVariantGenerator = () => {
       )}
 
       {/* Модалы */}
+      <EgeBaseTaskGeneratorModal
+        target={generatorTarget}
+        topic={egeBaseTopics.find(t => t.id === generatorTarget?.task.topic)}
+        subtopics={subtopics}
+        usedStatements={variants.flatMap(v => v.tasks.map(t => t.statement_md))}
+        onApply={applyGeneratedTask}
+        onCancel={() => setGeneratorTarget(null)}
+      />
       <SaveWorkModal
         visible={saveModalVisible}
         onCancel={() => setSaveModalVisible(false)}
@@ -1083,6 +953,7 @@ const EgeVariantGenerator = () => {
         topics={egeBaseTopics}
         subtopics={subtopics}
         tags={tags}
+        initialFilters={pinModalSlotIndex !== null ? { topic: slots[pinModalSlotIndex]?.topicId } : null}
         excludeIds={[]}
       />
 

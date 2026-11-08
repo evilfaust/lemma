@@ -88,7 +88,7 @@ export function buildRevolutionBody(spec) {
     }
     for (const f of faces) { f.surface = 'sphere'; f.center = 'O'; }
     const eq = ring(r, 0, N * 2);
-    curves.push({ id: 'eq', pts: eq, analytic: true });
+    curves.push({ id: 'eq', pts: eq, analytic: true, center: 'O' });
     put('O', center);
     put('A', v3(r * Math.cos(-Math.PI / 6), r * Math.sin(-Math.PI / 6), 0)); // на экваторе, спереди справа
     circles.O = { c: center, r, e1: v3(1, 0, 0), e2: v3(0, 1, 0), axis: axisUp, sphere: true };
@@ -132,8 +132,8 @@ export function buildRevolutionBody(spec) {
       : bottom ? [bottom[k], bottom[k2], apex] : [apex, top[k2], top[k]];
     faces.push({ ...planeFace(quad, center), surface: 'side', center: sideCenter });
   }
-  if (bottom) curves.push({ id: 'b', pts: bottom });
-  if (top) curves.push({ id: 't', pts: top });
+  if (bottom) curves.push({ id: 'b', pts: bottom, center: 'O' });
+  if (top) curves.push({ id: 't', pts: top, center: down ? 'O' : 'O1' });
 
   const E1 = v3(1, 0, 0);
   const E2 = v3(0, 1, 0);

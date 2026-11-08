@@ -63,6 +63,59 @@ describe('размещение второго тела', () => {
   });
 });
 
+describe('автоматическое вписывание и описывание', () => {
+  it.each([
+    ['цилиндр 3 4\nи шар 2 вписано', [{ r: 3, h: 6 }, { r: 3 }]],
+    ['шар 1\nи куб 4 описано', [{ r: 1 }, { a: 2 }]],
+    ['пирамида 4 4 6\nи конус 2 4 описано', [{ a: 4, h: 6 }, { r: Math.sqrt(8), h: 6 }]],
+    ['куб √3\nи шар 2 описано', [{ a: Math.sqrt(3) }, { r: 1.5 }]],
+    ['цилиндр 2 3\nи призма 4 2 4 описано', [{ r: 2, h: 3 }, { a: 4, h: 3 }]],
+    ['конус 28√2 28√2\nи шар 2 описано', [{ r: 28 * Math.sqrt(2) }, { r: 28 * Math.sqrt(2) }]],
+    ['цилиндр √3 2\nи призма 3 2 4 описано', [{ r: Math.sqrt(3), h: 2 }, { a: 6, h: 2 }]],
+    ['призма 3 6 2\nи цилиндр 2 4 вписано', [{ a: 6, h: 2 }, { r: Math.sqrt(3), h: 2 }]],
+    ['цилиндр 2√3 3\nи призма 3 2 4 вписано', [{ r: 2 * Math.sqrt(3), h: 3 }, { a: 6, h: 3 }]],
+    ['конус 2 5\nи цилиндр 4 3 описано', [{ r: 2, h: 5 }, { r: 2, h: 5 }]],
+    ['шар 2\nи конус 1 3 вписано', [{ r: 2 }, { r: 2, h: 2 }]],
+  ])('вычисляет размеры и сохраняет связь в тексте: %s', (src, expected) => {
+    const { scene, errors } = parseStereoBlock(src);
+    expect(errors).toEqual([]);
+    scene.body.parts.forEach((part, i) => {
+      for (const [key, value] of Object.entries(expected[i])) expect(part[key]).toBeCloseTo(value, 12);
+    });
+    expect(bodyFromParts(bodyParts(scene.body))).toEqual(scene.body);
+    expect(parseStereoBlock(buildStereoBlock(scene).text).scene.body).toEqual(scene.body);
+    expect(frameOf(src).strokes.length).toBeGreaterThan(4);
+  });
+
+  it.each(['', ' вершиной вниз'])('сфера через вершину и основание конуса%s', (direction) => {
+    const { scene, errors } = parseStereoBlock(`конус √5 4${direction}\nи шар 1 описано`);
+    expect(errors).toEqual([]);
+    const [cone, sphere] = scene.body.parts;
+    const apex = (direction ? -1 : 1) * cone.h / 2;
+    expect(Math.abs(apex - sphere.at[2])).toBeCloseTo(sphere.r, 14);
+    expect(Math.hypot(cone.r, -apex - sphere.at[2])).toBeCloseTo(sphere.r, 14);
+    expect(parseStereoBlock(buildStereoBlock(scene).text).scene.body).toEqual(scene.body);
+  });
+
+  it.each(['', ' вершиной вниз'])('шар касается основания и боковой поверхности конуса%s', (direction) => {
+    const { scene, errors } = parseStereoBlock(`конус 3 5${direction}\nи шар 2 вписано`);
+    expect(errors).toEqual([]);
+    const [cone, sphere] = scene.body.parts;
+    const z = (direction ? -1 : 1) * sphere.at[2];
+    expect(z + cone.h / 2).toBeCloseTo(sphere.r, 14);
+    expect((cone.h / 2 - z) * cone.r / Math.hypot(cone.r, cone.h)).toBeCloseTo(sphere.r, 14);
+    expect(parseStereoBlock(buildStereoBlock(scene).text).scene.body).toEqual(scene.body);
+  });
+
+  it.each([
+    'куб 4\nи пирамида 4 2 4 вписано',
+    'призма 4 4 3 наклон 60\nи цилиндр 2 4 вписано',
+    'куб 4\nи шар 2\nи шар 2 вписано',
+  ])('отклоняет неподдерживаемую связь: %s', (src) => {
+    expect(parseStereoBlock(src).errors).toMatchObject([{ message: expect.stringContaining('поддерживаемых пар') }]);
+  });
+});
+
 describe('несколько тел: имена и окружности', () => {
   it('призма в цилиндре получает свои A, B, C, D — спрятанные точки цилиндра уступают', () => {
     const b = buildBody(parseStereoBlock('цилиндр 2 4 каркас\nи призма 4 2,83 4').scene.body);
@@ -153,5 +206,60 @@ describe('форма «Новый чертёж» из нескольких те�
     expect(container.querySelector('.ant-checkbox-checked')).toBeTruthy();
     expect(ref.current.spec()).toEqual(body);
     expect(container.querySelector('.stereo-body-form-svg svg')).toBeTruthy();
+  });
+
+  it('включает вписывание и пересчитывает второе тело при изменении первого', async () => {
+    const ref = createRef();
+    const { container } = render(<Wrap body={{ kind: 'cylinder', r: 2, h: 3 }} bodiesRef={ref} />);
+    await act(async () => { fireEvent.click(screen.getByText('Добавить второе тело')); });
+    await act(async () => { fireEvent.mouseDown(screen.getByLabelText('Где стоит:')); });
+    await act(async () => { fireEvent.click(screen.getByText('Вписать в первое тело')); });
+    expect(screen.getByLabelText('Радиус').readOnly).toBe(true);
+    expect(screen.getByLabelText('Радиус').value).toBe('2');
+    await act(async () => { fireEvent.click(screen.getByText('1. Цилиндр')); });
+    expect(screen.getByLabelText('Высота').readOnly).toBe(true);
+    await act(async () => { fireEvent.change(screen.getByLabelText('Радиус'), { target: { value: '2√3' } }); });
+    expect(screen.getByLabelText('Высота').value).toBe(String(Number((4 * Math.sqrt(3)).toPrecision(12))));
+    expect(ref.current.spec().parts).toMatchObject([
+      { r: 2 * Math.sqrt(3), h: 4 * Math.sqrt(3), expressions: { r: '2√3' } },
+      { r: 2 * Math.sqrt(3), fit: 'inscribed' },
+    ]);
+    expect(container.querySelector('.stereo-body-form-svg svg')).toBeTruthy();
+    await act(async () => { fireEvent.click(screen.getByText('2. Шар')); });
+    expect(screen.getByLabelText('Радиус').value).toBe(String(Number((2 * Math.sqrt(3)).toPrecision(12))));
+    await act(async () => { fireEvent.mouseDown(screen.getByLabelText('Где стоит:')); });
+    await act(async () => { fireEvent.click(screen.getByText('Описать вокруг первого тела')); });
+    expect(ref.current.spec()).toBeNull();
+    expect(screen.getByRole('alert').textContent).toMatch(/Для этой пары вписывание недоступно/);
+  });
+
+  it('при повторном открытии берёт первую вкладку из чертежа, а не из прежней формы', async () => {
+    const ref = createRef();
+    const body = parseStereoBlock('куб √3\nи шар 2 описано').scene.body;
+    function Reopen({ open }) {
+      const [form] = Form.useForm();
+      return open && <StereoBodiesForm ref={ref} form={form} body={body} />;
+    }
+    const { rerender } = render(<Reopen open />);
+    await act(async () => { fireEvent.click(screen.getByText('2. Шар')); });
+    expect(screen.getByLabelText('Радиус').readOnly).toBe(true);
+    expect(screen.getByText('Описать вокруг первого тела')).toBeTruthy();
+    rerender(<Reopen open={false} />);
+    rerender(<Reopen open />);
+    expect(screen.getByLabelText('Ребро').value).toBe('√3');
+    expect(ref.current.spec()).toEqual(body);
+  });
+
+  it('сохраняет произвольное основание и отклоняет вписывание в такую призму', async () => {
+    const ref = createRef();
+    const src = 'призма основание (0 0)(4 0)(4 3)(0 3) h=4\nи цилиндр 1 2';
+    const { scene, errors } = parseStereoBlock(src);
+    expect(errors).toEqual([]);
+    render(<Wrap body={scene.body} bodiesRef={ref} />);
+    expect(ref.current.spec()).toEqual(scene.body);
+    await act(async () => { fireEvent.click(screen.getByText('2. Цилиндр')); });
+    await act(async () => { fireEvent.mouseDown(screen.getByLabelText('Где стоит:')); });
+    await act(async () => { fireEvent.click(screen.getByText('Вписать в первое тело')); });
+    expect(ref.current.spec()).toBeNull();
   });
 });

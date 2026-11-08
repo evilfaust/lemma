@@ -100,25 +100,6 @@
   color: #aaa !important;
 }
 
-.student-theme-dark .student-home-input {
-  background: rgba(255, 255, 255, 0.06) !important;
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  color: #f0f0f0 !important;
-}
-
-.student-theme-dark .student-home-input::placeholder {
-  color: #666 !important;
-}
-
-.student-theme-dark .student-home-input:focus {
-  border-color: #4361ee !important;
-  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.2) !important;
-}
-
-.student-theme-dark .student-home-hint {
-  color: #666 !important;
-}
-
 .student-theme-dark .student-home-legal {
   color: #787d91;
 }
@@ -570,44 +551,6 @@
   line-height: 1.45;
 }
 
-.student-home-input-wrap {
-  display: grid;
-  gap: 10px;
-}
-
-.student-home-input {
-  width: 100%;
-  min-height: 46px;
-  border: 2px solid #e5e7f0;
-  border-radius: 14px;
-  padding: 0 14px;
-  font-size: 16px;
-  color: #222;
-  background: #fff;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.student-home-input:focus {
-  outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.12);
-}
-
-.student-home-btn {
-  width: 100%;
-  min-height: 48px !important;
-  border-radius: 14px !important;
-  font-size: 16px !important;
-  font-weight: 700 !important;
-}
-
-.student-home-hint {
-  margin-top: 12px;
-  text-align: center;
-  color: #8b90a3;
-  font-size: 13px;
-}
-
 .student-home-legal {
   width: 100%;
   max-width: 420px;
@@ -642,35 +585,6 @@
 .student-theme-dark .student-home-logo img {
   opacity: 0.35;
   filter: brightness(4) saturate(0);
-}
-
-.student-home-section-divider {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  color: #b0b5c4;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-}
-
-.student-home-section-divider::before,
-.student-home-section-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: #e8eaf0;
-}
-
-.student-theme-dark .student-home-section-divider {
-  color: #555a6e;
-}
-
-.student-theme-dark .student-home-section-divider::before,
-.student-theme-dark .student-home-section-divider::after {
-  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ---- Эфир и чертежи учителя в кабинете (StudentStereoFeed) ---- */

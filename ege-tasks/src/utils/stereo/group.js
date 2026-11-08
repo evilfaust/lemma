@@ -14,19 +14,20 @@
 import {
   v3, add, sub, mul, dist,
 } from './vec3';
+import { isInscription } from './inscription';
 
 const NAME_RE = /^[A-Z][0-9]*$/;
 
 /** Нормализация группы: части (без вложенных групп), сдвиги, каркас. */
 export function normalizeGroupSpec(spec, normalizePart) {
-  const parts = (Array.isArray(spec?.parts) ? spec.parts : []).slice(0, 4).map((p) => {
+  const parts = (Array.isArray(spec?.parts) ? spec.parts : []).slice(0, 4).map((p, i) => {
     const at = Array.isArray(p?.at) && p.at.length === 3 && p.at.every((x) => Number.isFinite(Number(x)))
       ? p.at.map(Number) : [0, 0, 0];
-    const { at: _a, frame, ...rest } = p || {};
+    const { at: _a, frame, fit, ...rest } = p || {};
     void _a;
     if (rest.kind === 'group' || rest.kind === 'space') return null;
     const body = normalizePart(rest);
-    return { ...body, at, ...(frame ? { frame: true } : {}) };
+    return { ...body, at, ...(frame ? { frame: true } : {}), ...(i === 1 && isInscription(fit) ? { fit } : {}) };
   }).filter(Boolean);
   if (parts.length < 2) return parts.length === 1 ? { single: parts[0] } : null;
   return { kind: 'group', parts };
@@ -122,7 +123,7 @@ export function buildGroupBody(spec, built) {
       const key = curveKey(pts);
       if (curveKeys.has(key)) continue;
       curveKeys.add(key);
-      curves.push({ ...cv, id: `${i}:${cv.id}`, pts, part: i });
+      curves.push({ ...cv, id: `${i}:${cv.id}`, pts, part: i, center: map[cv.center] || cv.center });
     }
     for (const [k, c] of Object.entries(body.circles || {})) circles[map[k] || k] = { ...c, c: tr(c.c, d) };
     // Часть — для видимости: тело, сдвинутое на d

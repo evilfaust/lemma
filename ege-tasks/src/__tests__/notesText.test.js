@@ -41,6 +41,23 @@ describe('extractCheckItems', () => {
 });
 
 describe('extractNoteText (регрессия)', () => {
+  it('читает строковый content новых шаблонов до первой правки в редакторе', () => {
+    const body = [{ type: 'heading', content: 'Повторение' }, { id: 'c', type: 'checkListItem', content: 'Проверить' }];
+    expect(extractNoteText(body)).toBe('Повторение Проверить');
+    expect(extractCheckItems(body)[0].text).toBe('Проверить');
+  });
+
+  it('индексирует формулы внутри строки, включая таблицы и чек-листы', () => {
+    const formula = { type: 'inlineMath', props: { formula: 'x^2+1' } };
+    const body = [
+      { id: 'p', type: 'paragraph', content: [{ type: 'text', text: 'Решить ' }, formula] },
+      { id: 't', type: 'table', content: { rows: [{ cells: [[formula]] }] } },
+      { id: 'c', type: 'checkListItem', content: [formula] },
+    ];
+    expect(extractNoteText(body)).toBe('Решить x^2+1 x^2+1 x^2+1');
+    expect(extractCheckItems(body)[0].text).toBe('x^2+1');
+  });
+
   it('склеивает инлайны и не падает на math-блоке', () => {
     const body = [
       { id: 'a', type: 'paragraph', content: [{ type: 'text', text: 'Формула' }] },

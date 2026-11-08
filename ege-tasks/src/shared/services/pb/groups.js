@@ -175,7 +175,7 @@ export const groupsApi = {
   //        'active' — только действующие; 'all' — вся история группы.
   //        Разбор случаев и почему «просто активные» не годятся —
   //        в `selectRosterMemberships` (utils/yearRollover.js).
-  async getStudentsByGroup(groupId, { scope = 'auto' } = {}) {
+  async getStudentsByGroup(groupId, { scope = 'auto', strict = false } = {}) {
     try {
       const byName = (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru');
       const gid = escapeFilter(groupId);
@@ -194,6 +194,8 @@ export const groupsApi = {
           sort: 'name',
         }),
       ]);
+      if (strict && membersR.status === 'rejected') throw membersR.reason;
+      if (strict && pointedR.status === 'rejected') throw pointedR.reason;
       // Упал один из запросов — состав собирается по второму. Коллекции
       // членств может не быть (фронт задеплоен раньше миграции) — тогда
       // состав по указателю, как до v3.9.171. Упали оба — это ошибка экрана.

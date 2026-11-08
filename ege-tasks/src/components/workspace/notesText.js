@@ -6,6 +6,7 @@ function inlineText(node) {
   if (!node) return '';
   if (typeof node === 'string') return node;
   if (typeof node.text === 'string') return node.text;
+  if (node.type === 'inlineMath') return node.props?.formula || '';
   // link и пр. — текст лежит в content
   if (Array.isArray(node.content)) return node.content.map(inlineText).join('');
   return '';
@@ -15,7 +16,9 @@ function blockText(block) {
   if (!block) return '';
   const parts = [];
   const c = block.content;
-  if (Array.isArray(c)) {
+  if (typeof c === 'string') {
+    parts.push(c);
+  } else if (Array.isArray(c)) {
     parts.push(c.map(inlineText).join(''));
   } else if (c && Array.isArray(c.rows)) {
     // Таблица: rows[].cells[][] — инлайны в ячейках
@@ -52,7 +55,8 @@ function collectChecks(blocks, out) {
   if (!Array.isArray(blocks)) return;
   for (const b of blocks) {
     if (b && b.type === 'checkListItem') {
-      const text = Array.isArray(b.content) ? b.content.map(inlineText).join('').trim() : '';
+      const text = typeof b.content === 'string' ? b.content.trim()
+        : Array.isArray(b.content) ? b.content.map(inlineText).join('').trim() : '';
       out.push({ blockId: b.id || '', text, checked: !!(b.props && b.props.checked) });
     }
     if (b && Array.isArray(b.children)) collectChecks(b.children, out);

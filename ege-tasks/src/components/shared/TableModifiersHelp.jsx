@@ -79,7 +79,7 @@ const EXAMPLES = {
   ].join('\n'),
 };
 
-export default function TableModifiersHelp({ onInsert }) {
+export default function TableModifiersHelp({ onInsert, label = null }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -89,8 +89,11 @@ export default function TableModifiersHelp({ onInsert }) {
           size="small"
           type="text"
           icon={<QuestionCircleOutlined />}
+          aria-label="Виды таблиц"
           onClick={() => setOpen(true)}
-        />
+        >
+          {label}
+        </Button>
       </Tooltip>
       <Modal
         title="Виды таблиц"

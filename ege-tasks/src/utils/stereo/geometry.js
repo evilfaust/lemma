@@ -5,7 +5,7 @@
 // Плоскость — { n, d }: единичная нормаль, n·x = d.
 // Допуски считаются от размера тела (size), чтобы не зависеть от масштаба.
 
-import { add, sub, mul, dot, cross, len, norm, dist, centroid } from './vec3';
+import { add, sub, mul, dot, cross, len, norm, dist, centroid, paramOnLine } from './vec3';
 import { sphereSection } from './revolution';
 
 const REL_EPS = 1e-7;
@@ -41,6 +41,17 @@ export function planeFromPoints(a, b, c, size = 1) {
   return { n: u, d: dot(u, a) };
 }
 
+/** Центр окружности через три точки в их плоскости. */
+export function circumcenter(a, b, c) {
+  const u = sub(b, a);
+  const v = sub(c, a);
+  const w = cross(u, v);
+  const area = len(w);
+  if (area <= 1e-9 * len(u) * len(v)) return null;
+  const offset = add(mul(cross(v, w), dot(u, u)), mul(cross(w, u), dot(v, v)));
+  return add(a, mul(offset, 1 / (2 * area ** 2)));
+}
+
 /**
  * След прямой на плоскости.
  * @returns {{ kind: 'point', point, t } | { kind: 'parallel'|'inside' }}
@@ -53,6 +64,25 @@ export function intersectLinePlane(line, plane, size = 1) {
   }
   const t = off / denom;
   return { kind: 'point', point: add(line.p, mul(line.u, t)), t };
+}
+
+/** Пересечение прямой с окружностью, в порядке вдоль направления прямой. */
+export function intersectLineCircle(line, circle, size = 1) {
+  const { c, r, e1, e2 } = circle;
+  const n = cross(e1, e2);
+  const eps = REL_EPS * Math.max(size, r);
+  const hit = intersectLinePlane({ ...line, p: sub(line.p, c) }, { n, d: 0 }, Math.max(size, r));
+  if (hit.kind === 'point') {
+    return Math.abs(len(hit.point) - r) <= eps ? [{ t: hit.t, point: add(c, hit.point) }] : [];
+  }
+  if (hit.kind !== 'inside') return [];
+  const t = paramOnLine(c, line.p, line.u);
+  const closest = add(line.p, mul(line.u, t));
+  const gap = dist(c, closest);
+  if (gap > r + eps) return [];
+  if (Math.abs(gap - r) <= eps) return [{ t, point: closest }];
+  const dt = Math.sqrt((r - gap) * (r + gap)) / len(line.u);
+  return [t - dt, t + dt].map((param) => ({ t: param, point: add(line.p, mul(line.u, param)) }));
 }
 
 /** Точки, совпадающие с точностью eps, схлопываются в одну. */

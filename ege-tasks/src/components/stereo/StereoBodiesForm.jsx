@@ -8,8 +8,9 @@ import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import StereoBodyForm from './StereoBodyForm';
 import { bodyFormValues, bodySpecFromForm, bodyTitle } from '../../utils/stereo';
 import {
-  PLACEMENTS, MAX_BODY_PARTS, bodyParts, bodyFromParts,
+  PLACEMENTS, INSCRIPTION_PLACEMENTS, MAX_BODY_PARTS, bodyParts, bodyFromParts,
 } from '../../utils/stereo/combo';
+import { fitBodyPair, isInscription } from '../../utils/stereo/inscription';
 
 // «Новый чертёж» из нескольких тел: шар в кубе, конус в цилиндре, две кружки.
 // Вкладка на тело; у второго и дальше — где оно стоит (внутри, на дне,
@@ -40,20 +41,26 @@ const SHIFT_LABELS = ['вправо', 'назад', 'вверх'];
 const StereoBodiesForm = forwardRef(function StereoBodiesForm({ form, body }, ref) {
   const [parts, setParts] = useState(() => partsFrom(body));
   const [active, setActive] = useState(0);
-  const live = Form.useWatch([], form);
+  const live = Form.useWatch([], { form, preserve: true });
 
   const current = useMemo(
     () => parts.map((p, i) => (i === active && live ? { ...p, values: live } : p)),
     [parts, active, live],
   );
   const combined = useMemo(() => (current.length > 1 ? specOf(current) : null), [current]);
+  const fitKind = current[1]?.placement.kind;
+  const fitting = isInscription(fitKind);
+  const fit = fitting
+    ? fitBodyPair(bodySpecFromForm(current[0].values), bodySpecFromForm(current[1].values), fitKind)
+    : null;
 
   useImperativeHandle(ref, () => ({
     spec: () => specOf(parts.map((p, i) => (i === active ? { ...p, values: form.getFieldsValue(true) } : p))),
   }), [parts, active, form]);
 
   // Сохранить поля открытой вкладки и открыть другую (или новую)
-  const switchTo = (i, list = null) => {
+  const switchTo = async (i, list = null) => {
+    try { await form.validateFields(); } catch { return; }
     const vals = form.getFieldsValue(true);
     const saved = (list || parts).map((p, j) => (j === active ? { ...p, values: vals } : p));
     setParts(saved);
@@ -83,6 +90,7 @@ const StereoBodiesForm = forwardRef(function StereoBodiesForm({ form, body }, re
   const canAdd = parts.length < MAX_BODY_PARTS && !current.some((p) => p.values?.kind === 'space');
   const placementOptions = [
     ...PLACEMENTS.map((p) => ({ value: p.key, label: p.label })),
+    ...(active === 1 ? INSCRIPTION_PLACEMENTS.map(({ key, label }) => ({ value: key, label })) : []),
     ...(part.placement.kind === 'shift' ? [{ value: 'shift', label: 'Точно: сдвиг' }] : []),
   ];
 
@@ -109,9 +117,10 @@ const StereoBodiesForm = forwardRef(function StereoBodiesForm({ form, body }, re
         <div className="stereo-bodies-place">
           {active > 0 && (
             <Space wrap align="center">
-              <span>Где стоит:</span>
+              <label htmlFor="stereo-body-placement">Где стоит:</label>
               <Select
-                style={{ width: 210 }}
+                id="stereo-body-placement"
+                style={{ width: 265 }}
                 value={part.placement.kind}
                 options={placementOptions}
                 onChange={(kind) => patch({ placement: kind === 'shift' ? part.placement : { kind } })}
@@ -129,13 +138,33 @@ const StereoBodiesForm = forwardRef(function StereoBodiesForm({ form, body }, re
               ))}
             </Space>
           )}
+          {fitting && (
+            fit ? (
+              <div>
+                Размеры второго тела рассчитываются по первому.
+                {fit.sizes[0].h != null && ' Высота цилиндра равна диаметру шара.'}
+                {fit.hint && ` ${fit.hint}`}
+              </div>
+            ) : (
+              <div role="alert" style={{ color: 'var(--ant-color-error, #cf1322)' }}>
+                Для этой пары вписывание недоступно. Выберите подходящие тела или ручное размещение.
+                Правильные призмы и пирамиды должны быть без наклона и срезов, конус вокруг пирамиды — вершиной вверх.
+              </div>
+            )
+          )}
           <Checkbox checked={part.frame} onChange={(e) => patch({ frame: e.target.checked })}>
             Прозрачное (каркас) — тело внутри него видно сплошными линиями
           </Checkbox>
         </div>
       )}
-      <Form form={form} layout="vertical" initialValues={parts[0].values}>
-        <StereoBodyForm form={form} initialValues={part.values} previewSpec={combined} noSpace={multi} />
+      <Form form={form} layout="vertical" initialValues={parts[0].values} clearOnDestroy>
+        <StereoBodyForm
+          form={form}
+          initialValues={part.values}
+          previewSpec={combined}
+          calculatedSizes={fit?.sizes[active]}
+          noSpace={multi}
+        />
       </Form>
     </div>
   );

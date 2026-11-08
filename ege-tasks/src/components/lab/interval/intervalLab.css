@@ -1,0 +1,48 @@
+.li-page { max-width: 1120px; margin: 0 auto; padding: 24px; color: var(--ink, #26334d); }
+.li-page h1 { font-size: 26px; margin: 8px 0 12px; }
+.li-page h2 { font-size: 19px; margin: 8px 0 16px; }
+.li-page p { line-height: 1.6; }
+.li-header { display: flex; justify-content: space-between; gap: 16px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+.li-panel { border: 1px solid var(--border, #dce2ed); border-radius: 18px; padding: 24px; background: var(--surface, #fff); margin-bottom: 20px; }
+.li-muted { color: var(--ink-3, #67748c); }
+.li-form { display: grid; gap: 18px; }
+.li-form label { display: grid; gap: 8px; font-weight: 500; }
+.li-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 20px; }
+.li-steps { display: flex; list-style: none; padding: 0; gap: 8px; flex-wrap: wrap; margin: 24px 0; }
+.li-steps li { padding: 7px 10px; background: var(--surface, #fff); border: 1px solid var(--border, #dce2ed); border-radius: 20px; font-size: 13px; }
+.li-steps li[aria-current="step"] { color: #fff; background: #4361ee; border-color: #4361ee; }
+.li-step-done { opacity: .65; }
+.li-expression { text-align: center; overflow-x: auto; padding: 12px 0; font-size: 21px; }
+.li-board-scroll { overflow-x: auto; padding: 8px 0 12px; }
+.li-board { display: grid; position: relative; min-height: 116px; padding: 0 8px 8px; min-width: min-content; }
+.li-board::before { content: ''; position: absolute; top: 66px; left: 8px; right: 6px; height: 2px; background: #8b98ae; }
+.li-board::after { content: ''; position: absolute; top: 62px; right: 0; border-left: 8px solid #8b98ae; border-top: 5px solid transparent; border-bottom: 5px solid transparent; }
+.li-gap, .li-point { position: relative; text-align: center; min-width: 0; }
+.li-gap { height: 66px; display: flex; align-items: center; justify-content: center; }
+.li-gap-shaded::before { content: ''; position: absolute; inset: 0 -18px 0; background: repeating-linear-gradient(135deg, transparent 0 5px, #5674d064 5px 7px); }
+.li-gap-shaded:first-child::before { left: 0; }
+.li-gap-shaded:last-child::before { right: 0; }
+.li-gap button { position: relative; width: 100%; }
+.li-point { z-index: 1; display: flex; flex-direction: column; align-items: center; }
+.li-point-top { height: 44px; display: grid; place-items: center; }
+.li-dot, .li-board .li-dot-button { height: 44px; display: grid; place-items: center; font-size: 22px; line-height: 1; }
+.li-board button, .li-choices button { min-height: 40px; min-width: 34px; padding: 4px; border: 1px solid #b4bfd2; border-radius: 8px; background: var(--surface, #fff); color: inherit; cursor: pointer; font-size: 16px; }
+.li-board .li-order-label { min-height: 30px; }
+.li-board button:focus-visible, .li-choices button:focus-visible { outline: 3px solid #89a2ff; outline-offset: 2px; }
+.li-board button[aria-pressed="true"] { color: #304bc1; border-color: #4361ee; font-weight: 700; }
+.li-board button:disabled, .li-choices button:disabled { cursor: default; opacity: .7; }
+.li-point b { font-size: 14px; }
+.li-mark { position: relative; font-size: 18px; font-weight: 700; }
+.li-choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.student-theme-dark .li-board button[aria-pressed="true"] { color: #b4c4ff; }
+.li-answer { padding: 12px; border-radius: 10px; background: var(--bg, #f3f5fa); overflow-wrap: anywhere; }
+.li-feedback { padding: 12px 16px; margin: 16px 0; border-radius: 10px; background: #edf6ef; color: #216239; }
+.li-feedback.is-error { background: #fff1ee; color: #a03822; }
+.li-table-scroll { overflow: auto; }
+.li-report { width: 100%; border-collapse: collapse; }
+.li-report th, .li-report td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border, #dce2ed); white-space: nowrap; }
+.li-task-details { border-top: 1px solid var(--border, #dce2ed); padding: 16px 0; }
+.li-task-details summary { cursor: pointer; }
+.li-page pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+.student-theme-dark .li-page { --ink: #e5e9f3; --ink-3: #a2acc3; --surface: #202b40; --border: #3a4661; --bg: #172035; }
+@media (max-width: 600px) { .li-page { padding: 16px 12px; } .li-panel { padding: 16px 12px; } .li-page h1 { font-size: 22px; } .li-expression { font-size: 18px; } }

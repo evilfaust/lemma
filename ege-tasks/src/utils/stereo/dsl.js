@@ -36,10 +36,23 @@ import {
   addPart, bodyParts, placementWord, PLACE_WORDS,
 } from './combo';
 
+import { BODY_DIMENSIONS, dimensionValue, dimensionLabel } from './dimensions';
+
 export { addPart };
 
 const num = (s) => Number(String(s).replace(',', '.'));
+const isDimension = (s) => Number.isFinite(dimensionValue(s));
+const looksDimension = (s) => /^(?:[+\-−\d.√π(]|sqrt|pi)/.test(s || '');
 const isNum = (s) => /^-?\d+(?:[.,]\d+)?$/.test(String(s));
+
+function normalizeBodyInput(spec) {
+  for (const key of BODY_DIMENSIONS) {
+    if (spec[key] == null) continue;
+    const value = dimensionValue(spec[key]);
+    if (!Number.isFinite(value) || (key === 'roof' || key === 'cut' ? value < 0 : value <= 0)) return null;
+  }
+  return normalizeBodySpec(spec);
+}
 
 const BODY_WORDS = {
   куб: 'cube', cube: 'cube',
@@ -117,8 +130,37 @@ export function parseVertexLabels(text) {
 export function parseBodyLine(line) {
   // Координаты своего основания — в скобках, заменяем их на метки «@0».
   const points = [];
-  const src = String(line || '').trim().replace(/\(([^()]*)\)/g, (_, inner) => ` @${points.push(inner) - 1} `);
-  const words = src.split(/\s+/).filter(Boolean);
+  // Скобки в sqrt(3) и (1+√5)/2 — часть размера, а (0 0) — координаты.
+  let depth = 0;
+  let token = '';
+  const tokens = [];
+  for (const ch of String(line || '').trim()) {
+    if (/\s/.test(ch) && depth === 0) {
+      if (token) tokens.push(token);
+      token = '';
+    } else {
+      token += ch;
+      if (ch === '(') depth += 1;
+      if (ch === ')') depth -= 1;
+      if (depth < 0) return null;
+    }
+  }
+  if (depth) return null;
+  if (token) tokens.push(token);
+  const coordinates = tokens.some((w) => ['hull', 'blocks'].includes(BODY_WORDS[w.toLowerCase()])
+    || w.toLowerCase() === 'основание' || /\d[;\s]+-?\d|\)\(/.test(w));
+  const words = tokens.flatMap((w) => {
+    if (!coordinates) return [w];
+    const namedValue = /^[a-z][a-z0-9]*=(.+)$/i.exec(w)?.[1];
+    if ((namedValue && isDimension(namedValue)) || (isDimension(w) && !/^\([^()]*\)$/.test(w))) return [w];
+    let replaced = false;
+    const coords = w.replace(/\(([^()]*)\)/g, (all, inner) => {
+      if (!(parsePoint(inner) || parsePoint3(inner) || parseBox(inner))) return all;
+      replaced = true;
+      return ` @${points.push(inner) - 1} `;
+    });
+    return replaced ? coords.trim().split(/\s+/) : [w];
+  });
   let i = 0;
   let tiltWord = false;
   let freeWord = false;
@@ -143,15 +185,17 @@ export function parseBodyLine(line) {
   // (r r2 h), «шар 2»; «с буквами» — подписать O, O1, S, A.
   if (['cylinder', 'cone', 'tcone', 'sphere'].includes(kind)) {
     const restR = words.slice(i + 1);
-    const vals = restR.filter(isNum).map(num);
-    const named = Object.fromEntries(restR.map((w) => /^(r2|r|h)=(-?\d+(?:[.,]\d+)?)$/i.exec(w)).filter(Boolean).map((mm) => [mm[1].toLowerCase(), num(mm[2])]));
+    if (restR.some((w) => looksDimension(w) && !isDimension(w))) return null;
+    const vals = restR.filter(isDimension);
+    const named = Object.fromEntries(restR.map((w) => /^(r2|r|h)=(.+)$/i.exec(w)).filter(Boolean).map((mm) => [mm[1].toLowerCase(), mm[2]]));
+    if (Object.values(named).some((v) => !isDimension(v))) return null;
     const spec = { kind };
     if (kind === 'sphere') spec.r = named.r ?? vals[0];
     else if (kind === 'tcone') { spec.r = named.r ?? vals[0]; spec.r2 = named.r2 ?? vals[1]; spec.h = named.h ?? vals[2]; }
     else { spec.r = named.r ?? vals[0]; spec.h = named.h ?? vals[1]; }
     if (restR.some((w, j) => /^букв/i.test(w) && /^с$/i.test(restR[j - 1] || ''))) spec.letters = true;
     if (kind === 'cone' && restR.some((w, j) => /^вниз$/i.test(w) && /^вершин/i.test(restR[j - 1] || ''))) spec.down = true;
-    return normalizeBodySpec(spec);
+    return normalizeBodyInput(spec);
   }
   const rest = words.slice(i + 1);
   // Многогранник по точкам: «многогранник (0 0 0) (4 0 0) …», с именами —
@@ -214,15 +258,16 @@ export function parseBodyLine(line) {
     const w = rest[j];
     const lw = w.toLowerCase();
     const next = (rest[j + 1] || '').toLowerCase();
-    const m = /^([a-z])=(-?\d+(?:[.,]\d+)?)$/i.exec(w);
+    const m = /^([a-z])=(.+)$/i.exec(w);
+    if ((m && !isDimension(m[2])) || (looksDimension(w) && !isDimension(w))) return null;
     // «с пирамидой 2» — пирамида высотой 2 сверху; «без вершин 1» — срезать
     // вершины на 1 по рёбрам; «без букв» — не подписывать вершины.
-    if ((lw === 'с' || lw === 'и') && /^пирамид/.test(next) && isNum(rest[j + 2])) { roof = num(rest[j + 2]); j += 2; continue; }
-    if (lw === 'без' && /^вершин/.test(next) && isNum(rest[j + 2])) { cut = num(rest[j + 2]); j += 2; continue; }
-    if (/^сре[зж]/.test(lw) && /^вершин/.test(next) && isNum(rest[j + 2])) { cut = num(rest[j + 2]); j += 2; continue; }
+    if ((lw === 'с' || lw === 'и') && /^пирамид/.test(next) && isDimension(rest[j + 2])) { roof = rest[j + 2]; j += 2; continue; }
+    if (lw === 'без' && /^вершин/.test(next) && isDimension(rest[j + 2])) { cut = rest[j + 2]; j += 2; continue; }
+    if (/^сре[зж]/.test(lw) && /^вершин/.test(next) && isDimension(rest[j + 2])) { cut = rest[j + 2]; j += 2; continue; }
     if (lw === 'без' && /^букв/.test(next)) { bare = true; j += 1; continue; }
-    if (m) named[m[1].toLowerCase()] = num(m[2]);
-    else if (isNum(w)) nums.push(num(w));
+    if (m) named[m[1].toLowerCase()] = m[2];
+    else if (isDimension(w)) nums.push(w);
     else if (lw === 'основание' || /^@\d+$/.test(w)) {
       const pts = [];
       let k = lw === 'основание' ? j + 1 : j;
@@ -253,10 +298,10 @@ export function parseBodyLine(line) {
     // У основания с заданным числом сторон (трапеция, прямоугольный…) n можно не писать.
     const fixedN = base && BASE_SHAPES[base]?.ns.length === 1;
     const p = fixedN && nums.length < POSITIONAL[kind] ? [null, ...nums] : nums;
-    spec.n = named.n ?? p[0];
+    spec.n = dimensionValue(named.n ?? p[0]);
     spec.a = named.a ?? p[1];
     spec.h = named.h ?? p[2];
-    if (kind === 'frustum') spec.k = named.k ?? p[3];
+    if (kind === 'frustum') spec.k = dimensionValue(named.k ?? p[3]);
     if (named.b) spec.b = named.b;
   }
   if (kind === 'tetra') { spec.a = named.a ?? nums[0]; spec.h = named.h ?? nums[1]; }
@@ -276,7 +321,7 @@ export function parseBodyLine(line) {
     const idx = over.split('').map((l) => letters.indexOf(l));
     if (idx.every((x) => x >= 0)) spec.over = idx;
   }
-  return normalizeBodySpec(spec);
+  return normalizeBodyInput(spec);
 }
 
 const fmt = (x) => String(Math.round(Number(x) * 100) / 100);
@@ -295,8 +340,8 @@ export function bodyLine(specIn) {
   const line = join(
     bodyShapeLine(s),
     s.cw ? 'по часовой' : '',
-    s.roof ? `с пирамидой ${fmt(s.roof)}` : '',
-    s.cut ? `без вершин ${fmt(s.cut)}` : '',
+    s.roof ? `с пирамидой ${dimensionLabel(s, 'roof')}` : '',
+    s.cut ? `без вершин ${dimensionLabel(s, 'cut')}` : '',
     s.bare && !s.cut ? 'без букв' : '',
   );
   return line;
@@ -307,7 +352,7 @@ function baseWord(s) {
   if (!s.base) return '';
   const word = BASE_SHAPES[s.base]?.word || '';
   const out = s.kind === 'tetra' && s.base === 'free' ? 'произвольный' : word;
-  return (s.base === 'rect' || s.base === 'parallelogram') && s.kind !== 'box' ? `${out} b=${fmt(s.b)}` : out;
+  return (s.base === 'rect' || s.base === 'parallelogram') && s.kind !== 'box' ? `${out} b=${dimensionLabel(s, 'b')}` : out;
 }
 
 function tiltWords(s) {
@@ -331,17 +376,17 @@ const join = (...parts) => parts.filter(Boolean).join(' ');
 
 function bodyShapeLine(s) {
   switch (s.kind) {
-    case 'cube': return `куб ${fmt(s.a)}`;
-    case 'box': return join(`параллелепипед ${fmt(s.a)} ${fmt(s.b)} ${fmt(s.c)}`, baseWord(s), tiltWords(s));
-    case 'prism': return join(`призма ${s.n} ${fmt(s.a)} ${fmt(s.h)}`, baseWord(s), tiltWords(s));
-    case 'pyramid': return join(`пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s));
-    case 'frustum': return join(`усечённая пирамида ${s.n} ${fmt(s.a)} ${fmt(s.h)} ${fmt(s.k)}`, baseWord(s), apexWords(s));
-    case 'octa': return `октаэдр ${fmt(s.a)}`;
+    case 'cube': return `куб ${dimensionLabel(s, 'a')}`;
+    case 'box': return join(`параллелепипед ${dimensionLabel(s, 'a')} ${dimensionLabel(s, 'b')} ${dimensionLabel(s, 'c')}`, baseWord(s), tiltWords(s));
+    case 'prism': return join(`призма ${s.n} ${dimensionLabel(s, 'a')} ${dimensionLabel(s, 'h')}`, baseWord(s), tiltWords(s));
+    case 'pyramid': return join(`пирамида ${s.n} ${dimensionLabel(s, 'a')} ${dimensionLabel(s, 'h')} ${s.apex}`, baseWord(s), apexWords(s));
+    case 'frustum': return join(`усечённая пирамида ${s.n} ${dimensionLabel(s, 'a')} ${dimensionLabel(s, 'h')} ${fmt(s.k)}`, baseWord(s), apexWords(s));
+    case 'octa': return `октаэдр ${dimensionLabel(s, 'a')}`;
     case 'space': return 'пространство';
-    case 'cylinder': return `цилиндр ${fmt(s.r)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
-    case 'cone': return `конус ${fmt(s.r)} ${fmt(s.h)}${s.down ? ' вершиной вниз' : ''}${s.letters ? ' с буквами' : ''}`;
-    case 'tcone': return `усечённый конус ${fmt(s.r)} ${fmt(s.r2)} ${fmt(s.h)}${s.letters ? ' с буквами' : ''}`;
-    case 'sphere': return `шар ${fmt(s.r)}${s.letters ? ' с буквами' : ''}`;
+    case 'cylinder': return `цилиндр ${dimensionLabel(s, 'r')} ${dimensionLabel(s, 'h')}${s.letters ? ' с буквами' : ''}`;
+    case 'cone': return `конус ${dimensionLabel(s, 'r')} ${dimensionLabel(s, 'h')}${s.down ? ' вершиной вниз' : ''}${s.letters ? ' с буквами' : ''}`;
+    case 'tcone': return `усечённый конус ${dimensionLabel(s, 'r')} ${dimensionLabel(s, 'r2')} ${dimensionLabel(s, 'h')}${s.letters ? ' с буквами' : ''}`;
+    case 'sphere': return `шар ${dimensionLabel(s, 'r')}${s.letters ? ' с буквами' : ''}`;
     case 'blocks': return join(
       `ступенчатый многогранник ${s.boxes.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}`,
       s.minus ? `минус ${s.minus.map((b) => `(${b.map(fmt).join(' ')})`).join(' ')}` : '',
@@ -349,8 +394,8 @@ function bodyShapeLine(s) {
     );
     case 'hull': return `многогранник ${s.pts.map((p, i) => `${s.labels ? s.labels[i] : ''}(${p.map(fmt).join(' ')})`).join(' ')}`;
     case 'tetra': return s.h
-      ? join(`тетраэдр ${fmt(s.a)} ${fmt(s.h)} ${s.apex}`, baseWord(s), apexWords(s))
-      : `тетраэдр ${fmt(s.a)} ${s.apex}`;
+      ? join(`тетраэдр ${dimensionLabel(s, 'a')} ${dimensionLabel(s, 'h')} ${s.apex}`, baseWord(s), apexWords(s))
+      : `тетраэдр ${dimensionLabel(s, 'a')} ${s.apex}`;
     default: return 'куб 4';
   }
 }
@@ -425,7 +470,12 @@ export function parseStereoBlock(text) {
       const { spec: part, placement, frame } = parsePartLine(more[1]);
       if (!part) { errors.push({ line: lineNo, message: 'Не понял тело: «и шар 2», «и конус 2 4 справа»' }); return; }
       if (scene.ops.length) { errors.push({ line: lineNo, message: 'Тела — в начале, до построений' }); return; }
-      scene = { ...scene, body: addPart(firstFrame || scene.body, part, placement, frame) };
+      const body = addPart(firstFrame || scene.body, part, placement, frame);
+      if (!body) {
+        errors.push({ line: lineNo, message: 'Вписывание и описывание доступны для второго тела и поддерживаемых пар' });
+        return;
+      }
+      scene = { ...scene, body };
       firstFrame = null;
       return;
     }

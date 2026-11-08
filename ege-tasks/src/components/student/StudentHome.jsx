@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Button, Dropdown } from 'antd';
 import {
-  CheckCircleFilled, ClockCircleOutlined, DownloadOutlined, FileTextOutlined, LinkOutlined,
+  CheckCircleFilled, ClockCircleOutlined, DownloadOutlined, FileTextOutlined,
   LockOutlined, LogoutOutlined, MobileOutlined, MoonOutlined, PlayCircleOutlined, ReadOutlined, RightOutlined,
   SunOutlined, CalendarOutlined, VideoCameraOutlined, FundProjectionScreenOutlined,
 } from '@ant-design/icons';
@@ -11,11 +11,12 @@ import { addressOf } from '../../utils/studentAddress';
 import { retakeLabel } from '../../utils/attemptRetake';
 import {
   currentLesson, nextLesson, lessonTimeLabel, untilLabel, unfinishedAttempts, recentResults, retakeOffers,
-  todoList, todayLabel, relDayLabel,
+  todoList, todayLabel, relDayLabel, assignedGroupTests,
 } from '../../utils/studentHome';
 import { useStereoFeed, LiveRoomCards, TeacherMaterials, hasTeacherMaterials } from './StudentStereoFeed';
 import { InstallAppCard, useInstallAction } from '../../student/pwa/InstallApp';
 import './studentHome.css';
+import StudentIntervalFeed from '../lab/interval/StudentIntervalFeed';
 
 // Формулы в тексте задания — отдельным чанком (v3.9.374): ради одного
 // описания главная тянула markdown, KaTeX и движки чертежей (~250 КБ сжатых).
@@ -25,7 +26,7 @@ const MathRenderer = lazy(() => import('../MathRenderer'));
 /**
  * Главная вошедшего ученика (v3.9.316) — лента «что делать», блоки по
  * срочности: Сейчас (эфир, недорешённый тест, идущий урок) → Сделать (ДЗ) →
- * Ближайший урок → От учителя → Последние результаты → код теста.
+ * Ближайший урок → От учителя → Последние результаты.
  * Пустые блоки не показываются. Раскладка данных — `utils/studentHome.js`.
  */
 
@@ -126,39 +127,10 @@ function ResultRow({ r }) {
   );
 }
 
-function CodeEntry() {
-  const [code, setCode] = useState('');
-  const open = () => {
-    const c = code.trim();
-    if (c) window.location.href = `/student/${encodeURIComponent(c)}`;
-  };
-  return (
-    <div className="sh-code">
-      <div className="sh-code-label">Есть код теста от учителя?</div>
-      <div className="sh-code-row">
-        <input
-          type="text"
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') open(); }}
-          placeholder="Код с доски"
-          className="sh-code-input"
-          autoCapitalize="off"
-          autoCorrect="off"
-          autoComplete="off"
-          aria-label="Код теста"
-        />
-        <Button type="primary" icon={<LinkOutlined />} onClick={open} disabled={!code.trim()} className="sh-btn">
-          Открыть
-        </Button>
-      </div>
-    </div>
-  );
-}
-
 export default function StudentHome({ student, isDark, onToggleTheme, onLogout, onChangePassword, go, hasSummer }) {
   const [lessonsData, setLessonsData] = useState(undefined); // undefined — грузим, null — недоступно
   const [attempts, setAttempts] = useState(undefined);
+  const [hasLabIntervals, setHasLabIntervals] = useState(false);
   const [now, setNow] = useState(() => dayjs());
   const feed = useStereoFeed();
   const install = useInstallAction();
@@ -191,7 +163,9 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
   const nowLesson = useMemo(() => currentLesson(lessons, now), [lessons, now]);
   const upcoming = useMemo(() => nextLesson(lessons, now), [lessons, now]);
   const todos = useMemo(() => todoList(lessons, attempts || [], now), [lessons, attempts, now]);
-  const unfinished = useMemo(() => unfinishedAttempts(attempts || [], now), [attempts, now]);
+  const assigned = useMemo(() => assignedGroupTests(feed?.tests || [], now), [feed, now]);
+  const assignedIds = useMemo(() => new Set(assigned.map((s) => s.id)), [assigned]);
+  const unfinished = useMemo(() => unfinishedAttempts(attempts || [], now).filter((s) => !assignedIds.has(s.sessionId)), [attempts, now, assignedIds]);
   const results = useMemo(() => recentResults(attempts || []), [attempts]);
   const retakes = useMemo(() => retakeOffers(attempts || [], now), [attempts, now]);
 
@@ -206,7 +180,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
   const shownTodos = todos.slice(0, TODO_SHOW);
   const hiddenTodos = todos.length - shownTodos.length;
   const nothing = !loading && !hasNow && !groups.length && !results.length
-    && !hasTeacherMaterials(feed) && !hasSummer;
+    && !hasTeacherMaterials(feed) && !hasSummer && !assigned.length && !hasLabIntervals;
 
   const menu = {
     items: [
@@ -251,6 +225,7 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
       </header>
 
       <InstallAppCard />
+      <StudentIntervalFeed key={student.id} studentId={student.id} onPresence={setHasLabIntervals} />
 
       {/* Пока едут уроки и попытки, лента пуста — без крутилки казалось, что
           у ученика ничего нет или приложение зависло (v3.9.373). */}
@@ -307,6 +282,24 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
                 </div>
                 <span className="sh-now-go">Пересдать <RightOutlined /></span>
               </a>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {assigned.length > 0 && (
+        <Section title={`Тесты от учителя · ${assigned.length}`}>
+          <div className="sh-card sh-list">
+            {assigned.map((test) => (
+              <div key={test.id} className="sh-todo">
+                <div className="sh-todo-icon"><PlayCircleOutlined /></div>
+                <div className="sh-todo-main">
+                  <div className="sh-todo-title">{test.title}</div>
+                  <div className={`sh-todo-due${test.overdue ? ' sh-assigned-overdue' : ''}`}>{test.dueLabel}</div>
+                  {test.status === 'started' && <div className="sh-todo-due">Начат, ответы ещё не отправлены</div>}
+                </div>
+                <Button size="small" type="primary" className="sh-btn" href={`/student/${test.id}`}>{test.action}</Button>
+              </div>
             ))}
           </div>
         </Section>
@@ -385,12 +378,11 @@ export default function StudentHome({ student, isDark, onToggleTheme, onLogout, 
           <div className="sh-welcome-title">Пока здесь пусто</div>
           <div className="sh-welcome-text">
             Здесь появятся домашние задания, ближайшие уроки и результаты тестов,
-            когда учитель откроет их твоему классу. А тест по коду можно открыть ниже.
+            когда учитель откроет их твоему классу.
           </div>
         </div>
       )}
 
-      <CodeEntry />
       {install.modal}
     </div>
   );

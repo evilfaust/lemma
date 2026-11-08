@@ -29,6 +29,7 @@ import {
 // статическими импортами — они нужны на каждом экране.
 const TaskList = lazy(() => import('./components/TaskList'));
 const TodayDashboard = lazy(() => import('./components/workspace/TodayDashboard'));
+const AssignmentPage = lazy(() => import('./components/workspace/AssignmentPage'));
 const GroupManager = lazy(() => import('./components/workspace/GroupManager'));
 const GroupDetail = lazy(() => import('./components/workspace/GroupDetail'));
 const GradeJournal = lazy(() => import('./components/workspace/GradeJournal'));
@@ -115,6 +116,7 @@ const LinearSystemsGenerator = lazy(() => import('./components/LinearSystemsGene
 const QuadraticSystemsGenerator = lazy(() => import('./components/QuadraticSystemsGenerator'));
 const DoubleInequalitiesGenerator = lazy(() => import('./components/DoubleInequalitiesGenerator'));
 const IntervalMethodGenerator = lazy(() => import('./components/IntervalMethodGenerator'));
+const IntervalLab = lazy(() => import('./components/lab/interval/IntervalLab'));
 const GraphTasksGenerator = lazy(() => import('./components/functions/GraphTasksGenerator'));
 const DerivativesGenerator = lazy(() => import('./components/functions/DerivativesGenerator'));
 const ChartTasksGenerator = lazy(() => import('./components/functions/ChartTasksGenerator'));
@@ -149,6 +151,7 @@ const SIDER_COLLAPSED_KEY = 'lemma-sider-collapsed';
 export const R = {
   // Моё пространство (учительское фло)
   TODAY:               '/app/today',
+  ASSIGNMENT:          '/app/today/assignments/:sessionId',
   GROUPS:              '/app/groups',
   GROUP_ROLLOVER:      '/app/groups/rollover',
   GROUP_DETAIL:        '/app/groups/:groupId',
@@ -263,6 +266,7 @@ export const R = {
   LISTOK_EDIT:         '/app/listki/:sheetId/edit',
   // Лаборатория
   EXCALIDRAW:          '/app/lab/excalidraw',
+  INTERVAL_LAB:        '/app/lab/intervals',
   // Администрирование
   ADMIN_USERS:         '/app/admin/users',
   ADMIN_AUDIT:         '/app/admin/audit',
@@ -281,6 +285,7 @@ export function route(template, params) {
 const ROUTE_META = [
   // Моё пространство (учительское фло)
   { re: /^\/app\/today$/,         menuKey: 'today', menuGroup: 'workspace-group', title: 'Сегодня' },
+  { re: /^\/app\/today\/assignments\/[^/]+$/, menuKey: 'today', menuGroup: 'workspace-group', title: 'Выданная работа' },
   { re: /^\/app\/groups\/rollover$/, menuKey: 'groups', menuGroup: 'workspace-group', title: 'Новый учебный год' },
   { re: /^\/app\/groups\/[^/]+$/, menuKey: 'groups', menuGroup: 'workspace-group', title: 'Группа' },
   { re: /^\/app\/groups$/,        menuKey: 'groups', menuGroup: 'workspace-group', title: 'Классы и группы' },
@@ -386,6 +391,7 @@ const ROUTE_META = [
   { re: /^\/app\/listki\/[^/]+\/edit$/,    menuKey: 'listki', menuGroup: 'listki', title: 'Листки — Редактор' },
   { re: /^\/app\/listki\/[^/]+$/,          menuKey: 'listki', menuGroup: 'listki', title: 'Листки — Просмотр' },
   { re: /^\/app\/listki$/,                 menuKey: 'listki', menuGroup: 'listki', title: 'Листки' },
+  { re: /^\/app\/lab\/intervals/, menuKey: 'interval-lab', menuGroup: 'lab', title: 'Лаборатория — Метод интервалов' },
   { re: /^\/app\/lab\/excalidraw/,         menuKey: 'excalidraw',       menuGroup: 'lab', title: 'Excalidraw', noMargin: true },
   { re: /^\/app\/admin\/users/,            menuKey: 'admin-users',      menuGroup: 'admin-group', title: 'Управление пользователями' },
   { re: /^\/app\/admin\/audit/,            menuKey: 'admin-audit',      menuGroup: 'admin-group', title: 'Журнал действий' },
@@ -480,6 +486,7 @@ const MENU_KEY_PATH = {
   'theory-categories':      R.THEORY_CATEGORIES,
   'listki':                 R.LISTKI,
   excalidraw:               R.EXCALIDRAW,
+  'interval-lab':           R.INTERVAL_LAB,
   'admin-users':            R.ADMIN_USERS,
   'admin-audit':            R.ADMIN_AUDIT,
 };
@@ -863,6 +870,7 @@ function AppLayout() {
     {
       key: 'lab', icon: <EditOutlined />, label: 'Лаборатория', section: 'lab',
       children: [
+        { key: 'interval-lab', icon: <ExperimentOutlined />, label: 'Метод интервалов · эксперимент', editOnly: true },
         { key: 'excalidraw', icon: <EditOutlined />, label: 'Excalidraw' },
       ],
     },
@@ -1070,6 +1078,7 @@ function App() {
             <Route element={<AppLayout />}>
               {/* Моё пространство (учительское фло) */}
               <Route path={R.TODAY}         element={<TodayDashboard />} />
+              <Route path={R.ASSIGNMENT}    element={<AssignmentPage />} />
               <Route path={R.GROUPS}        element={<GroupManager />} />
               <Route path={R.GROUP_DETAIL}  element={<GroupDetail />} />
               <Route path={R.JOURNAL}       element={<GradeJournal />} />
@@ -1180,6 +1189,9 @@ function App() {
               <Route path={R.LISTOK_VIEW} element={<ListokView />} />
 
               {/* Лаборатория */}
+              <Route element={<ProtectedRoute requireSection="lab" requireEdit />}>
+                <Route path={R.INTERVAL_LAB} element={<IntervalLab />} />
+              </Route>
               <Route path={R.EXCALIDRAW} element={
                 <Suspense fallback={<LazyFallback />}>
                   <ExcalidrawSection />

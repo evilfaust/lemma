@@ -265,13 +265,12 @@
 
 /* ── Требует внимания ── */
 .td-att { display: flex; align-items: center; gap: 10px; padding: 9px; border-radius: 9px; cursor: pointer; transition: background 0.15s ease; }
-.td-att:hover { background: var(--bg-hover); }
+.td-att:hover, .td-att:focus-visible { background: var(--bg-hover); }
 .td-att__bar { flex-shrink: 0; width: 4px; align-self: stretch; border-radius: 999px; }
 .td-att__main { flex: 1; min-width: 0; }
 .td-att__toprow { display: flex; align-items: center; gap: 7px; }
 .td-att__title { font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .td-att__sub { font-size: 12px; color: var(--ink-4); margin-top: 2px; }
-.td-att__when { flex-shrink: 0; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 999px; }
 
 /* ── Заметки ── */
 .td-note { display: flex; align-items: center; gap: 10px; padding: 9px; border-radius: 9px; cursor: pointer; transition: background 0.15s ease; }

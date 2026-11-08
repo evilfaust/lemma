@@ -28,7 +28,7 @@ const TYPE_CHIP = {
  * урок · дедлайн · дело. Правка/удаление — через колбэки оркестратора.
  */
 export default function EventInspector({
-  event, onClose, onEdit, onDelete, onToggleTodo, onToggleLessonDone, onOpenWork, onOpenNote,
+  event, onClose, onEdit, onDelete, onToggleTodo, onToggleLessonDone, onOpenWork, onOpenAssignment, onOpenNote,
   canEdit, canDelete, myTeacherId = '',
 }) {
   const open = !!event;
@@ -220,8 +220,9 @@ export default function EventInspector({
                     <div><ClockCircleOutlined /> Срок: {dayjs(s.deadline).format('D MMMM YYYY, HH:mm')}</div>
                   </div>
                   <div className="ci-actions">
+                    <Button type="primary" onClick={() => onOpenAssignment(s.id)}>Открыть выдачу</Button>
                     {s.work && (
-                      <Button type="primary" onClick={() => onOpenWork(s.work)}>Открыть работу</Button>
+                      <Button onClick={() => onOpenWork(s.work)}>Открыть работу</Button>
                     )}
                   </div>
                 </div>
